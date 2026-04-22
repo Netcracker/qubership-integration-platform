@@ -28,13 +28,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.qubership.integration.platform.engine.camel.metadata.Metadata;
-import org.qubership.integration.platform.engine.camel.metadata.MetadataService;
-import org.qubership.integration.platform.engine.camel.repository.RegistryHelper;
+import org.qubership.integration.platform.engine.metadata.util.BeanNotFoundException;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
-
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -67,9 +63,6 @@ class GrpcProcessorUtilsTest {
         CamelContext camelContext = mock(CamelContext.class);
         Route route = mock(Route.class);
         Registry registry = mock(Registry.class);
-        MetadataService metadataService = mock(MetadataService.class);
-        Metadata metadata = mock(Metadata.class);
-        Registry runtimeRegistry = mock(Registry.class);
         ClassResolver classResolver = mock(ClassResolver.class);
 
         when(exchange.getProperty(CamelConstants.Properties.GRPC_SERVICE_NAME, String.class)).thenReturn("org.example.DummyService");
@@ -78,15 +71,11 @@ class GrpcProcessorUtilsTest {
         when(exchange.getFromRouteId()).thenReturn("r1");
         when(camelContext.getRoute("r1")).thenReturn(route);
         when(camelContext.getRegistry()).thenReturn(registry);
-        when(registry.findSingleByType(MetadataService.class)).thenReturn(metadataService);
-        when(metadataService.getMetadata(route)).thenReturn(Optional.of(metadata));
-        when(metadata.getDeploymentId()).thenReturn("dep-1");
-        when(runtimeRegistry.findSingleByType(ClassResolver.class)).thenReturn(classResolver);
+        when(route.getGroup()).thenReturn("group-1");
+        when(route.getCamelContext()).thenReturn(camelContext);
+        when(registry.lookupByNameAndType("ClassResolver-group-1", ClassResolver.class)).thenReturn(classResolver);
 
-        try (MockedStatic<RegistryHelper> regStatic = mockStatic(RegistryHelper.class);
-             MockedStatic<GrpcUtils> grpcStatic = mockStatic(GrpcUtils.class)) {
-            regStatic.when(() -> RegistryHelper.getRegistry(camelContext, "dep-1")).thenReturn(runtimeRegistry);
-
+        try (MockedStatic<GrpcUtils> grpcStatic = mockStatic(GrpcUtils.class)) {
             grpcStatic.when(() -> GrpcUtils.extractServiceName("org.example.DummyService")).thenReturn("DummyService");
             grpcStatic.when(() -> GrpcUtils.extractServicePackage("org.example.DummyService")).thenReturn("org.example");
             grpcStatic.when(() -> GrpcUtils.convertMethod2CamelCase("my_method")).thenReturn("myCamelCaseMethod");
@@ -104,9 +93,6 @@ class GrpcProcessorUtilsTest {
         CamelContext camelContext = mock(CamelContext.class);
         Route route = mock(Route.class);
         Registry registry = mock(Registry.class);
-        MetadataService metadataService = mock(MetadataService.class);
-        Metadata metadata = mock(Metadata.class);
-        Registry runtimeRegistry = mock(Registry.class);
         ClassResolver classResolver = mock(ClassResolver.class);
 
         when(exchange.getProperty(CamelConstants.Properties.GRPC_SERVICE_NAME, String.class)).thenReturn("org.example.DummyService");
@@ -115,15 +101,11 @@ class GrpcProcessorUtilsTest {
         when(exchange.getFromRouteId()).thenReturn("r1");
         when(camelContext.getRoute("r1")).thenReturn(route);
         when(camelContext.getRegistry()).thenReturn(registry);
-        when(registry.findSingleByType(MetadataService.class)).thenReturn(metadataService);
-        when(metadataService.getMetadata(route)).thenReturn(Optional.of(metadata));
-        when(metadata.getDeploymentId()).thenReturn("dep-1");
-        when(runtimeRegistry.findSingleByType(ClassResolver.class)).thenReturn(classResolver);
+        when(route.getGroup()).thenReturn("group-1");
+        when(route.getCamelContext()).thenReturn(camelContext);
+        when(registry.lookupByNameAndType("ClassResolver-group-1", ClassResolver.class)).thenReturn(classResolver);
 
-        try (MockedStatic<RegistryHelper> regStatic = mockStatic(RegistryHelper.class);
-             MockedStatic<GrpcUtils> grpcStatic = mockStatic(GrpcUtils.class)) {
-            regStatic.when(() -> RegistryHelper.getRegistry(camelContext, "dep-1")).thenReturn(runtimeRegistry);
-
+        try (MockedStatic<GrpcUtils> grpcStatic = mockStatic(GrpcUtils.class)) {
             grpcStatic.when(() -> GrpcUtils.extractServiceName("org.example.DummyService")).thenReturn("DummyService");
             grpcStatic.when(() -> GrpcUtils.extractServicePackage("org.example.DummyService")).thenReturn("org.example");
             grpcStatic.when(() -> GrpcUtils.convertMethod2CamelCase("my_method")).thenReturn("myCamelCaseMethod");
@@ -141,9 +123,6 @@ class GrpcProcessorUtilsTest {
         CamelContext camelContext = mock(CamelContext.class);
         Route route = mock(Route.class);
         Registry registry = mock(Registry.class);
-        MetadataService metadataService = mock(MetadataService.class);
-        Metadata metadata = mock(Metadata.class);
-        Registry runtimeRegistry = mock(Registry.class);
         ClassResolver classResolver = mock(ClassResolver.class);
 
         when(exchange.getProperty(CamelConstants.Properties.GRPC_SERVICE_NAME, String.class)).thenReturn("org.example.DummyService");
@@ -152,15 +131,11 @@ class GrpcProcessorUtilsTest {
         when(exchange.getFromRouteId()).thenReturn("r1");
         when(camelContext.getRoute("r1")).thenReturn(route);
         when(camelContext.getRegistry()).thenReturn(registry);
-        when(registry.findSingleByType(MetadataService.class)).thenReturn(metadataService);
-        when(metadataService.getMetadata(route)).thenReturn(Optional.of(metadata));
-        when(metadata.getDeploymentId()).thenReturn("dep-1");
-        when(runtimeRegistry.findSingleByType(ClassResolver.class)).thenReturn(classResolver);
+        when(route.getGroup()).thenReturn("group-1");
+        when(route.getCamelContext()).thenReturn(camelContext);
+        when(registry.lookupByNameAndType("ClassResolver-group-1", ClassResolver.class)).thenReturn(classResolver);
 
-        try (MockedStatic<RegistryHelper> regStatic = mockStatic(RegistryHelper.class);
-             MockedStatic<GrpcUtils> grpcStatic = mockStatic(GrpcUtils.class)) {
-            regStatic.when(() -> RegistryHelper.getRegistry(camelContext, "dep-1")).thenReturn(runtimeRegistry);
-
+        try (MockedStatic<GrpcUtils> grpcStatic = mockStatic(GrpcUtils.class)) {
             grpcStatic.when(() -> GrpcUtils.extractServiceName("org.example.DummyService")).thenReturn("DummyService");
             grpcStatic.when(() -> GrpcUtils.extractServicePackage("org.example.DummyService")).thenReturn("org.example");
             grpcStatic.when(() -> GrpcUtils.convertMethod2CamelCase("my_method")).thenReturn("myCamelCaseMethod");
@@ -178,7 +153,6 @@ class GrpcProcessorUtilsTest {
         CamelContext camelContext = mock(CamelContext.class);
         Route route = mock(Route.class);
         Registry registry = mock(Registry.class);
-        MetadataService metadataService = mock(MetadataService.class);
 
         when(exchange.getProperty(CamelConstants.Properties.GRPC_SERVICE_NAME, String.class)).thenReturn("org.example.DummyService");
         when(exchange.getProperty(CamelConstants.Properties.GRPC_METHOD_NAME, String.class)).thenReturn("my_method");
@@ -186,10 +160,11 @@ class GrpcProcessorUtilsTest {
         when(exchange.getFromRouteId()).thenReturn("r1");
         when(camelContext.getRoute("r1")).thenReturn(route);
         when(camelContext.getRegistry()).thenReturn(registry);
-        when(registry.findSingleByType(MetadataService.class)).thenReturn(metadataService);
-        when(metadataService.getMetadata(route)).thenReturn(Optional.empty());
+        when(route.getGroup()).thenReturn("group-1");
+        when(route.getCamelContext()).thenReturn(camelContext);
+        when(registry.lookupByNameAndType("ClassResolver-group-1", ClassResolver.class)).thenReturn(null);
 
-        Exception ex = assertThrows(Exception.class, () -> GrpcProcessorUtils.getRequestClass(exchange));
-        assertEquals("Failed to get deployment ID", ex.getMessage());
+        BeanNotFoundException ex = assertThrows(BeanNotFoundException.class, () -> GrpcProcessorUtils.getRequestClass(exchange));
+        assertEquals("ClassResolver-group-1", ex.getBeanName());
     }
 }

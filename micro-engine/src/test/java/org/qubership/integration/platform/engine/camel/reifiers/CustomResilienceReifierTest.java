@@ -7,18 +7,19 @@ import org.apache.camel.CamelContext;
 import org.apache.camel.Route;
 import org.apache.camel.component.resilience4j.ResilienceProcessor;
 import org.apache.camel.model.CircuitBreakerDefinition;
+import org.apache.camel.spi.Registry;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.qubership.integration.platform.engine.camel.metadata.Metadata;
+import org.qubership.integration.platform.engine.metadata.ChainInfo;
+import org.qubership.integration.platform.engine.metadata.DeploymentInfo;
+import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
 import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
-import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
+import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePropertiesService;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import java.lang.reflect.Method;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -26,12 +27,10 @@ import java.util.function.Predicate;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.qubership.integration.platform.engine.model.constants.CamelConstants.ROUTE_METADATA_KEY;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
@@ -42,11 +41,19 @@ class CustomResilienceReifierTest {
         ResilienceProcessor processor = mock(ResilienceProcessor.class);
         CamelContext camelContext = mock(CamelContext.class);
         Route route = mock(Route.class);
+        Registry registry = mock(Registry.class);
+        DeploymentInfo deploymentInfo = DeploymentInfo.builder()
+                .chain(ChainInfo.builder().id("chain-1").build())
+                .build();
 
         when(processor.getCamelContext()).thenReturn(camelContext);
         when(processor.getRouteId()).thenReturn("route-1");
         when(camelContext.getRoute("route-1")).thenReturn(route);
-        when(route.getProperties()).thenReturn(Map.of());
+        when(route.getGroup()).thenReturn("group-1");
+        when(route.getCamelContext()).thenReturn(camelContext);
+        when(camelContext.getRegistry()).thenReturn(registry);
+        when(registry.lookupByNameAndType("DeploymentInfo-group-1", DeploymentInfo.class)).thenReturn(deploymentInfo);
+        when(registry.findSingleByType(ChainRuntimePropertiesService.class)).thenReturn(null);
 
         LogLoggingLevel result = invokeGetLoggingLevel(processor);
 
@@ -58,21 +65,23 @@ class CustomResilienceReifierTest {
         ResilienceProcessor processor = mock(ResilienceProcessor.class);
         CamelContext camelContext = mock(CamelContext.class);
         Route route = mock(Route.class);
-        Metadata metadata = mock(Metadata.class);
-        CamelDebugger debugger = mock(CamelDebugger.class, RETURNS_DEEP_STUBS);
-
-        Map<String, Object> properties = new HashMap<>();
-        properties.put(ROUTE_METADATA_KEY, metadata);
+        Registry registry = mock(Registry.class);
+        ChainRuntimePropertiesService chainRuntimePropertiesService = mock(ChainRuntimePropertiesService.class);
+        ChainRuntimeProperties chainRuntimeProperties = mock(ChainRuntimeProperties.class);
+        DeploymentInfo deploymentInfo = DeploymentInfo.builder()
+                .chain(ChainInfo.builder().id("chain-1").build())
+                .build();
 
         when(processor.getCamelContext()).thenReturn(camelContext);
         when(processor.getRouteId()).thenReturn("route-1");
         when(camelContext.getRoute("route-1")).thenReturn(route);
-        when(route.getProperties()).thenReturn(properties);
-        when(metadata.getDeploymentId()).thenReturn("deployment-1");
-        when(camelContext.getDebugger()).thenReturn(debugger);
-        when(debugger.getRelatedProperties("deployment-1")
-                .getActualRuntimeProperties()
-                .getLogLoggingLevel()).thenReturn(LogLoggingLevel.INFO);
+        when(route.getGroup()).thenReturn("group-1");
+        when(route.getCamelContext()).thenReturn(camelContext);
+        when(camelContext.getRegistry()).thenReturn(registry);
+        when(registry.lookupByNameAndType("DeploymentInfo-group-1", DeploymentInfo.class)).thenReturn(deploymentInfo);
+        when(registry.findSingleByType(ChainRuntimePropertiesService.class)).thenReturn(chainRuntimePropertiesService);
+        when(chainRuntimePropertiesService.getActualProperties("chain-1")).thenReturn(chainRuntimeProperties);
+        when(chainRuntimeProperties.getLogLoggingLevel()).thenReturn(LogLoggingLevel.INFO);
 
         LogLoggingLevel result = invokeGetLoggingLevel(processor);
 
@@ -144,21 +153,23 @@ class CustomResilienceReifierTest {
         ResilienceProcessor processor = mock(ResilienceProcessor.class);
         CamelContext camelContext = mock(CamelContext.class);
         Route route = mock(Route.class);
-        Metadata metadata = mock(Metadata.class);
-        CamelDebugger debugger = mock(CamelDebugger.class, RETURNS_DEEP_STUBS);
-
-        Map<String, Object> properties = new HashMap<>();
-        properties.put(ROUTE_METADATA_KEY, metadata);
+        Registry registry = mock(Registry.class);
+        ChainRuntimePropertiesService chainRuntimePropertiesService = mock(ChainRuntimePropertiesService.class);
+        ChainRuntimeProperties chainRuntimeProperties = mock(ChainRuntimeProperties.class);
+        DeploymentInfo deploymentInfo = DeploymentInfo.builder()
+                .chain(ChainInfo.builder().id("chain-1").build())
+                .build();
 
         when(processor.getCamelContext()).thenReturn(camelContext);
         when(processor.getRouteId()).thenReturn("route-1");
         when(camelContext.getRoute("route-1")).thenReturn(route);
-        when(route.getProperties()).thenReturn(properties);
-        when(metadata.getDeploymentId()).thenReturn("deployment-1");
-        when(camelContext.getDebugger()).thenReturn(debugger);
-        when(debugger.getRelatedProperties("deployment-1")
-                .getActualRuntimeProperties()
-                .getLogLoggingLevel()).thenReturn(level);
+        when(route.getGroup()).thenReturn("group-1");
+        when(route.getCamelContext()).thenReturn(camelContext);
+        when(camelContext.getRegistry()).thenReturn(registry);
+        when(registry.lookupByNameAndType("DeploymentInfo-group-1", DeploymentInfo.class)).thenReturn(deploymentInfo);
+        when(registry.findSingleByType(ChainRuntimePropertiesService.class)).thenReturn(chainRuntimePropertiesService);
+        when(chainRuntimePropertiesService.getActualProperties("chain-1")).thenReturn(chainRuntimeProperties);
+        when(chainRuntimeProperties.getLogLoggingLevel()).thenReturn(level);
 
         return processor;
     }

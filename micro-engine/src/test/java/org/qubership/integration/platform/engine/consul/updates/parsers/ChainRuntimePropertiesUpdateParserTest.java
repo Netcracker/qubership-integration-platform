@@ -9,7 +9,7 @@ import io.vertx.ext.consul.KeyValue;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.engine.model.deployment.properties.DeploymentRuntimeProperties;
+import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
 import org.qubership.integration.platform.engine.service.debugger.RuntimePropertiesException;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
@@ -49,19 +49,19 @@ class ChainRuntimePropertiesUpdateParserTest {
                 "{\"dptEventsEnabled\":true}"
         );
 
-        DeploymentRuntimeProperties firstProperties = DeploymentRuntimeProperties.builder()
+        ChainRuntimeProperties firstProperties = ChainRuntimeProperties.builder()
                 .maskingEnabled(true)
                 .build();
-        DeploymentRuntimeProperties secondProperties = DeploymentRuntimeProperties.builder()
+        ChainRuntimeProperties secondProperties = ChainRuntimeProperties.builder()
                 .dptEventsEnabled(true)
                 .build();
 
-        when(objectMapper.readValue(firstEntry.getValue(), DeploymentRuntimeProperties.class))
+        when(objectMapper.readValue(firstEntry.getValue(), ChainRuntimeProperties.class))
                 .thenReturn(firstProperties);
-        when(objectMapper.readValue(secondEntry.getValue(), DeploymentRuntimeProperties.class))
+        when(objectMapper.readValue(secondEntry.getValue(), ChainRuntimeProperties.class))
                 .thenReturn(secondProperties);
 
-        Map<String, DeploymentRuntimeProperties> result = parser.apply(List.of(firstEntry, secondEntry));
+        Map<String, ChainRuntimeProperties> result = parser.apply(List.of(firstEntry, secondEntry));
 
         assertEquals(2, result.size());
         assertSame(firstProperties, result.get("e3f499f4-d36f-4984-b7d1-a76ed6879eeb"));
@@ -98,13 +98,13 @@ class ChainRuntimePropertiesUpdateParserTest {
                 "{\"maskingEnabled\":false}"
         );
 
-        DeploymentRuntimeProperties validProperties = DeploymentRuntimeProperties.builder()
+        ChainRuntimeProperties validProperties = ChainRuntimeProperties.builder()
                 .maskingEnabled(false)
                 .build();
 
-        when(objectMapper.readValue(invalidEntry.getValue(), DeploymentRuntimeProperties.class))
+        when(objectMapper.readValue(invalidEntry.getValue(), ChainRuntimeProperties.class))
                 .thenThrow(new IllegalArgumentException("Invalid json"));
-        when(objectMapper.readValue(validEntry.getValue(), DeploymentRuntimeProperties.class))
+        when(objectMapper.readValue(validEntry.getValue(), ChainRuntimeProperties.class))
                 .thenReturn(validProperties);
 
         RuntimePropertiesException exception = assertThrows(
@@ -120,7 +120,7 @@ class ChainRuntimePropertiesUpdateParserTest {
 
     @Test
     void shouldReturnEmptyMapWhenEntriesEmpty() {
-        Map<String, DeploymentRuntimeProperties> result = parser.apply(List.of());
+        Map<String, ChainRuntimeProperties> result = parser.apply(List.of());
 
         assertTrue(result.isEmpty());
         verifyNoInteractions(objectMapper);

@@ -21,8 +21,6 @@ import org.apache.camel.ExchangePropertyKey;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
-import org.qubership.integration.platform.engine.model.logging.LogPayload;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.qubership.integration.platform.engine.testutils.MockExchanges;
@@ -64,7 +62,7 @@ class DebuggerUtilsTest {
 
     @Test
     void shouldReturnEmptyElementIdWhenSeparatorAbsent() {
-        assertEquals("", DebuggerUtils.getStepChainElementId("no-separator-here"));
+        assertEquals("no-separator-here", DebuggerUtils.getStepChainElementId("no-separator-here"));
     }
 
     @Test
@@ -145,77 +143,6 @@ class DebuggerUtilsTest {
         assertFalse(child1.getProperty(CamelConstants.Properties.STEPS, Deque.class).contains("B"));
         assertFalse(child2.getProperty(CamelConstants.Properties.STEPS, Deque.class).contains("B"));
         assertTrue(child1.getProperty(CamelConstants.Properties.STEPS, Deque.class).contains("A"));
-    }
-
-    @Test
-    void shouldChooseBodyWhenExplicitLogPayloadContainsBody() {
-        Exchange ex = mockExchange();
-        CamelDebuggerProperties dbg = mock(CamelDebuggerProperties.class, RETURNS_DEEP_STUBS);
-        when(dbg.getRuntimeProperties(ex).getLogPayload()).thenReturn(EnumSet.of(LogPayload.BODY));
-        String body = "payload";
-        assertEquals(body, DebuggerUtils.chooseLogPayload(ex, body, dbg));
-    }
-
-    @Test
-    void shouldHideBodyWhenExplicitLogPayloadExcludesBody() {
-        Exchange ex = mockExchange();
-        CamelDebuggerProperties dbg = mock(CamelDebuggerProperties.class, RETURNS_DEEP_STUBS);
-        when(dbg.getRuntimeProperties(ex).getLogPayload()).thenReturn(EnumSet.noneOf(LogPayload.class));
-        String body = "payload";
-        assertEquals("<body not logged>", DebuggerUtils.chooseLogPayload(ex, body, dbg));
-    }
-
-    @Test
-    void shouldRespectLegacyFlagWhenLogPayloadIsNull() {
-        Exchange ex = mockExchange();
-        CamelDebuggerProperties dbg = mock(CamelDebuggerProperties.class, RETURNS_DEEP_STUBS);
-        when(dbg.getRuntimeProperties(ex).getLogPayload()).thenReturn(null);
-
-        when(dbg.getRuntimeProperties(ex).isLogPayloadEnabled()).thenReturn(true);
-        assertEquals("payload", DebuggerUtils.chooseLogPayload(ex, "payload", dbg));
-
-        when(dbg.getRuntimeProperties(ex).isLogPayloadEnabled()).thenReturn(false);
-        assertEquals("<body not logged>", DebuggerUtils.chooseLogPayload(ex, "payload", dbg));
-    }
-
-    @Test
-    void shouldInitInternalVariablesWhenPropertiesAreNull() {
-        Exchange ex = mockExchange();
-        long before = System.currentTimeMillis();
-
-        DebuggerUtils.initInternalExchangeVariables(ex);
-
-        Deque<?> steps = ex.getProperty(CamelConstants.Properties.STEPS, Deque.class);
-        ConcurrentHashMap<?, ?> exchanges = ex.getProperty(CamelConstants.Properties.EXCHANGES, ConcurrentHashMap.class);
-        Long started = ex.getProperty(CamelConstants.Properties.EXCHANGE_START_TIME_MS, Long.class);
-
-        assertNotNull(steps);
-        assertTrue(steps.isEmpty());
-        assertNotNull(exchanges);
-        assertTrue(exchanges.isEmpty());
-        assertNotNull(started);
-        assertTrue(started >= before && started <= System.currentTimeMillis());
-    }
-
-    @Test
-    void shouldCopyInternalVariablesWhenPropertiesAlreadySet() {
-        Exchange ex = mockExchange();
-
-        ConcurrentLinkedDeque<String> originalSteps = new ConcurrentLinkedDeque<>(List.of("X"));
-        ConcurrentHashMap<String, String> originalExchanges = new ConcurrentHashMap<>(Map.of("k", "v"));
-
-        ex.setProperty(CamelConstants.Properties.STEPS, originalSteps);
-        ex.setProperty(CamelConstants.Properties.EXCHANGES, originalExchanges);
-
-        DebuggerUtils.initInternalExchangeVariables(ex);
-
-        Deque<String> steps = ex.getProperty(CamelConstants.Properties.STEPS, Deque.class);
-        ConcurrentHashMap<?, ?> exchanges = ex.getProperty(CamelConstants.Properties.EXCHANGES, ConcurrentHashMap.class);
-
-        assertNotSame(originalSteps, steps);
-        assertEquals(List.of("X"), new ArrayList<>(steps));
-        assertNotSame(originalExchanges, exchanges);
-        assertEquals("v", exchanges.get("k"));
     }
 
     @Test

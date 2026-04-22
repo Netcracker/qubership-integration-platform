@@ -23,15 +23,19 @@ import jakarta.ws.rs.core.HttpHeaders;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
+import org.qubership.integration.platform.engine.metadata.ChainInfo;
+import org.qubership.integration.platform.engine.metadata.ElementInfo;
+import org.qubership.integration.platform.engine.metadata.ServiceCallInfo;
+import org.qubership.integration.platform.engine.metadata.util.MetadataUtil;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.constants.CamelNames;
-import org.qubership.integration.platform.engine.model.deployment.engine.EngineDeployment;
-import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
+import org.qubership.integration.platform.engine.model.engine.DeploymentInfo;
+import org.qubership.integration.platform.engine.model.engine.EngineDeployment;
+import org.qubership.integration.platform.engine.service.debugger.ChainExecutionContext;
 
-import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @ApplicationScoped
@@ -46,55 +50,40 @@ public class MetricsService {
 
     public void processElementStartMetrics(
         Exchange exchange,
-        CamelDebuggerProperties dbgProperties,
-        String stepId,
-        String stepName,
-        ChainElementType elementType
+        ChainExecutionContext chainExecutionContext
     ) {
         if (!metricsStore.isMetricsEnabled()) {
             return;
         }
 
         try {
-            Map<String, String> stepProperties = dbgProperties.getElementProperty(stepId);
-            DeploymentInfo deploymentInfo = dbgProperties.getDeploymentInfo();
             DistributionSummary distributionSummary;
 
-            switch (elementType) {
+            String chainId = chainExecutionContext.getDeploymentInfo().getChain().getId();
+            String chainName = chainExecutionContext.getDeploymentInfo().getChain().getName();
+            String elementId = chainExecutionContext.getElementInfo().getId();
+            String elementName = chainExecutionContext.getElementInfo().getName();
+            String elementType = chainExecutionContext.getElementInfo().getType();
+
+            switch (chainExecutionContext.getElementType()) {
                 case CIRCUIT_BREAKER:
                 case CIRCUIT_BREAKER_2:
-                    if (stepId.equals(stepName)) {
-                        metricsStore.processCircuitBreakerExecution(
-                            dbgProperties.getDeploymentInfo().getChainId(),
-                            dbgProperties.getDeploymentInfo().getChainName(),
-                            dbgProperties.getElementProperty(stepId)
-                                .get(ChainProperties.ELEMENT_ID),
-                            dbgProperties.getElementProperty(stepId)
-                                .get(ChainProperties.ELEMENT_NAME));
+                    if (chainExecutionContext.getStepId().equals(chainExecutionContext.getStepName())) {
+                        metricsStore.processCircuitBreakerExecution(chainId, chainName, elementId, elementName);
                     }
                     break;
                 case HTTP_TRIGGER:
                 case HTTP_SENDER:
                     if (metricsStore.isHttpPayloadMetricsEnabled()) {
                         distributionSummary = metricsStore.processHttpPayloadSize(
-                                true,
-                                deploymentInfo.getChainId(),
-                                deploymentInfo.getChainName(),
-                                stepProperties.get(ChainProperties.ELEMENT_ID),
-                                stepProperties.get(ChainProperties.ELEMENT_NAME),
-                                stepProperties.get(ChainProperties.ELEMENT_TYPE));
+                            true, chainId, chainName, elementId, elementName, elementType);
                         distributionSummary.record(calculatePayloadSize(exchange));
                     }
                     break;
                 case SERVICE_CALL:
-                    if (metricNeedsToBeRecorded(stepProperties) && metricsStore.isHttpPayloadMetricsEnabled()) {
+                    if (metricNeedsToBeRecorded(exchange, elementId) && metricsStore.isHttpPayloadMetricsEnabled()) {
                         distributionSummary = metricsStore.processHttpPayloadSize(
-                                true,
-                                deploymentInfo.getChainId(),
-                                deploymentInfo.getChainName(),
-                                stepProperties.get(ChainProperties.ELEMENT_ID),
-                                stepProperties.get(ChainProperties.ELEMENT_NAME),
-                                stepProperties.get(ChainProperties.ELEMENT_TYPE));
+                                true, chainId, chainName, elementId, elementName, elementType);
                         distributionSummary.record(calculatePayloadSize(exchange));
                     }
                     break;
@@ -106,10 +95,7 @@ public class MetricsService {
 
     public void processElementFinishMetrics(
         Exchange exchange,
-        CamelDebuggerProperties dbgProperties,
-        String stepId,
-        String stepName,
-        ChainElementType elementType,
+        ChainExecutionContext chainExecutionContext,
         boolean failed
     ) {
         if (!metricsStore.isMetricsEnabled()) {
@@ -117,63 +103,60 @@ public class MetricsService {
         }
 
         try {
-            Map<String, String> stepProperties = dbgProperties.getElementProperty(stepId);
-            DeploymentInfo deploymentInfo = dbgProperties.getDeploymentInfo();
             DistributionSummary distributionSummary;
 
-            switch (elementType) {
+            String chainId = chainExecutionContext.getDeploymentInfo().getChain().getId();
+            String chainName = chainExecutionContext.getDeploymentInfo().getChain().getName();
+            String elementId = chainExecutionContext.getElementInfo().getId();
+            String elementName = chainExecutionContext.getElementInfo().getName();
+            String elementType = chainExecutionContext.getElementInfo().getType();
+
+            String parentId = chainExecutionContext.getElementInfo().getParentId();
+            String parentName = Optional.ofNullable(parentId)
+                    .map(id -> MetadataUtil.getBeanForElement(exchange, id, ElementInfo.class))
+                    .map(ElementInfo::getName)
+                    .orElse("");
+
+            ChainElementType chainElementType = chainExecutionContext.getElementType();
+
+            switch (chainElementType) {
                 case CIRCUIT_BREAKER:
                 case CIRCUIT_BREAKER_2:
                 case CIRCUIT_BREAKER_MAIN_ELEMENT:
                 case CIRCUIT_BREAKER_MAIN_ELEMENT_2:
-                    String elementId = stepProperties.get(ChainProperties.ELEMENT_ID);
-                    String elementName = stepProperties.get(ChainProperties.ELEMENT_NAME);
-                    if (elementType == ChainElementType.CIRCUIT_BREAKER_MAIN_ELEMENT
-                        || elementType == ChainElementType.CIRCUIT_BREAKER_MAIN_ELEMENT_2) {
-                        elementId = stepProperties.get(
-                            ChainProperties.PARENT_ELEMENT_ORIGINAL_ID);
-                        elementName = stepProperties.get(ChainProperties.PARENT_ELEMENT_NAME);
+                    if (chainElementType.equals(ChainElementType.CIRCUIT_BREAKER_MAIN_ELEMENT)
+                            || chainElementType.equals(ChainElementType.CIRCUIT_BREAKER_MAIN_ELEMENT_2)) {
+                        elementId = parentId;
+                        elementName = parentName;
                     }
-                    boolean hasFallback = Boolean.parseBoolean(String.valueOf(exchange.getProperty(
-                        Properties.CIRCUIT_BREAKER_HAS_FALLBACK)));
-                    if (failed && !hasFallback && CamelNames.MAIN_BRANCH_CB_STEP_PREFIX.equals(
-                        stepName)) {
+                    boolean hasFallback = Boolean.parseBoolean(String.valueOf(
+                            exchange.getProperty(Properties.CIRCUIT_BREAKER_HAS_FALLBACK)));
+                    if (
+                            failed
+                            && !hasFallback
+                            && CamelNames.MAIN_BRANCH_CB_STEP_PREFIX
+                                    .equals(chainExecutionContext.getStepName())
+                    ) {
                         metricsStore.processCircuitBreakerExecutionFallback(
-                            deploymentInfo.getChainId(),
-                            deploymentInfo.getChainName(),
-                            elementId,
-                            elementName);
+                                chainId, chainName, elementId, elementName);
                     }
                     break;
                 case CIRCUIT_BREAKER_FALLBACK:
                 case CIRCUIT_BREAKER_FALLBACK_2:
                     metricsStore.processCircuitBreakerExecutionFallback(
-                        deploymentInfo.getChainId(),
-                        deploymentInfo.getChainName(),
-                        stepProperties.get(ChainProperties.PARENT_ELEMENT_ORIGINAL_ID),
-                        stepProperties.get(ChainProperties.PARENT_ELEMENT_NAME));
+                        chainId, chainName, parentId, parentName);
                     break;
                 case HTTP_SENDER:
                     if (metricsStore.isHttpPayloadMetricsEnabled()) {
                         distributionSummary = metricsStore.processHttpPayloadSize(
-                                false,
-                                deploymentInfo.getChainId(),
-                                deploymentInfo.getChainName(),
-                                stepProperties.get(ChainProperties.ELEMENT_ID),
-                                stepProperties.get(ChainProperties.ELEMENT_NAME),
-                                stepProperties.get(ChainProperties.ELEMENT_TYPE));
+                            false, chainId, chainName, elementId, elementName, elementType);
                         distributionSummary.record(calculatePayloadSize(exchange));
                     }
                     break;
                 case SERVICE_CALL:
-                    if (metricNeedsToBeRecorded(stepProperties) && metricsStore.isHttpPayloadMetricsEnabled()) {
+                    if (metricNeedsToBeRecorded(exchange, elementId) && metricsStore.isHttpPayloadMetricsEnabled()) {
                         distributionSummary = metricsStore.processHttpPayloadSize(
-                                false,
-                                deploymentInfo.getChainId(),
-                                deploymentInfo.getChainName(),
-                                stepProperties.get(ChainProperties.ELEMENT_ID),
-                                stepProperties.get(ChainProperties.ELEMENT_NAME),
-                                stepProperties.get(ChainProperties.ELEMENT_TYPE));
+                                false, chainId, chainName, elementId, elementName, elementType);
                         distributionSummary.record(calculatePayloadSize(exchange));
                     }
                     break;
@@ -185,8 +168,13 @@ public class MetricsService {
         }
     }
 
-    private boolean metricNeedsToBeRecorded(Map<String, String> stepProperties) {
-        return ChainProperties.OPERATION_PROTOCOL_TYPE_HTTP.equals(stepProperties.get(ChainProperties.OPERATION_PROTOCOL_TYPE_PROP));
+    private boolean metricNeedsToBeRecorded(Exchange exchange, String elementId) {
+        ServiceCallInfo serviceCallInfo = MetadataUtil.getBeanForElement(exchange, elementId, ServiceCallInfo.class);
+        return metricNeedsToBeRecorded(serviceCallInfo);
+    }
+
+    private boolean metricNeedsToBeRecorded(ServiceCallInfo serviceCallInfo) {
+        return ChainProperties.OPERATION_PROTOCOL_TYPE_HTTP.equals(serviceCallInfo.getProtocol());
     }
 
     private int calculatePayloadSize(Exchange exchange) {
@@ -205,27 +193,27 @@ public class MetricsService {
         }
     }
 
-    public void processHttpResponseCode(CamelDebuggerProperties dbgProperties,
-        String responseCode) {
-        metricsStore.processHttpResponseCode(
-            dbgProperties.getDeploymentInfo().getChainId(),
-            dbgProperties.getDeploymentInfo().getChainName(),
-            responseCode);
+    public void processHttpResponseCode(
+            ChainInfo chainInfo,
+            String responseCode
+    ) {
+        metricsStore.processHttpResponseCode(chainInfo.getId(), chainInfo.getName(), responseCode);
     }
 
-    public void processHttpTriggerPayloadSize(Exchange exchange, CamelDebuggerProperties dbgProperties) {
+    public void processHttpTriggerPayloadSize(Exchange exchange) {
         if (metricsStore.isMetricsEnabled() && metricsStore.isHttpPayloadMetricsEnabled()) {
-            DeploymentInfo deploymentInfo = dbgProperties.getDeploymentInfo();
-
-            Map<String, String> elementProperties = dbgProperties.getElementProperty(exchange.getProperty(Properties.HTTP_TRIGGER_STEP_ID).toString());
-            String elementId = elementProperties.get(ChainProperties.ELEMENT_ID);
-            String elementType = elementProperties.get(ChainProperties.ELEMENT_TYPE);
-            String elementName = elementProperties.get(ChainProperties.ELEMENT_NAME);
+            org.qubership.integration.platform.engine.metadata.DeploymentInfo deploymentInfo =
+                    MetadataUtil.getBean(exchange, org.qubership.integration.platform.engine.metadata.DeploymentInfo.class);
+            String id = exchange.getProperty(Properties.HTTP_TRIGGER_STEP_ID).toString();
+            ElementInfo elementInfo = MetadataUtil.getBeanForElement(exchange, id, ElementInfo.class);
+            String elementId = elementInfo.getId();
+            String elementType = elementInfo.getType();
+            String elementName = elementInfo.getName();
 
             DistributionSummary distributionSummary = metricsStore.processHttpPayloadSize(
                     false,
-                    deploymentInfo.getChainId(),
-                    deploymentInfo.getChainName(),
+                    deploymentInfo.getChain().getId(),
+                    deploymentInfo.getChain().getName(),
                     elementId,
                     elementName,
                     elementType);
@@ -233,19 +221,19 @@ public class MetricsService {
         }
     }
 
-    public void processSessionFinish(CamelDebuggerProperties dbgProperties, String executionStatus,
+    public void processSessionFinish(ChainInfo chainInfo, String executionStatus,
         long duration) {
         metricsStore.processSessionFinish(
-            dbgProperties.getDeploymentInfo().getChainId(),
-            dbgProperties.getDeploymentInfo().getChainName(),
+            chainInfo.getId(),
+            chainInfo.getName(),
             executionStatus,
             duration);
     }
 
-    public void processChainFailure(DeploymentInfo deploymentInfo, ErrorCode errorCode) {
+    public void processChainFailure(ChainInfo chainInfo, ErrorCode errorCode) {
         metricsStore.processChainFailure(
-                deploymentInfo.getChainId(),
-                deploymentInfo.getChainName(),
+                chainInfo.getId(),
+                chainInfo.getName(),
                 errorCode
         );
     }

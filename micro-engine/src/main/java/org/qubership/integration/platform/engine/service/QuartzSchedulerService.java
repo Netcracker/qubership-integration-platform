@@ -20,7 +20,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.camel.CamelContext;
 import org.apache.camel.Consumer;
 import org.apache.camel.Endpoint;
 import org.apache.camel.Route;
@@ -29,13 +28,10 @@ import org.apache.camel.component.quartz.QuartzEndpoint;
 import org.apache.camel.pollconsumer.quartz.QuartzScheduledPollConsumerScheduler;
 import org.apache.camel.spi.ScheduledPollConsumerScheduler;
 import org.quartz.*;
-import org.qubership.integration.platform.engine.camel.metadata.Metadata;
-import org.qubership.integration.platform.engine.camel.metadata.MetadataService;
 import org.qubership.integration.platform.engine.camel.scheduler.SchedulerProxy;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 @Slf4j
@@ -44,15 +40,9 @@ public class QuartzSchedulerService {
     @Getter
     private final SchedulerProxy schedulerProxy;
 
-    private final MetadataService metadataService;
-
     @Inject
-    public QuartzSchedulerService(
-            Scheduler scheduler,
-            MetadataService metadataService
-    ) {
+    public QuartzSchedulerService(Scheduler scheduler) {
         this.schedulerProxy = new SchedulerProxy(scheduler);
-        this.metadataService = metadataService;
     }
 
     /**
@@ -69,23 +59,11 @@ public class QuartzSchedulerService {
         }
     }
 
-    public void removeSchedulerJobsFromContext(CamelContext context, String deploymentId) {
-        log.debug("Remove camel scheduler jobs from context");
-        removeSchedulerJobs(getSchedulerJobsFromContext(context, deploymentId));
+    public void removeSchedulerJobs(Route route) {
+        removeSchedulerJobs(getSchedulerJobsForRoute(route));
     }
 
-    public List<JobKey> getSchedulerJobsFromContext(CamelContext context, String deploymentId) {
-        return context.getRoutes().stream()
-                .filter(route -> metadataService.getMetadata(route)
-                        .map(Metadata::getDeploymentId)
-                        .map(deploymentId::equals)
-                        .orElse(false))
-                .map(this::getSchedulerJobsForRoute)
-                .flatMap(Collection::stream)
-                .toList();
-    }
-
-    private Collection<JobKey> getSchedulerJobsForRoute(Route route) {
+    private List<JobKey> getSchedulerJobsForRoute(Route route) {
         List<JobKey> jobs = new ArrayList<>();
         Endpoint endpoint = route.getEndpoint();
         if (endpoint instanceof QuartzEndpoint quartzEndpoint) {
@@ -130,9 +108,6 @@ public class QuartzSchedulerService {
         }
     }
 
-    /**
-     * Suspend all schedulers on separate instance
-     */
     public synchronized void suspendAllSchedulers() {
         try {
             log.info("Suspend camel quartz scheduler");
@@ -142,9 +117,6 @@ public class QuartzSchedulerService {
         }
     }
 
-    /**
-     * Resume all schedulers on separate instance
-     */
     public void resumeAllSchedulers() {
         try {
             log.info("Resume camel quartz scheduler");

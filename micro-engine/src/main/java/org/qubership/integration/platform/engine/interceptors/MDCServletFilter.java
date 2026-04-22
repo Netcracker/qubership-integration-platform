@@ -3,7 +3,7 @@ package org.qubership.integration.platform.engine.interceptors;
 import jakarta.servlet.*;
 import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.http.HttpServletRequest;
-import org.qubership.integration.platform.engine.logging.constants.ContextHeaders;
+import org.qubership.integration.platform.engine.logging.ContextHeaders;
 import org.slf4j.MDC;
 
 import java.io.IOException;

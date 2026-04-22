@@ -29,30 +29,40 @@ import org.apache.camel.support.http.HttpUtil;
 import org.apache.camel.tracing.ActiveSpanManager;
 import org.apache.camel.tracing.SpanAdapter;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
+import org.qubership.integration.platform.engine.logging.ExtendedErrorLogger;
+import org.qubership.integration.platform.engine.logging.ExtendedErrorLoggerFactory;
+import org.qubership.integration.platform.engine.metadata.ChainInfo;
+import org.qubership.integration.platform.engine.metadata.DeploymentInfo;
+import org.qubership.integration.platform.engine.metadata.ElementInfo;
+import org.qubership.integration.platform.engine.metadata.ServiceCallInfo;
+import org.qubership.integration.platform.engine.metadata.util.MetadataUtil;
 import org.qubership.integration.platform.engine.model.ChainElementType;
+import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.constants.CamelNames;
-import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
-import org.qubership.integration.platform.engine.model.deployment.properties.DeploymentRuntimeProperties;
-import org.qubership.integration.platform.engine.model.logging.ElementRetryProperties;
+import org.qubership.integration.platform.engine.model.logging.*;
 import org.qubership.integration.platform.engine.model.logging.LogPayload;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
+import org.qubership.integration.platform.engine.service.VariablesService;
+import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePropertiesService;
 import org.qubership.integration.platform.engine.service.debugger.tracing.TracingService;
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
+import org.qubership.integration.platform.engine.util.ExchangeUtil;
 import org.qubership.integration.platform.engine.util.IdentifierUtils;
 import org.qubership.integration.platform.engine.util.InjectUtil;
-import org.qubership.integration.platform.engine.util.log.ExtendedErrorLogger;
-import org.qubership.integration.platform.engine.util.log.ExtendedErrorLoggerFactory;
 import org.slf4j.MDC;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nullable;
+
+import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.*;
 
 @Slf4j
 @ApplicationScoped
@@ -65,14 +75,23 @@ public class ChainLogger {
 
     private final TracingService tracingService;
     private final Optional<OriginatingBusinessIdProvider> originatingBusinessIdProvider;
+    private final PayloadExtractor payloadExtractor;
+    private final ChainRuntimePropertiesService chainRuntimePropertiesService;
+    private final VariablesService variablesService;
 
     @Inject
     public ChainLogger(
             TracingService tracingService,
-            Instance<OriginatingBusinessIdProvider> originatingBusinessIdProvider
+            Instance<OriginatingBusinessIdProvider> originatingBusinessIdProvider,
+            PayloadExtractor payloadExtractor,
+            ChainRuntimePropertiesService chainRuntimePropertiesService,
+            VariablesService variablesService
     ) {
         this.tracingService = tracingService;
         this.originatingBusinessIdProvider = InjectUtil.injectOptional(originatingBusinessIdProvider);
+        this.payloadExtractor = payloadExtractor;
+        this.chainRuntimePropertiesService = chainRuntimePropertiesService;
+        this.variablesService = variablesService;
     }
 
     public static void updateMDCProperty(String key, String value) {
@@ -101,83 +120,62 @@ public class ChainLogger {
 
     public void logBeforeProcess(
         Exchange exchange,
-        CamelDebuggerProperties dbgProperties,
-        String bodyForLogging,
-        Object headersForLogging,
-        Object exchangePropertiesForLogging,
-        String nodeId
+        ChainRuntimeProperties runtimeProperties,
+        String nodeId,
+        Payload payload
     ) {
-        bodyForLogging = DebuggerUtils.chooseLogPayload(exchange, bodyForLogging, dbgProperties);
-        if (dbgProperties.getRuntimeProperties(exchange).getLogLoggingLevel().isInfoLevel()) {
-            ChainElementType type = ChainElementType.fromString(
-                dbgProperties.getElementProperty(nodeId).get(
-                    ChainProperties.ELEMENT_TYPE));
+        LogLoggingLevel logLoggingLevel = runtimeProperties.getLogLoggingLevel();
+        if (!logLoggingLevel.isInfoLevel()) {
+            return;
+        }
 
-            DeploymentRuntimeProperties runtimeProperties = dbgProperties.getRuntimeProperties(exchange);
-            if (runtimeProperties.getLogPayload() != null) {
-                Set<LogPayload> logPayloadSettings = runtimeProperties.getLogPayload();
-                headersForLogging = logPayloadSettings.contains(LogPayload.HEADERS) ? headersForLogging : "<headers not logged>";
-                exchangePropertiesForLogging = logPayloadSettings.contains(LogPayload.PROPERTIES) ? exchangePropertiesForLogging : "<properties not logged>";
-                bodyForLogging = logPayloadSettings.contains(LogPayload.BODY) ? bodyForLogging : "<body not logged>";
+        ElementInfo elementInfo = MetadataUtil.getBeanForElement(exchange, nodeId, ElementInfo.class);
+        ChainElementType type = ChainElementType.fromString(elementInfo.getType());
+        LoggedPayloadValues loggedPayloadValues = getLoggedPayloadValues(payload, runtimeProperties);
+
+        switch (type) {
+            case SCHEDULER, QUARTZ_SCHEDULER -> chainLogger.info("Scheduled chain trigger started");
+            case SDS_TRIGGER -> chainLogger.info("Scheduled SDS trigger started");
+            case CHAIN_CALL -> chainLogger.info("Executing a linked chain. Headers: {}, body: {}, exchange properties: {}",
+                    loggedPayloadValues.getHeaders(),
+                    loggedPayloadValues.getBody(),
+                    loggedPayloadValues.getProperties());
+            case JMS_TRIGGER, SFTP_TRIGGER, SFTP_TRIGGER_2, HTTP_TRIGGER, KAFKA_TRIGGER,
+                KAFKA_TRIGGER_2, RABBITMQ_TRIGGER, RABBITMQ_TRIGGER_2, ASYNCAPI_TRIGGER,
+                 PUBSUB_TRIGGER ->
+                chainLogger.info(
+                    "Get request from trigger. Headers: {}, body: {}, exchange properties: {}",
+                    loggedPayloadValues.getHeaders(),
+                    loggedPayloadValues.getBody(),
+                    loggedPayloadValues.getProperties());
+            case HTTP_SENDER -> logRequest(exchange, loggedPayloadValues, null, null);
+            case GRAPHQL_SENDER, JMS_SENDER, MAIL_SENDER, KAFKA_SENDER, KAFKA_SENDER_2, RABBITMQ_SENDER,
+                RABBITMQ_SENDER_2, PUBSUB_SENDER -> chainLogger.info(
+                "Send request to queue. Headers: {}, body: {}, exchange properties: {}",
+                loggedPayloadValues.getHeaders(),
+                loggedPayloadValues.getBody(),
+                loggedPayloadValues.getProperties()
+            );
+            // SERVICE_CALL moved to logBuildStepStartedByType to start from "Request" step (after "Prepare request")
+            case SERVICE_CALL, UNKNOWN -> {
             }
-
-            switch (type) {
-                case SCHEDULER, QUARTZ_SCHEDULER -> chainLogger.info("Scheduled chain trigger started");
-                case SDS_TRIGGER -> chainLogger.info("Scheduled SDS trigger started");
-                case CHAIN_CALL -> chainLogger.info("Executing a linked chain. Headers: {}, body: {}, exchange properties: {}",
-                        headersForLogging,
-                        bodyForLogging,
-                        exchangePropertiesForLogging);
-                case JMS_TRIGGER, SFTP_TRIGGER, SFTP_TRIGGER_2, HTTP_TRIGGER, KAFKA_TRIGGER,
-                    KAFKA_TRIGGER_2, RABBITMQ_TRIGGER, RABBITMQ_TRIGGER_2, ASYNCAPI_TRIGGER,
-                     PUBSUB_TRIGGER ->
-                    chainLogger.info(
-                        "Get request from trigger. Headers: {}, body: {}, exchange properties: {}",
-                        headersForLogging,
-                        bodyForLogging,
-                        exchangePropertiesForLogging);
-                case HTTP_SENDER -> logRequest(exchange, bodyForLogging, headersForLogging,
-                    exchangePropertiesForLogging, null, null);
-                case GRAPHQL_SENDER, JMS_SENDER, MAIL_SENDER, KAFKA_SENDER, KAFKA_SENDER_2, RABBITMQ_SENDER,
-                    RABBITMQ_SENDER_2, PUBSUB_SENDER -> chainLogger.info(
-                    "Send request to queue. Headers: {}, body: {}, exchange properties: {}",
-                    headersForLogging,
-                    bodyForLogging,
-                    exchangePropertiesForLogging);
-                // SERVICE_CALL moved to logBuildStepStartedByType to start from "Request" step (after "Prepare request")
-                case SERVICE_CALL, UNKNOWN -> {
-                }
-                default -> {
-                }
+            default -> {
             }
         }
     }
 
     public void logAfterProcess(
         Exchange exchange,
-        CamelDebuggerProperties dbgProperties,
-        String bodyForLogging,
-        Object headersForLogging,
-        Object exchangePropertiesForLogging,
+        ChainRuntimeProperties runtimeProperties,
+        Payload payload,
         String nodeId,
         long timeTaken
     ) {
         boolean failedOperation = DebuggerUtils.isFailedOperation(exchange);
-        bodyForLogging = DebuggerUtils.chooseLogPayload(exchange, bodyForLogging, dbgProperties);
-
-        if (dbgProperties.getRuntimeProperties(exchange).getLogLoggingLevel().isInfoLevel()
-            || failedOperation) {
-            ChainElementType type = ChainElementType.fromString(
-                dbgProperties.getElementProperty(nodeId).get(
-                    ChainProperties.ELEMENT_TYPE));
-
-            DeploymentRuntimeProperties runtimeProperties = dbgProperties.getRuntimeProperties(exchange);
-            if (runtimeProperties.getLogPayload() != null) {
-                Set<LogPayload> logPayloadSettings = runtimeProperties.getLogPayload();
-                headersForLogging = logPayloadSettings.contains(LogPayload.HEADERS) ? headersForLogging : "<headers not logged>";
-                exchangePropertiesForLogging = logPayloadSettings.contains(LogPayload.PROPERTIES) ? exchangePropertiesForLogging : "<properties not logged>";
-                bodyForLogging = logPayloadSettings.contains(LogPayload.BODY) ? bodyForLogging : "<body not logged>";
-            }
+        if (runtimeProperties.getLogLoggingLevel().isInfoLevel() || failedOperation) {
+            ElementInfo elementInfo = MetadataUtil.getBeanForElement(exchange, nodeId, ElementInfo.class);
+            ChainElementType type = ChainElementType.fromString(elementInfo.getType());
+            LoggedPayloadValues loggedPayloadValues = getLoggedPayloadValues(payload, runtimeProperties);
 
             switch (type) {
                 case HTTP_SENDER:
@@ -185,34 +183,35 @@ public class ChainLogger {
                     Map<String, Object> headers = exchange.getMessage().getHeaders();
 
                     if (failedOperation) {
-                        setLoggerContext(exchange, dbgProperties, nodeId,
-                            tracingService.isTracingEnabled());
+                        setLoggerContext(exchange, nodeId, tracingService.isTracingEnabled());
                         if (exchange.getException() instanceof CamelException) {
                             CamelException exception = exchange.getException(CamelException.class);
                             if (exception instanceof HttpOperationFailedException) {
-                                logFailedHttpOperation(bodyForLogging, headersForLogging,
-                                    exchangePropertiesForLogging,
-                                    (HttpOperationFailedException) exception,
-                                    timeTaken);
+                                logFailedHttpOperation(
+                                        loggedPayloadValues,
+                                        (HttpOperationFailedException) exception,
+                                        timeTaken
+                                );
                             } else {
                                 Throwable[] suppressed = exception.getSuppressed();
                                 if (suppressed.length > 0) {
                                     for (Throwable ex : suppressed) {
                                         if (ex instanceof HttpOperationFailedException) {
-                                            logFailedHttpOperation(bodyForLogging,
-                                                headersForLogging,
-                                                exchangePropertiesForLogging,
-                                                (HttpOperationFailedException) ex,
-                                                timeTaken);
+                                            logFailedHttpOperation(
+                                                    loggedPayloadValues,
+                                                    (HttpOperationFailedException) ex,
+                                                    timeTaken
+                                            );
                                         }
                                     }
                                 }
                             }
                         } else {
-                            logFailedOperation(bodyForLogging, headersForLogging,
-                                exchangePropertiesForLogging,
-                                exchange.getException(),
-                                timeTaken);
+                            logFailedOperation(
+                                    loggedPayloadValues,
+                                    exchange.getException(),
+                                    timeTaken
+                            );
                         }
                     } else {
                         if (headers.containsKey(Headers.CAMEL_HTTP_RESPONSE_CODE)) {
@@ -223,9 +222,9 @@ public class ChainLogger {
                                 "{} HTTP request completed. Headers: {}, body: {}, exchange properties: {}",
                                 constructExtendedHTTPLogMessage(httpUriHeader, code, timeTaken,
                                     CamelNames.RESPONSE),
-                                headersForLogging,
-                                bodyForLogging,
-                                exchangePropertiesForLogging);
+                                loggedPayloadValues.getHeaders(),
+                                loggedPayloadValues.getBody(),
+                                loggedPayloadValues.getProperties());
                         }
                     }
                     break;
@@ -235,20 +234,19 @@ public class ChainLogger {
                 case RABBITMQ_SENDER_2:
                 case PUBSUB_SENDER:
                     if (failedOperation) {
-                        setLoggerContext(exchange, dbgProperties, nodeId,
-                            tracingService.isTracingEnabled());
+                        setLoggerContext(exchange, nodeId, tracingService.isTracingEnabled());
                         chainLogger.error(ErrorCode.match(exchange.getException()),
                             "Sending message to queue failed. {} Headers: {}, body: {}, exchange properties: {}",
                             exchange.getException().getMessage(),
-                            headersForLogging,
-                            bodyForLogging,
-                            exchangePropertiesForLogging);
+                            loggedPayloadValues.getHeaders(),
+                            loggedPayloadValues.getBody(),
+                            loggedPayloadValues.getProperties());
                     } else {
                         chainLogger.info(
                             "Sending message to queue completed. Headers: {}, body: {}, exchange properties: {}",
-                            headersForLogging,
-                            bodyForLogging,
-                            exchangePropertiesForLogging);
+                            loggedPayloadValues.getHeaders(),
+                            loggedPayloadValues.getBody(),
+                            loggedPayloadValues.getProperties());
                     }
                     break;
                 case CHECKPOINT:
@@ -261,66 +259,57 @@ public class ChainLogger {
                 case UNKNOWN:
                 default:
                     if (failedOperation) {
-                        setLoggerContext(exchange, dbgProperties, nodeId,
-                            tracingService.isTracingEnabled());
+                        setLoggerContext(exchange, nodeId, tracingService.isTracingEnabled());
                         chainLogger.error(ErrorCode.match(exchange.getException()),
                             "Failed message: {} Headers: {}, body: {}, exchange properties: {}",
                             exchange.getException().getMessage(),
-                            headersForLogging,
-                            bodyForLogging,
-                            exchangePropertiesForLogging);
+                            loggedPayloadValues.getHeaders(),
+                            loggedPayloadValues.getBody(),
+                            loggedPayloadValues.getProperties());
                     }
             }
         }
     }
 
     public void logExchangeFinished(
-            CamelDebuggerProperties dbgProperties,
-            String bodyForLogging,
-            String headersForLogging,
-            String exchangePropertiesForLogging,
+            Exchange exchange,
             ExecutionStatus executionStatus,
             long duration
     ) {
-        if (dbgProperties.containsElementProperty(ChainProperties.EXECUTION_STATUS)) {
-            executionStatus = ExecutionStatus.computeHigherPriorityStatus(
-                    ExecutionStatus.valueOf(
-                            dbgProperties.getElementProperty(ChainProperties.EXECUTION_STATUS)
-                                    .get(
-                                            ChainProperties.EXECUTION_STATUS)),
-                    executionStatus);
-        }
+        executionStatus = ExchangeUtil.getEffectiveExecutionStatus(exchange, executionStatus);
+
+        ChainRuntimeProperties chainRuntimeProperties = chainRuntimePropertiesService.getRuntimeProperties(exchange);
+        Payload payload = payloadExtractor.extractPayload(exchange);
+        LoggedPayloadValues loggedPayloadValues = getLoggedPayloadValues(payload, chainRuntimeProperties);
 
         chainLogger.info(
                 "Session {}. Duration {}ms. Headers: {}, body: {}, exchange properties: {}",
                 ExecutionStatus.formatToLogStatus(executionStatus),
                 duration,
-                headersForLogging,
-                bodyForLogging,
-                exchangePropertiesForLogging);
+                loggedPayloadValues.getHeaders(),
+                loggedPayloadValues.getBody(),
+                loggedPayloadValues.getProperties()
+        );
     }
 
     public void logHTTPExchangeFinished(
         Exchange exchange,
-        CamelDebuggerProperties dbgProperties,
-        String bodyForLogging,
-        String headersForLogging,
-        String exchangePropertiesForLogging,
         String nodeId,
         long timeTaken,
-        Exception exception) {
+        Exception exception
+    ) {
+        ChainRuntimeProperties runtimeProperties = chainRuntimePropertiesService.getRuntimeProperties(exchange);
+        Payload payload = payloadExtractor.extractPayload(exchange);
+        LoggedPayloadValues loggedPayloadValues = getLoggedPayloadValues(payload, runtimeProperties);
 
         String requestUrl = (String) exchange.getProperty(Properties.SERVLET_REQUEST_URL);
 
-        if (nodeId != null) {
-            Map<String, String> elementProperties = dbgProperties.getElementProperty(nodeId);
-            if (elementProperties != null) {
-                String elementName = elementProperties.get(CamelConstants.ChainProperties.ELEMENT_NAME);
-                String elementId = elementProperties.get(CamelConstants.ChainProperties.ELEMENT_ID);
-                updateMDCProperty(CamelConstants.ChainProperties.ELEMENT_ID, elementId);
-                updateMDCProperty(CamelConstants.ChainProperties.ELEMENT_NAME, elementName);
-            }
-        }
+        Optional.ofNullable(nodeId)
+                .map(id -> MetadataUtil.getBeanForElement(exchange, id, ElementInfo.class))
+                .ifPresent(info -> {
+                    updateMDCProperty(CamelConstants.ChainProperties.ELEMENT_ID, info.getId());
+                    updateMDCProperty(CamelConstants.ChainProperties.ELEMENT_NAME, info.getName());
+                });
 
         int responseCode = PayloadExtractor.getServletResponseCode(exchange, exception);
         if (exception != null || !HttpUtil.isStatusCodeOk(responseCode, "100-399")) {
@@ -334,9 +323,9 @@ public class ChainLogger {
                             timeTaken,
                             CamelNames.RESPONSE),
                     "failed",
-                    headersForLogging,
-                    bodyForLogging,
-                    exchangePropertiesForLogging
+                    loggedPayloadValues.getHeaders(),
+                    loggedPayloadValues.getBody(),
+                    loggedPayloadValues.getProperties()
             );
         } else {
             chainLogger.info(
@@ -346,32 +335,30 @@ public class ChainLogger {
                             timeTaken,
                             CamelNames.RESPONSE),
                     "completed",
-                    headersForLogging,
-                    bodyForLogging,
-                    exchangePropertiesForLogging
+                    loggedPayloadValues.getHeaders(),
+                    loggedPayloadValues.getBody(),
+                    loggedPayloadValues.getProperties()
             );
         }
     }
 
     public void setLoggerContext(
         Exchange exchange,
-        CamelDebuggerProperties dbgProperties,
         @Nullable String nodeId,
         boolean tracingEnabled
     ) {
-        String chainId = dbgProperties.getDeploymentInfo().getChainId();
-        String chainName = dbgProperties.getDeploymentInfo().getChainName();
-        String sessionId = exchange.getProperty(Properties.SESSION_ID).toString();
+        ChainInfo chainInfo = MetadataUtil.getBean(exchange, DeploymentInfo.class).getChain();
+        String chainId = chainInfo.getId();
+        String chainName = chainInfo.getName();
+        String sessionId = ExchangeUtil.getSessionId(exchange);
         String elementName = null;
         String elementId = null;
 
         if (nodeId != null) {
             nodeId = DebuggerUtils.getNodeIdFormatted(nodeId);
-            Map<String, String> elementProperties = dbgProperties.getElementProperty(nodeId);
-            if (elementProperties != null) {
-                elementName = elementProperties.get(ChainProperties.ELEMENT_NAME);
-                elementId = elementProperties.get(ChainProperties.ELEMENT_ID);
-            }
+            Optional<ElementInfo> elementInfo = MetadataUtil.lookupBeanForElement(exchange, nodeId, ElementInfo.class);
+            elementId = elementInfo.map(ElementInfo::getId).orElse(null);
+            elementName = elementInfo.map(ElementInfo::getName).orElse(null);
         }
 
         updateMDCProperty(ChainProperties.CHAIN_ID, chainId);
@@ -399,10 +386,24 @@ public class ChainLogger {
     }
 
     public void logRequest(
+            Exchange exchange,
+            String externalServiceName,
+            String externalServiceEnvName
+    ) {
+        ChainRuntimeProperties runtimeProperties = chainRuntimePropertiesService.getRuntimeProperties(exchange);
+        LogLoggingLevel logLoggingLevel = runtimeProperties.getLogLoggingLevel();
+        if (!logLoggingLevel.isInfoLevel()) {
+            return;
+        }
+
+        Payload payload = payloadExtractor.extractPayload(exchange);
+        LoggedPayloadValues loggedPayloadValues = getLoggedPayloadValues(payload, runtimeProperties);
+        logRequest(exchange, loggedPayloadValues, externalServiceName, externalServiceEnvName);
+    }
+
+    private void logRequest(
         Exchange exchange,
-        String bodyForLogging,
-        Object headersForLogging,
-        Object exchangePropertiesForLogging,
+        LoggedPayloadValues loggedPayloadValues,
         String externalServiceAddress,
         String externalServiceEnvName
     ) {
@@ -411,31 +412,31 @@ public class ChainLogger {
             if (httpUriHeader != null) {
                 chainLogger.info("{} Send HTTP request. Headers: {}, body: {}, exchange properties: {}",
                         constructExtendedHTTPLogMessage(httpUriHeader, null, null, CamelNames.REQUEST),
-                        headersForLogging,
-                        bodyForLogging,
-                        exchangePropertiesForLogging);
+                        loggedPayloadValues.getHeaders(),
+                        loggedPayloadValues.getBody(),
+                        loggedPayloadValues.getProperties());
             } else {
                 chainLogger.info("Send request. Headers: {}, body: {}, exchange properties: {}",
-                        headersForLogging,
-                        bodyForLogging,
-                        exchangePropertiesForLogging);
+                        loggedPayloadValues.getHeaders(),
+                        loggedPayloadValues.getBody(),
+                        loggedPayloadValues.getProperties());
             }
         } else {
             if (httpUriHeader != null) {
                 chainLogger.info("{} Send HTTP request. Headers: {}, body: {}, exchange properties: {}"
                         + ", external service environment name: {}, external service address: {}",
                         constructExtendedHTTPLogMessage(httpUriHeader, null, null, CamelNames.REQUEST),
-                        headersForLogging,
-                        bodyForLogging,
-                        exchangePropertiesForLogging,
+                        loggedPayloadValues.getHeaders(),
+                        loggedPayloadValues.getBody(),
+                        loggedPayloadValues.getProperties(),
                         externalServiceEnvName,
                         externalServiceAddress);
             } else {
                 chainLogger.info("Send request. Headers: {}, body: {}, exchange properties: {},"
                         + ", external service environment name: {}, external service address: {}",
-                        headersForLogging,
-                        bodyForLogging,
-                        exchangePropertiesForLogging,
+                        loggedPayloadValues.getHeaders(),
+                        loggedPayloadValues.getBody(),
+                        loggedPayloadValues.getProperties(),
                         externalServiceEnvName,
                         externalServiceAddress);
             }
@@ -444,19 +445,27 @@ public class ChainLogger {
 
     public void logRequestAttempt(
             Exchange exchange,
-            ElementRetryProperties elementRetryProperties,
             String elementId
     ) {
-        RetryParameters retryParameters = getRetryParameters(exchange, elementRetryProperties, elementId);
+        ChainRuntimeProperties runtimeProperties = chainRuntimePropertiesService.getRuntimeProperties(exchange);
+        LogLoggingLevel logLoggingLevel = runtimeProperties.getLogLoggingLevel();
+        if (!logLoggingLevel.isInfoLevel()) {
+            return;
+        }
+        RetryParameters retryParameters = getRetryParameters(exchange, elementId);
         chainLogger.info("Request attempt: {} (max {}).", retryParameters.iteration + 1, retryParameters.count + 1);
     }
 
     public void logRetryRequestAttempt(
             Exchange exchange,
-            ElementRetryProperties elementRetryProperties,
             String elementId
     ) {
-        RetryParameters retryParameters = getRetryParameters(exchange, elementRetryProperties, elementId);
+        ChainRuntimeProperties runtimeProperties = chainRuntimePropertiesService.getRuntimeProperties(exchange);
+        LogLoggingLevel logLoggingLevel = runtimeProperties.getLogLoggingLevel();
+        if (!logLoggingLevel.isWarnLevel()) {
+            return;
+        }
+        RetryParameters retryParameters = getRetryParameters(exchange, elementId);
         if (retryParameters.enable && retryParameters.iteration > 0 && retryParameters.count > 0) {
             Throwable exception = exchange.getProperty(ExchangePropertyKey.EXCEPTION_CAUGHT, Throwable.class);
             chainLogger.warn("Request failed and will be retried after {}ms delay (retries left: {}): {}",
@@ -469,7 +478,6 @@ public class ChainLogger {
 
     private RetryParameters getRetryParameters(
             Exchange exchange,
-            ElementRetryProperties elementRetryProperties,
             String elementId
     ) {
         try {
@@ -477,7 +485,16 @@ public class ChainLogger {
             int iteration = Integer.parseInt(String.valueOf(exchange.getProperties().getOrDefault(iteratorPropertyName, 0)));
             String enableProperty = IdentifierUtils.getServiceCallRetryPropertyName(elementId);
             boolean enable = Boolean.parseBoolean(String.valueOf(exchange.getProperties().getOrDefault(enableProperty, "false")));
-            return new RetryParameters(elementRetryProperties.retryCount(), elementRetryProperties.retryDelay(), iteration, enable);
+            ServiceCallInfo serviceCallInfo = MetadataUtil.getBeanForElement(exchange, elementId, ServiceCallInfo.class);
+            int retryCount = Optional.ofNullable(serviceCallInfo.getRetryCount())
+                    .map(variablesService::injectVariables)
+                    .map(Integer::parseInt)
+                    .orElse(0);
+            int retryDelay = Optional.ofNullable(serviceCallInfo.getRetryDelay())
+                    .map(variablesService::injectVariables)
+                    .map(Integer::parseInt)
+                    .orElse(SERVICE_CALL_DEFAULT_RETRY_DELAY);
+            return new RetryParameters(retryCount, retryDelay, iteration, enable);
         } catch (NumberFormatException ex) {
             chainLogger.error("Failed to get retry parameters.", ex);
             return new RetryParameters(0, 0, 0, false);
@@ -485,9 +502,7 @@ public class ChainLogger {
     }
 
     private void logFailedHttpOperation(
-        String bodyForLogging,
-        Object headersForLogging,
-        Object exchangePropertiesForLogging,
+        LoggedPayloadValues loggedPayloadValues,
         HttpOperationFailedException httpException,
         long duration
     ) {
@@ -496,15 +511,13 @@ public class ChainLogger {
         chainLogger.error(ErrorCode.match(httpException),
             "{} HTTP request failed. Headers: {}, body: {}, exchange properties: {}",
             constructExtendedHTTPLogMessage(uri, code, duration, CamelNames.RESPONSE),
-            headersForLogging,
-            bodyForLogging,
-            exchangePropertiesForLogging);
+            loggedPayloadValues.getHeaders(),
+            loggedPayloadValues.getBody(),
+            loggedPayloadValues.getProperties());
     }
 
     private void logFailedOperation(
-        String bodyForLogging,
-        Object headersForLogging,
-        Object exchangePropertiesForLogging,
+        LoggedPayloadValues loggedPayloadValues,
         Exception exception,
         long duration
     ) {
@@ -512,9 +525,9 @@ public class ChainLogger {
             "{} HTTP request failed. {} Headers: {}, body: {}, exchange properties: {}",
             constructExtendedLogMessage(duration, CamelNames.RESPONSE),
             exception.getMessage(),
-            headersForLogging,
-            bodyForLogging,
-            exchangePropertiesForLogging);
+            loggedPayloadValues.getHeaders(),
+            loggedPayloadValues.getBody(),
+            loggedPayloadValues.getProperties());
     }
 
     private String constructExtendedHTTPLogMessage(String targetUrl, Integer responseCode,
@@ -534,5 +547,31 @@ public class ChainLogger {
         String responseTimeStr = responseTime != null ? responseTime.toString() : noValue;
 
         return String.format("[responseTime=%-4s] [direction=%-8s]", responseTimeStr, direction);
+    }
+
+    public static LoggedPayloadValues getLoggedPayloadValues(
+            Payload payload,
+            ChainRuntimeProperties chainRuntimeProperties
+    ) {
+        Set<LogPayload> loggedParts = Optional.ofNullable(chainRuntimeProperties.getLogPayload())
+                .orElse(
+                        chainRuntimeProperties.isLogPayloadEnabled()
+                                ? Collections.singleton(LogPayload.BODY)
+                                : Collections.emptySet()
+                );
+        String body = loggedParts.contains(LogPayload.BODY)
+                ? payload.getBody()
+                : "<body not logged>";
+        String headers = loggedParts.contains(LogPayload.HEADERS)
+                ? payload.getHeaders().toString()
+                : "<headers not logged>";
+        String properties = loggedParts.contains(LogPayload.PROPERTIES)
+                ? payload.getProperties().toString()
+                : "<properties not logged>";
+        return LoggedPayloadValues.builder()
+                .body(body)
+                .headers(headers)
+                .properties(properties)
+                .build();
     }
 }

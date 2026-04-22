@@ -2,29 +2,26 @@ package org.qubership.integration.platform.engine.configuration;
 
 import jakarta.enterprise.inject.Produces;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.engine.model.deployment.engine.EngineInfo;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.qubership.integration.platform.engine.model.engine.DomainType;
+import org.qubership.integration.platform.engine.model.engine.EngineInfo;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 @Slf4j
 public class EngineInfoProducer {
+    @ConfigProperty(name = "qip.engine.domain")
+    String domain;
+
     @Produces
     public EngineInfo getEngineInfo(ApplicationConfiguration applicationConfiguration) {
         return EngineInfo.builder()
-                .domain(getDomain(applicationConfiguration))
+                .domain(domain)
+                .domainType(DomainType.MICRO)
                 .engineDeploymentName(applicationConfiguration.getDeploymentName())
                 .host(getCurrentHost())
                 .build();
-    }
-
-    private String getDomain(ApplicationConfiguration applicationConfiguration) {
-        boolean isDefault = applicationConfiguration.getDefaultEngineMicroserviceName()
-                .equals(applicationConfiguration.getMicroserviceName());
-
-            return isDefault
-                    ? applicationConfiguration.getEngineDefaultDomain()
-                    : applicationConfiguration.getMicroserviceName();
     }
 
     private String getCurrentHost() {

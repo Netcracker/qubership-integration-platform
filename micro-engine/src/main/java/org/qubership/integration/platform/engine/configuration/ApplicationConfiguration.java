@@ -32,12 +32,6 @@ public class ApplicationConfiguration {
     @ConfigProperty(name = "application.namespace")
     String namespace;
 
-    @ConfigProperty(name = "application.default_integration_domain_name")
-    String engineDefaultDomain;
-
-    @ConfigProperty(name = "application.default_integration_domain_microservice_name")
-    String defaultEngineMicroserviceName;
-
     public String getDeploymentName() {
         return cloudServiceName;
     }

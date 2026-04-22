@@ -24,37 +24,33 @@ import org.apache.camel.Exchange;
 import org.apache.camel.MessageHistory;
 import org.apache.camel.NamedNode;
 import org.apache.camel.Processor;
+import org.qubership.integration.platform.engine.metadata.ChainInfo;
+import org.qubership.integration.platform.engine.metadata.DeploymentInfo;
+import org.qubership.integration.platform.engine.metadata.util.MetadataUtil;
+import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
-import org.qubership.integration.platform.engine.model.deployment.properties.DeploymentRuntimeProperties;
-import org.qubership.integration.platform.engine.model.logging.LogPayload;
-import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
+import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePropertiesService;
 import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
-import org.qubership.integration.platform.engine.service.debugger.util.MaskedFieldUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 
 @Slf4j
 @ApplicationScoped
 @Named("httpTriggerFinishProcessor")
 public class HttpTriggerFinishProcessor implements Processor {
 
-    private final CamelDebuggerPropertiesService propertiesService;
-    private final PayloadExtractor payloadExtractor;
+    private final ChainRuntimePropertiesService propertiesService;
     private final ChainLogger chainLogger;
     private final MetricsService metricsService;
 
     @Inject
-    public HttpTriggerFinishProcessor(CamelDebuggerPropertiesService propertiesService,
-                                      PayloadExtractor payloadExtractor,
+    public HttpTriggerFinishProcessor(ChainRuntimePropertiesService propertiesService,
                                       ChainLogger chainLogger,
                                       MetricsService metricsService) {
         this.propertiesService = propertiesService;
-        this.payloadExtractor = payloadExtractor;
         this.chainLogger = chainLogger;
         this.metricsService = metricsService;
     }
@@ -63,24 +59,26 @@ public class HttpTriggerFinishProcessor implements Processor {
     public void process(Exchange exchange) throws Exception {
         Boolean sessionFailed = exchange.getProperty(CamelConstants.Properties.HTTP_TRIGGER_CHAIN_FAILED, false, Boolean.class);
         Exception exception = sessionFailed ? exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class) : null;
-        CamelDebuggerProperties dbgProperties = getCamelDebuggerProperties(exchange);
-
-        logHttpTriggerRequestFinished(exchange, dbgProperties, exception);
-        logMetrics(exchange, dbgProperties, exception);
+        logHttpTriggerRequestFinished(exchange, exception);
+        logMetrics(exchange, exception);
     }
 
-    private void logMetrics(Exchange exchange, CamelDebuggerProperties dbgProperties, Exception exception) {
+    private void logMetrics(Exchange exchange, Exception exception) {
         try {
+            ChainInfo chainInfo = MetadataUtil.getBean(exchange, DeploymentInfo.class).getChain();
             int responseCode = PayloadExtractor.getServletResponseCode(exchange, exception);
-            metricsService.processHttpResponseCode(dbgProperties, String.valueOf(responseCode));
-            metricsService.processHttpTriggerPayloadSize(exchange, dbgProperties);
+            metricsService.processHttpResponseCode(chainInfo, String.valueOf(responseCode));
+            metricsService.processHttpTriggerPayloadSize(exchange);
         } catch (Exception e) {
             log.warn("Failed to create metrics data", e);
         }
     }
 
-    private void logHttpTriggerRequestFinished(Exchange exchange, CamelDebuggerProperties dbgProperties, Exception exception) {
-        DeploymentRuntimeProperties runtimeProperties = dbgProperties.getRuntimeProperties(exchange);
+    private void logHttpTriggerRequestFinished(
+            Exchange exchange,
+            Exception exception
+    ) {
+        ChainRuntimeProperties runtimeProperties = propertiesService.getRuntimeProperties(exchange);
         if (!runtimeProperties.getLogLoggingLevel().isInfoLevel()
                 && exception == null) {
             return; // Log only if it is info level OR session is failed
@@ -99,33 +97,6 @@ public class HttpTriggerFinishProcessor implements Processor {
                 .map(NamedNode::getId)
                 .orElse(null);
 
-        String bodyForLogging = "<body not logged>";
-        String headersForLogging = payloadExtractor.extractHeadersForLogging(exchange,
-                MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)), runtimeProperties.isMaskingEnabled()).toString();
-        String exchangePropertiesForLogging = payloadExtractor.extractExchangePropertiesForLogging(
-                exchange, MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)), runtimeProperties.isMaskingEnabled()).toString();
-
-        if (runtimeProperties.isLogPayloadEnabled()) {     //Deprecated since 24.4
-            bodyForLogging = payloadExtractor.extractBodyForLogging(exchange,
-                    MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)), runtimeProperties.isMaskingEnabled());
-        }
-
-        if (runtimeProperties.getLogPayload() != null) {
-            Set<LogPayload> logPayloadSettings = runtimeProperties.getLogPayload();
-            headersForLogging = logPayloadSettings.contains(LogPayload.HEADERS) ? headersForLogging : "<headers not logged>";
-
-            exchangePropertiesForLogging = logPayloadSettings.contains(LogPayload.PROPERTIES) ? exchangePropertiesForLogging : "<properties not logged>";
-
-            bodyForLogging = logPayloadSettings.contains(LogPayload.BODY) ? payloadExtractor.extractBodyForLogging(exchange,
-                    MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)), dbgProperties.getRuntimeProperties(exchange)
-                            .isMaskingEnabled()) : "<body not logged>";
-        }
-
-        chainLogger.logHTTPExchangeFinished(exchange, dbgProperties, bodyForLogging, headersForLogging,
-                exchangePropertiesForLogging, nodeId, duration, exception);
-    }
-
-    private CamelDebuggerProperties getCamelDebuggerProperties(Exchange exchange) {
-        return propertiesService.getProperties(exchange);
+        chainLogger.logHTTPExchangeFinished(exchange, nodeId, duration, exception);
     }
 }

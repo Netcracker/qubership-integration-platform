@@ -5,7 +5,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped
 public class ConsulKeyValidator {
-    String makeKeyValid(final String key) {
+    public String makeKeyValid(final String key) {
         return key.replaceAll("[^a-zA-Z0-9\\-~]", "_");
     }
 }

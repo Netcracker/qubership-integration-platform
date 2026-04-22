@@ -36,6 +36,7 @@ import org.qubership.integration.platform.engine.persistence.shared.entity.Check
 import org.qubership.integration.platform.engine.persistence.shared.entity.Property;
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
 import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
+import org.qubership.integration.platform.engine.util.ExchangeUtil;
 import org.qubership.integration.platform.engine.util.ExchangeUtils;
 import org.qubership.integration.platform.engine.util.InjectUtil;
 
@@ -89,12 +90,10 @@ public class ContextSaverProcessor implements Processor {
                         )
                         .build();
 
-            // dump propagation and tracing context
-            checkpoint.setContextData(checkpointMapper.writeValueAsString(contextOperations.getSerializableContextData()));
+                // dump propagation and tracing context
+                checkpoint.setContextData(checkpointMapper.writeValueAsString(contextOperations.getSerializableContextData()));
 
-                checkpointSessionService.saveAndAssignCheckpoint(
-                        checkpoint,
-                        exchange.getProperty(CamelConstants.Properties.SESSION_ID, String.class));
+                checkpointSessionService.saveAndAssignCheckpoint(checkpoint, ExchangeUtil.getSessionId(exchange));
             } else {
                 log.info("Checkpoint {} skipped due to chain triggered via chain call", exchange.getProperty(
                         CamelConstants.Properties.CHECKPOINT_ELEMENT_ID, String.class));

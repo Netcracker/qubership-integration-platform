@@ -49,7 +49,7 @@ public class UpdateGetterHelper<T> {
                 .await()
                 .indefinitely();
         if (!result.isPresent()) {
-            throw new KVNotFoundException("Key not present in consul");
+            throw new KVNotFoundException("Key not present in consul: " + key);
         }
         return result;
     }
@@ -82,8 +82,10 @@ public class UpdateGetterHelper<T> {
     ) {
         try {
             getUpdates().ifPresent(consumer);
+        } catch (KVNotFoundException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("Failed to check for updates or process them", e);
+            log.error("Failed to check for updates or process them: {}", e.getMessage());
             rollbackLastIndex();
             throw e;
         }

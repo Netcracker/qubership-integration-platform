@@ -3,38 +3,32 @@ package org.qubership.integration.platform.engine.service;
 import com.netcracker.cloud.bluegreen.api.model.BlueGreenState;
 import com.netcracker.cloud.bluegreen.api.model.State;
 import com.netcracker.cloud.bluegreen.api.service.BlueGreenStatePublisher;
-import io.quarkus.runtime.Startup;
+import io.quarkus.arc.Unremovable;
 import io.vertx.mutiny.core.eventbus.EventBus;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.engine.events.BlueGreenInitialStateReceivedEvent;
-import org.qubership.integration.platform.engine.events.UpdateEvent;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.BiConsumer;
 
 @Slf4j
 @ApplicationScoped
+@Unremovable
 public class BlueGreenStateService {
+    public static final String BLUE_GREEN_STATE_EVENT_ADDRESS = "blue-green-state-event";
+
+    public record BlueGreenStateChange(BlueGreenState oldState, BlueGreenState newState) {}
+
     @Inject
     BlueGreenStatePublisher blueGreenStatePublisher;
 
     @Inject
     EventBus eventBus;
 
-    // <last_state, new_state>
-    private final List<BiConsumer<BlueGreenState, BlueGreenState>> callbacks = new ArrayList<>();
     private BlueGreenState lastState = null;
 
-    @Startup
-    public void onApplicationStarted() {
+    @PostConstruct
+    public void init() {
         blueGreenStatePublisher.subscribe(this::updateState);
-    }
-
-    public void subscribe(BiConsumer<BlueGreenState, BlueGreenState> callback) {
-        callbacks.add(callback);
     }
 
     public static boolean isActive(BlueGreenState state) {
@@ -49,20 +43,12 @@ public class BlueGreenStateService {
         return blueGreenStatePublisher.getBlueGreenState().getCurrent().getVersion().value();
     }
 
-    public State getBlueGreenStateValue() {
-        return blueGreenStatePublisher.getBlueGreenState().getCurrent().getState();
-    }
-
     private synchronized void updateState(BlueGreenState newState) {
         boolean firstUpdate = lastState == null;
         log.info("BG state changed: {}, is initial: {}", newState, firstUpdate);
-
-        final BlueGreenState lastStateFinal = this.lastState;
         this.lastState = newState;
-        new Thread(() -> callbacks.forEach(subscriber -> subscriber.accept(lastStateFinal, newState))).start();
 
-        if (firstUpdate) {
-            eventBus.publish(UpdateEvent.EVENT_ADDRESS, new BlueGreenInitialStateReceivedEvent(this));
-        }
+        BlueGreenStateChange stateChange = new BlueGreenStateChange(lastState, newState);
+        eventBus.publish(BLUE_GREEN_STATE_EVENT_ADDRESS, stateChange);
     }
 }

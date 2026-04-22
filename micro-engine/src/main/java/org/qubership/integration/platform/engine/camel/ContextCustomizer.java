@@ -8,8 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.CamelContext;
 import org.apache.camel.observation.MicrometerObservationTracer;
 import org.apache.camel.spi.CamelContextCustomizer;
-import org.apache.camel.support.DefaultRegistry;
-import org.qubership.integration.platform.engine.camel.repository.PerDeploymentBeanRepository;
+import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 
 @Slf4j
@@ -21,9 +20,6 @@ public class ContextCustomizer implements CamelContextCustomizer {
     MicrometerObservationTracer tracer;
 
     @Inject
-    PerDeploymentBeanRepository perDeploymentBeanRepository;
-
-    @Inject
     CamelDebugger debugger;
 
     @Override
@@ -31,10 +27,6 @@ public class ContextCustomizer implements CamelContextCustomizer {
         // Forcing initialization of tracer to prevent its lazy
         // initialization in the middle of integration chain deployment process.
         tracer.init(camelContext);
-
-        // Adding per deployment bean repository to camel bean registry
-        DefaultRegistry registry = (DefaultRegistry) camelContext.getRegistry();
-        registry.addBeanRepository(perDeploymentBeanRepository);
 
         // Setting up debugger
         camelContext.setDebugger(debugger);

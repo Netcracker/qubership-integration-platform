@@ -19,12 +19,9 @@ package org.qubership.integration.platform.engine.util;
 import io.grpc.MethodDescriptor;
 import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
-import org.apache.camel.Route;
 import org.apache.camel.component.grpc.GrpcUtils;
 import org.apache.camel.spi.ClassResolver;
-import org.qubership.integration.platform.engine.camel.metadata.Metadata;
-import org.qubership.integration.platform.engine.camel.metadata.MetadataService;
-import org.qubership.integration.platform.engine.camel.repository.RegistryHelper;
+import org.qubership.integration.platform.engine.metadata.util.MetadataUtil;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 
 import java.lang.reflect.Method;
@@ -78,14 +75,8 @@ public class GrpcProcessorUtils {
                 });
     }
 
-    private static ClassResolver getClassResolver(Exchange exchange) throws Exception {
-        CamelContext context = exchange.getContext();
-        Route route = context.getRoute(exchange.getFromRouteId());
-        MetadataService metadataService = context.getRegistry().findSingleByType(MetadataService.class);
-        String deploymentId = metadataService.getMetadata(route)
-                .map(Metadata::getDeploymentId)
-                .orElseThrow(() -> new Exception("Failed to get deployment ID"));
-        return RegistryHelper.getRegistry(context, deploymentId).findSingleByType(ClassResolver.class);
+    private static ClassResolver getClassResolver(Exchange exchange) {
+        return MetadataUtil.getBean(exchange, ClassResolver.class);
     }
 
     private static CamelContext createContextProxyWithClassResolver(

@@ -19,7 +19,7 @@ package org.qubership.integration.platform.engine.camel.components.servlet;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.apache.camel.Exchange;
-import org.apache.camel.http.common.HttpHeaderFilterStrategy;
+import org.apache.camel.http.base.HttpHeaderFilterStrategy;
 import org.qubership.integration.platform.engine.camel.context.propagation.ContextPropsProvider;
 
 import java.util.Collection;

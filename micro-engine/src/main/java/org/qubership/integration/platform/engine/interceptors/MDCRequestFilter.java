@@ -20,7 +20,7 @@ import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.ext.Provider;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.engine.logging.constants.ContextHeaders;
+import org.qubership.integration.platform.engine.logging.ContextHeaders;
 
 import java.io.IOException;
 

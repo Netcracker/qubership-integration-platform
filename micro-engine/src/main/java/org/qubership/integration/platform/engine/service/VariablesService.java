@@ -16,9 +16,10 @@
 
 package org.qubership.integration.platform.engine.service;
 
-import io.vertx.mutiny.core.eventbus.EventBus;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Named;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
@@ -27,11 +28,11 @@ import org.apache.commons.text.StringSubstitutor;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.engine.configuration.ApplicationConfiguration;
+import org.qubership.integration.platform.engine.configuration.camel.StartupErrorHandlingConfiguration;
+import org.qubership.integration.platform.engine.consul.KVNotFoundException;
+import org.qubership.integration.platform.engine.consul.updates.UpdateGetterHelper;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
-import org.qubership.integration.platform.engine.events.CommonVariablesUpdatedEvent;
-import org.qubership.integration.platform.engine.events.SecuredVariablesUpdatedEvent;
-import org.qubership.integration.platform.engine.events.UpdateEvent;
 import org.qubership.integration.platform.engine.kubernetes.KubeOperator;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 
@@ -47,17 +48,11 @@ import java.util.regex.Pattern;
 @Slf4j
 @ApplicationScoped
 public class VariablesService {
-    private final String kubeSecretV2Name;
-    private final Pair<String, String> kubeSecretsLabel;
     private static final Pattern VARIABLE_PATTERN = Pattern.compile("#\\{[a-zA-Z0-9:._-]+\\}");
     private static final String SECRET_VARIABLE_SEPARATOR = ":";
     public static final String NAMESPACE_VARIABLE = "namespace";
 
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
-
-    private final EventBus eventBus;
-    private final KubeOperator operator;
-    private final ApplicationConfiguration applicationConfiguration;
 
     private Map<String, String> commonVariables = Collections.emptyMap();
     private Map<String, String> securedVariables = Collections.emptyMap();
@@ -66,23 +61,42 @@ public class VariablesService {
     private StringSubstitutor substitutor;
     private StringSubstitutor substitutorEscaped;
 
-    private boolean isInitialSecuredEvent = true;
-    private boolean isInitialCommonEvent = true;
+    private final KubeOperator operator;
+    private final ApplicationConfiguration applicationConfiguration;
+    private final UpdateGetterHelper<Map<String, String>> commonVariablesUpdateGetter;
+    private final String kubeSecretV2Name;
+    private final Pair<String, String> kubeSecretsLabel;
+    private final StartupErrorHandlingConfiguration startupErrorHandlingConfiguration;
 
     @Inject
     public VariablesService(
-            EventBus eventBus,
             KubeOperator operator,
             ApplicationConfiguration applicationConfiguration,
+            @Named("commonVariablesUpdateGetter") UpdateGetterHelper<Map<String, String>> commonVariablesUpdateGetter,
             @ConfigProperty(name = "kubernetes.variables-secret.label") String kubeSecretsLabel,
-            @ConfigProperty(name = "kubernetes.variables-secret.name") String kubeSecretV2Name
+            @ConfigProperty(name = "kubernetes.variables-secret.name") String kubeSecretV2Name,
+            StartupErrorHandlingConfiguration startupErrorHandlingConfiguration
     ) {
-        this.eventBus = eventBus;
         this.operator = operator;
+        this.commonVariablesUpdateGetter = commonVariablesUpdateGetter;
         this.applicationConfiguration = applicationConfiguration;
         this.kubeSecretV2Name = kubeSecretV2Name;
         this.kubeSecretsLabel = Pair.of(kubeSecretsLabel, "secured");
+        this.startupErrorHandlingConfiguration = startupErrorHandlingConfiguration;
         updateSubstitutors(Collections.emptyMap());
+    }
+
+    @PostConstruct
+    public void initialize() {
+        log.info("Initializing variables");
+        try {
+            refreshSecuredVariables();
+            refreshCommonVariables();
+        } catch (Exception e) {
+            if (!startupErrorHandlingConfiguration.ignoreVariablesErrors()) {
+                throw e;
+            }
+        }
     }
 
     public String injectVariables(String text) {
@@ -133,23 +147,28 @@ public class VariablesService {
     public void refreshSecuredVariables() {
         securedVariables = pollSecuredVariables();
         mergeVariables();
-        eventBus.publish(UpdateEvent.EVENT_ADDRESS,
-                new SecuredVariablesUpdatedEvent(this, isInitialSecuredEvent));
-        if (isInitialSecuredEvent) {
-            isInitialSecuredEvent = false;
+    }
+
+    public void refreshCommonVariables() {
+        try {
+            log.debug("Updating common variables");
+            commonVariablesUpdateGetter.checkForUpdates(changes -> {
+                log.debug("Common variables changes detected");
+                setCommonVariables(changes);
+            });
+        } catch (KVNotFoundException e) {
+            log.debug("Common variables KV is empty. {}", e.getMessage());
+            setCommonVariables(Collections.emptyMap());
+        } catch (Exception e) {
+            log.error("Failed to update common variables. {}", e.getMessage());
+            throw e;
         }
     }
 
-    public void updateCommonVariables(@NonNull Map<String, String> variables) {
+    private void setCommonVariables(@NonNull Map<String, String> variables) {
         variables = patchNamespaceValue(variables);
         this.commonVariables = variables;
-
         mergeVariables();
-        eventBus.publish(UpdateEvent.EVENT_ADDRESS,
-                new CommonVariablesUpdatedEvent(this, isInitialCommonEvent));
-        if (isInitialCommonEvent) {
-            isInitialCommonEvent = false;
-        }
     }
 
     private Map<String, String> patchNamespaceValue(@NotNull Map<String, String> variables) {
@@ -163,6 +182,7 @@ public class VariablesService {
     }
 
     private Map<String, String> pollSecuredVariables() {
+        log.debug("Updating secured variables");
         Map<String, String> securedVariables = new ConcurrentHashMap<>();
         try {
             for (Map.Entry<String, Map<String, String>> secretEntry : operator.getAllSecretsWithLabel(
@@ -174,7 +194,7 @@ public class VariablesService {
                     String key = kubeSecretV2Name.equals(secretName) ? variablesEntry.getKey()
                         : secretName + SECRET_VARIABLE_SEPARATOR + variablesEntry.getKey();
 
-                    // merge all variables to common map
+                    // merge all variables to a common map
                     securedVariables.put(key, variablesEntry.getValue());
                 }
             }
@@ -182,7 +202,7 @@ public class VariablesService {
             if (operator.isDevmode()) {
                 log.debug("Can't to get secured variables from k8s");
             } else {
-                log.warn("Failed to get secured variables from k8s", e);
+                log.error("Failed to get secured variables from k8s", e);
                 throw e;
             }
         }

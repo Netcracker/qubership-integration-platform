@@ -19,7 +19,8 @@ package org.qubership.integration.platform.engine.service.debugger.sessions;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.quarkus.arc.lookup.LookupIfProperty;
+import io.quarkus.arc.DefaultBean;
+import io.quarkus.arc.properties.IfBuildProperty;
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -46,7 +47,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @ApplicationScoped
-@LookupIfProperty(name = "qip.opensearch.kafka-client.enabled", stringValue = "false", lookupIfMissing = true)
+@DefaultBean
+@IfBuildProperty(name = "qip.opensearch.kafka-client.enabled", stringValue = "false")
 public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnable {
 
     private final int queueMaxSizeBytes;

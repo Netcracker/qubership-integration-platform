@@ -17,24 +17,32 @@
 package org.qubership.integration.platform.engine.service.debugger.logging;
 
 import jakarta.enterprise.inject.Instance;
+import org.apache.camel.CamelContext;
 import org.apache.camel.CamelException;
 import org.apache.camel.Exchange;
 import org.apache.camel.ExchangePropertyKey;
 import org.apache.camel.Message;
+import org.apache.camel.Route;
 import org.apache.camel.http.base.HttpOperationFailedException;
+import org.apache.camel.spi.Registry;
 import org.apache.camel.tracing.ActiveSpanManager;
 import org.apache.camel.tracing.SpanAdapter;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
-import org.qubership.integration.platform.engine.model.SessionElementProperty;
+import org.qubership.integration.platform.engine.metadata.ChainInfo;
+import org.qubership.integration.platform.engine.metadata.DeploymentInfo;
+import org.qubership.integration.platform.engine.metadata.ElementInfo;
+import org.qubership.integration.platform.engine.metadata.ServiceCallInfo;
+import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
-import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
-import org.qubership.integration.platform.engine.model.logging.ElementRetryProperties;
+import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
+import org.qubership.integration.platform.engine.model.logging.Payload;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
+import org.qubership.integration.platform.engine.service.VariablesService;
+import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePropertiesService;
 import org.qubership.integration.platform.engine.service.debugger.tracing.TracingService;
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
@@ -77,6 +85,18 @@ class ChainLoggerTest {
 
         @SuppressWarnings("unchecked")
         Instance<OriginatingBusinessIdProvider> instance = mock(Instance.class);
+        PayloadExtractor payloadExtractor = mock(PayloadExtractor.class);
+        ChainRuntimePropertiesService chainRuntimePropertiesService = mock(ChainRuntimePropertiesService.class);
+        VariablesService variablesService = mock(VariablesService.class);
+
+        CamelContext camelContext = mock(CamelContext.class);
+        Route route = mock(Route.class);
+        Registry registry = mock(Registry.class);
+
+        DeploymentInfo deploymentInfo = DeploymentInfo.builder()
+                .chain(ChainInfo.builder().id("C-1").name("ChainName").build())
+                .build();
+        ElementInfo elementInfo = ElementInfo.builder().id("ElId").name("ElName").build();
 
         try (MockedStatic<InjectUtil> injectUtil = mockStatic(InjectUtil.class);
              MockedStatic<DebuggerUtils> dbgUtils = mockStatic(DebuggerUtils.class);
@@ -85,31 +105,30 @@ class ChainLoggerTest {
             injectUtil.when(() -> InjectUtil.injectOptional(instance))
                     .thenReturn(Optional.of(businessIdProvider));
 
-            ChainLogger logger = new ChainLogger(tracingService, instance);
+            ChainLogger logger = new ChainLogger(tracingService, instance, payloadExtractor,
+                    chainRuntimePropertiesService, variablesService);
 
             Exchange exchange = mock(Exchange.class);
-            when(exchange.getProperty(Properties.SESSION_ID)).thenReturn("S-1");
+            when(exchange.getProperty(Properties.SESSION_ID, String.class)).thenReturn("S-1");
+            when(exchange.getFromRouteId()).thenReturn("r1");
+            when(exchange.getContext()).thenReturn(camelContext);
+            when(camelContext.getRoute("r1")).thenReturn(route);
+            when(route.getGroup()).thenReturn("group-1");
+            when(route.getCamelContext()).thenReturn(camelContext);
+            when(camelContext.getRegistry()).thenReturn(registry);
+            when(registry.lookupByNameAndType("DeploymentInfo-group-1", DeploymentInfo.class))
+                    .thenReturn(deploymentInfo);
+            when(registry.lookupByNameAndType("ElementInfo-node-1", ElementInfo.class))
+                    .thenReturn(elementInfo);
 
-            CamelDebuggerProperties dbg = mock(CamelDebuggerProperties.class);
-            var depInfo = mock(DeploymentInfo.class);
-            when(dbg.getDeploymentInfo()).thenReturn(depInfo);
-            when(depInfo.getChainId()).thenReturn("C-1");
-            when(depInfo.getChainName()).thenReturn("ChainName");
-
-            dbgUtils.when(() -> DebuggerUtils.getNodeIdFormatted("node-1"))
-                    .thenReturn("node-1");
-
-            when(dbg.getElementProperty("node-1")).thenReturn(Map.of(
-                    CamelConstants.ChainProperties.ELEMENT_NAME, "ElName",
-                    CamelConstants.ChainProperties.ELEMENT_ID, "ElId"
-            ));
+            dbgUtils.when(() -> DebuggerUtils.getNodeIdFormatted("node-1")).thenReturn("node-1");
 
             SpanAdapter span = mock(SpanAdapter.class);
             when(span.traceId()).thenReturn("T-1");
             when(span.spanId()).thenReturn("SP-1");
             spanMgr.when(() -> ActiveSpanManager.getSpan(exchange)).thenReturn(span);
 
-            logger.setLoggerContext(exchange, dbg, "node-1", true);
+            logger.setLoggerContext(exchange, "node-1", true);
 
             assertEquals("C-1", MDC.get(CamelConstants.ChainProperties.CHAIN_ID));
             assertEquals("ChainName", MDC.get(CamelConstants.ChainProperties.CHAIN_NAME));
@@ -128,26 +147,40 @@ class ChainLoggerTest {
         TracingService tracingService = mock(TracingService.class);
         @SuppressWarnings("unchecked")
         Instance<OriginatingBusinessIdProvider> instance = mock(Instance.class);
+        PayloadExtractor payloadExtractor = mock(PayloadExtractor.class);
+        ChainRuntimePropertiesService chainRuntimePropertiesService = mock(ChainRuntimePropertiesService.class);
+        VariablesService variablesService = mock(VariablesService.class);
+
+        CamelContext camelContext = mock(CamelContext.class);
+        Route route = mock(Route.class);
+        Registry registry = mock(Registry.class);
+
+        DeploymentInfo deploymentInfo = DeploymentInfo.builder()
+                .chain(ChainInfo.builder().id("C-1").name("ChainName").build())
+                .build();
 
         try (MockedStatic<InjectUtil> injectUtil = mockStatic(InjectUtil.class);
              MockedStatic<ActiveSpanManager> spanMgr = mockStatic(ActiveSpanManager.class)) {
 
             injectUtil.when(() -> InjectUtil.injectOptional(instance)).thenReturn(Optional.empty());
 
-            ChainLogger logger = new ChainLogger(tracingService, instance);
+            ChainLogger logger = new ChainLogger(tracingService, instance, payloadExtractor,
+                    chainRuntimePropertiesService, variablesService);
 
             Exchange exchange = mock(Exchange.class);
-            when(exchange.getProperty(Properties.SESSION_ID)).thenReturn("S-1");
-
-            CamelDebuggerProperties dbg = mock(CamelDebuggerProperties.class);
-            var depInfo = mock(DeploymentInfo.class);
-            when(dbg.getDeploymentInfo()).thenReturn(depInfo);
-            when(depInfo.getChainId()).thenReturn("C-1");
-            when(depInfo.getChainName()).thenReturn("ChainName");
+            when(exchange.getProperty(Properties.SESSION_ID, String.class)).thenReturn("S-1");
+            when(exchange.getFromRouteId()).thenReturn("r1");
+            when(exchange.getContext()).thenReturn(camelContext);
+            when(camelContext.getRoute("r1")).thenReturn(route);
+            when(route.getGroup()).thenReturn("group-1");
+            when(route.getCamelContext()).thenReturn(camelContext);
+            when(camelContext.getRegistry()).thenReturn(registry);
+            when(registry.lookupByNameAndType("DeploymentInfo-group-1", DeploymentInfo.class))
+                    .thenReturn(deploymentInfo);
 
             spanMgr.when(() -> ActiveSpanManager.getSpan(exchange)).thenReturn(null);
 
-            logger.setLoggerContext(exchange, dbg, null, false);
+            logger.setLoggerContext(exchange, null, false);
 
             assertNull(MDC.get(ChainLogger.MDC_TRACE_ID));
             assertNull(MDC.get(ChainLogger.MDC_SNAP_ID));
@@ -159,29 +192,37 @@ class ChainLoggerTest {
         TracingService tracingService = mock(TracingService.class);
         @SuppressWarnings("unchecked")
         Instance<OriginatingBusinessIdProvider> instance = mock(Instance.class);
+        PayloadExtractor payloadExtractor = mock(PayloadExtractor.class);
+        ChainRuntimePropertiesService chainRuntimePropertiesService = mock(ChainRuntimePropertiesService.class);
+        VariablesService variablesService = mock(VariablesService.class);
 
         try (MockedStatic<InjectUtil> injectUtil = mockStatic(InjectUtil.class)) {
             injectUtil.when(() -> InjectUtil.injectOptional(instance)).thenReturn(Optional.empty());
-            ChainLogger logger = new ChainLogger(tracingService, instance);
+            ChainLogger logger = new ChainLogger(tracingService, instance, payloadExtractor,
+                    chainRuntimePropertiesService, variablesService);
 
             Exchange exchange = mock(Exchange.class);
             Message msg = mock(Message.class);
             when(exchange.getMessage()).thenReturn(msg);
 
-            Map<String, String> headers = Map.of("h", "v");
-            Map<String, SessionElementProperty> props = Map.of();
+            ChainRuntimeProperties runtimeProperties = ChainRuntimeProperties.builder()
+                    .logLoggingLevel(LogLoggingLevel.INFO)
+                    .build();
+            Payload payloadMock = mock(Payload.class);
+            when(chainRuntimePropertiesService.getRuntimeProperties(exchange)).thenReturn(runtimeProperties);
+            when(payloadExtractor.extractPayload(exchange)).thenReturn(payloadMock);
 
             when(msg.getHeader(eq(Headers.HTTP_URI), eq(String.class))).thenReturn("http://x");
-            logger.logRequest(exchange, "body", headers, props, null, null);
+            logger.logRequest(exchange, null, null);
 
             when(msg.getHeader(eq(Headers.HTTP_URI), eq(String.class))).thenReturn(null);
-            logger.logRequest(exchange, "body", headers, props, null, null);
+            logger.logRequest(exchange, null, null);
 
             when(msg.getHeader(eq(Headers.HTTP_URI), eq(String.class))).thenReturn("http://x");
-            logger.logRequest(exchange, "body", headers, props, "svc", "dev");
+            logger.logRequest(exchange, "svc", "dev");
 
             when(msg.getHeader(eq(Headers.HTTP_URI), eq(String.class))).thenReturn(null);
-            logger.logRequest(exchange, "body", headers, props, "svc", "dev");
+            logger.logRequest(exchange, "svc", "dev");
         }
     }
 
@@ -190,21 +231,35 @@ class ChainLoggerTest {
         TracingService tracingService = mock(TracingService.class);
         @SuppressWarnings("unchecked")
         Instance<OriginatingBusinessIdProvider> instance = mock(Instance.class);
+        PayloadExtractor payloadExtractor = mock(PayloadExtractor.class);
+        ChainRuntimePropertiesService chainRuntimePropertiesService = mock(ChainRuntimePropertiesService.class);
+        VariablesService variablesService = mock(VariablesService.class);
+
+        CamelContext camelContext = mock(CamelContext.class);
+        Route route = mock(Route.class);
+        Registry registry = mock(Registry.class);
+
+        ServiceCallInfo serviceCallInfo = ServiceCallInfo.builder()
+                .retryCount("3").retryDelay("1000").build();
 
         try (MockedStatic<InjectUtil> injectUtil = mockStatic(InjectUtil.class);
              MockedStatic<IdentifierUtils> ids = mockStatic(IdentifierUtils.class)) {
 
             injectUtil.when(() -> InjectUtil.injectOptional(instance)).thenReturn(Optional.empty());
-            ChainLogger logger = new ChainLogger(tracingService, instance);
+            ChainLogger logger = new ChainLogger(tracingService, instance, payloadExtractor,
+                    chainRuntimePropertiesService, variablesService);
 
-            ElementRetryProperties retryProps = mock(ElementRetryProperties.class);
-            when(retryProps.retryCount()).thenReturn(3);
-            when(retryProps.retryDelay()).thenReturn(1000);
+            ids.when(() -> IdentifierUtils.getServiceCallRetryIteratorPropertyName("el")).thenReturn("itKey");
+            ids.when(() -> IdentifierUtils.getServiceCallRetryPropertyName("el")).thenReturn("enKey");
 
-            ids.when(() -> IdentifierUtils.getServiceCallRetryIteratorPropertyName("el"))
-                    .thenReturn("itKey");
-            ids.when(() -> IdentifierUtils.getServiceCallRetryPropertyName("el"))
-                    .thenReturn("enKey");
+            when(camelContext.getRoute("r1")).thenReturn(route);
+            when(route.getGroup()).thenReturn("group-1");
+            when(route.getCamelContext()).thenReturn(camelContext);
+            when(camelContext.getRegistry()).thenReturn(registry);
+            when(registry.lookupByNameAndType("ServiceCallInfo-el", ServiceCallInfo.class))
+                    .thenReturn(serviceCallInfo);
+            when(variablesService.injectVariables("3")).thenReturn("3");
+            when(variablesService.injectVariables("1000")).thenReturn("1000");
 
             Exchange exchange = mock(Exchange.class);
             Map<String, Object> map = new HashMap<>();
@@ -213,47 +268,73 @@ class ChainLoggerTest {
             when(exchange.getProperties()).thenReturn(map);
             when(exchange.getProperty(eq(ExchangePropertyKey.EXCEPTION_CAUGHT), eq(Throwable.class)))
                     .thenReturn(new RuntimeException("boom"));
+            when(exchange.getFromRouteId()).thenReturn("r1");
+            when(exchange.getContext()).thenReturn(camelContext);
+            when(chainRuntimePropertiesService.getRuntimeProperties(exchange))
+                    .thenReturn(ChainRuntimeProperties.builder().logLoggingLevel(LogLoggingLevel.WARN).build());
 
-            logger.logRetryRequestAttempt(exchange, retryProps, "el");
+            logger.logRetryRequestAttempt(exchange, "el");
 
             Exchange exchangeBad = mock(Exchange.class);
             Map<String, Object> mapBad = new HashMap<>();
             mapBad.put("itKey", "oops");
             mapBad.put("enKey", "true");
             when(exchangeBad.getProperties()).thenReturn(mapBad);
+            when(chainRuntimePropertiesService.getRuntimeProperties(exchangeBad))
+                    .thenReturn(ChainRuntimeProperties.builder().logLoggingLevel(LogLoggingLevel.INFO).build());
 
-            logger.logRequestAttempt(exchangeBad, retryProps, "el");
+            logger.logRequestAttempt(exchangeBad, "el");
         }
     }
 
     @Test
     void logHTTPExchangeFinishedShouldCoverSuccessAndFailureBranches() {
+        ErrorCode anyCode = ErrorCode.values()[0];
+
         TracingService tracingService = mock(TracingService.class);
         @SuppressWarnings("unchecked")
         Instance<OriginatingBusinessIdProvider> instance = mock(Instance.class);
+        PayloadExtractor payloadExtractor = mock(PayloadExtractor.class);
+        ChainRuntimePropertiesService chainRuntimePropertiesService = mock(ChainRuntimePropertiesService.class);
+        VariablesService variablesService = mock(VariablesService.class);
+
+        CamelContext camelContext = mock(CamelContext.class);
+        Route route = mock(Route.class);
+        Registry registry = mock(Registry.class);
+        ElementInfo elementInfo = ElementInfo.builder().id("ID").name("N").build();
 
         try (MockedStatic<InjectUtil> injectUtil = mockStatic(InjectUtil.class);
-             MockedStatic<PayloadExtractor> payload = mockStatic(PayloadExtractor.class)) {
+             MockedStatic<PayloadExtractor> peMock = mockStatic(PayloadExtractor.class);
+             MockedStatic<ErrorCode> ecMock = mockStatic(ErrorCode.class)) {
 
             injectUtil.when(() -> InjectUtil.injectOptional(instance)).thenReturn(Optional.empty());
-            ChainLogger logger = new ChainLogger(tracingService, instance);
+            ecMock.when(() -> ErrorCode.match(any(Throwable.class))).thenReturn(anyCode);
+
+            ChainLogger logger = new ChainLogger(tracingService, instance, payloadExtractor,
+                    chainRuntimePropertiesService, variablesService);
 
             Exchange exchange = mock(Exchange.class);
             when(exchange.getProperty(Properties.SERVLET_REQUEST_URL)).thenReturn("http://req");
+            when(exchange.getFromRouteId()).thenReturn("r1");
+            when(exchange.getContext()).thenReturn(camelContext);
+            when(camelContext.getRoute("r1")).thenReturn(route);
+            when(route.getGroup()).thenReturn("group-1");
+            when(route.getCamelContext()).thenReturn(camelContext);
+            when(camelContext.getRegistry()).thenReturn(registry);
+            when(registry.lookupByNameAndType("ElementInfo-n1", ElementInfo.class)).thenReturn(elementInfo);
 
-            CamelDebuggerProperties dbg = mock(CamelDebuggerProperties.class);
-            when(dbg.getElementProperty("n1")).thenReturn(Map.of(
-                    CamelConstants.ChainProperties.ELEMENT_NAME, "N",
-                    CamelConstants.ChainProperties.ELEMENT_ID, "ID"
-            ));
+            Payload payloadMock = mock(Payload.class);
+            when(chainRuntimePropertiesService.getRuntimeProperties(exchange))
+                    .thenReturn(ChainRuntimeProperties.builder().build());
+            when(payloadExtractor.extractPayload(exchange)).thenReturn(payloadMock);
 
-            payload.when(() -> PayloadExtractor.getServletResponseCode(eq(exchange), isNull()))
+            peMock.when(() -> PayloadExtractor.getServletResponseCode(eq(exchange), isNull()))
                     .thenReturn(200);
-            logger.logHTTPExchangeFinished(exchange, dbg, "b", "h", "p", "n1", 10, null);
+            logger.logHTTPExchangeFinished(exchange, "n1", 10, null);
 
-            payload.when(() -> PayloadExtractor.getServletResponseCode(eq(exchange), notNull()))
+            peMock.when(() -> PayloadExtractor.getServletResponseCode(eq(exchange), notNull()))
                     .thenReturn(500);
-            logger.logHTTPExchangeFinished(exchange, dbg, "b", "h", "p", "n1", 10, new RuntimeException("x"));
+            logger.logHTTPExchangeFinished(exchange, "n1", 10, new RuntimeException("x"));
         }
     }
 
@@ -262,11 +343,15 @@ class ChainLoggerTest {
         TracingService tracing = mock(TracingService.class);
         @SuppressWarnings("unchecked")
         Instance<OriginatingBusinessIdProvider> inst = mock(Instance.class);
+        PayloadExtractor payloadExtractor = mock(PayloadExtractor.class);
+        ChainRuntimePropertiesService chainRuntimePropertiesService = mock(ChainRuntimePropertiesService.class);
+        VariablesService variablesService = mock(VariablesService.class);
 
         try (MockedStatic<InjectUtil> inject = mockStatic(InjectUtil.class)) {
             inject.when(() -> InjectUtil.injectOptional(inst)).thenReturn(Optional.empty());
 
-            ChainLogger logger = new ChainLogger(tracing, inst);
+            ChainLogger logger = new ChainLogger(tracing, inst, payloadExtractor,
+                    chainRuntimePropertiesService, variablesService);
 
             logger.debug("d {}", 1);
             logger.info("i {}", 1);
@@ -277,24 +362,31 @@ class ChainLoggerTest {
 
     @Test
     void logExchangeFinishedShouldCoverBranchWithExecutionStatusProperty() {
-        CamelDebuggerProperties debuggerProperties = mock(CamelDebuggerProperties.class);
-
         ExecutionStatus base = ExecutionStatus.values()[0];
         ExecutionStatus override = ExecutionStatus.values().length > 1 ? ExecutionStatus.values()[1] : base;
-
-        when(debuggerProperties.containsElementProperty(CamelConstants.ChainProperties.EXECUTION_STATUS)).thenReturn(true);
-        when(debuggerProperties.getElementProperty(CamelConstants.ChainProperties.EXECUTION_STATUS))
-                .thenReturn(Map.of(CamelConstants.ChainProperties.EXECUTION_STATUS, override.name()));
 
         TracingService tracing = mock(TracingService.class);
         @SuppressWarnings("unchecked")
         Instance<OriginatingBusinessIdProvider> inst = mock(Instance.class);
+        PayloadExtractor payloadExtractor = mock(PayloadExtractor.class);
+        ChainRuntimePropertiesService chainRuntimePropertiesService = mock(ChainRuntimePropertiesService.class);
+        VariablesService variablesService = mock(VariablesService.class);
+
+        Exchange exchange = mock(Exchange.class);
+        when(exchange.getProperty(CamelConstants.SYSTEM_PROPERTY_PREFIX + "executionStatus", ExecutionStatus.class))
+                .thenReturn(override);
+
+        Payload payloadMock = mock(Payload.class);
+        when(chainRuntimePropertiesService.getRuntimeProperties(exchange))
+                .thenReturn(ChainRuntimeProperties.builder().build());
+        when(payloadExtractor.extractPayload(exchange)).thenReturn(payloadMock);
 
         try (MockedStatic<InjectUtil> inject = mockStatic(InjectUtil.class)) {
             inject.when(() -> InjectUtil.injectOptional(inst)).thenReturn(Optional.empty());
-            ChainLogger logger = new ChainLogger(tracing, inst);
+            ChainLogger logger = new ChainLogger(tracing, inst, payloadExtractor,
+                    chainRuntimePropertiesService, variablesService);
 
-            logger.logExchangeFinished(debuggerProperties, "body", "headers", "props", base, 123);
+            logger.logExchangeFinished(exchange, base, 123);
         }
     }
 
@@ -303,31 +395,43 @@ class ChainLoggerTest {
         TracingService tracing = mock(TracingService.class);
         @SuppressWarnings("unchecked")
         Instance<OriginatingBusinessIdProvider> inst = mock(Instance.class);
+        PayloadExtractor payloadExtractor = mock(PayloadExtractor.class);
+        ChainRuntimePropertiesService chainRuntimePropertiesService = mock(ChainRuntimePropertiesService.class);
+        VariablesService variablesService = mock(VariablesService.class);
 
         Exchange ex = mock(Exchange.class);
         Message msg = mock(Message.class);
         when(ex.getMessage()).thenReturn(msg);
         when(msg.getHeader(eq(Headers.HTTP_URI), eq(String.class))).thenReturn("http://x");
 
-        CamelDebuggerProperties dbg = mock(CamelDebuggerProperties.class, RETURNS_DEEP_STUBS);
-        when(dbg.getRuntimeProperties(ex).getLogLoggingLevel().isInfoLevel()).thenReturn(true);
+        CamelContext camelContext = mock(CamelContext.class);
+        Route route = mock(Route.class);
+        Registry registry = mock(Registry.class);
 
-        Map<String, SessionElementProperty> props = Map.of();
-        Map<String, String> headers = Map.of("h", "v");
+        when(ex.getFromRouteId()).thenReturn("r1");
+        when(ex.getContext()).thenReturn(camelContext);
+        when(camelContext.getRoute("r1")).thenReturn(route);
+        when(route.getGroup()).thenReturn("group-1");
+        when(route.getCamelContext()).thenReturn(camelContext);
+        when(camelContext.getRegistry()).thenReturn(registry);
+        when(registry.lookupByNameAndType("ElementInfo-n1", ElementInfo.class))
+                .thenReturn(ElementInfo.builder().type("SCHEDULER").build());
+        when(registry.lookupByNameAndType("ElementInfo-n2", ElementInfo.class))
+                .thenReturn(ElementInfo.builder().type("HTTP_SENDER").build());
 
-        try (MockedStatic<InjectUtil> inject = mockStatic(InjectUtil.class);
-             MockedStatic<DebuggerUtils> du = mockStatic(DebuggerUtils.class)) {
+        ChainRuntimeProperties runtimeProperties = ChainRuntimeProperties.builder()
+                .logLoggingLevel(LogLoggingLevel.INFO)
+                .build();
+        Payload payloadMock = mock(Payload.class);
 
+        try (MockedStatic<InjectUtil> inject = mockStatic(InjectUtil.class)) {
             inject.when(() -> InjectUtil.injectOptional(inst)).thenReturn(Optional.empty());
-            du.when(() -> DebuggerUtils.chooseLogPayload(eq(ex), anyString(), eq(dbg))).thenAnswer(a -> a.getArgument(1));
 
-            ChainLogger logger = new ChainLogger(tracing, inst);
+            ChainLogger logger = new ChainLogger(tracing, inst, payloadExtractor,
+                    chainRuntimePropertiesService, variablesService);
 
-            when(dbg.getElementProperty("n1")).thenReturn(Map.of(CamelConstants.ChainProperties.ELEMENT_TYPE, "SCHEDULER"));
-            logger.logBeforeProcess(ex, dbg, "b", headers, props, "n1");
-
-            when(dbg.getElementProperty("n2")).thenReturn(Map.of(CamelConstants.ChainProperties.ELEMENT_TYPE, "HTTP_SENDER"));
-            logger.logBeforeProcess(ex, dbg, "b", headers, props, "n2");
+            logger.logBeforeProcess(ex, runtimeProperties, "n1", payloadMock);
+            logger.logBeforeProcess(ex, runtimeProperties, "n2", payloadMock);
         }
     }
 
@@ -338,6 +442,9 @@ class ChainLoggerTest {
 
         @SuppressWarnings("unchecked")
         Instance<OriginatingBusinessIdProvider> inst = mock(Instance.class);
+        PayloadExtractor payloadExtractor = mock(PayloadExtractor.class);
+        ChainRuntimePropertiesService chainRuntimePropertiesService = mock(ChainRuntimePropertiesService.class);
+        VariablesService variablesService = mock(VariablesService.class);
 
         Exchange ex = mock(Exchange.class);
         Message msg = mock(Message.class);
@@ -346,12 +453,25 @@ class ChainLoggerTest {
         Map<String, Object> headers = new HashMap<>();
         headers.put(Headers.CAMEL_HTTP_RESPONSE_CODE, 200);
         when(msg.getHeaders()).thenReturn(headers);
-
         when(msg.getHeader(eq(Headers.HTTP_URI), eq(String.class))).thenReturn(null);
 
-        CamelDebuggerProperties dbg = mock(CamelDebuggerProperties.class, RETURNS_DEEP_STUBS);
-        when(dbg.getRuntimeProperties(ex).getLogLoggingLevel().isInfoLevel()).thenReturn(true);
-        when(dbg.getElementProperty("n")).thenReturn(Map.of(CamelConstants.ChainProperties.ELEMENT_TYPE, "HTTP_SENDER"));
+        CamelContext camelContext = mock(CamelContext.class);
+        Route route = mock(Route.class);
+        Registry registry = mock(Registry.class);
+
+        when(ex.getFromRouteId()).thenReturn("r1");
+        when(ex.getContext()).thenReturn(camelContext);
+        when(camelContext.getRoute("r1")).thenReturn(route);
+        when(route.getGroup()).thenReturn("group-1");
+        when(route.getCamelContext()).thenReturn(camelContext);
+        when(camelContext.getRegistry()).thenReturn(registry);
+        when(registry.lookupByNameAndType("ElementInfo-n", ElementInfo.class))
+                .thenReturn(ElementInfo.builder().type("HTTP_SENDER").build());
+
+        ChainRuntimeProperties runtimeProperties = ChainRuntimeProperties.builder()
+                .logLoggingLevel(LogLoggingLevel.INFO)
+                .build();
+        Payload payloadMock = mock(Payload.class);
 
         try (MockedStatic<InjectUtil> inject = mockStatic(InjectUtil.class);
              MockedStatic<DebuggerUtils> du = mockStatic(DebuggerUtils.class);
@@ -359,12 +479,12 @@ class ChainLoggerTest {
 
             inject.when(() -> InjectUtil.injectOptional(inst)).thenReturn(Optional.empty());
             du.when(() -> DebuggerUtils.isFailedOperation(ex)).thenReturn(false);
-            du.when(() -> DebuggerUtils.chooseLogPayload(eq(ex), anyString(), eq(dbg))).thenAnswer(a -> a.getArgument(1));
             pe.when(() -> PayloadExtractor.getResponseCode(headers)).thenReturn(200);
 
-            ChainLogger logger = new ChainLogger(tracing, inst);
+            ChainLogger logger = new ChainLogger(tracing, inst, payloadExtractor,
+                    chainRuntimePropertiesService, variablesService);
 
-            logger.logAfterProcess(ex, dbg, "body", Map.of("h", "v"), Map.of(), "n", 10);
+            logger.logAfterProcess(ex, runtimeProperties, payloadMock, "n", 10);
         }
     }
 
@@ -373,26 +493,43 @@ class ChainLoggerTest {
         TracingService tracing = mock(TracingService.class);
         @SuppressWarnings("unchecked")
         Instance<OriginatingBusinessIdProvider> inst = mock(Instance.class);
+        PayloadExtractor payloadExtractor = mock(PayloadExtractor.class);
+        ChainRuntimePropertiesService chainRuntimePropertiesService = mock(ChainRuntimePropertiesService.class);
+        VariablesService variablesService = mock(VariablesService.class);
 
         Exchange ex = mock(Exchange.class);
         Message msg = mock(Message.class);
         when(ex.getMessage()).thenReturn(msg);
         when(msg.getHeaders()).thenReturn(new HashMap<>());
 
-        CamelDebuggerProperties dbg = mock(CamelDebuggerProperties.class, RETURNS_DEEP_STUBS);
-        when(dbg.getRuntimeProperties(ex).getLogLoggingLevel().isInfoLevel()).thenReturn(true);
-        when(dbg.getElementProperty("n")).thenReturn(Map.of(CamelConstants.ChainProperties.ELEMENT_TYPE, "SERVICE_CALL"));
+        CamelContext camelContext = mock(CamelContext.class);
+        Route route = mock(Route.class);
+        Registry registry = mock(Registry.class);
+
+        when(ex.getFromRouteId()).thenReturn("r1");
+        when(ex.getContext()).thenReturn(camelContext);
+        when(camelContext.getRoute("r1")).thenReturn(route);
+        when(route.getGroup()).thenReturn("group-1");
+        when(route.getCamelContext()).thenReturn(camelContext);
+        when(camelContext.getRegistry()).thenReturn(registry);
+        when(registry.lookupByNameAndType("ElementInfo-n", ElementInfo.class))
+                .thenReturn(ElementInfo.builder().type("SERVICE_CALL").build());
+
+        ChainRuntimeProperties runtimeProperties = ChainRuntimeProperties.builder()
+                .logLoggingLevel(LogLoggingLevel.INFO)
+                .build();
+        Payload payloadMock = mock(Payload.class);
 
         try (MockedStatic<InjectUtil> inject = mockStatic(InjectUtil.class);
              MockedStatic<DebuggerUtils> du = mockStatic(DebuggerUtils.class)) {
 
             inject.when(() -> InjectUtil.injectOptional(inst)).thenReturn(Optional.empty());
             du.when(() -> DebuggerUtils.isFailedOperation(ex)).thenReturn(false);
-            du.when(() -> DebuggerUtils.chooseLogPayload(eq(ex), anyString(), eq(dbg))).thenAnswer(a -> a.getArgument(1));
 
-            ChainLogger logger = new ChainLogger(tracing, inst);
+            ChainLogger logger = new ChainLogger(tracing, inst, payloadExtractor,
+                    chainRuntimePropertiesService, variablesService);
 
-            logger.logAfterProcess(ex, dbg, "body", Map.of(), Map.of(), "n", 10);
+            logger.logAfterProcess(ex, runtimeProperties, payloadMock, "n", 10);
         }
     }
 
@@ -405,6 +542,9 @@ class ChainLoggerTest {
 
         @SuppressWarnings("unchecked")
         Instance<OriginatingBusinessIdProvider> inst = mock(Instance.class);
+        PayloadExtractor payloadExtractor = mock(PayloadExtractor.class);
+        ChainRuntimePropertiesService chainRuntimePropertiesService = mock(ChainRuntimePropertiesService.class);
+        VariablesService variablesService = mock(VariablesService.class);
 
         Exchange ex = mock(Exchange.class);
         Message msg = mock(Message.class);
@@ -412,18 +552,33 @@ class ChainLoggerTest {
         when(msg.getHeaders()).thenReturn(new HashMap<>());
 
         when(ex.getException()).thenReturn(new Exception("boom"));
-        when(ex.getProperty(Properties.SESSION_ID)).thenReturn("S-1");
+        when(ex.getProperty(Properties.SESSION_ID, String.class)).thenReturn("S-1");
 
-        CamelDebuggerProperties dbg = mock(CamelDebuggerProperties.class, RETURNS_DEEP_STUBS);
-        when(dbg.getRuntimeProperties(ex).getLogLoggingLevel().isInfoLevel()).thenReturn(false);
-        when(dbg.getElementProperty("n"))
-                .thenReturn(Map.of(CamelConstants.ChainProperties.ELEMENT_TYPE, "HTTP_SENDER"));
-        when(dbg.getDeploymentInfo().getChainId()).thenReturn("C-1");
-        when(dbg.getDeploymentInfo().getChainName()).thenReturn("CN");
-        when(dbg.getElementProperty("nodeFormatted")).thenReturn(Map.of(
-                CamelConstants.ChainProperties.ELEMENT_ID, "E-1",
-                CamelConstants.ChainProperties.ELEMENT_NAME, "EN"
-        ));
+        CamelContext camelContext = mock(CamelContext.class);
+        Route route = mock(Route.class);
+        Registry registry = mock(Registry.class);
+
+        DeploymentInfo deploymentInfo = DeploymentInfo.builder()
+                .chain(ChainInfo.builder().id("C-1").name("CN").build())
+                .build();
+
+        when(ex.getFromRouteId()).thenReturn("r1");
+        when(ex.getContext()).thenReturn(camelContext);
+        when(camelContext.getRoute("r1")).thenReturn(route);
+        when(route.getGroup()).thenReturn("group-1");
+        when(route.getCamelContext()).thenReturn(camelContext);
+        when(camelContext.getRegistry()).thenReturn(registry);
+        when(registry.lookupByNameAndType("DeploymentInfo-group-1", DeploymentInfo.class))
+                .thenReturn(deploymentInfo);
+        when(registry.lookupByNameAndType("ElementInfo-n", ElementInfo.class))
+                .thenReturn(ElementInfo.builder().type("HTTP_SENDER").build());
+        when(registry.lookupByNameAndType("ElementInfo-nodeFormatted", ElementInfo.class))
+                .thenReturn(ElementInfo.builder().id("E-1").name("EN").build());
+
+        ChainRuntimeProperties runtimeProperties = ChainRuntimeProperties.builder()
+                .logLoggingLevel(LogLoggingLevel.WARN)
+                .build();
+        Payload payloadMock = mock(Payload.class);
 
         try (MockedStatic<InjectUtil> inject = mockStatic(InjectUtil.class);
              MockedStatic<DebuggerUtils> debuggerUtilsMock = mockStatic(DebuggerUtils.class);
@@ -433,16 +588,15 @@ class ChainLoggerTest {
             inject.when(() -> InjectUtil.injectOptional(inst)).thenReturn(Optional.empty());
 
             debuggerUtilsMock.when(() -> DebuggerUtils.isFailedOperation(ex)).thenReturn(true);
-            debuggerUtilsMock.when(() -> DebuggerUtils.chooseLogPayload(eq(ex), anyString(), eq(dbg)))
-                    .thenAnswer(a -> a.getArgument(1));
             debuggerUtilsMock.when(() -> DebuggerUtils.getNodeIdFormatted("n")).thenReturn("nodeFormatted");
 
             ec.when(() -> ErrorCode.match(any(Throwable.class))).thenReturn(anyCode);
 
             asm.when(() -> ActiveSpanManager.getSpan(ex)).thenReturn(null);
 
-            ChainLogger logger = new ChainLogger(tracing, inst);
-            logger.logAfterProcess(ex, dbg, "body", Map.of(), Map.of(), "n", 10);
+            ChainLogger logger = new ChainLogger(tracing, inst, payloadExtractor,
+                    chainRuntimePropertiesService, variablesService);
+            logger.logAfterProcess(ex, runtimeProperties, payloadMock, "n", 10);
         }
     }
 
@@ -455,6 +609,9 @@ class ChainLoggerTest {
 
         @SuppressWarnings("unchecked")
         Instance<OriginatingBusinessIdProvider> inst = mock(Instance.class);
+        PayloadExtractor payloadExtractor = mock(PayloadExtractor.class);
+        ChainRuntimePropertiesService chainRuntimePropertiesService = mock(ChainRuntimePropertiesService.class);
+        VariablesService variablesService = mock(VariablesService.class);
 
         Exchange ex = mock(Exchange.class);
         Message msg = mock(Message.class);
@@ -470,19 +627,33 @@ class ChainLoggerTest {
 
         when(ex.getException()).thenReturn(camelEx);
         when(ex.getException(CamelException.class)).thenReturn(camelEx);
+        when(ex.getProperty(Properties.SESSION_ID, String.class)).thenReturn("S-1");
 
-        when(ex.getProperty(Properties.SESSION_ID)).thenReturn("S-1");
+        CamelContext camelContext = mock(CamelContext.class);
+        Route route = mock(Route.class);
+        Registry registry = mock(Registry.class);
 
-        CamelDebuggerProperties dbg = mock(CamelDebuggerProperties.class, RETURNS_DEEP_STUBS);
-        when(dbg.getRuntimeProperties(ex).getLogLoggingLevel().isInfoLevel()).thenReturn(false);
-        when(dbg.getElementProperty("n"))
-                .thenReturn(Map.of(CamelConstants.ChainProperties.ELEMENT_TYPE, "SERVICE_CALL"));
-        when(dbg.getDeploymentInfo().getChainId()).thenReturn("C-1");
-        when(dbg.getDeploymentInfo().getChainName()).thenReturn("CN");
-        when(dbg.getElementProperty("nodeFormatted")).thenReturn(Map.of(
-                CamelConstants.ChainProperties.ELEMENT_ID, "E-1",
-                CamelConstants.ChainProperties.ELEMENT_NAME, "EN"
-        ));
+        DeploymentInfo deploymentInfo = DeploymentInfo.builder()
+                .chain(ChainInfo.builder().id("C-1").name("CN").build())
+                .build();
+
+        when(ex.getFromRouteId()).thenReturn("r1");
+        when(ex.getContext()).thenReturn(camelContext);
+        when(camelContext.getRoute("r1")).thenReturn(route);
+        when(route.getGroup()).thenReturn("group-1");
+        when(route.getCamelContext()).thenReturn(camelContext);
+        when(camelContext.getRegistry()).thenReturn(registry);
+        when(registry.lookupByNameAndType("DeploymentInfo-group-1", DeploymentInfo.class))
+                .thenReturn(deploymentInfo);
+        when(registry.lookupByNameAndType("ElementInfo-n", ElementInfo.class))
+                .thenReturn(ElementInfo.builder().type("SERVICE_CALL").build());
+        when(registry.lookupByNameAndType("ElementInfo-nodeFormatted", ElementInfo.class))
+                .thenReturn(ElementInfo.builder().id("E-1").name("EN").build());
+
+        ChainRuntimeProperties runtimeProperties = ChainRuntimeProperties.builder()
+                .logLoggingLevel(LogLoggingLevel.WARN)
+                .build();
+        Payload payloadMock = mock(Payload.class);
 
         try (MockedStatic<InjectUtil> inject = mockStatic(InjectUtil.class);
              MockedStatic<DebuggerUtils> du = mockStatic(DebuggerUtils.class);
@@ -491,14 +662,13 @@ class ChainLoggerTest {
             inject.when(() -> InjectUtil.injectOptional(inst)).thenReturn(Optional.empty());
 
             du.when(() -> DebuggerUtils.isFailedOperation(ex)).thenReturn(true);
-            du.when(() -> DebuggerUtils.chooseLogPayload(eq(ex), anyString(), eq(dbg)))
-                    .thenAnswer(a -> a.getArgument(1));
             du.when(() -> DebuggerUtils.getNodeIdFormatted("n")).thenReturn("nodeFormatted");
 
             ec.when(() -> ErrorCode.match(any(Throwable.class))).thenReturn(anyCode);
 
-            ChainLogger logger = new ChainLogger(tracing, inst);
-            logger.logAfterProcess(ex, dbg, "body", Map.of(), Map.of(), "n", 77);
+            ChainLogger logger = new ChainLogger(tracing, inst, payloadExtractor,
+                    chainRuntimePropertiesService, variablesService);
+            logger.logAfterProcess(ex, runtimeProperties, payloadMock, "n", 77);
         }
     }
 
@@ -507,10 +677,16 @@ class ChainLoggerTest {
         TracingService tracing = mock(TracingService.class);
         @SuppressWarnings("unchecked")
         Instance<OriginatingBusinessIdProvider> inst = mock(Instance.class);
+        PayloadExtractor payloadExtractor = mock(PayloadExtractor.class);
+        ChainRuntimePropertiesService chainRuntimePropertiesService = mock(ChainRuntimePropertiesService.class);
+        VariablesService variablesService = mock(VariablesService.class);
 
-        ElementRetryProperties retryProps = mock(ElementRetryProperties.class);
-        when(retryProps.retryCount()).thenReturn(3);
-        when(retryProps.retryDelay()).thenReturn(1000);
+        CamelContext camelContext = mock(CamelContext.class);
+        Route route = mock(Route.class);
+        Registry registry = mock(Registry.class);
+
+        // null retryCount/retryDelay → Integer.parseInt path uses orElse(0), so count=0 for all exchanges
+        ServiceCallInfo serviceCallInfo = ServiceCallInfo.builder().build();
 
         try (MockedStatic<InjectUtil> inject = mockStatic(InjectUtil.class);
              MockedStatic<IdentifierUtils> ids = mockStatic(IdentifierUtils.class)) {
@@ -520,23 +696,40 @@ class ChainLoggerTest {
             ids.when(() -> IdentifierUtils.getServiceCallRetryIteratorPropertyName("el")).thenReturn("it");
             ids.when(() -> IdentifierUtils.getServiceCallRetryPropertyName("el")).thenReturn("en");
 
-            ChainLogger logger = new ChainLogger(tracing, inst);
+            when(camelContext.getRoute("r1")).thenReturn(route);
+            when(route.getGroup()).thenReturn("group-1");
+            when(route.getCamelContext()).thenReturn(camelContext);
+            when(camelContext.getRegistry()).thenReturn(registry);
+            when(registry.lookupByNameAndType("ServiceCallInfo-el", ServiceCallInfo.class))
+                    .thenReturn(serviceCallInfo);
+
+            ChainRuntimeProperties warnProperties = ChainRuntimeProperties.builder()
+                    .logLoggingLevel(LogLoggingLevel.WARN)
+                    .build();
+
+            ChainLogger logger = new ChainLogger(tracing, inst, payloadExtractor,
+                    chainRuntimePropertiesService, variablesService);
 
             Exchange ex1 = mock(Exchange.class);
             when(ex1.getProperties()).thenReturn(new HashMap<>(Map.of("it", 1, "en", "false")));
-            logger.logRetryRequestAttempt(ex1, retryProps, "el");
+            when(ex1.getFromRouteId()).thenReturn("r1");
+            when(ex1.getContext()).thenReturn(camelContext);
+            when(chainRuntimePropertiesService.getRuntimeProperties(ex1)).thenReturn(warnProperties);
+            logger.logRetryRequestAttempt(ex1, "el");
 
             Exchange ex2 = mock(Exchange.class);
             when(ex2.getProperties()).thenReturn(new HashMap<>(Map.of("it", 0, "en", "true")));
-            logger.logRetryRequestAttempt(ex2, retryProps, "el");
-
-            ElementRetryProperties retryProps0 = mock(ElementRetryProperties.class);
-            when(retryProps0.retryCount()).thenReturn(0);
-            when(retryProps0.retryDelay()).thenReturn(1000);
+            when(ex2.getFromRouteId()).thenReturn("r1");
+            when(ex2.getContext()).thenReturn(camelContext);
+            when(chainRuntimePropertiesService.getRuntimeProperties(ex2)).thenReturn(warnProperties);
+            logger.logRetryRequestAttempt(ex2, "el");
 
             Exchange ex3 = mock(Exchange.class);
             when(ex3.getProperties()).thenReturn(new HashMap<>(Map.of("it", 1, "en", "true")));
-            logger.logRetryRequestAttempt(ex3, retryProps0, "el");
+            when(ex3.getFromRouteId()).thenReturn("r1");
+            when(ex3.getContext()).thenReturn(camelContext);
+            when(chainRuntimePropertiesService.getRuntimeProperties(ex3)).thenReturn(warnProperties);
+            logger.logRetryRequestAttempt(ex3, "el");
         }
     }
 
@@ -545,24 +738,30 @@ class ChainLoggerTest {
         TracingService tracing = mock(TracingService.class);
         @SuppressWarnings("unchecked")
         Instance<OriginatingBusinessIdProvider> inst = mock(Instance.class);
+        PayloadExtractor payloadExtractor = mock(PayloadExtractor.class);
+        ChainRuntimePropertiesService chainRuntimePropertiesService = mock(ChainRuntimePropertiesService.class);
+        VariablesService variablesService = mock(VariablesService.class);
 
         Exchange ex = mock(Exchange.class);
         when(ex.getProperty(Properties.SERVLET_REQUEST_URL)).thenReturn("http://req");
         when(ex.getProperty(Properties.HTTP_TRIGGER_EXTERNAL_ERROR_CODE))
                 .thenReturn(ErrorCode.values()[0]);
 
-        CamelDebuggerProperties dbg = mock(CamelDebuggerProperties.class);
+        Payload payloadMock = mock(Payload.class);
+        when(chainRuntimePropertiesService.getRuntimeProperties(ex))
+                .thenReturn(ChainRuntimeProperties.builder().build());
+        when(payloadExtractor.extractPayload(ex)).thenReturn(payloadMock);
 
         try (MockedStatic<InjectUtil> inject = mockStatic(InjectUtil.class);
              MockedStatic<PayloadExtractor> pe = mockStatic(PayloadExtractor.class)) {
 
             inject.when(() -> InjectUtil.injectOptional(inst)).thenReturn(Optional.empty());
-
             pe.when(() -> PayloadExtractor.getServletResponseCode(ex, null)).thenReturn(500);
 
-            ChainLogger logger = new ChainLogger(tracing, inst);
+            ChainLogger logger = new ChainLogger(tracing, inst, payloadExtractor,
+                    chainRuntimePropertiesService, variablesService);
 
-            logger.logHTTPExchangeFinished(ex, dbg, "b", "h", "p", null, 10, null);
+            logger.logHTTPExchangeFinished(ex, null, 10, null);
         }
     }
 }

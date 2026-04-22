@@ -152,9 +152,8 @@ public class CheckpointSessionService {
 
     @Transactional
     public List<SessionInfo> findAllFailedChainSessionsInfo(String chainId) {
-        List<SessionInfo> allByChainIdAndExecutionStatus = sessionInfoRepository.findAllByChainIdAndExecutionStatus(
+        return sessionInfoRepository.findAllByChainIdAndExecutionStatus(
             chainId, ExecutionStatus.COMPLETED_WITH_ERRORS);
-        return allByChainIdAndExecutionStatus;
     }
 
     @Transactional
@@ -204,12 +203,12 @@ public class CheckpointSessionService {
     }
 
     /**
-     * Remove all related checkpoint recursively
+     * Remove all related checkpoints recursively
      */
     @Transactional
     public void removeAllRelatedCheckpoints(String sessionId, boolean isRootSession) {
         if (isRootSession) {
-            // do not execute complex query if possible
+            // do not execute a complex query if possible
             sessionInfoRepository.deleteById(sessionId);
         } else {
             sessionInfoRepository.deleteAllRelatedSessionsAndCheckpoints(sessionId);

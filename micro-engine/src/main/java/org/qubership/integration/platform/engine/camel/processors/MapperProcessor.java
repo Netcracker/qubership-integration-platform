@@ -36,16 +36,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
-import org.apache.camel.Route;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringEscapeUtils;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.qubership.integration.platform.engine.camel.metadata.Metadata;
-import org.qubership.integration.platform.engine.camel.metadata.MetadataService;
-import org.qubership.integration.platform.engine.camel.repository.RegistryHelper;
 import org.qubership.integration.platform.engine.mapper.atlasmap.CustomAtlasContext;
 import org.qubership.integration.platform.engine.mapper.atlasmap.ValidationResult;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
+import org.qubership.integration.platform.engine.util.ExchangeUtil;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -59,7 +56,7 @@ import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 
 /**
- * Processor is used to receive input body and map it to
+ * The Processor is used to receive input body and map it to
  * another structure with rules, that is placed at the internalProperty_mappingConfiguration
  * environment variable
  */
@@ -81,7 +78,6 @@ public class MapperProcessor implements Processor {
     private static final String UNABLE_TO_READ_PROPERTY_ERROR_MESSAGE = "Unable to read complex property: ";
 
     private final DefaultAtlasContextFactory factory;
-    private final MetadataService metadataService;
     private final ObjectMapper objectMapper;
 
     @ConfigProperty(name = "qip.mapper.cache-enabled")
@@ -89,26 +85,16 @@ public class MapperProcessor implements Processor {
 
     @Inject
     public MapperProcessor(
-            MetadataService metadataService,
             @Identifier("jsonMapper") ObjectMapper objectMapper
     ) {
         DefaultAtlasFunctionResolver.getInstance(); // To fix time when function factories are loaded
         this.factory = DefaultAtlasContextFactory.getInstance();
-        this.metadataService = metadataService;
         this.objectMapper = objectMapper;
     }
 
     @Override
     public void process(Exchange exchange) throws Exception {
         CamelContext camelContext = exchange.getContext();
-        Route route = camelContext.getRoute(exchange.getFromRouteId());
-        String deploymentId = metadataService.getMetadata(route)
-                .map(Metadata::getDeploymentId)
-                .orElse(null);
-        if (isNull(deploymentId)) {
-            log.warn("Failed to get the deployment id for the route: {}", route.getId());
-        }
-
         String mapping = exchange.getProperty(Properties.MAPPING_CONFIG, String.class);
         AtlasMapping atlasMapping = null;
         ValidationResult cachedValidationResult = null;
@@ -119,8 +105,7 @@ public class MapperProcessor implements Processor {
                 cachedValidationResult = camelContext.getRegistry().lookupByNameAndType(mappingId, ValidationResult.class);
                 if (atlasMapping == null) {
                     atlasMapping = getAtlasMappingObj(mapping);
-                    RegistryHelper.getRegistry(camelContext, deploymentId)
-                            .bind(mappingId, AtlasMapping.class, atlasMapping);
+                    camelContext.getRegistry().bind(mappingId, AtlasMapping.class, atlasMapping);
                 }
             } else {
                 log.warn("Mapping ID is missing from the configuration");
@@ -149,8 +134,7 @@ public class MapperProcessor implements Processor {
                 if (StringUtils.isNotEmpty(mappingId)) {
                     cachedValidationResult = context.getCachedValidationResult();
                     if (nonNull(cachedValidationResult)) {
-                        RegistryHelper.getRegistry(camelContext, deploymentId)
-                                .bind(mappingId, ValidationResult.class, cachedValidationResult);
+                        camelContext.getRegistry().bind(mappingId, ValidationResult.class, cachedValidationResult);
                     }
                 }
             }
@@ -180,7 +164,7 @@ public class MapperProcessor implements Processor {
     }
 
     private void logIssues(Exchange exchange, AtlasSession session) {
-        String sessionId = exchange.getProperty(Properties.SESSION_ID, String.class);
+        String sessionId = ExchangeUtil.getSessionId(exchange);
 
         List<Audit> audits = session.getAudits().getAudit();
         audits.stream()

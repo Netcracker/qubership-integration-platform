@@ -8,7 +8,7 @@ import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.qubership.integration.platform.engine.model.deployment.properties.DeploymentRuntimeProperties;
+import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
 import org.qubership.integration.platform.engine.service.debugger.RuntimePropertiesException;
 
 import java.util.HashMap;
@@ -20,7 +20,7 @@ import static java.util.Objects.isNull;
 
 @Slf4j
 @ApplicationScoped
-public class ChainRuntimePropertiesUpdateParser implements Function<List<KeyValue>, Map<String, DeploymentRuntimeProperties>> {
+public class ChainRuntimePropertiesUpdateParser implements Function<List<KeyValue>, Map<String, ChainRuntimeProperties>> {
     @ConfigProperty(name = "consul.keys.runtime-configurations")
     String keyRuntimeConfigurations;
 
@@ -29,8 +29,8 @@ public class ChainRuntimePropertiesUpdateParser implements Function<List<KeyValu
     ObjectMapper objectMapper;
 
     @Override
-    public Map<String, DeploymentRuntimeProperties> apply(List<KeyValue> entries) {
-        Map<String, DeploymentRuntimeProperties> result = new HashMap<>();
+    public Map<String, ChainRuntimeProperties> apply(List<KeyValue> entries) {
+        Map<String, ChainRuntimeProperties> result = new HashMap<>();
         boolean failed = false;
 
         for (KeyValue kv : entries) {
@@ -42,8 +42,8 @@ public class ChainRuntimePropertiesUpdateParser implements Function<List<KeyValu
             }
 
             try {
-                DeploymentRuntimeProperties properties = objectMapper.readValue(
-                        kv.getValue(), DeploymentRuntimeProperties.class);
+                ChainRuntimeProperties properties = objectMapper.readValue(
+                        kv.getValue(), ChainRuntimeProperties.class);
                 result.put(chainId, properties);
             } catch (Exception e) {
                 log.warn("Failed to deserialize runtime properties update for chain: {}, error: {}",

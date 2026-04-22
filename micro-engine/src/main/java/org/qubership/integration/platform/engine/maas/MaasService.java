@@ -25,25 +25,20 @@ import com.netcracker.cloud.maas.client.api.rabbit.VHost;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.CamelContext;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Strings;
-import org.apache.commons.text.StringEscapeUtils;
+import org.qubership.integration.platform.engine.camel.dsl.preprocess.preprocessors.MaasParametersResolver;
 import org.qubership.integration.platform.engine.configuration.ApplicationConfiguration;
 import org.qubership.integration.platform.engine.configuration.tenant.TenantConfiguration;
 import org.qubership.integration.platform.engine.maas.kafka.AuthType;
-import org.qubership.integration.platform.engine.model.ChainElementType;
-import org.qubership.integration.platform.engine.model.constants.ConnectionSourceType;
-import org.qubership.integration.platform.engine.model.constants.EnvironmentSourceType;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
-import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
+import org.qubership.integration.platform.engine.metadata.MaasClassifierInfo;
 import org.qubership.integration.platform.engine.service.VariablesService;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.qubership.integration.platform.engine.maas.rabbitmq.MaasRabbitMqConstants.DEFAULT_VHOST_CLASSIFIER_NAME;
 import static org.qubership.integration.platform.engine.model.ElementOptions.*;
@@ -51,8 +46,11 @@ import static org.qubership.integration.platform.engine.model.constants.CamelCon
 
 @Slf4j
 @ApplicationScoped
-public class MaasService {
+public class MaasService implements MaasParametersResolver {
     private static final String FAILED_TO_RESOLVE_MAAS_PARAMETERS = "Failed to resolve MaaS parameters";
+
+    @Inject
+    CamelContext camelContext;
 
     @Inject
     VariablesService variablesService;
@@ -69,69 +67,43 @@ public class MaasService {
     @Inject
     TenantConfiguration tenantConfiguration;
 
-    public String resolveDeploymentMaasParameters(
-            DeploymentConfiguration configuration,
-            String configurationXml
-    ) throws URISyntaxException {
-        for (ElementProperties props : configuration.getProperties()) {
-            Map<String, String> propMap = props.getProperties();
-            String connectionSource = propMap.get(CONNECTION_SOURCE_TYPE_PROP);
-            ChainElementType elementType = ChainElementType.fromString(propMap.get(ELEMENT_TYPE));
-            Map<String, String> propertiesToReplace = Collections.emptyMap();
-
-            switch (elementType) {
-                case ASYNCAPI_TRIGGER, SERVICE_CALL -> {
-                    if (!EnvironmentSourceType.MAAS_BY_CLASSIFIER.toString().equalsIgnoreCase(connectionSource)) {
-                        continue;
-                    }
-                    switch (propMap.get(OPERATION_PROTOCOL_TYPE_PROP)) {
-                        case (OPERATION_PROTOCOL_TYPE_KAFKA) -> {
-                            propertiesToReplace = resolveServiceKafkaMaasParameters(propMap);
-                        }
-                        case (OPERATION_PROTOCOL_TYPE_AMQP) -> {
-                            propertiesToReplace = resolveRabbitmqMaasParameters(propMap);
-                        }
-                    }
-                }
-                case KAFKA_TRIGGER_2, KAFKA_SENDER_2 -> {
-                    if (!ConnectionSourceType.MAAS.toString().equalsIgnoreCase(connectionSource)) {
-                        continue;
-                    }
-                    propertiesToReplace = resolveKafkaMaasParameters(propMap);
-                }
-                case RABBITMQ_TRIGGER_2, RABBITMQ_SENDER_2 -> {
-                    if (!ConnectionSourceType.MAAS.toString().equalsIgnoreCase(connectionSource)) {
-                        continue;
-                    }
-                    propertiesToReplace = resolveRabbitmqMaasParameters(propMap);
-                }
-            }
-            if (!propertiesToReplace.isEmpty()) {
-                configurationXml = replacePropertiesPlaceholders(configurationXml, propMap, propertiesToReplace);
-            }
+    @Override
+    public String resolveMaasParameters(String content) {
+        Map<String, String> replacementMap = new HashMap<>();
+        for (MaasClassifierInfo info
+                : camelContext.getRegistry().findByType(MaasClassifierInfo.class)) {
+            replacementMap.putAll(updateKeysToPlaceholders(info.getElementId(), resolveMaasParameters(info)));
         }
+        return replacePropertiesPlaceholders(content, replacementMap);
+    }
 
-        return configurationXml;
+    private Map<String, String> resolveMaasParameters(MaasClassifierInfo maasClassifierInfo) {
+        String protocol = maasClassifierInfo.getProtocol();
+        return switch (protocol) {
+            case OPERATION_PROTOCOL_TYPE_KAFKA -> resolveKafkaMaasParameters(maasClassifierInfo);
+            case OPERATION_PROTOCOL_TYPE_AMQP -> resolveRabbitmqMaasParameters(maasClassifierInfo);
+            default -> throw new MaasException("Unsupported protocol: " + protocol);
+        };
+    }
+
+    private Map<String, String> updateKeysToPlaceholders(String id, Map<String, String> m) {
+        return m.entrySet().stream().collect(Collectors.toMap(
+                e -> MaasUtils.getMaasParamPlaceholder(id, e.getKey()),
+                Map.Entry::getValue
+        ));
     }
 
     private String replacePropertiesPlaceholders(
-            String deploymentXml,
-            Map<String, String> elementProperties,
-            Map<String, String> propertiesToReplace
+            String content,
+            Map<String, String> replacementMap
     ) {
-        String elementId = elementProperties.get(ELEMENT_ID);
-        for (Map.Entry<String, String> entry : propertiesToReplace.entrySet()) {
-            String replacementString = MaasUtils.getMaasParamPlaceholder(elementId, entry.getKey());
+        for (Map.Entry<String, String> entry : replacementMap.entrySet()) {
             String replacement = Optional.ofNullable(entry.getValue()).orElse("");
-            if (StringUtils.isBlank(replacement)) {
-                deploymentXml = removePropertyPlaceholder(deploymentXml, replacementString);
-            } else {
-                deploymentXml = deploymentXml.replace(replacementString, StringEscapeUtils.escapeXml10(replacement));
-            }
-            deploymentXml = deploymentXml.replace(replacementString, StringEscapeUtils.escapeXml10(replacement));
-            elementProperties.replaceAll((k, v) -> v == null ? null : v.replace(replacementString, replacement));
+            content = StringUtils.isBlank(replacement)
+                ? removePropertyPlaceholder(content, entry.getKey())
+                : content.replace(entry.getKey(), replacement);
         }
-        return deploymentXml;
+        return content;
     }
 
     private String removePropertyPlaceholder(String deploymentXml, String placeholder) {
@@ -142,22 +114,13 @@ public class MaasService {
                 .replaceAll("(&amp;)?[a-zA-Z0-9_-]+=" + replacementPlaceholderRegexp, "");
     }
 
-    private Map<String, String> resolveKafkaMaasParameters(Map<String, String> propMap) {
-        return resolveKafkaMaasMainParameters(propMap, TOPICS);
-    }
-
-    private Map<String, String> resolveKafkaMaasMainParameters(Map<String, String> propMap, String topicsVariableName) {
-        String topicClassifier = getProperty(propMap, MAAS_DEPLOYMENT_CLASSIFIER_PROP);
-        if (StringUtils.isEmpty(topicClassifier)) {
-            return Collections.emptyMap();
-        }
-
-        String classifierNamespace = getProperty(propMap, MAAS_CLASSIFIER_NAMESPACE_PROP);
-        String classifierTenantId = getProperty(propMap, MAAS_CLASSIFIER_TENANT_ID_PROP);
-        String tenantTopicEnabled = getProperty(propMap, MAAS_CLASSIFIER_TENANT_ENABLED_PROP);
+    private Map<String, String> resolveKafkaMaasParameters(MaasClassifierInfo maasClassifierInfo) {
         TopicAddress kafkaTopic = getKafkaTopic(
-                topicClassifier, classifierNamespace, classifierTenantId,
-                StringUtils.isNotEmpty(tenantTopicEnabled) && Boolean.parseBoolean(tenantTopicEnabled));
+                variablesService.injectVariables(maasClassifierInfo.getClassifier()),
+                variablesService.injectVariables(maasClassifierInfo.getNamespace()),
+                variablesService.injectVariables(maasClassifierInfo.getTenantId()),
+                Boolean.parseBoolean(variablesService.injectVariables(maasClassifierInfo.getTenantEnabled()))
+        );
 
         String protocol = MaasUtils.selectProtocol(kafkaTopic);
         Optional<AuthType> credType = MaasUtils.selectCredType(kafkaTopic);
@@ -173,18 +136,16 @@ public class MaasService {
                 .flatMap(kafkaTopic::getCredentials)
                 .orElse(null);
 
-        Map<String, String> resolvedProperties = new HashMap<>();
-        resolvedProperties.put(BROKERS, servers);
-        resolvedProperties.put(SECURITY_PROTOCOL, protocol);
-        resolvedProperties.put(SASL_MECHANISM, MaasUtils.convertToSaslMechanism(credType.orElse(null)));
-        resolvedProperties.put(SASL_JAAS_CONFIG, MaasUtils.buildJaasConfig(auth, credType.orElse(null)));
-        resolvedProperties.put(topicsVariableName, kafkaTopic.getTopicName());
+        String id = maasClassifierInfo.getElementId();
 
-        return resolvedProperties;
-    }
-
-    private Map<String, String> resolveServiceKafkaMaasParameters(Map<String, String> propMap) {
-        return resolveKafkaMaasMainParameters(propMap, OPERATION_PATH_TOPIC);
+        return Map.of(
+                BROKERS, servers,
+                SECURITY_PROTOCOL, protocol,
+                SASL_MECHANISM, credType.map(MaasUtils::convertToSaslMechanism).orElse(""),
+                SASL_JAAS_CONFIG, credType.map(t -> MaasUtils.buildJaasConfig(auth, t)).orElse(""),
+                TOPICS, kafkaTopic.getTopicName(),
+                OPERATION_PATH_TOPIC, kafkaTopic.getTopicName()
+        );
     }
 
     public TopicAddress getKafkaTopic(
@@ -208,12 +169,8 @@ public class MaasService {
         }
     }
 
-    private String getProperty(Map<String, String> propMap, String propertyName) {
-        return variablesService.injectVariables(propMap.get(propertyName));
-    }
-
-    private Map<String, String> resolveRabbitmqMaasParameters(Map<String, String> propMap) throws URISyntaxException {
-        String classifierName = getProperty(propMap, MAAS_DEPLOYMENT_CLASSIFIER_PROP);
+    private Map<String, String> resolveRabbitmqMaasParameters(MaasClassifierInfo maasClassifierInfo) {
+        String classifierName = variablesService.injectVariables(maasClassifierInfo.getClassifier());
         if (classifierName == null) {
             classifierName = DEFAULT_VHOST_CLASSIFIER_NAME;
         }
@@ -221,30 +178,27 @@ public class MaasService {
             return Collections.emptyMap();
         }
 
-        String classifierNamespace = getProperty(propMap, MAAS_CLASSIFIER_NAMESPACE_PROP);
+        String classifierNamespace = variablesService.injectVariables(maasClassifierInfo.getNamespace());
         VHost vHost = getRabbitVhost(classifierName, classifierNamespace);
-        URI address = new URI(vHost.getCnn());
-        String password = vHost.getPassword();
-        String username = vHost.getUsername();
-        String vHostName = address.getPath().replaceFirst("/", "");
-        String protocol = address.getScheme();
+        try {
+            URI address = new URI(vHost.getCnn());
+            String password = vHost.getPassword();
+            String username = vHost.getUsername();
+            String vHostName = address.getPath().replaceFirst("/", "");
+            String protocol = address.getScheme();
+            boolean sslEnabled = Strings.CI.equals("amqps", protocol);
+            String id = maasClassifierInfo.getElementId();
 
-        Map<String, String> resolvedProperties = new HashMap<>();
-        resolvedProperties.put(ADDRESSES, address.getHost() + ":" + address.getPort());
-        resolvedProperties.put(VHOST, vHostName);
-        resolvedProperties.put(USERNAME, username);
-        resolvedProperties.put(PASSWORD, password);
-        boolean sslEnabled = Strings.CI.equals("amqps", protocol);
-        resolvedProperties.put(SSL, sslEnabled ? Boolean.TRUE.toString() : "");
-
-        // patch element properties for AMQP predeploy check
-        if (sslEnabled) {
-            propMap.put(SSL, Boolean.TRUE.toString());
-        } else {
-            propMap.remove(SSL);
+            return Map.of(
+                    ADDRESSES, address.getHost() + ":" + address.getPort(),
+                    VHOST, vHostName,
+                    USERNAME, username,
+                    PASSWORD, password,
+                    SSL, sslEnabled ? Boolean.TRUE.toString() : ""
+            );
+        } catch (URISyntaxException exception) {
+            throw new MaasException("Failed to get classifier" + classifierName + " from MaaS.", exception);
         }
-
-        return resolvedProperties;
     }
 
     public VHost getRabbitVhost(String vHostName, String classifierNamespace) throws MaasException {

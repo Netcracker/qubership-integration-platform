@@ -17,7 +17,6 @@
 package org.qubership.integration.platform.engine.service.debugger.sessions;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
@@ -25,22 +24,23 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jetbrains.annotations.NotNull;
+import org.qubership.integration.platform.engine.metadata.*;
+import org.qubership.integration.platform.engine.metadata.util.MetadataUtil;
 import org.qubership.integration.platform.engine.model.ChainElementType;
+import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
 import org.qubership.integration.platform.engine.model.Session;
-import org.qubership.integration.platform.engine.model.SessionElementProperty;
-import org.qubership.integration.platform.engine.model.constants.CamelConstants;
-import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
-import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
+import org.qubership.integration.platform.engine.model.engine.EngineInfo;
+import org.qubership.integration.platform.engine.model.logging.Payload;
 import org.qubership.integration.platform.engine.model.logging.SessionsLoggingLevel;
 import org.qubership.integration.platform.engine.model.opensearch.ExceptionInfo;
 import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
+import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePropertiesService;
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
-import org.qubership.integration.platform.engine.service.debugger.util.MaskedFieldUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
-import org.qubership.integration.platform.engine.util.IdentifierUtils;
+import org.qubership.integration.platform.engine.util.ExchangeUtil;
 import org.springframework.lang.Nullable;
 
 import java.time.Duration;
@@ -49,51 +49,53 @@ import java.util.*;
 import java.util.concurrent.locks.ReadWriteLock;
 
 import static org.qubership.integration.platform.engine.camel.CorrelationIdSetter.CORRELATION_ID;
-import static org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties.HAS_INTERMEDIATE_PARENTS;
-import static org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties.REUSE_ORIGINAL_ID;
 
 @Slf4j
 @ApplicationScoped
 public class SessionsService {
-
     private final PayloadExtractor extractor;
-
     private final OpenSearchWriter writer;
-
+    private final EngineInfo engineInfo;
+    private final ChainRuntimePropertiesService chainRuntimePropertiesService;
     private final Random random = new Random();
 
     @ConfigProperty(name = "qip.sessions.sampler.probabilistic")
     double samplerProbabilistic;
 
     @Inject
-    public SessionsService(PayloadExtractor extractor, Instance<OpenSearchWriter> writerInstance) {
+    public SessionsService(
+            PayloadExtractor extractor,
+            OpenSearchWriter writer,
+            EngineInfo engineInfo,
+            ChainRuntimePropertiesService chainRuntimePropertiesService
+    ) {
         this.extractor = extractor;
-        this.writer = writerInstance.get();
+        this.writer = writer;
+        this.engineInfo = engineInfo;
+        this.chainRuntimePropertiesService = chainRuntimePropertiesService;
     }
 
-    public Session startSession(
-        Exchange exchange,
-        CamelDebuggerProperties dbgProperties,
-        String sessionId,
-        String parentSessionId,
-        String startTime,
-        String currentDomain,
-        String currentEngineAddress
-    ) {
-        SessionsLoggingLevel sessionLevel = dbgProperties.getRuntimeProperties(exchange)
-            .calculateSessionLevel(exchange);
+    public Session startSession(Exchange exchange, String parentSessionId) {
+        LocalDateTime startTime = LocalDateTime.now();
+        Long startedMillis = System.currentTimeMillis();
+
+        DeploymentInfo deploymentInfo = MetadataUtil.getBean(exchange, DeploymentInfo.class);
+        ChainInfo chainInfo = deploymentInfo.getChain();
+        SnapshotInfo snapshotInfo = deploymentInfo.getSnapshot();
+        ChainRuntimeProperties runtimeProperties = chainRuntimePropertiesService.getRuntimeProperties(exchange);
+        SessionsLoggingLevel sessionLevel = runtimeProperties.calculateSessionLevel(exchange);
         Session session = Session.builder()
-            .id(sessionId)
+            .id(UUID.randomUUID().toString())
             .externalId(
                 exchange.getMessage().getHeader(Headers.EXTERNAL_SESSION_CIP_ID, String.class))
-            .domain(currentDomain)
-            .engineAddress(currentEngineAddress)
-            .chainId(dbgProperties.getDeploymentInfo().getChainId())
-            .chainName(dbgProperties.getDeploymentInfo().getChainName())
-            .started(startTime)
+            .domain(engineInfo.getDomain())
+            .engineAddress(engineInfo.getHost())
+            .chainId(chainInfo.getId())
+            .chainName(chainInfo.getName())
+            .started(startTime.toString())
             .executionStatus(ExecutionStatus.IN_PROGRESS)
             .loggingLevel(sessionLevel.toString())
-            .snapshotName(dbgProperties.getDeploymentInfo().getSnapshotName())
+            .snapshotName(snapshotInfo.getName())
             .parentSessionId(parentSessionId)
             .build();
 
@@ -105,19 +107,17 @@ public class SessionsService {
 
     public void finishSession(
         Exchange exchange,
-        CamelDebuggerProperties dbgProperties,
         ExecutionStatus executionStatus,
         String finishTime,
         long duration,
         long syncDuration
     ) {
-        String sessionId = exchange.getProperty(Properties.SESSION_ID, String.class);
+        String sessionId = ExchangeUtil.getSessionId(exchange);
         boolean cacheCleared = false;
 
         try {
-            SessionsLoggingLevel sessionLevel = dbgProperties.getRuntimeProperties(exchange)
-                .calculateSessionLevel(exchange);
-
+            SessionsLoggingLevel sessionLevel = chainRuntimePropertiesService
+                    .getRuntimeProperties(exchange).calculateSessionLevel(exchange);
             if (sessionLevel != SessionsLoggingLevel.OFF) {
                 Pair<ReadWriteLock, Session> sessionPair = writer.getSessionFromCache(sessionId);
 
@@ -127,14 +127,7 @@ public class SessionsService {
 
                     sessionLock.writeLock().lock();
                     try {
-                        if (dbgProperties.containsElementProperty(ChainProperties.EXECUTION_STATUS)) {
-                            executionStatus = ExecutionStatus.computeHigherPriorityStatus(
-                                ExecutionStatus.valueOf(
-                                    dbgProperties.getElementProperty(ChainProperties.EXECUTION_STATUS)
-                                        .get(
-                                            ChainProperties.EXECUTION_STATUS)),
-                                executionStatus);
-                        }
+                        executionStatus = ExchangeUtil.getEffectiveExecutionStatus(exchange, executionStatus);
 
                         session.setExecutionStatus(executionStatus);
                         session.setFinished(finishTime);
@@ -147,7 +140,7 @@ public class SessionsService {
                         for (SessionElementElastic element : elements) {
                             if (element != null) {
 
-                                // change inProgress element to cancelled/unknown status
+                                // change inProgress element to a canceled or unknown status
                                 if (element.getExecutionStatus() == ExecutionStatus.IN_PROGRESS) {
                                     element.setExecutionStatus(
                                         ExecutionStatus.CANCELLED_OR_UNKNOWN);
@@ -173,14 +166,13 @@ public class SessionsService {
 
     public void logSessionStepElementBefore(
         Exchange exchange,
-        CamelDebuggerProperties dbgProperties,
         String sessionId,
         String sessionElementId,
-        String stepId,
-        String stepChainElementId
+        String stepName,
+        ElementInfo elementInfo
     ) {
         SessionElementElastic sessionElement = buildSessionStepElementBefore(
-            exchange, dbgProperties, sessionId, sessionElementId, stepId, stepChainElementId);
+            exchange, sessionId, sessionElementId, stepName, elementInfo);
 
         writer.scheduleElementToLogAndCache(sessionElement);
     }
@@ -188,149 +180,102 @@ public class SessionsService {
     @NotNull
     private SessionElementElastic buildSessionStepElementBefore(
         Exchange exchange,
-        CamelDebuggerProperties dbgProperties,
         String sessionId,
         String sessionElementId,
-        String stepId,
-        String stepChainElementId
+        String stepName,
+        ElementInfo elementInfo
     ) {
-
-        Map<String, SessionElementProperty> propertiesForLogging = extractor.extractExchangePropertiesForLogging(
-            exchange, MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)), dbgProperties.getRuntimeProperties(exchange)
-                .isMaskingEnabled());
-        Map<String, String> contextHeaders = extractor.extractContextForLogging(
-                MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)), dbgProperties.getRuntimeProperties(exchange)
-                .isMaskingEnabled());
-
+        Payload payload = extractor.extractPayload(exchange);
         SessionElementElastic sessionElement = SessionElementElastic.builder()
             .id(sessionElementId)
-            .elementName(stepId)
+            .elementName(stepName)
             .sessionId(sessionId)
             .started(LocalDateTime.now().toString())
-            .bodyBefore(extractor.extractBodyForLogging(exchange, MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
-                dbgProperties.getRuntimeProperties(exchange)
-                    .isMaskingEnabled()))
-            .headersBefore(
-                extractor.convertToJson(
-                    extractor.extractHeadersForLogging(exchange, MaskedFieldUtils.getMaskedFields(exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)),
-                        dbgProperties.getRuntimeProperties(exchange)
-                            .isMaskingEnabled())))
-            .propertiesBefore(extractor.convertToJson(propertiesForLogging))
-            .contextBefore(extractor.convertToJson(contextHeaders))
+            .bodyBefore(payload.getBody())
+            .headersBefore(extractor.convertToJson(payload.getHeaders()))
+            .propertiesBefore(extractor.convertToJson(payload.getProperties()))
+            .contextBefore(extractor.convertToJson(payload.getContext()))
             .executionStatus(ExecutionStatus.IN_PROGRESS)
+            .actualElementChainId(elementInfo.getChainId())
+            .chainElementId(elementInfo.getId())
+            .camelElementName(elementInfo.getType())
             .build();
-
-        Map<String, String> elementStepProperties = dbgProperties.getElementProperty(stepId);
-        sessionElement.setActualElementChainId(getActualChainId(dbgProperties, stepId, stepChainElementId));
 
         updateSessionInfoForElements(exchange, sessionElement);
 
-        if (IdentifierUtils.isValidUUID(stepId)) {
-            if (Objects.requireNonNull(elementStepProperties).containsKey(ChainProperties.WIRE_TAP_ID)) {
-                List<String> parentIds = Arrays.stream(elementStepProperties.get(ChainProperties.WIRE_TAP_ID).split(","))
-                        .map(String::trim)
-                        .toList();
-                for (String id : parentIds) {
-                    if (((Map<String, String>) exchange.getProperty(Properties.ELEMENT_EXECUTION_MAP))
-                                .containsKey(id)) {
+        if (stepName.equals(elementInfo.getId())) {
+            MetadataUtil.lookupBeanForElement(exchange, stepName, WireTapInfo.class).ifPresentOrElse(
+                    wireTapInfo -> {
+                        for (String id : wireTapInfo.getParentIds()) {
+                            if (((Map<String, String>) exchange.getProperty(Properties.ELEMENT_EXECUTION_MAP))
+                                    .containsKey(id)) {
 
-                        sessionElement.setParentElementId(((Map<String, String>) exchange.getProperty(
-                                Properties.ELEMENT_EXECUTION_MAP)).get(id));
-                    }
-                }
-            } else {
-                sessionElement.setParentElementId(extractParentId(exchange, sessionId, elementStepProperties));
-            }
-            sessionElement.setChainElementId(stepId);
-            sessionElement.setElementName(
-                elementStepProperties.get(ChainProperties.ELEMENT_NAME));
-            sessionElement.setCamelElementName(elementStepProperties.get(
-                ChainProperties.ELEMENT_TYPE));
+                                sessionElement.setParentElementId(((Map<String, String>) exchange.getProperty(
+                                        Properties.ELEMENT_EXECUTION_MAP)).get(id));
+                            }
+                        }
+                    },
+                    () -> sessionElement.setParentElementId(extractParentId(exchange, sessionId, elementInfo))
+            );
+            sessionElement.setElementName(elementInfo.getName());
         } else {
             sessionElement.setParentElementId(
                 (String) exchange.getProperty(Properties.STEPS, Deque.class).peek());
-            sessionElement.setElementName(stepId);
-
-            if (!StringUtils.isEmpty(stepChainElementId)) {
-                sessionElement.setChainElementId(stepChainElementId);
-                sessionElement.setCamelElementName(
-                    dbgProperties.getElementProperty(stepChainElementId).get(
-                        ChainProperties.ELEMENT_TYPE));
-            }
         }
         return sessionElement;
     }
 
-    private static String getActualChainId(CamelDebuggerProperties dbgProperties, String stepId, String stepChainElementId) {
-        Map<String, String> elementStepProperties = dbgProperties.getElementProperty(stepId);
-        if (elementStepProperties == null && StringUtils.isNotEmpty(stepChainElementId)) {
-            // Get properties from parent element if current element doesn't have it
-            elementStepProperties = dbgProperties.getElementProperty(stepChainElementId);
-        }
-        if (elementStepProperties != null && elementStepProperties.get(ChainProperties.ACTUAL_ELEMENT_CHAIN_ID) != null) {
-            String stepNameForActualChainIdOverride = elementStepProperties.get(ChainProperties.ACTUAL_CHAIN_OVERRIDE_STEP_NAME_FIELD);
-            if (stepNameForActualChainIdOverride == null || stepNameForActualChainIdOverride.equals(stepId)) {
-                return elementStepProperties.get(ChainProperties.ACTUAL_ELEMENT_CHAIN_ID);
-            }
-        }
-        return null;
-    }
-
-    public void logSessionElementBefore(Exchange exchange,
-        CamelDebuggerProperties dbgProperties, String sessionId,
-        String sessionElementId, String nodeId,
-        String bodyForLogging, Map<String, String> headersForLogging,
-        Map<String, String> contextHeaders,
-        Map<String, SessionElementProperty> exchangePropertiesForLogging
+    public void logSessionElementBefore(
+            Exchange exchange,
+            String sessionId,
+            String sessionElementId,
+            String nodeId,
+            Payload payload
     ) {
         SessionElementElastic sessionElement = buildSessionElementBefore(
-            exchange, dbgProperties, sessionId, sessionElementId, nodeId, bodyForLogging,
-            headersForLogging,
-            contextHeaders, exchangePropertiesForLogging);
+            exchange, sessionId, sessionElementId, nodeId, payload);
 
         writer.scheduleElementToLogAndCache(sessionElement);
     }
 
-    private SessionElementElastic buildSessionElementBefore(Exchange exchange,
-        CamelDebuggerProperties dbgProperties, String sessionId,
-        String sessionElementId, String nodeId,
-        String bodyForLogging, Map<String, String> headersForLogging,
-        Map<String, String> contextHeaders,
-        Map<String, SessionElementProperty> propertiesForLogging
+    private SessionElementElastic buildSessionElementBefore(
+            Exchange exchange,
+            String sessionId,
+            String sessionElementId,
+            String nodeId,
+            Payload payload
     ) {
-        Map<String, String> elementProperties = dbgProperties.getElementProperty(nodeId);
-        String parentElementId = extractParentId(exchange, sessionId, elementProperties);
+        ElementInfo elementInfo = MetadataUtil.getBeanForElement(exchange, nodeId, ElementInfo.class);
+        String parentElementId = extractParentId(exchange, sessionId, elementInfo);
 
         SessionElementElastic sessionElement = SessionElementElastic.builder()
             .id(sessionElementId)
-            .chainElementId(nodeId)
-            .elementName(elementProperties.get(ChainProperties.ELEMENT_NAME))
-            .camelElementName(elementProperties.get(ChainProperties.ELEMENT_TYPE))
+            .chainElementId(elementInfo.getId())
+            .elementName(elementInfo.getName())
+            .camelElementName(elementInfo.getType())
+            .actualElementChainId(elementInfo.getChainId())
             .sessionId(sessionId)
             .parentElementId(
-                SessionsLoggingLevel.ERROR == dbgProperties.getRuntimeProperties(exchange)
+                SessionsLoggingLevel.ERROR == chainRuntimePropertiesService.getRuntimeProperties(exchange)
                     .calculateSessionLevel(exchange) ? null : parentElementId)
             .started(LocalDateTime.now().toString())
-            .bodyBefore(bodyForLogging)
-            .headersBefore(extractor.convertToJson(headersForLogging))
-            .propertiesBefore(extractor.convertToJson(propertiesForLogging))
-            .contextBefore(extractor.convertToJson(contextHeaders))
+            .bodyBefore(payload.getBody())
+            .headersBefore(extractor.convertToJson(payload.getHeaders()))
+            .propertiesBefore(extractor.convertToJson(payload.getProperties()))
+            .contextBefore(extractor.convertToJson(payload.getContext()))
             .executionStatus(ExecutionStatus.IN_PROGRESS)
             .build();
 
         updateSessionInfoForElements(exchange, sessionElement);
 
-        if (Objects.requireNonNull(elementProperties).containsKey(ChainProperties.WIRE_TAP_ID)) {
-            List<String> parentIds = Arrays.stream(elementProperties.get(ChainProperties.WIRE_TAP_ID).split(","))
-                    .map(String::trim)
-                    .toList();
-            for (String id : parentIds) {
+        MetadataUtil.lookupBeanForElement(exchange, nodeId, WireTapInfo.class).ifPresent(wireTapInfo -> {
+            for (String id : wireTapInfo.getParentIds()) {
                 if (((Map<String, String>) exchange.getProperty(Properties.ELEMENT_EXECUTION_MAP)).containsKey(id)) {
                     sessionElement.setParentElementId(((Map<String, String>) exchange.getProperty(
                             Properties.ELEMENT_EXECUTION_MAP)).get(id));
                 }
             }
-        }
+        });
 
         String splitIdChain = (String) exchange.getProperty(Properties.SPLIT_ID_CHAIN);
         ((Map<String, String>) exchange.getProperty(Properties.ELEMENT_EXECUTION_MAP)).put(
@@ -338,44 +283,40 @@ public class SessionsService {
         return sessionElement;
     }
 
-    public void logSessionElementAfter(Exchange exchange, Exception externalException,
-        String sessionId, String sessionElementId,
-        Set<String> maskedFields, boolean maskingEnabled) {
-        logSessionElementAfter(
-            exchange,
-            externalException,
-            writer.getSessionElementFromCache(sessionId, sessionElementId),
-            extractor.extractBodyForLogging(exchange, maskedFields, maskingEnabled),
-            extractor.extractHeadersForLogging(exchange, maskedFields, maskingEnabled),
-            extractor.extractContextForLogging(maskedFields, maskingEnabled),
-            extractor.extractExchangePropertiesForLogging(exchange, maskedFields, maskingEnabled));
-    }
-
-    public void logSessionElementAfter(Exchange exchange,
-        Exception externalException,
-        String sessionId,
-        String sessionElementId,
-        String bodyForLogging,
-        Map<String, String> headersForLogging,
-        Map<String, String> contextHeaders,
-        Map<String, SessionElementProperty> exchangePropertiesForLogging
+    public void logSessionElementAfter(
+            Exchange exchange,
+            Exception externalException,
+            String sessionId,
+            String sessionElementId
     ) {
         logSessionElementAfter(
             exchange,
             externalException,
             writer.getSessionElementFromCache(sessionId, sessionElementId),
-            bodyForLogging, headersForLogging,
-            contextHeaders, exchangePropertiesForLogging);
+            extractor.extractPayload(exchange)
+        );
+    }
+
+    public void logSessionElementAfter(
+            Exchange exchange,
+            Exception externalException,
+            String sessionId,
+            String sessionElementId,
+            Payload payload
+    ) {
+        logSessionElementAfter(
+            exchange,
+            externalException,
+            writer.getSessionElementFromCache(sessionId, sessionElementId),
+            payload
+        );
     }
 
     private void logSessionElementAfter(
         Exchange exchange,
         Exception externalException,
         SessionElementElastic sessionElement,
-        String bodyForLogging,
-        Map<String, String> headersForLogging,
-        Map<String, String> contextHeaders,
-        Map<String, SessionElementProperty> propertiesForLogging
+        Payload payload
     ) {
         if (sessionElement == null) {
             return;
@@ -383,10 +324,10 @@ public class SessionsService {
 
         String finished = LocalDateTime.now().toString();
         sessionElement.setFinished(finished);
-        sessionElement.setBodyAfter(bodyForLogging);
-        sessionElement.setHeadersAfter(extractor.convertToJson(headersForLogging));
-        sessionElement.setPropertiesAfter(extractor.convertToJson(propertiesForLogging));
-        sessionElement.setContextAfter(extractor.convertToJson(contextHeaders));
+        sessionElement.setBodyAfter(payload.getBody());
+        sessionElement.setHeadersAfter(extractor.convertToJson(payload.getHeaders()));
+        sessionElement.setPropertiesAfter(extractor.convertToJson(payload.getProperties()));
+        sessionElement.setContextAfter(extractor.convertToJson(payload.getContext()));
         Exception exception = exchange.getException() != null ? exchange.getException() : externalException;
 
         if (ChainElementType.isExceptionHandleElement(ChainElementType.fromString(sessionElement.getCamelElementName()))
@@ -417,8 +358,7 @@ public class SessionsService {
         writer.scheduleElementToLogAndCache(sessionElement);
 
         if (exchange.getProperty(CORRELATION_ID) != null) {
-            Pair<ReadWriteLock, Session> sessionPair = writer.getSessionFromCache(exchange.getProperty(
-                    Properties.SESSION_ID).toString());
+            Pair<ReadWriteLock, Session> sessionPair = writer.getSessionFromCache(ExchangeUtil.getSessionId(exchange));
             String correlationId = String.valueOf(exchange.getProperty(CORRELATION_ID));
             if (sessionPair != null && sessionPair.getRight() != null) {
                 sessionPair.getRight().setCorrelationId(correlationId);
@@ -429,17 +369,15 @@ public class SessionsService {
     /**
      * Build and put NOT STEP session element to single element cache. Used for ERROR level logging
      */
-    public void putElementToSingleElCache(Exchange exchange,
-        CamelDebuggerProperties dbgProperties, String sessionId,
-        String sessionElementId, String nodeId,
-        String bodyForLogging, Map<String, String> headersForLogging,
-        Map<String, String> contextHeaders,
-        Map<String, SessionElementProperty> exchangePropertiesForLogging
+    public void putElementToSingleElCache(
+            Exchange exchange,
+            String sessionId,
+            String sessionElementId,
+            String nodeId,
+            Payload payload
     ) {
         SessionElementElastic sessionElement = buildSessionElementBefore(
-            exchange, dbgProperties, sessionId, sessionElementId, nodeId, bodyForLogging,
-            headersForLogging,
-            contextHeaders, exchangePropertiesForLogging);
+            exchange, sessionId, sessionElementId, nodeId, payload);
 
         writer.putToSingleElementCache(sessionId, sessionElement);
     }
@@ -447,19 +385,21 @@ public class SessionsService {
     /**
      * Build and put STEP session element to single element cache. Used for ERROR level logging
      */
-    public void putStepElementToSingleElCache(Exchange exchange,
-        CamelDebuggerProperties dbgProperties, String sessionId,
-        String sessionElementId, String stepId,
-        String stepChainElementId
+    public void putStepElementToSingleElCache(
+            Exchange exchange,
+            String sessionId,
+            String sessionElementId,
+            String stepName,
+            ElementInfo elementInfo
     ) {
         SessionElementElastic sessionElement = buildSessionStepElementBefore(
-            exchange, dbgProperties, sessionId, sessionElementId, stepId, stepChainElementId);
+            exchange, sessionId, sessionElementId, stepName, elementInfo);
 
         writer.putToSingleElementCache(sessionId, sessionElement);
     }
 
     /**
-     * Move element from single element cache to common sessions cache
+     * Move an element from single element cache to common sessions cache
      *
      * @return session element id
      */
@@ -474,7 +414,7 @@ public class SessionsService {
 
     private void updateSessionInfoForElements(Exchange exchange,
         SessionElementElastic sessionElement) {
-        String sessionId = exchange.getProperty(Properties.SESSION_ID).toString();
+        String sessionId = ExchangeUtil.getSessionId(exchange);
         Pair<ReadWriteLock, Session> sessionPair = writer.getSessionFromCache(sessionId);
 
         updateSessionInfoForElements(
@@ -487,23 +427,23 @@ public class SessionsService {
     }
 
     @Nullable
-    private String extractParentId(Exchange exchange, String sessionId, Map<String, String> elementProperties) {
+    private String extractParentId(Exchange exchange, String sessionId, ElementInfo elementInfo) {
         String parentElementId = null;
         boolean hasIntermediateParents = false;
         String parentStepId = null;
         String splitPostfix = exchange.getProperty(Properties.SPLIT_ID_CHAIN, "", String.class);
         Map<String, String> executionMap = (Map<String, String>) exchange.getProperty(Properties.ELEMENT_EXECUTION_MAP);
-        if (elementProperties.containsKey(ChainProperties.PARENT_ELEMENT_ID)) {
-            parentElementId = elementProperties.get(ChainProperties.PARENT_ELEMENT_ID);
+        if (StringUtils.isNotBlank(elementInfo.getParentId())) {
+            parentElementId = elementInfo.getParentId();
             parentStepId = executionMap.get(DebuggerUtils.getNodeIdForExecutionMap(parentElementId, splitPostfix));
             if (parentStepId == null) {
                 parentStepId = executionMap.get(parentElementId);
             } else {
                 parentElementId = DebuggerUtils.getNodeIdForExecutionMap(parentElementId, splitPostfix);
             }
-            hasIntermediateParents = Boolean.parseBoolean(elementProperties.get(HAS_INTERMEDIATE_PARENTS));
-        } else if (elementProperties.containsKey(REUSE_ORIGINAL_ID)) {
-            String reuseOriginalId = elementProperties.get(REUSE_ORIGINAL_ID);
+            hasIntermediateParents = elementInfo.isHasIntermediateParents();
+        } else if (StringUtils.isNotBlank(elementInfo.getReuseId())) {
+            String reuseOriginalId = elementInfo.getReuseId();
             parentElementId = (String) exchange.getProperty(
                     String.format(Properties.CURRENT_REUSE_REFERENCE_PARENT_ID, reuseOriginalId));
             if (parentElementId != null) {
@@ -529,8 +469,11 @@ public class SessionsService {
                 : ((Deque<String>) exchange.getProperty(Properties.STEPS)).peek(); //TODO Consider using id instead of element order only
     }
 
-    private Optional<String> findIntermediateParentId(String sessionId, String parentChainElementId,
-        Map<String, String> executionMap) {
+    private Optional<String> findIntermediateParentId(
+            String sessionId,
+            String parentChainElementId,
+            Map<String, String> executionMap
+    ) {
         Optional<String> intermediateParentId = Optional.empty();
         Collection<SessionElementElastic> sessionElements = writer.getSessionElementsFromCache(sessionId);
 

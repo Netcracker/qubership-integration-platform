@@ -1,6 +1,6 @@
 cloud:
   microservice:
-    name: ${MICROSERVICE_NAME:qip-engine}
+    name: ${CAMEL_K_INTEGRATION:default}
     namespace: ${NAMESPACE:local}
     bg_version: ""
 
@@ -20,12 +20,9 @@ m2m:
 
 application:
   prefix: qip
-  name: ${MICROSERVICE_NAME:qip-engine}
-  cloud_service_name: ${application.name}-${application.deployment_version}
-  deployment_version: ${DEPLOYMENT_VERSION:v1}
+  name: ${CAMEL_K_INTEGRATION:default}
   namespace: ${NAMESPACE:local}
-  default_integration_domain_microservice_name: qip-engine # custom param
-  default_integration_domain_name: default # custom param
+  cloud_service_name: ${CLOUD_SERVICE_NAME}
 
 security:
   role-prefix: 'ROLE_'
@@ -53,7 +50,7 @@ camel:
     enabled: true
   main:
     name: Camel Context
-    autoStartup: false
+    autoStartup: true
     messageHistory: true
     streamCachingEnabled: true # enable exchange payload spooling
     streamCachingBufferSize: 16384
@@ -89,7 +86,18 @@ qip:
       registration:
         enabled: ${apigateway.routes.registration.enabled}
       prefix: /${application.prefix}-routes
+  chains:
+    configuration:
+      location: ${QIP_CHAINS_CONFIGURATION_URL:}
+  libraries:
+    path: ${QIP_LIBRARIES_PATH:/tmp/libraries}
+  engine:
+    domain: ${CAMEL_K_INTEGRATION:default}
   camel:
+    startup:
+      error-handling:
+        ignore-variables-errors: false
+        ignore-route-loading-errors: false
     routes-prefix: /routes
     stream-caching:
       enabled: true # enable exchange payload spooling
@@ -98,17 +106,6 @@ qip:
     component:
       quartz:
         thread-pool-count: 10
-      kafka:
-        predeploy-check-enabled: ${CAMEL_KAFKA_PREDEPLOY_CHECK_ENABLED:true}
-      rabbitmq:
-        predeploy-check-enabled: ${CAMEL_AMQP_PREDEPLOY_CHECK_ENABLED:true}
-      pubsub:
-        predeploy-check-enabled: ${CAMEL_PUBSUB_PREDEPLOY_CHECK_ENABLED:true}
-  deployments:
-    retry-delay: 30s
-    thread-pool:
-      core-size: 3
-      max-size: 3
   context-service:
     cleanup:
       cron: ${CONTEXT_RECORDS_CLEANUP_CRON:0 0 0 ? * SAT} #  Cleanup task schedule in cron expression format
@@ -159,7 +156,7 @@ qip:
         delay: 30
   mapper:
     cache-enabled: ${MAPPER_CACHE_ENABLED:true}
-  # sessions writer performance parameters
+  # session writer performance parameters
   sessions:
     sampler:
       probabilistic: ${SESSION_SAMPLER_PROBABILISTIC:1}
@@ -172,7 +169,7 @@ qip:
       elements-count-threshold: 2
     checkpoints:
       cleanup:
-        interval: ${SESSIONS_CHECKPOINTS_CLEANUP_INTERVAL:1 month} # logs older than interval will be deleted, for example: '1 hour', '7 days', '2 years 3 month'
+        interval: ${SESSIONS_CHECKPOINTS_CLEANUP_INTERVAL:1 month} # logs older than an interval will be deleted, for example, '1 hour', '7 days', '2 years 3 month'
         cron: ${SESSIONS_CHECKPOINTS_CLEANUP_CRON:0 0 0 ? * SAT} #  Cleanup task schedule in cron expression format
 
   local-truststore:
@@ -220,11 +217,6 @@ quarkus:
     checkpoints:
       url: "http://localhost:8080${qip.camel.routes-prefix}"
       scope: jakarta.inject.Singleton
-    runtime-catalog:
-      url: ${RUNTIME_CATALOG_SERVICE_URL:http://runtime-catalog:8080}
-      scope: jakarta.inject.Singleton
-      connect-timeout: 300000
-      read-timeout: 300000
     control-plane:
       url: ${apigateway.control-plane.url}
       scope: jakarta.inject.Singleton
@@ -289,8 +281,6 @@ quarkus:
       servlet-class: org.qubership.integration.platform.engine.camel.components.servlet.CustomCamelHttpTransportServlet
       url-patterns:
         - "${qip.camel.routes-prefix}/*"
-    debug:
-      enabled: true
     trace:
       enabled: ${TRACING_ENABLED:false}
   scheduler:

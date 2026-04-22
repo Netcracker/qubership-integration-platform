@@ -17,8 +17,8 @@ import org.qubership.integration.platform.engine.controlplane.rest.model.v3.post
 import org.qubership.integration.platform.engine.controlplane.rest.model.v3.post.tlsdef.TLSDefinitionObjectV3;
 import org.qubership.integration.platform.engine.controlplane.rest.model.v3.post.tlsdef.TlsSpec;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentRouteUpdate;
-import org.qubership.integration.platform.engine.model.deployment.update.RouteType;
+import org.qubership.integration.platform.engine.metadata.RouteRegistrationInfo;
+import org.qubership.integration.platform.engine.metadata.RouteType;
 import org.qubership.integration.platform.engine.service.BlueGreenStateService;
 
 import java.net.URI;
@@ -53,19 +53,28 @@ public class ControlPlaneServiceImpl implements ControlPlaneService {
     }
 
     @Override
-    public void postPublicEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String deploymentName) throws ControlPlaneException {
-        postEngineRoutes(deploymentRoutes, deploymentName, Constants.PUBLIC_GATEWAY_SERVICE);
+    public void postPublicEngineRoutes(
+            List<RouteRegistrationInfo> routes,
+            String endpoint
+    ) throws ControlPlaneException {
+        postEngineRoutes(routes, endpoint, Constants.PUBLIC_GATEWAY_SERVICE);
     }
 
     @Override
-    public void postPrivateEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String deploymentName) throws ControlPlaneException {
-        postEngineRoutes(deploymentRoutes, deploymentName, Constants.PRIVATE_GATEWAY_SERVICE);
+    public void postPrivateEngineRoutes(
+            List<RouteRegistrationInfo> routes,
+            String endpoint
+    ) throws ControlPlaneException {
+        postEngineRoutes(routes, endpoint, Constants.PRIVATE_GATEWAY_SERVICE);
     }
 
     @Override
-    public void removeEngineRoutesByPathsAndEndpoint(List<Pair<String, RouteType>> paths, String deploymentName) throws ControlPlaneException {
+    public void removeEngineRoutesByPathsAndEndpoint(
+            List<Pair<String, RouteType>> paths,
+            String endpoint
+    ) throws ControlPlaneException {
         try {
-            if (paths.isEmpty() || deploymentName.isEmpty()) {
+            if (paths.isEmpty() || endpoint.isEmpty()) {
                 return;
             }
 
@@ -80,8 +89,8 @@ public class ControlPlaneServiceImpl implements ControlPlaneService {
                             || pair.getRight() == RouteType.INTERNAL_TRIGGER)
                     .map(Pair::getKey).toList();
 
-            removeEngineRoutes(publicPathsToRemove, routesList, Constants.PUBLIC_GATEWAY_SERVICE, deploymentName);
-            removeEngineRoutes(privatePathsToRemove, routesList, Constants.PRIVATE_GATEWAY_SERVICE, deploymentName);
+            removeEngineRoutes(publicPathsToRemove, routesList, Constants.PUBLIC_GATEWAY_SERVICE, endpoint);
+            removeEngineRoutes(privatePathsToRemove, routesList, Constants.PRIVATE_GATEWAY_SERVICE, endpoint);
         } catch (Exception e) {
             log.error("Failed to remove routes from control plane: {}", e.getMessage());
             throw new ControlPlaneException("Failed to remove routes from control plane.", e);
@@ -89,7 +98,7 @@ public class ControlPlaneServiceImpl implements ControlPlaneService {
     }
 
     @Override
-    public void postEgressGatewayRoutes(DeploymentRouteUpdate route) {
+    public void postEgressGatewayRoutes(RouteRegistrationInfo route) {
         String targetURL = route.getPath();
         String gatewayPrefix = route.getGatewayPrefix();
 
@@ -172,7 +181,11 @@ public class ControlPlaneServiceImpl implements ControlPlaneService {
      * @param deploymentRoutes with url in format "/path" and timeout
      * @throws ControlPlaneException if control plane not available (not in dev mode)
      */
-    private void postEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint, String gatewayName) throws ControlPlaneException, KubeApiException {
+    private void postEngineRoutes(
+            List<RouteRegistrationInfo> deploymentRoutes,
+            String endpoint,
+            String gatewayName
+    ) throws ControlPlaneException, KubeApiException {
         if (deploymentRoutes == null || deploymentRoutes.isEmpty()) {
             return;
         }
@@ -253,14 +266,14 @@ public class ControlPlaneServiceImpl implements ControlPlaneService {
         }
     }
 
-    private RouteV3 getRoute(DeploymentRouteUpdate deploymentRoute, String endpoint) {
+    private RouteV3 getRoute(RouteRegistrationInfo route, String endpoint) {
         Rule rule = Rule.builder()
                 .match(RouteMatcherV3.builder()
-                        .prefix(properties.routes().prefix() + deploymentRoute.getPath())
+                        .prefix(properties.routes().prefix() + route.getPath())
                         .build())
-                .prefixRewrite(camelRoutesPrefix + deploymentRoute.getPath())
-                .timeout(deploymentRoute.getConnectTimeout())
-                .idleTimeout(deploymentRoute.getConnectTimeout())
+                .prefixRewrite(camelRoutesPrefix + route.getPath())
+                .timeout(route.getConnectTimeout())
+                .idleTimeout(route.getConnectTimeout())
                 .build();
 
         return RouteV3

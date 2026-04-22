@@ -24,12 +24,15 @@ import org.apache.camel.tracing.SpanAdapter;
 import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.qubership.integration.platform.engine.configuration.TracingConfiguration;
-import org.qubership.integration.platform.engine.logging.constants.ContextHeaders;
+import org.qubership.integration.platform.engine.logging.ContextHeaders;
+import org.qubership.integration.platform.engine.metadata.ChainInfo;
+import org.qubership.integration.platform.engine.metadata.DeploymentInfo;
+import org.qubership.integration.platform.engine.metadata.ElementInfo;
+import org.qubership.integration.platform.engine.metadata.util.MetadataUtil;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
-import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
+import org.qubership.integration.platform.engine.util.ExchangeUtil;
 import org.slf4j.MDC;
 
 import java.util.Map;
@@ -62,15 +65,22 @@ class TracingServiceTest {
         Exchange ex = new DefaultExchange(new DefaultCamelContext());
         ex.setProperty(Properties.SESSION_ID, "S-1");
 
-        CamelDebuggerProperties dbg = mock(CamelDebuggerProperties.class);
-        var depInfo = mock(DeploymentInfo.class);
-        when(dbg.getDeploymentInfo()).thenReturn(depInfo);
-        when(depInfo.getChainId()).thenReturn("C-1");
-        when(depInfo.getChainName()).thenReturn("CN");
+        ChainInfo chainInfo = mock(ChainInfo.class);
+        when(chainInfo.getId()).thenReturn("C-1");
+        when(chainInfo.getName()).thenReturn("CN");
+
+        DeploymentInfo depInfo = mock(DeploymentInfo.class);
+        when(depInfo.getChain()).thenReturn(chainInfo);
 
         MDC.put(ContextHeaders.REQUEST_ID_HEADER, "REQ-1");
 
-        svc.addChainTracingTags(ex, dbg);
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class);
+             MockedStatic<ExchangeUtil> exchangeUtil = mockStatic(ExchangeUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.getBean(ex, DeploymentInfo.class)).thenReturn(depInfo);
+            exchangeUtil.when(() -> ExchangeUtil.getSessionId(ex)).thenReturn("S-1");
+
+            svc.addChainTracingTags(ex);
+        }
 
         @SuppressWarnings("unchecked")
         Map<String, String> tags = (Map<String, String>) ex.getProperties()
@@ -83,18 +93,26 @@ class TracingServiceTest {
     }
 
     @Test
-    void addElementTracingTagsShouldDoNothingWhenNoElementProperty() {
+    void addElementTracingTagsShouldCreatedTagsFromElementInfo() {
         TracingConfiguration cfg = mock(TracingConfiguration.class);
         TracingService svc = new TracingService(cfg);
 
         Exchange ex = new DefaultExchange(new DefaultCamelContext());
-        CamelDebuggerProperties dbg = mock(CamelDebuggerProperties.class);
-        when(dbg.containsElementProperty("n1")).thenReturn(false);
+        ElementInfo elementInfo = mock(ElementInfo.class);
+        when(elementInfo.getName()).thenReturn("E");
+        when(elementInfo.getType()).thenReturn("HTTP_SENDER");
 
-        svc.addElementTracingTags(ex, "n1", dbg);
+        MDC.put(ContextHeaders.REQUEST_ID_HEADER, "REQ-1");
 
-        assertNull(ex.getProperties().get(
-                Properties.TRACING_CUSTOM_TAGS));
+        svc.addElementTracingTags(ex, elementInfo);
+
+        @SuppressWarnings("unchecked")
+        Map<String, String> tags = (Map<String, String>) ex.getProperties()
+                .get(Properties.TRACING_CUSTOM_TAGS);
+
+        assertEquals("E", tags.get(ChainProperties.ELEMENT_NAME));
+        assertEquals("HTTP_SENDER", tags.get(ChainProperties.ELEMENT_TYPE));
+        assertEquals("REQ-1", tags.get(TracingService.X_REQUEST_ID));
     }
 
     @Test
@@ -103,12 +121,9 @@ class TracingServiceTest {
         TracingService svc = new TracingService(cfg);
 
         Exchange ex = new DefaultExchange(new DefaultCamelContext());
-        CamelDebuggerProperties dbg = mock(CamelDebuggerProperties.class);
-        when(dbg.containsElementProperty("n1")).thenReturn(true);
-        when(dbg.getElementProperty("n1")).thenReturn(Map.of(
-                ChainProperties.ELEMENT_NAME, "E",
-                ChainProperties.ELEMENT_TYPE, "HTTP_SENDER"
-        ));
+        ElementInfo elementInfo = mock(ElementInfo.class);
+        when(elementInfo.getName()).thenReturn("E");
+        when(elementInfo.getType()).thenReturn("HTTP_SENDER");
 
         SpanAdapter span = mock(SpanAdapter.class);
 
@@ -117,7 +132,7 @@ class TracingServiceTest {
 
             spanMgr.when(() -> ActiveSpanManager.getSpan(ex)).thenReturn(span);
 
-            svc.addElementTracingTags(ex, "n1", dbg);
+            svc.addElementTracingTags(ex, elementInfo);
 
             tagged.verify(() -> MicrometerObservationTaggedTracer.insertCustomTagsToSpan(ex, span), times(1));
         }

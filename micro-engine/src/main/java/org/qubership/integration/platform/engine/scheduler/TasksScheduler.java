@@ -18,26 +18,19 @@ package org.qubership.integration.platform.engine.scheduler;
 
 import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.qubership.integration.platform.engine.consul.DeploymentReadinessService;
 import org.qubership.integration.platform.engine.consul.KVNotFoundException;
 import org.qubership.integration.platform.engine.consul.updates.UpdateGetterHelper;
-import org.qubership.integration.platform.engine.model.deployment.properties.DeploymentRuntimeProperties;
+import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
 import org.qubership.integration.platform.engine.model.kafka.systemmodel.CompiledLibraryUpdate;
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
-import org.qubership.integration.platform.engine.service.DeploymentsUpdateService;
-import org.qubership.integration.platform.engine.service.IntegrationRuntimeService;
 import org.qubership.integration.platform.engine.service.VariablesService;
 import org.qubership.integration.platform.engine.service.contextstorage.ContextStorageService;
-import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
-import org.qubership.integration.platform.engine.service.externallibrary.ExternalLibraryService;
-import org.qubership.integration.platform.engine.util.InjectUtil;
+import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePropertiesService;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -48,17 +41,7 @@ public class TasksScheduler {
     VariablesService variableService;
 
     @Inject
-    IntegrationRuntimeService runtimeService;
-
-    @Inject
     CheckpointSessionService checkpointSessionService;
-
-    @Inject
-    DeploymentReadinessService deploymentReadinessService;
-
-    @Inject
-    @Named("deploymentUpdateGetter")
-    UpdateGetterHelper<Long> deploymentUpdateGetter;
 
     @Inject
     @Named("librariesUpdateGetter")
@@ -66,20 +49,10 @@ public class TasksScheduler {
 
     @Inject
     @Named("chainRuntimePropertiesUpdateGetter")
-    UpdateGetterHelper<Map<String, DeploymentRuntimeProperties>> chainRuntimePropertiesUpdateGetter;
+    UpdateGetterHelper<Map<String, ChainRuntimeProperties>> chainRuntimePropertiesUpdateGetter;
 
     @Inject
-    @Named("commonVariablesUpdateGetter")
-    UpdateGetterHelper<Map<String, String>> commonVariablesUpdateGetter;
-
-    @Inject
-    DeploymentsUpdateService deploymentsUpdateService;
-
-    @Inject
-    Instance<ExternalLibraryService> externalLibraryService;
-
-    @Inject
-    CamelDebuggerPropertiesService debuggerPropertiesService;
+    ChainRuntimePropertiesService chainRuntimePropertiesService;
 
     @ConfigProperty(name = "qip.sessions.checkpoints.cleanup.interval")
     String checkpointsInterval;
@@ -94,17 +67,7 @@ public class TasksScheduler {
             executeWith = Scheduled.SIMPLE
     )
     public void refreshCommonVariables() {
-        try {
-            commonVariablesUpdateGetter.checkForUpdates(changes -> {
-                log.debug("Common variables changes detected");
-                variableService.updateCommonVariables(changes);
-            });
-        } catch (KVNotFoundException e) {
-            log.debug("Common variables KV is empty. {}", e.getMessage());
-            variableService.updateCommonVariables(Collections.emptyMap());
-        } catch (Exception e) {
-            log.error("Failed to update common variables. {}", e.getMessage());
-        }
+        variableService.refreshCommonVariables();
     }
 
     @Scheduled(
@@ -115,18 +78,6 @@ public class TasksScheduler {
     )
     public void refreshSecuredVariables() {
         variableService.refreshSecuredVariables();
-    }
-
-    @Scheduled(
-            every = "${qip.deployments.retry-delay}",
-            concurrentExecution = Scheduled.ConcurrentExecution.SKIP,
-            skipExecutionIf = Scheduled.ApplicationNotRunning.class,
-            executeWith = Scheduled.SIMPLE
-    )
-    public void retryProcessingDeploys() {
-        if (deploymentReadinessService.isInitialized()) {
-            runtimeService.retryProcessingDeploys();
-        }
     }
 
     @Scheduled(
@@ -152,57 +103,6 @@ public class TasksScheduler {
     }
 
     @Scheduled(
-            every = "PT2.5S",
-            concurrentExecution = Scheduled.ConcurrentExecution.SKIP,
-            skipExecutionIf = Scheduled.ApplicationNotRunning.class,
-            executeWith = Scheduled.SIMPLE
-    )
-    public void checkDeploymentUpdates() {
-        if (!deploymentReadinessService.isReadyForDeploy()) {
-            return;
-        }
-
-        boolean firstDeploy = !deploymentReadinessService.isInitialized();
-        try {
-            if (firstDeploy) {
-                deploymentsUpdateService.getAndProcess();
-                runtimeService.startSuspendedRoutesOnInit();
-                deploymentReadinessService.setInitialized(true);
-            } else {
-                deploymentUpdateGetter.checkForUpdates(changes -> {
-                    try {
-                        deploymentsUpdateService.getAndProcess();
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
-            }
-        } catch (KVNotFoundException e) {
-            log.debug("Deployments update KV is empty. {}", e.getMessage());
-        } catch (Exception e) {
-            log.error("Failed to get or process deployments from runtime catalog: {}", e.getMessage());
-        }
-    }
-
-    @Scheduled(
-            every = "PT2.5S",
-            concurrentExecution = Scheduled.ConcurrentExecution.SKIP,
-            skipExecutionIf = Scheduled.ApplicationNotRunning.class,
-            executeWith = Scheduled.SIMPLE
-    )
-    public void checkLibrariesUpdates() {
-        InjectUtil.injectOptional(externalLibraryService).ifPresent(libraryService -> {
-            try {
-                librariesUpdateGetter.checkForUpdates(libraryService::updateSystemModelLibraries);
-            } catch (KVNotFoundException e) {
-                log.warn("Libraries update KV is empty. {}", e.getMessage());
-            } catch (Exception e) {
-                log.error("Failed to get libraries update from consul/systems-catalog", e);
-            }
-        });
-    }
-
-    @Scheduled(
             every = "1s",
             concurrentExecution = Scheduled.ConcurrentExecution.SKIP,
             skipExecutionIf = Scheduled.ApplicationNotRunning.class,
@@ -211,11 +111,11 @@ public class TasksScheduler {
     public void checkRuntimeDeploymentProperties() {
         try {
             chainRuntimePropertiesUpdateGetter.checkForUpdates(
-                    debuggerPropertiesService::updateRuntimeProperties);
+                    chainRuntimePropertiesService::updateRuntimeProperties);
         } catch (KVNotFoundException e) {
-            log.debug("Runtime deployments properties KV is empty. {}", e.getMessage());
+            log.debug("Chain runtime properties KV is empty. {}", e.getMessage());
         } catch (Exception e) {
-            log.error("Failed to get runtime deployments properties from consul", e);
+            log.error("Failed to get chain runtime properties from consul", e);
         }
     }
 }

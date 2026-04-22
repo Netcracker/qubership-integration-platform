@@ -14,8 +14,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.qubership.integration.platform.engine.model.deployment.engine.EngineInfo;
-import org.qubership.integration.platform.engine.model.deployment.engine.EngineState;
+import org.qubership.integration.platform.engine.model.engine.EngineInfo;
+import org.qubership.integration.platform.engine.model.engine.EngineState;
+import org.qubership.integration.platform.engine.state.EngineStateService;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import java.util.function.Supplier;

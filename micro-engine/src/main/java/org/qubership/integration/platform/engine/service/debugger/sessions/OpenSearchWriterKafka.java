@@ -17,8 +17,7 @@
 package org.qubership.integration.platform.engine.service.debugger.sessions;
 
 
-import io.quarkus.arc.lookup.LookupIfProperty;
-import io.quarkus.arc.profile.IfBuildProfile;
+import io.quarkus.arc.properties.IfBuildProperty;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
@@ -28,8 +27,7 @@ import org.qubership.integration.platform.engine.model.opensearch.SessionElement
 
 @Slf4j
 @ApplicationScoped
-@IfBuildProfile("development")
-@LookupIfProperty(name = "qip.opensearch.kafka-client.enabled", stringValue = "true")
+@IfBuildProperty(name = "qip.opensearch.kafka-client.enabled", stringValue = "true")
 public class OpenSearchWriterKafka extends OpenSearchWriter {
 
     private final OpenSearchKafkaProducer openSearchKafkaProducer;

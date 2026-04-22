@@ -1,9 +1,5 @@
 package org.qubership.integration.platform.engine.service;
 
-import org.apache.camel.CamelContext;
-import org.apache.camel.Consumer;
-import org.apache.camel.Endpoint;
-import org.apache.camel.Route;
 import org.apache.camel.component.file.remote.SftpConsumer;
 import org.apache.camel.component.quartz.QuartzEndpoint;
 import org.apache.camel.pollconsumer.quartz.QuartzScheduledPollConsumerScheduler;
@@ -16,13 +12,10 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.quartz.*;
-import org.qubership.integration.platform.engine.camel.metadata.Metadata;
-import org.qubership.integration.platform.engine.camel.metadata.MetadataService;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import java.lang.reflect.Field;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -36,12 +29,10 @@ class QuartzSchedulerServiceTest {
 
     @Mock
     Scheduler scheduler;
-    @Mock
-    MetadataService metadataService;
 
     @BeforeEach
     void setUp() {
-        service = new QuartzSchedulerService(scheduler, metadataService);
+        service = new QuartzSchedulerService(scheduler);
     }
 
     @Test
@@ -69,64 +60,6 @@ class QuartzSchedulerServiceTest {
         assertDoesNotThrow(() -> service.removeSchedulerJobs(jobs));
 
         verify(scheduler).deleteJobs(jobs);
-    }
-
-    @Test
-    void shouldReturnSchedulerJobsFromContextForMatchingDeployment() throws Exception {
-        CamelContext context = mock(CamelContext.class);
-
-        Route quartzRoute = routeWithEndpointAndConsumer(
-                "dep-1",
-                quartzEndpointWithTrigger("tr-1", "grp-1"),
-                null
-        );
-
-        JobKey sftpJobKey = JobKey.jobKey("job-2", "grp-2");
-        Route sftpRoute = routeWithEndpointAndConsumer(
-                "dep-1",
-                mock(Endpoint.class),
-                sftpConsumerWithQuartzSchedulerJob(sftpJobKey)
-        );
-
-        Route otherDeploymentRoute = routeWithDeploymentIdOnly("dep-2");
-
-        when(context.getRoutes()).thenReturn(List.of(quartzRoute, sftpRoute, otherDeploymentRoute));
-
-        List<JobKey> result = service.getSchedulerJobsFromContext(context, "dep-1");
-
-        assertEquals(Set.of(
-                JobKey.jobKey("tr-1", "grp-1"),
-                sftpJobKey
-        ), Set.copyOf(result));
-    }
-
-    @Test
-    void shouldRemoveSchedulerJobsFromContextByDelegatingToDeleteJobs() throws Exception {
-        CamelContext context = mock(CamelContext.class);
-
-        JobKey sftpJobKey = JobKey.jobKey("job-2", "grp-2");
-        Route quartzRoute = routeWithEndpointAndConsumer(
-                "dep-1",
-                quartzEndpointWithTrigger("tr-1", "grp-1"),
-                null
-        );
-        Route sftpRoute = routeWithEndpointAndConsumer(
-                "dep-1",
-                mock(Endpoint.class),
-                sftpConsumerWithQuartzSchedulerJob(sftpJobKey)
-        );
-
-        when(context.getRoutes()).thenReturn(List.of(quartzRoute, sftpRoute));
-        when(scheduler.deleteJobs(anyList())).thenReturn(true);
-
-        service.removeSchedulerJobsFromContext(context, "dep-1");
-
-        @SuppressWarnings({"rawtypes", "unchecked"})
-        ArgumentCaptor<List<JobKey>> captor = (ArgumentCaptor) ArgumentCaptor.forClass(List.class);
-        verify(scheduler).deleteJobs(captor.capture());
-
-        List<JobKey> jobs = captor.getValue();
-        assertEquals(Set.of(JobKey.jobKey("tr-1", "grp-1"), sftpJobKey), Set.copyOf(jobs));
     }
 
     @Test
@@ -183,32 +116,6 @@ class QuartzSchedulerServiceTest {
         inOrder.verify(scheduler).standby();
         inOrder.verify(scheduler).start();
         inOrder.verify(scheduler).resumeAll();
-    }
-
-    private Route routeWithEndpointAndConsumer(String deploymentId, Endpoint endpoint, Consumer consumer) {
-        Route route = mock(Route.class);
-        when(route.getEndpoint()).thenReturn(endpoint);
-        when(route.getConsumer()).thenReturn(consumer);
-
-        Optional<Metadata> md = metadata(deploymentId);
-        when(metadataService.getMetadata(route)).thenReturn(md);
-
-        return route;
-    }
-
-    private Route routeWithDeploymentIdOnly(String deploymentId) {
-        Route route = mock(Route.class);
-
-        Optional<Metadata> md = metadata(deploymentId);
-        when(metadataService.getMetadata(route)).thenReturn(md);
-
-        return route;
-    }
-
-    private Optional<Metadata> metadata(String deploymentId) {
-        Metadata m = mock(Metadata.class);
-        when(m.getDeploymentId()).thenReturn(deploymentId);
-        return Optional.of(m);
     }
 
     private QuartzEndpoint quartzEndpointWithTrigger(String triggerName, String groupName) {

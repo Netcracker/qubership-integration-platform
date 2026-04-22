@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.rabbitmq.client.LongString;
 import io.smallrye.common.annotation.Identifier;
@@ -55,6 +56,13 @@ public class MapperConfiguration {
         ObjectMapper mapper = buildObjectMapper();
         mapper.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS);
         return mapper;
+    }
+
+    @Produces
+    @Identifier("chainsConfigurationMapper")
+    @ApplicationScoped
+    public YAMLMapper chainsConfigurationMapper() {
+        return new YAMLMapper();
     }
 
     @NotNull

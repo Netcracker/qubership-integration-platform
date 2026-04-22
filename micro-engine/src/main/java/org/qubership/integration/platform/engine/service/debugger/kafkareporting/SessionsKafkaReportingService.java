@@ -17,15 +17,12 @@
 package org.qubership.integration.platform.engine.service.debugger.kafkareporting;
 
 import org.apache.camel.Exchange;
-import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.sessionsreporting.EventSourceType;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
 
 public interface SessionsKafkaReportingService {
-
     void addToQueue(
         Exchange exchange,
-        CamelDebuggerProperties dbgProperties,
         String sessionId,
         String originalSessionId,
         String parentSessionId,
@@ -34,7 +31,6 @@ public interface SessionsKafkaReportingService {
 
     void sendFinishedEvent(
         Exchange exchange,
-        CamelDebuggerProperties dbgProperties,
         String sessionId,
         String originalSessionId,
         String parentSessionId,

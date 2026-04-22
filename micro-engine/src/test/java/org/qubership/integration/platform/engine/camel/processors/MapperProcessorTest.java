@@ -9,7 +9,6 @@ import io.atlasmap.v2.*;
 import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
 import org.apache.camel.Message;
-import org.apache.camel.Route;
 import org.apache.camel.spi.Registry;
 import org.apache.commons.text.StringEscapeUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,11 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedConstruction;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.qubership.integration.platform.engine.camel.metadata.Metadata;
-import org.qubership.integration.platform.engine.camel.metadata.MetadataService;
-import org.qubership.integration.platform.engine.camel.repository.RegistryHelper;
 import org.qubership.integration.platform.engine.mapper.atlasmap.CustomAtlasContext;
 import org.qubership.integration.platform.engine.mapper.atlasmap.ValidationResult;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
@@ -36,7 +31,6 @@ import java.io.Reader;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -53,13 +47,7 @@ class MapperProcessorTest {
     private static final String DEFAULT_MAPPING_CONFIG = "{}";
 
     @Mock
-    MetadataService metadataService;
-    @Mock
-    Route route;
-    @Mock
     Message message;
-    @Mock
-    Metadata metadata;
     @Mock
     CamelContext camelContext;
     @Mock
@@ -74,8 +62,6 @@ class MapperProcessorTest {
         when(exchange.getMessage()).thenReturn(message);
         when(exchange.getContext()).thenReturn(camelContext);
         when(exchange.getFromRouteId()).thenReturn(ROUTE_ID);
-
-        when(camelContext.getRoute(ROUTE_ID)).thenReturn(route);
     }
 
     @Test
@@ -91,7 +77,6 @@ class MapperProcessorTest {
         exchangeProps.put("p1", "p1_value");
         headers.put("h1", "h1_value");
 
-        stubMetadataAbsent();
         stubExchangeState(exchangeProps, headers, DEFAULT_BODY);
         stubMappingProperties(false);
         wireExchangeSetPropertyToMap(exchangeProps);
@@ -130,7 +115,6 @@ class MapperProcessorTest {
 
         MapperProcessor processor = processor(objectMapper, true);
 
-        stubMetadataPresent();
         stubExchangeState();
         stubMappingProperties(DEFAULT_MAPPING_CONFIG, "", false);
         stubHappySession(mapping, "{\"ok\":true}");
@@ -155,7 +139,6 @@ class MapperProcessorTest {
                 .validations(List.of(new Validation()))
                 .build();
 
-        stubMetadataPresent();
         stubExchangeState();
         stubMappingProperties(DEFAULT_MAPPING_CONFIG, "m1", false);
         stubHappySession(cachedMapping, "{\"ok\":true}");
@@ -164,14 +147,12 @@ class MapperProcessorTest {
         when(camelRegistry.lookupByNameAndType("m1", AtlasMapping.class)).thenReturn(cachedMapping);
         when(camelRegistry.lookupByNameAndType("m1", ValidationResult.class)).thenReturn(cachedValidation);
 
-        try (MockedStatic<RegistryHelper> registryHelper = mockStatic(RegistryHelper.class);
-             MockedConstruction<CustomAtlasContext> ctor = mockAtlasContext()) {
+        try (MockedConstruction<CustomAtlasContext> ctor = mockAtlasContext()) {
 
             processor.process(exchange);
 
             CustomAtlasContext created = ctor.constructed().getFirst();
             verify(created).setCachedValidationResult(same(cachedValidation));
-            registryHelper.verifyNoInteractions();
         }
 
         verifyNoInteractions(objectMapper);
@@ -186,12 +167,10 @@ class MapperProcessorTest {
         MapperProcessor processor = processor(objectMapper, true);
 
         Registry camelRegistry = mock(Registry.class);
-        Registry bindRegistry = mock(Registry.class);
         ValidationResult validationResult = ValidationResult.builder()
                 .validations(List.of(new Validation()))
                 .build();
 
-        stubMetadataPresent("dep1");
         stubExchangeState();
         stubMappingProperties(DEFAULT_MAPPING_CONFIG, "m1", false);
         stubHappySession(parsedMapping, "{\"ok\":true}");
@@ -200,16 +179,11 @@ class MapperProcessorTest {
         when(camelRegistry.lookupByNameAndType("m1", AtlasMapping.class)).thenReturn(null);
         when(camelRegistry.lookupByNameAndType("m1", ValidationResult.class)).thenReturn(null);
 
-        try (MockedStatic<RegistryHelper> registryHelper = mockStatic(RegistryHelper.class);
-             MockedConstruction<CustomAtlasContext> ignored = mockAtlasContext(validationResult)) {
-
-            registryHelper.when(() -> RegistryHelper.getRegistry(camelContext, "dep1"))
-                    .thenReturn(bindRegistry);
-
+        try (MockedConstruction<CustomAtlasContext> ignored = mockAtlasContext(validationResult)) {
             processor.process(exchange);
 
-            verify(bindRegistry).bind("m1", AtlasMapping.class, parsedMapping);
-            verify(bindRegistry).bind("m1", ValidationResult.class, validationResult);
+            verify(camelRegistry).bind("m1", AtlasMapping.class, parsedMapping);
+            verify(camelRegistry).bind("m1", ValidationResult.class, validationResult);
         }
     }
 
@@ -222,9 +196,7 @@ class MapperProcessorTest {
         MapperProcessor processor = processor(objectMapper, true);
 
         Registry camelRegistry = mock(Registry.class);
-        Registry bindRegistry = mock(Registry.class);
 
-        stubMetadataAbsent();
         stubExchangeState();
         stubMappingProperties(DEFAULT_MAPPING_CONFIG, "m1", false);
         stubHappySession(parsedMapping, "{\"ok\":true}");
@@ -233,16 +205,11 @@ class MapperProcessorTest {
         when(camelRegistry.lookupByNameAndType("m1", AtlasMapping.class)).thenReturn(null);
         when(camelRegistry.lookupByNameAndType("m1", ValidationResult.class)).thenReturn(null);
 
-        try (MockedStatic<RegistryHelper> registryHelper = mockStatic(RegistryHelper.class);
-             MockedConstruction<CustomAtlasContext> ignored = mockAtlasContext((ValidationResult) null)) {
-
-            registryHelper.when(() -> RegistryHelper.getRegistry(camelContext, null))
-                    .thenReturn(bindRegistry);
-
+        try (MockedConstruction<CustomAtlasContext> ignored = mockAtlasContext((ValidationResult) null)) {
             processor.process(exchange);
 
-            verify(bindRegistry).bind("m1", AtlasMapping.class, parsedMapping);
-            verify(bindRegistry, never()).bind(eq("m1"), eq(ValidationResult.class), any());
+            verify(camelRegistry).bind("m1", AtlasMapping.class, parsedMapping);
+            verify(camelRegistry, never()).bind(eq("m1"), eq(ValidationResult.class), any());
         }
     }
 
@@ -254,7 +221,6 @@ class MapperProcessorTest {
 
         MapperProcessor processor = processor(objectMapper, false);
 
-        stubMetadataAbsent();
         stubExchangeState();
         stubMappingProperties(false);
         stubHappySession(mapping, "<ok/>");
@@ -275,7 +241,6 @@ class MapperProcessorTest {
 
         MapperProcessor processor = processor(objectMapper, false);
 
-        stubMetadataAbsent();
         stubExchangeState();
         stubMappingProperties(true);
         stubSessionId();
@@ -308,7 +273,6 @@ class MapperProcessorTest {
 
         MapperProcessor processor = processor(objectMapper, false);
 
-        stubMetadataAbsent();
         stubExchangeState();
         stubMappingProperties(false);
         stubSessionId();
@@ -334,7 +298,6 @@ class MapperProcessorTest {
 
         MapperProcessor processor = processor(objectMapper, false);
 
-        stubMetadataAbsent();
         stubExchangeState();
         stubMappingProperties(false);
         stubSessionId();
@@ -363,7 +326,6 @@ class MapperProcessorTest {
 
         MapperProcessor processor = processor(objectMapper, false);
 
-        stubMetadataAbsent();
         stubExchangeState();
         stubMappingProperties(false);
         stubHappySession(mapping, "{\"ok\":true}");
@@ -394,7 +356,6 @@ class MapperProcessorTest {
 
         MapperProcessor processor = processor(objectMapper, false);
 
-        stubMetadataAbsent();
         stubExchangeState();
         stubMappingProperties(false);
         stubHappySession(mapping, "{\"ok\":true}");
@@ -416,7 +377,6 @@ class MapperProcessorTest {
 
         MapperProcessor processor = processor(objectMapper, false);
 
-        stubMetadataAbsent();
         stubExchangeState();
         stubMappingConfigOnly(DEFAULT_MAPPING_CONFIG);
 
@@ -443,7 +403,6 @@ class MapperProcessorTest {
 
         MapperProcessor processor = processor(objectMapper, false);
 
-        stubMetadataAbsent();
         stubMappingConfigOnly(DEFAULT_MAPPING_CONFIG);
 
         IOException ex = assertThrows(IOException.class, () -> processor.process(exchange));
@@ -458,7 +417,6 @@ class MapperProcessorTest {
 
         MapperProcessor processor = processor(objectMapper, false);
 
-        stubMetadataAbsent();
         stubExchangeState();
         stubMappingProperties(mappingConfig, false);
         stubHappySession(expectedMapping, "{\"ok\":true}");
@@ -494,7 +452,6 @@ class MapperProcessorTest {
 
         MapperProcessor processor = processor(objectMapper, false);
 
-        stubMetadataAbsent();
         stubExchangeState();
         stubMappingProperties(escapedMappingConfig, false);
         stubHappySession(expectedMapping, "{\"ok\":true}");
@@ -522,22 +479,9 @@ class MapperProcessorTest {
     }
 
     private MapperProcessor processor(ObjectMapper objectMapper, boolean cacheEnabled) {
-        MapperProcessor processor = new MapperProcessor(metadataService, objectMapper);
+        MapperProcessor processor = new MapperProcessor(objectMapper);
         processor.cacheEnabled = cacheEnabled;
         return processor;
-    }
-
-    private void stubMetadataAbsent() {
-        when(metadataService.getMetadata(route)).thenReturn(Optional.empty());
-    }
-
-    private void stubMetadataPresent() {
-        when(metadataService.getMetadata(route)).thenReturn(Optional.of(metadata));
-    }
-
-    private void stubMetadataPresent(String deploymentId) {
-        when(metadata.getDeploymentId()).thenReturn(deploymentId);
-        when(metadataService.getMetadata(route)).thenReturn(Optional.of(metadata));
     }
 
     private Map<String, Object> stubExchangeState() {

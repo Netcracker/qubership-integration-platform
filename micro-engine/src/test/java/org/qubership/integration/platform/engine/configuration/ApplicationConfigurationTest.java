@@ -26,8 +26,6 @@ class ApplicationConfigurationTest {
         assertEquals("qip-engine", applicationConfiguration.getMicroserviceName());
         assertEquals("qip-engine-v1", applicationConfiguration.getCloudServiceName());
         assertEquals("local", applicationConfiguration.getNamespace());
-        assertEquals("default", applicationConfiguration.getEngineDefaultDomain());
-        assertEquals("qip-engine", applicationConfiguration.getDefaultEngineMicroserviceName());
     }
 
     @Test

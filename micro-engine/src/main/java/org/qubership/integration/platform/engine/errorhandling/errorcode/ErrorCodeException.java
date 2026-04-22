@@ -18,7 +18,7 @@ package org.qubership.integration.platform.engine.errorhandling.errorcode;
 
 
 import lombok.Getter;
-import org.qubership.integration.platform.engine.logging.constants.ContextHeaders;
+import org.qubership.integration.platform.engine.logging.ContextHeaders;
 import org.qubership.integration.platform.engine.model.errorhandling.ErrorEntry;
 
 import java.util.Collections;

@@ -5,9 +5,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.qubership.integration.platform.engine.model.deployment.engine.EngineDeployment;
-import org.qubership.integration.platform.engine.model.deployment.engine.EngineState;
+import org.qubership.integration.platform.engine.model.engine.EngineDeployment;
+import org.qubership.integration.platform.engine.model.engine.EngineState;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
+import org.qubership.integration.platform.engine.state.EngineStateReporter;
+import org.qubership.integration.platform.engine.state.EngineStateService;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import java.lang.reflect.Field;
@@ -29,6 +31,7 @@ class EngineStateReporterTest {
 
     @Mock
     EngineStateService engineStateService;
+
     @Mock
     MetricsService metricsService;
 

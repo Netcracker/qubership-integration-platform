@@ -18,12 +18,11 @@ package org.qubership.integration.platform.engine.service.testing;
 
 import org.apache.hc.client5.http.routing.HttpRoutePlanner;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
-import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
 
 public interface TestingService {
-    boolean canBeMocked(ElementProperties properties);
+    boolean canBeMocked(EndpointInfo endpointInfo);
 
-    HttpRequestInterceptor buildEndpointMockInterceptor(String chainId, ElementProperties elementProperties);
+    HttpRequestInterceptor buildEndpointMockInterceptor(String chainId, EndpointInfo endpointInfo);
 
-    HttpRoutePlanner buildRoutePlanner(String chainId, ElementProperties elementProperties);
+    HttpRoutePlanner buildRoutePlanner(String chainId, EndpointInfo endpointInfo);
 }

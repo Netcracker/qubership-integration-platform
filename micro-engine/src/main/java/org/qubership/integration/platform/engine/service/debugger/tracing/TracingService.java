@@ -24,10 +24,13 @@ import org.apache.camel.tracing.ActiveSpanManager;
 import org.apache.camel.tracing.SpanAdapter;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.configuration.TracingConfiguration;
-import org.qubership.integration.platform.engine.logging.constants.ContextHeaders;
+import org.qubership.integration.platform.engine.logging.ContextHeaders;
+import org.qubership.integration.platform.engine.metadata.ChainInfo;
+import org.qubership.integration.platform.engine.metadata.DeploymentInfo;
+import org.qubership.integration.platform.engine.metadata.ElementInfo;
+import org.qubership.integration.platform.engine.metadata.util.MetadataUtil;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
-import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
-import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
+import org.qubership.integration.platform.engine.util.ExchangeUtil;
 import org.slf4j.MDC;
 
 import java.util.HashMap;
@@ -51,29 +54,24 @@ public class TracingService {
         return tracingConfiguration.isTracingEnabled();
     }
 
-    public void addElementTracingTags(Exchange exchange, String nodeId,
-        CamelDebuggerProperties dbgProperties) {
-        if (dbgProperties.containsElementProperty(nodeId)) {
-            Map<String, String> customTags = new HashMap<>();
-            customTags.put(ChainProperties.ELEMENT_NAME,
-                dbgProperties.getElementProperty(nodeId).get(ChainProperties.ELEMENT_NAME));
-            customTags.put(ChainProperties.ELEMENT_TYPE,
-                dbgProperties.getElementProperty(nodeId).get(ChainProperties.ELEMENT_TYPE));
-            setXRequestTag(customTags);
-            addTracingTagsToProperties(exchange, customTags);
-            SpanAdapter spanAdapter = ActiveSpanManager.getSpan(exchange);
-            if (spanAdapter != null) {
-                MicrometerObservationTaggedTracer.insertCustomTagsToSpan(exchange, spanAdapter);
-            }
+    public void addElementTracingTags(Exchange exchange, ElementInfo elementInfo) {
+        Map<String, String> customTags = new HashMap<>();
+        customTags.put(ChainProperties.ELEMENT_NAME, elementInfo.getName());
+        customTags.put(ChainProperties.ELEMENT_TYPE, elementInfo.getType());
+        setXRequestTag(customTags);
+        addTracingTagsToProperties(exchange, customTags);
+        SpanAdapter spanAdapter = ActiveSpanManager.getSpan(exchange);
+        if (spanAdapter != null) {
+            MicrometerObservationTaggedTracer.insertCustomTagsToSpan(exchange, spanAdapter);
         }
     }
 
-    public void addChainTracingTags(Exchange exchange, CamelDebuggerProperties dbgProperties) {
+    public void addChainTracingTags(Exchange exchange) {
         Map<String, String> customTags = new HashMap<>();
-        customTags.put(ChainProperties.SESSION_ID,
-            exchange.getProperty(Properties.SESSION_ID).toString());
-        customTags.put(ChainProperties.CHAIN_ID, dbgProperties.getDeploymentInfo().getChainId());
-        customTags.put(ChainProperties.CHAIN_NAME, dbgProperties.getDeploymentInfo().getChainName());
+        customTags.put(ChainProperties.SESSION_ID, ExchangeUtil.getSessionId(exchange));
+        ChainInfo chainInfo = MetadataUtil.getBean(exchange, DeploymentInfo.class).getChain();
+        customTags.put(ChainProperties.CHAIN_ID, chainInfo.getId());
+        customTags.put(ChainProperties.CHAIN_NAME, chainInfo.getName());
         setXRequestTag(customTags);
 
         addTracingTagsToProperties(exchange, customTags);

@@ -33,10 +33,6 @@ public class MaasUtils {
     };
 
     public static String buildJaasConfig(TopicUserCredentials auth, AuthType authType) {
-        if (auth == null || authType == null) {
-            return null;
-        }
-
         return switch (authType) {
             case PLAIN, SSL_CERT_PLUS_PLAIN -> JAAS_CONFIG_TEMPLATE_PLAIN
                     .replace("{username}", auth.getUsername())
@@ -49,10 +45,6 @@ public class MaasUtils {
     }
 
     public static String convertToSaslMechanism(AuthType authType) {
-        if (authType == null) {
-            return null;
-        }
-
         return switch (authType) {
             case SSL_CERT_PLUS_PLAIN, PLAIN -> "PLAIN";
             case SSL_CERT_PLUS_SCRAM, SCRAM -> "SCRAM-SHA-512";

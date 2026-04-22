@@ -3,6 +3,8 @@ package org.qubership.integration.platform.engine.camel.processors.session;
 import jakarta.enterprise.inject.Instance;
 import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
+import org.apache.camel.Route;
+import org.apache.camel.spi.Registry;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,18 +13,19 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
+import org.qubership.integration.platform.engine.metadata.ChainInfo;
+import org.qubership.integration.platform.engine.metadata.DeploymentInfo;
+import org.qubership.integration.platform.engine.metadata.SnapshotInfo;
+import org.qubership.integration.platform.engine.metadata.util.MetadataUtil;
+import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
-import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
-import org.qubership.integration.platform.engine.model.deployment.properties.DeploymentRuntimeProperties;
-import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
-import org.qubership.integration.platform.engine.model.logging.LogPayload;
 import org.qubership.integration.platform.engine.model.logging.SessionsLoggingLevel;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
 import org.qubership.integration.platform.engine.service.SdsService;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
-import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
+import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePropertiesService;
 import org.qubership.integration.platform.engine.service.debugger.kafkareporting.SessionsKafkaReportingService;
 import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
@@ -35,11 +38,9 @@ import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.lang.reflect.Field;
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -47,7 +48,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
@@ -93,7 +93,7 @@ class ChainFinishProcessorTest {
     @Mock
     private MetricsService metricsService;
     @Mock
-    private CamelDebuggerPropertiesService propertiesService;
+    private ChainRuntimePropertiesService propertiesService;
     @Mock
     private SessionsService sessionsService;
     @Mock
@@ -107,18 +107,22 @@ class ChainFinishProcessorTest {
     @Mock
     private CamelDebugger camelDebugger;
     @Mock
-    private CamelDebuggerProperties dbgProperties;
-    @Mock
-    private DeploymentRuntimeProperties runtimeProperties;
+    private ChainRuntimeProperties runtimeProperties;
+
+    private final ChainInfo chainInfo = ChainInfo.builder()
+            .id("c4f2ab78-9d93-4f0f-8f79-2d55d9d4e125")
+            .name("Test chain")
+            .build();
+
+    private final SnapshotInfo snapshotInfo = SnapshotInfo.builder()
+            .id("d98e98f7-f6d2-4ef8-bf66-6d6f1b6f0d26")
+            .name("Test snapshot")
+            .build();
 
     private final DeploymentInfo deploymentInfo = DeploymentInfo.builder()
-            .deploymentId("a2f7c1d4-5b74-4d8d-8d3a-4831e4cb9924")
-            .chainId("c4f2ab78-9d93-4f0f-8f79-2d55d9d4e125")
-            .chainName("Test chain")
-            .snapshotId("d98e98f7-f6d2-4ef8-bf66-6d6f1b6f0d26")
-            .snapshotName("Test snapshot")
-            .containsCheckpointElements(false)
-            .containsSchedulerElements(false)
+            .id("a2f7c1d4-5b74-4d8d-8d3a-4831e4cb9924")
+            .chain(chainInfo)
+            .snapshot(snapshotInfo)
             .build();
 
     @Test
@@ -185,21 +189,19 @@ class ChainFinishProcessorTest {
 
         verify(camelDebugger).finishCheckpointSession(
                 eq(exchange),
-                eq(dbgProperties),
                 eq(SESSION_ID_2),
                 eq(ExecutionStatus.COMPLETED_NORMALLY),
                 anyLong()
         );
         verify(sessionsService).finishSession(
                 eq(exchange),
-                eq(dbgProperties),
                 eq(ExecutionStatus.COMPLETED_NORMALLY),
                 anyString(),
                 anyLong(),
                 eq(123L)
         );
         verify(metricsService).processSessionFinish(
-                eq(dbgProperties),
+                eq(chainInfo),
                 eq(ExecutionStatus.COMPLETED_NORMALLY.toString()),
                 anyLong()
         );
@@ -227,14 +229,14 @@ class ChainFinishProcessorTest {
 
         mockFinalizationProperties(exchange, LogLoggingLevel.ERROR);
         mockSessionLevel(exchange, SessionsLoggingLevel.ERROR);
-        mockMaskingEnabled(true);
-        mockDeploymentInfo();
 
         when(sessionsService.moveFromSingleElCacheToCommonCache(SESSION_ID_3)).thenReturn(SESSION_ELEMENT_ID_1);
 
-        try (MockedStatic<DebuggerUtils> debuggerUtils = mockStatic(DebuggerUtils.class)) {
+        try (MockedStatic<DebuggerUtils> debuggerUtils = mockStatic(DebuggerUtils.class);
+             MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
             debuggerUtils.when(() -> DebuggerUtils.extractExecutionStatus(exchange))
                     .thenReturn(ExecutionStatus.COMPLETED_WITH_ERRORS);
+            mockDeploymentInfo(metadataUtil, exchange);
 
             processor.process(exchange);
         }
@@ -243,17 +245,14 @@ class ChainFinishProcessorTest {
                 eq(exchange),
                 same(lastException),
                 eq(SESSION_ID_3),
-                eq(SESSION_ELEMENT_ID_1),
-                anySet(),
-                eq(true)
+                eq(SESSION_ELEMENT_ID_1)
         );
         verify(metricsService).processChainFailure(
-                eq(deploymentInfo),
+                eq(chainInfo),
                 eq(ErrorCode.SERVICE_RETURNED_ERROR)
         );
         verify(camelDebugger).finishCheckpointSession(
                 eq(exchange),
-                eq(dbgProperties),
                 eq(SESSION_ID_3),
                 eq(ExecutionStatus.COMPLETED_WITH_ERRORS),
                 anyLong()
@@ -277,13 +276,14 @@ class ChainFinishProcessorTest {
 
         mockFinalizationProperties(exchange, LogLoggingLevel.ERROR);
         mockSessionLevel(exchange, SessionsLoggingLevel.ERROR);
-        mockDeploymentInfo();
 
         when(sessionsService.moveFromSingleElCacheToCommonCache(SESSION_ID_4)).thenReturn("");
 
-        try (MockedStatic<DebuggerUtils> debuggerUtils = mockStatic(DebuggerUtils.class)) {
+        try (MockedStatic<DebuggerUtils> debuggerUtils = mockStatic(DebuggerUtils.class);
+             MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
             debuggerUtils.when(() -> DebuggerUtils.extractExecutionStatus(exchange))
                     .thenReturn(ExecutionStatus.COMPLETED_WITH_ERRORS);
+            mockDeploymentInfo(metadataUtil, exchange);
 
             processor.process(exchange);
         }
@@ -292,12 +292,10 @@ class ChainFinishProcessorTest {
                 eq(exchange),
                 same(null),
                 eq(SESSION_ID_4),
-                anyString(),
-                anySet(),
-                eq(true)
+                anyString()
         );
         verify(metricsService).processChainFailure(
-                eq(deploymentInfo),
+                eq(chainInfo),
                 eq(ErrorCode.UNEXPECTED_BUSINESS_ERROR)
         );
     }
@@ -318,13 +316,6 @@ class ChainFinishProcessorTest {
         exchange.setProperty(CamelConstants.Properties.START_TIME, LocalDateTime.now().minusSeconds(1).toString());
 
         mockFinalizationProperties(exchange, LogLoggingLevel.INFO);
-        mockMaskingEnabled(false);
-
-        when(runtimeProperties.getLogPayload()).thenReturn(Set.of(LogPayload.HEADERS));
-        when(payloadExtractor.extractHeadersForLogging(eq(exchange), anySet(), eq(false)))
-                .thenReturn(Map.of("header", "value"));
-        when(payloadExtractor.extractExchangePropertiesForLogging(eq(exchange), anySet(), eq(false)))
-                .thenReturn(Collections.emptyMap());
 
         try (MockedStatic<DebuggerUtils> debuggerUtils = mockStatic(DebuggerUtils.class)) {
             debuggerUtils.when(() -> DebuggerUtils.extractExecutionStatus(exchange))
@@ -334,10 +325,7 @@ class ChainFinishProcessorTest {
         }
 
         verify(chainLogger).logExchangeFinished(
-                eq(dbgProperties),
-                eq("<body not logged>"),
-                eq("{header=value}"),
-                eq("<properties not logged>"),
+                eq(exchange),
                 eq(ExecutionStatus.COMPLETED_NORMALLY),
                 anyLong()
         );
@@ -359,16 +347,6 @@ class ChainFinishProcessorTest {
         exchange.setProperty(CamelConstants.Properties.START_TIME, LocalDateTime.now().minusSeconds(1).toString());
 
         mockFinalizationProperties(exchange, LogLoggingLevel.INFO);
-        mockMaskingEnabled(false);
-
-        when(runtimeProperties.isLogPayloadEnabled()).thenReturn(true);
-        when(runtimeProperties.getLogPayload()).thenReturn(null);
-        when(payloadExtractor.extractHeadersForLogging(eq(exchange), anySet(), eq(false)))
-                .thenReturn(Map.of("header", "value"));
-        when(payloadExtractor.extractExchangePropertiesForLogging(eq(exchange), anySet(), eq(false)))
-                .thenReturn(Collections.emptyMap());
-        when(payloadExtractor.extractBodyForLogging(eq(exchange), anySet(), eq(false)))
-                .thenReturn("body");
 
         try (MockedStatic<DebuggerUtils> debuggerUtils = mockStatic(DebuggerUtils.class)) {
             debuggerUtils.when(() -> DebuggerUtils.extractExecutionStatus(exchange))
@@ -378,10 +356,7 @@ class ChainFinishProcessorTest {
         }
 
         verify(chainLogger).logExchangeFinished(
-                eq(dbgProperties),
-                eq("body"),
-                eq("{header=value}"),
-                eq("{}"),
+                eq(exchange),
                 eq(ExecutionStatus.COMPLETED_NORMALLY),
                 anyLong()
         );
@@ -416,7 +391,6 @@ class ChainFinishProcessorTest {
 
         verify(sessionsKafkaReportingService).sendFinishedEvent(
                 eq(exchange),
-                eq(dbgProperties),
                 eq(SESSION_ID_7),
                 eq(ORIGINAL_SESSION_ID_1),
                 eq(PARENT_SESSION_ID_1),
@@ -447,7 +421,6 @@ class ChainFinishProcessorTest {
         doThrow(new RuntimeException("kafka failed")).when(sessionsKafkaReportingService)
                 .sendFinishedEvent(
                         eq(exchange),
-                        eq(dbgProperties),
                         eq(SESSION_ID_8),
                         eq(ORIGINAL_SESSION_ID_2),
                         eq(PARENT_SESSION_ID_2),
@@ -462,7 +435,7 @@ class ChainFinishProcessorTest {
         }
 
         verify(metricsService).processSessionFinish(
-                eq(dbgProperties),
+                eq(chainInfo),
                 eq(ExecutionStatus.COMPLETED_NORMALLY.toString()),
                 anyLong()
         );
@@ -487,19 +460,20 @@ class ChainFinishProcessorTest {
         exchange.setProperty(CamelConstants.Properties.SDS_EXECUTION_ID_PROP, JOB_EXECUTION_ID_1);
 
         mockFinalizationProperties(exchange, LogLoggingLevel.ERROR);
-        mockDeploymentInfo();
 
-        try (MockedStatic<DebuggerUtils> debuggerUtils = mockStatic(DebuggerUtils.class)) {
+        try (MockedStatic<DebuggerUtils> debuggerUtils = mockStatic(DebuggerUtils.class);
+             MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
             debuggerUtils.when(() -> DebuggerUtils.extractExecutionStatus(exchange))
                     .thenReturn(ExecutionStatus.COMPLETED_WITH_ERRORS);
             debuggerUtils.when(() -> DebuggerUtils.getExceptionFromExchange(exchange))
                     .thenReturn(exception);
+            mockDeploymentInfo(metadataUtil, exchange);
 
             processor.process(exchange);
         }
 
         verify(metricsService).processChainFailure(
-                eq(deploymentInfo),
+                eq(chainInfo),
                 eq(ErrorCode.UNEXPECTED_BUSINESS_ERROR)
         );
         verify(sdsService).setJobInstanceFailed(JOB_EXECUTION_ID_1, exception);
@@ -549,20 +523,21 @@ class ChainFinishProcessorTest {
         exchange.setProperty(CamelConstants.Properties.START_TIME, LocalDateTime.now().minusSeconds(1).toString());
 
         mockFinalizationProperties(exchange, LogLoggingLevel.ERROR);
-        mockDeploymentInfo();
 
         doThrow(new RuntimeException("failure metrics failed")).when(metricsService)
-                .processChainFailure(eq(deploymentInfo), eq(ErrorCode.UNEXPECTED_BUSINESS_ERROR));
+                .processChainFailure(eq(chainInfo), eq(ErrorCode.UNEXPECTED_BUSINESS_ERROR));
 
-        try (MockedStatic<DebuggerUtils> debuggerUtils = mockStatic(DebuggerUtils.class)) {
+        try (MockedStatic<DebuggerUtils> debuggerUtils = mockStatic(DebuggerUtils.class);
+             MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
             debuggerUtils.when(() -> DebuggerUtils.extractExecutionStatus(exchange))
                     .thenReturn(ExecutionStatus.COMPLETED_WITH_WARNINGS);
+            mockDeploymentInfo(metadataUtil, exchange);
 
             processor.process(exchange);
         }
 
         verify(metricsService).processSessionFinish(
-                eq(dbgProperties),
+                eq(chainInfo),
                 eq(ExecutionStatus.COMPLETED_WITH_WARNINGS.toString()),
                 anyLong()
         );
@@ -588,7 +563,7 @@ class ChainFinishProcessorTest {
 
         doThrow(new RuntimeException("session metrics failed")).when(metricsService)
                 .processSessionFinish(
-                        eq(dbgProperties),
+                        eq(chainInfo),
                         eq(ExecutionStatus.COMPLETED_NORMALLY.toString()),
                         anyLong()
                 );
@@ -622,28 +597,28 @@ class ChainFinishProcessorTest {
         exchange.setProperty(CamelConstants.Properties.START_TIME, LocalDateTime.now().minusSeconds(1).toString());
 
         mockFinalizationProperties(exchange, LogLoggingLevel.ERROR);
-        mockDeploymentInfo();
 
-        try (MockedStatic<DebuggerUtils> debuggerUtils = mockStatic(DebuggerUtils.class)) {
+        try (MockedStatic<DebuggerUtils> debuggerUtils = mockStatic(DebuggerUtils.class);
+             MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
             debuggerUtils.when(() -> DebuggerUtils.extractExecutionStatus(exchange))
-                    .thenReturn(ExecutionStatus.COMPLETED_NORMALLY);
+                    .thenReturn(ExecutionStatus.COMPLETED_WITH_ERRORS);
+            mockDeploymentInfo(metadataUtil, exchange);
 
             processor.process(exchange);
         }
 
         verify(camelDebugger).finishCheckpointSession(
                 eq(exchange),
-                eq(dbgProperties),
                 eq(SESSION_ID_13),
                 eq(ExecutionStatus.COMPLETED_WITH_ERRORS),
                 anyLong()
         );
         verify(metricsService).processChainFailure(
-                eq(deploymentInfo),
+                eq(chainInfo),
                 eq(ErrorCode.UNEXPECTED_BUSINESS_ERROR)
         );
         verify(metricsService).processSessionFinish(
-                eq(dbgProperties),
+                eq(chainInfo),
                 eq(ExecutionStatus.COMPLETED_WITH_ERRORS.toString()),
                 anyLong()
         );
@@ -677,7 +652,6 @@ class ChainFinishProcessorTest {
 
         verify(sessionsService).finishSession(
                 eq(exchange),
-                eq(dbgProperties),
                 eq(ExecutionStatus.COMPLETED_NORMALLY),
                 anyString(),
                 anyLong(),
@@ -713,13 +687,12 @@ class ChainFinishProcessorTest {
 
         verify(camelDebugger).finishCheckpointSession(
                 eq(exchange),
-                eq(dbgProperties),
                 eq(SESSION_ID_15),
                 eq(ExecutionStatus.COMPLETED_NORMALLY),
                 anyLong()
         );
         verify(metricsService).processSessionFinish(
-                eq(dbgProperties),
+                eq(chainInfo),
                 eq(ExecutionStatus.COMPLETED_NORMALLY.toString()),
                 anyLong()
         );
@@ -758,11 +731,20 @@ class ChainFinishProcessorTest {
     }
 
     private Exchange createExchange() {
-        Exchange exchange = MockExchanges.withMessage();
+        Exchange exchange = MockExchanges.basic();
         CamelContext camelContext = mock(CamelContext.class);
+        Route route = mock(Route.class);
+        Registry registry = mock(Registry.class);
 
         lenient().when(exchange.getContext()).thenReturn(camelContext);
         lenient().when(camelContext.getDebugger()).thenReturn(camelDebugger);
+        lenient().when(exchange.getFromRouteId()).thenReturn("test-route");
+        lenient().when(camelContext.getRoute("test-route")).thenReturn(route);
+        lenient().when(route.getGroup()).thenReturn("test-group");
+        lenient().when(route.getCamelContext()).thenReturn(camelContext);
+        lenient().when(camelContext.getRegistry()).thenReturn(registry);
+        lenient().when(registry.lookupByNameAndType("DeploymentInfo-test-group", DeploymentInfo.class))
+                .thenReturn(deploymentInfo);
 
         return exchange;
     }
@@ -771,8 +753,7 @@ class ChainFinishProcessorTest {
             Exchange exchange,
             LogLoggingLevel logLevel
     ) {
-        when(propertiesService.getProperties(exchange)).thenReturn(dbgProperties);
-        when(dbgProperties.getRuntimeProperties(exchange)).thenReturn(runtimeProperties);
+        when(propertiesService.getRuntimeProperties(exchange)).thenReturn(runtimeProperties);
         when(runtimeProperties.getLogLoggingLevel()).thenReturn(logLevel);
     }
 
@@ -787,12 +768,9 @@ class ChainFinishProcessorTest {
         when(runtimeProperties.isDptEventsEnabled()).thenReturn(enabled);
     }
 
-    private void mockMaskingEnabled(boolean enabled) {
-        when(runtimeProperties.isMaskingEnabled()).thenReturn(enabled);
-    }
-
-    private void mockDeploymentInfo() {
-        when(dbgProperties.getDeploymentInfo()).thenReturn(deploymentInfo);
+    private void mockDeploymentInfo(MockedStatic<MetadataUtil> metadataUtil, Exchange exchange) {
+        metadataUtil.when(() -> MetadataUtil.getBean(exchange, DeploymentInfo.class))
+                .thenReturn(deploymentInfo);
     }
 
     @SuppressWarnings("unchecked")

@@ -37,10 +37,7 @@ Application parameters can be set by environment variables.
 | CONSUL_ADMIN_TOKEN                  |                                                      | Consul assess token                                                                                                          |
 | KUBE_TOKEN_PATH                     | /var/run/secrets/kubernetes.io/serviceaccount/token  | Kubernetes token path                                                                                                        |
 | KUBE_CERT_PATH                      | /var/run/secrets/kubernetes.io/serviceaccount/ca.crt | Kubernetes certificate path                                                                                                  |
-| MICROSERVICE_NAME                   |                                                      | Microservice name.                                                                                                           |
-| DEPLOYMENT_VERSION                  | v1                                                   | Deployment version for bluegreen.                                                                                            |
 | NAMESPACE                           |                                                      | Kubernetes namespace.                                                                                                        |
-| ORIGIN_NAMESPACE                    |                                                      | Origin namespace for bluegreen.                                                                                              |
 | TRACING_ENABLED                     | false                                                | If true, enables application tracing via OpenTelemetry protocol.                                                             |
 | TRACING_HOST                        |                                                      | Tracing endpoint URL.                                                                                                        |
 | TRACING_SAMPLER_PROBABILISTIC       | 0.01                                                 | Tracing sampling probability. By default, application samples only 1% of requests to prevent overwhelming the trace backend. |
@@ -57,21 +54,10 @@ Application parameters can be set by environment variables.
 | OPENSEARCH_USERNAME                 |                                                      | OpenSearch username                                                                                                          |
 | OPENSEARCH_PASSWORD                 |                                                      | OpenSearch password                                                                                                          |
 | OPENSEARCH_PREFIX                   |                                                      | A prefix string that is if not empty added followed by underscore to the OpenSearch index name.                              |
-| OPENSEARCH_CONNECTION_TIMEOUT       | 5000                                                 | OpenSearch client connection timeout, ms.                                                                                    |
 | OPENSEARCH_INDEX_SHARDS             | 3                                                    | OpenSearch index shards count                                                                                                |
 | OPENSEARCH_ROLLOVER_MIN_INDEX_SIZE  |                                                      | Minimal index size to rollover. Uneset by default.                                                                           |
 | MONITORING_ENABLED                  | false                                                |                                                                                                                              |
-| IDEMPOTENCY_ENABLED                 | false                                                | Enables idempotency support on triggers. Requires Redis service.                                                             |
-| REDIS_HOST                          | redis                                                | Redis host                                                                                                                   |
-| REDIS_PORT                          | 6379                                                 | Redis port                                                                                                                   |
-| REDIS_USER                          |                                                      | Redis username                                                                                                               |
-| REDIS_PASSWORD                      |                                                      | Redis password                                                                                                               |
-| CAMEL_KAFKA_PREDEPLOY_CHECK_ENABLED | true                                                 | Enables predeploy check for Kafka elements.                                                                                  |
-| CAMEL_AMQP_PREDEPLOY_CHECK_ENABLED  | true                                                 | Enables predeploy check for AMQP elements.                                                                                   |
-| RUNTIME_CATALOG_SERVICE_URL         | `http://runtime-catalog:8080`                        | Runtime Catalog Service URL.                                                                                                 |
-| OPENSEARCH_KAFKA_ENABLED            | false                                                | Enables writing session elements to kafka instead of Opensearch directly.                                                    |
-| OPENSEARCH_KAFKA_BOOTSTRAP_SERVERS  |                                                      | Kafka address for writing session elements.                                                                                  |
-| OPENSEARCH_KAFKA_TOPIC              | elements                                             | Kafka topic name for writing session elements.                                                                               |
+
 
 Configuration can be overridden with values stored in Consul.
 The ```config/${NAMESPACE}``` prefix is used.

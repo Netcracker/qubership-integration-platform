@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.engine.service.debugger.util;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Named;
 import org.apache.camel.component.google.pubsub.serializer.GooglePubsubSerializer;
 import org.apache.camel.converter.stream.InputStreamCache;
 
@@ -25,6 +26,7 @@ import java.io.IOException;
 import java.io.ObjectOutputStream;
 
 @ApplicationScoped
+@Named("customGooglePubSubSerializer")
 public class CustomGooglePubSubSerializer implements GooglePubsubSerializer {
 
     @Override

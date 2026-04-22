@@ -28,18 +28,19 @@ import java.util.Set;
 public class MaskedFieldUtils {
 
     /**
-     * Retrieves masked fields from a given property object.
+     * Retrieves masked fields from an exchange.
      * <p>
      * Expects the property to be a {@code Set<String>}.
      * Returns an empty {@code Set} if null or not a Set.
      *
-     * @param maskedFieldsProperty the property object holding masked fields
+     * @param exchange exchange
      * @return a new {@code Set<String>} of masked fields (never null)
      */
     @SuppressWarnings("unchecked")
-    public static Set<String> getMaskedFields(Object maskedFieldsProperty) {
-        if (maskedFieldsProperty instanceof Set<?>) {
-            return new HashSet<>((Set<String>) maskedFieldsProperty);
+    public static Set<String> getMaskedFields(Exchange exchange) {
+        Object value = exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY);
+        if (value instanceof Set<?>) {
+            return new HashSet<>((Set<String>) value);
         }
         return new HashSet<>();
     }
@@ -73,9 +74,7 @@ public class MaskedFieldUtils {
         if (newFields == null || newFields.isEmpty()) {
             return;
         }
-        Set<String> existing = getMaskedFields(
-                exchange.getProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY)
-        );
+        Set<String> existing = getMaskedFields(exchange);
         existing.addAll(newFields);
         setMaskedFields(exchange, existing);
     }

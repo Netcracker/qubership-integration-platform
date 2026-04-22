@@ -24,6 +24,7 @@ import org.qubership.integration.platform.engine.camel.components.servlet.except
 import org.qubership.integration.platform.engine.camel.components.servlet.exception.annotations.ChainExceptionHandler;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
+import org.qubership.integration.platform.engine.util.ExchangeUtil;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -71,7 +72,7 @@ public class ChainExceptionResponseHandlerService {
     private Map<String, String> getAdditionalExtraParams(Exchange exchange) {
         return new HashMap<>(Map.of(
             CamelConstants.ChainProperties.EXCEPTION_EXTRA_SESSION_ID,
-                exchange.getProperty(CamelConstants.Properties.SESSION_ID, String.class),
+                ExchangeUtil.getSessionId(exchange),
             CamelConstants.ChainProperties.EXCEPTION_EXTRA_FAILED_ELEMENT,
                 exchange.getProperty(CamelConstants.ChainProperties.FAILED_ELEMENT_ID, String.class)));
     }

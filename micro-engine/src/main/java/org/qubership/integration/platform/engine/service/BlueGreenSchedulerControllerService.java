@@ -2,7 +2,7 @@ package org.qubership.integration.platform.engine.service;
 
 import com.netcracker.cloud.bluegreen.api.model.BlueGreenState;
 import io.quarkus.arc.Unremovable;
-import jakarta.annotation.PostConstruct;
+import io.quarkus.vertx.ConsumeEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -11,15 +11,13 @@ import static java.util.Objects.nonNull;
 @ApplicationScoped
 @Unremovable
 public class BlueGreenSchedulerControllerService {
-    @Inject
-    BlueGreenStateService blueGreenStateService;
 
     @Inject
-    IntegrationRuntimeService integrationRuntimeService;
+    QuartzSchedulerService quartzSchedulerService;
 
-    @PostConstruct
-    public void init() {
-        this.blueGreenStateService.subscribe(this::resolveBlueGreenState);
+    @ConsumeEvent(value = BlueGreenStateService.BLUE_GREEN_STATE_EVENT_ADDRESS)
+    public void onStateChange(BlueGreenStateService.BlueGreenStateChange stateChange) {
+        resolveBlueGreenState(stateChange.oldState(), stateChange.newState());
     }
 
     private synchronized void resolveBlueGreenState(
@@ -32,11 +30,11 @@ public class BlueGreenSchedulerControllerService {
 
             // active -> other = disable
             if (isPrevActive && !isActualActive) {
-                integrationRuntimeService.suspendAllSchedulers();
+                quartzSchedulerService.suspendAllSchedulers();
             } else {
                 // other -> active = resume
                 if (!isPrevActive && isActualActive) {
-                    integrationRuntimeService.resumeAllSchedulers();
+                    quartzSchedulerService.resumeAllSchedulers();
                 }
             }
         }

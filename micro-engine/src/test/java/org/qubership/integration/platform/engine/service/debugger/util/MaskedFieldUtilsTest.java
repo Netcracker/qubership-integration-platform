@@ -21,37 +21,56 @@ import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
-import org.qubership.integration.platform.engine.testutils.MockExchanges;
 
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class MaskedFieldUtilsTest {
 
     private Exchange mockExchange() {
-       return MockExchanges.basic();
+        Exchange exchange = mock(Exchange.class);
+        Map<String, Object> properties = new HashMap<>();
+        doAnswer(invocation -> {
+            String key = invocation.getArgument(0);
+            return properties.get(key);
+        }).when(exchange).getProperty(any(String.class));
+        doAnswer(invocation -> {
+            String key = invocation.getArgument(0);
+            Object value = invocation.getArgument(1);
+            properties.put(key, value);
+            return null;
+        }).when(exchange).setProperty(any(String.class), any());
+        return exchange;
     }
 
     @Test
     void shouldReturnEmptySetWhenPropertyIsNull() {
-        Set<String> result = MaskedFieldUtils.getMaskedFields(null);
+        Exchange ex = mockExchange();
+        Set<String> result = MaskedFieldUtils.getMaskedFields(ex);
         assertNotNull(result);
         assertTrue(result.isEmpty());
     }
 
     @Test
     void shouldReturnEmptySetWhenPropertyIsNotSetType() {
-        Set<String> result = MaskedFieldUtils.getMaskedFields("oops");
+        Exchange ex = mockExchange();
+        ex.setProperty(CamelConstants.Properties.MASKED_FIELDS_PROPERTY, "oops");
+        Set<String> result = MaskedFieldUtils.getMaskedFields(ex);
         assertNotNull(result);
         assertTrue(result.isEmpty());
     }
 
     @Test
     void shouldReturnCopyWhenPropertyIsSet() {
+        Exchange ex = mockExchange();
         Set<String> original = new HashSet<>(Set.of("a", "b"));
-        Set<String> copy = MaskedFieldUtils.getMaskedFields(original);
+        MaskedFieldUtils.setMaskedFields(ex, original);
+        Set<String> copy = MaskedFieldUtils.getMaskedFields(ex);
         assertEquals(original, copy);
         assertNotSame(original, copy);
         copy.add("c");

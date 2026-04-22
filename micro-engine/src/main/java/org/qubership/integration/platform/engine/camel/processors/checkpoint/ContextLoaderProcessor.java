@@ -31,13 +31,13 @@ import org.apache.camel.Message;
 import org.apache.camel.Processor;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.model.checkpoint.CheckpointPayloadOptions;
-import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Property;
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
 import org.qubership.integration.platform.engine.service.debugger.util.MessageHelper;
 import org.qubership.integration.platform.engine.util.CheckpointUtils;
+import org.qubership.integration.platform.engine.util.ExchangeUtil;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -80,7 +80,7 @@ public class ContextLoaderProcessor implements Processor {
             restorePayloadFromCheckpoint(exchange, checkpoint);
             updatePayloadFromRequest(exchange, replaceOptions);
 
-            String sessionId = exchange.getProperty(Properties.SESSION_ID, String.class);
+            String sessionId = ExchangeUtil.getSessionId(exchange);
             String parentSessionId = checkpoint.getSession().getId();
             String originalSessionId = checkpointSessionService.findOriginalSessionInfo(parentSessionId)
                     .map(SessionInfo::getId).orElse(parentSessionId);

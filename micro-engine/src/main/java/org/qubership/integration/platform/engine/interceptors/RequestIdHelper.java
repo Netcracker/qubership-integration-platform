@@ -1,7 +1,7 @@
 package org.qubership.integration.platform.engine.interceptors;
 
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.engine.logging.constants.ContextHeaders;
+import org.qubership.integration.platform.engine.logging.ContextHeaders;
 import org.slf4j.MDC;
 
 import java.util.UUID;

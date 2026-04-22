@@ -90,7 +90,7 @@ class UpdateGetterHelperTest {
                 () -> helper.checkForUpdates(consumer)
         );
 
-        assertEquals("Key not present in consul", exception.getMessage());
+        assertEquals("Key not present in consul: " + KEY, exception.getMessage());
         verifyNoInteractions(valueParser);
         verifyNoInteractions(consumer);
     }
