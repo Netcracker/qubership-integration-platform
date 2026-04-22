@@ -126,10 +126,6 @@ import {
   SyncOutlined,
 } from "@ant-design/icons";
 
-/**
- * Дефолтный логотип шапки (текст QIP). Override: configure({ icons: { logo: … } }).
- * Устаревшее имя ключа в конфиге: `qip` — см. merge в IconProvider.
- */
 const QIP_WORDMARK_FONT_FAMILY =
   '"Trebuchet MS", "Lucida Sans Unicode", "Segoe UI", sans-serif';
 
