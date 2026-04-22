@@ -440,7 +440,8 @@ public class ImportInstructionsService {
     public void deleteImportInstructionsById(DeleteInstructionsRequest deleteInstructionsRequest) {
         Set<String> instructionsToDelete = Stream.of(
                         deleteInstructionsRequest.getChains().stream(),
-                        deleteInstructionsRequest.getServices().stream()
+                        deleteInstructionsRequest.getServices().stream(),
+                        deleteInstructionsRequest.getCommonVariables().stream()
                 )
                 .flatMap(Function.identity())
                 .collect(Collectors.toSet());
