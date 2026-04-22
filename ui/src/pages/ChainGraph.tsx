@@ -80,6 +80,7 @@ import { usePermissions } from "../permissions/usePermissions.tsx";
 import { hasPermissions } from "../permissions/funcs.ts";
 import { getSwimlaneBorderColor } from "../components/graph/nodes/SwimlaneNode.tsx";
 import { useContextMenu } from "../hooks/graph/useContextMenu.tsx";
+import { useGenerateDds } from "../hooks/useGenerateDds.tsx";
 
 const readTheme = () => {
   if (typeof document === "undefined") return "light";
@@ -185,6 +186,7 @@ const ChainGraphInner: React.FC = () => {
   const { leftPanel, toggleLeftPanel, rightPanel, toggleRightPanel } =
     useElkDirection();
   const fitViewToElementIdRef = useRef<FitViewToElementIdFn | null>(null);
+  const { showGenerateDdsModal } = useGenerateDds();
 
   const handleElementUpdated = useCallback(
     (element: Element, node: ChainGraphNode) => {
@@ -468,6 +470,14 @@ const ChainGraphInner: React.FC = () => {
         />
         {!isVsCode && (
           <>
+            <ProtectedButton
+              require={{ chain: ["read"] }}
+              tooltipProps={{ title: "Generate DDS" }}
+              buttonProps={{
+                iconName: "file",
+                onClick: () => showGenerateDdsModal(chainId!),
+              }}
+            />
             <ProtectedButton
               require={{ chain: ["export"] }}
               tooltipProps={{ title: "Export chain" }}

@@ -21,6 +21,12 @@ jest.mock("../../src/api/api.ts", () => {
   };
 });
 
+jest.mock("../../src/hooks/useGenerateDds.tsx", () => ({
+  useGenerateDds: () => ({
+    showGenerateDdsModal: jest.fn(),
+  }),
+}));
+
 jest.mock(
   "../../src/components/modal/chain_element/ChainElementModification",
   () => ({
@@ -353,8 +359,8 @@ describe("ChainGraph", () => {
 
     const headerSlot = await screen.findByTestId("chain-header-actions-slot");
     const headerButtons = within(headerSlot).getAllByTestId("protected-button");
-    expect(headerButtons.length).toBeGreaterThanOrEqual(3);
-    fireEvent.click(headerButtons[2]);
+    expect(headerButtons.length).toBeGreaterThanOrEqual(4);
+    fireEvent.click(headerButtons[3]);
 
     expect(mockShowModal).toHaveBeenCalled();
     const modalArg = mockShowModal.mock.calls.at(-1)?.[0] as {
@@ -400,7 +406,7 @@ describe("ChainGraph", () => {
 
     const headerSlot = await screen.findByTestId("chain-header-actions-slot");
     const headerButtons = within(headerSlot).getAllByTestId("protected-button");
-    fireEvent.click(headerButtons[2]);
+    fireEvent.click(headerButtons[3]);
 
     const modalArg = mockShowModal.mock.calls.at(-1)?.[0] as {
       component: React.ReactElement<{

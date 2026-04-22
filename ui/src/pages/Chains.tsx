@@ -36,8 +36,6 @@ import { exportAdditionsForChains } from "../misc/export-additions.ts";
 import { ImportChains } from "../components/modal/ImportChains.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { useChainFilters } from "../hooks/useChainFilter.ts";
-import { GenerateDdsModal } from "../components/modal/GenerateDdsModal.tsx";
-import { DdsPreview } from "../components/modal/DdsPreview.tsx";
 import styles from "./Chains.module.css";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import {
@@ -66,6 +64,7 @@ import {
   disableResizeBeforeActions,
 } from "../components/table/actionsColumn.ts";
 import { ChainDetailsDrawer } from "../components/chains/ChainDetailsDrawer.tsx";
+import { useGenerateDds } from "../hooks/useGenerateDds.tsx";
 
 const CHAINS_EXPAND_COLUMN_WIDTH = 48;
 const CHAINS_SELECTION_COLUMN_WIDTH = 48;
@@ -151,6 +150,7 @@ const Chains = () => {
   const [isDetailsOpen, setIsDetailsOpen] = useState<boolean>(false);
   const notificationService = useNotificationService();
   const { filters, filterButton } = useChainFilters();
+  const { showGenerateDdsModal } = useGenerateDds();
 
   const getFolderId = useCallback((): string | undefined => {
     return searchParams.get("folder") ?? undefined;
@@ -702,34 +702,6 @@ const Chains = () => {
                 )
               : updateFolder(parentOrItemId ?? "", { name, description });
           }}
-        />
-      ),
-    });
-  };
-
-  const showGenerateDdsModal = (chainId: string) => {
-    showModal({
-      component: (
-        <GenerateDdsModal
-          onSubmit={(templateId, fileName) => {
-            showDdsModal(chainId, templateId, fileName);
-          }}
-        />
-      ),
-    });
-  };
-
-  const showDdsModal = (
-    chainId: string,
-    templateId: string,
-    fileName: string,
-  ) => {
-    showModal({
-      component: (
-        <DdsPreview
-          chainId={chainId}
-          templateId={templateId}
-          fileName={fileName}
         />
       ),
     });

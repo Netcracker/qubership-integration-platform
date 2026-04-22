@@ -74,6 +74,12 @@ jest.mock("../../src/Modals", () => ({
   }),
 }));
 
+jest.mock("../../src/hooks/useGenerateDds.tsx", () => ({
+  useGenerateDds: () => ({
+    showGenerateDdsModal: jest.fn(),
+  }),
+}));
+
 const mockRequestFailed = jest.fn();
 jest.mock("../../src/hooks/useNotificationService", () => ({
   useNotificationService: () => ({
@@ -258,12 +264,6 @@ jest.mock("../../src/components/modal/ImportChains", () => ({
 }));
 jest.mock("../../src/components/modal/DeployChains", () => ({
   DeployChains: () => <div data-testid="deploy-chains-modal" />,
-}));
-jest.mock("../../src/components/modal/GenerateDdsModal", () => ({
-  GenerateDdsModal: () => <div data-testid="generate-dds-modal" />,
-}));
-jest.mock("../../src/components/modal/DdsPreview", () => ({
-  DdsPreview: () => <div data-testid="dds-preview-modal" />,
 }));
 
 // Mock api
