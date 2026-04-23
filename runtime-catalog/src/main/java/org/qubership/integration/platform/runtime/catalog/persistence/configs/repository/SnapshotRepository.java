@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.persistence.configs.r
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.SnapshotBaseRepository;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.common.CommonRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Repository;
@@ -30,7 +31,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @Repository
-public interface SnapshotRepository extends SnapshotBaseRepository {
+public interface SnapshotRepository extends CommonRepository<Snapshot>, SnapshotBaseRepository {
     @Query(nativeQuery = true,
             value = """
                     DELETE FROM {h-schema}snapshots where ctid in
@@ -45,6 +46,8 @@ public interface SnapshotRepository extends SnapshotBaseRepository {
     List<Map<String, String>> pruneByCreatedWhen(@NonNull Timestamp createdWhen, int chunk);
 
     List<Snapshot> findAllByChainId(String chainId);
+
+    List<Snapshot> findAllByIdIn(@NonNull Collection<String> ids);
 
     Optional<Snapshot> findFirstByChainOrderByIdDesc(Chain chain);
 

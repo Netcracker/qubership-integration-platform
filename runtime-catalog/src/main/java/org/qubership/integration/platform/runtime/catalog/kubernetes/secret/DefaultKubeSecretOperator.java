@@ -90,20 +90,9 @@ public class DefaultKubeSecretOperator implements KubeSecretOperator {
         ConcurrentMap<String, ConcurrentMap<String, String>> secrets = new ConcurrentHashMap<>();
 
         try {
-            V1SecretList secretList = coreApi.listNamespacedSecret(
-                    namespace,
-                    null,
-                    null,
-                    null,
-                    null,
-                    label.getKey() + "=" + label.getValue(),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-            );
+            V1SecretList secretList = coreApi.listNamespacedSecret(namespace)
+                    .labelSelector(label.getKey() + "=" + label.getValue())
+                    .execute();
 
             List<V1Secret> secretListItems = secretList.getItems();
             for (V1Secret secret : secretListItems) {
@@ -135,7 +124,7 @@ public class DefaultKubeSecretOperator implements KubeSecretOperator {
     @Nullable
     public V1Secret getSecretObjectByName(String name) {
         try {
-            return coreApi.readNamespacedSecret(name, namespace, null);
+            return coreApi.readNamespacedSecret(name, namespace).execute();
         } catch (ApiException e) {
             if (e.getCode() != 404) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
@@ -154,11 +143,7 @@ public class DefaultKubeSecretOperator implements KubeSecretOperator {
         ConcurrentMap<String, String> secretMap = new ConcurrentHashMap<>();
 
         try {
-            V1Secret secret = coreApi.readNamespacedSecret(
-                    name,
-                    namespace,
-                    null
-            );
+            V1Secret secret = coreApi.readNamespacedSecret(name, namespace).execute();
 
             if (secret.getData() != null) {
                 secret.getData().forEach((k, v) -> secretMap.put(k, new String(v)));
@@ -193,7 +178,7 @@ public class DefaultKubeSecretOperator implements KubeSecretOperator {
             secret.setMetadata(metadata);
             secret.setData(dataByte);
 
-            coreApi.createNamespacedSecret(namespace, secret, null, null, null, null);
+            coreApi.createNamespacedSecret(namespace, secret).execute();
         } catch (ApiException e) {
             if (e.getCode() == 409) {
                 throw new SecretAlreadyExists("Secret with name " + name + " already exists");
@@ -236,17 +221,11 @@ public class DefaultKubeSecretOperator implements KubeSecretOperator {
                 .toList();
 
         try {
-            return coreApi.patchNamespacedSecretAsync(
+            return coreApi.patchNamespacedSecret(
                     secretName,
                     namespace,
-                    new V1Patch(objectMapper.writeValueAsString(patches)),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    callback
-            );
+                    new V1Patch(objectMapper.writeValueAsString(patches))
+            ).executeAsync(callback);
         } catch (JsonProcessingException e) {
             log.error("Unable to serialize secret patch request", e);
             throw new KubeApiException("Unable to serialize secret patch request", e);
@@ -271,13 +250,8 @@ public class DefaultKubeSecretOperator implements KubeSecretOperator {
             V1Secret secret = coreApi.patchNamespacedSecret(
                     secretName,
                     namespace,
-                    new V1Patch(objectMapper.writeValueAsString(patches)),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-            );
+                    new V1Patch(objectMapper.writeValueAsString(patches))
+            ).execute();
 
             if (secret.getData() != null) {
                 secret.getData().forEach((k, v) -> secretMap.put(k, new String(v)));

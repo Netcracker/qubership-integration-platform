@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
 
 @Component
 public class EngineDomainUtils {
-    private static final String DASH_VERSION_REGEX = "-v\\d+$";
+    private static final String DASH_VERSION_REGEX = "(-v\\d+)?$";
     private final Pattern defaultVersionedDomainPattern;
 
     @Value("${qip.domain.default}")

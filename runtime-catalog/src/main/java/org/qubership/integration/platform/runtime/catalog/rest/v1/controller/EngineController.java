@@ -22,7 +22,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineDeploymentsDTO;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentsUpdate;
-import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubeDeployment;
+import org.qubership.integration.platform.runtime.catalog.model.domains.EngineDomain;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.EngineDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.engine.DomainResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.engine.EngineResponse;
@@ -67,7 +67,7 @@ public class EngineController {
     @GetMapping
     @Operation(description = "Get all available engine domains")
     ResponseEntity<List<DomainResponse>> getDomains() {
-        List<KubeDeployment> domains = engineService.getDomains();
+        List<EngineDomain> domains = engineService.getDomains();
         return ResponseEntity.ok(engineMapper.asDomainResponses(domains));
     }
 

@@ -17,13 +17,27 @@
 package org.qubership.integration.platform.runtime.catalog.model.dto.deployment;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder(toBuilder = true)
 @Schema(description = "Deployment runtime status (divided by engine pods)")
 public class DeploymentRuntime {
     @Schema(description = "Deployment runtime statuses (divided by engine pods)")
     private Map<String, RuntimeDeploymentState> states;
+
+    public DeploymentRuntime merge(DeploymentRuntime other) {
+        Map<String, RuntimeDeploymentState> mergedStates = new HashMap<>();
+        mergedStates.putAll(states);
+        mergedStates.putAll(other.states);
+        return this.toBuilder().states(mergedStates).build();
+    }
 }

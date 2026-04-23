@@ -27,11 +27,15 @@ import java.util.UUID;
 public class ChainRoute {
 
     private String id;
+    private String group;
+    private String customIdPlaceholder;
     private List<ChainElement> elements;
     private List<ChainRoute> nextRoutes;
 
     public ChainRoute() {
         this.id = UUID.randomUUID().toString();
+        this.group = "";
+        this.customIdPlaceholder = "";
         this.elements = new LinkedList<>();
         this.nextRoutes = new LinkedList<>();
     }

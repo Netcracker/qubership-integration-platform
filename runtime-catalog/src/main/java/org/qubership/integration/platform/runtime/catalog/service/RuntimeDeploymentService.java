@@ -23,6 +23,11 @@ import org.qubership.integration.platform.runtime.catalog.consul.exception.KVNot
 import org.qubership.integration.platform.runtime.catalog.events.EngineStateUpdateEvent;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.RuntimeDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.*;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentInfo;
+import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
+import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.DeploymentResponse;
+import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.DeploymentRuntime;
+import org.qubership.integration.platform.runtime.catalog.model.dto.deployment.RuntimeDeploymentState;
 import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.User;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
@@ -105,17 +110,62 @@ public class RuntimeDeploymentService {
     }
 
     public RuntimeDeployment getRuntimeDeployment(String deploymentId) {
-        RuntimeDeployment runtimeDeployment = new RuntimeDeployment(deploymentId);
-        Collection<EngineState> states = enginesStateCache.get().values();
-        for (EngineState engineState : states) {
-            runtimeDeployment.setServiceName(engineState.getEngine().getEngineDeploymentName());
-            runtimeDeployment.getStates().put(
-                    engineState.getEngine().getHost(),
-                    Optional.ofNullable(engineState.getDeployments()).map(deployments -> deployments.get(deploymentId)).orElse(null)
-            );
-        }
+        Collection<EngineState> engineStates = enginesStateCache.get().values();
+        Map<String, EngineDeployment> states = engineStates.stream()
+                .filter(state -> state.getDeployments().containsKey(deploymentId))
+                .collect(Collectors.toMap(
+                        state -> state.getEngine().getHost(),
+                        state -> state.getDeployments().get(deploymentId)
+                ));
+        String serviceName = engineStates.stream()
+                .findFirst()
+                .map(EngineState::getEngine)
+                .map(EngineInfo::getEngineDeploymentName)
+                .orElse(null);
+        return RuntimeDeployment.builder()
+                .deploymentId(deploymentId)
+                .serviceName(serviceName)
+                .states(states)
+                .build();
+    }
 
-        return runtimeDeployment;
+    public Collection<DeploymentResponse> getMicroEngineDeployments(String chainId) {
+        return enginesStateCache.get().values().stream()
+                .filter(state -> DomainType.MICRO.equals(state.getEngine().getDomainType()))
+                .flatMap(state -> {
+                    EngineInfo engineInfo = state.getEngine();
+                    return state.getDeployments().entrySet().stream()
+                            .filter(entry -> chainId.equals(entry.getValue().getDeploymentInfo().getChainId()))
+                            .map(entry -> {
+                                String deploymentId = entry.getKey();
+                                DeploymentInfo deploymentInfo = entry.getValue().getDeploymentInfo();
+                                return DeploymentResponse.builder()
+                                        .id(deploymentId)
+                                        .chainId(chainId)
+                                        .snapshotId(deploymentInfo.getSnapshotId())
+                                        .serviceName(deploymentInfo.getSnapshotName())
+                                        .domain(engineInfo.getDomain())
+                                        .domainType(engineInfo.getDomainType())
+                                        .serviceName(engineInfo.getEngineDeploymentName())
+                                        .runtime(DeploymentRuntime.builder()
+                                                .states(Collections.singletonMap(
+                                                        engineInfo.getHost(),
+                                                        RuntimeDeploymentState.builder()
+                                                                .status(entry.getValue().getStatus())
+                                                                .suspended(entry.getValue().isSuspended())
+                                                                .error(entry.getValue().getErrorMessage())
+                                                                .build()
+                                                ))
+                                                .build())
+                                        .build();
+                            });
+                })
+                .collect(Collectors.toMap(
+                        DeploymentResponse::getId,
+                        Function.identity(),
+                        (d1, d2) ->
+                            d1.toBuilder().runtime(d1.getRuntime().merge(d2.getRuntime())).build()
+                )).values();
     }
 
     public void provideEnginesStateUpdate(Collection<EngineState> newStateList) {

@@ -10,3 +10,5 @@ org.qubership.integration.platform.runtime.catalog.configuration.MicroserviceRes
 org.qubership.integration.platform.runtime.catalog.configuration.SwaggerAutoConfiguration
 org.qubership.integration.platform.runtime.catalog.configuration.TaskSchedulerAutoConfiguration
 org.qubership.integration.platform.runtime.catalog.configuration.WebAutoConfiguration
+org.qubership.integration.platform.runtime.catalog.cr.configuration.YamlMapperConfiguration
+org.qubership.integration.platform.runtime.catalog.cr.configuration.HandlebarConfiguration

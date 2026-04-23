@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.model.deployment.engine;
 
 import lombok.*;
+import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 
 @Getter
 @Setter
@@ -26,5 +27,7 @@ import lombok.*;
 public class EngineInfo {
     private String host;
     private String domain;
+    @Builder.Default
+    private DomainType domainType = DomainType.NATIVE;
     private String engineDeploymentName;
 }

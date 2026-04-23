@@ -21,6 +21,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 
 @Getter
 @Setter
@@ -38,4 +39,6 @@ public class DomainResponse {
     private String namespace;
     @Schema(description = "Version")
     private String version;
+    @Schema(description = "Domain type")
+    private DomainType type;
 }
