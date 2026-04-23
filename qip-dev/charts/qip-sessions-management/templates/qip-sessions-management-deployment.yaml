@@ -56,6 +56,11 @@ spec:
                 configMapKeyRef:
                   key: OPENSEARCH_PORT
                   name: {{ .Release.Name }}-env
+            - name: OPENSEARCH_PREFIX
+              valueFrom:
+                configMapKeyRef:
+                  key: OPENSEARCH_PREFIX
+                  name: {{ .Release.Name }}-env
             - name: TRACING_ENABLED
               valueFrom:
                 configMapKeyRef:
