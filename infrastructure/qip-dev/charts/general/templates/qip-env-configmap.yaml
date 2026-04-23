@@ -5,6 +5,7 @@ data:
   NAMESPACE: {{ .Release.Namespace }}
   OPENSEARCH_HOST: {{ .Release.Name }}-opensearch
   OPENSEARCH_PORT: "9200"
+  OPENSEARCH_PREFIX: "qip"
   POSTGRES_URL: {{ .Release.Name }}-postgres:5432/{{ .Values.global.postgres.database | default "postgres" }}
   TRACING_ENABLED: "false"
 kind: ConfigMap

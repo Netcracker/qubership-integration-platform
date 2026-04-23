@@ -73,6 +73,21 @@ spec:
                 configMapKeyRef:
                   key: TRACING_ENABLED
                   name: {{ .Release.Name }}-env
+            - name: ENGINE_CONTAINER_IMAGE
+              value: ghcr.io/netcracker/qubership-integration-engine-quarkus:latest
+            - name: CR_K8S_SERVICE_ACCOUNT
+              value: {{ .Release.Name }}-service-account
+            - name: CR_ENVIRONMENT
+              value: |-
+                {
+                  CONSUL_URL: 'configmap:{{ .Release.Name }}-env/CONSUL_URL',
+                  CONSUL_ADMIN_TOKEN: 'configmap:{{ .Release.Name }}-env/CONSUL_ADMIN_TOKEN',
+                  OPENSEARCH_HOST: 'configmap:{{ .Release.Name }}-env/OPENSEARCH_HOST',
+                  OPENSEARCH_PORT: 'configmap:{{ .Release.Name }}-env/OPENSEARCH_PORT',
+                  POSTGRES_URL: 'configmap:{{ .Release.Name }}-engine-env/POSTGRES_URL',
+                  POSTGRES_USER: 'secret:{{ .Release.Name }}-postgres-auth/username',
+                  POSTGRES_PASSWORD: 'secret:{{ .Release.Name }}-postgres-auth/password'
+                }
           image: ghcr.io/netcracker/qubership-integration-runtime-catalog:latest
           imagePullPolicy: Never
           livenessProbe:
