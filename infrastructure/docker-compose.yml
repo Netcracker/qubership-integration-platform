@@ -51,7 +51,7 @@ services:
           - MONITORING_ENABLED=true
         command: [
             "/opt/java/openjdk/bin/java",
-            "-Xmx8092m",
+            "-Xmx832m",
             "-XX:MetaspaceSize=512m",
             "-XX:MaxMetaspaceSize=224m",
             "-XX:MaxDirectMemorySize=224m",
