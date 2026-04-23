@@ -47,8 +47,6 @@ services:
         env_file:
         - "qip-dev.env"
         - "engine-dev.env"
-        environment:
-          - MONITORING_ENABLED=true
         command: [
             "/opt/java/openjdk/bin/java",
             "-Xmx832m",
