@@ -38,7 +38,7 @@ public class TimestampGenerator implements Function<AtlasSession, String> {
     }
 
     public static TimestampGenerator fromParameterList(List<String> parameters) {
-        boolean isUnixEpoch = parameters.size() > 0 && Boolean.parseBoolean(parameters.get(0));
+        boolean isUnixEpoch = !parameters.isEmpty() && Boolean.parseBoolean(parameters.get(0));
         String format = parameters.size() > 1 ? parameters.get(1) : "";
         String locale = parameters.size() > 2 ? parameters.get(2) : "";
         String timezone = parameters.size() > 3 ? parameters.get(3) : "";
