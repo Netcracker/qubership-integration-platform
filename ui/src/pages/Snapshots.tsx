@@ -1,4 +1,4 @@
-import React, { useContext, useMemo, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import { Button, Flex, Table } from "antd";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
 import { useParams } from "react-router";
@@ -77,12 +77,14 @@ export const Snapshots: React.FC = () => {
   const { isLoading, snapshots, setSnapshots } = useSnapshots(chainId);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filteredSnapshots, setFilteredSnapshots] = useState<Snapshot[]>([]);
 
-  const filteredSnapshots = useMemo(
-    () =>
+  useEffect(() => {
+    setFilteredSnapshots(
       (snapshots ?? []).filter((row) => snapshotMatchesSearch(row, searchTerm)),
-    [snapshots, searchTerm],
-  );
+    );
+  }, [snapshots, searchTerm]);
+
   const { showModal } = useModalsContext();
   const notificationService = useNotificationService();
 
@@ -111,7 +113,7 @@ export const Snapshots: React.FC = () => {
   const deleteSnapshot = async (snapshot: Snapshot) => {
     try {
       await api.deleteSnapshot(snapshot.id);
-      setSnapshots(snapshots?.filter((s) => s.id !== snapshot.id) ?? []);
+      setSnapshots((state) => state?.filter((s) => s.id !== snapshot.id) ?? []);
     } catch (error) {
       notificationService.requestFailed("Failed to delete snapshot", error);
     }
@@ -121,7 +123,7 @@ export const Snapshots: React.FC = () => {
     try {
       const ids = toStringIds(selectedRowKeys);
       await api.deleteSnapshots(ids);
-      setSnapshots(filterOutByIds(snapshots, ids));
+      setSnapshots((state) => filterOutByIds(state, ids));
     } catch (error) {
       notificationService.requestFailed("Failed to delete snapshots", error);
     }
@@ -130,7 +132,7 @@ export const Snapshots: React.FC = () => {
   const createSnapshot = async (chainId: string) => {
     try {
       const snapshot = await api.createSnapshot(chainId);
-      setSnapshots([...(snapshots ?? []), snapshot]);
+      setSnapshots((state) => [...(state ?? []), snapshot]);
       await chainContext?.refresh?.();
     } catch (error) {
       notificationService.requestFailed("Failed to create snapshot", error);
@@ -144,7 +146,7 @@ export const Snapshots: React.FC = () => {
   ) => {
     try {
       const snapshot = await api.updateSnapshot(snapshotId, name, labels);
-      setSnapshots(snapshots?.map((s) => (s.id === snapshotId ? snapshot : s)));
+      setSnapshots((state) => state?.map((s) => (s.id === snapshotId ? snapshot : s)));
     } catch (error) {
       notificationService.requestFailed("Failed to update snapshot", error);
     }
