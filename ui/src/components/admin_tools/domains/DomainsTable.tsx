@@ -1,11 +1,14 @@
-import React, { useMemo, useState } from "react";
-import { Flex, Table, Button, Typography } from "antd";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Flex, Table, Button, Typography, Space, Tag } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { EngineTable } from "./EngineTable";
 import { useEngines } from "./hooks/useEngines";
 import { treeExpandIcon } from "../../table/TreeExpandIcon";
 import tableStyles from "./Tables.module.css";
-import { EngineDomain } from "../../../api/apiTypes.ts";
+import { DomainType, EngineDomain } from "../../../api/apiTypes.ts";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
+import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
+import { api } from "../../../api/api.ts";
 import { useColumnSettingsBasedOnColumnsType } from "../../table/useColumnSettingsButton.tsx";
 import {
   attachResizeToColumns,
@@ -58,11 +61,34 @@ function domainMatchesSearch(domain: EngineDomain, term: string): boolean {
 }
 
 const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
+  const [tableData, setTableData] = useState<EngineDomain[]>([]);
+  const [filteredData, setFilteredData] = useState<EngineDomain[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const notificationsService = useNotificationService();
 
-  const filteredDomains = useMemo(
-    () => domains.filter((d) => domainMatchesSearch(d, searchTerm)),
-    [domains, searchTerm],
+  useEffect(() => {
+    setTableData(domains);
+  }, [domains]);
+
+  useEffect(() => {
+    setFilteredData(
+      tableData.filter((d) => domainMatchesSearch(d, searchTerm)),
+    );
+  }, [tableData, searchTerm]);
+
+  const deleteMicroDomain = useCallback(
+    async (name: string) => {
+      try {
+        await api.deleteMicroDomain(name);
+        setTableData((items) => items.filter((domain) => domain.name !== name));
+      } catch (e) {
+        notificationsService.requestFailed(
+          `Failed to delete micro domain ${name}`,
+          e,
+        );
+      }
+    },
+    [notificationsService],
   );
 
   const columns: ColumnsType<EngineDomain> = useMemo(
@@ -71,6 +97,22 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
         title: <span className={tableStyles.columnHeader}>Domain</span>,
         dataIndex: "name",
         key: "name",
+        render: (_: unknown, domain: EngineDomain) => {
+          return domain.type === DomainType.MICRO ? (
+            <Space size={"small"}>
+              {domain.name}
+              <Tag>micro</Tag>
+              <Button
+                size={"small"}
+                type={"text"}
+                icon={<OverridableIcon name="delete" />}
+                onClick={() => void deleteMicroDomain(domain.name)}
+              />
+            </Space>
+          ) : (
+            domain.name
+          );
+        },
       },
       {
         title: <span className={tableStyles.columnHeader}>Version</span>,
@@ -136,13 +178,13 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
 
   const [expandedRowKeys, setExpandedRowKeys] = React.useState<React.Key[]>([]);
 
-  React.useEffect(() => {
-    if (filteredDomains.length > 0) {
-      setExpandedRowKeys(filteredDomains.map((domain) => domain.id));
+  useEffect(() => {
+    if (filteredData.length > 0) {
+      setExpandedRowKeys(filteredData.map((domain) => domain.id));
     } else {
       setExpandedRowKeys([]);
     }
-  }, [filteredDomains]);
+  }, [filteredData]);
 
   return (
     <Flex vertical gap={8} style={{ width: "100%" }}>
@@ -160,7 +202,7 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
       />
       <Table
         columns={columnsWithResize}
-        dataSource={filteredDomains}
+        dataSource={filteredData}
         loading={isLoading}
         pagination={false}
         className={tableStyles.mainTable}

@@ -47,7 +47,12 @@ import { ElkDirectionContextProvider } from "./ElkDirectionContext.tsx";
 import { useElkDirection } from "../hooks/graph/useElkDirection.tsx";
 import { PageWithRightPanel } from "./PageWithRightPanel.tsx";
 import { SaveAndDeploy } from "../components/modal/SaveAndDeploy.tsx";
-import { CreateDeploymentRequest, Element } from "../api/apiTypes.ts";
+import {
+  CreateDeploymentRequest,
+  DeployMode,
+  DomainType,
+  Element,
+} from "../api/apiTypes.ts";
 import { api } from "../api/api.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { SequenceDiagram } from "../components/modal/SequenceDiagram.tsx";
@@ -74,6 +79,7 @@ import {
 import { downloadFile, mergeZipArchives } from "../misc/download-utils.ts";
 import { exportAdditionsForChains } from "../misc/export-additions.ts";
 import { generateSequenceDiagrams } from "../diagrams/main.ts";
+import { Domain } from "../components/SelectDomains.tsx";
 import { Require } from "../permissions/Require.tsx";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { usePermissions } from "../permissions/usePermissions.tsx";
@@ -346,24 +352,35 @@ const ChainGraphInner: React.FC = () => {
   };
 
   const saveAndDeploy = useCallback(
-    async (domain: string) => {
-      if (!chainId) return;
+    async (domains: Domain[]) => {
+      if (!chainId || domains.length === 0) return;
       try {
         const snapshot = await api.createSnapshot(chainId);
         notificationService.info(
           "Created snapshot",
           `Created snapshot ${snapshot.name}`,
         );
-        await chainContext?.refresh?.();
-        const request: CreateDeploymentRequest = {
-          domain,
-          snapshotId: snapshot.id,
-          suspended: false,
-        };
-        await api.createDeployment(chainId, request);
-        notificationService.info(
-          "Deployed snapshot",
-          `Deployed snapshot ${snapshot.name}`,
+        await Promise.all(
+          domains.map(async (domain) => {
+            if (domain.type === DomainType.MICRO) {
+              await api.deploySnapshotsToMicroDomain({
+                name: domain.name,
+                snapshotIds: [snapshot.id],
+                mode: DeployMode.APPEND,
+              });
+            } else {
+              const request: CreateDeploymentRequest = {
+                domain: domain.name,
+                snapshotId: snapshot.id,
+                suspended: false,
+              };
+              await api.createDeployment(chainId, request);
+            }
+            notificationService.info(
+              "Deployed snapshot",
+              `Deployed snapshot ${snapshot.name}`,
+            );
+          }),
         );
       } catch (error) {
         notificationService.requestFailed(

@@ -1,15 +1,16 @@
 import React, { useState } from "react";
-import { Button, Form, Modal, Select, SelectProps } from "antd";
+import { Button, Form, Modal } from "antd";
 import { useModalContext } from "../../ModalContextProvider.tsx";
-import { useDomains } from "../../hooks/useDomains.tsx";
+import { Domain, SelectDomains } from "../SelectDomains.tsx";
+import { DomainType } from "../../api/apiTypes.ts";
 
 export type SaveAndDeployProps = {
   chainId?: string;
-  onSubmit?: (domain: string) => void | Promise<void>;
+  onSubmit?: (domains: Domain[]) => void | Promise<void>;
 };
 
 type SaveAndDeployFormData = {
-  domain: string;
+  domains: Domain[];
 };
 
 export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({
@@ -19,14 +20,6 @@ export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({
   const [form] = Form.useForm();
   const [confirmLoading, setConfirmLoading] = useState(false);
   const { closeContainingModal } = useModalContext();
-  const { isLoading: domainsLoading, domains } = useDomains();
-
-  const domainOptions: SelectProps["options"] = domains
-    ?.sort((d1, d2) => d1.name.localeCompare(d2.name))
-    .map((domain) => ({
-      label: domain.name,
-      value: domain.id,
-    }));
 
   const handleSubmit = (data: SaveAndDeployFormData) => {
     if (!chainId) {
@@ -34,7 +27,7 @@ export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({
     }
     setConfirmLoading(true);
     try {
-      const result = onSubmit?.(data.domain);
+      const result = onSubmit?.(data.domains);
       if (result instanceof Promise) {
         void result.finally(() => {
           setConfirmLoading(false);
@@ -75,18 +68,22 @@ export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({
         id="saveAndDeployForm"
         form={form}
         layout="horizontal"
+        initialValues={{
+          domains: [{ name: "default", type: DomainType.NATIVE }],
+        }}
         labelCol={{ span: 4 }}
         style={{ maxWidth: 600 }}
-        disabled={domainsLoading}
         labelWrap
         onFinish={(values) => handleSubmit(values)}
       >
         <Form.Item
-          label="Domain"
-          name="domain"
-          rules={[{ required: true, message: "Please specify a domain" }]}
+          label="Domains"
+          name="domains"
+          rules={[
+            { required: true, message: "Please specify at least one domain" },
+          ]}
         >
-          <Select options={domainOptions} loading={domainsLoading} />
+          <SelectDomains />
         </Form.Item>
       </Form>
     </Modal>

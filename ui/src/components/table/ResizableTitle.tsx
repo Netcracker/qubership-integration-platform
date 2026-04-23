@@ -47,7 +47,7 @@ export const ResizableTitle = React.forwardRef<
     }
   }, [width]);
 
-  /** Без колбэков колонка не участвует в resize (например фиксированная actions). */
+  /** A column without callbacks doesn't resize (f.e. fixed 'actions' column). */
   const hasResizeHandlers =
     typeof onResize === "function" && typeof onResizeStop === "function";
   const isResizable = hasResizeHandlers && width != null && width > 0;

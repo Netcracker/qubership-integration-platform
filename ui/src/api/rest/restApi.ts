@@ -66,6 +66,7 @@ import {
   Element,
   SystemOperation,
   SpecApiFile,
+  CustomResourceBuildRequest,
   LiveExchange,
   ContextSystem,
   IntegrationSystemType,
@@ -76,6 +77,8 @@ import {
   CreateMaasRabbitMQRequest,
   GetMaasKafkaDeclarativeRequest,
   GetMaasRabbitMQDeclarativeRequest,
+  MicroDomainDeployRequest,
+  BulkMicroDomainDeployResult,
   ImportVariablesResult,
   VariableImportPreview,
   UsedProperty,
@@ -88,7 +91,6 @@ import {
   ImportInstructionRequest,
   ImportInstructionResult,
   DeleteImportInstructionsRequest,
-  ImportEntityType,
   ChainElementCodeResponse,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
@@ -1925,6 +1927,14 @@ export class RestApi implements Api {
     return response.data;
   };
 
+  buildCR = async (request: CustomResourceBuildRequest): Promise<string> => {
+    const response = await this.instance.post<string>(
+      `${this.v1()}/catalog/cr`,
+      request,
+    );
+    return response.data;
+  };
+
   getValidation = async (
     validationId: string,
   ): Promise<DiagnosticValidation> => {
@@ -2162,5 +2172,38 @@ export class RestApi implements Api {
       { responseType: "blob" },
     );
     return getFileFromResponse(response);
+  };
+
+  deployToMicroDomain = async (
+    request: BulkMicroDomainDeployResult,
+  ): Promise<BulkDeploymentResult[]> => {
+    const response = await this.instance.post<BulkDeploymentResult[]>(
+      `${this.v1()}/catalog/cr/deploy-chains`,
+      request,
+    );
+    return response.data;
+  };
+
+  deploySnapshotsToMicroDomain = async (
+    request: MicroDomainDeployRequest,
+  ): Promise<void> => {
+    const response = await this.instance.post<void>(
+      `${this.v1()}/catalog/cr/deploy`,
+      request,
+    );
+    return response.data;
+  };
+
+  deleteMicroDomain = async (name: string): Promise<void> => {
+    await this.instance.delete<void>(`${this.v1()}/catalog/cr/${name}`);
+  };
+
+  deleteSnapshotFromMicroDomain = async (
+    name: string,
+    chainId: string,
+  ): Promise<void> => {
+    await this.instance.delete<void>(
+      `${this.v1()}/catalog/cr/${name}/${chainId}`,
+    );
   };
 }

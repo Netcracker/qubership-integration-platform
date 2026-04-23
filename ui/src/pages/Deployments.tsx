@@ -4,7 +4,7 @@ import {
   sumScrollXForColumns,
   useTableColumnResize,
 } from "../components/table/useTableColumnResize.tsx";
-import { Flex, Table, Tooltip } from "antd";
+import { Flex, Space, Table, Tag, Tooltip } from "antd";
 import { DeploymentStateTag } from "../components/deployment_runtime_states/DeploymentStateTag.tsx";
 import { useDeployments } from "../hooks/useDeployments.tsx";
 import { useParams } from "react-router";
@@ -12,12 +12,18 @@ import { TableProps } from "antd/lib/table";
 import {
   CreateDeploymentRequest,
   Deployment,
+  DeployMode,
+  DomainType,
+  MicroDomainDeployRequest,
   Snapshot,
 } from "../api/apiTypes.ts";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
-import { formatTimestamp } from "../misc/format-utils.ts";
+import { formatOptional, formatTimestamp } from "../misc/format-utils.ts";
 import { useModalsContext } from "../Modals.tsx";
-import { DeploymentCreate } from "../components/modal/DeploymentCreate.tsx";
+import {
+  CreateDeploymentOptions,
+  DeploymentCreate,
+} from "../components/modal/DeploymentCreate.tsx";
 import { api } from "../api/api.ts";
 import { LongActionButton } from "../components/LongActionButton.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
@@ -50,7 +56,7 @@ function deploymentMatchesSearch(
     deployment.serviceName,
     snapshotName,
     deployment.snapshotId,
-    deployment.createdBy.username,
+    deployment.createdBy?.username ?? "",
     formatTimestamp(deployment.createdWhen),
   ]);
 }
@@ -75,7 +81,14 @@ export const Deployments: React.FC = () => {
   const deleteDeployment = useCallback(
     async (deployment: Deployment) => {
       try {
-        await api.deleteDeployment(deployment.id);
+        if (deployment.domainType === DomainType.MICRO) {
+          await api.deleteSnapshotFromMicroDomain(
+            deployment.domain,
+            deployment.snapshotId,
+          );
+        } else {
+          await api.deleteDeployment(deployment.id);
+        }
         removeDeployment(deployment);
       } catch (error) {
         notificationService.requestFailed("Failed to delete deployment", error);
@@ -98,7 +111,20 @@ export const Deployments: React.FC = () => {
           </>
         ),
       },
-      { title: "Domain", dataIndex: "domain", key: "domain" },
+      {
+        title: "Domain",
+        dataIndex: "domain",
+        key: "domain",
+        render: (_, deployment) =>
+          deployment.domainType === DomainType.MICRO ? (
+            <Space size={"small"}>
+              {deployment.domain}
+              <Tag>micro</Tag>
+            </Space>
+          ) : (
+            deployment.domain
+          ),
+      },
       {
         title: "Status",
         dataIndex: "runtime",
@@ -123,7 +149,9 @@ export const Deployments: React.FC = () => {
         title: "Created By",
         dataIndex: "createdBy",
         key: "createdBy",
-        render: (_, deployment) => deployment.createdBy.username,
+        render: (_, deployment) => (
+          <>{formatOptional(deployment.createdBy?.username)}</>
+        ),
       },
       {
         title: "Created At",
@@ -187,15 +215,34 @@ export const Deployments: React.FC = () => {
     [columnsWithResize, deploymentsColumnResize.columnWidths],
   );
 
+  const onDeploymentCreated = (deployment: Deployment) => {
+    setDeployments([...(deployments ?? []), deployment]);
+  };
+
   const createDeployment = useCallback(
-    async (request: CreateDeploymentRequest) => {
+    async (options: CreateDeploymentOptions) => {
       if (!chainId) return;
       try {
-        const deployment = await api.createDeployment(chainId, request);
-        setDeployments((prevDeployments) => [
-          ...(prevDeployments ?? []),
-          deployment,
-        ]);
+        await Promise.all(
+          options.domains.map(async (domain) => {
+            if (domain.type === DomainType.MICRO) {
+              const request: MicroDomainDeployRequest = {
+                name: domain.name,
+                snapshotIds: [options.snapshotId],
+                mode: DeployMode.APPEND,
+              };
+              await api.deploySnapshotsToMicroDomain(request);
+            } else {
+              const request: CreateDeploymentRequest = {
+                domain: domain.name,
+                snapshotId: options.snapshotId,
+                suspended: false,
+              };
+              const deployment = await api.createDeployment(chainId, request);
+              onDeploymentCreated(deployment);
+            }
+          }),
+        );
       } catch (error) {
         notificationService.requestFailed("Failed to create deployment", error);
       }

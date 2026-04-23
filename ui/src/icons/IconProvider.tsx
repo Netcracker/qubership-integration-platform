@@ -30,7 +30,7 @@ const allIcons = {
   ...elementIcons,
 };
 
-/** Слияние конфига: устаревший ключ `icons.qip` подставляет `logo`, если `logo` не задан. */
+/** Configuration merge: deprecated key `icons.qip` substitute `logo`, if `logo` doesn't specified. */
 function mergeAllIconsWithConfig(
   configIcons: IconOverrides | undefined,
 ): IconOverrides {

@@ -6,6 +6,7 @@ import {
   CatalogItemType,
   ChainCreationRequest,
   ChainItem,
+  DeployMode,
   FolderItem,
   ListFolderRequest,
   UpdateFolderRequest,
@@ -40,7 +41,7 @@ import styles from "./Chains.module.css";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import {
   DeployChains,
-  DeployOptions,
+  DeployRequest,
 } from "../components/modal/DeployChains.tsx";
 import { toStringIds } from "../misc/selection-utils.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
@@ -68,6 +69,7 @@ import { useGenerateDds } from "../hooks/useGenerateDds.tsx";
 
 const CHAINS_EXPAND_COLUMN_WIDTH = 48;
 const CHAINS_SELECTION_COLUMN_WIDTH = 48;
+import { Domain } from "../components/SelectDomains.tsx";
 
 type ChainTableItem = (FolderItem | ChainItem) & {
   children?: ChainTableItem[];
@@ -399,7 +401,7 @@ const Chains = () => {
 
   const deployChains = async (
     chainIds: string[],
-    domains: string[],
+    domains: Domain[],
     snapshotAction: BulkDeploymentSnapshotAction,
   ) => {
     if (chainIds.length === 0) {
@@ -407,7 +409,12 @@ const Chains = () => {
     }
     setIsLoading(true);
     try {
-      return await api.bulkDeploy({ chainIds, domains, snapshotAction });
+      return await api.deployToMicroDomain({
+        domains: domains.map((domain) => domain.name),
+        chainIds,
+        snapshotAction,
+        mode: DeployMode.APPEND,
+      });
     } catch (error) {
       notificationService.requestFailed("Failed to deploy chains", error);
       throw error;
@@ -755,7 +762,7 @@ const Chains = () => {
         component: (
           <DeployChains
             chainCount={selectedRowKeys.length}
-            onSubmit={(options: DeployOptions) => deploySelectedChains(options)}
+            onSubmit={(request: DeployRequest) => deploySelectedChains(request)}
           />
         ),
       });
@@ -805,7 +812,7 @@ const Chains = () => {
     await deleteChains(chainIds);
   };
 
-  const deploySelectedChains = async (options: DeployOptions) => {
+  const deploySelectedChains = async (request: DeployRequest) => {
     const chainIds = folderItems
       .filter(
         (i) =>
@@ -813,7 +820,7 @@ const Chains = () => {
           i.itemType === CatalogItemType.CHAIN,
       )
       .map((i) => i.id);
-    return deployChains(chainIds, options.domains, options.snapshotAction);
+    return deployChains(chainIds, request.domains, request.snapshotAction);
   };
 
   const onContextMenuItemClick = async (item: FolderItem, key: React.Key) => {

@@ -9,6 +9,7 @@ import {
   BulkDeploymentResult,
   BulkDeploymentSnapshotAction,
   BulkDeploymentStatus,
+  DomainType,
 } from "../../../src/api/apiTypes.ts";
 
 const mockCloseContainingModal = jest.fn();
@@ -68,7 +69,7 @@ describe("DeployChains", () => {
 
     await waitFor(() => {
       expect(mockOnSubmit).toHaveBeenCalledWith({
-        domains: ["default"],
+        domains: [{ name: "default", type: DomainType.NATIVE }],
         snapshotAction: BulkDeploymentSnapshotAction.CREATE_NEW,
       });
     });

@@ -1,49 +1,45 @@
 import { Button, Form, Modal, Select, SelectProps } from "antd";
 import React, { useState } from "react";
 import { useModalContext } from "../../ModalContextProvider.tsx";
-import { useDomains } from "../../hooks/useDomains.tsx";
 import { useSnapshots } from "../../hooks/useSnapshots.tsx";
-import { CreateDeploymentRequest } from "../../api/apiTypes.ts";
+import { DomainType } from "../../api/apiTypes.ts";
+import { Domain, SelectDomains } from "../SelectDomains.tsx";
 
-type Props = {
-  chainId?: string;
-  onSubmit?: (request: CreateDeploymentRequest) => void | Promise<void>;
+export type CreateDeploymentOptions = {
+  domains: Domain[];
+  snapshotId: string;
 };
 
-export const DeploymentCreate: React.FC<Props> = ({ chainId, onSubmit }) => {
+type CreateDeploymentProps = {
+  chainId?: string;
+  onSubmit?: (request: CreateDeploymentOptions) => void | Promise<void>;
+};
+
+export const DeploymentCreate: React.FC<CreateDeploymentProps> = ({
+  chainId,
+  onSubmit,
+}) => {
   const [form] = Form.useForm();
   const [confirmLoading, setConfirmLoading] = useState(false);
   const { closeContainingModal } = useModalContext();
-  const { isLoading: domainsLoading, domains } = useDomains();
   const { isLoading: snapshotsLoading, snapshots } = useSnapshots(chainId);
-
-  const domainOptions: SelectProps["options"] = domains
-    ?.sort((d1, d2) => d1.name.localeCompare(d2.name))
-    .map((domain) => ({
-      label: domain.name,
-      value: domain.id,
-    }));
 
   const snapshotOptions: SelectProps["options"] =
     snapshots
-      ?.sort((s1, s2) => s2.modifiedWhen - s1.modifiedWhen)
+      ?.sort((s1, s2) => (s2.modifiedWhen ?? 0) - (s1.modifiedWhen ?? 0))
       .map((snapshot) => ({
         label: snapshot.name,
         value: snapshot.id,
       })) ?? [];
 
-  const handleOk = (domain: string, snapshotId: string) => {
+  const handleOk = (domains: Domain[], snapshotId: string) => {
     if (!chainId) {
       return;
     }
     setConfirmLoading(true);
-    const request: CreateDeploymentRequest = {
-      domain,
-      snapshotId,
-      suspended: false,
-    };
+    const options: CreateDeploymentOptions = { domains, snapshotId };
     try {
-      const result = onSubmit?.(request);
+      const result = onSubmit?.(options);
       if (result instanceof Promise) {
         void result.finally(() => {
           setConfirmLoading(false);
@@ -79,27 +75,32 @@ export const DeploymentCreate: React.FC<Props> = ({ chainId, onSubmit }) => {
           form="deploymentCreateForm"
           htmlType={"submit"}
           loading={confirmLoading}
-          disabled={domainsLoading || snapshotsLoading}
+          disabled={snapshotsLoading}
         >
           Deploy
         </Button>,
       ]}
     >
-      <Form<{ domain: string; snapshot: string }>
+      <Form<{ domains: Domain[]; snapshot: string }>
         id="deploymentCreateForm"
         form={form}
-        onFinish={(values) => handleOk(values.domain, values.snapshot)}
+        initialValues={{
+          domains: [{ name: "default", type: DomainType.NATIVE }],
+        }}
+        onFinish={(values) => handleOk(values.domains, values.snapshot)}
         layout="horizontal"
         labelCol={{ span: 4 }}
         style={{ maxWidth: 600 }}
-        disabled={domainsLoading || snapshotsLoading}
+        disabled={snapshotsLoading}
       >
         <Form.Item
-          label="Domain"
-          name="domain"
-          rules={[{ required: true, message: "Please specify a domain" }]}
+          label="Domains"
+          name="domains"
+          rules={[
+            { required: true, message: "Please specify at least one domain" },
+          ]}
         >
-          <Select options={domainOptions} loading={domainsLoading} />
+          <SelectDomains />
         </Form.Item>
         <Form.Item
           label="Snapshot"

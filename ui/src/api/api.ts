@@ -80,6 +80,9 @@ import type {
   AccessControlResponse,
   AccessControlUpdateRequest,
   AccessControlBulkDeployRequest,
+  CustomResourceBuildRequest,
+  MicroDomainDeployRequest,
+  BulkMicroDomainDeployResult,
   DiscoveryResponse,
   GeneralImportInstructions,
   ImportInstruction,
@@ -177,6 +180,8 @@ export interface Api {
   ): Promise<Snapshot>;
 
   revertToSnapshot(chainId: string, snapshotId: string): Promise<Snapshot>;
+
+  buildCR(request: CustomResourceBuildRequest): Promise<string>;
 
   getLibraryElementByType(type: string): Promise<LibraryElement>;
 
@@ -597,6 +602,21 @@ export interface Api {
   exportImportInstructions(): Promise<File>;
 
   getElementsAsCode(chainId: string): Promise<ChainElementCodeResponse>;
+
+  deployToMicroDomain(
+    request: BulkMicroDomainDeployResult,
+  ): Promise<BulkDeploymentResult[]>;
+
+  deploySnapshotsToMicroDomain(
+    request: MicroDomainDeployRequest,
+  ): Promise<void>;
+
+  deleteMicroDomain(name: string): Promise<void>;
+
+  deleteSnapshotFromMicroDomain(
+    name: string,
+    snapshotId: string,
+  ): Promise<void>;
 }
 
 export const api: Api = isVsCode ? new VSCodeExtensionApi() : new RestApi();

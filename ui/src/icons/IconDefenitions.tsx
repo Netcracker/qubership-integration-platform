@@ -107,6 +107,7 @@ import {
   BulbOutlined,
   BarChartOutlined,
   ToolOutlined,
+  KubernetesOutlined,
   MenuUnfoldOutlined,
   InfoCircleOutlined,
   HddOutlined,
@@ -126,6 +127,10 @@ import {
   SyncOutlined,
 } from "@ant-design/icons";
 
+/**
+ * Default header logo (QIP text). Override: configure({ icons: { logo: … } }).
+ * Deprecated key name in configuration: `qip` — see merge in IconProvider.
+ */
 const QIP_WORDMARK_FONT_FAMILY =
   '"Trebuchet MS", "Lucida Sans Unicode", "Segoe UI", sans-serif';
 
@@ -230,6 +235,7 @@ export const commonIcons = {
   solution: SolutionOutlined,
   columnHeight: ColumnHeightOutlined,
   verticalAlignMiddle: VerticalAlignMiddleOutlined,
+  kubernetes: KubernetesOutlined,
   database: DatabaseOutlined,
   fullscreen: FullscreenOutlined,
   fullscreenExit: FullscreenExitOutlined,

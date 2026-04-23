@@ -47,6 +47,7 @@ jest.mock("../../src/components/modal/ExportChains", () => ({
 }));
 
 import { api } from "../../src/api/api.ts";
+import { DomainType } from "../../src/api/apiTypes.ts";
 import { ChainContext } from "../../src/pages/ChainPage.tsx";
 import { ChainGraph } from "../../src/pages/ChainGraph";
 
@@ -338,8 +339,7 @@ describe("ChainGraph", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("save and deploy creates snapshot, deploys, refreshes chain context", async () => {
-    const refreshMock = jest.fn().mockResolvedValue(undefined);
+  it("save and deploy creates snapshot and deploys", async () => {
     const createSnapshot = api.createSnapshot as jest.Mock;
     const createDeployment = api.createDeployment as jest.Mock;
     createSnapshot.mockResolvedValue({ id: "snap-1", name: "snap-a" });
@@ -349,7 +349,7 @@ describe("ChainGraph", () => {
       <ChainContext.Provider
         value={{
           chain: undefined,
-          refresh: refreshMock,
+          refresh: jest.fn().mockResolvedValue(undefined),
           update: jest.fn().mockResolvedValue(undefined),
         }}
       >
@@ -365,11 +365,11 @@ describe("ChainGraph", () => {
     expect(mockShowModal).toHaveBeenCalled();
     const modalArg = mockShowModal.mock.calls.at(-1)?.[0] as {
       component: React.ReactElement<{
-        onSubmit: (domain: string) => void | Promise<void>;
+        onSubmit: (domains: { name: string; type: DomainType }[]) => void | Promise<void>;
       }>;
     };
     expect(modalArg?.component?.props?.onSubmit).toEqual(expect.any(Function));
-    await modalArg.component.props.onSubmit("domain-1");
+    await modalArg.component.props.onSubmit([{ name: "domain-1", type: DomainType.NATIVE }]);
 
     expect(createSnapshot).toHaveBeenCalledWith("chain-1");
     expect(createDeployment).toHaveBeenCalledWith(
@@ -380,12 +380,10 @@ describe("ChainGraph", () => {
         suspended: false,
       }),
     );
-    expect(refreshMock).toHaveBeenCalled();
     expect(mockInfo).toHaveBeenCalled();
   });
 
-  it("save and deploy refreshes chain context even when deployment fails", async () => {
-    const refreshMock = jest.fn().mockResolvedValue(undefined);
+  it("save and deploy reports error when deployment fails", async () => {
     const createSnapshot = api.createSnapshot as jest.Mock;
     const createDeployment = api.createDeployment as jest.Mock;
     createSnapshot.mockResolvedValue({ id: "snap-1", name: "snap-a" });
@@ -396,7 +394,7 @@ describe("ChainGraph", () => {
       <ChainContext.Provider
         value={{
           chain: undefined,
-          refresh: refreshMock,
+          refresh: jest.fn().mockResolvedValue(undefined),
           update: jest.fn().mockResolvedValue(undefined),
         }}
       >
@@ -410,17 +408,13 @@ describe("ChainGraph", () => {
 
     const modalArg = mockShowModal.mock.calls.at(-1)?.[0] as {
       component: React.ReactElement<{
-        onSubmit: (domain: string) => void | Promise<void>;
+        onSubmit: (domains: { name: string; type: DomainType }[]) => void | Promise<void>;
       }>;
     };
-    await modalArg.component.props.onSubmit("domain-1");
+    await modalArg.component.props.onSubmit([{ name: "domain-1", type: DomainType.NATIVE }]);
 
     expect(createSnapshot).toHaveBeenCalledWith("chain-1");
     expect(createDeployment).toHaveBeenCalled();
-    expect(refreshMock).toHaveBeenCalled();
-    const refreshCallOrder = refreshMock.mock.invocationCallOrder[0];
-    const deployCallOrder = createDeployment.mock.invocationCallOrder[0];
-    expect(refreshCallOrder).toBeLessThan(deployCallOrder);
     expect(mockRequestFailed).toHaveBeenCalledWith(
       expect.stringContaining("Failed to create snapshot and deploy it"),
       deployError,
