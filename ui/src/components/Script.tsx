@@ -1,7 +1,9 @@
 import React, { useRef, useEffect, useState } from "react";
-import { Editor, Monaco } from "@monaco-editor/react";
+import { Editor } from "@monaco-editor/react";
 import { editor, IRange, languages, Position } from "monaco-editor";
 import { Flex } from "antd";
+
+type Monaco = typeof import("monaco-editor");
 import {
   useMonacoTheme,
   useMonacoEditorOptions,
@@ -384,6 +386,20 @@ export const Script: React.FC<ScriptProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [editorHeight, setEditorHeight] = useState(300);
 
+  const [overflowWidgetsDomNode] = useState<HTMLDivElement>(() => {
+    const node = document.createElement("div");
+    node.className = "monaco-editor";
+    node.style.zIndex = "10000";
+    return node;
+  });
+
+  useEffect(() => {
+    document.body.appendChild(overflowWidgetsDomNode);
+    return () => {
+      overflowWidgetsDomNode.remove();
+    };
+  }, [overflowWidgetsDomNode]);
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -419,11 +435,11 @@ export const Script: React.FC<ScriptProps> = ({
         value={value}
         language={mode}
         theme={monacoTheme}
-        beforeMount={(monaco) => {
+        beforeMount={(monaco: Monaco) => {
           configureGroovyLanguage(monaco);
           applyVSCodeThemeToMonaco(monaco);
         }}
-        onMount={(_editor, monaco) => {
+        onMount={(_editor, monaco: Monaco) => {
           monacoRef.current = monaco;
         }}
         onChange={(value) => {
@@ -433,6 +449,7 @@ export const Script: React.FC<ScriptProps> = ({
         }}
         options={{
           fixedOverflowWidgets: true,
+          overflowWidgetsDomNode: overflowWidgetsDomNode,
           readOnly: readOnly,
           scrollBeyondLastLine: false,
           minimap: {

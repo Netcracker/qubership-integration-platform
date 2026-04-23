@@ -638,32 +638,28 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 
   const handleNameSave = useCallback(
     async (newName: string) => {
+      // Inline name edit is a name-only operation. Send the pristine
+      // description/properties from node.data so we don't silently persist
+      // the user's unsaved form draft along with the rename — otherwise
+      // Cancel wouldn't revert those drafted changes.
       const request: PatchElementRequest = {
         name: newName,
-        description: formData.description as string,
+        description: node.data.description,
         type: node.data.elementType,
         parentElementId: node.parentId,
-        properties: formData.properties as Record<string, unknown>,
+        properties: node.data.properties as Record<string, unknown>,
       };
       const changedElement = await updateElement(chainId, elementId, request);
       if (changedElement) {
         setFormData((prev) => ({ ...prev, name: newName }));
         const elementWithProperties = {
           ...changedElement,
-          properties: formData.properties,
+          properties: node.data.properties,
         } as Element;
         onSubmit?.(elementWithProperties, node);
       }
     },
-    [
-      formData.description,
-      formData.properties,
-      node,
-      chainId,
-      elementId,
-      updateElement,
-      onSubmit,
-    ],
+    [node, chainId, elementId, updateElement, onSubmit],
   );
 
   const handleOk = useCallback(async () => {

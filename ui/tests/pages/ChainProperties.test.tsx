@@ -20,15 +20,21 @@ Object.defineProperty(globalThis, "matchMedia", {
   })),
 });
 
-const mockShowModal = jest.fn();
-const mockRequestFailed = jest.fn();
-const mockProceed = jest.fn();
-const mockReset = jest.fn();
-const mockUseBlocker = jest.fn();
-const mockCloseContainingModal = jest.fn();
-const mockGetPathToFolderByName = jest.fn();
-const mockMoveChain = jest.fn();
-const mockChainUpdate = jest.fn();
+type BlockerState = {
+  state: "blocked" | "unblocked";
+  proceed: () => void;
+  reset: () => void;
+};
+
+const mockShowModal = jest.fn<void, [{ component: React.ReactElement }]>();
+const mockRequestFailed = jest.fn<void, unknown[]>();
+const mockProceed = jest.fn<void, []>();
+const mockReset = jest.fn<void, []>();
+const mockUseBlocker = jest.fn<BlockerState, []>();
+const mockCloseContainingModal = jest.fn<void, []>();
+const mockGetPathToFolderByName = jest.fn<Promise<unknown[]>, unknown[]>();
+const mockMoveChain = jest.fn<Promise<void>, unknown[]>();
+const mockChainUpdate = jest.fn<Promise<void>, unknown[]>();
 
 jest.mock("../../src/api/api.ts", () => ({
   api: {
@@ -121,7 +127,7 @@ describe("ChainProperties", () => {
     });
   });
 
-  it("uses save flow and then blocker proceed when user confirms leaving with unsaved changes", async () => {
+  it("uses blocker proceed when user chooses Yes in unsaved changes dialog", async () => {
     mockUseBlocker.mockReturnValue({
       state: "blocked" as const,
       proceed: mockProceed,
@@ -132,17 +138,17 @@ describe("ChainProperties", () => {
 
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
     const modal = mockShowModal.mock.calls[0][0]
-      .component as React.ReactElement;
+      .component;
     render(modal);
 
     fireEvent.click(screen.getByRole("button", { name: "Yes" }));
 
-    await waitFor(() => expect(mockChainUpdate).toHaveBeenCalled());
     expect(mockProceed).toHaveBeenCalled();
     expect(mockReset).not.toHaveBeenCalled();
+    expect(mockChainUpdate).not.toHaveBeenCalled();
   });
 
-  it("uses blocker proceed when user chooses No in unsaved changes dialog", async () => {
+  it("resets blocker when user chooses No in unsaved changes dialog", async () => {
     mockUseBlocker.mockReturnValue({
       state: "blocked" as const,
       proceed: mockProceed,
@@ -153,13 +159,13 @@ describe("ChainProperties", () => {
 
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
     const modal = mockShowModal.mock.calls[0][0]
-      .component as React.ReactElement;
+      .component;
     render(modal);
 
     fireEvent.click(screen.getByRole("button", { name: "No" }));
 
-    expect(mockProceed).toHaveBeenCalled();
-    expect(mockReset).not.toHaveBeenCalled();
+    expect(mockReset).toHaveBeenCalled();
+    expect(mockProceed).not.toHaveBeenCalled();
     expect(mockChainUpdate).not.toHaveBeenCalled();
   });
 
@@ -174,7 +180,7 @@ describe("ChainProperties", () => {
 
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
     const modal = mockShowModal.mock.calls[0][0]
-      .component as React.ReactElement;
+      .component;
     render(modal);
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));

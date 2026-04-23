@@ -290,7 +290,7 @@ describe("EnvironmentParamsModal", () => {
     expect(screen.queryByText("Unsaved Changes")).not.toBeInTheDocument();
   });
 
-  it("shows unsaved prompt on Cancel when dirty; No closes without save", async () => {
+  it("shows unsaved prompt on Cancel when dirty; Yes closes without save", async () => {
     const onSave = jest.fn().mockResolvedValue(undefined);
     const onClose = jest.fn();
     render(
@@ -322,47 +322,10 @@ describe("EnvironmentParamsModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(await screen.findByText("Unsaved Changes")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "No" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     expect(onSave).not.toHaveBeenCalled();
-  });
-
-  it("unsaved Yes saves then closes environment modal", async () => {
-    const onSave = jest.fn().mockResolvedValue(undefined);
-    const onClose = jest.fn();
-    render(
-      wrapWithModals(
-        React.createElement(
-          ServiceContext.Provider,
-          { value: { id: "svc-1", protocol: "http" } as never },
-          React.createElement(EnvironmentParamsModal, {
-            open: true,
-            environment: {
-              id: "env-1",
-              name: "Env 1",
-              address: "http://localhost:8080",
-              labels: [],
-              sourceType: EnvironmentSourceType.MANUAL,
-              properties: {},
-            },
-            onClose,
-            onSave,
-            saving: false,
-          }),
-        ),
-      ),
-    );
-
-    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
-      target: { value: "Saved name" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(await screen.findByText("Unsaved Changes")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
-
-    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 
   it("unsaved Close dismisses prompt and keeps environment modal open", async () => {
@@ -409,46 +372,6 @@ describe("EnvironmentParamsModal", () => {
     });
     expect(screen.getByText("Edit Environment")).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
-  });
-
-  it("unsaved Yes does not close environment modal when save rejects", async () => {
-    const onSave = jest.fn().mockRejectedValue(new Error("save failed"));
-    const onClose = jest.fn();
-    render(
-      wrapWithModals(
-        React.createElement(
-          ServiceContext.Provider,
-          { value: { id: "svc-1", protocol: "http" } as never },
-          React.createElement(EnvironmentParamsModal, {
-            open: true,
-            environment: {
-              id: "env-1",
-              name: "Env 1",
-              address: "http://localhost:8080",
-              labels: [],
-              sourceType: EnvironmentSourceType.MANUAL,
-              properties: {},
-            },
-            onClose,
-            onSave,
-            saving: false,
-          }),
-        ),
-      ),
-    );
-
-    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
-      target: { value: "Fail save" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(await screen.findByText("Unsaved Changes")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
-
-    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    await waitFor(() => {
-      expect(onClose).not.toHaveBeenCalled();
-    });
-    expect(screen.getByText("Edit Environment")).toBeInTheDocument();
   });
 
   it("shows unsaved prompt after editing properties and Cancel", async () => {

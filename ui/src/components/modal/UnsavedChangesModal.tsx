@@ -35,19 +35,19 @@ export const UnsavedChangesModal: React.FC<UnsavedChangesModalProps> = (
       onOk={handleYes}
       footer={[
         <Button
-          key="submit"
+          key="leave"
           type="primary"
           htmlType={"submit"}
-          onClick={handleYes}
+          onClick={handleNo}
         >
           Yes
         </Button>,
-        <Button key="cancel" onClick={handleNo}>
+        <Button key="keep" danger onClick={handleCancelQuestion}>
           No
-        </Button>,
+        </Button>
       ]}
     >
-      Do you want to save changes?
+      You have made changes, that haven&#39;t been saved. Are you sure you want to leave the window and discard the changes?
     </Modal>
   );
 };

@@ -49,6 +49,12 @@ export function getLibraryElement(
   );
 }
 
+export function getEffectiveParentId(
+  element: Pick<Element, "parentElementId" | "swimlaneId"> | undefined,
+): string | undefined {
+  return element?.parentElementId ?? element?.swimlaneId;
+}
+
 export function buildGraphNodes(
   elements: Element[],
   libraryElements: LibraryElement[] | null,
@@ -82,6 +88,8 @@ export function getNodeFromElement(
   const possiblePosition = position ?? defaultPosition;
   const elementColor = getElementColor(libraryElement);
 
+  const effectiveParentId = getEffectiveParentId(element);
+
   return {
     id: element.id,
     type: nodeType,
@@ -89,10 +97,7 @@ export function getNodeFromElement(
       ...getDataFromElement(element, libraryElement),
       direction,
     },
-    position:
-      element.parentElementId || element.swimlaneId
-        ? defaultPosition
-        : possiblePosition,
+    position: effectiveParentId ? defaultPosition : possiblePosition,
     draggable:
       !(
         libraryElement?.parentRestriction !== undefined &&
@@ -101,9 +106,7 @@ export function getNodeFromElement(
     targetPosition: isHorizontal ? Position.Left : Position.Top,
     sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
     ...defaultSize,
-    ...((element.parentElementId || element.swimlaneId) && {
-      parentId: element.parentElementId ?? element.swimlaneId,
-    }),
+    ...(effectiveParentId && { parentId: effectiveParentId }),
     style: {
       borderRadius: 5,
       borderWidth: 0,

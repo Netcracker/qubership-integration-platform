@@ -40,6 +40,7 @@ import {
   findUpdatedElement,
   getContainerIdsForEdges,
   getDataFromElement,
+  getEffectiveParentId,
   getFakeNode,
   getIntersectionParent,
   getLeastCommonParent,
@@ -691,10 +692,7 @@ export const useChainGraph = (
           response.updatedElements,
           draggedNode.id,
         );
-        finalParentId =
-          updatedElement?.parentElementId ??
-          updatedElement?.swimlaneId ??
-          undefined;
+        finalParentId = getEffectiveParentId(updatedElement);
         if (onChainUpdate) {
           void onChainUpdate();
         }
@@ -765,7 +763,7 @@ export const useChainGraph = (
                 ...prevNode.data,
                 ...getDataFromElement(element),
               },
-              parentId: element.parentElementId,
+              parentId: getEffectiveParentId(element),
             };
             return updatedNode;
           }

@@ -98,12 +98,11 @@ let formContextShouldAutoUpdateOnMount = false;
 jest.mock(
   "../../../../src/components/modal/chain_element/ChainElementModificationContext",
   () => {
-    const actual =
-      jest.requireActual<
-        typeof import("../../../../src/components/modal/chain_element/ChainElementModificationContext")
-      >(
-        "../../../../src/components/modal/chain_element/ChainElementModificationContext",
-      );
+    const actual = jest.requireActual<
+      typeof import("../../../../src/components/modal/chain_element/ChainElementModificationContext")
+    >(
+      "../../../../src/components/modal/chain_element/ChainElementModificationContext",
+    );
 
     return {
       ...actual,
@@ -516,7 +515,7 @@ describe("ChainElementModification", () => {
     expect(defaultProps.onClose).toHaveBeenCalled();
   });
 
-  it("unsaved dialog Yes saves changes and closes parent modal", async () => {
+  it("unsaved dialog Yes closes parent modal without saving", async () => {
     renderWithPermissions({ chain: ["update"] });
 
     await waitFor(() => {
@@ -530,25 +529,6 @@ describe("ChainElementModification", () => {
     render(unsavedModal);
 
     fireEvent.click(screen.getByRole("button", { name: "Yes" }));
-
-    await waitFor(() => expect(mockUpdateElement).toHaveBeenCalled());
-    expect(defaultProps.onSubmit).toHaveBeenCalled();
-  });
-
-  it("unsaved dialog No closes parent modal without saving", async () => {
-    renderWithPermissions({ chain: ["update"] });
-
-    await waitFor(() => {
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("rjsf-user-change"));
-    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
-
-    const unsavedModal = mockShowModal.mock.calls[0][0].component;
-    render(unsavedModal);
-
-    fireEvent.click(screen.getByRole("button", { name: "No" }));
 
     expect(defaultProps.onClose).toHaveBeenCalled();
     expect(mockUpdateElement).not.toHaveBeenCalled();
@@ -569,7 +549,9 @@ describe("ChainElementModification", () => {
 
     const dialogs = screen.getAllByRole("dialog");
     const unsavedDialog = dialogs[dialogs.length - 1];
-    fireEvent.click(within(unsavedDialog).getByRole("button", { name: "Close" }));
+    fireEvent.click(
+      within(unsavedDialog).getByRole("button", { name: "Close" }),
+    );
 
     expect(defaultProps.onClose).not.toHaveBeenCalled();
     expect(mockUpdateElement).not.toHaveBeenCalled();
