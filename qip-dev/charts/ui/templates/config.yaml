@@ -78,7 +78,7 @@ data:
         proxy_intercept_errors on;
       }
 
-      location ~ ^/api/(v\d+)/.*/catalog/(chains|detailed-design|design-generator|library|folders) {
+      location ~ ^/api/(v\d+)/.*/catalog/(chains|detailed-design|design-generator|library|folders|cr) {
         rewrite ^/api/(v\d+)/.*/catalog/(.*)$  /$1/$2  break;
         proxy_pass  http://qip-runtime-catalog:8080;
         proxy_redirect     off;
