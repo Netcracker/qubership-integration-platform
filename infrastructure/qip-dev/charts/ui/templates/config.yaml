@@ -78,7 +78,7 @@ data:
         proxy_intercept_errors on;
       }
 
-      location ~ ^/api/(v\d+)/.*/catalog/(chains|detailed-design|design-generator|library|folders) {
+      location ~ ^/api/(v\d+)/.*/catalog/(chains|detailed-design|design-generator|library|folders|cr) {
         rewrite ^/api/(v\d+)/.*/catalog/(.*)$  /$1/$2  break;
         proxy_pass  http://qip-runtime-catalog:8080;
         proxy_redirect     off;
@@ -104,6 +104,14 @@ data:
 
       location ~ ^/api/.*/(v\d+)/import {
         rewrite ^/api/.*/(v\d+)/(.*)$  /$1/$2 break;
+        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
+      location ~ ^/api/(v\d+)/.*/systems-catalog/import-instructions {
+        rewrite ^/api/(v\d+)/.*/systems-catalog/(.*)$  /$1/$2  break;
         proxy_pass  http://qip-runtime-catalog:8080;
         proxy_redirect     off;
         proxy_set_header   Host $host;
