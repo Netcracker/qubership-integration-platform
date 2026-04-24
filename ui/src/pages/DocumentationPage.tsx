@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { Spin, Result, Button } from "antd";
 import { DocumentationViewer } from "../components/documentation/DocumentationViewer";
+import { DocumentationOutline } from "../components/documentation/DocumentationOutline";
 import { DocumentationSidebar } from "../components/documentation/DocumentationSidebar";
 import { DocumentationSearch } from "../components/documentation/DocumentationSearch";
 import { useDocumentation } from "../hooks/useDocumentation";
@@ -23,6 +24,7 @@ export const DocumentationPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSearchActive, setIsSearchActive] = useState(false);
+  const viewerRef = useRef<HTMLDivElement | null>(null);
   const { loadPaths } = useDocumentation();
 
   useEffect(() => {
@@ -162,7 +164,16 @@ export const DocumentationPage: React.FC = () => {
       sidebarWidth={300}
       showCollapseToggle={false}
     >
-      <DocumentationViewer content={content} docPath={docPath ?? ""} />
+      <div className={styles.docBody}>
+        <div className={styles.docContent}>
+          <DocumentationViewer
+            ref={viewerRef}
+            content={content}
+            docPath={docPath ?? ""}
+          />
+        </div>
+        <DocumentationOutline viewerRef={viewerRef} content={content} />
+      </div>
     </PageWithSidebar>
   );
 };

@@ -7,6 +7,12 @@ import "@testing-library/jest-dom";
 
 jest.mock("react-router-dom", () => ({
   useNavigate: () => jest.fn(),
+  useLocation: () => ({
+    hash: "",
+    pathname: "/doc/x",
+    search: "",
+    state: null,
+  }),
 }));
 
 jest.mock(
@@ -26,7 +32,11 @@ jest.mock("../../../src/theme/context", () => {
   return {
     ThemeContext: {
       ...React.createContext(null),
-      _currentValue: { theme: "light", onThemeChange: jest.fn(), showThemeSwitcher: true },
+      _currentValue: {
+        theme: "light",
+        onThemeChange: jest.fn(),
+        showThemeSwitcher: true,
+      },
     },
   };
 });
@@ -61,7 +71,13 @@ jest.mock("react-markdown", () => {
 
   return {
     __esModule: true,
-    default: ({ children, components }: { children: unknown; components?: Components }) => {
+    default: ({
+      children,
+      components,
+    }: {
+      children: unknown;
+      components?: Components;
+    }) => {
       const md = typeof children === "string" ? children : "";
       const els: React.ReactNode[] = [];
       let key = 0;
@@ -88,7 +104,8 @@ jest.mock("react-markdown", () => {
       const h = /^#\s+(.+)$/m.exec(text);
       if (h) els.push(R.createElement("h1", { key: key++ }, h[1]));
 
-      if (els.length === 0) els.push(R.createElement("span", { key: 0 }, text.trim()));
+      if (els.length === 0)
+        els.push(R.createElement("span", { key: 0 }, text.trim()));
 
       return R.createElement("div", { "data-testid": "markdown" }, ...els);
     },
@@ -101,6 +118,11 @@ jest.mock("rehype-sanitize", () => ({
   __esModule: true,
   default: () => {},
   defaultSchema: {},
+}));
+jest.mock("rehype-slug", () => ({ __esModule: true, default: () => {} }));
+jest.mock("rehype-autolink-headings", () => ({
+  __esModule: true,
+  default: () => {},
 }));
 
 import { DocumentationViewer } from "../../../src/components/documentation/DocumentationViewer";
@@ -168,18 +190,14 @@ describe("DocumentationViewer", () => {
   });
 
   test("strips unsafe javascript: hrefs", () => {
-    render(
-      <DocumentationViewer content="[click me](javascript:alert(1))" />,
-    );
+    render(<DocumentationViewer content="[click me](javascript:alert(1))" />);
     // Link should be rendered as plain text, not as <a>
     const el = screen.getByText("click me");
     expect(el.tagName).not.toBe("A");
   });
 
   test("adds target=_blank to external http links", () => {
-    render(
-      <DocumentationViewer content="[docs](https://example.com/docs)" />,
-    );
+    render(<DocumentationViewer content="[docs](https://example.com/docs)" />);
     const link = screen.getByText("docs");
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");

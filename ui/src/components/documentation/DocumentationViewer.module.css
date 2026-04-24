@@ -114,3 +114,21 @@
 .dark img {
   filter: invert(1) hue-rotate(180deg);
 }
+
+.viewer :is(h1, h2, h3, h4, h5, h6) {
+  scroll-margin-top: 16px;
+}
+
+.viewer :is(h1, h2, h3, h4, h5, h6) :global(a.anchor) {
+  margin-left: 0.35rem;
+  opacity: 0;
+  text-decoration: none;
+  color: var(--vscode-textLink-foreground, #1677ff);
+  font-weight: normal;
+  transition: opacity 120ms ease-in;
+}
+
+.viewer :is(h1, h2, h3, h4, h5, h6):hover :global(a.anchor),
+.viewer :is(h1, h2, h3, h4, h5, h6) :global(a.anchor):focus {
+  opacity: 0.7;
+}

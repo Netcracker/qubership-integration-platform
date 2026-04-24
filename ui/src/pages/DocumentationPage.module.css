@@ -45,3 +45,17 @@
   align-items: center;
   min-height: 100vh;
 }
+
+.docBody {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.docContent {
+  flex: 1;
+  min-width: 0;
+  padding-right: 24px;
+}
