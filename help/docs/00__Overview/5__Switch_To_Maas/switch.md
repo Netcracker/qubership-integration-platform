@@ -27,4 +27,4 @@ To enable communication with MaaS in QIP, please follow simple steps mentioned b
   - For **Kafka Sender** element switch Connection source type to "MaaS" and specify parameters according to [Kafka Sender](../../01__Chains/1__Graph/1__QIP_Elements_Library/7__Senders/2__Kafka_Sender/kafka_sender.md) page.
   - For **RabbitMQ Sender** element switch Connection source type to "MaaS" and specify parameters according to [RabbitMQ Sender](../../01__Chains/1__Graph/1__QIP_Elements_Library/7__Senders/1__RabbitMQ_Sender/rabbitmq_sender.md) page.
 
-Please note, that no entities are going to be automatically created when using Kafka/RabbitMQ triggers and senders. All queues, topics, etc. shall be pre-created via **MaaS** **before** respective element starts processing.
+>ℹ️**Note**: No entities are going to be automatically created when using Kafka/RabbitMQ triggers and senders. All queues, topics, etc. shall be pre-created via **MaaS** before respective element starts processing.

@@ -12,7 +12,7 @@ Context Services are being used as a temporary storage of chain contexts. Chain 
 
 ### View Context Services
 
-> ⛔️ This functionality is not available via the VS Code Extension.
+**`⛔ Not available via VS Code extension`**
 
 Table with **Context** services is accessible by navigating to **Services** → **Context** tab. Next columns and elements are available for the table:
 
@@ -38,7 +38,6 @@ Table with **Context** services is accessible by navigating to **Services** → 
   - ![20](img/plus.svg) - provides ability to add new service.
 
 ### View Parameters
-
 When service is clicked, system shows Parameters tab with the following information:
 - Name - mandatory service name.
 - Description - description of service.
@@ -50,7 +49,7 @@ For _Web UI_ there are some additional information:
 
 ### Add Context Service
 
-> ⛔️ This functionality is not available via the VS Code Extension.
+**`⛔ Not available via VS Code extension`**
 
 To add new context service, click **"Create"** button marked with ![Plus|20](img/plus.svg).  Specify service name, description and labels on a newly opened pop-up and then click **"Create"**. System opens new window with the **"Parameters"** tab:
 - **Name** - mandatory service name.
@@ -61,7 +60,7 @@ Specify the required fields and click **"Save"**. Notification about successful 
 
 ### Import Service(s)
 
-> ⛔️ This functionality is not available via the VS Code Extension.
+**`⛔ Not available via VS Code extension`**
 
 To import the service(s), click the icon ![Upload|20](img/cloud-upload.svg), drag and drop **.zip** file into import area or click **"browse"** link and select **single** file with respective format from the explorer menu. When appropriate file is added to the window, click **"Import"** button to start the import process. During the import, system follows next logic:
 - Verify Import Instructions, saved in the system. Proceed with the step below only if they exist:
@@ -84,7 +83,7 @@ When import is completed, system displays import result table with the following
 
 ### Export Service(s)
 
-> ⛔️ This functionality is not available via the VS Code Extension.
+**`⛔ Not available via VS Code extension`**
 
 System allows exporting service. There are two possible ways to export service(s):
 - From **"Context Services"** page - mark specific services with checkboxes and click ![Download|20](img/cloud-download.svg) (Export).

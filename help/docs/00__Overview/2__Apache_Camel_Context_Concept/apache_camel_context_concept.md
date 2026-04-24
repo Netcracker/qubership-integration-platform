@@ -3,7 +3,6 @@
 
 ---
 ### Overview
-
 Every integration call is being processed by **QIP Integration Engine**, which is based on **Apache Camel** framework. Based on this framework, when new session is started, there will be always **Exchange Object** created as the result. This object might be divided into three sections:
 
 - **Properties** - contains exchange properties, technical context data, declared variables and path parameters from request.
@@ -13,7 +12,7 @@ Every integration call is being processed by **QIP Integration Engine**, which i
 The main purpose of utilizing Apache Camel in Qubership Integration Platform is to provide wide set of mechanism for message parsing, data modification and complex routing
 while maintaining simple, understandable solution with user-friendly and convenient application.
 The application itself does not require deep knowledge in Apache Camel,
-as most of the available functionality is wrapped up into human-understandable elements, such as chain elements, entities card, etc.
+as most of the available functionality is wrapped up into human-understandable elements, such as chain elements, entities card, etc. Diagram below shows the flow of context data through very basic chain.
 
 ![Apache Camel Exchange object processing in a chain](img/camel_chain.svg)
 

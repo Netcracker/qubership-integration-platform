@@ -1,14 +1,13 @@
 # General Functions
 
 ## Notifications
-
 Notifications ![Bell|20](img/bell.svg) are implemented to communicate interactively with the user. It makes an ability to track the process of system changes. Notification are divided into 3 types:
 
-🟩 **Success** - some process or operation was ended without errors and exceptions (e.g. service discovery was completed or chain was deployed successfully).
+![excl|20](img/exclamation-circle.svg) **Success** - some process or operation was ended without errors and exceptions (e.g. service discovery was completed or chain was deployed successfully).
 
 🟨 **Warning** - warning messages in some operations (e.g. chain has Draft deployment status).
 
-🟥 **Error** - error messages (e.g. chain was not deployed or some required parameter is not filled in chain element).
+![close|20](img/close-circle.svg) **Error** - error messages (e.g. chain was not deployed or some required parameter is not filled in chain element).
 
 Notification has the next general structure:
 1. **Service name** (optional) - name of the QIP service where the change was occurred.
@@ -17,7 +16,6 @@ Notification has the next general structure:
 4. **Date** - date and time of the notification.
 
 ## Qubership Integration Platform Help
-
 Qubership Integration Platform Help is embedded to QIP UI detailed guide about how to use QIP. For each UI page or QIP element there is particular help page.
 
 To open QIP Help:
@@ -27,7 +25,6 @@ To open QIP Help:
 3. Use **pages navigation tree** on the left side of QIP Helper to go through the pages and **"Search Documentation... ![Search|20](img/search.svg)"** text field to find particular information by fulltext search.
 
 ## Export/Import
-
 QIP provides an ability to export ![Download|20](img/cloud-download.svg) and import ![Upload|20](img/cloud-upload.svg) different entities.
 The export function supports both **legacy** and **new** formats for QIP artifacts.
 Switching between legacy and new format option for export is possible via configuration of specific environment parameter
@@ -89,8 +86,7 @@ Project root (git/SVN root, not included in zip-archive)
 </details>
 
 ## Filters
-
-There is filtering functionality available for most of the tables, utilized across different pages. Click button ![Filter|20](img/filter.svg) and enter next data on filter pop-up:
+There is filtering functionality available for most of the column tables, utilized across different pages. Click button ![Filter|20](img/filter.svg) and enter next data on filter pop-up:
 - Column
 - Condition
 - Value
@@ -98,9 +94,16 @@ There is filtering functionality available for most of the tables, utilized acro
 It is possible to specify multiple filtering conditions via "**Add filter**" button. When filters are applied, button "**Filter**" will have a small counter indicator, showing quantity of active filters. It is also possible to remove particular filter via ![Delete|20](img/delete.svg) button or remove all filters via "**Clear All**" button.
 
 ## Table Settings
+Most of the tables in the system can be adjusted not only by extending/shrinking column size, but also by controlling each column's visibility and sequence. To do so, click gear button ![Gear|20](img/setting.svg) on top of the table and adjust properties accordingly. Some of the columns can't be hidden or moved - this is explained for exact columns in respective design articles.
 
-Most of the tables in the system can be adjusted not only by extending/shrinking column size, but also by controlling each column's visibility and sequence. To do so, click gear button ![Filter|20](img/filter.svg) on top of the table and adjust properties accordingly. Some of the columns can't be hidden or moved - this is explained for exact columns in respective design articles.
+## Go to Home Page
+
+**`⛔ Not available via VS Code extension`**
+
+In the top-left corner, there is a “QIP” button that allows users to return to the Home Page, where the full list of chains is displayed. This button provides quick navigation back to the main overview, making it easier to access and manage available chains at any time.
 
 ## Switch between Blue and Green versions
+
+**`⛔ Not available via VS Code extension`**
 
 In order to switch between Blue and Green configuration versions in QIP, simply use selector on top right of the screen. This selector is only visible on environments, properly configured for Blue/Green approach.

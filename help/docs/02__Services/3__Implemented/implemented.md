@@ -15,7 +15,7 @@ There are 2 options to configure the Implemented Service:
 
 ### View Implemented Services
 
-> ⛔️ This functionality is not available via the VS Code Extension.
+**`⛔ Not available via VS Code extension`**
 
 Table with Implemented services is accessible by navigating to **Services** → **Implemented** tab. Next columns and elements are available for the table:
 
@@ -46,7 +46,6 @@ Table with Implemented services is accessible by navigating to **Services** → 
   - ![20](img/plus.svg) - provides ability to add new service.
 
 ### View Parameters
-
 When service is clicked, system shows Parameters tab with the following information:
 - Name - mandatory service name.
 - Description - description of service.
@@ -66,7 +65,6 @@ For _Web UI_ there are some additional information:
 - Modified - datetime of entity modifying.
 
 ### View Specification Groups
-
 - **Name** - clickable name of the specification group or specification. When clicked, system navigates to respective entity.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
@@ -101,7 +99,6 @@ In general at the right top the next operations are available:
 - ![Download|20](img/cloud-download.svg) - Export All Groups.
 
 ### View Specifications
-
 When particular specification group name is clicked, system opens new page with the table of available specifications for clicked group. Next columns and elements are available for the table:
 
 - **Name** - specification name, which is also considered as a version. Specification name **must be unique** inside of
@@ -141,7 +138,6 @@ In general at the right top the next operations are available:
 - ![Download|20](img/cloud-download.svg) - Export Selected Specifications.
 
 ### View Operations
-
 When specification is clicked, system opens new page with the table of available operations for clicked specifications. Next columns and elements are available for the table:
 
 - **Name** - Clickable short operation name. If the name has not been found in the initial specification,
@@ -156,7 +152,7 @@ When specification is clicked, system opens new page with the table of available
 
 ### Add Implemented Service
 
-> ⛔️ This functionality is not available via the VS Code Extension.
+**`⛔ Not available via VS Code extension`**
 
 To add new implemented service, click **"Create service"** button marked with ![Plus|20](img/plus.svg)  via action menu marked with ![More|20](img/more.svg) on the bottom right of the screen. Specify service name and description on a newly opened pop-up and click "**Create**" button. System opens new window with three tabs:
 - **Parameters**
@@ -171,8 +167,8 @@ Parameters tab contains minimal set of parameters, that allows to save the imple
 - **Modified** - non-editable. Datetime and author of last specification group modification.
 
 Specify the required fields and click **"Save"**. Notification about successful saving means that implemented service is added to the list of implemented services.
-### Add Specification Group
 
+### Add Specification Group
 To add specification group to Implemented service:
 1. Select ![Upload|20](img/cloud-upload.svg) "**Import Specifications**" option for desired service.
 2. Specify the **name** of the specification group on the opened pop-up.
@@ -186,7 +182,6 @@ To add specification group to Implemented service:
 When API specification is added you will see the specification group with respective name and dates. All specifications will be placed under this specification group.
 
 ### Add API Specification
-
 To add API specification into existing specification group:
 1. Select ![Upload|20](img/cloud-upload.svg) "**Import Specifications**" option for desired group.
 2. There are two options to add API Specification:
@@ -198,11 +193,9 @@ To add API specification into existing specification group:
 1. Confirm operation with **"Create"** button.
 
 ### Add Environment
-
 There is no manual option to create new environment for Implemented Service - it will be created automatically after API specification is successfully uploaded. Each particular Implemented Service could have only one related environment.
 
 ### Environment Update
-
 To update the environment for the implemented service, follow the steps specified below:
 
 1. Find appropriate service, which for you want to update the environment settings.
@@ -247,7 +240,7 @@ When environment is saved, its updated card will be available under the environm
 
 ### Import Service(s)
 
-> ⛔️ This functionality is not available via the VS Code Extension.
+**`⛔ Not available via VS Code extension`**
 
 To import the service(s), click the icon ![Upload|20](img/cloud-upload.svg), drag and drop **.zip** file into import area
 or click **"browse"** link and select **single** file with respective format from the explorer menu.
@@ -286,7 +279,7 @@ When import is completed, system displays import result table with the following
 
 ### Export Service(s)
 
-> ⛔️ This functionality is not available via the VS Code Extension.
+**`⛔ Not available via VS Code extension`**
 
 System allows to export service with all its API specifications, environments and sources. From **"External Services"** page - mark specific services with checkboxes and click ![Download|20](img/cloud-download.svg) **Export**. Or simply click this button to export all services at once after confirmation.
 

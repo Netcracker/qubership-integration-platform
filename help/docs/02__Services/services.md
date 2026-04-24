@@ -19,7 +19,6 @@ There are next possible service types, supported by the system:
 - [Context](4__Context/context.md) - database instance used for storing chain contexts, further enabling creation, retrieval and deletion of context data. Usable in [Context Storage](../01__Chains/1__Graph/1__QIP_Elements_Library/4__Services/1__Context_Storage/context_storage.md) element.
 
 ### Services data model
-
 ![Services data model](img/class_diagram.svg)
 
 Services consist of next entities:
@@ -34,7 +33,6 @@ Services consist of next entities:
 > ℹ️ **Note:** Environment's address field for **http**-based services may be inactive, which means that route registration on Egress is globally disabled in CMBD. In this case, registration must be performed manually.
 
 ### API Specification Status Lifecycle
-
 ![API Specification Status Lifecycle](img/spec_lc.svg)
 
 API Specification statuses details:

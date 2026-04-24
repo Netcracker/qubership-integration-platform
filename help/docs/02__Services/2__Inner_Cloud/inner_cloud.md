@@ -9,7 +9,7 @@ Qubership Integration Platform is able to integrate with Inner Cloud Services, t
 ---
 ### View Inner Cloud Services
 
-> ⛔️ This functionality is not available via the VS Code Extension.
+**`⛔ Not available via VS Code extension`**
 
 Table with Inner Cloud services is accessible by navigating to **Services** → **Inner Cloud** tab. Next columns and elements are available for the table:
 
@@ -41,7 +41,6 @@ Table with Inner Cloud services is accessible by navigating to **Services** → 
   - ![20](img/plus.svg) - provides ability to add new service.
 
 ### View Parameters
-
 When service is clicked, system shows Parameters tab with the following information:
 - Name - mandatory service name.
 - Description - description of service.
@@ -61,7 +60,6 @@ For _Web UI_ there are some additional information:
 - Modified - datetime of entity modifying.
 
 ### View Specification Groups
-
 - **Name** - clickable name of the specification group or specification. When clicked, system navigates to respective entity.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
@@ -96,7 +94,6 @@ In general at the right top the next operations are available:
 - ![Download|20](img/cloud-download.svg) - Export All Groups.
 
 ### View Specifications
-
 When particular specification group name is clicked, system opens new page with the table of available specifications for clicked group. Next columns and elements are available for the table:
 
 - **Name** - specification name, which is also considered as a version. Specification name **must be unique** inside of
@@ -136,7 +133,6 @@ In general at the right top the next operations are available:
 - ![Download|20](img/cloud-download.svg) - Export Selected Specifications.
 
 ### View Operations
-
 When specification is clicked, system opens new page with the table of available operations for clicked specifications. Next columns and elements are available for the table:
 
 - **Name** - Clickable short operation name. If the name has not been found in the initial specification,
@@ -149,9 +145,22 @@ When specification is clicked, system opens new page with the table of available
 - **URL** - operation path.
 - **Used by** - list, that contains references to the chains, utilizing this operation.
 
+### Discover Inner Cloud Services
+To find all available Inner Services, there is a specific button **"Service Discovery"**  available on **"Inner Cloud Services"** tab under **"Services"** section. To start a discovery process, simply click the mentioned button. Progress bar will show the percentage of discovery completion. Notification at the top-right will additionally signal about process start and finish. The result of the discovery might be:
+
+- **New Service** - if new service has been discovered.
+- **New Specification Group** under the existing service - if no new services were discovered but there are new URL paths found.
+- **New Specification** under the existing service - if there is a new specification found for existing inner service.
+- **Metamodel** - if metadata has been fetched from Metamodel Provider Backend.
+
+For inner services, that are discovered in K8S namespace, system uses their names as unique IDs.
+
+>ℹ️**Note:** Depending on the capacity, network and environment state, Discovery process might take some time to complete.
+
+
 ### Add Inner Cloud Service
 
-> ⛔️ This functionality is not available via the VS Code Extension.
+**`⛔ Not available via VS Code extension`**
 
 To add new Inner Cloud Service, click **"Create service"** button marked with ![Plus|20](img/plus.svg)  on the top right of the screen. Specify service name and description on a newly opened pop-up and click "**Create**" button. System opens new window with three tabs:
 - **Parameters**
@@ -170,7 +179,6 @@ Parameters tab contains minimal set of parameters, that allows to save the inter
 Specify the required fields and click **"Save"**. Notification about successful saving means that service is added to the list of inner services.
 
 ### Add Specification Group
-
 To add specification group to Inner Cloud service:
 1. Select ![Upload|20](img/cloud-upload.svg) "**Import Specifications**" option for desired service.
 2. Specify the **name** of the specification group on the opened pop-up.
@@ -182,7 +190,6 @@ To add specification group to Inner Cloud service:
 When API specification is added you will see the specification group with respective name and dates. All specifications will be placed under this specification group.
 
 ### Add API Specification
-
 To add API specification into existing specification group:
 1. Select ![Upload|20](img/cloud-upload.svg) "**Import Specifications**" option for desired group.
 2. **Upload** file or archive with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
@@ -193,11 +200,9 @@ To add API specification into existing specification group:
 4. Confirm operation with **"Create"** button.
 
 ### Add Environment
-
 There is no manual option to create new environment for Inner Cloud Service - it will be created automatically as a result of service discovery process. Each particular Inner Cloud Service could have only one related environment.
 
 ### Environment Update
-
 To update the environment for Inner Cloud Service, follow the steps specified below:
 
 1. Find appropriate service, which for you want to update the environment settings.
@@ -256,6 +261,7 @@ Default properties are unique for different protocols and described below:
 | username   | String    | Username in case of authenticated access.                                                                                                 | N/A    |
 | password   | String    | Password for authenticated access.                                                                                                        | N/A    |
 | routingKey | String    | The routing key to use when binding a consumer queue to the exchange. For producer routing keys, you set the header rabbitmq.ROUTING_KEY. | rkey1  |
+| acknowledgeMode | String  | Flag controlling the behaviour of the container with respect to message acknowledgement. Possible values: NONE, MANUAL, AUTO | AUTO
 
 Additionally, if it is required to use same connection for multiple requests of **http** and **graphql** services, it is possible to specify **reuseEstablishedConnection** property with values: true/false.
 When environment is saved, its updated card will be available under the environment tab. The card will have next information and elements:
@@ -268,7 +274,7 @@ When environment is saved, its updated card will be available under the environm
 
 ### Import Service(s)
 
-> ⛔️ This functionality is not available via the VS Code Extension.
+**`⛔ Not available via VS Code extension`**
 
 To import the service(s), click the icon ![Upload|20](img/cloud-upload.svg), drag and drop **.zip** file into import area
 or click **"browse"** link and select **single** file with respective format from the explorer menu.
@@ -311,7 +317,7 @@ When import is completed, system displays import result table with the following
 
 ### Export Service(s)
 
-> ⛔️ This functionality is not available via the VS Code Extension.
+**`⛔ Not available via VS Code extension`**
 
 System allows to export service with all its API specifications, environments and sources. From **"External Services"** page - mark specific services with checkboxes and click ![Download|20](img/cloud-download.svg) **Export**. Or simply click this button to export all services at once after confirmation.
 

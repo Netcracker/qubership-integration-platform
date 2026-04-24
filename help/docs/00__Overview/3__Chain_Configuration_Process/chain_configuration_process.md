@@ -21,4 +21,4 @@ The high-level diagram below shows the process of chain configuration.
 ## User Interface
 
 ---
-Chain configuration is handled via multiple UI elements, separately described in respective articles: [QIP Elements Library](../../01__Chains/1__Graph/graph.md)
+Chain configuration is handled via multiple UI elements, separately described in respective articles: [Elements Library](../../01__Chains/1__Graph/graph.md)

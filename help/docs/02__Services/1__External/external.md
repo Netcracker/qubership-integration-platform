@@ -15,7 +15,7 @@ Services, located outside of environment are called **External Services**. To in
 
 ### View External Services
 
-> ⛔️ This functionality is not available via the VS Code Extension.
+**`⛔ Not available via VS Code extension`**
 
 Table with External services is accessible by navigating to **Services** → **External** tab. Next columns and elements are available for the table:
 
@@ -46,7 +46,6 @@ Table with External services is accessible by navigating to **Services** → **E
   - ![20](img/plus.svg) - provides ability to add new service.
 
 ### View Parameters
-
 When service is clicked, system shows Parameters tab with the following information:
 - Name - mandatory service name.
 - Description - description of service.
@@ -66,7 +65,6 @@ For _Web UI_ there are some additional information:
 - Modified - datetime of entity modifying.
 
 ### View Specification Groups
-
 - **Name** - clickable name of the specification group or specification. When clicked, system navigates to respective entity.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
@@ -101,7 +99,6 @@ In general at the right top the next operations are available:
 - ![Download|20](img/cloud-download.svg) - Export All Groups.
 
 ### View Specifications
-
 When particular specification group name is clicked, system opens new page with the table of available specifications for clicked group. Next columns and elements are available for the table:
 
 - **Name** - specification name, which is also considered as a version. Specification name **must be unique** inside of
@@ -140,7 +137,6 @@ In general at the right top only one operation is available:
 - ![Upload|20](img/cloud-upload.svg) - Import Specifications.
 
 ### View Operations
-
 When specification is clicked, system opens new page with the table of available operations for clicked specifications. Next columns and elements are available for the table:
 
 - **Name** - Clickable short operation name. If the name has not been found in the initial specification,
@@ -155,7 +151,7 @@ When specification is clicked, system opens new page with the table of available
 
 ### Add External Service
 
-> ⛔️ This functionality is not available via the VS Code Extension.
+**`⛔ Not available via VS Code extension`**
 
 To add new external service, click **"Create service"** button marked with ![Plus|20](img/plus.svg)  at the top right of the screen. Specify service name and description on a newly opened pop-up and click "**Create**" button. System opens new window with three tabs:
 - **Parameters**
@@ -172,7 +168,6 @@ Parameters tab contains minimal set of parameters, that allows to save the exter
 Specify the required fields and click **"Create"**. Notification about successful saving means that external service is added to the list of external services.
 
 ### Add Specification Group
-
 To add specification group to the external service:
 1. Select ![Upload|20](img/cloud-upload.svg) "**Import Specifications**" option for desired service.
 2. Specify the **name** of the specification group on the opened pop-up.
@@ -184,7 +179,6 @@ To add specification group to the external service:
 When API specification is added you will see the specification group with respective name and dates. All specifications will be placed under this specification group.
 
 ### Add API Specification
-
 To add API specification into existing specification group:
 1. Select ![Upload|20](img/cloud-upload.svg) "**Import Specifications**" option for desired group.
 2. **Upload** file or archive with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
@@ -195,7 +189,6 @@ To add API specification into existing specification group:
 4. Confirm operation with **"Create"** button.
 
 ### Add Environment
-
 There are several environments might be created for single service, but **only one** environment can be active. To add new environment to the external service, click the name of existing service, navigate to "**Environment**" tab and complete next steps:
 
 1. Click **"Add Environment"** button.
@@ -262,18 +255,18 @@ Default properties are unique for different protocols and described below:
 | username   | String    | Username in case of authenticated access.                                                                                                 | N/A    |
 | password   | String    | Password for authenticated access.                                                                                                        | N/A    |
 | routingKey | String    | The routing key to use when binding a consumer queue to the exchange. For producer routing keys, you set the header rabbitmq.ROUTING_KEY. | rkey1  |
+| acknowledgeMode | String  | Flag controlling the behaviour of the container with respect to message acknowledgement. Possible values: NONE, MANUAL, AUTO | AUTO
 
 Additionally, if it is required to use same connection for multiple requests of **http** and **graphql** services, it is possible to specify **reuseEstablishedConnection** property with values: true/false.
 
 ### Switch Environment
-
 To switch the environment, click the radio button near appropriate environment card and then confirm your choice in dialog window.
 
 > ⚠️ **Warning:** **Switching of environment requires chain redeploy**, as new active address will be registered on Egress Gateway.
 
 ### Import Service(s)
 
-> ⛔️ This functionality is not available via the VS Code Extension.
+**`⛔ Not available via VS Code extension`**
 
 To import the service(s), click the icon ![Upload|20](img/cloud-upload.svg), drag and drop **.zip** file into import area
 or click **"browse"** link and select **single** file with respective format from the explorer menu.
@@ -314,7 +307,7 @@ When import is completed, system displays import result table with the following
 
 ### Export Service(s)
 
-> ⛔️ This functionality is not available via the VS Code Extension.
+**`⛔ Not available via VS Code extension`**
 
 System allows to export service with all its API specifications, environments and sources. From **"External Services"** page - mark specific services with checkboxes and click ![Download|20](img/cloud-download.svg) **Export**. Or simply click this button to export all services at once after confirmation.
 
