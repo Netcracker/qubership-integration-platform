@@ -18,6 +18,7 @@ properties:
   maxPollIntervalMs: 300000
   maxPollRecords: 500
   reconnectBackoffMaxMs: "30001"
+  consumerConsistencyMode: "EVENTUAL"
   sslProtocol: "TLS"
   topicsClassifierName: "foo"
   valueDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"

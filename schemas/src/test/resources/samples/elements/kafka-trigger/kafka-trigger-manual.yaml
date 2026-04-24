@@ -22,6 +22,7 @@ properties:
   maxPollIntervalMs: 300000
   maxPollRecords: 500
   reconnectBackoffMaxMs: "30001"
+  consumerConsistencyMode: "EVENTUAL"
   saslMechanism: "GSSAPI"
   securityProtocol: "PLAINTEXT"
   sslProtocol: "TLS"
