@@ -43,6 +43,7 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "topics",
       "groupId",
       "reconnectBackoffMaxMs",
+      "consumerConsistencyMode",
       "sslProtocol",
       "sslEndpointAlgorithm",
       "autoOffsetReset",
