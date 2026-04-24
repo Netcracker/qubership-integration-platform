@@ -22,6 +22,7 @@ import io.atlasmap.spi.AtlasFieldAction;
 import io.atlasmap.v2.Action;
 import io.atlasmap.v2.AtlasActionProperty;
 import io.atlasmap.v2.FieldType;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.Serializable;
 import java.time.Instant;
@@ -360,12 +361,12 @@ public class AtlasMapUtils implements AtlasFieldAction {
                 ? DateTimeFormatter.BASIC_ISO_DATE
                 : DateTimeFormatter.ofPattern(pattern);
 
-        if (!timeZoneAsString.isBlank()) {
+        if (StringUtils.isNotBlank(timeZoneAsString)) {
             ZoneId zoneId = ZoneId.of(timeZoneAsString);
             dateTimeFormatter = dateTimeFormatter.withZone(zoneId);
         }
 
-        if (!localeAsString.isBlank()) {
+        if (StringUtils.isNotBlank(localeAsString)) {
             String[] localeComponents = localeAsString.split("_");
             Locale locale = new Locale.Builder()
                     .setLanguage(localeComponents[0])

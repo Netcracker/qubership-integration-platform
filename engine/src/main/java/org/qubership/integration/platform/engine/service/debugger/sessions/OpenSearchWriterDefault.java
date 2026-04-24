@@ -49,7 +49,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @ConditionalOnProperty(name = "qip.opensearch.kafka-client.enabled", havingValue = "false", matchIfMissing = true)
 public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnable {
 
-    private final int queueMaxSizeBytes;
+    private final long queueMaxSizeBytes;
     private final int bulkRequestMaxSizeBytes;
     private final int bulkRequestPayloadSizeThresholdBytes;
     private final int bulkRequestElementsCountThreshold;
@@ -88,7 +88,7 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
                                    DbaasOpensearchClient dbaasOpenSearchClient,
                                    @Qualifier("jsonMapper") ObjectMapper mapper) {
         sessionElementsQueue = new LinkedBlockingQueue<>(sessionBufferCapacity);
-        this.queueMaxSizeBytes = (int) (queueMaxSizeMb * 1024 * 1024);
+        this.queueMaxSizeBytes = queueMaxSizeMb * 1024L * 1024L;
 
         this.bulkRequestMaxSizeBytes = bulkRequestMaxSizeKb * 1024;
         this.bulkRequestPayloadSizeThresholdBytes = bulkRequestPayloadSizeThresholdKb * 1024;
@@ -331,7 +331,7 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
         if (element.getExceptionInfo() != null) {
             size += calculateElementSize(element.getExceptionInfo().toString());
         }
-        log.debug("Payload size for chain {} : {}", element.getChainId(), size);
+        log.debug("Payload size for element {} : {}", element.getChainElementId(), size);
         return size;
     }
 
