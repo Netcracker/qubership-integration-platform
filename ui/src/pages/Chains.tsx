@@ -1168,7 +1168,7 @@ const Chains = () => {
                   title: "Compare selected chains",
                   placement: "bottom",
                 }}
-                buttonProps={{ icon: <>⇄</>, disabled: true }}
+                buttonProps={{ iconName: "compare", disabled: true }}
               />
               <ProtectedButton
                 require={{ chain: ["create"] }}

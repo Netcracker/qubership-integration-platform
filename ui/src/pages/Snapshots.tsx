@@ -352,7 +352,7 @@ export const Snapshots: React.FC = () => {
                 },
                 {
                   key: "showDiagram",
-                  icon: <span className="anticon">⭾</span>,
+                  icon: <OverridableIcon name="diagram" />,
                   label: "Show diagram",
                   onClick: () => showSnapshotDiagram(snapshot),
                   require: { snapshot: ["read"] },
@@ -441,7 +441,7 @@ export const Snapshots: React.FC = () => {
             require={{ snapshot: ["read"] }}
             tooltipProps={{ title: "Compare selected snapshots" }}
             buttonProps={{
-              icon: <>⇄</>,
+              iconName: "compare",
               onClick: onCompareBtnClick,
               disabled: selectedRowKeys.length !== 2,
             }}

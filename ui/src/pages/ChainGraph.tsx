@@ -473,15 +473,7 @@ const ChainGraphInner: React.FC = () => {
           require={{ chain: ["read"] }}
           tooltipProps={{ title: "Show sequence diagram" }}
           buttonProps={{
-            icon: (
-              <span
-                className={String(styles.sequenceDiagramIcon ?? "")}
-                data-icon="sequence-diagram"
-                role="img"
-              >
-                ⇄
-              </span>
-            ),
+            iconName: "diagram",
             onClick: openSequenceDiagram,
           }}
         />

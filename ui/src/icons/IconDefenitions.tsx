@@ -125,6 +125,7 @@ import {
   ClockCircleOutlined,
   MinusCircleOutlined,
   SyncOutlined,
+  ColumnWidthOutlined,
 } from "@ant-design/icons";
 
 /**
@@ -268,6 +269,8 @@ export const commonIcons = {
   deploymentStatusRemoved: MinusCircleOutlined,
   deploymentStatusDraft: ClockCircleOutlined,
   documentationSearchResult: FileTextOutlined,
+  compare: DiffOutlined,
+  diagram: ColumnWidthOutlined,
 };
 
 export const elementIcons = {
