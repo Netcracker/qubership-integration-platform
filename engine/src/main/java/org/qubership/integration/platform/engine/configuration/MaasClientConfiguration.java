@@ -6,6 +6,7 @@ import com.netcracker.cloud.maas.client.api.kafka.KafkaMaaSClient;
 import com.netcracker.cloud.maas.client.api.rabbit.RabbitMaaSClient;
 import com.netcracker.cloud.maas.client.impl.MaaSAPIClientImpl;
 import com.netcracker.cloud.maas.client.impl.http.HttpClient;
+import com.netcracker.cloud.security.core.auth.M2MManager;
 import com.netcracker.cloud.security.core.utils.tls.TlsUtils;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
@@ -29,8 +30,8 @@ public class MaasClientConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(name = "tokenSupplierProvider")
-    TokenSupplierProvider tokenSupplierProvider() {
-        return () -> () -> "";
+    TokenSupplierProvider tokenSupplierProvider(M2MManager m2mManager) {
+        return () -> m2mManager != null ? () -> m2mManager.getToken().getTokenValue() : () -> "";
     }
 
     @Primary
