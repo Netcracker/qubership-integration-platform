@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk;
 
 import lombok.*;
+import org.qubership.integration.platform.runtime.catalog.model.domains.EngineDomain;
 
 @Getter
 @Setter
@@ -28,4 +29,5 @@ public class BulkDeploymentResponse {
     private String chainName;
     private BulkDeploymentStatus status;
     private String errorMessage;
+    private EngineDomain domain;
 }

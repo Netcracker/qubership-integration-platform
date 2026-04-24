@@ -4,7 +4,7 @@
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-runtime-catalog</artifactId>
-    <version>0.5.1-1-os-core-SNAPSHOT</version>
+    <version>0.5.2-1-os-core-SNAPSHOT</version>
     <name>QIP Runtime Catalog</name>
     <description>Managing integration flows (so-called integration chains), services, snapshots and deployments.
     </description>
@@ -64,12 +64,12 @@
         <json.version>20231013</json.version>
         <logback-gelf.version>5.0.1</logback-gelf.version>
         <handlebars.version>4.3.1</handlebars.version>
-        <kubernetes-client-java.version>19.0.2</kubernetes-client-java.version>
+        <kubernetes-client-java.version>25.0.0</kubernetes-client-java.version>
         <atlasmap.version>2.5.2</atlasmap.version>
         <antlr4.version>4.13.1</antlr4.version>
         <google-guava.version>33.4.0-jre</google-guava.version>
         <wire.version>4.9.7</wire.version>
-        <okio.version>3.6.0</okio.version>
+        <okio.version>3.16.4</okio.version>
         <dhatim.fastexcel.version>0.16.4</dhatim.fastexcel.version>
         <flexmark.version>0.64.8</flexmark.version>
         <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
@@ -86,6 +86,8 @@
 
         <grpc.version>1.54.2</grpc.version>
         <protobuf-java.version>3.25.5</protobuf-java.version>
+
+        <okhttp-bom.version>5.3.2</okhttp-bom.version>
 
         <!-- Newest versions requires commons-io 2.15! -->
         <!-- TODO update io.kubernetes.client-java before update this library -->
@@ -135,6 +137,22 @@
                 <groupId>com.netcracker.cloud</groupId>
                 <artifactId>dbaas-client-resttemplate</artifactId>
                 <version>${dbaas-resttemplate.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>${jackson-bom.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>com.squareup.okhttp3</groupId>
+                <artifactId>okhttp-bom</artifactId>
+                <version>${okhttp-bom.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
 
             <!-- Dependencies -->
@@ -218,6 +236,19 @@
             </dependency>
 
 
+            <dependency>
+                <groupId>io.kubernetes</groupId>
+                <artifactId>client-java-prometheus-operator-models</artifactId>
+                <version>${kubernetes-client-java.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.micrometer</groupId>
+                <artifactId>micrometer-registry-prometheus</artifactId>
+                <version>${micrometer.version}</version>
+            </dependency>
+
+            <!-- TODO Vulnerable version is used -->
             <dependency>
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
@@ -568,6 +599,16 @@
         <dependency>
             <groupId>io.kubernetes</groupId>
             <artifactId>client-java</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.kubernetes</groupId>
+            <artifactId>client-java-prometheus-operator-models</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
         </dependency>
 
         <dependency>

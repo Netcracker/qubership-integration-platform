@@ -115,6 +115,10 @@ public final class CamelOptions {
     public static final String MAAS_DEPLOYMENT_CLASSIFIER_PROP = "maasClassifier";
     public static final String DEFAULT_VHOST_CLASSIFIER_NAME = "public";
 
+    public static final String MAAS_CLASSIFIER_NAMESPACE = "maasClassifierNamespace";
+    public static final String MAAS_CLASSIFIER_TENANT_ID = "maasClassifierTenantId";
+    public static final String MAAS_CLASSIFIER_TENANT_ENABLED = "maasClassifierTenantEnabled";
+
     public static final String SDS_JOB_ID = "jobId";
 
     public static final String IDEMPOTENCY_PROP = "idempotency";

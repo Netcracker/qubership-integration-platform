@@ -29,6 +29,7 @@ public class ChainExternalContentEntity {
     private String outOfScope;
     private String lastImportHash;
 
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     private List<String> labels;
 
     @Builder.Default

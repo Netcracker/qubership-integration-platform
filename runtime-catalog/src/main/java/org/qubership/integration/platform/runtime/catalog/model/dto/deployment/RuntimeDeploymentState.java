@@ -18,6 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.model.dto.deployment;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.DeploymentStatus;
@@ -25,6 +26,7 @@ import org.qubership.integration.platform.runtime.catalog.model.deployment.engin
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@Builder
 @Schema(description = "Deployment status on particular engine pod")
 public class RuntimeDeploymentState {
     @Schema(description = "Deployment status")

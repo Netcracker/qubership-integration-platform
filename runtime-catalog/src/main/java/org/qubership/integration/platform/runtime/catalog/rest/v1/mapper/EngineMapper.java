@@ -19,8 +19,8 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.mapper;
 import org.mapstruct.IterableMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.qubership.integration.platform.runtime.catalog.model.domains.EngineDomain;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.EventActionType;
-import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubeDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubePod;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.engine.DomainResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.engine.EngineResponse;
@@ -32,9 +32,9 @@ import java.util.List;
 public interface EngineMapper {
 
     @Mapping(target = "id", source = "name")
-    DomainResponse asDomainResponse(KubeDeployment domain);
+    DomainResponse asDomainResponse(EngineDomain domain);
 
-    List<DomainResponse> asDomainResponses(List<KubeDeployment> domains);
+    List<DomainResponse> asDomainResponses(List<EngineDomain> domains);
 
     @Mapping(target = "id", source = "ip")
     @Mapping(target = "host", source = "ip")

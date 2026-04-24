@@ -43,9 +43,6 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
     private static final String PAYLOAD_FIELD_NAME = "payload";
     private static final String HEADERS_FIELD_NAME = "headers";
     private static final String EMPTY_STRING_REPLACEMENT = "";
-    private static final String TYPE_FIELD_NAME = "type";
-    private static final String OBJECT_FIELD_TYPE = "object";
-    private static final String ARRAY_FIELD_TYPE = "array";
     private static final String EMPTY_REF = "#/";
     private static final String ADDITIONAL_PROPERTIES_FIELD_NAME = "additionalProperties";
 
@@ -98,39 +95,29 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
             refList = new LinkedList<>();
         }
 
-        if (schemaNode.has(TYPE_FIELD_NAME)) {
-            switch (schemaNode.get(TYPE_FIELD_NAME).asText()) {
-                case OBJECT_FIELD_TYPE: {
-                    JsonNode propertiesNode = schemaNode.get(PROPERTIES_FIELD_NAME);
-                    getSchemaNodeProperties(componentsNode, result, propertiesNode, modelType, refList);
+        // OpenAPI 3.1 allows omitting `type` when the shape is implied by other keywords
+        // (e.g. a schema with `properties` is an object). Recurse by structure rather than
+        // gating on the explicit `type` field so those schemas still get their refs inlined.
+        boolean hasObjectShape = schemaNode.has(PROPERTIES_FIELD_NAME)
+                || schemaNode.has(ADDITIONAL_PROPERTIES_FIELD_NAME)
+                || schemaNode.has(ALL_OF)
+                || schemaNode.has(ANY_OF)
+                || schemaNode.has(ONE_OF);
 
-                    JsonNode additionalPropertiesNode = schemaNode.get(ADDITIONAL_PROPERTIES_FIELD_NAME);
-                    getSchemaNodeProperties(componentsNode, result, additionalPropertiesNode, modelType, refList);
-
-                    JsonNode allOfProperties = schemaNode.get(ALL_OF);
-                    getSchemaNodeProperties(componentsNode, result, allOfProperties, modelType, refList);
-
-                    JsonNode anyOfProperties = schemaNode.get(ANY_OF);
-                    getSchemaNodeProperties(componentsNode, result, anyOfProperties, modelType, refList);
-
-                    JsonNode oneOfProperties = schemaNode.get(ONE_OF);
-                    getSchemaNodeProperties(componentsNode, result, oneOfProperties, modelType, refList);
-
-                    break;
-                }
-                case ARRAY_FIELD_TYPE: {
-                    if (schemaNode.has(ITEMS_FIELD_NAME)) {
-                        JsonNode itemsNode = schemaNode.get(ITEMS_FIELD_NAME);
-                        if (itemsNode.has(REF_FIELD_NAME)) {
-                            String refKey = getNewRef(itemsNode.get(REF_FIELD_NAME).asText());
-                            JsonNode newRefNode = new TextNode(refKey);
-                            schemaNode.replace(REF_FIELD_NAME, newRefNode);
-                            getSchemaNodeProperties(componentsNode, result, schemaNode, modelType, refList);
-                            result.put(refKey.replace(DEFINITIONS_PREFIX, EMPTY_STRING_REPLACEMENT), schemaNode);
-                        }
-                    }
-                    break;
-                }
+        if (hasObjectShape) {
+            getSchemaNodeProperties(componentsNode, result, schemaNode.get(PROPERTIES_FIELD_NAME), modelType, refList);
+            getSchemaNodeProperties(componentsNode, result, schemaNode.get(ADDITIONAL_PROPERTIES_FIELD_NAME), modelType, refList);
+            getSchemaNodeProperties(componentsNode, result, schemaNode.get(ALL_OF), modelType, refList);
+            getSchemaNodeProperties(componentsNode, result, schemaNode.get(ANY_OF), modelType, refList);
+            getSchemaNodeProperties(componentsNode, result, schemaNode.get(ONE_OF), modelType, refList);
+        } else if (schemaNode.has(ITEMS_FIELD_NAME)) {
+            JsonNode itemsNode = schemaNode.get(ITEMS_FIELD_NAME);
+            if (itemsNode.has(REF_FIELD_NAME)) {
+                String refKey = getNewRef(itemsNode.get(REF_FIELD_NAME).asText());
+                JsonNode newRefNode = new TextNode(refKey);
+                schemaNode.replace(REF_FIELD_NAME, newRefNode);
+                getSchemaNodeProperties(componentsNode, result, schemaNode, modelType, refList);
+                result.put(refKey.replace(DEFINITIONS_PREFIX, EMPTY_STRING_REPLACEMENT), schemaNode);
             }
         } else if (schemaNode.has(REF_FIELD_NAME)) {
             String refKey = getNewRef(schemaNode.get(REF_FIELD_NAME).asText());

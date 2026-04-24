@@ -18,9 +18,12 @@ package org.qubership.integration.platform.runtime.catalog.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SystemDeleteException;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractLabel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystemLabel;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.context.ContextSystemLabelsRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.context.ContextSystemRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemSearchRequestDTO;
@@ -46,19 +49,22 @@ public class ContextSystemService extends AbstractContextSystemService {
     private final ContextSystemMapper contextSystemMapper;
     private final ChainService chainService;
     private final ElementHelperService elementHelperService;
+    private final ContextSystemLabelsRepository contextSystemLabelsRepository;
 
     public ContextSystemService(ContextSystemRepository contextSystemRepository,
-                                ContextSystemMapper contextSystemMapper,
-                                ActionsLogService actionLogger,
-                                SystemFilterSpecificationBuilder systemFilterSpecificationBuilder, @Lazy ChainService chainService, ElementHelperService elementHelperService) {
+            ContextSystemMapper contextSystemMapper,
+            ActionsLogService actionLogger,
+            SystemFilterSpecificationBuilder systemFilterSpecificationBuilder, @Lazy ChainService chainService,
+            ElementHelperService elementHelperService,
+            ContextSystemLabelsRepository contextSystemLabelsRepository) {
         super(
                 contextSystemRepository,
-                actionLogger
-        );
+                actionLogger);
         this.systemFilterSpecificationBuilder = systemFilterSpecificationBuilder;
         this.contextSystemMapper = contextSystemMapper;
         this.chainService = chainService;
         this.elementHelperService = elementHelperService;
+        this.contextSystemLabelsRepository = contextSystemLabelsRepository;
     }
 
     public List<ContextSystem> getContextSystemService() {
@@ -88,10 +94,31 @@ public class ContextSystemService extends AbstractContextSystemService {
 
     public ContextSystem update(ContextSystemUpdateRequestDTO requestContextSystem, String systemId) {
         ContextSystem contextSystem = findById(systemId);
-        contextSystem = contextSystemMapper.update(contextSystem, requestContextSystem);
+        contextSystemMapper.mergeWithoutLabels(contextSystem, requestContextSystem);
+        replaceLabels(contextSystem, contextSystemMapper.asLabelRequests(requestContextSystem.getLabels()));
         contextSystem = save(contextSystem);
         logContextSystemAction(contextSystem, LogOperation.UPDATE);
         return contextSystem;
+    }
+
+    public void replaceLabels(ContextSystem system, List<ContextSystemLabel> labels) {
+        if (labels == null) {
+            return;
+        }
+
+        labels.forEach(label -> label.setSystem(system));
+
+        // Remove absent labels from db
+        system.getLabels().removeIf(l -> !l.isTechnical() && !labels.stream().map(AbstractLabel::getName)
+                .collect(Collectors.toSet()).contains(l.getName()));
+        // Add to database only missing labels
+        labels.removeIf(l -> l.isTechnical() || system.getLabels().stream().filter(lab -> !lab.isTechnical())
+                .map(AbstractLabel::getName).collect(Collectors.toSet()).contains(l.getName()));
+
+        if (labels.size() > 0) {
+            List<ContextSystemLabel> newLabels = contextSystemLabelsRepository.saveAll(labels);
+            system.addLabels(newLabels);
+        }
     }
 
     public List<ContextSystem> searchContextSystem(SystemSearchRequestDTO systemSearchRequestDT) {

@@ -163,9 +163,18 @@ kubernetes:
 
 qip:
   standalone: true
+  cr:
+    build:
+      container:
+        image: ${ENGINE_CONTAINER_IMAGE:}
+      service-account: ${CR_K8S_SERVICE_ACCOUNT:default}
+      monitoring:
+        enabled: ${CR_MONITORING_ENABLED:false}
+      namespace: ${NAMESPACE:default}
+      environment: ${CR_ENVIRONMENT:{}}
   snapshots:
     cleanup:
-      interval: ${SNAPSHOTS_CLEANUP_INTERVAL:14} # snapshots older than interval will be deleted
+      interval: ${SNAPSHOTS_CLEANUP_INTERVAL:14} # snapshots older than an interval will be deleted
       cron: ${SNAPSHOTS_CLEANUP_CRON:0 0 0 ? * SAT} # Cleanup task schedule in cron expression format
   actions-log:
     cleanup:

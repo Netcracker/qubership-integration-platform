@@ -23,6 +23,7 @@ public final class BuilderConstants {
     public static final String ROUTES = "routes";
     public static final String ROUTE = "route";
     public static final String ID = "id";
+    public static final String GROUP = "group";
     public static final String FROM = "from";
     public static final String ON_COMPLETION = "onCompletion";
     public static final String ON_COMPLETION_ID_POSTFIX = "-on-completion";

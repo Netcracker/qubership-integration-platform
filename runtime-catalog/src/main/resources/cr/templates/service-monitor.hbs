@@ -1,0 +1,25 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{name}}
+  labels:
+    app.kubernetes.io/component: monitoring # defined label that is used by Prometheus CRD to watch
+    app.kubernetes.io/processed-by-operator: victoriametrics-operator
+    camel.apache.org/integration: {{integrationName}}
+spec:
+  targetLabels:
+  - domain
+  endpoints:
+  - interval: {{interval}}
+    path: /metrics
+    port: web
+    scheme: http
+  jobLabel: {{integrationName}}
+  namespaceSelector:
+    matchNames:
+    - {{namespace}}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{serviceName}}
+      camel.apache.org/integration: {{integrationName}}

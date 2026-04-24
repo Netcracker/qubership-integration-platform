@@ -20,6 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.model.MultiConsumer;
+import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
+import org.qubership.integration.platform.runtime.catalog.model.domains.EngineDomain;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.EventActionType;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubeDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubePod;
@@ -29,17 +31,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKConstants.CAMEL_K_INTEGRATION_LABEL;
 
 
 @Slf4j
 @Component
 public class EngineService {
     private static final String ENGINE_NAME_LABEL = "name";
+
     private final KubeOperator operator;
     private final DeploymentService deploymentService;
     private final DevModeUtil devModeUtil;
@@ -71,22 +73,31 @@ public class EngineService {
      * @return deployment with domain name (engine prefix and version suffix are deleted!)
      * @throws KubeApiException
      */
-    public List<KubeDeployment> getDomains() throws KubeApiException {
+    public List<EngineDomain> getDomains() throws KubeApiException {
         if (isDevMode()) {
-            return Collections.singletonList(KubeDeployment.builder()
+            return Collections.singletonList(EngineDomain.builder()
                     .id(engineDefaultDomain)
                     .name(engineDefaultDomain)
                     .replicas(1)
                     .namespace(namespace)
+                    .type(DomainType.NATIVE)
                     .build()
             );
         }
         List<KubeDeployment> deployments = getDeployments();
-        deployments.forEach(deployment -> deployment.setName(domainUtils.convertKubeDeploymentToDomainName(deployment.getName())));
-        return deployments;
+        return deployments.stream()
+                .map(deployment -> EngineDomain.builder()
+                        .id(deployment.getId())
+                        .name(domainUtils.convertKubeDeploymentToDomainName(deployment.getName()))
+                        .version(deployment.getVersion())
+                        .replicas(deployment.getReplicas())
+                        .namespace(deployment.getNamespace())
+                        .type(deployment.getLabels().containsKey(CAMEL_K_INTEGRATION_LABEL) ? DomainType.MICRO : DomainType.NATIVE)
+                        .build())
+                .toList();
     }
 
-    public KubeDeployment getDomainByName(String domainName) {
+    public EngineDomain getDomainByName(String domainName) {
         return getDomains().stream().filter(domain -> domain.getName().equals(domainName)).findFirst().orElse(null);
     }
 
@@ -95,11 +106,17 @@ public class EngineService {
      * @throws KubeApiException
      */
     private List<KubeDeployment> getDeployments() throws KubeApiException {
-        return operator.getDeploymentsByLabel(engineAppCheckLabel);
+        List<KubeDeployment> deployments = new ArrayList<>();
+        deployments.addAll(operator.getDeploymentsByLabel(engineAppCheckLabel, "true"));
+        deployments.addAll(operator.getDeploymentsByLabel(CAMEL_K_INTEGRATION_LABEL));
+        return deployments;
     }
 
     public List<KubePod> getEnginesPods(String domainName) throws KubeApiException {
-        return operator.getPodsByLabel(ENGINE_NAME_LABEL, getActiveKubeDeploymentNameByDomain(domainName));
+        List<KubePod> pods = new ArrayList<>();
+        pods.addAll(operator.getPodsByLabel(ENGINE_NAME_LABEL, getActiveKubeDeploymentNameByDomain(domainName)));
+        pods.addAll(operator.getPodsByLabel(CAMEL_K_INTEGRATION_LABEL, domainName));
+        return pods;
     }
 
     public boolean isDevMode() {

@@ -16,7 +16,10 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.deployment;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineDeployment;
 
@@ -25,6 +28,9 @@ import java.util.Map;
 
 @Data
 @Slf4j
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class RuntimeDeployment {
 
     private String deploymentId;
@@ -32,9 +38,6 @@ public class RuntimeDeployment {
     private String serviceName;
 
     // <engine_host, state>
+    @Builder.Default
     private final Map<String, EngineDeployment> states = new HashMap<>();
-
-    public RuntimeDeployment(String deploymentId) {
-        this.deploymentId = deploymentId;
-    }
 }

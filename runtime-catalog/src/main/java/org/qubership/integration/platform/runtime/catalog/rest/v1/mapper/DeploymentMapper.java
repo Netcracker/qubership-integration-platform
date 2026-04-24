@@ -112,9 +112,9 @@ public abstract class DeploymentMapper {
     public EngineDeploymentResponse asEngineDeployment(EngineDeployment deployment) {
         DeploymentInfo deploymentInfo = deployment.getDeploymentInfo();
         String chainName = chainFinderService.tryFindById(deploymentInfo.getChainId())
-                .map(AbstractEntity::getName).orElse(null);
+                .map(AbstractEntity::getName).orElse(deploymentInfo.getChainName());
         String snapshotName = snapshotService.tryFindById(deploymentInfo.getSnapshotId())
-                .map(AbstractEntity::getName).orElse(null);
+                .map(AbstractEntity::getName).orElse(deploymentInfo.getSnapshotName());
 
         return EngineDeploymentResponse.builder()
                 .id(deploymentInfo.getDeploymentId())

@@ -19,6 +19,8 @@ package org.qubership.integration.platform.runtime.catalog.model.kubernetes.oper
 
 import lombok.*;
 
+import java.util.Map;
+
 @Getter
 @Setter
 @Builder
@@ -30,4 +32,5 @@ public class KubeDeployment {
     private int replicas;
     private String namespace;
     private String version;
+    private Map<String, String> labels;
 }

@@ -20,6 +20,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import org.qubership.integration.platform.runtime.catalog.model.dto.BaseResponse;
 import org.qubership.integration.platform.runtime.catalog.model.dto.user.UserDTO;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemLabelDTO;
 
 import java.util.List;
 
@@ -28,6 +29,7 @@ public class ContextSystemResponseDTO {
     private String id;
     private String name;
     private String description;
+    private List<SystemLabelDTO> labels;
     private Long createdWhen;
     private UserDTO createdBy;
     private Long modifiedWhen;

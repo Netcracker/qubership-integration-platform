@@ -69,6 +69,7 @@ public class DeploymentController {
                     RuntimeDeployment runtimeState = runtimeDeploymentService.getRuntimeDeployment(deployment.getId());
                     return deploymentMapper.asResponse(deployment, runtimeState);
                 }).collect(Collectors.toList());
+        response.addAll(runtimeDeploymentService.getMicroEngineDeployments(chainId));
         return ResponseEntity.ok(response);
     }
 

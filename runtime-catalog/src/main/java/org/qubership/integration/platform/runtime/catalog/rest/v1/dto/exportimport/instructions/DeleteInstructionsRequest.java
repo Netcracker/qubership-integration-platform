@@ -37,4 +37,7 @@ public class DeleteInstructionsRequest {
     @Schema(description = "Ids of service import instructions to delete")
     @Builder.Default
     private final Set<String> services = new HashSet<>();
+    @Schema(description = "Ids of common variables import instructions to delete")
+    @Builder.Default
+    private final Set<String> commonVariables = new HashSet<>();
 }

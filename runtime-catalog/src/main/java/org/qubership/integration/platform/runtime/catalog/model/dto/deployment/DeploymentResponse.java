@@ -18,13 +18,14 @@ package org.qubership.integration.platform.runtime.catalog.model.dto.deployment;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
+import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.model.dto.user.UserDTO;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 @Schema(description = "Response object for a single chain deployment")
 public class DeploymentResponse {
     @Schema(description = "Inner deployment id")
@@ -37,6 +38,8 @@ public class DeploymentResponse {
     private String name;
     @Schema(description = "Domain which was used to deploy to, usually \"default\"")
     private String domain;
+    @Schema(description = "Domain type")
+    private DomainType domainType;
     @Schema(description = "Timestamp of object creation")
     private Long createdWhen;
     @Schema(description = "User who created that object")

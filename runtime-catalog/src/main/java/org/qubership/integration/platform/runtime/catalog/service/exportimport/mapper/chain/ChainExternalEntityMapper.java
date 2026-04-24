@@ -138,7 +138,8 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
                         .businessDescription(chain.getBusinessDescription())
                         .assumptions(chain.getAssumptions())
                         .outOfScope(chain.getOutOfScope())
-                        .labels(chain.getLabels().stream().map(ChainLabel::getName).collect(Collectors.toList()))
+                        .labels(chain.getLabels().stream().filter(label -> !label.isTechnical())
+                                .map(ChainLabel::getName).toList())
                         .folder(createFolderExternalEntity(chain))
                         .maskedFields(createMaskedFieldExternalEntities(chain.getMaskedFields()))
                         .defaultSwimlaneId(
