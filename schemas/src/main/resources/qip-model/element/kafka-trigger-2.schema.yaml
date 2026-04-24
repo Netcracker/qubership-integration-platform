@@ -26,6 +26,15 @@ properties:
         title: Reconnect delay (ms)
         description: Specifies delay between reconnection in millis.
         default: 30000
+      consumerConsistencyMode:
+        enum:
+          - EVENTUAL
+          - GUARANTEE_CONSUMPTION
+        title: Consumer blue-green consistency mode option
+        description: >
+          EVENTUAL - consumers offset for candidate during promotion stays the same
+          GUARANTEE_CONSUMPTION - consumers offset for candidate during promotion is copied from lowest offset for this group of consumers
+        default: EVENTUAL
       autoOffsetReset:
         enum:
           - none
@@ -95,6 +104,7 @@ properties:
           The number of records that will be fetched from the broker
           as a single batch.
     required:
+      - consumerConsistencyMode
       - autoOffsetReset
       - groupId
       - keyDeserializer
