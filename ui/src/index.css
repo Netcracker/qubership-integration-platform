@@ -222,6 +222,10 @@ button:focus-visible {
   border-radius: 4px;
 }
 
+.chain-text-view-highlighted-block {
+  box-shadow: inset 2px 0 0 var(--vscode-focusBorder, #1890ff);
+}
+
 .flex-dragger {
   display: flex;
   flex-direction: column;

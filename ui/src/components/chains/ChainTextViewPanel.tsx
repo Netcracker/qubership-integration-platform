@@ -1,44 +1,65 @@
-import { Editor, Monaco } from "@monaco-editor/react";
+import { Editor, OnMount } from "@monaco-editor/react";
 import styles from "../../components/elements_library/ElementsLibrarySidebar.module.css";
 import { useElementsAsCode } from "../../hooks/useElementsAsCode";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useRef } from "react";
 import {
   applyVSCodeThemeToMonaco,
   useMonacoTheme,
 } from "../../hooks/useMonacoTheme";
 import { Element } from "../../api/apiTypes.ts";
+import { useStore } from "@xyflow/react";
+import type { editor } from "monaco-editor";
+import { buildElementsSignature } from "../../misc/element-code-utils";
+import { useElementCodeHighlight } from "../../hooks/useElementCodeHighlight";
 
 interface ChainTextViewPanelProps {
   chainId: string;
   elements: Element[];
 }
 
+const shallowStringArrayEqual = (
+  a: readonly string[],
+  b: readonly string[],
+): boolean =>
+  a.length === b.length && a.every((value, index) => value === b[index]);
+
 export const ChainTextViewPanel: React.FC<ChainTextViewPanelProps> = ({
   chainId,
   elements,
 }) => {
-  const [textViewContent, setTextViewContent] = useState<string>("");
-  const [elementAsCodeTimestamp, setElementAsCodeTimestamp] =
-    useState<number>();
-  const { elementAsCode } = useElementsAsCode(chainId, elementAsCodeTimestamp);
+  const { elementAsCode } = useElementsAsCode(
+    chainId,
+    buildElementsSignature(elements),
+  );
   const monacoTheme = useMonacoTheme();
-  const monacoRef = useRef<Monaco | null>(null); // eslint-disable-line @typescript-eslint/no-redundant-type-constituents -- Monaco from @monaco-editor/react may include any in union
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 
-  useEffect(() => {
-    if (elementAsCode?.code != null && typeof elementAsCode.code === "string") {
-      setTextViewContent(elementAsCode.code);
+  const textViewContent =
+    typeof elementAsCode?.code === "string" ? elementAsCode.code : "";
+
+  const selectedElementIds = useStore<string[]>((state) => {
+    const ids: string[] = [];
+    state.nodeLookup.forEach((node) => {
+      if (node.selected) ids.push(node.id);
+    });
+    ids.sort((a, b) => a.localeCompare(b));
+    return ids;
+  }, shallowStringArrayEqual);
+
+  useElementCodeHighlight({
+    editorRef,
+    selectedIds: selectedElementIds,
+    content: textViewContent,
+  });
+
+  // useMonacoTheme re-applies the VS Code theme to every registered Monaco
+  // instance on theme changes, so we only need to register on mount.
+  const handleMount = useCallback<OnMount>((editorInstance, monaco) => {
+    editorRef.current = editorInstance;
+    if (monaco) {
+      applyVSCodeThemeToMonaco(monaco);
     }
-  }, [elementAsCode]);
-
-  useEffect(() => {
-    if (monacoRef.current) {
-      applyVSCodeThemeToMonaco(monacoRef.current);
-    }
-  }, [monacoTheme]);
-
-  useEffect(() => {
-    setElementAsCodeTimestamp(Date.now());
-  }, [elements]);
+  }, []);
 
   return (
     <div className={`${styles.rightPanelCodeBlock} qip-editor`}>
@@ -54,12 +75,7 @@ export const ChainTextViewPanel: React.FC<ChainTextViewPanelProps> = ({
           minimap: { enabled: false },
           scrollBeyondLastLine: false,
         }}
-        onMount={(_, monaco) => {
-          monacoRef.current = monaco ?? null;
-          if (monaco) {
-            applyVSCodeThemeToMonaco(monaco);
-          }
-        }}
+        onMount={handleMount}
       />
     </div>
   );

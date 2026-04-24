@@ -24,7 +24,9 @@ jest.mock("../../src/Modals", () => ({
   useModalsContext: () => ({ showModal: mockShowModal }),
 }));
 
-const mockUseParams = jest.fn(() => ({ chainId: "test-chain-id" }));
+const mockUseParams = jest.fn<{ chainId?: string }, []>(() => ({
+  chainId: "test-chain-id",
+}));
 jest.mock("react-router-dom", () => ({
   useParams: () => mockUseParams(),
   useNavigate: () => mockNavigate,
@@ -109,6 +111,31 @@ jest.mock(
     ChainElementModification: () => null,
   }),
 );
+
+jest.mock("@xyflow/react", () => ({
+  useStore: () => [] as string[],
+}));
+
+jest.mock("monaco-editor", () => ({
+  editor: {},
+  Range: class {
+    startLineNumber: number;
+    startColumn: number;
+    endLineNumber: number;
+    endColumn: number;
+    constructor(
+      startLineNumber: number,
+      startColumn: number,
+      endLineNumber: number,
+      endColumn: number,
+    ) {
+      this.startLineNumber = startLineNumber;
+      this.startColumn = startColumn;
+      this.endLineNumber = endLineNumber;
+      this.endColumn = endColumn;
+    }
+  },
+}));
 
 jest.mock("@monaco-editor/react", () => ({
   Editor: ({
@@ -367,7 +394,7 @@ describe("PageWithRightPanel", () => {
   });
 
   it("does not set textViewContent when elementAsCode.code is not a string", () => {
-    mockElementAsCode = { code: 123 } as { code: string } | undefined;
+    mockElementAsCode = { code: 123 } as unknown as { code: string };
     renderWithContext(<PageWithRightPanel />);
     const textViewTab = screen
       .getAllByRole("tab")
@@ -537,7 +564,6 @@ describe("PageWithRightPanel", () => {
         expect(screen.getByTestId("used-properties-list")).toBeInTheDocument();
       });
 
-      const { ChainContext } = require("../../src/pages/ChainPage");
       const mockOnDblClick = jest
         .spyOn(screen.getByTestId("double-click-trigger"), "onclick", "get")
         .mockReturnValue(null);
