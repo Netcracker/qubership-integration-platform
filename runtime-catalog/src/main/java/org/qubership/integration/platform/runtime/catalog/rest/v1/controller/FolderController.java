@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.FolderMoveException;
@@ -161,7 +162,7 @@ public class FolderController {
 
     @PostMapping
     @Operation(description = "Create a new folder")
-    public ResponseEntity<FolderResponse> create(@RequestBody @Parameter(description = "Folder creation request object") FolderItemRequest request) {
+    public ResponseEntity<FolderResponse> create(@Valid @RequestBody @Parameter(description = "Folder creation request object") FolderItemRequest request) {
         log.info("Request to create new folder");
         var parentFolderId = request.getParentId();
         var folder = folderMapper.asEntity(request);
@@ -225,7 +226,7 @@ public class FolderController {
     @PutMapping("/{folderId}")
     @Operation(description = "Update specified folder")
     public ResponseEntity<FolderResponse> update(@PathVariable @Parameter(description = "Folder id") String folderId,
-                                                 @RequestBody @Parameter(description = "Folder modification request object") FolderItemRequest request) {
+                                                 @Valid @RequestBody @Parameter(description = "Folder modification request object") FolderItemRequest request) {
         log.info("Request to update folder with id: {}", folderId);
         var parentFolderId = request.getParentId();
         var folder = folderMapper.asEntity(request);

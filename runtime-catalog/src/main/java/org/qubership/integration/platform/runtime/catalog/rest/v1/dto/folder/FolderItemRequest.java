@@ -17,6 +17,8 @@
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto.folder;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -26,12 +28,16 @@ import lombok.Setter;
 public class FolderItemRequest {
 
     @Schema(description = "Folder name")
+    @NotBlank
+    @Size(max = 255)
     private String name;
 
     @Schema(description = "Folder description")
+    @Size(max = 255)
     private String description;
 
     @Schema(description = "Parent folder id (if any)")
+    @Size(max = 255)
     private String parentId;
 
 }
