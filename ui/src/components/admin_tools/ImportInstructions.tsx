@@ -59,7 +59,7 @@ import {
   attachResizeToColumns,
   useTableColumnResize,
 } from "../table/useTableColumnResize.tsx";
-import { useColumnSettingsBasedOnColumnsType } from "../table/useColumnSettingsButton.tsx";
+import { ColumnsTypeWithSettings, useColumnSettingsBasedOnColumnsType } from "../table/useColumnSettingsButton.tsx";
 
 const { Title } = Typography;
 
@@ -405,12 +405,15 @@ export const ImportInstructions: React.FC = () => {
     }
   }, [selectedRowKeys, tableData, fetchInstructions, notificationService]);
 
-  const columns: TableProps<InstructionRow>["columns"] = useMemo(() => {
+  const columns: ColumnsTypeWithSettings<InstructionRow> = useMemo(() => {
     return [
       {
         title: "Id",
         dataIndex: "id",
         key: "id",
+        settings: {
+          visibilityLocked: true,
+        },
         width: 280,
         sorter: (a, b) =>
           (a.name ?? a.id).localeCompare(b.name ?? b.id, undefined, {

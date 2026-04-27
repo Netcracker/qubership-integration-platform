@@ -1,9 +1,36 @@
 import { useEffect, useMemo, useState } from "react";
 import { ColumnSettingsButton } from "./ColumnSettingsButton";
-import { ColumnsType } from "antd/lib/table";
+import { ColumnsType, ColumnType } from "antd/lib/table";
 import { getColumnsOrderKey, getColumnsVisibleKey } from "./ColumnsFilter";
 import { parseJsonOrDefault } from "../../misc/json-helper";
 import { ACTIONS_COLUMN_KEY } from "./actionsColumn.ts";
+
+export type ColumnsTypeWithSettings<T> = ColumnTypeWithSettings<T>[];
+
+export type ColumnSettings = {
+  visibilityLocked?: boolean;
+};
+
+export type ColumnTypeWithSettings<T> = ColumnType<T> & {
+  settings?: ColumnSettings;
+};
+
+const COLUMN_VISIBILITY_LOCKED_SUFFIX = "*";
+
+export const isColumnVisibilityLocked = (key: string) => {
+  return key.endsWith(COLUMN_VISIBILITY_LOCKED_SUFFIX);
+};
+
+export const clearColumnMetadata = (key: string) => {
+  return isColumnVisibilityLocked(key) ? key.slice(0, -1) : key;
+};
+
+const buildKeyWithMetadata = (columnType: ColumnTypeWithSettings<T>): string => {
+  const columnString = columnType.key!.toString();
+  return columnType.settings?.visibilityLocked
+    ? columnString + COLUMN_VISIBILITY_LOCKED_SUFFIX
+    : columnString;
+};
 
 export const useColumnSettingsButton = <T,>(
   storageKey: string,
@@ -50,7 +77,9 @@ export const useColumnSettingsButton = <T,>(
     const ordered = columnsOrder
       .filter((key) => visibleColumns.includes(key))
       .map((key) => {
-        return tableColumnDefinitions.find((col) => col.key === key);
+        return tableColumnDefinitions.find(
+          (col) => col.key === clearColumnMetadata(key),
+        );
       })
       .filter(Boolean)
       .map((columnType) => ({
@@ -85,15 +114,15 @@ export const useColumnSettingsButton = <T,>(
 
 export const useColumnSettingsBasedOnColumnsType = <T,>(
   storageKey: string,
-  tableColumnDefinitions: ColumnsType<T>,
+  tableColumnDefinitions: ColumnsTypeWithSettings<T>,
 ) => {
   const allColumnKeys: string[] = tableColumnDefinitions
     .filter((columnType) => columnType.key !== undefined)
-    .map((columnType) => columnType.key!.toString());
+    .map((columnType) => buildKeyWithMetadata(columnType));
 
   const visibleColumns: string[] = tableColumnDefinitions
     .filter((columnType) => columnType.key && columnType.hidden !== true)
-    .map((columnType) => columnType.key!.toString());
+    .map((columnType) => buildKeyWithMetadata(columnType));
 
   return useColumnSettingsButton(
     storageKey,

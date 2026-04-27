@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Button, Checkbox } from "antd";
 import { ReactSortable } from "react-sortablejs";
 import { parseJsonOrDefault } from "../../misc/json-helper";
+import { clearColumnMetadata, isColumnVisibilityLocked } from "./useColumnSettingsButton";
 
 export interface ColumnFilterProps {
   allColumns: string[];
@@ -58,7 +59,7 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
   };
 
   const humanizeKey = (key: string): string => {
-    const withSpaces = key
+    const withSpaces = clearColumnMetadata(key)
       .replace(/[_-]+/g, " ")
       .replace(/([a-z0-9])([A-Z])/g, "$1 $2");
     return withSpaces
@@ -129,7 +130,7 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
               ≡
             </span>
             <Checkbox
-              disabled={key === "name"}
+              disabled={key === "name" || isColumnVisibilityLocked(key)}
               checked={visibleColumns.includes(key)}
               onChange={(e) => {
                 if (e.target.checked) {
