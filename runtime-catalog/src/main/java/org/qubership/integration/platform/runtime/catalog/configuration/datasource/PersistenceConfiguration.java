@@ -4,12 +4,12 @@ import com.netcracker.cloud.dbaas.client.config.DbaasPostgresDataSourcePropertie
 import com.netcracker.cloud.dbaas.client.management.PostgresDatasourceCreator;
 import com.netcracker.cloud.dbaas.client.metrics.DbaaSMetricsRegistrar;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
-@AutoConfiguration
+@Configuration
 @EnableConfigurationProperties({DbaasPostgresDataSourceProperties.class})
 @ConditionalOnProperty(value = "qip.standalone", havingValue = "false")
 public class PersistenceConfiguration {
