@@ -64,7 +64,7 @@ data:
 
       location ~ ^/api/(v\d+)/.*/catalog/chains/(((?![/]).)*)/(deployments|snapshots) {
         rewrite ^/api/(v\d+)/.*/catalog/(.*)$  /$1/catalog/$2  break;
-        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog:8080;
         proxy_redirect     off;
         proxy_set_header   Host $host;
         proxy_intercept_errors on;
@@ -72,7 +72,7 @@ data:
 
       location ~ ^/api/(v\d+)/.*/catalog/chains/(deployments|roles) {
         rewrite ^/api/(v\d+)/.*/catalog/(.*)$  /$1/catalog/$2  break;
-        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog:8080;
         proxy_redirect     off;
         proxy_set_header   Host $host;
         proxy_intercept_errors on;
@@ -80,7 +80,7 @@ data:
 
       location ~ ^/api/(v\d+)/.*/catalog/(chains|detailed-design|design-generator|library|folders|cr) {
         rewrite ^/api/(v\d+)/.*/catalog/(.*)$  /$1/$2  break;
-        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog:8080;
         proxy_redirect     off;
         proxy_set_header   Host $host;
         proxy_intercept_errors on;
@@ -88,7 +88,7 @@ data:
 
       location ~ ^/api/(v\d+)/.*/catalog/ {
         rewrite ^^/api/(v\d+)/.*/catalog/(.*)$  /$1/catalog/$2  break;
-        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog:8080;
         proxy_redirect     off;
         proxy_set_header   Host $host;
         proxy_intercept_errors on;
@@ -96,7 +96,7 @@ data:
 
       location ~ ^/api/.*/(v\d+)/maas-actions {
         rewrite ^^/api/.*/(v\d+)/(.*)$  /$1/$2 break;
-        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog:8080;
         proxy_redirect     off;
         proxy_set_header   Host $host;
         proxy_intercept_errors on;
@@ -104,7 +104,7 @@ data:
 
       location ~ ^/api/.*/(v\d+)/import {
         rewrite ^/api/.*/(v\d+)/(.*)$  /$1/$2 break;
-        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog:8080;
         proxy_redirect     off;
         proxy_set_header   Host $host;
         proxy_intercept_errors on;
@@ -112,7 +112,7 @@ data:
 
       location ~ ^/api/(v\d+)/.*/systems-catalog/ {
         rewrite ^/api/(v\d+)/.*/systems-catalog/(.*)$  /$1/$2  break;
-        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog:8080;
         proxy_redirect     off;
         proxy_set_header   Host $host;
         proxy_intercept_errors on;
@@ -120,7 +120,7 @@ data:
 
       location ~ ^/api/(v\d+)/.*/sessions-management {
         rewrite ^/api/(v\d+)/.*/sessions-management/(.*)$  /$1/$2  break;
-        proxy_pass  http://qip-sessions-management:8080;
+        proxy_pass  http://{{ .Release.Name }}-sessions-management:8080;
         proxy_redirect     off;
         proxy_set_header   Host $host;
         proxy_intercept_errors on;
@@ -128,7 +128,7 @@ data:
 
       location ~ ^/api/(v\d+)/.*/variables-management {
         rewrite ^/api/(v\d+)/.*/variables-management/(.*)$  /$1/$2  break;
-        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog:8080;
         proxy_redirect     off;
         proxy_set_header   Host $host;
         proxy_intercept_errors on;
@@ -136,7 +136,7 @@ data:
 
       location ~ ^/api/.*/(v\d+)/(folders|snapshots|secured-variables|secret|common-variables/import) {
         rewrite ^/api/.*/(v\d+)/(.*)$  /$1/$2 break;
-        proxy_pass  http://qip-runtime-catalog:8080;
+        proxy_pass  http://{{ .Release.Name }}-runtime-catalog:8080;
         proxy_redirect     off;
         proxy_set_header   Host $host;
         proxy_intercept_errors on;
@@ -144,7 +144,7 @@ data:
 
       location ~ ^/api/(v\d+)/.*/engine {
         rewrite ^/api/(v\d+)/.*/engine/(.*)$  /$1/engine/$2  break;
-        proxy_pass  http://qip-engine:8080;
+        proxy_pass  http://{{ .Release.Name }}-engine:8080;
         proxy_redirect     off;
         proxy_set_header   Host $host;
         proxy_intercept_errors on;
