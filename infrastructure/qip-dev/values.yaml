@@ -5,3 +5,6 @@ postgres:
 global:
   postgres:
     database: postgres
+  qip:
+    ui:
+      port: 30080
