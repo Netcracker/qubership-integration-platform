@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-all
+  name: {{ .Release.Name}}-allow-all
 spec:
   podSelector: {}
   policyTypes:
