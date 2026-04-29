@@ -8,3 +8,8 @@ global:
   qip:
     ui:
       port: 30080
+    deploy:
+      classic:
+        enabled: true
+      micro:
+        enabled: true

@@ -8,6 +8,8 @@ data:
   OPENSEARCH_PREFIX: "qip"
   POSTGRES_URL: {{ .Release.Name }}-postgres:5432/{{ .Values.global.postgres.database | default "postgres" }}
   TRACING_ENABLED: "false"
+  CLASSIC_DEPLOY_ENABLED: '{{ .Values.global.qip.deploy.classic.enabled }}'
+  MICRO_DEPLOY_ENABLED: '{{ .Values.global.qip.deploy.micro.enabled }}'
 kind: ConfigMap
 metadata:
   labels:
