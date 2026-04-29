@@ -3,12 +3,10 @@ kind: Service
 metadata:
   name: {{ .Release.Name }}-consul
 spec:
-  type: NodePort
   ports:
     - name: "8500"
       port: 8500
       targetPort: 8500
-      nodePort: 30500
     - name: "8600"
       port: 8600
       targetPort: 8600
