@@ -35,7 +35,6 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 
 @Slf4j
@@ -300,5 +299,47 @@ public class SpringRabbitMQCustomEndpoint extends SpringRabbitMQEndpoint {
      */
     public void setMetricsCollector(MetricsCollector metricsCollector) {
         this.metricsCollector = metricsCollector;
+    }
+
+    /**
+     * Stops the SpringRabbitMQCustomEndpoint by destroying the connection factory
+     * and invoking the superclass stop method.
+     *
+     * @throws Exception if an error occurs during stopping
+     */
+    @Override
+    protected void doStop() throws Exception {
+        log.debug("Stopping SpringRabbitMQCustomEndpoint: {}", getEndpointUri());
+        destroyConnectionFactory();
+        super.doStop();
+    }
+
+    /**
+     * Shuts down the SpringRabbitMQCustomEndpoint by destroying the connection factory
+     * and invoking the superclass shutdown method.
+     *
+     * @throws Exception if an error occurs during shutting down
+     */
+    @Override
+    protected void doShutdown() throws Exception {
+        log.debug("Shutting down SpringRabbitMQCustomEndpoint: {}", getEndpointUri());
+        destroyConnectionFactory();
+        super.doShutdown();
+    }
+
+    /**
+     * Destroys the connection factory if it is an instance of CachingConnectionFactory.
+     * Logs a debug message when destroying and a warning if an error occurs during destruction.
+     */
+    private void destroyConnectionFactory() {
+        try {
+            ConnectionFactory connectionFactory = getConnectionFactory();
+            if (connectionFactory instanceof CachingConnectionFactory cachingConnectionFactory) {
+                log.debug("Destroying CachingConnectionFactory for endpoint: {}", getEndpointUri());
+                cachingConnectionFactory.destroy();
+            }
+        } catch (Exception e) {
+            log.warn("Error while destroying ConnectionFactory for endpoint: {}", getEndpointUri(), e);
+        }
     }
 }
