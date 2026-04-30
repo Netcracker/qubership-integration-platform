@@ -8,15 +8,13 @@ spec:
     - Ingress
     - Egress
   ingress:
-    - from: []
-      ports:
+    - ports:
         - protocol: TCP
           port: 80
         - protocol: TCP
           port: 443
   egress:
-    - to: []
-      ports:
+    - ports:
         - protocol: TCP
           port: 80
         - protocol: TCP
