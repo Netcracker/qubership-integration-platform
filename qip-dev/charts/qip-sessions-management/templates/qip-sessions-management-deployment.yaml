@@ -66,8 +66,8 @@ spec:
                 configMapKeyRef:
                   key: TRACING_ENABLED
                   name: {{ .Release.Name }}-env
-          image: ghcr.io/netcracker/qubership-integration-sessions-management:latest
-          imagePullPolicy: Never
+          image: ghcr.io/netcracker/qubership-integration-sessions-management:main
+          imagePullPolicy: IfNotPresent
           livenessProbe:
             httpGet:
               path: /actuator/health
@@ -76,7 +76,7 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 15
-          name: qip-sessions-management
+          name: {{ .Release.Name }}-sessions-management
           ports:
             - containerPort: 8080
           resources: {}

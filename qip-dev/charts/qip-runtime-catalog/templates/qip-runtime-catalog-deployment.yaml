@@ -74,7 +74,10 @@ spec:
                   key: TRACING_ENABLED
                   name: {{ .Release.Name }}-env
             - name: ENGINE_CONTAINER_IMAGE
-              value: ghcr.io/netcracker/qubership-integration-engine-quarkus:latest
+              valueFrom:
+                configMapKeyRef:
+                  key: ENGINE_CONTAINER_IMAGE
+                  name: {{ .Release.Name }}-env
             - name: CR_K8S_SERVICE_ACCOUNT
               value: {{ .Release.Name }}-service-account
             - name: CR_ENVIRONMENT
@@ -88,8 +91,18 @@ spec:
                   POSTGRES_USER: 'secret:{{ .Release.Name }}-postgres-auth/username',
                   POSTGRES_PASSWORD: 'secret:{{ .Release.Name }}-postgres-auth/password'
                 }
-          image: ghcr.io/netcracker/qubership-integration-runtime-catalog:latest
-          imagePullPolicy: Never
+            - name: CLASSIC_DEPLOY_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  key: CLASSIC_DEPLOY_ENABLED
+                  name: {{ .Release.Name }}-env
+            - name: MICRO_DEPLOY_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  key: MICRO_DEPLOY_ENABLED
+                  name: {{ .Release.Name }}-env
+          image: ghcr.io/netcracker/qubership-integration-runtime-catalog:main
+          imagePullPolicy: IfNotPresent
           livenessProbe:
             httpGet:
               path: /actuator/health

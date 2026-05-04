@@ -5,3 +5,12 @@ postgres:
 global:
   postgres:
     database: postgres
+  qip:
+    ui:
+      port: 30080
+    deploy:
+      classic:
+        enabled: true
+      micro:
+        enabled: true
+        image: ghcr.io/netcracker/qubership-integration-engine-quarkus:main

@@ -106,8 +106,8 @@ spec:
                   name: {{ .Release.Name }}-env
             - name: MICROSERVICE_NAME
               value: {{ .Release.Name }}-engine
-          image: ghcr.io/netcracker/qubership-integration-engine:latest
-          imagePullPolicy: Never
+          image: ghcr.io/netcracker/qubership-integration-engine:main
+          imagePullPolicy: IfNotPresent
           livenessProbe:
             httpGet:
               path: /actuator/health
@@ -116,7 +116,7 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 10
             timeoutSeconds: 15
-          name: qip-engine
+          name: {{ .Release.Name }}-engine
           ports:
             - containerPort: 8080
             - containerPort: 5005
