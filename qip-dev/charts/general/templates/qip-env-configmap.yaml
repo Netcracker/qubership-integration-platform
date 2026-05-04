@@ -10,6 +10,7 @@ data:
   TRACING_ENABLED: "false"
   CLASSIC_DEPLOY_ENABLED: '{{ .Values.global.qip.deploy.classic.enabled }}'
   MICRO_DEPLOY_ENABLED: '{{ .Values.global.qip.deploy.micro.enabled }}'
+  ENGINE_CONTAINER_IMAGE: '{{ .Values.global.qip.deploy.micro.image }}'
 kind: ConfigMap
 metadata:
   labels:

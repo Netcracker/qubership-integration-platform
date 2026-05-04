@@ -74,7 +74,10 @@ spec:
                   key: TRACING_ENABLED
                   name: {{ .Release.Name }}-env
             - name: ENGINE_CONTAINER_IMAGE
-              value: ghcr.io/netcracker/qubership-integration-engine-quarkus:main
+              valueFrom:
+                configMapKeyRef:
+                  key: ENGINE_CONTAINER_IMAGE
+                  name: {{ .Release.Name }}-env
             - name: CR_K8S_SERVICE_ACCOUNT
               value: {{ .Release.Name }}-service-account
             - name: CR_ENVIRONMENT
