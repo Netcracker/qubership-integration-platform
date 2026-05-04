@@ -2,7 +2,7 @@ services:
 
     ###### QIP
     qip-runtime-catalog:
-        image: ghcr.io/netcracker/qubership-integration-runtime-catalog:latest
+        image: ghcr.io/netcracker/qubership-integration-runtime-catalog:main
         container_name: qip-runtime-catalog
         read_only: true
         ports:
@@ -38,7 +38,7 @@ services:
                 condition: service_healthy
 
     qip-engine:
-        image: ghcr.io/netcracker/qubership-integration-engine:latest
+        image: ghcr.io/netcracker/qubership-integration-engine:main
         container_name: qip-engine
         read_only: true
         ports:
@@ -83,7 +83,7 @@ services:
                 condition: service_healthy
 
     qip-sessions-management:
-        image: ghcr.io/netcracker/qubership-integration-sessions-management:latest
+        image: ghcr.io/netcracker/qubership-integration-sessions-management:main
         container_name: qip-sessions-management
         read_only: true
         ports:

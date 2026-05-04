@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: qip-ui
+  name: {{ .Release.Name }}-ui
   labels:
-    app: qip-ui
+    app: {{ .Release.Name }}-ui
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: qip-ui
+      app: {{ .Release.Name }}-ui
   template:
     metadata:
       labels:
-        app: qip-ui
+        app: {{ .Release.Name }}-ui
     spec:
       containers:
         - name: nginx
@@ -31,4 +31,4 @@ spec:
       volumes:
         - name: nginx-config
           configMap:
-            name: qip-ui-nginx-conf
+            name: {{ .Release.Name }}-ui-nginx-conf

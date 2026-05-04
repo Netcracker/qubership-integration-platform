@@ -1,13 +1,16 @@
 apiVersion: v1
 data:
-  CONSUL_ADMIN_TOKEN: 556339d5-f6a3-ff3b-ce1d-98e5b70d4a13
+  CONSUL_ADMIN_TOKEN: '556339d5-f6a3-ff3b-ce1d-98e5b70d4a13'
   CONSUL_URL: http://{{ .Release.Name }}-consul:8500
-  NAMESPACE: {{ .Release.Namespace }}
+  NAMESPACE: '{{ .Release.Namespace }}'
   OPENSEARCH_HOST: {{ .Release.Name }}-opensearch
   OPENSEARCH_PORT: "9200"
   OPENSEARCH_PREFIX: "qip"
   POSTGRES_URL: {{ .Release.Name }}-postgres:5432/{{ .Values.global.postgres.database | default "postgres" }}
   TRACING_ENABLED: "false"
+  CLASSIC_DEPLOY_ENABLED: '{{ .Values.global.qip.deploy.classic.enabled }}'
+  MICRO_DEPLOY_ENABLED: '{{ .Values.global.qip.deploy.micro.enabled }}'
+  ENGINE_CONTAINER_IMAGE: '{{ .Values.global.qip.deploy.micro.image }}'
 kind: ConfigMap
 metadata:
   labels:

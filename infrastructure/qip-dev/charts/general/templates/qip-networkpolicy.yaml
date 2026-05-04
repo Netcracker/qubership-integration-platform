@@ -1,22 +1,20 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-all
+  name: {{ .Release.Name}}-allow-all
 spec:
   podSelector: {}
   policyTypes:
     - Ingress
     - Egress
   ingress:
-    - from: []
-      ports:
+    - ports:
         - protocol: TCP
           port: 80
         - protocol: TCP
           port: 443
   egress:
-    - to: []
-      ports:
+    - ports:
         - protocol: TCP
           port: 80
         - protocol: TCP
