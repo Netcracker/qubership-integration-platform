@@ -10,6 +10,8 @@ import {
   createContext,
   useCallback,
   useEffect,
+  useMemo,
+  useRef,
   useState,
 } from "react";
 import { Chain } from "../api/apiTypes.ts";
@@ -32,6 +34,22 @@ const ChainPage = () => {
   const { chainId, sessionId } = useParams();
   const [pathItems, setPathItems] = useState<BreadcrumbProps["items"]>([]);
   const [headerActions, setHeaderActions] = useState<ReactNode>(null);
+  const headerActionsRegistrationRef = useRef(0);
+
+  const registerHeaderActions = useCallback((actions: ReactNode) => {
+    const generation = ++headerActionsRegistrationRef.current;
+    setHeaderActions(actions);
+    return () => {
+      if (headerActionsRegistrationRef.current === generation) {
+        setHeaderActions(null);
+      }
+    };
+  }, []);
+
+  const chainHeaderActionsContextValue = useMemo(
+    () => ({ registerHeaderActions }),
+    [registerHeaderActions],
+  );
 
   const location = useLocation();
   const { pathname } = location;
@@ -169,7 +187,7 @@ const ChainPage = () => {
   }
 
   return (
-    <ChainHeaderActionsContextProvider value={{ setActions: setHeaderActions }}>
+    <ChainHeaderActionsContextProvider value={chainHeaderActionsContextValue}>
       <ChainContext.Provider
         value={{
           chain,

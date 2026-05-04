@@ -270,6 +270,7 @@ export function LightweightTable({
   onChange,
   onScroll,
   onRow,
+  scroll,
 }: LightTableProps) {
   _lastOnChange = onChange;
   const HeaderCell =
@@ -279,7 +280,11 @@ export function LightweightTable({
   const rows = dataSource ?? [];
 
   return (
-    <div className={className} onScroll={onScroll}>
+    <div
+      className={className}
+      onScroll={onScroll}
+      data-scroll={scroll === undefined ? undefined : JSON.stringify(scroll)}
+    >
       {loading && <div className="ant-spin" data-testid="table-loading" />}
       <table>
         <thead>

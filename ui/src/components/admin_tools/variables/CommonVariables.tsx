@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
-import { Flex, message, Modal, Typography } from "antd";
+import { Flex, message, Modal } from "antd";
 import styles from "../CommonStyle.module.css";
-import { CompactSearch } from "../../table/CompactSearch.tsx";
 import ImportVariablesModal from "./ImportVariablesModal.tsx";
 import { useModalsContext } from "../../../Modals.tsx";
 import VariablesTable from "./VariablesTable.tsx";
@@ -9,13 +8,12 @@ import { useVariablesState } from "./useVariablesState";
 import { downloadFile } from "../../../misc/download-utils.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { ApiResponse, Variable } from "../../../api/apiTypes.ts";
-import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { api } from "../../../api/api.ts";
 import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
 import { hasPermissions } from "../../../permissions/funcs.ts";
 import { usePermissions } from "../../../permissions/usePermissions.tsx";
-
-const { Title } = Typography;
+import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
+import { TableToolbar } from "../../table/TableToolbar.tsx";
 
 async function getVariables(): Promise<ApiResponse<Variable[]>> {
   return api.getCommonVariables();
@@ -87,88 +85,86 @@ export const CommonVariables = () => {
 
   return (
     <Flex vertical className={styles["container"]}>
-      <Flex
-        vertical={false}
-        justify="space-between"
-        align="center"
-        gap={8}
-        wrap="wrap"
-        style={{ marginBottom: 16 }}
-      >
-        <Title level={4} className={styles["title"]}>
-          <OverridableIcon name="table" className={styles["icon"]} />
-          Common Variables
-        </Title>
-        <Flex vertical={false} align="center" gap={8} wrap="wrap">
-          <CompactSearch
-            value={searchTerm}
-            onChange={setSearchTerm}
-            placeholder="Search variables..."
-            allowClear
-            className={styles["searchField"] as string}
+      <AdminToolsHeader
+        title="Common Variables"
+        iconName="table"
+        toolbar={
+          <TableToolbar
+            variant="admin"
+            search={{
+              value: searchTerm,
+              onChange: setSearchTerm,
+              placeholder: "Search variables...",
+              allowClear: true,
+            }}
+            actions={
+              <>
+                <ProtectedButton
+                  require={{ commonVariable: ["delete"] }}
+                  tooltipProps={{
+                    title: "Delete selected variables",
+                    placement: "bottom",
+                  }}
+                  buttonProps={{
+                    iconName: "delete",
+                    onClick: () => {
+                      if (!selectedRowKeys.length) return;
+                      Modal.confirm({
+                        title: `Delete ${selectedRowKeys.length} selected variable(s)?`,
+                        content: `Are you sure you want to delete ${selectedRowKeys.length} variables(s)?`,
+                        onOk: onDeleteSelected,
+                      });
+                    },
+                    disabled: !selectedRowKeys.length,
+                  }}
+                />
+                <ProtectedButton
+                  require={{ commonVariable: ["export"] }}
+                  tooltipProps={{
+                    title: "Export selected variables",
+                    placement: "bottom",
+                  }}
+                  buttonProps={{
+                    iconName: "cloudDownload",
+                    onClick: () => {
+                      if (!selectedRowKeys.length) return;
+                      void onExport(selectedRowKeys);
+                    },
+                    disabled: !selectedRowKeys.length,
+                  }}
+                />
+                <ProtectedButton
+                  require={{ commonVariable: ["import"] }}
+                  tooltipProps={{
+                    title: "Import variables",
+                    placement: "bottom",
+                  }}
+                  buttonProps={{
+                    iconName: "cloudUpload",
+                    onClick: () =>
+                      showModal({
+                        component: (
+                          <ImportVariablesModal
+                            onSuccess={() => void fetchVariables()}
+                          />
+                        ),
+                      }),
+                  }}
+                />
+                <ProtectedButton
+                  require={{ commonVariable: ["create"] }}
+                  tooltipProps={{ title: "Add variable", placement: "bottom" }}
+                  buttonProps={{
+                    type: "primary",
+                    iconName: "plus",
+                    onClick: () => setIsAddingNew(true),
+                  }}
+                />
+              </>
+            }
           />
-          <Flex vertical={false} gap={4}>
-            <ProtectedButton
-              require={{ commonVariable: ["delete"] }}
-              tooltipProps={{
-                title: "Delete selected variables",
-                placement: "bottom",
-              }}
-              buttonProps={{
-                iconName: "delete",
-                onClick: () => {
-                  if (!selectedRowKeys.length) return;
-                  Modal.confirm({
-                    title: `Delete ${selectedRowKeys.length} selected variable(s)?`,
-                    content: `Are you sure you want to delete ${selectedRowKeys.length} variables(s)?`,
-                    onOk: onDeleteSelected,
-                  });
-                },
-                disabled: !selectedRowKeys.length,
-              }}
-            />
-            <ProtectedButton
-              require={{ commonVariable: ["export"] }}
-              tooltipProps={{
-                title: "Export selected variables",
-                placement: "bottom",
-              }}
-              buttonProps={{
-                iconName: "cloudDownload",
-                onClick: () => {
-                  if (!selectedRowKeys.length) return;
-                  void onExport(selectedRowKeys);
-                },
-                disabled: !selectedRowKeys.length,
-              }}
-            />
-            <ProtectedButton
-              require={{ commonVariable: ["import"] }}
-              tooltipProps={{ title: "Import variables", placement: "bottom" }}
-              buttonProps={{
-                iconName: "cloudUpload",
-                onClick: () =>
-                  showModal({
-                    component: (
-                      <ImportVariablesModal
-                        onSuccess={() => void fetchVariables()}
-                      />
-                    ),
-                  }),
-              }}
-            />
-            <ProtectedButton
-              require={{ commonVariable: ["create"] }}
-              tooltipProps={{ title: "Add variable", placement: "bottom" }}
-              buttonProps={{
-                type: "primary",
-                iconName: "plus",
-                onClick: () => setIsAddingNew(true),
-              }}
-            />
-          </Flex>
-        </Flex>
-      </Flex>
+        }
+      />
       <VariablesTable
         flex
         variables={filteredVariables}

@@ -3,7 +3,9 @@
   align-items: center;
   justify-content: flex-start;
   width: 100%;
-  min-height: 64px;
+  min-height: 40px;
+  height: 40px;
+  box-sizing: border-box;
 }
 
 .nav-main {
@@ -14,14 +16,15 @@
 }
 
 .home-button {
-  /* Match visual weight of horizontal Menu items (icon + label) in 64px header */
-  min-width: 52px;
-  min-height: 52px;
+  /* Match horizontal menu row in 40px app header */
+  min-width: 40px;
+  min-height: 40px;
+  height: 40px;
 }
 
 /* Icon-only home: 1em drives SVG size; same for config.icons.logo overrides */
 .navigation .home-button:global(.ant-btn-icon-only) :global(.anticon) {
-  font-size: 40px;
+  font-size: 28px;
 }
 
 .menu {
@@ -30,13 +33,22 @@
   max-width: 100%;
   background: transparent !important;
   padding-inline-start: 0 !important;
-  line-height: 64px;
+  line-height: 40px;
 }
 
 .menu:global(.ant-menu.ant-menu-horizontal) {
   width: 100%;
   border: none;
   line-height: inherit;
+  height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.menu:global(.ant-menu-horizontal) :global(.ant-menu-item),
+.menu:global(.ant-menu-horizontal) :global(.ant-menu-submenu) {
+  height: 40px !important;
+  line-height: 40px !important;
 }
 
 .utilities {
@@ -72,7 +84,7 @@
 .menu :global(.ant-menu-item::after) {
   content: "" !important;
   position: absolute !important;
-  bottom: 12px !important;
+  bottom: 6px !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
   width: 0 !important;

@@ -536,11 +536,14 @@ pre[class*="language-"] .token.punctuation {
 }
 
 .ant-table-tbody > tr.highlight-row > td {
-  background-color: #fffef0 !important;
+  background-color: var(--qip-table-warning-row-background, #f7f6f2) !important;
 }
 
 .ant-table-tbody > tr.highlight-row:hover > td {
-  background-color: #fffef0 !important;
+  background-color: var(
+    --qip-table-warning-row-background-hover,
+    #f1f0eb
+  ) !important;
 }
 
 .ant-table-cell {

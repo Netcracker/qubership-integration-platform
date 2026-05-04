@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
-import { Button, Flex, Table, Tag, Tooltip } from "antd";
+import { Button, Table, Tag, Tooltip } from "antd";
 import { TableProps } from "antd/lib/table";
 import { ExecutionStatus, Session, SessionElement } from "../api/apiTypes.ts";
 import { formatDuration, PLACEHOLDER } from "../misc/format-utils.ts";
@@ -19,9 +19,7 @@ import {
 } from "../components/table/useTableColumnResize.tsx";
 import { treeExpandIcon } from "../components/table/TreeExpandIcon.tsx";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
-import chainPageStyles from "./Chain.module.css";
-import { CompactSearch } from "../components/table/CompactSearch.tsx";
-import commonStyles from "../components/admin_tools/CommonStyle.module.css";
+import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
 import { TablePageLayout } from "../components/TablePageLayout.tsx";
 import {
@@ -175,7 +173,7 @@ export const SessionPage: React.FC = () => {
     [session, showModal],
   );
 
-  const onExportBtnClick = async () => {
+  const onExportBtnClick = useCallback(async () => {
     if (!sessionId) {
       return;
     }
@@ -185,7 +183,7 @@ export const SessionPage: React.FC = () => {
     } catch (error) {
       notificationService.requestFailed("Failed to export session", error);
     }
-  };
+  }, [notificationService, sessionId]);
 
   const tableColumnDefinitions: TableProps<SessionElement>["columns"] = useMemo(
     () => [
@@ -322,14 +320,35 @@ export const SessionPage: React.FC = () => {
     setExpandedRowKeys((keys) => keys.filter((k) => validIds.has(k)));
   }, [filteredSessionElements, searchTerm]);
 
-  const chainTabToolbar = useMemo(
+  const sessionToolbarActions = useMemo(
     () => (
-      <Flex
-        className={chainPageStyles.chainTabToolbarRow}
-        align="center"
-        gap={8}
-        wrap="wrap"
-      >
+      <>
+        <Tooltip title="Expand all session elements" placement="bottom">
+          <Button
+            icon={<OverridableIcon name="expandAll" />}
+            onClick={expandAllRows}
+          />
+        </Tooltip>
+        <Tooltip title="Collapse all session elements" placement="bottom">
+          <Button
+            icon={<OverridableIcon name="collapseAll" />}
+            onClick={collapseAllRows}
+          />
+        </Tooltip>
+        <Tooltip title="Export session" placement="bottom">
+          <Button
+            icon={<OverridableIcon name="cloudDownload" />}
+            onClick={() => void onExportBtnClick()}
+          />
+        </Tooltip>
+      </>
+    ),
+    [collapseAllRows, expandAllRows, onExportBtnClick],
+  );
+
+  const sessionToolbarLeading = useMemo(
+    () => (
+      <>
         <Tag>{session?.snapshotName ?? PLACEHOLDER}</Tag>
         {session?.executionStatus ? (
           <SessionStatus
@@ -339,39 +358,33 @@ export const SessionPage: React.FC = () => {
         ) : (
           <span>{PLACEHOLDER}</span>
         )}
-        <CompactSearch
-          value={searchTerm}
-          onChange={setSearchTerm}
-          placeholder="Search session elements..."
-          allowClear
-          className={commonStyles.searchField}
-          style={{ minWidth: 160, maxWidth: 360, flex: "0 1 auto" }}
-        />
-        <Flex align="center" gap={8} wrap="wrap" style={{ flexShrink: 0 }}>
-          {columnSettingsButton}
-          <Tooltip title="Expand all session elements" placement="bottom">
-            <Button
-              icon={<OverridableIcon name="expandAll" />}
-              onClick={expandAllRows}
-            />
-          </Tooltip>
-          <Tooltip title="Collapse all session elements" placement="bottom">
-            <Button
-              icon={<OverridableIcon name="collapseAll" />}
-              onClick={collapseAllRows}
-            />
-          </Tooltip>
-          <Tooltip title="Export session" placement="bottom">
-            <Button
-              icon={<OverridableIcon name="cloudDownload" />}
-              onClick={() => void onExportBtnClick()}
-            />
-          </Tooltip>
-        </Flex>
-      </Flex>
+      </>
     ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- columnSettingsButton identity varies; mirror Sessions.tsx
-    [searchTerm, columnSettingsButton, session, expandAllRows, collapseAllRows],
+    [session],
+  );
+
+  const chainTabToolbar = useMemo(
+    () => (
+      <TableToolbar
+        variant="chain-tab"
+        leading={sessionToolbarLeading}
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Search session elements...",
+          allowClear: true,
+          style: { minWidth: 160, maxWidth: 360, flex: "0 1 auto" },
+        }}
+        columnSettingsButton={columnSettingsButton}
+        actions={sessionToolbarActions}
+      />
+    ),
+    [
+      searchTerm,
+      columnSettingsButton,
+      sessionToolbarLeading,
+      sessionToolbarActions,
+    ],
   );
 
   useRegisterChainHeaderActions(chainTabToolbar, [

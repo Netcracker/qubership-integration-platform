@@ -1,0 +1,75 @@
+.toolbar {
+  display: flex;
+  max-width: 100%;
+}
+
+.default {
+  flex: none;
+  width: 100%;
+  justify-content: space-between;
+  padding-inline: 8px;
+}
+
+.admin {
+  width: auto;
+  max-width: 100%;
+  justify-content: flex-end;
+}
+
+.chainTab {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 100%;
+  justify-content: flex-end;
+}
+
+.search {
+  max-width: 100%;
+}
+
+.leading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.adminSearch {
+  width: 500px;
+  margin-left: auto;
+}
+
+.chainTabSearch {
+  min-width: 160px;
+  max-width: 360px;
+  flex: 0 1 auto;
+}
+
+.actions {
+  flex-shrink: 0;
+}
+
+.defaultActions {
+  margin-left: auto;
+}
+
+@media (width <= 768px) {
+  .admin {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .adminSearch {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .adminActions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .adminActions :global(.ant-btn) {
+    width: 100%;
+    margin-bottom: 8px;
+  }
+}

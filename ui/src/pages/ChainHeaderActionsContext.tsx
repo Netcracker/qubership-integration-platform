@@ -8,7 +8,7 @@ import {
 } from "react";
 
 type ChainHeaderActionsContextValue = {
-  setActions: (actions: ReactNode) => void;
+  registerHeaderActions: (actions: ReactNode) => () => void;
 };
 
 const ChainHeaderActionsContext =
@@ -22,20 +22,19 @@ export const useRegisterChainHeaderActions = (
   actions: ReactNode,
   dependencies: DependencyList = [],
 ): void => {
-  const setActions = useChainHeaderActions()?.setActions;
+  const registerHeaderActions = useChainHeaderActions()?.registerHeaderActions;
   const actionsRef = useRef<ReactNode>(actions);
 
   actionsRef.current = actions;
 
   useEffect(() => {
-    if (!setActions || actionsRef.current === undefined) {
+    if (!registerHeaderActions || actionsRef.current === undefined) {
       return;
     }
 
-    setActions(actionsRef.current);
-    return () => setActions(null);
+    return registerHeaderActions(actionsRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setActions, ...dependencies]);
+  }, [registerHeaderActions, ...dependencies]);
 };
 
 export const ChainHeaderActionsContextProvider =

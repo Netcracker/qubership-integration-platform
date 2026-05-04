@@ -4,7 +4,6 @@ import type { ColumnsType } from "antd/es/table";
 import { Engine, RunningStatus } from "../../../api/apiTypes.ts";
 import { DeploymentsTable } from "./DeploymentsTable";
 import { treeExpandIcon } from "../../table/TreeExpandIcon";
-import tableStyles from "./Tables.module.css";
 import { useDeploymentsForEngine } from "./hooks/useDeploymentsForEngine";
 import { RunningStatusValue } from "./RunningStatusValue.tsx";
 import {
@@ -22,13 +21,13 @@ interface Props {
 
 const columns: ColumnsType<Engine> = [
   {
-    title: <span className={tableStyles.columnHeader}>Engine Name</span>,
+    title: "Engine Name",
     dataIndex: "name",
     key: "name",
     render: (text) => <Typography.Text strong>{text}</Typography.Text>,
   },
   {
-    title: <span className={tableStyles.columnHeader}>Pod address</span>,
+    title: "Pod address",
     dataIndex: "host",
     key: "host",
     render: (text) => (
@@ -37,7 +36,7 @@ const columns: ColumnsType<Engine> = [
     align: "right",
   },
   {
-    title: <span className={tableStyles.columnHeader}>State</span>,
+    title: "State",
     dataIndex: "runningStatus",
     key: "runningStatus",
     render: (status: RunningStatus) => (
@@ -48,7 +47,7 @@ const columns: ColumnsType<Engine> = [
     align: "right",
   },
   {
-    title: <span className={tableStyles.columnHeader}>Pod status</span>,
+    title: "Pod status",
     dataIndex: "ready",
     key: "ready",
     render: (ready: boolean) => {
@@ -128,6 +127,7 @@ export const EngineTable: React.FC<Props> = ({
       <Spin spinning={isLoading}>
         <Table
           rowKey="id"
+          className="flex-table"
           columns={columnsWithResize}
           dataSource={engines}
           pagination={false}

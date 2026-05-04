@@ -1247,4 +1247,42 @@ describe("Sessions", () => {
 
     expect(mockGetSessions).toHaveBeenCalledTimes(1);
   });
+
+  describe("toolbar layout variants", () => {
+    test("chain-tab registers search and refresh in chain header slot", async () => {
+      mockUseParams.mockReturnValue({ chainId: "chain-1" });
+      mockGetSessions.mockResolvedValue({ sessions: [], offset: 0 });
+
+      renderSessions();
+
+      await waitFor(() => {
+        expect(mockGetSessions).toHaveBeenCalled();
+      });
+
+      const slot = screen.getByTestId("chain-header-slot");
+      expect(within(slot).getByTestId("search-input")).toBeInTheDocument();
+      expect(within(slot).getByTestId("sessions-refresh")).toBeInTheDocument();
+    });
+
+    test("admin-page shows Sessions title with snippets icon and toolbar outside chain header slot", async () => {
+      mockUseParams.mockReturnValue({});
+      mockGetSessions.mockResolvedValue({ sessions: [], offset: 0 });
+
+      renderPageWithChainHeader(<Sessions variant="admin-page" />);
+
+      await waitFor(() => {
+        expect(mockGetSessions).toHaveBeenCalled();
+      });
+
+      expect(screen.getByText("Sessions")).toBeInTheDocument();
+      expect(screen.getByTestId("icon-snippets")).toBeInTheDocument();
+
+      const slot = screen.getByTestId("chain-header-slot");
+      expect(
+        within(slot).queryByTestId("search-input"),
+      ).not.toBeInTheDocument();
+
+      expect(screen.getByTestId("search-input")).toBeInTheDocument();
+    });
+  });
 });

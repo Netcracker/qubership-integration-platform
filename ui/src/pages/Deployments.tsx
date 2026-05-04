@@ -36,11 +36,9 @@ import {
   disableResizeBeforeActions,
 } from "../components/table/actionsColumn.ts";
 import { matchesByFields } from "../components/table/tableSearch.ts";
-import { CompactSearch } from "../components/table/CompactSearch.tsx";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
-import commonStyles from "../components/admin_tools/CommonStyle.module.css";
+import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
-import chainPageStyles from "./Chain.module.css";
 
 function deploymentMatchesSearch(
   deployment: Deployment,
@@ -215,9 +213,12 @@ export const Deployments: React.FC = () => {
     [columnsWithResize, deploymentsColumnResize.columnWidths],
   );
 
-  const onDeploymentCreated = (deployment: Deployment) => {
-    setDeployments([...(deployments ?? []), deployment]);
-  };
+  const onDeploymentCreated = useCallback(
+    (deployment: Deployment) => {
+      setDeployments((prev) => [...(prev ?? []), deployment]);
+    },
+    [setDeployments],
+  );
 
   const createDeployment = useCallback(
     async (options: CreateDeploymentOptions) => {
@@ -247,7 +248,7 @@ export const Deployments: React.FC = () => {
         notificationService.requestFailed("Failed to create deployment", error);
       }
     },
-    [chainId, notificationService, setDeployments],
+    [chainId, notificationService, onDeploymentCreated],
   );
 
   const onCreateClick = useCallback(() => {
@@ -260,22 +261,17 @@ export const Deployments: React.FC = () => {
 
   const chainTabToolbar = useMemo(
     () => (
-      <Flex
-        className={chainPageStyles.chainTabToolbarRow}
-        align="center"
-        gap={8}
-        wrap="wrap"
-      >
-        <CompactSearch
-          value={searchTerm}
-          onChange={setSearchTerm}
-          placeholder="Search deployments..."
-          allowClear
-          className={commonStyles.searchField as string}
-          style={{ minWidth: 160, maxWidth: 360, flex: "0 1 auto" }}
-        />
-        <Flex align="center" gap={8} wrap="wrap" style={{ flexShrink: 0 }}>
-          {columnSettingsButton}
+      <TableToolbar
+        variant="chain-tab"
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Search deployments...",
+          allowClear: true,
+          style: { minWidth: 160, maxWidth: 360, flex: "0 1 auto" },
+        }}
+        columnSettingsButton={columnSettingsButton}
+        actions={
           <ProtectedButton
             require={{ deployment: ["create"] }}
             tooltipProps={{ title: "Create deployment" }}
@@ -285,15 +281,14 @@ export const Deployments: React.FC = () => {
               onClick: onCreateClick,
             }}
           />
-        </Flex>
-      </Flex>
+        }
+      />
     ),
-    [searchTerm, setSearchTerm, columnSettingsButton, onCreateClick],
+    [searchTerm, columnSettingsButton, onCreateClick],
   );
 
   useRegisterChainHeaderActions(chainTabToolbar, [
     searchTerm,
-    setSearchTerm,
     onCreateClick,
   ]);
 

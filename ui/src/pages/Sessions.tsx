@@ -33,7 +33,6 @@ import { SessionStatus } from "../components/sessions/SessionStatus.tsx";
 import { useModalsContext } from "../Modals.tsx";
 import { downloadFile } from "../misc/download-utils.ts";
 import { ImportSessions } from "../components/modal/ImportSessions.tsx";
-import { CompactSearch } from "../components/table/CompactSearch.tsx";
 import {
   isTimestampFilter,
   TimestampColumnFilterDropdown,
@@ -52,7 +51,6 @@ import { parseJson } from "../misc/json-helper.ts";
 import { TablePageLayout } from "../components/TablePageLayout.tsx";
 import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
-import chainPageStyles from "./Chain.module.css";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
@@ -62,6 +60,8 @@ import {
   useTableColumnResize,
 } from "../components/table/useTableColumnResize.tsx";
 import commonStyles from "../components/admin_tools/CommonStyle.module.css";
+import { TableToolbar } from "../components/table/TableToolbar.tsx";
+import { AdminToolsHeader } from "../components/admin_tools/AdminToolsHeader.tsx";
 
 type SessionTableItem = Session & {
   children?: SessionTableItem[];
@@ -131,7 +131,13 @@ function compareTimestamps(s1: string, s2: string): number {
 const SESSIONS_EXPAND_COLUMN_WIDTH = 48;
 const SESSIONS_SELECTION_COLUMN_WIDTH = 48;
 
-export const Sessions: React.FC = () => {
+type SessionsProps = {
+  variant?: "chain-tab" | "admin-page";
+};
+
+export const Sessions: React.FC<SessionsProps> = ({
+  variant = "chain-tab",
+}) => {
   const { chainId } = useParams<{ chainId: string }>();
   const { showModal } = useModalsContext();
   const navigate = useNavigate();
@@ -576,67 +582,47 @@ export const Sessions: React.FC = () => {
     void updateTableData();
   }, [updateTableData]);
 
-  const chainTabToolbar = useMemo(
+  const sessionsToolbarActions = useMemo(
     () => (
-      <Flex
-        className={chainPageStyles.chainTabToolbarRow}
-        align="center"
-        gap={8}
-        wrap="wrap"
-      >
-        <CompactSearch
-          value={filters.searchString}
-          onChange={(value) =>
-            setFilters((prev) => ({ ...prev, searchString: value }))
-          }
-          placeholder="Search sessions..."
-          allowClear
-          className={commonStyles.searchField}
-          style={{ minWidth: 160, maxWidth: 360, flex: "0 1 auto" }}
+      <>
+        <ProtectedButton
+          require={{ session: ["read"] }}
+          tooltipProps={{ title: "Refresh", placement: "bottom" }}
+          buttonProps={{
+            "data-testid": "sessions-refresh",
+            iconName: "refresh",
+            onClick: () => onRefreshSessions(),
+          }}
         />
-        <Flex align="center" gap={8} wrap="wrap" style={{ flexShrink: 0 }}>
+        <ProtectedButton
+          require={{ session: ["export"] }}
+          tooltipProps={{ title: "Export selected sessions" }}
+          buttonProps={{
+            iconName: "cloudDownload",
+            onClick: () => void onExportBtnClick(),
+          }}
+        />
+        {chainId ? null : (
           <ProtectedButton
-            require={{ session: ["read"] }}
-            tooltipProps={{ title: "Refresh", placement: "bottom" }}
+            require={{ session: ["import"] }}
+            tooltipProps={{ title: "Import sessions" }}
             buttonProps={{
-              "data-testid": "sessions-refresh",
-              iconName: "refresh",
-              onClick: () => onRefreshSessions(),
+              iconName: "cloudUpload",
+              onClick: onImportBtnClick,
             }}
           />
-          <ProtectedButton
-            require={{ session: ["export"] }}
-            tooltipProps={{ title: "Export selected sessions" }}
-            buttonProps={{
-              iconName: "cloudDownload",
-              onClick: () => void onExportBtnClick(),
-            }}
-          />
-          {chainId ? null : (
-            <ProtectedButton
-              require={{ session: ["import"] }}
-              tooltipProps={{ title: "Import sessions" }}
-              buttonProps={{
-                iconName: "cloudUpload",
-                onClick: onImportBtnClick,
-              }}
-            />
-          )}
-          <ProtectedButton
-            require={{ session: ["delete"] }}
-            tooltipProps={{ title: "Delete selected sessions" }}
-            buttonProps={{
-              iconName: "delete",
-              onClick: onDeleteBtnClick,
-            }}
-          />
-          {columnSettingsButton}
-        </Flex>
-      </Flex>
+        )}
+        <ProtectedButton
+          require={{ session: ["delete"] }}
+          tooltipProps={{ title: "Delete selected sessions" }}
+          buttonProps={{
+            iconName: "delete",
+            onClick: onDeleteBtnClick,
+          }}
+        />
+      </>
     ),
     [
-      filters.searchString,
-      columnSettingsButton,
       chainId,
       onRefreshSessions,
       onDeleteBtnClick,
@@ -645,34 +631,76 @@ export const Sessions: React.FC = () => {
     ],
   );
 
-  useRegisterChainHeaderActions(chainTabToolbar, [
-    filters.searchString,
-    chainId,
-    selectedRowKeys,
-    onRefreshSessions,
-  ]);
+  const sessionsToolbar = useMemo(
+    () => (
+      <TableToolbar
+        variant={variant === "admin-page" ? "admin" : "chain-tab"}
+        search={{
+          value: filters.searchString,
+          onChange: (value) =>
+            setFilters((prev) => ({ ...prev, searchString: value })),
+          placeholder: "Search sessions...",
+          allowClear: true,
+        }}
+        columnSettingsButton={columnSettingsButton}
+        actions={sessionsToolbarActions}
+      />
+    ),
+    [
+      variant,
+      filters.searchString,
+      columnSettingsButton,
+      sessionsToolbarActions,
+    ],
+  );
+
+  useRegisterChainHeaderActions(
+    variant === "chain-tab" ? sessionsToolbar : undefined,
+    [
+      filters.searchString,
+      chainId,
+      selectedRowKeys,
+      onRefreshSessions,
+      variant,
+    ],
+  );
+
+  const sessionsTable = (
+    <TablePageLayout>
+      <Table<SessionTableItem>
+        size="small"
+        className="flex-table"
+        columns={columnsWithResize}
+        rowSelection={rowSelection}
+        dataSource={tableData}
+        pagination={false}
+        loading={isLoading}
+        rowKey="id"
+        sticky
+        style={{ flex: 1, minHeight: 0 }}
+        scroll={tableData.length > 0 ? { x: scrollX, y: "" } : { x: scrollX }}
+        components={sessionsColumnResize.resizableHeaderComponents}
+        onScroll={(event) => void onScroll(event)}
+        onChange={(_, tableFilters) => setTableFilters(tableFilters)}
+      />
+    </TablePageLayout>
+  );
 
   return (
     <>
       {contextHolder}
-      <TablePageLayout>
-        <Table<SessionTableItem>
-          size="small"
-          className="flex-table"
-          columns={columnsWithResize}
-          rowSelection={rowSelection}
-          dataSource={tableData}
-          pagination={false}
-          loading={isLoading}
-          rowKey="id"
-          sticky
-          style={{ flex: 1, minHeight: 0 }}
-          scroll={tableData.length > 0 ? { x: scrollX, y: "" } : { x: scrollX }}
-          components={sessionsColumnResize.resizableHeaderComponents}
-          onScroll={(event) => void onScroll(event)}
-          onChange={(_, tableFilters) => setTableFilters(tableFilters)}
-        />
-      </TablePageLayout>
+      {variant === "admin-page" ? (
+        <Flex vertical className={commonStyles.container}>
+          <AdminToolsHeader
+            title="Sessions"
+            iconName="snippets"
+            toolbar={sessionsToolbar}
+          />
+          {sessionsTable}
+        </Flex>
+      ) : (
+        sessionsTable
+      )}
     </>
   );
 };

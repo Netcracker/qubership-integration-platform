@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
-import { Button, Flex, Table } from "antd";
+import { Button, Table } from "antd";
 import { useSnapshots } from "../hooks/useSnapshots.tsx";
 import { useParams } from "react-router";
 import { useNavigate } from "react-router";
@@ -43,11 +43,9 @@ import {
   disableResizeBeforeActions,
 } from "../components/table/actionsColumn.ts";
 import { matchesByFields } from "../components/table/tableSearch.ts";
-import { CompactSearch } from "../components/table/CompactSearch.tsx";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
-import commonStyles from "../components/admin_tools/CommonStyle.module.css";
+import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
-import chainPageStyles from "./Chain.module.css";
 import { ChainContext } from "./ChainPage.tsx";
 
 const SNAPSHOTS_SELECTION_COLUMN_WIDTH = 48;
@@ -146,7 +144,9 @@ export const Snapshots: React.FC = () => {
   ) => {
     try {
       const snapshot = await api.updateSnapshot(snapshotId, name, labels);
-      setSnapshots((state) => state?.map((s) => (s.id === snapshotId ? snapshot : s)));
+      setSnapshots((state) =>
+        state?.map((s) => (s.id === snapshotId ? snapshot : s)),
+      );
     } catch (error) {
       notificationService.requestFailed("Failed to update snapshot", error);
     }
@@ -421,58 +421,58 @@ export const Snapshots: React.FC = () => {
 
   const chainTabToolbar = useMemo(
     () => (
-      <Flex
-        className={chainPageStyles.chainTabToolbarRow}
-        align="center"
-        gap={8}
-        wrap="wrap"
-      >
-        <CompactSearch
-          value={searchTerm}
-          onChange={setSearchTerm}
-          placeholder="Search snapshots..."
-          allowClear
-          className={commonStyles.searchField as string}
-          style={{ minWidth: 160, maxWidth: 360, flex: "0 1 auto" }}
-        />
-        <Flex align="center" gap={8} wrap="wrap" style={{ flexShrink: 0 }}>
-          {columnSettingsButton}
-          <ProtectedButton
-            require={{ snapshot: ["read"] }}
-            tooltipProps={{ title: "Compare selected snapshots" }}
-            buttonProps={{
-              iconName: "compare",
-              onClick: onCompareBtnClick,
-              disabled: selectedRowKeys.length !== 2,
-            }}
-          />
-          <ProtectedButton
-            require={{ snapshot: ["delete"] }}
-            tooltipProps={{ title: "Delete selected snapshots" }}
-            buttonProps={{
-              iconName: "delete",
-              onClick: onDeleteBtnClick,
-              disabled: selectedRowKeys.length === 0,
-            }}
-          />
-          <ProtectedButton
-            require={{ snapshot: ["create"] }}
-            tooltipProps={{ title: "Create snapshot" }}
-            buttonProps={{
-              type: "primary",
-              iconName: "plus",
-              onClick: onCreateBtnClick,
-            }}
-          />
-        </Flex>
-      </Flex>
+      <TableToolbar
+        variant="chain-tab"
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Search snapshots...",
+          allowClear: true,
+          style: { minWidth: 160, maxWidth: 360, flex: "0 1 auto" },
+        }}
+        columnSettingsButton={columnSettingsButton}
+        actions={
+          <>
+            <ProtectedButton
+              require={{ snapshot: ["read"] }}
+              tooltipProps={{ title: "Compare selected snapshots" }}
+              buttonProps={{
+                iconName: "compare",
+                onClick: onCompareBtnClick,
+                disabled: selectedRowKeys.length !== 2,
+              }}
+            />
+            <ProtectedButton
+              require={{ snapshot: ["delete"] }}
+              tooltipProps={{ title: "Delete selected snapshots" }}
+              buttonProps={{
+                iconName: "delete",
+                onClick: onDeleteBtnClick,
+                disabled: selectedRowKeys.length === 0,
+              }}
+            />
+            <ProtectedButton
+              require={{ snapshot: ["create"] }}
+              tooltipProps={{ title: "Create snapshot" }}
+              buttonProps={{
+                type: "primary",
+                iconName: "plus",
+                onClick: onCreateBtnClick,
+              }}
+            />
+          </>
+        }
+      />
     ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers close over latest state; register deps omit unstable columnSettingsButton
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toolbar handlers close over latest state; omit unstable identities
     [searchTerm, columnSettingsButton, selectedRowKeys],
   );
 
-  /* columnSettingsButton omitted: unstable identity would retrigger parent setState in a loop */
-  useRegisterChainHeaderActions(chainTabToolbar, [searchTerm, selectedRowKeys]);
+  useRegisterChainHeaderActions(chainTabToolbar, [
+    searchTerm,
+    selectedRowKeys,
+    // columnSettingsButton is new JSX every render — omit or header re-registers every frame and breaks tab clicks.
+  ]);
 
   return (
     <TablePageLayout>

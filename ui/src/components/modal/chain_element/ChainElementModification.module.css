@@ -72,8 +72,15 @@
 }
 
 /* Description is now rendered in the footer, hide RJSF's default placement */
-.modal-body :global(#root__description) {
-  display: none;
+.modalFocusRoot {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.modalFocusRoot:focus:not(:focus-visible) {
+  outline: none;
 }
 
 .parameters-form {

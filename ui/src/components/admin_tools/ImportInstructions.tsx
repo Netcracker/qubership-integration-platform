@@ -7,7 +7,6 @@ import {
   Modal,
   Select,
   Table,
-  Typography,
   UploadFile,
 } from "antd";
 import type { TableProps } from "antd";
@@ -29,7 +28,8 @@ import { InlineEditWithButtons } from "../InlineEditWithButtons.tsx";
 import { SelectEdit } from "../table/SelectEdit.tsx";
 import { TextValueEdit } from "../table/TextValueEdit.tsx";
 import inlineEditStyles from "../InlineEdit.module.css";
-import { CompactSearch } from "../table/CompactSearch.tsx";
+import { TableToolbar } from "../table/TableToolbar.tsx";
+import { AdminToolsHeader } from "./AdminToolsHeader.tsx";
 import {
   formatSnakeCased,
   formatTimestampShort,
@@ -59,9 +59,14 @@ import {
   attachResizeToColumns,
   useTableColumnResize,
 } from "../table/useTableColumnResize.tsx";
-import { ColumnsTypeWithSettings, useColumnSettingsBasedOnColumnsType } from "../table/useColumnSettingsButton.tsx";
+import {
+  ColumnsTypeWithSettings,
+  useColumnSettingsBasedOnColumnsType,
+} from "../table/useColumnSettingsButton.tsx";
 
-const { Title } = Typography;
+const columnSettingsWithTestId = (button: React.ReactNode) => (
+  <span data-testid="import-instructions-column-settings">{button}</span>
+);
 
 // Ant Design requires a stable component reference for filterDropdown.
 // Passing an inline function causes the filter popover to reset on every re-render.
@@ -672,32 +677,18 @@ export const ImportInstructions: React.FC = () => {
     [selectedRowKeys],
   );
 
-  return (
-    <Flex vertical className={commonStyles.container}>
-      <Flex className={commonStyles.header}>
-        <Title level={4} className={commonStyles.title}>
-          <OverridableIcon
-            name="importInstructions"
-            className={commonStyles.icon}
-          />
-          Import Instructions
-        </Title>
-        <Flex
-          vertical={false}
-          gap={8}
-          className={commonStyles.actions}
-          align="center"
-        >
-          <CompactSearch
-            value={searchTerm}
-            onChange={setSearchTerm}
-            placeholder="Search..."
-            allowClear
-            className={commonStyles.searchField}
-          />
-          <span data-testid="import-instructions-column-settings">
-            {columnSettingsButton}
-          </span>
+  const importInstructionsToolbar = (
+    <TableToolbar
+      variant="admin"
+      search={{
+        value: searchTerm,
+        onChange: setSearchTerm,
+        placeholder: "Search...",
+        allowClear: true,
+      }}
+      columnSettingsButton={columnSettingsWithTestId(columnSettingsButton)}
+      actions={
+        <>
           <ProtectedButton
             require={{ importInstructions: ["delete"] }}
             tooltipProps={{ title: "Delete selected" }}
@@ -746,8 +737,18 @@ export const ImportInstructions: React.FC = () => {
               children: "Add",
             }}
           />
-        </Flex>
-      </Flex>
+        </>
+      }
+    />
+  );
+
+  return (
+    <Flex vertical className={commonStyles.container}>
+      <AdminToolsHeader
+        title="Import Instructions"
+        iconName="importInstructions"
+        toolbar={importInstructionsToolbar}
+      />
 
       <div className={commonStyles["table-wrapper"]}>
         <Table<InstructionRow>

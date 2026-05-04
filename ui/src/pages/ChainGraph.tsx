@@ -141,8 +141,8 @@ const ChainGraphInner: React.FC = () => {
   const permissions = usePermissions();
   const [readOnly, setReadOnly] = useState<boolean>(false);
   const deleteKeyCode = useMemo<KeyCode | null>(
-    () => (readOnly || elementId ? null : ["Backspace", "Delete"]),
-    [elementId, readOnly],
+    () => (readOnly ? null : ["Backspace", "Delete"]),
+    [readOnly],
   );
   const [selectedByRightClick, setSelectedByRightClick] =
     useState<boolean>(false);
@@ -265,6 +265,11 @@ const ChainGraphInner: React.FC = () => {
     },
     [onDelete],
   );
+
+  const onBeforeDelete = useCallback(async () => {
+    if (typeof document === "undefined") return true;
+    return !document.querySelector(".ant-modal-wrap");
+  }, []);
 
   const { menu, closeMenu, onContextMenuCall } = useContextMenu(
     handleDelete,
@@ -704,6 +709,7 @@ const ChainGraphInner: React.FC = () => {
                           void handleDelete(changes);
                         }
                   }
+                  onBeforeDelete={readOnly ? undefined : onBeforeDelete}
                   onDrop={readOnly ? undefined : (event) => void onDrop(event)}
                   onDragOver={readOnly ? undefined : onDragOver}
                   onNodeDoubleClick={readOnly ? undefined : onNodeDoubleClick}
@@ -744,6 +750,7 @@ const ChainGraphInner: React.FC = () => {
                     }
                   />
                   <div
+                    className="nokey"
                     style={{
                       width: rightPanelWidth,
                       minWidth: MIN_PANEL_WIDTH,

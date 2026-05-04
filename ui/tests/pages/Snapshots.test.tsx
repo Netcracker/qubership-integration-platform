@@ -234,9 +234,7 @@ describe("Snapshots chain header toolbar", () => {
     mockUseParams.mockReturnValue({ chainId: "chain-1" });
     chainRefreshMock.mockResolvedValue(undefined);
     mockGetSnapshots.mockResolvedValue([]);
-    mockCreateSnapshot.mockResolvedValue(
-      baseSnapshot("new-snap", "new"),
-    );
+    mockCreateSnapshot.mockResolvedValue(baseSnapshot("new-snap", "new"));
     mockRevertToSnapshot.mockResolvedValue(baseSnapshot("rev", "reverted"));
   });
 
@@ -278,9 +276,7 @@ describe("Snapshots chain header toolbar", () => {
         void onOk();
       },
     );
-    mockGetSnapshots.mockResolvedValue([
-      baseSnapshot("snap-rev", "snap-rev"),
-    ]);
+    mockGetSnapshots.mockResolvedValue([baseSnapshot("snap-rev", "snap-rev")]);
 
     renderSnapshots();
 
@@ -345,9 +341,7 @@ describe("Snapshots chain header toolbar", () => {
   });
 
   test("Delete disabled when no rows selected", async () => {
-    mockGetSnapshots.mockResolvedValue([
-      baseSnapshot("x", "snap-x"),
-    ]);
+    mockGetSnapshots.mockResolvedValue([baseSnapshot("x", "snap-x")]);
 
     renderSnapshots();
 
@@ -359,5 +353,48 @@ describe("Snapshots chain header toolbar", () => {
     expect(
       within(slot).getByTestId("protected-btn-delete-selected-snapshots"),
     ).toBeDisabled();
+  });
+
+  test("table scroll includes empty y when filtered snapshots exist", async () => {
+    mockGetSnapshots.mockResolvedValue([baseSnapshot("s1", "snap-one")]);
+
+    renderSnapshots();
+
+    await waitFor(() => {
+      expect(screen.getByText("snap-one")).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      const raw = document
+        .querySelector(".flex-table")
+        ?.getAttribute("data-scroll");
+      expect(raw).toBeTruthy();
+      const scroll = JSON.parse(raw!) as { x: number; y?: string };
+      expect(scroll.y).toBe("");
+    });
+  });
+
+  test("table scroll omits y when search filters out all snapshots", async () => {
+    mockGetSnapshots.mockResolvedValue([baseSnapshot("s1", "snap-one")]);
+
+    renderSnapshots();
+
+    await waitFor(() => {
+      expect(screen.getByText("snap-one")).toBeInTheDocument();
+    });
+
+    const slot = screen.getByTestId("chain-header-slot");
+    fireEvent.change(within(slot).getByPlaceholderText("Search snapshots..."), {
+      target: { value: "__no_match__" },
+    });
+
+    await waitFor(() => {
+      const raw = document
+        .querySelector(".flex-table")
+        ?.getAttribute("data-scroll");
+      expect(raw).toBeTruthy();
+      const scroll = JSON.parse(raw!) as { x: number; y?: string };
+      expect("y" in scroll).toBe(false);
+    });
   });
 });

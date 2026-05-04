@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
-  Typography,
   Button,
   Input,
   Form,
@@ -30,9 +29,9 @@ import {
   attachResizeToColumns,
   useTableColumnResize,
 } from "../../table/useTableColumnResize.tsx";
-import { CompactSearch } from "../../table/CompactSearch.tsx";
+import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
+import { TableToolbar } from "../../table/TableToolbar.tsx";
 
-const { Title } = Typography;
 type SecretRow = { key: string; secret: string };
 
 function secretNameMatchesSearch(secretName: string, term: string): boolean {
@@ -433,57 +432,52 @@ export const SecuredVariables: React.FC = () => {
 
   return (
     <Flex vertical className={commonStyles["container"]}>
-      <Flex
-        vertical={false}
-        justify="space-between"
-        align="center"
-        gap={8}
-        wrap="wrap"
-        style={{ marginBottom: 16 }}
-      >
-        <Title level={4} className={commonStyles["title"]}>
-          <OverridableIcon name="lock" className={commonStyles["icon"]} />
-          Secured Variables
-        </Title>
-        <Flex vertical={false} align="center" gap={8} wrap="wrap">
-          <CompactSearch
-            value={searchTerm}
-            onChange={setSearchTerm}
-            placeholder="Search secrets..."
-            allowClear
-            className={commonStyles["searchField"]}
+      <AdminToolsHeader
+        title="Secured Variables"
+        iconName="lock"
+        toolbar={
+          <TableToolbar
+            variant="admin"
+            search={{
+              value: searchTerm,
+              onChange: setSearchTerm,
+              placeholder: "Search secrets...",
+              allowClear: true,
+            }}
+            actions={
+              <>
+                <ProtectedButton
+                  require={{ securedVariable: ["delete"] }}
+                  tooltipProps={{
+                    title: "Delete selected variables",
+                    placement: "bottom",
+                  }}
+                  buttonProps={{
+                    iconName: "delete",
+                    onClick: () => {
+                      if (!hasSelected) return;
+                      Modal.confirm({
+                        title: `Delete selected variable(s)?`,
+                        content: `Are you sure you want to delete variables(s)?`,
+                        onOk: handleDeleteSelected,
+                      });
+                    },
+                    disabled: !hasSelected,
+                  }}
+                />
+                <ProtectedButton
+                  require={{ secret: ["create"] }}
+                  tooltipProps={{ title: "Add secret", placement: "bottom" }}
+                  buttonProps={{
+                    iconName: "plus",
+                    onClick: () => setCreateModalVisible(true),
+                  }}
+                />
+              </>
+            }
           />
-          <Flex vertical={false} gap={4}>
-            <ProtectedButton
-              require={{ securedVariable: ["delete"] }}
-              tooltipProps={{
-                title: "Delete selected variables",
-                placement: "bottom",
-              }}
-              buttonProps={{
-                iconName: "delete",
-                onClick: () => {
-                  if (!hasSelected) return;
-                  Modal.confirm({
-                    title: `Delete selected variable(s)?`,
-                    content: `Are you sure you want to delete variables(s)?`,
-                    onOk: handleDeleteSelected,
-                  });
-                },
-                disabled: !hasSelected,
-              }}
-            />
-            <ProtectedButton
-              require={{ secret: ["create"] }}
-              tooltipProps={{ title: "Add secret", placement: "bottom" }}
-              buttonProps={{
-                iconName: "plus",
-                onClick: () => setCreateModalVisible(true),
-              }}
-            />
-          </Flex>
-        </Flex>
-      </Flex>
+        }
+      />
 
       <Modal
         title="Create Secret"

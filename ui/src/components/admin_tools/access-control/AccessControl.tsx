@@ -2,7 +2,6 @@ import React, { useMemo, useState, UIEvent } from "react";
 import {
   Flex,
   Table,
-  Typography,
   Button,
   Tag,
   Tooltip,
@@ -42,10 +41,9 @@ import {
   attachResizeToColumns,
   useTableColumnResize,
 } from "../../table/useTableColumnResize.tsx";
-import { CompactSearch } from "../../table/CompactSearch.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
-
-const { Title } = Typography;
+import { TableToolbar } from "../../table/TableToolbar.tsx";
+import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 
 const typeOptions = [
   { label: "External", value: "External" },
@@ -510,31 +508,18 @@ export const AccessControl: React.FC = () => {
     ],
   );
 
-  return (
-    <Flex vertical className={commonStyles["container"]}>
-      <Flex className={commonStyles["header"]}>
-        <Title level={4} className={commonStyles["title"]}>
-          <OverridableIcon
-            name="accessControl"
-            className={commonStyles["icon"]}
-          />
-          Access Control
-        </Title>
-        <Flex
-          vertical={false}
-          align="center"
-          gap={8}
-          wrap="wrap"
-          className={commonStyles["actions"]}
-        >
-          <CompactSearch
-            value={searchTerm}
-            onChange={setSearchTerm}
-            placeholder="Search access control..."
-            allowClear
-            className={commonStyles["searchField"] as string}
-          />
-          {columnSettingsButton}
+  const accessControlToolbar = (
+    <TableToolbar
+      variant="admin"
+      search={{
+        value: searchTerm,
+        onChange: setSearchTerm,
+        placeholder: "Search access control...",
+        allowClear: true,
+      }}
+      columnSettingsButton={columnSettingsButton}
+      actions={
+        <>
           <Tooltip title="Select Unsaved Chains" placement="bottom">
             <Button
               icon={<OverridableIcon name="checkSquare" />}
@@ -677,8 +662,18 @@ export const AccessControl: React.FC = () => {
               onClick={() => void getAccessControl()}
             />
           </Tooltip>
-        </Flex>
-      </Flex>
+        </>
+      }
+    />
+  );
+
+  return (
+    <Flex vertical className={commonStyles["container"]}>
+      <AdminToolsHeader
+        title="Access Control"
+        iconName="accessControl"
+        toolbar={accessControlToolbar}
+      />
       <Flex
         style={{
           flex: "1 1 auto",

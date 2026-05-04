@@ -42,12 +42,9 @@ import {
   useTableColumnResize,
 } from "../../table/useTableColumnResize.tsx";
 import { createActionsSizing } from "../../table/actionsColumn.ts";
-import { CompactSearch } from "../../table/CompactSearch.tsx";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
 import { TablePageLayout } from "../../TablePageLayout.tsx";
-import commonStyles from "../../admin_tools/CommonStyle.module.css";
-import tableStyles from "../../admin_tools/domains/Tables.module.css";
 import { useResizeHeight } from "../../../hooks/useResizeHeigth.tsx";
 
 interface ServiceEnvironmentsTabProps {
@@ -293,7 +290,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
         ),
       },
       {
-        title: <span className={tableStyles.columnHeader}>Name</span>,
+        title: "Name",
         dataIndex: "name",
         key: "name",
         render: (text: string, record: Environment) => (
@@ -321,7 +318,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
         ),
       },
       {
-        title: <span className={tableStyles.columnHeader}>Address</span>,
+        title: "Address",
         dataIndex: "address",
         key: "address",
         render: (text?: string) =>
@@ -337,7 +334,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
           ),
       },
       {
-        title: <span className={tableStyles.columnHeader}>Source</span>,
+        title: "Source",
         dataIndex: "sourceType",
         key: "sourceType",
         render: (val?: string) => {
@@ -347,14 +344,14 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
         },
       },
       {
-        title: <span className={tableStyles.columnHeader}>Modified At</span>,
+        title: "Modified At",
         dataIndex: "modifiedWhen",
         key: "modifiedWhen",
         hidden: isVsCode,
         render: (val?: number) => (val ? formatTimestamp(val) : ""),
       },
       {
-        title: <span className={tableStyles.columnHeader}>Labels</span>,
+        title: "Labels",
         dataIndex: "labels",
         key: "labels",
         render: (labels?: unknown[]) => {
@@ -394,7 +391,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
         },
       },
       {
-        title: <span className={tableStyles.columnHeader}>Used by</span>,
+        title: "Used by",
         key: "usedBy",
         align: "center",
         render: (_: unknown, record: Environment) => {
@@ -495,23 +492,9 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
 
   const isEnvironmentsActive = location.pathname.includes("/environments");
 
-  const environmentsTableToolbarLeading = useMemo(
+  const environmentsToolbarActions = useMemo(
     () => (
-      <CompactSearch
-        value={searchTerm}
-        onChange={setSearchTerm}
-        placeholder="Search environments..."
-        allowClear
-        className={commonStyles["searchField"] as string}
-      />
-    ),
-    [searchTerm],
-  );
-
-  const environmentsTableToolbarTrailing = useMemo(
-    () => (
-      <Flex gap={8} align="center" wrap="wrap">
-        {columnSettingsButton}
+      <>
         {!isVsCode && (
           <ProtectedButton
             require={{ service: ["export"] }}
@@ -543,17 +526,38 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
             }}
           />
         )}
-      </Flex>
+      </>
     ),
-    [columnSettingsButton, notificationService, system?.type, systemId],
+    [notificationService, system?.type, systemId],
   );
 
-  /** Toolbar lives in-tab (`TableToolbar`); clear tab bar slot used by other tabs. */
   useEffect(() => {
     if (!setToolbar || !isEnvironmentsActive) return;
-    setToolbar(null);
-    return () => setToolbar(null);
-  }, [setToolbar, isEnvironmentsActive]);
+    setToolbar(
+      <TableToolbar
+        variant="admin"
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Search environments...",
+          allowClear: true,
+        }}
+        columnSettingsButton={columnSettingsButton}
+        actions={environmentsToolbarActions}
+      />,
+    );
+    return () => {
+      setToolbar(null);
+    };
+    // columnSettingsButton is unstable (new element each render) — including it
+    // retriggers this effect after setToolbar → parent re-render → infinite loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- omit columnSettingsButton
+  }, [
+    setToolbar,
+    isEnvironmentsActive,
+    searchTerm,
+    environmentsToolbarActions,
+  ]);
 
   if (loading) return <Spin style={{ margin: 32 }} />;
   if (error)
@@ -576,10 +580,6 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
       }}
     >
       <TablePageLayout>
-        <TableToolbar
-          leading={environmentsTableToolbarLeading}
-          trailing={environmentsTableToolbarTrailing}
-        />
         <div
           ref={tableAreaRef}
           style={{
@@ -590,7 +590,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
           }}
         >
           <Table<Environment>
-            className={`flex-table ${tableStyles.mainTable}`}
+            className="flex-table"
             dataSource={filteredEnvironments}
             rowKey="id"
             pagination={false}

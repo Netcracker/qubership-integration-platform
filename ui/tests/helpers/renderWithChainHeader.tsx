@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { render, type RenderResult } from "@testing-library/react";
 import { Modals } from "../../src/Modals.tsx";
 import { ChainHeaderActionsContextProvider } from "../../src/pages/ChainHeaderActionsContext.tsx";
@@ -14,9 +14,23 @@ export function ChainHeaderTestRoot({
   children: React.ReactNode;
 }): React.ReactElement {
   const [header, setHeader] = useState<React.ReactNode>(null);
+  const registrationRef = useRef(0);
+  const registerHeaderActions = useCallback((actions: React.ReactNode) => {
+    const generation = ++registrationRef.current;
+    setHeader(actions);
+    return () => {
+      if (registrationRef.current === generation) {
+        setHeader(null);
+      }
+    };
+  }, []);
+  const contextValue = useMemo(
+    () => ({ registerHeaderActions }),
+    [registerHeaderActions],
+  );
   return (
     <Modals>
-      <ChainHeaderActionsContextProvider value={{ setActions: setHeader }}>
+      <ChainHeaderActionsContextProvider value={contextValue}>
         {children}
         <div data-testid="chain-header-slot">{header}</div>
       </ChainHeaderActionsContextProvider>

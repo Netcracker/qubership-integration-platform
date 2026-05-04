@@ -1,6 +1,5 @@
-import { Flex, Modal, Table, Tag, Typography } from "antd";
+import { Flex, Modal, Table, Tag } from "antd";
 import { useNotificationService } from "../../../hooks/useNotificationService";
-import { OverridableIcon } from "../../../icons/IconProvider";
 import commonStyles from "../CommonStyle.module.css";
 import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../../../api/api";
@@ -16,10 +15,9 @@ import {
   attachResizeToColumns,
   useTableColumnResize,
 } from "../../table/useTableColumnResize.tsx";
-import { CompactSearch } from "../../table/CompactSearch.tsx";
+import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
+import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
-
-const { Title } = Typography;
 
 const DESIGN_TEMPLATES_SELECTION_COLUMN_WIDTH = 48;
 
@@ -229,67 +227,68 @@ export const DesignTemplates: React.FC = () => {
 
   return (
     <Flex vertical className={commonStyles["container"]}>
-      <Flex className={commonStyles["header"]}>
-        <Title level={4} className={commonStyles["title"]}>
-          <OverridableIcon name="fileText" className={commonStyles["icon"]} />
-          Design Templates
-        </Title>
-        <Flex
-          vertical={false}
-          gap={8}
-          wrap="wrap"
-          className={commonStyles["actions"]}
-          align={"center"}
-        >
-          <CompactSearch
-            value={searchTerm}
-            onChange={setSearchTerm}
-            placeholder="Search templates..."
-            allowClear
-            className={commonStyles["searchField"] as string}
+      <AdminToolsHeader
+        title="Design Templates"
+        iconName="fileText"
+        toolbar={
+          <TableToolbar
+            variant="admin"
+            search={{
+              value: searchTerm,
+              onChange: setSearchTerm,
+              placeholder: "Search templates...",
+              allowClear: true,
+            }}
+            columnSettingsButton={columnSettingsButton}
+            actions={
+              <>
+                <ProtectedButton
+                  require={{ designTemplate: ["delete"] }}
+                  tooltipProps={{
+                    title: "Delete selected templates",
+                    placement: "bottom",
+                  }}
+                  buttonProps={{
+                    disabled: !isDeleteEnabled(),
+                    iconName: "delete",
+                    onClick: () => {
+                      Modal.confirm({
+                        title: `Delete template?`,
+                        content: `Are you sure you want to permanently delete selected templates?`,
+                        onOk: () => void handleDelete(),
+                      });
+                    },
+                  }}
+                />
+                <ProtectedButton
+                  require={{ designTemplate: ["export"] }}
+                  tooltipProps={{
+                    title: "Export selected template",
+                    placement: "bottom",
+                  }}
+                  buttonProps={{
+                    disabled: selectedRowKeys.length !== 1,
+                    iconName: "cloudDownload",
+                    onClick: () => void handleExport(),
+                  }}
+                />
+                <ProtectedButton
+                  require={{ designTemplate: ["create"] }}
+                  tooltipProps={{
+                    title: "Create template",
+                    placement: "bottom",
+                  }}
+                  buttonProps={{
+                    type: "primary",
+                    iconName: "plus",
+                    onClick: handleCreate,
+                  }}
+                />
+              </>
+            }
           />
-          {columnSettingsButton}
-          <ProtectedButton
-            require={{ designTemplate: ["delete"] }}
-            tooltipProps={{
-              title: "Delete selected templates",
-              placement: "bottom",
-            }}
-            buttonProps={{
-              disabled: !isDeleteEnabled(),
-              iconName: "delete",
-              onClick: () => {
-                Modal.confirm({
-                  title: `Delete template?`,
-                  content: `Are you sure you want to permanently delete selected templates?`,
-                  onOk: () => void handleDelete(),
-                });
-              },
-            }}
-          />
-          <ProtectedButton
-            require={{ designTemplate: ["export"] }}
-            tooltipProps={{
-              title: "Export selected template",
-              placement: "bottom",
-            }}
-            buttonProps={{
-              disabled: selectedRowKeys.length !== 1,
-              iconName: "cloudDownload",
-              onClick: () => void handleExport(),
-            }}
-          />
-          <ProtectedButton
-            require={{ designTemplate: ["create"] }}
-            tooltipProps={{ title: "Create template", placement: "bottom" }}
-            buttonProps={{
-              type: "primary",
-              iconName: "plus",
-              onClick: handleCreate,
-            }}
-          />
-        </Flex>
-      </Flex>
+        }
+      />
       <Flex
         style={{
           flex: "1 1 auto",

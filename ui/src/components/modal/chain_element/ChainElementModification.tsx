@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import React, {
   useEffect,
+  useLayoutEffect,
   useState,
   useMemo,
   useCallback,
@@ -270,6 +271,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const formRef = useRef<any>(null);
   const elementNameRef = useRef<ElementNameInlineEditRef>(null);
+  const modalFocusRootRef = useRef<HTMLDivElement>(null);
   const isInitializingRef = useRef(true);
   const hasUserEditedFormRef = useRef(false);
   const hasUserInteractedRef = useRef(false);
@@ -296,6 +298,18 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   const handleFullscreen = useCallback(() => {
     setIsFullscreen((prevValue) => !prevValue);
   }, []);
+
+  const moveFocusIntoModal = useCallback(() => {
+    globalThis.requestAnimationFrame(() => {
+      modalFocusRootRef.current?.focus({ preventScroll: true });
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!libraryElementIsLoading) {
+      moveFocusIntoModal();
+    }
+  }, [libraryElementIsLoading, moveFocusIntoModal]);
 
   const schemaModules = useMemo(() => getSchemaModules(), []);
 
@@ -893,6 +907,11 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   return (
     <Modal
       open
+      afterOpenChange={(open) => {
+        if (open) {
+          moveFocusIntoModal();
+        }
+      }}
       title={
         <Flex
           align="center"
@@ -978,14 +997,23 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
           ? [styles["modal"], styles["modal-fullscreen"]].join(" ")
           : styles["modal"],
         body: isFullscreen
-          ? [styles["modal-body"], styles["modal-body-fullscreen"]].join(" ")
-          : styles["modal-body"],
+          ? [
+              styles["modal-body"],
+              styles["modal-body-fullscreen"],
+              "nokey",
+            ].join(" ")
+          : [styles["modal-body"], "nokey"].join(" "),
         header: styles["modal-header"],
       }}
     >
-      {schema && activeKey && (
-        <>
-          <Tabs
+      <div
+        ref={modalFocusRootRef}
+        tabIndex={-1}
+        className={styles["modalFocusRoot"]}
+      >
+        {schema && activeKey && (
+          <>
+            <Tabs
             activeKey={activeKey}
             onChange={handleTabChange}
             items={uniqueTabs.map((tab) => ({ key: tab, label: tab }))}
@@ -1016,8 +1044,9 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               onChange={handleFormChange}
             />
           </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </Modal>
   );
 };

@@ -74,7 +74,7 @@ const Navigation = ({
           icon={<OverridableIcon name="logo" />}
           onClick={() => void navigate("/chains")}
           type="text"
-          size="large"
+          size="middle"
           title="Home"
           className={styles["home-button"]}
         />

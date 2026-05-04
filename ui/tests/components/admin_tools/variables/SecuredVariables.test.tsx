@@ -223,6 +223,14 @@ describe("SecuredVariables Component", () => {
       expect(screen.getByText("Secured Variables")).toBeInTheDocument();
     });
 
+    it("renders toolbar search with Search secrets placeholder", () => {
+      render(<SecuredVariables />);
+
+      expect(
+        screen.getByPlaceholderText("Search secrets..."),
+      ).toBeInTheDocument();
+    });
+
     it("loads and displays secrets on mount", async () => {
       render(<SecuredVariables />);
 

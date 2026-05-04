@@ -1,6 +1,10 @@
 .header {
   background: rgb(0 104 255);
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
   padding: 0 15px !important;
+  line-height: 40px;
 }
 
 .layout {

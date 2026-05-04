@@ -4,7 +4,6 @@ import type { ColumnsType } from "antd/es/table";
 import { EngineTable } from "./EngineTable";
 import { useEngines } from "./hooks/useEngines";
 import { treeExpandIcon } from "../../table/TreeExpandIcon";
-import tableStyles from "./Tables.module.css";
 import { DomainType, EngineDomain } from "../../../api/apiTypes.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
@@ -16,9 +15,9 @@ import {
   useTableColumnResize,
 } from "../../table/useTableColumnResize.tsx";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
-import { CompactSearch } from "../../table/CompactSearch.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
-import commonStyles from "../CommonStyle.module.css";
+import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
+import { TablePageLayout } from "../../TablePageLayout.tsx";
 
 /** rc-table expand icon column; not in `columns` but affects horizontal layout. */
 const DOMAINS_EXPAND_COLUMN_WIDTH = 48;
@@ -94,7 +93,7 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
   const columns: ColumnsType<EngineDomain> = useMemo(
     () => [
       {
-        title: <span className={tableStyles.columnHeader}>Domain</span>,
+        title: "Domain",
         dataIndex: "name",
         key: "name",
         render: (_: unknown, domain: EngineDomain) => {
@@ -115,27 +114,25 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
         },
       },
       {
-        title: <span className={tableStyles.columnHeader}>Version</span>,
+        title: "Version",
         dataIndex: "version",
         key: "version",
         align: "right",
       },
       {
-        title: (
-          <span className={tableStyles.columnHeader}>Desired engines</span>
-        ),
+        title: "Desired engines",
         dataIndex: "replicas",
         key: "replicas",
         align: "right",
       },
       {
-        title: <span className={tableStyles.columnHeader}>Namespace</span>,
+        title: "Namespace",
         dataIndex: "namespace",
         key: "namespace",
         align: "right",
       },
     ],
-    [],
+    [deleteMicroDomain],
   );
 
   const { orderedColumns, columnSettingsButton } =
@@ -187,37 +184,47 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
   }, [filteredData]);
 
   return (
-    <Flex vertical gap={8} style={{ width: "100%" }}>
-      <TableToolbar
-        leading={
-          <CompactSearch
-            value={searchTerm}
-            onChange={setSearchTerm}
-            placeholder="Search domains..."
-            allowClear
-            className={commonStyles.searchField as string}
+    <Flex vertical style={{ width: "100%", flex: 1, minHeight: 0 }}>
+      <AdminToolsHeader
+        title="Domains"
+        iconName="domains"
+        toolbar={
+          <TableToolbar
+            variant="admin"
+            search={{
+              value: searchTerm,
+              onChange: setSearchTerm,
+              placeholder: "Search domains...",
+              allowClear: true,
+            }}
+            columnSettingsButton={columnSettingsButton}
           />
         }
-        trailing={columnSettingsButton}
       />
-      <Table
-        columns={columnsWithResize}
-        dataSource={filteredData}
-        loading={isLoading}
-        pagination={false}
-        className={tableStyles.mainTable}
-        scroll={{ x: scrollX }}
-        components={domainsColumnResize.resizableHeaderComponents}
-        expandable={{
-          expandIcon: treeExpandIcon(),
-          expandedRowRender: (record) => <EnginesForDomain domain={record} />,
-          expandedRowKeys: expandedRowKeys,
-          onExpandedRowsChange: (expandedKeys) =>
-            setExpandedRowKeys(expandedKeys as React.Key[]),
-          rowExpandable: () => true,
-        }}
-        rowKey="id"
-      />
+      <TablePageLayout>
+        <Table<EngineDomain>
+          className="flex-table"
+          size="small"
+          columns={columnsWithResize}
+          dataSource={filteredData}
+          loading={isLoading}
+          pagination={false}
+          style={{ flex: 1, minHeight: 0 }}
+          scroll={
+            filteredData.length > 0 ? { x: scrollX, y: "" } : { x: scrollX }
+          }
+          components={domainsColumnResize.resizableHeaderComponents}
+          expandable={{
+            expandIcon: treeExpandIcon(),
+            expandedRowRender: (record) => <EnginesForDomain domain={record} />,
+            expandedRowKeys: expandedRowKeys,
+            onExpandedRowsChange: (expandedKeys) =>
+              setExpandedRowKeys(expandedKeys as React.Key[]),
+            rowExpandable: () => true,
+          }}
+          rowKey="id"
+        />
+      </TablePageLayout>
     </Flex>
   );
 };

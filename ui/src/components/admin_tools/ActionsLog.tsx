@@ -7,7 +7,6 @@ import {
   Flex,
   Table,
   Tooltip,
-  Typography,
 } from "antd";
 import { TableProps } from "antd/lib/table";
 import React, { UIEvent, useMemo, useRef, useState } from "react";
@@ -38,8 +37,9 @@ import {
   attachResizeToColumns,
   useTableColumnResize,
 } from "../table/useTableColumnResize.tsx";
-import { CompactSearch } from "../table/CompactSearch.tsx";
 import { matchesByFields } from "../table/tableSearch.ts";
+import { TableToolbar } from "../table/TableToolbar.tsx";
+import { AdminToolsHeader } from "./AdminToolsHeader.tsx";
 
 export enum OperationType {
   READ = "read",
@@ -142,8 +142,6 @@ const externalEntityType: EntityType[] = [
   EntityType.IMPORT_INSTRUCTIONS,
   EntityType.DETAILED_DESIGN_TEMPLATE,
 ];
-
-const { Title } = Typography;
 
 const EXTERNAL_ENTITY_PATTERN = /^[^\\/:*?"<>|]+\.(zip|ya?ml|xml|wsdl)$/i;
 
@@ -466,28 +464,18 @@ export const ActionsLog: React.FC = () => {
     await exportActionsLogAsExcel(from, to);
   };
 
-  return (
-    <Flex vertical className={commonStyles["container"]}>
-      <Flex className={commonStyles["header"]}>
-        <Title level={4} className={commonStyles["title"]}>
-          <OverridableIcon name="audit" className={commonStyles["icon"]} />
-          Audit
-        </Title>
-        <Flex
-          vertical={false}
-          align="center"
-          gap={8}
-          wrap="wrap"
-          className={commonStyles["actions"]}
-        >
-          <CompactSearch
-            value={searchTerm}
-            onChange={setSearchTerm}
-            placeholder="Search audit log..."
-            allowClear
-            className={commonStyles["searchField"] as string}
-          />
-          {columnSettingsButton}
+  const auditToolbar = (
+    <TableToolbar
+      variant="admin"
+      search={{
+        value: searchTerm,
+        onChange: setSearchTerm,
+        placeholder: "Search audit log...",
+        allowClear: true,
+      }}
+      columnSettingsButton={columnSettingsButton}
+      actions={
+        <>
           <Tooltip title="Refresh" placement="bottom">
             <Button
               icon={<OverridableIcon name="refresh" />}
@@ -510,8 +498,14 @@ export const ActionsLog: React.FC = () => {
               </Tooltip>
             </Require>
           )}
-        </Flex>
-      </Flex>
+        </>
+      }
+    />
+  );
+
+  return (
+    <Flex vertical className={commonStyles["container"]}>
+      <AdminToolsHeader title="Audit" iconName="audit" toolbar={auditToolbar} />
       <Flex
         style={{
           flex: "1 1 auto",

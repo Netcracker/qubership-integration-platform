@@ -9,7 +9,6 @@ import {
   Table,
   TableProps,
   Tooltip,
-  Typography,
 } from "antd";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { treeExpandIcon } from "../../table/TreeExpandIcon.tsx";
@@ -38,7 +37,7 @@ import {
   disableResizeBeforeActions,
 } from "../../table/actionsColumn.ts";
 
-const { Title } = Typography;
+import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 
 /** rc-table expand column when rows have nested `exchanges` (same as Sessions). */
 const LIVE_EXCHANGES_EXPAND_COLUMN_WIDTH = 48;
@@ -309,16 +308,12 @@ export const LiveExchanges: React.FC = () => {
 
   return (
     <Flex vertical className={commonStyles["container"]}>
-      <Title level={4} className={commonStyles["title"]}>
-        <OverridableIcon
-          name="liveExchanges"
-          className={commonStyles["icon"]}
-        />
-        Live Exchanges
-      </Title>
-      <Flex vertical flex={1} style={{ minHeight: 0 }}>
-        <TablePageLayout>
+      <AdminToolsHeader
+        title="Live Exchanges"
+        iconName="liveExchanges"
+        toolbar={
           <TableToolbar
+            variant="admin"
             leading={
               <Flex align="center" gap={8} wrap="wrap">
                 <Space direction="horizontal">
@@ -334,18 +329,20 @@ export const LiveExchanges: React.FC = () => {
                 {filterButton}
               </Flex>
             }
-            trailing={
-              <Flex align="center" gap={8} wrap="wrap">
-                {columnSettingsButton}
-                <Tooltip title="Refresh" placement="bottom">
-                  <Button
-                    icon={<OverridableIcon name="refresh" />}
-                    onClick={() => void refresh()}
-                  />
-                </Tooltip>
-              </Flex>
+            columnSettingsButton={columnSettingsButton}
+            actions={
+              <Tooltip title="Refresh" placement="bottom">
+                <Button
+                  icon={<OverridableIcon name="refresh" />}
+                  onClick={() => void refresh()}
+                />
+              </Tooltip>
             }
           />
+        }
+      />
+      <Flex vertical flex={1} style={{ minHeight: 0 }}>
+        <TablePageLayout>
           <Table<LiveExchangeTableItem>
             className="flex-table"
             size="small"
