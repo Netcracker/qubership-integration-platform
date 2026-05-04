@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
 import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceBuildService;
 import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceOptionsProvider;
 import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceService;
@@ -11,6 +12,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployM
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployWithSnapshotCreationRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
 import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.model.domains.EngineDomain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
@@ -27,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.nonNull;
@@ -46,6 +49,7 @@ public class CustomResourceController {
     private final DeploymentService deploymentService;
     private final ChainRepository chainRepository;
     private final EngineService engineService;
+    private final DomainProperties domainProperties;
 
     @Autowired
     public CustomResourceController(
@@ -54,7 +58,8 @@ public class CustomResourceController {
             CustomResourceOptionsProvider customResourceOptionsProvider,
             DeploymentService deploymentService,
             ChainRepository chainRepository,
-            EngineService engineService
+            EngineService engineService,
+            DomainProperties domainProperties
     ) {
         this.customResourceBuildService = customResourceBuildService;
         this.customResourceService = customResourceService;
@@ -62,13 +67,15 @@ public class CustomResourceController {
         this.deploymentService = deploymentService;
         this.chainRepository = chainRepository;
         this.engineService = engineService;
+        this.domainProperties = domainProperties;
     }
 
     @PostMapping(produces = MediaType.APPLICATION_YAML_VALUE)
     @Operation(description = "Build K8s resources for specified chain snapshots")
     public String buildResource(@RequestBody ResourceBuildRequest request) {
         log.debug("Request to build a CR for snapshots: {}", request.getSnapshotIds());
-        return customResourceBuildService.buildResources(request);
+        return verifyMicroDomainEnabled(() ->
+                customResourceBuildService.buildResources(request));
     }
 
     @PostMapping("/deploy-chains")
@@ -120,7 +127,7 @@ public class CustomResourceController {
         snapshots.stream()
                 .map(snapshot -> deploymentService.deploySnapshot(
                     snapshot,
-                    domainByType.getOrDefault(DomainType.NATIVE, Collections.emptyList())))
+                    domainByType.getOrDefault(DomainType.CLASSIC, Collections.emptyList())))
                 .flatMap(Collection::stream)
                 .forEach(result::add);
 
@@ -167,8 +174,10 @@ public class CustomResourceController {
     public ResponseEntity<Void> deployResource(@Valid @RequestBody ResourceDeployRequest request) {
         log.debug("Request to deploy a Camel-K custom resource with name {} for chain snapshots {} using {} mode.",
                 request.getName(), request.getSnapshotIds(), request.getMode());
-        doDeployResource(request);
-        return ResponseEntity.ok().build();
+        return verifyMicroDomainEnabled(() -> {
+            doDeployResource(request);
+            return ResponseEntity.ok().build();
+        });
     }
 
     private void doDeployResource(ResourceDeployRequest request) {
@@ -186,15 +195,27 @@ public class CustomResourceController {
     @Operation(description = "Delete Camel-K Integration resource")
     public ResponseEntity<Void> deleteResource(@PathVariable String name) {
         log.debug("Request to delete a Camel-K custom resource with name {}", name);
-        customResourceService.delete(name);
-        return ResponseEntity.ok().build();
+        return verifyMicroDomainEnabled(() -> {
+            customResourceService.delete(name);
+            return ResponseEntity.ok().build();
+        });
     }
 
     @DeleteMapping("/{name}/{snapshotId}")
     @Operation(description = "Delete integration chain snapshot from Camel-K resource")
     public ResponseEntity<Void> deleteSnapshotFromResource(@PathVariable String name, @PathVariable String snapshotId) {
         log.debug("Request to delete chain snapshot {} from a Camel-K custom resource {}", snapshotId, name);
-        customResourceService.deleteChainSnapshot(name, snapshotId);
-        return ResponseEntity.ok().build();
+        return verifyMicroDomainEnabled(() -> {
+            customResourceService.deleteChainSnapshot(name, snapshotId);
+            return ResponseEntity.ok().build();
+        });
+    }
+
+    private <T> T verifyMicroDomainEnabled(Supplier<T> supplier) {
+        if (domainProperties.getMicro().isEnabled()) {
+            return supplier.get();
+        } else {
+            throw new DomainTypeDisabledException(DomainType.MICRO);
+        }
     }
 }

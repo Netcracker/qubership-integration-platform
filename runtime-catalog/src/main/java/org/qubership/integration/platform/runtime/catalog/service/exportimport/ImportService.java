@@ -743,8 +743,7 @@ public class ImportService {
             if (!CollectionUtils.isEmpty(deployments)) {
                 try {
                     for (DeploymentExternalEntity deployment : deployments) {
-                        if (engineService.isDevMode()
-                                || engineService.getDomainByName(deployment.getDomain()) != null) {
+                        if (engineService.getDomainByName(deployment.getDomain()) != null) {
                             createDeployment(snapshot, oldDeploysList, deployment);
                         } else {
                             importChainDTO.setStatus(ImportEntityStatus.ERROR);

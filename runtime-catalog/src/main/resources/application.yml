@@ -143,6 +143,11 @@ kubernetes:
     label: ${app.prefix}-variable-type
 
 qip:
+  deploy:
+    classic:
+      enabled: ${CLASSIC_DEPLOY_ENABLED:true}
+    micro:
+      enabled: ${MICRO_DEPLOY_ENABLED:true}
   cr:
     build:
       container:

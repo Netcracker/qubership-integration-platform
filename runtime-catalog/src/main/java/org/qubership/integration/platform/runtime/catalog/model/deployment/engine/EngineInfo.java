@@ -28,6 +28,6 @@ public class EngineInfo {
     private String host;
     private String domain;
     @Builder.Default
-    private DomainType domainType = DomainType.NATIVE;
+    private DomainType domainType = DomainType.CLASSIC;
     private String engineDeploymentName;
 }

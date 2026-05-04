@@ -284,6 +284,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(getExceptionDTO(exception));
     }
 
+    @ExceptionHandler(DomainTypeDisabledException.class)
+    public ResponseEntity<ExceptionDTO> handleDomainTypeDisabledException(DomainTypeDisabledException exception) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(getExceptionDTO(exception));
+    }
 
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(

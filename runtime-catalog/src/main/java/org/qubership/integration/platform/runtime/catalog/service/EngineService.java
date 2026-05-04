@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.model.MultiConsumer;
@@ -49,6 +50,8 @@ public class EngineService {
     // <id, pod, domainName, actionType, userId>
     private final Map<String, MultiConsumer.Consumer5<String, KubePod, String, EventActionType, String>> enginesCallbacks = new ConcurrentHashMap<>();
 
+    private final DomainProperties domainProperties;
+
     @Value("${qip.engine.app-check-custom-label}")
     private String engineAppCheckLabel;
 
@@ -59,14 +62,18 @@ public class EngineService {
     private String namespace;
 
     @Autowired
-    public EngineService(KubeOperator operator,
-                         DeploymentService deploymentService,
-                         DevModeUtil devModeUtil,
-                         EngineDomainUtils domainUtils) {
+    public EngineService(
+            KubeOperator operator,
+            DeploymentService deploymentService,
+            DevModeUtil devModeUtil,
+            EngineDomainUtils domainUtils,
+            DomainProperties domainProperties
+    ) {
         this.operator = operator;
         this.deploymentService = deploymentService;
         this.devModeUtil = devModeUtil;
         this.domainUtils = domainUtils;
+        this.domainProperties = domainProperties;
     }
 
     /**
@@ -75,14 +82,15 @@ public class EngineService {
      */
     public List<EngineDomain> getDomains() throws KubeApiException {
         if (isDevMode()) {
-            return Collections.singletonList(EngineDomain.builder()
-                    .id(engineDefaultDomain)
-                    .name(engineDefaultDomain)
-                    .replicas(1)
-                    .namespace(namespace)
-                    .type(DomainType.NATIVE)
-                    .build()
-            );
+            return domainProperties.getClassic().isEnabled()
+                    ? Collections.singletonList(EngineDomain.builder()
+                            .id(engineDefaultDomain)
+                            .name(engineDefaultDomain)
+                            .replicas(1)
+                            .namespace(namespace)
+                            .type(DomainType.CLASSIC)
+                            .build())
+                    : Collections.emptyList();
         }
         List<KubeDeployment> deployments = getDeployments();
         return deployments.stream()
@@ -92,7 +100,7 @@ public class EngineService {
                         .version(deployment.getVersion())
                         .replicas(deployment.getReplicas())
                         .namespace(deployment.getNamespace())
-                        .type(deployment.getLabels().containsKey(CAMEL_K_INTEGRATION_LABEL) ? DomainType.MICRO : DomainType.NATIVE)
+                        .type(deployment.getLabels().containsKey(CAMEL_K_INTEGRATION_LABEL) ? DomainType.MICRO : DomainType.CLASSIC)
                         .build())
                 .toList();
     }
@@ -107,15 +115,23 @@ public class EngineService {
      */
     private List<KubeDeployment> getDeployments() throws KubeApiException {
         List<KubeDeployment> deployments = new ArrayList<>();
-        deployments.addAll(operator.getDeploymentsByLabel(engineAppCheckLabel, "true"));
-        deployments.addAll(operator.getDeploymentsByLabel(CAMEL_K_INTEGRATION_LABEL));
+        if (domainProperties.getClassic().isEnabled()) {
+            deployments.addAll(operator.getDeploymentsByLabel(engineAppCheckLabel, "true"));
+        }
+        if (domainProperties.getMicro().isEnabled()) {
+            deployments.addAll(operator.getDeploymentsByLabel(CAMEL_K_INTEGRATION_LABEL));
+        }
         return deployments;
     }
 
     public List<KubePod> getEnginesPods(String domainName) throws KubeApiException {
         List<KubePod> pods = new ArrayList<>();
-        pods.addAll(operator.getPodsByLabel(ENGINE_NAME_LABEL, getActiveKubeDeploymentNameByDomain(domainName)));
-        pods.addAll(operator.getPodsByLabel(CAMEL_K_INTEGRATION_LABEL, domainName));
+        if (domainProperties.getClassic().isEnabled()) {
+            pods.addAll(operator.getPodsByLabel(ENGINE_NAME_LABEL, getActiveKubeDeploymentNameByDomain(domainName)));
+        }
+        if (domainProperties.getMicro().isEnabled()) {
+            pods.addAll(operator.getPodsByLabel(CAMEL_K_INTEGRATION_LABEL, domainName));
+        }
         return pods;
     }
 
@@ -130,10 +146,12 @@ public class EngineService {
     }
 
     public long deploymentsCountByDomain(String domainName) {
-        return deploymentService.getDeploymentsCountByDomain(domainName);
+        return domainProperties.getClassic().isEnabled()
+                ? deploymentService.getDeploymentsCountByDomain(domainName)
+                : 0;
     }
 
-    public String getActiveKubeDeploymentNameByDomain(String domainName) {
+    private String getActiveKubeDeploymentNameByDomain(String domainName) {
         for (KubeDeployment deployment : getDeployments()) {
             if (domainUtils.convertKubeDeploymentToDomainName(deployment.getName()).equals(domainName)) {
                 return deployment.getName();
