@@ -85,7 +85,7 @@ export const DeploymentCreate: React.FC<CreateDeploymentProps> = ({
         id="deploymentCreateForm"
         form={form}
         initialValues={{
-          domains: [{ name: "default", type: DomainType.NATIVE }],
+          domains: [{ name: "default", type: DomainType.CLASSIC }],
         }}
         onFinish={(values) => handleOk(values.domains, values.snapshot)}
         layout="horizontal"

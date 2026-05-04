@@ -69,7 +69,7 @@ describe("DeployChains", () => {
 
     await waitFor(() => {
       expect(mockOnSubmit).toHaveBeenCalledWith({
-        domains: [{ name: "default", type: DomainType.NATIVE }],
+        domains: [{ name: "default", type: DomainType.CLASSIC }],
         snapshotAction: BulkDeploymentSnapshotAction.CREATE_NEW,
       });
     });

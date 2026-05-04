@@ -288,7 +288,7 @@ export type EngineDomain = {
 };
 
 export enum DomainType {
-  NATIVE = "NATIVE",
+  CLASSIC = "CLASSIC",
   MICRO = "MICRO",
 }
 

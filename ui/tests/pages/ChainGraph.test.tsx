@@ -369,7 +369,7 @@ describe("ChainGraph", () => {
       }>;
     };
     expect(modalArg?.component?.props?.onSubmit).toEqual(expect.any(Function));
-    await modalArg.component.props.onSubmit([{ name: "domain-1", type: DomainType.NATIVE }]);
+    await modalArg.component.props.onSubmit([{ name: "domain-1", type: DomainType.CLASSIC }]);
 
     expect(createSnapshot).toHaveBeenCalledWith("chain-1");
     expect(createDeployment).toHaveBeenCalledWith(
@@ -411,7 +411,7 @@ describe("ChainGraph", () => {
         onSubmit: (domains: { name: string; type: DomainType }[]) => void | Promise<void>;
       }>;
     };
-    await modalArg.component.props.onSubmit([{ name: "domain-1", type: DomainType.NATIVE }]);
+    await modalArg.component.props.onSubmit([{ name: "domain-1", type: DomainType.CLASSIC }]);
 
     expect(createSnapshot).toHaveBeenCalledWith("chain-1");
     expect(createDeployment).toHaveBeenCalled();

@@ -117,7 +117,7 @@ export const DeployChains: React.FC<DeployChainsProps> = ({
           layout="vertical"
           id="deployOptionsForm"
           initialValues={{
-            domains: [{ name: "default", type: DomainType.NATIVE }],
+            domains: [{ name: "default", type: DomainType.CLASSIC }],
             snapshotAction: BulkDeploymentSnapshotAction.CREATE_NEW,
           }}
           onFinish={(values) => void onFinish(values)}

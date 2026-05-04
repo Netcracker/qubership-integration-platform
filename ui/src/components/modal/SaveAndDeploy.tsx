@@ -69,7 +69,7 @@ export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({
         form={form}
         layout="horizontal"
         initialValues={{
-          domains: [{ name: "default", type: DomainType.NATIVE }],
+          domains: [{ name: "default", type: DomainType.CLASSIC }],
         }}
         labelCol={{ span: 4 }}
         style={{ maxWidth: 600 }}

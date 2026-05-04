@@ -4,6 +4,7 @@ import { setAiServiceUrlOverride } from "./config/aiServiceUrlOverride.ts";
 import { IconOverrides } from "./icons/IconProvider";
 import type { ThemeConfig } from "antd";
 import { UserPermissions } from "./permissions/types.ts";
+import { DomainType } from "./api/apiTypes.ts";
 
 export type UserInfo = {
   userName?: string;
@@ -25,6 +26,7 @@ export type AppConfig = {
   dev?: boolean;
   permissions?: UserPermissions;
   userInfo?: UserInfo;
+  domainTypes?: DomainType[];
   onLogout?: () => void;
 };
 
