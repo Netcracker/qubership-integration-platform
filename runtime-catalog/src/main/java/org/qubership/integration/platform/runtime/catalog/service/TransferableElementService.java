@@ -169,19 +169,21 @@ public class TransferableElementService extends ElementService {
                     orderedElementService.calculatePriority(parentElement, element);
                 }
             }
-            ChainElement parentWithDeletedChild = deleteElementFromParent(element, false);
-            if (parentWithDeletedChild != null) {
-                chainDiff.addUpdatedElement(parentWithDeletedChild);
-                oldParentIds.add(parentWithDeletedChild.getId());
-            } else {
-                chainDiff.addUpdatedElement(element);
-            }
+            if (!isTransferOutOfSwimlane(swimlaneId, element)) {
+                ChainElement parentWithDeletedChild = deleteElementFromParent(element, false);
+                if (parentWithDeletedChild != null) {
+                    chainDiff.addUpdatedElement(parentWithDeletedChild);
+                    oldParentIds.add(parentWithDeletedChild.getId());
+                } else {
+                    chainDiff.addUpdatedElement(element);
+                }
 
-            if (!isInOutGroupTransfer(oldParentIds, parentElement)) {
-                validateTransferElementDependencies(element, foundElementIds);
-            }
+                if (!isInOutGroupTransfer(oldParentIds, parentElement)) {
+                    validateTransferElementDependencies(element, foundElementIds);
+                }
 
-            element.setParent(parentElement);
+                element.setParent(parentElement);
+            }
         }
         List<ChainElement> savedElements = saveAll(elements);
         if (swimlaneId != null) {
@@ -196,6 +198,15 @@ public class TransferableElementService extends ElementService {
         }
 
         return chainDiff;
+    }
+
+    private boolean isTransferOutOfSwimlane(String swimlaneId, ChainElement element) {
+        return swimlaneId == null && isElementUnderSwimlane(element);
+    }
+
+    private boolean isElementUnderSwimlane(ChainElement element) {
+        return element.getSwimlane() != null
+                || (element.getParent() != null && isElementUnderSwimlane(element.getParent()));
     }
 
     private boolean isParentContainerRestricted(ChainElement parentElement, List<String> elementTypes) {
