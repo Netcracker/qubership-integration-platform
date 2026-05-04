@@ -29,9 +29,9 @@ All sequentially added roles for each particular endpoint shall be specified man
 | Trigger Chain via Endpoint | /chain/checkData            | QIP-CHAIN                    | RETRIEVE                 | -                        | Deny    | Allow   |
 | Trigger Chain via Endpoint | /order/{orderId}/submit    |                              |   | Order                    | SUBMIT  | Deny    |
 
-Where Resource, Resource Type, Operation are values, configured on [HTTP Trigger](../../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) within a chain.
+Where Resource, Resource Type, Operation are values, configured on [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) within a chain.
 
 ## User Interface
 
 ---
-To make **Qubership Integration Platform** validating called resource against policies, stored in **Access Control**, it is required to select **"ABAC"** option and populate corresponding fields that identifies the resource for [HTTP Trigger](../../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) (Parameters tab). Policies shall be manually configured directly in Access Control.
+To make **Qubership Integration Platform** validating called resource against policies, stored in **Access Control**, it is required to select **"ABAC"** option and populate corresponding fields that identifies the resource for [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) (Parameters tab). Policies shall be manually configured directly in Access Control.

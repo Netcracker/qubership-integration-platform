@@ -2,7 +2,7 @@
 ## Description
 
 ---
-**Implemented Services** tab provides capabilities to build a very specific http services with custom schemes, validations, operations, etc. Implemented service API specification could be only used at the start of the chain, hence it is only possible to use it with [HTTP Trigger](../../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md).
+**Implemented Services** tab provides capabilities to build a very specific http services with custom schemes, validations, operations, etc. Implemented service API specification could be only used at the start of the chain, hence it is only possible to use it with [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md).
 
 There are 2 options to configure the Implemented Service:
 - Implement existing interfaces from **manually imported API specification**, allowing user to move a particular service functionality to the platform. In this case, validation scheme will be **predefined** in swagger file and **cannot** be customized in HTTP Trigger.
@@ -174,8 +174,8 @@ To add specification group to Implemented service:
 2. Specify the **name** of the specification group on the opened pop-up.
 3. There are two options to add API Specification:
     - **Import File** - on this tab you can import file with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
-    - **Import from Chains** - on this tab, it is possible to select existing [HTTP Trigger](../../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) endpoint, configured within a particular chain and create API Specification from it.
-> ℹ️ **Note:** Via checkbox _**"External routes only"**_ it is possible to control showing only respective [HTTP Triggers](../../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) in the list.
+    - **Import from Chains** - on this tab, it is possible to select existing [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) endpoint, configured within a particular chain and create API Specification from it.
+> ℹ️ **Note:** Via checkbox _**"External routes only"**_ it is possible to control showing only respective [HTTP Triggers](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) in the list.
 
 4. Confirm operation with **"Create"** button.
 
@@ -188,8 +188,8 @@ To add API specification into existing specification group:
     - **Import File** - on this tab you can import file with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
     > ℹ️ **Note:** API Specification **version must be unique inside of API Specification group for any type of service**. Import of API Specification with non-unique version will result in version duplication error.
 
-    - **Import from Chains** - on this tab, it is possible to select existing [HTTP Trigger](../../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) endpoint, configured within a particular chain and create API Specification from it.
-    > ℹ️ **Note:** Checked _**"External routes only"**_ parameter allows to create specification only from chains with external [HTTP Triggers](../../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md).
+    - **Import from Chains** - on this tab, it is possible to select existing [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) endpoint, configured within a particular chain and create API Specification from it.
+    > ℹ️ **Note:** Checked _**"External routes only"**_ parameter allows to create specification only from chains with external [HTTP Triggers](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md).
 1. Confirm operation with **"Create"** button.
 
 ### Add Environment

@@ -19,14 +19,14 @@ Screen shows the table of chains (marked with icon ![20](img/file.svg)) and chai
     - Chain ID
     - Chain description
   - Chain elements in [graph](1__Graph/graph.md):
-    - Path ([HTTP Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md), [Service Call](1__Graph/1__QIP_Elements_Library/7__Senders/6__Service_Call/service_call.md))
-    - Method ([HTTP Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md), [Service Call](1__Graph/1__QIP_Elements_Library/7__Senders/6__Service_Call/service_call.md))
-    - Topic ([Kafka Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/8__Kafka_Trigger/kafka_trigger.md), [Kafka Sender](1__Graph/1__QIP_Elements_Library/7__Senders/2__Kafka_Sender/kafka_sender.md),
-    [AsyncAPI Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md), [Service Call](1__Graph/1__QIP_Elements_Library/7__Senders/6__Service_Call/service_call.md))
-    - Exchange ([RabbitMQ Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/6__RabbitMQ_Trigger/rabbitmq_trigger.md), [RabbitMQ Sender](1__Graph/1__QIP_Elements_Library/7__Senders/1__RabbitMQ_Sender/rabbitmq_sender.md),
-    [AsyncAPI Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md), [Service Call](1__Graph/1__QIP_Elements_Library/7__Senders/6__Service_Call/service_call.md))
-    - Queue ([RabbitMQ Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/6__RabbitMQ_Trigger/rabbitmq_trigger.md), [RabbitMQ Sender](1__Graph/1__QIP_Elements_Library/7__Senders/1__RabbitMQ_Sender/rabbitmq_sender.md),
-    [AsyncAPI Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md), [Service Call](1__Graph/1__QIP_Elements_Library/7__Senders/6__Service_Call/service_call.md))
+    - Path ([HTTP Trigger](1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md), [Service Call](1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md))
+    - Method ([HTTP Trigger](1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md), [Service Call](1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md))
+    - Topic ([Kafka Trigger](1__Graph/1__Elements_Library/6__Triggers/8__Kafka_Trigger/kafka_trigger.md), [Kafka Sender](1__Graph/1__Elements_Library/7__Senders/2__Kafka_Sender/kafka_sender.md),
+    [AsyncAPI Trigger](1__Graph/1__Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md), [Service Call](1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md))
+    - Exchange ([RabbitMQ Trigger](1__Graph/1__Elements_Library/6__Triggers/6__RabbitMQ_Trigger/rabbitmq_trigger.md), [RabbitMQ Sender](1__Graph/1__Elements_Library/7__Senders/1__RabbitMQ_Sender/rabbitmq_sender.md),
+    [AsyncAPI Trigger](1__Graph/1__Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md), [Service Call](1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md))
+    - Queue ([RabbitMQ Trigger](1__Graph/1__Elements_Library/6__Triggers/6__RabbitMQ_Trigger/rabbitmq_trigger.md), [RabbitMQ Sender](1__Graph/1__Elements_Library/7__Senders/1__RabbitMQ_Sender/rabbitmq_sender.md),
+    [AsyncAPI Trigger](1__Graph/1__Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md), [Service Call](1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md))
   - Folder name - if search query matches, all content (chains and child folders) under the folder will be shown.
 - ![16](img/filter.svg) - opens filter pop-up.
 - ![20](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns except **Name**.
@@ -200,8 +200,8 @@ To export the chain(s), simply select respective rows in the table with checkbox
 When no entities are selected and button clicked, system will attempt to export every chain after receiving a user's confirmation.
 During export, you can adjust the data to be downloaded using the following checkboxes in the dialog window. All checkboxes are unchecked by default:
 
-- **Export related sub-chains** - if selected, system will also export the whole tree of chains, that are connected via [Chain Call](1__Graph/1__QIP_Elements_Library/1__Routing/6__Chain_Call/chain_call.md) and [Chain Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/2__Chain_Trigger/chain_trigger.md) elements,
-sub-chains selected as failure handling option on "Failure Response Mapping" tab for [HTTP Trigger](1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md)
+- **Export related sub-chains** - if selected, system will also export the whole tree of chains, that are connected via [Chain Call](1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) and [Chain Trigger](1__Graph/1__Elements_Library/6__Triggers/2__Chain_Trigger/chain_trigger.md) elements,
+sub-chains selected as failure handling option on "Failure Response Mapping" tab for [HTTP Trigger](1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md)
 and sub-chains selected as the handler for duplicate idempotency keys on the "Idempotency" tab of the relevant trigger.
 - **Export related services** - if selected, system will also export services and specifications, utilized within chains.
 - **Export all common variables** - if selected, system will also export all common variables, utilized within chains.

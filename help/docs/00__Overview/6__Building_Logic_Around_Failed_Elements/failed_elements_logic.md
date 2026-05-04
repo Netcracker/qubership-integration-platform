@@ -11,15 +11,15 @@ These properties are available in the sessions, when viewing **"Exchange propert
 ## User Interface
 
 ---
-Routing elements, such as [Condition](../../01__Chains/1__Graph/1__QIP_Elements_Library/1__Routing/5__Condition/condition.md) and [Try-Catch-Finally](../../01__Chains/1__Graph/1__QIP_Elements_Library/1__Routing/9__Try-Catch-Finally/try-catch-finally.md) receive most of the benefits from having mentioned properties, as it is now possible to refer to failed elements when building an advanced logic (e.g. via [Script](../../01__Chains/1__Graph/1__QIP_Elements_Library/5__Transformation/1__Script/script.md)) in **"If"** and **"Catch"** sub-elements.
+Routing elements, such as [Condition](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/5__Condition/condition.md) and [Try-Catch-Finally](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/9__Try-Catch-Finally/try-catch-finally.md) receive most of the benefits from having mentioned properties, as it is now possible to refer to failed elements when building an advanced logic (e.g. via [Script](../../01__Chains/1__Graph/1__Elements_Library/5__Transformation/1__Script/script.md)) in **"If"** and **"Catch"** sub-elements.
 
-As an example, **"IF"** (sub-element for [Condition](../../01__Chains/1__Graph/1__QIP_Elements_Library/1__Routing/5__Condition/condition.md)) with the code below could be placed inside **"Catch"** element to not only catch the error, but also build a logical "fork", based on the failed element id to differ the flows:
+As an example, **"IF"** (sub-element for [Condition](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/5__Condition/condition.md)) with the code below could be placed inside **"Catch"** element to not only catch the error, but also build a logical "fork", based on the failed element id to differ the flows:
 
 ```groovy
 ${exchangeProperty.failed-element-id} == 'b319372b-0003-4ba7-9e11-77bfa442f749'
 ```
 
-Another example, mentioned below, returns a custom error (that could be configured within [Script](../../01__Chains/1__Graph/1__QIP_Elements_Library/5__Transformation/1__Script/script.md), placed inside **"Catch"** sub-element) that contains failed element id:
+Another example, mentioned below, returns a custom error (that could be configured within [Script](../../01__Chains/1__Graph/1__Elements_Library/5__Transformation/1__Script/script.md), placed inside **"Catch"** sub-element) that contains failed element id:
 
 ```groovy
 exchange.getMessage().setBody("Element with id " + exchange.getProperty("failed-element-id") + " failed")

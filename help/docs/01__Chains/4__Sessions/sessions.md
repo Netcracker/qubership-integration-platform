@@ -14,10 +14,10 @@ To deal with this challenge, Qubership Integration Platform links request and ca
 This also gives an ability to group up sessions with the same id on the table **"Sessions"**, available for each chain.
 
 Correlation id can be passed by the following chain modules:
-- [HTTP Trigger](../1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md)
-- [Service Call](../1__Graph/1__QIP_Elements_Library/7__Senders/6__Service_Call/service_call.md)
-- [HTTP Sender](../1__Graph/1__QIP_Elements_Library/7__Senders/4__HTTP_Sender/http_sender.md)
-- [GraphQL Sender](../1__Graph/1__QIP_Elements_Library/7__Senders/7__GraphQL_Sender/graphql_sender.md)
+- [HTTP Trigger](../1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md)
+- [Service Call](../1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md)
+- [HTTP Sender](../1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/http_sender.md)
+- [GraphQL Sender](../1__Graph/1__Elements_Library/7__Senders/7__GraphQL_Sender/graphql_sender.md)
 
 
 In case of asynchronous request during chain design time user have to configure correlation id source and its name (key).
@@ -55,7 +55,7 @@ Table contains current chain's sessions, aggregated by correlation identifier, i
 
 ### Session view
 Click **Session ID value** in the respective row of sessions table to see the list of logged chain's elements, that are related to the same session. To expand or collapse compound element simply click the element itself or use ![Plus|20](img/plus.svg)/ ![Minus|20](img/minus.svg) button to expand/collapse all elements at once. Next columns and elements are available for the table:
-- **Element Name** - name of the element, participated in the processing. Click ![Plus|20](img/plus.svg) to open chain element and respective tab in the configuration graph. Reference to the [Chain Call](../1__Graph/1__QIP_Elements_Library/1__Routing/6__Chain_Call/chain_call.md) will open related configuration graph instead of chain element.
+- **Element Name** - name of the element, participated in the processing. Click ![Plus|20](img/plus.svg) to open chain element and respective tab in the configuration graph. Reference to the [Chain Call](../1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) will open related configuration graph instead of chain element.
 - **Status** - processing status.
 - **Duration** - processing duration in milliseconds.
 - **Start Time** - processing start datetime.
@@ -76,7 +76,7 @@ Next information is available, when element's name clicked and window with its d
 There is also "**View diff**" switch, available for "**Headers**", "**Exchange properties**" and "**Technical context**" tabs, that could be used to only show records that were modified during the processing.
 
 ### Retry Failed Session
-To retry failed session, find it in the table and click retry ![Redo|20](img/redo.svg) button. Retry can only be performed if at least one [Checkpoint](../1__Graph/1__QIP_Elements_Library/3__Composite_Triggers/1__Checkpoint/checkpoint.md) element was configured in the chain at the time of session failure.
+To retry failed session, find it in the table and click retry ![Redo|20](img/redo.svg) button. Retry can only be performed if at least one [Checkpoint](../1__Graph/1__Elements_Library/3__Composite_Triggers/1__Checkpoint/checkpoint.md) element was configured in the chain at the time of session failure.
 
 ### Export Sessions
 To export session(s) to a **json** file, please mark all required sessions via checkbox and click **Export** button ![Download|20](img/cloud-download.svg). To limit the amount of exported data, **Export** button is disabled when all sessions are marked via global checkbox on top of the table. Export is also possible from sessions details window, where all session's steps are presented.

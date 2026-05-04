@@ -31,24 +31,24 @@ Please find the description for all available tools below:
 ### General Actions
 The next actions are available upper right corner:
 
-#### <u>Web UI</u>
+#### ***Web UI***
 * ![](img/column-width.svg) - show sequence diagram based on the chain.
 * ![Download|20](img/cloud-download.svg) - export chain. During export, you can adjust the data to be downloaded using the following checkboxes in the dialog window. All checkboxes are unchecked by default:
-  - **Export related sub-chains** - if selected, system will also export the whole tree of chains, that are connected via [Chain Call](1__QIP_Elements_Library/1__Routing/6__Chain_Call/chain_call.md) and [Chain Trigger](1__QIP_Elements_Library/6__Triggers/2__Chain_Trigger/chain_trigger.md) elements,
-  sub-chains selected as failure handling option on "Failure Response Mapping" tab for [HTTP Trigger](1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) and sub-chains selected as the handler for duplicate idempotency keys on the "Idempotency" tab of the relevant trigger.
+  - **Export related sub-chains** - if selected, system will also export the whole tree of chains, that are connected via [Chain Call](1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) and [Chain Trigger](1__Elements_Library/6__Triggers/2__Chain_Trigger/chain_trigger.md) elements,
+  sub-chains selected as failure handling option on "Failure Response Mapping" tab for [HTTP Trigger](1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) and sub-chains selected as the handler for duplicate idempotency keys on the "Idempotency" tab of the relevant trigger.
   - **Export related services** - if selected, system will also export services and specifications, utilized within chains.
   - **Export all common variables** - if selected, system will also export all common variables, utilized within chains.
 * ![Send|20](img/send.svg) - save and deploy the chain.
 
 
-#### <u>VS Code Extension</u>
+#### ***VS Code Extension***
 * ![](img/column-width.svg) - show sequence diagram based on the chain.
 
 ### Add Element to the Graph
 To add a new element, find the suitable one from the left library panel and then drag it to the graph space.
 
 ### Place Element to the Containers
-To put the element into containers (e.g. [swimlanes](1__QIP_Elements_Library/8__Grouping/1__Swimlane/swimlane.md) and container-like element as [Loop](1__QIP_Elements_Library/1__Routing/8__Loop/loop.md), [Split](1__QIP_Elements_Library/1__Routing/4__Split/split.md), etc.), simply drag the element from the graph or element table to the container.
+To put the element into containers (e.g. [swimlanes](1__Elements_Library/8__Grouping/1__Swimlane/swimlane.md) and container-like element as [Loop](1__Elements_Library/1__Routing/8__Loop/loop.md), [Split](1__Elements_Library/1__Routing/4__Split/split.md), etc.), simply drag the element from the graph or element table to the container.
 
 ### Connect Elements
 To connect the elements simply drop one element on another one or hover the mouse on the white dot (placed on the right border of the one element), click it and drag the connection line to the target element.

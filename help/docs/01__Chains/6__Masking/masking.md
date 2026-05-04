@@ -32,7 +32,7 @@ To secure sensitive data use the **action menu** to  **Add New Masked Field** ![
 > - When masking settings are updated for specific chain, it is required to redeploy the chain to apply the changes. Chain itself will be marked with **"Unsaved Changes"** label.
 > - Session data, that is going to be logged to Graylog will also be masked accordingly.
 > - Field's configuration is stored at snapshot. This means, that when chain's snapshot is being reinstated to the older versions, field configuration is being reinstated to the accorded version as well.
-> - When using sub-chains (via [Chain Call](../1__Graph/1__QIP_Elements_Library/1__Routing/6__Chain_Call/chain_call.md) element), the masked fields list is determined by combining the fields defined in the parent chain with those specified in the sub-chain. This essentially means the **sub-chain inherits the masked fields from its parent chain**.
+> - When using sub-chains (via [Chain Call](../1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) element), the masked fields list is determined by combining the fields defined in the parent chain with those specified in the sub-chain. This essentially means the **sub-chain inherits the masked fields from its parent chain**.
 
 ### Delete Field(s)
 To delete masking field(s) select the items by checkbox and click ![Delete|20](img/delete.svg).

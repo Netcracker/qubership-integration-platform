@@ -53,8 +53,8 @@ Both variables will be available on Common variables tab in the application.
 If variable is configured in Admin Tools, there is no need to remember its exact name when specifying it for a particular field.
 Simply enter combination of **"#{"** (without quotes) to get a dropdown list with a suggestion and select desired design time variable.
 When specific fields do not "recognize" such combination, it means that fields do not support operating with them
-(the only exception is URI field for [HTTP Trigger](../../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md)
-and [HTTP Sender](../../01__Chains/1__Graph/1__QIP_Elements_Library/7__Senders/4__HTTP_Sender/http_sender.md), please read respective articles for more details).
+(the only exception is URI field for [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md)
+and [HTTP Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/http_sender.md), please read respective articles for more details).
 
 > ℹ️ **Note:** For **common variables used in design time mode** there is no need to remember its value or check it on dedicated UI page. **Just hover the mouse on variable name and the value will appear on the screen**.
 

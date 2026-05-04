@@ -11,12 +11,12 @@ To integrate with the services, configured in the system, it is required to add 
 
 There are next possible service types, supported by the system:
 
-- [External](1__External/external.md) - services available only via Egress Gateway. Usable in [Service Call](../01__Chains/1__Graph/1__QIP_Elements_Library/7__Senders/6__Service_Call/service_call.md) and [AsyncAPI Trigger](../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md) elements.
+- [External](1__External/external.md) - services available only via Egress Gateway. Usable in [Service Call](../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md) and [AsyncAPI Trigger](../01__Chains/1__Graph/1__Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md) elements.
 - [Inner Cloud](2__Inner_Cloud/inner_cloud.md) - also called "Internal Services". Such services share same K8S environment
-  with QIP and may be called directly. Usable in [Service Call](../01__Chains/1__Graph/1__QIP_Elements_Library/7__Senders/6__Service_Call/service_call.md)
-  and [AsyncAPI Trigger](../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md) elements.
-- [Implemented](3__Implemented/implemented.md) - custom services, usually created from [HTTP Trigger](../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md).
-- [Context](4__Context/context.md) - database instance used for storing chain contexts, further enabling creation, retrieval and deletion of context data. Usable in [Context Storage](../01__Chains/1__Graph/1__QIP_Elements_Library/4__Services/1__Context_Storage/context_storage.md) element.
+  with QIP and may be called directly. Usable in [Service Call](../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md)
+  and [AsyncAPI Trigger](../01__Chains/1__Graph/1__Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md) elements.
+- [Implemented](3__Implemented/implemented.md) - custom services, usually created from [HTTP Trigger](../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md).
+- [Context](4__Context/context.md) - database instance used for storing chain contexts, further enabling creation, retrieval and deletion of context data. Usable in [Context Storage](../01__Chains/1__Graph/1__Elements_Library/4__Services/1__Context_Storage/context_storage.md) element.
 
 ### Services data model
 ![Services data model](img/class_diagram.svg)

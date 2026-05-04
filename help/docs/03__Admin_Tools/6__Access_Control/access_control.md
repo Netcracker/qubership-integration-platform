@@ -6,7 +6,7 @@
 
 ---
 This tab allows user to easily and quickly control access to every chain endpoint
-(exposed by particular chain via [HTTP Trigger](../../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md))
+(exposed by particular chain via [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md))
 by managing the access control type and respective configurations.
 Without opening each separate chain, user could use single **"Access Control"** page to view access control configurations,
 change access control type (NONE <-> RBAC), change list of roles,
@@ -16,7 +16,7 @@ and apply changes via redeploying the chains, reusing previous deployment settin
 
 ---
 ### View Table
-Tab "Access Control" contains a table, representing the unique endpoint, that is exposed by particular chain via [HTTP Trigger](../../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md), with next available columns and elements:
+Tab "Access Control" contains a table, representing the unique endpoint, that is exposed by particular chain via [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md), with next available columns and elements:
 - **Endpoint** - specifies the endpoint, that is configured in HTTP Trigger for particular chain. When clicked, opens additional menu with all endpoint details.
 - **Type** - Type of the endpoint (External/Internal).
 - **Access Control Type** - specifies the type of access configured for the HTTP Trigger (_RBAC/ABAC/NONE_).

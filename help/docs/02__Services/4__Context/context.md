@@ -2,7 +2,7 @@
 ## Description
 
 ---
-Context Services are being used as a temporary storage of chain contexts. Chain context lifetime is limited and configurable, please check [Context Storage](../../01__Chains/1__Graph/1__QIP_Elements_Library/4__Services/1__Context_Storage/context_storage.md) to get more details.
+Context Services are being used as a temporary storage of chain contexts. Chain context lifetime is limited and configurable, please check [Context Storage](../../01__Chains/1__Graph/1__Elements_Library/4__Services/1__Context_Storage/context_storage.md) to get more details.
 
 > ⚠️ **Warning:** Context services **shall NOT be used** to store/manage sensitive data.
 

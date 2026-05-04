@@ -41,7 +41,7 @@ Additionally at the top of the table there is search box providing ability to fi
 
 ### Session View
 Click **Session ID value** in the respective row of sessions table to see the list of logged chain's elements, that are related to the same session. To expand or collapse compound element simply click the element itself or use ![20](img/right.svg) button to expand/collapse all elements at once. Next columns and elements are available for the table:
-- **Element Name** - name of the element, participated in the processing. Click ![Link|20](img/link.svg) to open chain element and respective tab in the configuration graph. Reference to the [Chain Call](../../01__Chains/1__Graph/1__QIP_Elements_Library/1__Routing/6__Chain_Call/chain_call.md) will open related configuration graph instead of chain element.
+- **Element Name** - name of the element, participated in the processing. Click ![Link|20](img/link.svg) to open chain element and respective tab in the configuration graph. Reference to the [Chain Call](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) will open related configuration graph instead of chain element.
 - **Status** - processing status.
 - **Duration** - processing duration in milliseconds.
 - **Start Time** - processing start datetime.
@@ -55,7 +55,7 @@ To go back, click "**To Sessions**" button or use "breadcrumb" navigation elemen
 ### Session's element view
 Click element's name to open additional window with detailed element's information, including its state before and after it has been executed. For convenient navigation between elements, use "**Next**" and "**Previous**" buttons.
 Next information is available, when element's name clicked and window with its details presented:
-- **Name** - full name of the session element or its sub-operation. Click ![Link|20](img/link.svg) to open chain element and respective tab in the configuration graph. Reference to the [Chain Call](../../01__Chains/1__Graph/1__QIP_Elements_Library/1__Routing/6__Chain_Call/chain_call.md) will open related configuration graph instead of chain element.
+- **Name** - full name of the session element or its sub-operation. Click ![Link|20](img/link.svg) to open chain element and respective tab in the configuration graph. Reference to the [Chain Call](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) will open related configuration graph instead of chain element.
 - **Previous/Next** buttons - navigation buttons, that allow to open previous or next session element.
 - **Body** tab - contains before/after states of request body, participated in the processing.
 - **Headers** tab - contains the list of headers and their before/after values. Slider **"Only modified"** filters out unmodified headers.
@@ -72,7 +72,7 @@ The following operations are available right top:
 * ![Redo|20](img/redo.svg) - Retry selected sessions.
 
 ### Retry Session
-To retry any session, find it in the table and click retry ![Redo|20](img/redo.svg) button. Retry can only be performed if at least one [Checkpoint](../../01__Chains/1__Graph/1__QIP_Elements_Library/3__Composite_Triggers/1__Checkpoint/checkpoint.md) element was configured in the chain at the time of session failure.
+To retry any session, find it in the table and click retry ![Redo|20](img/redo.svg) button. Retry can only be performed if at least one [Checkpoint](../../01__Chains/1__Graph/1__Elements_Library/3__Composite_Triggers/1__Checkpoint/checkpoint.md) element was configured in the chain at the time of session failure.
 
 ### Export Session(s)
 To export session(s) to a **json** file, please mark all required sessions via checkbox and click **Export** button ![Download](img/cloud-download.svg). To limit the amount of exported data, **Export** button is disabled when all sessions are marked via global checkbox on top of the table. Export is also possible from sessions details window, where all session's steps are presented.
