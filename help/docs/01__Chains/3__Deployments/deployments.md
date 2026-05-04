@@ -25,7 +25,7 @@ Under the chain it is possible to navigate on "**Deployments**" tab. The followi
 
 ### Create Deployment
 Click **"Create deployment"** button marked with ![Plus|20](img/plus.svg). The window for setting deployment parameters will appear. Fill in the following deployment parameters and click **"Deploy"**:
-- **Domain** - choose the engine domain for deployment from list of existing domains.
+- **Domains** - choose the engine domain for deployment from list of existing domains.
 - **Snapshot** - version of chain you want to deploy.
 
 > ℹ️ **Note**: **After manual [snapshot](../2__Snapshots/snapshots.md) renaming, current parameter's value will not be changed automatically.** To change snapshot name on deployment, it is required to **redeploy** the chain.

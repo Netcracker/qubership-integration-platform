@@ -13,7 +13,7 @@ When the chain configuration was completed, it should be deployed at least on on
 ---
 ### Chains and Folders Table View
 Screen shows the table of chains (marked with icon ![20](img/file.svg)) and chain folders (marked with icon ![16](img/folder.svg)). To see all the chains & folders under the particular folder, you can click ![20](img/right.svg) icon near folder name. Next control elements are available on top of the table:
-- **Search field** - search box, provides ability to find respective data in the table. To find a particular chain/folder by a specific feature (case-insensitive) use search field at the top of the screen with the text "Search Chain..." and a lens icon ![14](img/search.svg). Full-text search is applicable by the following data:
+- **Search field** - search box, provides ability to find respective data in the table. To find a particular chain/folder by a specific feature (case-insensitive) use search field at the top of the screen with the text "Full text search" and a lens icon ![14](img/search.svg). Full-text search is applicable by the following data:
   - Chain fields:
     - Chain name
     - Chain ID
@@ -61,10 +61,8 @@ Each **chain** contains the following parameters on table view:
 
 > ℹ️ **Notes:** For most of the table columns there is special context menu. To open it, **click on the column name**. The following functions can be available here:
 >
-> - Filter (by this parameter's value)
 > - Sort Ascending
 > - Sort Descending
-> - Hide column
 
 **Folder** contains the following parameters on table view:
 - **Name** - clickable reference to the page with folder content.
@@ -83,8 +81,7 @@ Each **chain** contains the following parameters on table view:
 
 > ℹ️ **Notes:**
 >
-> - You can **move chain/folder** to the folder via drag&drop operation (instead of Cut and Paste). To **move it to the root directory**, drop chain/folder above table headings.
-> - If you are trying to open folder with no chains in it, message "No elements in folder" will be presented on the folder card.
+> - You can **move chain/folder** to the folder via drag&drop operation (instead of Cut and Paste). To **move it to the root directory**, drop chain/folder to the ![](img/home.svg) at the right top above the table.
 > - Mentioned "Chains" window **does not validate** the uniqueness of the names, neither folders nor the chains. Hence, it is possible that multiple chains (or folders) might have the same names.
 
 ### Chain Details Side Panel
@@ -220,3 +217,9 @@ In both cases, system shows pop-up and requests additional data:
   - **Reuse latest, otherwise create new** - system will attempt to reuse latest snapshot. If it does not exist - redeploy will be attempted with newly created snapshot.
 
 Confirm selected options and click "**Deploy**" button. System will attempt to deploy selected chains and show notifications.
+
+### Constraints
+
+---
+
+**Technical** chain labels cannot be imported via UI or exported.

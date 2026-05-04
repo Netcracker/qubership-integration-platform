@@ -27,17 +27,20 @@ Qubership Integration Platform provides view-only window where domain's informat
 ### View Domains
 **"Domains"** tab is intended to provide the ability for monitoring of currently working engine domains and tracking the information about which chains on which engine domains were deployed (with snapshot and deployment status). To adjust domain workload, Admin is able to redeploy particular chains or scale up/down (not from QIP UI) particular engine domain.
 
-**Domain card** structure:
+**Domain table** structure:
 - **Domain** - name of the engine domain.
 - **Version** - current build of Qubership Integration Platform.
 - **Desired engines** - count of engines under domain.
 - **Namespace** - K8S namespace.
-- ![20](img/down.svg) - expands/collapses the domain card.
+- ![20](img/down.svg) - expands/collapses the domain.
+- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+  - **Search domains** - search box, provides ability to find particular domain(s).
+  - ![](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns.
 
 ### View Engines
 To expand the domain tree and **see child engines**, click ![20](img/down.svg) icon, available for specific domain card.
 
-**Engine card** structure:
+**Engine table** structure:
 - **Engine** - engine name.
 - **Pod address** - address of the Pod for Engine.
 - **State** - state of Pod. Possible values:

@@ -27,7 +27,7 @@ All sequentially added roles for each particular endpoint shall be specified man
 | -------------------------- | --------------------------- | ---------------------------- | ------------------------ | ------------------------ | ------- | ------- |
 | Trigger Chain via Endpoint | /qip-routes/chain/checkData | QIP-CHAIN                    | ALL                      | -                        | Allow   | Allow   |
 | Trigger Chain via Endpoint | /chain/checkData            | QIP-CHAIN                    | RETRIEVE                 | -                        | Deny    | Allow   |
-| Trigger Chain via Endpoint |                             |                              | /order/{orderId}/submit  | Order                    | SUBMIT  | Deny    |
+| Trigger Chain via Endpoint | /order/{orderId}/submit    |                              |   | Order                    | SUBMIT  | Deny    |
 
 Where Resource, Resource Type, Operation are values, configured on [HTTP Trigger](../../01__Chains/1__Graph/1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) within a chain.
 

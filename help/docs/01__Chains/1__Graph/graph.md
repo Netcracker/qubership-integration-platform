@@ -31,8 +31,8 @@ Please find the description for all available tools below:
 ### General Actions
 The next actions are available upper right corner:
 
-#### Web UI
-* ![](img/diff.svg) - show sequence diagram based on the chain.
+#### <u>Web UI</u>
+* ![](img/column-width.svg) - show sequence diagram based on the chain.
 * ![Download|20](img/cloud-download.svg) - export chain. During export, you can adjust the data to be downloaded using the following checkboxes in the dialog window. All checkboxes are unchecked by default:
   - **Export related sub-chains** - if selected, system will also export the whole tree of chains, that are connected via [Chain Call](1__QIP_Elements_Library/1__Routing/6__Chain_Call/chain_call.md) and [Chain Trigger](1__QIP_Elements_Library/6__Triggers/2__Chain_Trigger/chain_trigger.md) elements,
   sub-chains selected as failure handling option on "Failure Response Mapping" tab for [HTTP Trigger](1__QIP_Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) and sub-chains selected as the handler for duplicate idempotency keys on the "Idempotency" tab of the relevant trigger.
@@ -41,7 +41,7 @@ The next actions are available upper right corner:
 * ![Send|20](img/send.svg) - save and deploy the chain.
 
 
-#### VS Code Extension
+#### <u>VS Code Extension</u>
 * ![](img/column-width.svg) - show sequence diagram based on the chain.
 
 ### Add Element to the Graph
@@ -80,4 +80,4 @@ When property record is expanded, it shows related element's information as well
 Chain is also available in a text view, that could be used to compare one chain with another, find specific data or debugging. To open text view, simply click ![20](img/right-square.svg) to open right panel and then select respective tab with ![20](img/file.svg) icon.
 
 ### Generate Document by Template
-To initiate document generation, click **"Generate DDS"** on control panel, select desired template from the list, specify document name and click "**Generate**". System will show preview screen, where it is possible to get familiar with the finalized view of the document. Click "**Download**" to get the archive, that contains design document in .md format and other supplementary files, like pictures, etc. Data from the archive can be further processed by markdown editors or processors to build proper human-readable document, presented on preview step.
+To initiate document generation, click ![](img/file.svg) **"Generate DDS"** on control panel, select desired template from the list, specify document name and click "**Generate**". System will show preview screen, where it is possible to get familiar with the finalized view of the document. Click "**Download**" to get the archive, that contains design document in .md format and other supplementary files, like pictures, etc. Data from the archive can be further processed by markdown editors or processors to build proper human-readable document, presented on preview step.

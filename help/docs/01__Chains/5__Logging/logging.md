@@ -8,7 +8,7 @@ This tab provides consolidated access to the logging capabilities, that could be
 ## User Interface
 
 ---
-### View Logging Settings
+### View & Adjust Logging Settings
 User is able to navigate to the **"Logging Settings"** tab under the chain and view/correct logging settings for the chain.
 It shall be noted that Qubership Integration Platform will always attempt to use the settings that are available in the Consul, which plays the role of the main source of such data.
 When no settings available in the Consul for a given chain and there are no even default settings available there,

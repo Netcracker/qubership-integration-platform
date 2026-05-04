@@ -107,3 +107,14 @@ In the top-left corner, there is a “QIP” button that allows users to return 
 **`⛔ Not available via VS Code extension`**
 
 In order to switch between Blue and Green configuration versions in QIP, simply use selector on top right of the screen. This selector is only visible on environments, properly configured for Blue/Green approach.
+
+## Reset UI Configuration
+
+**`⛔ Not available via VS Code extension`**
+
+System saves state of some UI elements while user is working with them. Such elements are mentioned below:
+- **Table filters** - selected columns, conditions and values.
+- **Table columns** - sorting results, visibility and sequence.
+- **Left panel** for sections "Services", "Admin Tools", "Dev Tools" - expanded or collapsed view.
+
+To reset saved configuration, click user icon ![](img/user.svg) on top right of the screen and then click ![](img/redo.svg) "Reset UI preferences" button.

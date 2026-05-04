@@ -15,8 +15,12 @@ Routing elements, such as [Condition](../../01__Chains/1__Graph/1__QIP_Elements_
 
 As an example, **"IF"** (sub-element for [Condition](../../01__Chains/1__Graph/1__QIP_Elements_Library/1__Routing/5__Condition/condition.md)) with the code below could be placed inside **"Catch"** element to not only catch the error, but also build a logical "fork", based on the failed element id to differ the flows:
 
-`${exchangeProperty.failed-element-id} == 'b319372b-0003-4ba7-9e11-77bfa442f749'`
+```groovy
+${exchangeProperty.failed-element-id} == 'b319372b-0003-4ba7-9e11-77bfa442f749'
+```
 
 Another example, mentioned below, returns a custom error (that could be configured within [Script](../../01__Chains/1__Graph/1__QIP_Elements_Library/5__Transformation/1__Script/script.md), placed inside **"Catch"** sub-element) that contains failed element id:
 
-`exchange.getMessage().setBody("Element with id " + exchange.getProperty("failed-element-id") + " failed")`
+```groovy
+exchange.getMessage().setBody("Element with id " + exchange.getProperty("failed-element-id") + " failed")
+```
