@@ -17,7 +17,7 @@
 package org.qubership.integration.platform.engine.camel.components.servlet;
 
 import org.apache.camel.Exchange;
-import org.apache.camel.http.common.HttpHeaderFilterStrategy;
+import org.apache.camel.http.base.HttpHeaderFilterStrategy;
 import org.qubership.integration.platform.engine.camel.components.context.propagation.ContextPropsProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
