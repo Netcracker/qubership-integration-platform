@@ -2,6 +2,7 @@ package org.qubership.integration.platform.runtime.catalog.service.parsers.async
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
 import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.*;
 import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.components.Components;
 import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.components.SchemaObject;
@@ -19,6 +20,8 @@ public class AsyncApiV3Normalizer {
     private static final String CHANNELS_REF_PREFIX = "#/channels/";
     private static final String COMPONENTS_MESSAGES_PREFIX = "#/components/messages/";
     private static final String MESSAGES_SEGMENT = "/messages/";
+    private static final String ACTION_SEND = MethodType.SEND.getMethodName();
+    private static final String ACTION_RECEIVE = MethodType.RECEIVE.getMethodName();
 
     private final ObjectMapper objectMapper;
 
@@ -51,6 +54,8 @@ public class AsyncApiV3Normalizer {
                     continue;
                 }
 
+                validateAction(entry.getKey(), v3Op.getAction());
+
                 String v2ChannelPath = v3Channel.getAddress() != null ? v3Channel.getAddress() : channelKey;
 
                 Channel v2Channel = v2Channels.computeIfAbsent(v2ChannelPath, k -> {
@@ -64,7 +69,7 @@ public class AsyncApiV3Normalizer {
                 OperationObject v2Op = convertOperation(entry.getKey(), v3Op, v3Channel, v3Channels);
                 v2Op.setAction(v3Op.getAction());
 
-                if ("send".equals(v3Op.getAction())) {
+                if (ACTION_SEND.equals(v3Op.getAction())) {
                     v2Channel.setPublish(v2Op);
                 } else {
                     v2Channel.setSubscribe(v2Op);
@@ -104,6 +109,21 @@ public class AsyncApiV3Normalizer {
             return new Components();
         }
         return objectMapper.convertValue(v3Components, Components.class);
+    }
+
+    private void validateAction(String operationKey, String action) {
+        if (ACTION_SEND.equals(action) || ACTION_RECEIVE.equals(action)) {
+            return;
+        }
+        if (action == null) {
+            throw new SpecificationImportException(
+                    "AsyncAPI 3.0 operation '" + operationKey
+                            + "' is missing required 'action' field. Allowed values: 'send', 'receive'.");
+        }
+        throw new SpecificationImportException(
+                "AsyncAPI 3.0 operation '" + operationKey + "' has invalid action '" + action
+                        + "'. Allowed values: 'send', 'receive'."
+                        + " The v2.x keywords 'publish'/'subscribe' are not valid in v3.0.");
     }
 
     private String resolveChannelKey(V3Operation v3Op) {
@@ -319,6 +339,7 @@ public class AsyncApiV3Normalizer {
         replyOp.setSummary(v3Op.getSummary() != null ? v3Op.getSummary() + " (reply)" : "reply");
         String baseId = v3Op.getOperationId() != null ? v3Op.getOperationId() : operationKey;
         replyOp.setOperationId(baseId + "Reply");
+        replyOp.setAction(ACTION_SEND.equals(v3Op.getAction()) ? ACTION_RECEIVE : ACTION_SEND);
 
         if (reply.getMessages() != null && !reply.getMessages().isEmpty()) {
             replyOp.setMessage(convertMessageList(reply.getMessages(), v3Channels));
@@ -326,12 +347,10 @@ public class AsyncApiV3Normalizer {
             replyOp.setMessage(convertChannelMessages(replyV3Channel.getMessages()));
         }
 
-        MethodType replyMethod = "send".equals(v3Op.getAction())
-                ? MethodType.SUBSCRIBE : MethodType.PUBLISH;
-        if (replyMethod == MethodType.PUBLISH) {
-            replyV2Channel.setPublish(replyOp);
-        } else {
+        if (ACTION_SEND.equals(v3Op.getAction())) {
             replyV2Channel.setSubscribe(replyOp);
+        } else {
+            replyV2Channel.setPublish(replyOp);
         }
     }
 
