@@ -17,12 +17,19 @@ import java.util.Map;
 import javax.net.ssl.TrustManager;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class SpringRabbitMQCustomEndpointTest {
 
     private SpringRabbitMQCustomEndpoint endpoint;
+
+    @Mock
+    private CachingConnectionFactory cachingConnectionFactory;
+
+    @Mock
+    private ConnectionFactory nonCachingConnectionFactory;
 
     @BeforeEach
     void setUp() {
@@ -152,5 +159,63 @@ class SpringRabbitMQCustomEndpointTest {
         protected Endpoint createEndpoint(String uri, String remaining, Map<String, Object> parameters) {
             return null;
         }
+    }
+
+    @Test
+    void testDoStop() throws Exception {
+        endpoint.setConnectionFactory(cachingConnectionFactory);
+
+        endpoint.doStop();
+
+        verify(cachingConnectionFactory).destroy();
+    }
+
+    @Test
+    void testDoShutdown() throws Exception {
+        endpoint.setConnectionFactory(cachingConnectionFactory);
+
+        endpoint.doShutdown();
+
+        verify(cachingConnectionFactory).destroy();
+    }
+
+    @Test
+    void testDestroyConnectionFactoryWithCachingConnectionFactory() throws Exception {
+        endpoint = spy(endpoint);
+        when(endpoint.getConnectionFactory()).thenReturn(cachingConnectionFactory);
+
+        Method method = SpringRabbitMQCustomEndpoint.class.getDeclaredMethod("destroyConnectionFactory");
+        method.setAccessible(true);
+
+        method.invoke(endpoint);
+
+        verify(cachingConnectionFactory).destroy();
+    }
+
+    @Test
+    void testDestroyConnectionFactoryWithNonCachingConnectionFactory() throws Exception {
+        endpoint = spy(endpoint);
+        when(endpoint.getConnectionFactory()).thenReturn(nonCachingConnectionFactory);
+
+        Method method = SpringRabbitMQCustomEndpoint.class.getDeclaredMethod("destroyConnectionFactory");
+        method.setAccessible(true);
+
+        method.invoke(endpoint);
+
+        verifyNoInteractions(nonCachingConnectionFactory);
+    }
+
+    @Test
+    void testDestroyConnectionFactoryWithException() throws Exception {
+        endpoint = spy(endpoint);
+        when(endpoint.getConnectionFactory()).thenReturn(cachingConnectionFactory);
+        doThrow(new RuntimeException("Destroy failed")).when(cachingConnectionFactory).destroy();
+
+        Method method = SpringRabbitMQCustomEndpoint.class.getDeclaredMethod("destroyConnectionFactory");
+        method.setAccessible(true);
+
+        method.invoke(endpoint);
+
+        verify(cachingConnectionFactory).destroy();
     }
 }
