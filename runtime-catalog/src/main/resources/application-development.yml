@@ -37,7 +37,6 @@ qip:
       url: host.docker.internal:8910
   internal-services:
     engine: engine
-    variables-management: variables-management
   build:
     artifact-descriptor-version: ${ARTIFACT_DESCRIPTOR_VERSION:'0'}
 
