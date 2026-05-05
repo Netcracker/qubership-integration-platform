@@ -177,7 +177,7 @@ qip:
   import:
     session-lifetime-minutes: 300
   internal-services:
-    engine: ${NAMESPACE}-engine
+    engine: ${ENGINE_SERVICE_NAME:qip-engine}
   domain:
     default: default
   gateway:
