@@ -23,6 +23,9 @@ public class CustomResourceOptionsProvider {
     @Value("${qip.cr.build.monitoring.interval:30s}")
     private String interval;
 
+    @Value("${qip.cr.build.service.enabled:true}")
+    private boolean serviceEnabled;
+
     @Value("${qip.cr.build.service-account:default}")
     private String serviceAccount;
 
@@ -48,6 +51,9 @@ public class CustomResourceOptionsProvider {
                         .camelKSourcesUtilized(false)
                         .build())
                 .environment(getEnvironment())
+                .service(ServiceOptions.builder()
+                        .enabled(serviceEnabled)
+                        .build())
                 .serviceAccount(serviceAccount)
                 .build();
     }

@@ -59,16 +59,7 @@ public class CustomResourceBuildContextFactory {
     ) {
         List<Snapshot> snapshots = snapshotRepository.findAllByIdIn(request.getSnapshotIds());
 
-        ResourceBuildOptions options = appendToExising
-                ? request.getOptions().toBuilder()
-                        .monitoring(request.getOptions().getMonitoring().toBuilder()
-                                .enabled(false)
-                                .build())
-                        .service(request.getOptions().getService().toBuilder()
-                                .enabled(false)
-                                .build())
-                        .build()
-                : request.getOptions().toBuilder().build();
+        ResourceBuildOptions options = request.getOptions().toBuilder().build();
         BuildInfo buildInfo = createBuildInfo(options);
         ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(buildInfo)
                 .updateTo(snapshots);
