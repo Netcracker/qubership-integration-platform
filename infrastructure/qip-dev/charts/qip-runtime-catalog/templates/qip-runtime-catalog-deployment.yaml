@@ -101,6 +101,8 @@ spec:
                 configMapKeyRef:
                   key: MICRO_DEPLOY_ENABLED
                   name: {{ .Release.Name }}-env
+            - name: ENGINE_SERVICE_NAME
+              value: {{ .Release.Name }}-engine
           image: ghcr.io/netcracker/qubership-integration-runtime-catalog:main
           imagePullPolicy: IfNotPresent
           livenessProbe:
