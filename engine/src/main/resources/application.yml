@@ -29,7 +29,7 @@ spring:
     cloud_service_name: ${spring.application.name}-${spring.application.deployment_version}
     deployment_version: ${DEPLOYMENT_VERSION:v1}
     namespace: ${NAMESPACE:local}
-    default_integration_domain_microservice_name: qip-engine # custom param
+    default_integration_domain_microservice_name: ${MICROSERVICE_NAME:qip-engine} # custom param
     default_integration_domain_name: default # custom param
   config:
     import: consul:${CONSUL_URL:http://consul:8500}
