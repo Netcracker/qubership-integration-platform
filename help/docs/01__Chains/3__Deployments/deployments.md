@@ -21,7 +21,7 @@ Under the chain it is possible to navigate on "**Deployments**" tab. The followi
   - 🔴 **_Failed_** - deployment failed on one or multiple engines. Error details are available by hovering the mouse over engine's status.
 - **Created By**: The user who initiated the deployment.
 - **Created At**: The exact date and time of deployment.
-- **Actions**: The only available action is **Delete Deployment** marked with ![Delete|20](img/delete.svg), which removes the deployment record (note: this does not affect the deployed chain itself).
+
 
 ### Create Deployment
 Click **"Create deployment"** button marked with ![Plus|20](img/plus.svg). The window for setting deployment parameters will appear. Fill in the following deployment parameters and click **"Deploy"**:

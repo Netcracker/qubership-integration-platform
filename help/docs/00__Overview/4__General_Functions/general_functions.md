@@ -93,8 +93,23 @@ There is filtering functionality available for most of the column tables, utiliz
 
 It is possible to specify multiple filtering conditions via "**Add filter**" button. When filters are applied, button "**Filter**" will have a small counter indicator, showing quantity of active filters. It is also possible to remove particular filter via ![Delete|20](img/delete.svg) button or remove all filters via "**Clear All**" button.
 
+## Table Sorting
+For some table columns the following functions can be available:
+- ![](img/caret-up.svg) Sort Ascending
+- ![](img/caret-down.svg) Sort Descending
+
 ## Table Settings
 Most of the tables in the system can be adjusted not only by extending/shrinking column size, but also by controlling each column's visibility and sequence. To do so, click gear button ![Gear|20](img/setting.svg) on top of the table and adjust properties accordingly. Some of the columns can't be hidden or moved - this is explained for exact columns in respective design articles.
+
+## View User Details
+Click user icon ![](img/user.svg) on top right of the screen to see user and tenant details:
+- username
+- user email
+- tenant name
+- tenant id
+
+Tenant is being defined during the login operation, exactly when user selects the domain.
+
 
 ## Go to Home Page
 

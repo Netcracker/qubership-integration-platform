@@ -211,15 +211,10 @@ Supported formats and data:
 >ℹ️ **Note:** 
 >**Schema Change Handling**
 >
-> When the source or target schema is updated, the Mapper does not overwrite existing mappings.
-> 
-> Instead, it reconciles changes:
-> - Existing mappings are preserved if fields remain unchanged.
+> When the source or target schema is updated, the system is trying to preserve existing mappings (connection arrows) if it is possible:
 > - New fields are added but not mapped automatically.
-> - Removed or incompatible fields may break mappings and require manual fixes.
-> - Renamed fields are treated as new and must be re-mapped.
-> 
-> This ensures that schema updates do not unexpectedly reset user configurations.
+> - Renamed fields are treated as new and must be re-mapped manually.
+> - Changing a field's data type or its 'Required' flag will not break the mapping.
 
 #### Edit Body Structure
 There are control buttons, available under (![20](img/more.svg)) expandable menu in **Graph View**. This menu becomes visible after hovering the mouse on the desirable attribute. For **Table View** access control buttons with similar functionality exist and they are hidden by default. To display the buttons, hover the mouse on desired attribute or attribute value for its modification.
@@ -303,38 +298,6 @@ The table below contains description of possible connection pairs, that could be
 | Array of Primitives        | Array's field (Primitives) | Mapper creates as many objects as many values array of primitives contains (including the cases when array of primitive is also part of array) and maps each value of source array to each new object (order of the resulted objects is based on the order of values in the array of primitives).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Constant                   | Any type                   | It is possible to add a constant via left (source) scheme and map it to the specific target parameter with specifying target data type. If constant value is not equal to constant name, they both are displayed on **Graph View**, but only value will be mapped. The value is displayed with grey font color right after the constant name.<br><br>In general, conversion is similar for <b>"Primitive to ..."</b> cases.<br><br>User is able to fill next constant's details: <ul><li>**Value** - value of the constant (or it's name, when constant is being generated).</li><li>**Type** - string, number, boolean.</li><li>Checkbox **"Generated"** - if checked, instead of using constant, data is going to be generated based on the instance's date. Field "Name" is going to be renamed to "Value". "Generated" constants will be marked with label "G" in **Graph** and **Table** views.</li><li>**Generator** - list of all available options for generation: </li><ul><li>**Current Date** - system will fetch current instance's date and pass it to the mapped parameter.</li><li>**Current Time** - system will fetch current instance's time and pass it to the mapped parameter.</li><li>**Current Date and Time** - system will fetch current instance's datetime and pass it to the mapped parameter.</li><li>**UUID** - system generates UUID v4.</li></ul><li>Checkbox **Unix epoch** - if checked, date is going to be generated in the unix format. Field is not available for UUID.</li><li>**Format** - specifies the format of generated date/datetime dd-mm-yyyy. Field is not available for UUID.</li><li>**Locale** - specifies locale (e.g.,en_US). Field is not available for UUID.</li><li>**Timezone** - specifies time zone (e.g., GMT). Field is not available for UUID.</li></ul><br>ℹ️**Note:** When one "Generated" constant is mapped to many parameters - all parameters will get **identical** generated value. |
 
-**Primitive to Primitive conversion rules:**
-
-- **String** to **String**: No conversion.
-- **String** to **Number**: Converts if source contains only digits, otherwise **null**.
-- **String** to **Boolean**: "true" becomes **true**; numeric strings follow Number-to-Boolean rules; otherwise **false**.
-- **Number** to **String**: Simple conversion.
-- **Number** to **Number**: No conversion.
-- **Number** to **Boolean**: 0 becomes "false", else "true".
-- **Boolean** to **String**: Simple conversion.
-- **Boolean** to **Number**: "true" becomes 1, "false" becomes 0.
-- **Boolean** to **Boolean**: No conversion.
-
-**Object to Object mapping notes:**
-
-- If scheme is defined for both source and target, only matched fields are mapped.
-- If scheme is defined for source but not target, final object has source structure.
-- If scheme is undefined for source but defined for target, final object has target structure.
-- If scheme is undefined for both, structure is built from the first object in the array received in request.
-
-**Constant details:**
-
-- **Value** - value of the constant (or its name when generated).
-- **Type** - string, number, boolean.
-- **Generated** checkbox - if checked, data is generated based on instance's date. "Name" is renamed to "Value". Marked with "G" label in **Graph** and **Table** views.
-- **Generator** options: **Current Date**, **Current Time**, **Current Date and Time**, **UUID** (v4).
-- **Unix epoch** checkbox - generates date in unix format. Not available for UUID.
-- **Format** - date/datetime format (e.g., dd-mm-yyyy). Not available for UUID.
-- **Locale** - e.g., en_US. Not available for UUID.
-- **Timezone** - e.g., GMT. Not available for UUID.
-- If constant value differs from name, both are displayed on **Graph View** but only value is mapped (shown in grey).
-- Conversion is similar to **"Primitive to ..."** cases.
-- When one "Generated" constant is mapped to many parameters, all get **identical** generated value.
 
 #### Apply Transformation
 It is possible to apply transformation to mapped attributes on each of Mapper Views:

@@ -29,4 +29,4 @@ Properties are the following:
 * Deploy Action - Allows to select the following actions:
   * None - the chain will be saved as a draft.
   * Snapshot - the chain will be saved as a draft with created snapshot.
-  * Deploy Action - the chain will be deployed.
+  * Deploy - the chain will be deployed.

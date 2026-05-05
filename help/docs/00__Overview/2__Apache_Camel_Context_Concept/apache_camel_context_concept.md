@@ -46,6 +46,7 @@ There are multiple chain elements, that have very specific ways of processing co
 
 ### Split
 Diagram below shows how context data is being managed by **Split** element:
+
 ![Split element context data flow diagram](img/camel_split.svg)
 
 **Steps Description**

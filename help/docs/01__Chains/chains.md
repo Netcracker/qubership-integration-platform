@@ -59,11 +59,6 @@ Each **chain** contains the following parameters on table view:
   - _**Delete**_ - deletes chain.
 
 
-> ℹ️ **Notes:** For most of the table columns there is special context menu. To open it, **click on the column name**. The following functions can be available here:
->
-> - Sort Ascending
-> - Sort Descending
-
 **Folder** contains the following parameters on table view:
 - **Name** - clickable reference to the page with folder content.
 - **Actions menu** - list of operations, accessed via menu symbol ![20](img/more.svg), contains the list of available operations with the folder:

@@ -34,9 +34,9 @@ Qubership Integration Platform will apply its own default hard-coded option and 
   - **Info** - log only external communications (sending and receiving external messages by any protocol, incoming and outgoing). Used for investigation of production incidents.
 - **Log Payload** - controls payload parts, which must be logged: Headers, Properties, Body. If nothing is selected - no payload data will be logged.
 - **Produce DPT Events** - based on selected option, system either sends DPT events or not:
-  - **true** - deployed chain will be publishing events to DPT (Distributed Process Tracing and Monitoring system).
-  - **false** _(Default value)_ - no events will be published to DPT.
+  - **checked** - deployed chain will be publishing events to DPT (Distributed Process Tracing and Monitoring system).
+  - **unchecked** _(Default value)_ - no events will be published to DPT.
 - **Enable Logging Masking** - based on selected option, system decides if masking must be applied to configured set of parameters:
-  - **true** _(Default value)_ - masking settings, configured under "Masked Fields" expand will be applied.
-  - **false** - no masking applied.
+  - **checked** _(Default value)_ - masking settings, configured under "Masked Fields" expand will be applied.
+  - **unchecked** - no masking applied.
 - **Apply** button - when custom settings are specified, they MUST be applied via this button. As the result of this operation, settings will be published to the Consul.
