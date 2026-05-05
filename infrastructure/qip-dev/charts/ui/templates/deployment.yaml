@@ -20,7 +20,6 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
-              hostPort: 8080
           volumeMounts:
             - name: nginx-config
               mountPath: /etc/nginx/nginx.conf
