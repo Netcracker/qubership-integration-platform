@@ -719,6 +719,12 @@
             <groupId>com.netcracker.cloud.quarkus</groupId>
             <artifactId>dbaas-datasource-postgresql</artifactId>
         </dependency>
+
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
