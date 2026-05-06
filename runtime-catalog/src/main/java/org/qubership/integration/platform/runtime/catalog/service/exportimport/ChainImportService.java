@@ -559,7 +559,7 @@ public class ChainImportService {
             if (!CollectionUtils.isEmpty(deployments)) {
                 try {
                     for (DeploymentExternalEntity deployment : deployments) {
-                        if (engineService.isDevMode() || engineService.getDomainByName(deployment.getDomain()) != null) {
+                        if (engineService.getDomainByName(deployment.getDomain()) != null) {
                             createDeployment(snapshot, oldDeploysList, deployment);
                         } else {
                             importChainResult.setStatus(ImportEntityStatus.ERROR);

@@ -244,7 +244,7 @@ public class DeploymentService {
                     .errorMessage("Found external or private triggers while deploying to multiple domains")
                     .domain(EngineDomain.builder()
                             .name(name)
-                            .type(DomainType.NATIVE)
+                            .type(DomainType.CLASSIC)
                             .build())
                     .build()).toList();
         }
@@ -268,7 +268,7 @@ public class DeploymentService {
                 .chainName(chainName)
                 .domain(EngineDomain.builder()
                         .name(deployment.getDomain())
-                        .type(DomainType.NATIVE)
+                        .type(DomainType.CLASSIC)
                         .build());
 
         try {

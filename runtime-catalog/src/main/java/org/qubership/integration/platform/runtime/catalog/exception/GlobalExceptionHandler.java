@@ -20,6 +20,7 @@ import com.github.jknack.handlebars.internal.lang3.StringUtils;
 import jakarta.persistence.EntityExistsException;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
+import lombok.extern.slf4j.Slf4j;
 import org.postgresql.util.PSQLException;
 import org.postgresql.util.ServerErrorMessage;
 import org.qubership.integration.platform.runtime.catalog.consul.exception.ConsulException;
@@ -61,8 +62,11 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @ControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final String NO_STACKTRACE_AVAILABLE_MESSAGE = "No Stacktrace Available, check the logs for more details";
+    private static final String GENERIC_DATA_INTEGRITY_ERROR_MESSAGE =
+            "Invalid request content. One or more fields violate data constraints.";
 
     @ExceptionHandler
     public ResponseEntity<ExceptionDTO> handleGeneralException(Exception exception) {
@@ -257,7 +261,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 ));
             }
         }
-        return handleGeneralException(exception);
+        return sanitizedBadRequestResponse(GENERIC_DATA_INTEGRITY_ERROR_MESSAGE, exception);
     }
 
     @ExceptionHandler(EmptyVariableFieldException.class)
@@ -280,6 +284,10 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(getExceptionDTO(exception));
     }
 
+    @ExceptionHandler(DomainTypeDisabledException.class)
+    public ResponseEntity<ExceptionDTO> handleDomainTypeDisabledException(DomainTypeDisabledException exception) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(getExceptionDTO(exception));
+    }
 
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
@@ -310,6 +318,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .errorDate(new Timestamp(System.currentTimeMillis()).toString())
                 .details(details)
                 .build();
+    }
+
+    private ResponseEntity<ExceptionDTO> sanitizedBadRequestResponse(String message, Exception exception) {
+        log.warn("Request rejected: {}", message, exception);
+        ExceptionDTO exceptionDTO = ExceptionDTO.builder()
+                .errorMessage(message)
+                .errorDate(new Timestamp(System.currentTimeMillis()).toString())
+                .build();
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(exceptionDTO);
     }
 
     private String extractConstraintMessage(org.hibernate.exception.ConstraintViolationException exception) {

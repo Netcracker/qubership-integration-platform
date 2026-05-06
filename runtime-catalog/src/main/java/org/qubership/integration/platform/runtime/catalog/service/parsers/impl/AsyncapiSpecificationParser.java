@@ -51,6 +51,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -139,7 +140,8 @@ public class AsyncapiSpecificationParser implements SpecificationParser {
             group.addSystemModel(systemModel);
 
             return systemModel;
-        } catch (SpecificationSimilarIdException | SpecificationSimilarVersionException e) {
+        } catch (SpecificationSimilarIdException | SpecificationSimilarVersionException
+                 | SpecificationImportException e) {
             throw e;
         } catch (Exception e) {
             throw new SpecificationImportException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
@@ -150,10 +152,30 @@ public class AsyncapiSpecificationParser implements SpecificationParser {
         return data.trim().startsWith("{") ? jsonMapper : yamlMapper;
     }
 
+    AsyncApiSpecificationResolver resolveSpecificationResolver(OperationProtocol operationProtocol) {
+        if (operationProtocol == null) {
+            throw unsupportedBindingException("Cannot parse AsyncAPI specification: system protocol is not set.");
+        }
+        AsyncApiSpecificationResolver resolver = specificationResolverMap.get(operationProtocol.getValue());
+        if (resolver == null) {
+            throw unsupportedBindingException(
+                    "AsyncAPI parsing is not supported for protocol '" + operationProtocol.getValue() + "'.");
+        }
+        return resolver;
+    }
+
+    private SpecificationImportException unsupportedBindingException(String reason) {
+        String supported = specificationResolverMap.keySet().stream()
+                .sorted()
+                .collect(Collectors.joining(", "));
+        return new SpecificationImportException(
+                reason + " Supported AsyncAPI bindings: " + supported + ".");
+    }
+
     private List<Operation> separate(AsyncapiSpecification importedAsyncApi, OperationProtocol operationProtocol) {
         List<Operation> operations = new ArrayList<>();
 
-        AsyncApiSpecificationResolver specificationResolver = specificationResolverMap.get(operationProtocol.getValue());
+        AsyncApiSpecificationResolver specificationResolver = resolveSpecificationResolver(operationProtocol);
 
         Map<String, Channel> channels = importedAsyncApi.getChannels();
         if (channels == null || channels.isEmpty()) {

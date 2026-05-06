@@ -3,6 +3,7 @@ package org.qubership.integration.platform.runtime.catalog.rest.v2.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.FolderMoveException;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
@@ -48,7 +49,7 @@ public class FolderControllerV2 {
     @PostMapping
     @Operation(description = "Create a new folder")
     public ResponseEntity<FolderItem> create(
-            @RequestBody
+            @Valid @RequestBody
             @Parameter(description = "Folder creation request object")
             CreateFolderRequest request
     ) {
@@ -110,7 +111,7 @@ public class FolderControllerV2 {
             @Parameter(description = "Folder ID")
             String id,
 
-            @RequestBody
+            @Valid @RequestBody
             @Parameter(description = "Folder update request object")
             UpdateFolderRequest request
     ) {

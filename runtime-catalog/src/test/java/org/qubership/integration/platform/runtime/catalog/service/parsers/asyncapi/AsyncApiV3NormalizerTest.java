@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
 import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.AsyncapiSpecification;
 import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.Channel;
 import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.Message;
@@ -618,6 +619,92 @@ class AsyncApiV3NormalizerTest {
         assertNotNull(v2Channel.getPublish());
         Message msg = v2Channel.getPublish().getMessage();
         assertEquals("#/components/messages/Foo", msg.get$ref());
+    }
+
+    @Test
+    void normalizeReplyHasReceiveActionWhenSourceIsSend() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-request-reply.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        Channel replyChannel = v2.getChannels().get("order/reply");
+        assertNotNull(replyChannel.getSubscribe());
+        assertEquals("receive", replyChannel.getSubscribe().getAction(),
+                "Reply of a 'send' operation should carry derived 'receive' action");
+    }
+
+    @Test
+    void normalizeReplyHasSendActionWhenSourceIsReceive() throws IOException {
+        AsyncapiV3Specification v3 = readYamlV3("asyncapi/v3/kafka-v3-channel-ref-messages.yaml");
+        AsyncapiSpecification v2 = normalizer.normalize(v3);
+
+        Channel replyChannel = v2.getChannels().get("reply/target");
+        assertNotNull(replyChannel.getPublish());
+        assertEquals("send", replyChannel.getPublish().getAction(),
+                "Reply of a 'receive' operation should carry derived 'send' action");
+    }
+
+    @Test
+    void normalizeRejectsLegacyV2SubscribeAction() {
+        AsyncapiV3Specification v3 = singleOperationSpec("legacyOp", "subscribe");
+
+        SpecificationImportException ex = assertThrows(SpecificationImportException.class,
+                () -> normalizer.normalize(v3));
+        assertTrue(ex.getMessage().contains("legacyOp"));
+        assertTrue(ex.getMessage().contains("subscribe"));
+        assertTrue(ex.getMessage().contains("send"));
+        assertTrue(ex.getMessage().contains("receive"));
+    }
+
+    @Test
+    void normalizeRejectsLegacyV2PublishAction() {
+        AsyncapiV3Specification v3 = singleOperationSpec("legacyPub", "publish");
+
+        SpecificationImportException ex = assertThrows(SpecificationImportException.class,
+                () -> normalizer.normalize(v3));
+        assertTrue(ex.getMessage().contains("legacyPub"));
+        assertTrue(ex.getMessage().contains("publish"));
+    }
+
+    @Test
+    void normalizeRejectsUnknownAction() {
+        AsyncapiV3Specification v3 = singleOperationSpec("weirdOp", "broadcast");
+
+        SpecificationImportException ex = assertThrows(SpecificationImportException.class,
+                () -> normalizer.normalize(v3));
+        assertTrue(ex.getMessage().contains("weirdOp"));
+        assertTrue(ex.getMessage().contains("broadcast"));
+    }
+
+    @Test
+    void normalizeRejectsMissingAction() {
+        AsyncapiV3Specification v3 = singleOperationSpec("noAction", null);
+
+        SpecificationImportException ex = assertThrows(SpecificationImportException.class,
+                () -> normalizer.normalize(v3));
+        assertTrue(ex.getMessage().contains("noAction"));
+        assertTrue(ex.getMessage().toLowerCase().contains("missing"));
+    }
+
+    private AsyncapiV3Specification singleOperationSpec(String operationKey, String action) {
+        AsyncapiV3Specification v3 = new AsyncapiV3Specification();
+        v3.setAsyncapi("3.0.0");
+
+        V3Channel channel = new V3Channel();
+        channel.setAddress("test/addr");
+        Map<String, V3Channel> channels = new LinkedHashMap<>();
+        channels.put("testCh", channel);
+        v3.setChannels(channels);
+
+        V3Operation op = new V3Operation();
+        op.setAction(action);
+        V3ChannelRef chRef = new V3ChannelRef();
+        chRef.setRef("#/channels/testCh");
+        op.setChannel(chRef);
+
+        Map<String, V3Operation> operations = new LinkedHashMap<>();
+        operations.put(operationKey, op);
+        v3.setOperations(operations);
+        return v3;
     }
 
     private AsyncapiV3Specification readYamlV3(String path) throws IOException {

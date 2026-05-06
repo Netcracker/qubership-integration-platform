@@ -11,16 +11,8 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @NoArgsConstructor
 @Schema(description = "Create folder request object")
-public class CreateFolderRequest {
+public class CreateFolderRequest extends AbstractFolderWriteRequest {
+
     @Schema(description = "Folder ID")
     String id;
-
-    @Schema(description = "Parent folder ID")
-    String parentId;
-
-    @Schema(description = "Name")
-    String name;
-
-    @Schema(description = "Description")
-    String description;
 }

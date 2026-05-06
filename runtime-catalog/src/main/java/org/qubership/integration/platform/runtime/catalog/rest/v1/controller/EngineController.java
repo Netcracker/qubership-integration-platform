@@ -20,8 +20,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineDeploymentsDTO;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentsUpdate;
+import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.model.domains.EngineDomain;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.EngineDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.engine.DomainResponse;
@@ -50,18 +53,23 @@ public class EngineController {
     private final DeploymentMapper deploymentMapper;
     private final DeploymentService deploymentService;
     private final RuntimeDeploymentService runtimeDeploymentService;
+    private final DomainProperties domainProperties;
 
     @Autowired
-    EngineController(EngineService engineService,
-                     EngineMapper engineMapper,
-                     DeploymentMapper deploymentMapper,
-                     DeploymentService deploymentService,
-                     RuntimeDeploymentService runtimeDeploymentService) {
+    EngineController(
+            EngineService engineService,
+            EngineMapper engineMapper,
+            DeploymentMapper deploymentMapper,
+            DeploymentService deploymentService,
+            RuntimeDeploymentService runtimeDeploymentService,
+            DomainProperties domainProperties
+    ) {
         this.engineService = engineService;
         this.engineMapper = engineMapper;
         this.deploymentMapper = deploymentMapper;
         this.deploymentService = deploymentService;
         this.runtimeDeploymentService = runtimeDeploymentService;
+        this.domainProperties = domainProperties;
     }
 
     @GetMapping
@@ -114,8 +122,9 @@ public class EngineController {
     @Operation(description = "Get deployments update for particular engine, for internal use")
     ResponseEntity<DeploymentsUpdate> getDeploymentsUpdate(@PathVariable @Parameter(description = "Engine domain name") String domainName,
                                                            @RequestBody @Parameter(description = "Engine deployments update request object") EngineDeploymentsDTO engineDeployments) {
-        if (log.isDebugEnabled()) {
-            log.debug("Request to get deployments for engine with domain {}", domainName);
+        log.debug("Request to get deployments for engine with domain {}", domainName);
+        if (!domainProperties.getClassic().isEnabled()) {
+            throw new DomainTypeDisabledException(DomainType.CLASSIC);
         }
         try {
             DeploymentsUpdate deploymentsUpdate =

@@ -40,6 +40,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.DependencyRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
@@ -66,10 +67,14 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
-import static org.mockito.Mockito.any;
 
 @DisplayName("Transferable element service test")
 @ContextConfiguration(
@@ -703,6 +708,63 @@ public class TransferableElementServiceTest {
         assertThat(diff.getUpdatedElements(), hasItems(oldGroupContainer, elementContainer));
 
         verify(elementRepository, times(1)).saveAll(eq(List.of(elementToTransfer)));
+    }
+
+    @DisplayName("Transferring element out of container under swimlane should not move element (parent does not change")
+    @Test
+    void transferOutOfContainerUnderSwimlaneShouldNotUpdateParentId() {
+        ContainerChainElement parent = createContainerElement(TestElementUtils.TEST_CASE_TYPE,
+                "container-under-swimlane");
+        parent.setSwimlane(new SwimlaneChainElement());
+        ChainElement elementToTransfer = createChainElement(TestElementUtils.TEST_SENDER_TYPE,
+                TestElementUtils.SENDER_1_ID);
+        elementToTransfer.setParent(parent);
+
+        when(jpaAuditingHandler.markModified(any(ChainElement.class))).thenAnswer(i -> i.getArguments()[0]);
+        when(elementRepository.save(any(ChainElement.class))).thenAnswer(i -> i.getArguments()[0]);
+        when(elementRepository.saveAll(anyList())).thenAnswer(i -> i.getArguments()[0]);
+        when(elementRepository.findAllById(List.of(elementToTransfer.getId())))
+                .thenReturn(List.of(elementToTransfer));
+
+        TransferElementRequest request = TransferElementRequest.builder()
+                .elements(List.of(elementToTransfer.getId()))
+                .build();
+
+        ChainDiff diff = assertDoesNotThrow(
+                () -> transferableElementService.transfer(TestElementUtils.CHAIN_ID, request));
+
+        assertSame(parent, elementToTransfer.getParent());
+        assertThat(diff.getUpdatedElements(), hasItems(elementToTransfer));
+
+        verify(elementRepository, times(1)).saveAll(List.of(elementToTransfer));
+    }
+
+    @DisplayName("Transferring element out of swimlane should not move element (swimlane does not change")
+    @Test
+    void transferOutOfSwimlaneShouldNotUpdateSwimlane() {
+        ChainElement elementToTransfer = createChainElement(TestElementUtils.TEST_SENDER_TYPE,
+                TestElementUtils.SENDER_1_ID);
+        SwimlaneChainElement swimlane = SwimlaneChainElement.builder().id("swimlane-id").build();
+        elementToTransfer.setSwimlane(swimlane);
+
+        when(jpaAuditingHandler.markModified(any(ChainElement.class))).thenAnswer(i -> i.getArguments()[0]);
+        when(elementRepository.save(any(ChainElement.class))).thenAnswer(i -> i.getArguments()[0]);
+        when(elementRepository.saveAll(anyList())).thenAnswer(i -> i.getArguments()[0]);
+        when(elementRepository.findAllById(List.of(elementToTransfer.getId())))
+                .thenReturn(List.of(elementToTransfer));
+
+        TransferElementRequest request = TransferElementRequest.builder()
+                .elements(List.of(elementToTransfer.getId()))
+                .build();
+
+        ChainDiff diff = assertDoesNotThrow(
+                () -> transferableElementService.transfer(TestElementUtils.CHAIN_ID, request));
+
+        assertSame(swimlane, elementToTransfer.getSwimlane());
+        assertNull(elementToTransfer.getParent());
+        assertThat(diff.getUpdatedElements(), hasItems(elementToTransfer));
+
+        verify(elementRepository, times(1)).saveAll(List.of(elementToTransfer));
     }
 
     private ContainerChainElement createContainerElement(String type, String id) {
