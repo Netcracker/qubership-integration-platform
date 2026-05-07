@@ -18,7 +18,6 @@ package org.qubership.integration.platform.runtime.catalog.kubernetes.secret;
 
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.models.V1Secret;
-import okhttp3.Call;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpStatus;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
@@ -95,14 +94,13 @@ public class LocalDevKubeSecretOperator implements KubeSecretOperator {
     }
 
     @Override
-    public Call removeSecretDataAsync(String secretName, Set<String> keys, SecretUpdateCallback callback) {
+    public void removeSecretDataAsync(String secretName, Set<String> keys, SecretUpdateCallback callback) {
         try {
             removeSecretData(secretName, keys);
             callback.onSuccess(getSecretObjectByName(secretName), HttpStatus.SC_OK, Collections.emptyMap());
         } catch (Exception e) {
             callback.onFailure(new ApiException(e), HttpStatus.SC_INTERNAL_SERVER_ERROR, Collections.emptyMap());
         }
-        return null;
     }
 
     @Override

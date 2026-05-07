@@ -17,7 +17,6 @@
 package org.qubership.integration.platform.runtime.catalog.kubernetes.secret;
 
 import io.kubernetes.client.openapi.models.V1Secret;
-import okhttp3.Call;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.springframework.lang.Nullable;
@@ -39,7 +38,7 @@ public interface KubeSecretOperator {
 
     Map<String, String> removeSecretData(String secretName, Set<String> keys);
 
-    Call removeSecretDataAsync(String secretName, Set<String> keys, SecretUpdateCallback callback);
+    void removeSecretDataAsync(String secretName, Set<String> keys, SecretUpdateCallback callback);
 
     Map<String, String> updateSecretData(String secretName, Map<String, String> data);
 }
