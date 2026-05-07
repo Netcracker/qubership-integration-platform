@@ -6,7 +6,28 @@ import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import DomainsTable from "../../../../src/components/admin_tools/domains/DomainsTable.tsx";
-import { DomainType, type EngineDomain } from "../../../../src/api/apiTypes.ts";
+import {
+  DomainType,
+  type Engine,
+  type EngineDomain,
+} from "../../../../src/api/apiTypes.ts";
+import { mockDomainsTablesLayoutClasses as layoutStyles } from "../../../helpers/mockDomainsTablesLayout";
+
+type UseEnginesResult = {
+  engines: Engine[];
+  isLoading: boolean;
+  error: Error | undefined;
+  retry: jest.Mock;
+};
+
+const mockUseEngines: jest.MockedFunction<() => UseEnginesResult> = jest.fn(
+  () => ({
+    engines: [],
+    isLoading: false,
+    error: undefined,
+    retry: jest.fn(),
+  }),
+);
 
 jest.mock("react-resizable/css/styles.css", () => ({}));
 
@@ -60,12 +81,7 @@ jest.mock(
 jest.mock(
   "../../../../src/components/admin_tools/domains/hooks/useEngines.ts",
   () => ({
-    useEngines: () => ({
-      engines: [],
-      isLoading: false,
-      error: undefined,
-      retry: jest.fn(),
-    }),
+    useEngines: () => mockUseEngines(),
   }),
 );
 
@@ -83,16 +99,71 @@ jest.mock("../../../../src/icons/IconProvider.tsx", () => ({
   OverridableIcon: ({ name }: { name: string }) => <span>{name}</span>,
 }));
 
-const nativeDomain: EngineDomain = {
+const nativeDomain = {
   id: "d1",
   name: "alpha-domain",
   replicas: 1,
   namespace: "ns1",
   version: "1.0",
-  type: DomainType.NATIVE,
-};
+  type: DomainType.CLASSIC,
+} satisfies EngineDomain;
 
 describe("DomainsTable", () => {
+  beforeEach(() => {
+    mockUseEngines.mockReturnValue({
+      engines: [],
+      isLoading: false,
+      error: undefined,
+      retry: jest.fn(),
+    });
+  });
+
+  test("applies DomainsTablesLayout section and main table classes", () => {
+    render(<DomainsTable domains={[nativeDomain]} />);
+
+    expect(
+      document.querySelector(`.${layoutStyles.tableSection}`),
+    ).toBeInTheDocument();
+    const main = document.querySelector(".flex-table");
+    expect(main).toBeInTheDocument();
+    expect(main).toHaveClass(layoutStyles.mainTable);
+  });
+
+  test("wraps expanded row content with nestedExpandWrap", () => {
+    const { container } = render(<DomainsTable domains={[nativeDomain]} />);
+
+    const expander = container.querySelector(
+      "tbody tr td button[type='button']",
+    );
+    expect(expander).toBeTruthy();
+    fireEvent.click(expander!);
+
+    const wrap = document.querySelector(`.${layoutStyles.nestedExpandWrap}`);
+    expect(wrap).toBeInTheDocument();
+    expect(wrap).toContainElement(screen.getByTestId("engine-table-stub"));
+  });
+
+  test("expanded row shows engines load error and calls retry", async () => {
+    const retry = jest.fn();
+    mockUseEngines.mockReturnValue({
+      engines: [],
+      isLoading: false,
+      error: new Error("unavailable"),
+      retry,
+    });
+
+    const { container } = render(<DomainsTable domains={[nativeDomain]} />);
+    fireEvent.click(
+      container.querySelector("tbody tr td button[type='button']")!,
+    );
+
+    expect(
+      await screen.findByText("Error while loading list of engines"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalled();
+  });
+
   test("table scroll includes empty y when filtered domains exist", () => {
     render(<DomainsTable domains={[nativeDomain]} />);
 

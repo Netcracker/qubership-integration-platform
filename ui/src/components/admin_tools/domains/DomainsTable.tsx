@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Flex, Table, Button, Typography, Space, Tag } from "antd";
+import { Flex, Table, Button, Space, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { EngineTable } from "./EngineTable";
 import { useEngines } from "./hooks/useEngines";
@@ -18,6 +18,7 @@ import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 import { TablePageLayout } from "../../TablePageLayout.tsx";
+import layoutStyles from "./DomainsTablesLayout.module.css";
 
 /** rc-table expand icon column; not in `columns` but affects horizontal layout. */
 const DOMAINS_EXPAND_COLUMN_WIDTH = 48;
@@ -175,16 +176,8 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
 
   const [expandedRowKeys, setExpandedRowKeys] = React.useState<React.Key[]>([]);
 
-  useEffect(() => {
-    if (filteredData.length > 0) {
-      setExpandedRowKeys(filteredData.map((domain) => domain.id));
-    } else {
-      setExpandedRowKeys([]);
-    }
-  }, [filteredData]);
-
   return (
-    <Flex vertical style={{ width: "100%", flex: 1, minHeight: 0 }}>
+    <Flex vertical className={layoutStyles.tableSection}>
       <AdminToolsHeader
         title="Domains"
         iconName="domains"
@@ -203,20 +196,24 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
       />
       <TablePageLayout>
         <Table<EngineDomain>
-          className="flex-table"
+          className={`flex-table ${layoutStyles.mainTable}`}
           size="small"
+          tableLayout="fixed"
           columns={columnsWithResize}
           dataSource={filteredData}
           loading={isLoading}
           pagination={false}
-          style={{ flex: 1, minHeight: 0 }}
           scroll={
             filteredData.length > 0 ? { x: scrollX, y: "" } : { x: scrollX }
           }
           components={domainsColumnResize.resizableHeaderComponents}
           expandable={{
             expandIcon: treeExpandIcon(),
-            expandedRowRender: (record) => <EnginesForDomain domain={record} />,
+            expandedRowRender: (record) => (
+              <div className={layoutStyles.nestedExpandWrap}>
+                <EnginesForDomain domain={record} />
+              </div>
+            ),
             expandedRowKeys: expandedRowKeys,
             onExpandedRowsChange: (expandedKeys) =>
               setExpandedRowKeys(expandedKeys as React.Key[]),

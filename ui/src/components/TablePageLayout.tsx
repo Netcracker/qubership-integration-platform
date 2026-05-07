@@ -8,7 +8,7 @@ type TablePageLayoutProps = {
 export const TablePageLayout: React.FC<TablePageLayoutProps> = ({
   children,
 }) => (
-  <Flex vertical gap={8} style={{ height: "100%" }}>
+  <Flex vertical gap={8} style={{ height: "100%", minWidth: 0 }}>
     {children}
   </Flex>
 );

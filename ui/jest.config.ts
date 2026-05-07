@@ -96,6 +96,10 @@ const config: Config = {
   // A map from regular expressions to module names or to arrays of module names that allow to stub out resources with a single module
   moduleNameMapper: {
     "^tests/helpers/(.*)$": "<rootDir>/tests/helpers/$1",
+    "DomainsTablesLayout\\.module\\.css$":
+      "<rootDir>/tests/__mocks__/domainsTablesLayoutModule.cjs",
+    "CommonStyle\\.module\\.css$":
+      "<rootDir>/tests/__mocks__/commonStyleContainerModule.cjs",
     "\\.module\\.css$": "<rootDir>/tests/__mocks__/styleMock.js",
     "\\.css$": "<rootDir>/tests/__mocks__/styleMock.js",
   },

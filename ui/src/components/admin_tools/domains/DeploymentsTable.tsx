@@ -7,6 +7,7 @@ import {
   attachResizeToColumns,
   useTableColumnResize,
 } from "../../table/useTableColumnResize.tsx";
+import layoutStyles from "./DomainsTablesLayout.module.css";
 
 interface Props {
   deployments: ChainDeployment[];
@@ -67,24 +68,25 @@ export const DeploymentsTable: React.FC<Props> = ({
         { minWidth: 80 },
       ),
     [
-      deploymentColumns,
       deploymentColumnResize.columnWidths,
       deploymentColumnResize.createResizeHandlers,
     ],
   );
 
   return (
-    <Spin spinning={isLoading}>
-      <Table
-        rowKey="id"
-        className="flex-table"
-        columns={columnsWithResize}
-        dataSource={deployments}
-        pagination={false}
-        size="small"
-        scroll={{ x: deploymentColumnResize.totalColumnsWidth }}
-        components={deploymentColumnResize.resizableHeaderComponents}
-      />
-    </Spin>
+    <div className={layoutStyles.nestedTableHost}>
+      <Spin spinning={isLoading}>
+        <Table
+          rowKey="id"
+          className={`flex-table ${layoutStyles.nestedTable}`}
+          columns={columnsWithResize}
+          dataSource={deployments}
+          pagination={false}
+          size="small"
+          tableLayout="fixed"
+          components={deploymentColumnResize.resizableHeaderComponents}
+        />
+      </Spin>
+    </div>
   );
 };

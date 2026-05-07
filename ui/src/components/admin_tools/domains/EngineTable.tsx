@@ -10,8 +10,7 @@ import {
   attachResizeToColumns,
   useTableColumnResize,
 } from "../../table/useTableColumnResize.tsx";
-
-const ENGINE_EXPAND_COLUMN_WIDTH = 48;
+import layoutStyles from "./DomainsTablesLayout.module.css";
 
 interface Props {
   engines: Engine[];
@@ -107,37 +106,29 @@ export const EngineTable: React.FC<Props> = ({
         { minWidth: 80 },
       ),
     [
-      columns,
       engineColumnResize.columnWidths,
       engineColumnResize.createResizeHandlers,
     ],
   );
 
-  const scrollX =
-    engineColumnResize.totalColumnsWidth + ENGINE_EXPAND_COLUMN_WIDTH;
-
-  React.useEffect(() => {
-    if (engines.length > 0) {
-      setExpandedRowKeys(engines.map((engine) => engine.id));
-    }
-  }, [engines]);
-
   return (
-    <div>
+    <div className={layoutStyles.nestedTableHost}>
       <Spin spinning={isLoading}>
         <Table
           rowKey="id"
-          className="flex-table"
+          className={`flex-table ${layoutStyles.nestedTable}`}
           columns={columnsWithResize}
           dataSource={engines}
           pagination={false}
           size="small"
-          scroll={{ x: scrollX }}
+          tableLayout="fixed"
           components={engineColumnResize.resizableHeaderComponents}
           expandable={{
             expandIcon: treeExpandIcon(),
             expandedRowRender: (engine) => (
-              <DeploymentsForEngine engine={engine} domainName={domainName} />
+              <div className={layoutStyles.nestedExpandWrap}>
+                <DeploymentsForEngine engine={engine} domainName={domainName} />
+              </div>
             ),
             expandedRowKeys: expandedRowKeys,
             onExpandedRowsChange: (expandedKeys) =>
