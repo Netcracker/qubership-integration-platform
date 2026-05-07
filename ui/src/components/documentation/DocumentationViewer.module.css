@@ -1,55 +1,207 @@
 .viewer {
+  --doc-fg: var(--vscode-foreground, rgb(0 0 0 / 88%));
+  --doc-border: var(
+    --vscode-editorGroup-border,
+    var(--vscode-border, rgb(128 128 128 / 35%))
+  );
+  --doc-link: var(--vscode-textLink-foreground, #1677ff);
+  --doc-tint-row: color-mix(in srgb, var(--doc-fg) 2%, transparent);
+  --doc-tint-header: color-mix(in srgb, var(--doc-fg) 6%, transparent);
+  --doc-tint-code-bg: color-mix(in srgb, var(--doc-fg) 7%, transparent);
+  --doc-tint-code-border: color-mix(in srgb, var(--doc-fg) 8%, transparent);
+  --doc-tint-scrollbar: color-mix(in srgb, var(--doc-fg) 18%, transparent);
+
   display: flex;
   flex-direction: column;
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
-  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+  color: var(--doc-fg);
   background: transparent;
 }
 
+.viewer ::selection {
+  background: color-mix(in srgb, var(--doc-link) 30%, transparent);
+}
+
+/* ─── Headings: typography-driven hierarchy, no decorative borders ─── */
+
+.viewer :is(h1, h2, h3, h4, h5, h6) {
+  margin: 0.6em 0 0.2em;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  scroll-margin-top: 16px;
+  color: var(--doc-fg);
+}
+
+.viewer > :is(h1, h2, h3, h4, h5, h6):first-child {
+  margin-top: 0;
+}
+
+.viewer h1 {
+  font-size: 2.1em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-top: 0.1em;
+  margin-bottom: 0.3em;
+}
+
+.viewer h2 {
+  font-size: 1.65em;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  margin-top: 1em;
+  margin-bottom: 0.25em;
+}
+
+.viewer h3 {
+  font-size: 1.35em;
+}
+
+.viewer h4 {
+  font-size: 1.15em;
+}
+
+.viewer h5 {
+  font-size: 1em;
+}
+
+.viewer h6 {
+  font-size: 0.9em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--vscode-descriptionForeground, rgb(0 0 0 / 60%));
+}
+
+.viewer :is(h1, h2, h3, h4, h5, h6) :global(a.anchor) {
+  margin-left: 0.35rem;
+  opacity: 0;
+  text-decoration: none;
+  color: var(--doc-link);
+  font-weight: normal;
+  transition: opacity 120ms ease-in;
+}
+
+.viewer :is(h1, h2, h3, h4, h5, h6):hover :global(a.anchor),
+.viewer :is(h1, h2, h3, h4, h5, h6) :global(a.anchor):focus {
+  opacity: 0.7;
+}
+
+/* ─── Body copy ─── */
+
+.viewer p {
+  margin: 0.4em 0;
+  line-height: 1.55;
+}
+
+.viewer ul,
+.viewer ol {
+  margin: 0.35em 0;
+  padding-left: 1.6em;
+  line-height: 1.55;
+}
+
+.viewer li + li {
+  margin-top: 0.15em;
+}
+
+.viewer li > :is(ul, ol) {
+  margin: 0.2em 0;
+}
+
+/* ─── Links ─── */
+
+.viewer a {
+  color: var(--doc-link);
+  text-decoration: none;
+  text-decoration-color: transparent;
+  text-underline-offset: 2px;
+  transition:
+    text-decoration-color 120ms ease,
+    color 120ms ease;
+}
+
+.viewer a:hover {
+  text-decoration: underline;
+  text-decoration-color: currentcolor;
+}
+
+.viewer :focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #1677ff);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ─── Horizontal rule: soft fade, no harsh hairline ─── */
+
+.viewer hr {
+  border: none;
+  height: 1px;
+  margin: 8px 0;
+  background: var(--doc-border);
+}
+
+/* ─── Tables: rounded outer frame, single-line grid ─── */
+
 .viewer table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   width: 100%;
-  margin: 16px 0;
-  border: 1px solid
-    var(
-      --vscode-editorGroup-border,
-      var(--vscode-border, rgb(128 128 128 / 35%))
-    );
+  margin: 18px 0;
+  border: 1px solid var(--doc-border);
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .viewer th,
 .viewer td {
-  border: 1px solid
-    var(
-      --vscode-editorGroup-border,
-      var(--vscode-border, rgb(128 128 128 / 35%))
-    );
-  padding: 8px 12px;
+  padding: 10px 14px;
   text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--doc-border);
+  border-right: 1px solid var(--doc-border);
+}
+
+.viewer th:last-child,
+.viewer td:last-child {
+  border-right: none;
+}
+
+.viewer tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .viewer th {
-  font-weight: 600;
+  font-size: 0.88em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--vscode-descriptionForeground, rgb(0 0 0 / 70%));
+  background: var(--doc-tint-header);
 }
 
-.viewer tr:hover {
-  background: var(--vscode-list-hoverBackground, rgb(0 0 0 / 4%));
+.viewer tbody tr {
+  transition: background-color 120ms ease;
 }
 
-/* Highlight blockquotes (Notes) in documentation */
+.viewer tbody tr:nth-child(even) {
+  background: var(--doc-tint-row);
+}
+
+.viewer tbody tr:hover {
+  background: var(--vscode-list-hoverBackground, rgb(0 0 0 / 5%));
+}
+
+/* ─── Blockquotes (Notes) ─── */
+
 .viewer blockquote {
   margin: 16px 0;
-  padding: 12px 16px;
-  border-left: 4px solid
-    var(--vscode-textLink-foreground, var(--vscode-focusBorder, #1677ff));
-  background: color-mix(
-    in srgb,
-    var(--vscode-textLink-foreground, #1677ff) 8%,
-    transparent
-  );
-  border-radius: 0 4px 4px 0;
+  padding: 12px 16px 12px 18px;
+  border-left: 3px solid var(--doc-link);
+  background: color-mix(in srgb, var(--doc-link) 7%, transparent);
+  border-radius: 0 6px 6px 0;
 }
 
 .viewer blockquote p {
@@ -64,71 +216,77 @@
   margin-bottom: 0;
 }
 
-.viewer hr {
-  border: none;
-  border-top: 1px solid
-    var(
-      --vscode-editorGroup-border,
-      var(--vscode-border, rgb(128 128 128 / 35%))
-    );
-  margin: 16px 0;
-  height: 0;
-}
+/* ─── Inline code ─── */
 
-/* Inline code */
 .viewer :not(pre) > code {
-  padding: 2px 6px;
+  padding: 1px 6px;
   border-radius: 4px;
-  font-size: 0.9em;
-  background: var(--vscode-textCodeBlock-background, rgb(0 0 0 / 6%));
+  font-size: 0.88em;
+  font-family: var(
+    --vscode-editor-font-family,
+    ui-monospace,
+    "SF Mono",
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace
+  );
+  background: var(--doc-tint-code-bg);
+  border: 1px solid var(--doc-tint-code-border);
 }
 
 /* Reset inline-code styles on <code> inside SyntaxHighlighter blocks */
 .viewer pre code {
   padding: 0;
+  border: none;
   border-radius: 0;
   font-size: inherit;
   background: none;
 }
 
-/* Code blocks produced by SyntaxHighlighter (PreTag="div" inside <pre>).
-   Background is overridden via CSS variable for a contrasting code block
-   look. Inline color/background on the div come from the theme hook which
-   now re-computes on data-theme changes via MutationObserver. */
+/* ─── Code blocks ─── */
+
+.viewer pre {
+  margin: 14px 0;
+}
+
 .viewer pre > div {
-  border-radius: 6px;
-  padding: 12px 16px !important;
+  border-radius: 8px;
+  padding: 14px 18px !important;
   overflow: auto;
   background: var(
     --vscode-textCodeBlock-background,
     rgb(0 0 0 / 6%)
   ) !important;
+  border: 1px solid var(--doc-tint-code-bg);
 }
 
-.viewer pre {
-  margin: 12px 0;
+/* Custom scrollbar inside code blocks (WebKit / Blink) */
+.viewer pre > div::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.viewer pre > div::-webkit-scrollbar-thumb {
+  background: var(--doc-tint-scrollbar);
+  border-radius: 4px;
+}
+
+.viewer pre > div::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ─── Images ─── */
+
+.viewer img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  vertical-align: middle;
 }
 
 /* Documentation images (diagrams, screenshots) are authored with light
    backgrounds. In dark mode we invert them so they blend with the dark UI. */
 .dark img {
   filter: invert(1) hue-rotate(180deg);
-}
-
-.viewer :is(h1, h2, h3, h4, h5, h6) {
-  scroll-margin-top: 16px;
-}
-
-.viewer :is(h1, h2, h3, h4, h5, h6) :global(a.anchor) {
-  margin-left: 0.35rem;
-  opacity: 0;
-  text-decoration: none;
-  color: var(--vscode-textLink-foreground, #1677ff);
-  font-weight: normal;
-  transition: opacity 120ms ease-in;
-}
-
-.viewer :is(h1, h2, h3, h4, h5, h6):hover :global(a.anchor),
-.viewer :is(h1, h2, h3, h4, h5, h6) :global(a.anchor):focus {
-  opacity: 0.7;
 }

@@ -6,7 +6,7 @@
   flex-shrink: 0;
   max-height: 100vh;
   overflow-y: auto;
-  padding: 0 0 24px 20px;
+  padding: 0 0 10px 10px;
   border-left: 1px solid
     var(
       --vscode-editorGroup-border,
