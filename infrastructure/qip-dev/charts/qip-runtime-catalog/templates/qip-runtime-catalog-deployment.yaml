@@ -89,7 +89,8 @@ spec:
                   OPENSEARCH_PORT: 'configmap:{{ .Release.Name }}-env/OPENSEARCH_PORT',
                   POSTGRES_URL: 'configmap:{{ .Release.Name }}-engine-env/POSTGRES_URL',
                   POSTGRES_USER: 'secret:{{ .Release.Name }}-postgres-auth/username',
-                  POSTGRES_PASSWORD: 'secret:{{ .Release.Name }}-postgres-auth/password'
+                  POSTGRES_PASSWORD: 'secret:{{ .Release.Name }}-postgres-auth/password',
+                  ROUTES_REGISTRATION_ENABLED: 'false'
                 }
             - name: CLASSIC_DEPLOY_ENABLED
               valueFrom:
