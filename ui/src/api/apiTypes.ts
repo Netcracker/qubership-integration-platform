@@ -43,6 +43,7 @@ export type Dependency = {
 export type CreateElementRequest = {
   type: string;
   parentElementId?: string;
+  swimlaneId?: string;
 };
 
 export type PatchElementRequest = {

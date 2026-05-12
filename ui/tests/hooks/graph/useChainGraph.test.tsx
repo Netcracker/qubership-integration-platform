@@ -958,7 +958,7 @@ describe("useChainGraph", () => {
       });
 
       expect(mockRequestFailed).toHaveBeenCalledWith(
-        expect.stringContaining("Failed to delete element"),
+        expect.stringContaining("delete failed"),
         expect.any(Error),
       );
       expect(onChainUpdate).not.toHaveBeenCalled();

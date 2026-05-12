@@ -62,6 +62,7 @@ import {
   useDecorativeEdges,
 } from "./useDecorativeEdges.tsx";
 import { useHoverDragVisuals } from "./useHoverDragVisuals.tsx";
+import { getErrorMessage } from "../../misc/error-utils.ts";
 
 const getAbsolutePosition = (
   node: ChainGraphNode,
@@ -612,7 +613,10 @@ export const useChainGraph = (
           structureChanged(ids);
         }
       } catch (error) {
-        notificationService.requestFailed("Failed to delete element", error);
+        notificationService.requestFailed(
+          getErrorMessage(error, "Failed to delete element"),
+          error,
+        );
       }
     },
     [
