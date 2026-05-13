@@ -13,27 +13,21 @@ Current element supports 2 sub-elements:
 
 ---
 ### "Parameters" Tab (Condition)
-#### Metadata
 | Parameter   | Mandatory | Data Type | Description                                | Sample                      |
 | ----------- | :-------- | :-------- | ------------------------------------------ | --------------------------- |
 | Name        | M         | String    | Name of the "Condition" container element. | Check Party Role.           |
 | Description | O         | String    | Free text field for element description.   | Check if party role exists. |
 
 ### "Parameters" Tab (If)
-#### Common Parameters
 | Parameter | Mandatory | Data Type | Description                                                                                                                          | Sample                                                                                      |
 | --------- | :-------- | :-------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
 | Condition | O         | String    | Predicate, that has to be evaluated. If data corresponds to it, then it is routed to the chain part under particular "If" container. | `${exchangeProperty.partyRoleType} != null && ${exchangeProperty.user_customer_id} != null` |
 | Priority  | M         | String    | Priority of clauses. "If" block with priority 0 will be processed first.                                                             | 1                                                                                           |
-
-#### Metadata
-| Parameter   | Mandatory | Data Type | Description                              | Sample                                                |
-| ----------- | :-------- | :-------- | ---------------------------------------- | ----------------------------------------------------- |
 | Name        | M         | String    | Name of the "If" container element.      | Party Role Type and User Customer Id exists.          |
 | Description | O         | String    | Free text field for element description. | Check if Party Role Type and User Customer Id exists. |
 
 ### "Parameters" Tab (Else)
-#### Metadata
+
 | Parameter   | Mandatory | Data Type | Description                              | Sample                                               |
 | ----------- | :-------- | :-------- | ---------------------------------------- | ---------------------------------------------------- |
 | Name        | M         | String    | Name of the "Else" container element.    | Send Error Message.                                  |

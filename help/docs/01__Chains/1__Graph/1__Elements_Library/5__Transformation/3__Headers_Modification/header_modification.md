@@ -24,7 +24,7 @@ This element allows to perform specific actions against each particular header, 
 | --------- | :-------- | :-------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Name      | O         | String    | Name of the headers, that shall be removed from the message. Field also accepts mask and RegExp. | <ul><li>***-number** - removes all headers, where it contains "-number" at the end</li><li>**\*** - removes all headers</li><li>**kafka.*** - remove all headers, starting with "kafka"</li><li>***id** - removes all headers that end with "id"</li><li>**^\w+-id$** - removes headers that start with single word and end with "-id"</li></ul> |
 
-#### Metadata
+### "Parameters" Tab
 | Parameter   | Mandatory | Data Type | Description                                                | Sample                                   |
 | ----------- | :-------- | :-------- | ---------------------------------------------------------- | ---------------------------------------- |
 | Name        | M         | String    | Name of the element.                                       | Modify Headers                           |

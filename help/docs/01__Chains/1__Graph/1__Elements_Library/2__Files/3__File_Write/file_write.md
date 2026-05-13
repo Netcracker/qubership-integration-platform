@@ -8,14 +8,9 @@
 
 ---
 ### "Parameters" Tab
-#### Common Parameters
 | Parameter | Mandatory | Data Type | Description                                     | Sample  |
 | --------- | :-------- | :-------- | ----------------------------------------------- | ------- |
 | File Name | M         | String    | Target file name where data will be written to. | NewFile |
-
-#### Metadata
-| Parameter   | Mandatory | Data Type | Description                                                | Sample                      |
-| ----------- | :-------- | :-------- | ---------------------------------------------------------- | --------------------------- |
 | Name        | M         | String    | Name of the element.                                       | Element for file writing    |
 | Description | O         | String    | Free text field, that contains description of the element. | Write documents to a folder |
 

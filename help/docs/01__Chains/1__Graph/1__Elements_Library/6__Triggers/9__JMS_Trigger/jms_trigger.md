@@ -1,28 +1,27 @@
-# PubSub Trigger
-
+# JMS Trigger
 ## Description
 
 ---
-**Google PubSub** element allows to integrate the chain with **Cloud Pub/Sub Infrastructure** via utilizing **Google Cloud Java Client** and read the messages from the specified topic.
+This element allows to trigger the chain by consuming messages from **JMS Queue** or **JMS Topic**, depending on the setup.
 
 > ℹ️ **Note:** According to **Apache Camel** framework, when chain is triggered, system creates **Exchange Object**, that handles input data following the logic, described in respective article: [Apache Camel Context Concept](../../../../../00__Overview/2__Apache_Camel_Context_Concept/apache_camel_context_concept.md).
-
 
 ## User Interface
 
 ---
 ### "Parameters" Tab
-| Parameter           | Mandatory | Data Type | Description                                                                                                                                                                           | Sample           |
-| ------------------- | --------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| Project id          | M         | String    | Google Cloud PubSub Project Identifier.                                                                                                                                               | sandbox          |
-| Destination name    | M         | String    | Specifies the name of the source subscription.                                                                                                                                        | subscriptionName |
-| Service account key | M         | String    | Specifies service account key, that can be used as credentials for the PubSub publisher. <br><br>ℹ️ **Note:** Value for this parameter must be presented as encoded base64 json file. | #{pubsub_key}    |
-| Max ack extension period | O         | String    | Set the maximum period in seconds a message ack deadline will be extended. If not specified, default value is utilized.<br>**Default:** 3600                                                                                                                                                                                                   | 3600        |
-| Max messages per poll    | O         | String    | Specifies the maximum number of messages to receive from the server in a single poll.<br>**Default:** 1                                                                                                                                                                                                                                        | 1           |
-| Retryable error codes    | M         | List      | Comma-separated list of error codes for synchronous pull, that could be retried. If not specified, default value is utilized. Possible values: <ul><li>ABORTED</li><li>CANCELLED</li><li>DEADLINE_EXCEEDED</li><li>INTERNAL</li><li>RESOURCE_EXHAUSTED</li><li>UNKNOWN</li><li>UNAVAILABLE</li></ul>**Default:** ABORTED, UNAVAILABLE, UNKNOWN | UNAVAILABLE |
-| Ack mode                 | M         | List      | Possible values:<ul><li>AUTO  - Exchange gets ack’ed/nack’ed on completion.</li><li>NONE - Downstream process has to ack/nack explicitly.</li></ul>**Default:** AUTO                                                                                                                                                                           | AUTO        |
-| Name        | M         | String    | Name of the element.                                       | PubSub Trigger                                             |
-| Description | O         | String    | Free text field, that contains description of the element. | Triggers the chain when message is received from the topic |
+| Parameter                                              | Mandatory | Data Type | Description                                                                                                                                                                                                                          | Sample                                                                      |
+|--------------------------------------------------------|-----------------------------------------|-----------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------|
+| Provider URL            | M                                       | String                                  | Path to JNDI service provider.                                                                                                                                                                        | "t3://devapp066.qip.com:7154"       |
+| Destination             | M                                       | String                                  | This field either identifies a **Queue** or **Topic**, available on JNDI side, depending on the option, selected in the list "**Type**".                                                     | "jms/BulkQuotationRequest/queue"            |
+| Initial context factory | M                                       | String                                  | Address of JNDI lookup service. Object, that builds a context.                                                                                                                                        | "weblogic.jndi.WLInitialContextFactory"      |
+| Connection factory      | M                                       | String                                  | JMS object identifier in JNDI factory.                                                                                                                                                                | "jms/BulkQuotationRequest/connectionfactory" |
+| Type                    | M                                       | List                                    | Type of the source: <li>queue</li> <li>topic</li><br/>**Default value:** queue                                                                                                                     | queue                                        |
+| Acknowledgement mode    | M                                       | List                                    | The JMS acknowledgement mode. Possible options: <li>AUTO_ACKNOWLEDGE</li><li>CLIENT_ACKNOWLEDGE</li><li>DUPS_OK_ACKNOWLEDGE</li><li>SESSION_TRANSACTED</li><br/>**Default value:** AUTO_ACKNOWLEDGE | AUTO_ACKNOWLEDGE                             |
+| Password                | O                                       | String                                  | Password to use with the ConnectionFactory. Both username and password can also be configured directly on the ConnectionFactory side.                                                                 | N/A                                          |
+| Username                | O                                       | String                                  | Username to use with the ConnectionFactory. Both username and password can also be configured directly on the ConnectionFactory side.                                                                 | N/A                                         |
+| Name       | M                                         | String                                    | Name of the element.                                        | JMS Trigger                                                    |
+| Description | O                                         | String                                    | Free text field, that contains description of the element.  | Trigger allows fetching messages from the specified JMS topic  |
 
 ### "Idempotency" Tab
 This tab allows setting idempotent behavior in order to avoid processing of the same message by one consumer (especially relevant for Blue-Green deployment approach). The Exchange which has the same idempotency key is regarded as a duplicate. Duplication check is performing on full idempotency key, which has the following structure:
@@ -50,4 +49,4 @@ The following parameters are available on the tab:
 ## Constraints
 
 ---
-There are no specific constraints for the element.
+Can't set input dependency to element.

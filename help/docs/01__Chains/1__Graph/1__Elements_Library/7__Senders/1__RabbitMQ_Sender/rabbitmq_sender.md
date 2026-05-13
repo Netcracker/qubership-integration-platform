@@ -8,7 +8,6 @@
 
 ---
 ### "Parameters" Tab
-#### Common Parameters
 - **"Manual"** connection source type
 
 | Parameter     | Mandatory | Data Type | Description                                                                                                                                                                                                            | Sample          |
@@ -30,16 +29,12 @@
 | Queue(s) Name              | O         | String    | Name of the queue(s), messages shall be sent to. Use comma as a separator when specifying multiple queues.                                                                                                          | command.queue |
 | Routing Key                | O         | String    | The routing key to use when binding a consumer queue to the exchange.                                                                                                                                               | rkey1         |
 
-### "Advanced Parameters" Tab
+The following parameters are common for all cases:
 | Parameter         | Mandatory | Data Type | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Sample |
 | ----------------- | :-------- | :-------- |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| ------ |
 | Propagate context | M         | Boolean   | Checkbox, that defines if context to special ("Technical") headers before sending message will be propagated or not.<ul><li>If **checked** (default): context to this call will be propagated, which will lead to the reinstatement of all technical headers, that are stored in context.</li><li>If **unchecked**: call propagation will be switched off, hence values of technical headers, that are stored in the context won't be reinstated.</li></ul>Additionally, when **"Propagate context"** is checked, **"Override Technical Context Headers"** table becomes available to the user. This table allows to override the value for the specific header, that has been propagated from context. <br><br>ℹ️ **Note:** For the actual list of technical headers, please, contact system administrator. | N/A    |
-
-#### Metadata
-| Parameter   | Mandatory | Data Type | Description                                                | Sample                                   |
-| ----------- | :-------- | :-------- | ---------------------------------------------------------- | ---------------------------------------- |
 | Name        | M         | String    | Name of the element.                                       | RabbitMQ Sender                          |
-| Description | O         | String    | Free text field, that contains description of the element. | This element sends messages to the queue |
+|Description | O         | String    | Free text field, that contains description of the element. | This element sends messages to the queue |
 
 ## Constraints
 

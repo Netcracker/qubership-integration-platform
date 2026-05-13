@@ -13,10 +13,6 @@
 | Parameter       | Mandatory | Data Type | Description                                                                               | Sample |
 | --------------- | :-------- | :-------- | ----------------------------------------------------------------------------------------- | ------ |
 | Reuse Reference | M         | List      | Specifies the [Reuse](../../1__Routing/2__Reuse/reuse.md) container to be connected with. | N/A    |
-
-#### Metadata
-| Parameter   | Mandatory | Data Type | Description                              | Sample            |
-| ----------- | :-------- | :-------- | ---------------------------------------- | ----------------- |
 | Name        | M         | String    | Name of the element.                     | Reference         |
 | Description | O         | String    | Free text field for element description. | Validate response |
 

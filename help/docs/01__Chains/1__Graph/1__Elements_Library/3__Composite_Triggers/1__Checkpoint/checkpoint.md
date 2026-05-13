@@ -11,14 +11,9 @@ as its data will override the one, preserved by checkpoint initially.
 
 ---
 ### "Parameters" Tab
-#### Common Parameters
 | Parameter     | Mandatory | Data Type | Description                                                                                                                                                                                                                                                                                                                                                                                                     | Sample                                                                                                                                                                        |
 | ------------- | :-------- | :-------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Path Template | M         | String    | HTTP path to the checkpoint to retry the session. Sets automatically, non editable parameter. The value is settled by the following template:<br>`{public_gateway_host}/api/v1/qip/engine/chains/{chainId}/sessions/{sessionId}/checkpoint-elements/{checkpointElementId}/retry`<br><br>ℹ️ **Note:** To trigger checkpoint, consumers have to use POST HTTP method while having the role ROLE_QIP_SESSION_RETRY.| `/api/v1/qip/engine/chains/bf2c225f-0b0a-4fab-82a6-eab230b6164a/sessions/c8515604-fe58-430e-847e-3f2d9a303531/checkpoint-elements/319210c4-700d-4296-82ff-102f656219e2/retry` |
-
-#### Metadata
-| Parameter   | Mandatory | Data Type | Description                                                | Sample                                                     |
-| ----------- | :-------- | :-------- | ---------------------------------------------------------- | ---------------------------------------------------------- |
 | Name        | M         | String    | Name of the element.                                       | Customer Checkpoint                                        |
 | Description | O         | String    | Free text field, that contains description of the element. | Checkpoint allows restarting the session after its failure |
 

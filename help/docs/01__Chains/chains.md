@@ -211,7 +211,16 @@ In both cases, system shows pop-up and requests additional data:
   - **Create new** - system will attempt to redeploy the chain with new snapshot.
   - **Reuse latest, otherwise create new** - system will attempt to reuse latest snapshot. If it does not exist - redeploy will be attempted with newly created snapshot.
 
-Confirm selected options and click "**Deploy**" button. System will attempt to deploy selected chains and show notifications.
+Confirm selected options and click "**Deploy**" button. System will attempt to deploy selected chains and show result window and the end of operation. Window consists of next columns:
+
+- **Chain Id** - contains the unique identifiers of the chains, requested to be deployed.
+- **Chain Name** - contains the names of the chains, requested to be deployed.
+- **Status** - contains operation status:
+  - **Snapshot error** - operation failed while operating with snapshot.
+  - **Deployment error** - operation failed while attempting to create a deployment.
+  - **Deployment queued** - deploy operation has been successfully queued to processing.
+  - **Deployment ignored** - operation can't be performed for overridden chains.
+- **Message** - contains additional message for failed operations.
 
 ### Constraints
 

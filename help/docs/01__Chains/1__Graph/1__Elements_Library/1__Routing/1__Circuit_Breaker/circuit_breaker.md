@@ -14,7 +14,6 @@ The Circuit Breaker switches between three states:
 
 ---
 ### "Parameters" Tab (Circuit Breaker)
-#### Metadata
 
 | Parameter   | Mandatory | Data Type | Description                                    | Sample                         |
 | ----------- | :-------- | :-------- | ---------------------------------------------- | ------------------------------ |
@@ -22,7 +21,6 @@ The Circuit Breaker switches between three states:
 | Description | O         | String    | Free text field for element description.       | Check failures for operation A |
 
 ### "Parameters" Tab (Circuit Breaker Configuration)
-#### Common Parameters
 | Parameter                                         | Mandatory | Data Type | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Sample      |
 | ------------------------------------------------- | :-------- | :-------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | Automatic transition from open to half open state | O         | Boolean   | Checkbox, that enables automatic transition from OPEN to HALF_OPEN state once the time, configured in "Wait duration in open state" has passed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Unchecked   |
@@ -34,15 +32,10 @@ The Circuit Breaker switches between three states:
 | Slow call duration threshold (s)                  | M         | Number    | Configures the call duration in seconds, above which calls are considered as slow and increase the slow calls percentage.<br>**Default value:** 60                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | 60          |
 | Slow call rate threshold (%)                      | M         | Number    | Configures a threshold in percentage. The Circuit Breaker considers a call as slow when the call duration is greater than value in **"Slow call duration threshold"**. When the percentage of slow calls is **equal** or **greater** the threshold, the Circuit Breaker transitions to **Open state** and starts short-circuiting calls.  <br>The threshold must be greater than 0 and not greater than 100.  <br>**Default value:** 100                                                                                                                                                                              | 100         |
 | Wait duration in open state (s)                   | M         | Number    | Configures the wait duration (in seconds) which specifies how long the Circuit Breaker should stay open, before it switches to half open.  <br>**Default value:** 60                                                                                                                                                                                                                                                                                                                                                                                                                                                  | 60          |
-
-#### Metadata
-| Parameter   | Mandatory | Data Type | Description                                                  | Sample                        |
-| ----------- | :-------- | :-------- | ------------------------------------------------------------ | ----------------------------- |
 | Name        | M         | String    | Name of the Circuit Breaker Configuration container element. | Circuit Breaker Configuration |
 | Description | O         | String    | Free text field for element description.                     | Detailed settings             |
 
 ### "Parameters" Tab (On Fallback)
-#### Metadata
 | Parameter   | Mandatory | Data Type | Description                              | Sample           |
 | ----------- | :-------- | :-------- | ---------------------------------------- | ---------------- |
 | Name        | M         | String    | Name of the Fallback container element.  | On fallback      |

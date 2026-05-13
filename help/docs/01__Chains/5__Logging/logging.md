@@ -30,7 +30,7 @@ Qubership Integration Platform will apply its own default hard-coded option and 
 
 - **Log Level** - supported log levels. For proper logging, it should not be higher than logging level, globally specified for microservice. Possible values:
   - **Error** _(Default value)_ - logging of Integrations with Exceptions. Log levels - ERROR, FATAL.
-  - **Warning** - logging of Integrations with Warnings. Log level - WARN, ERROR, FATAL.
+  - **Warning** - logging of Integrations with Warnings. Log level - WARNINNG, ERROR, FATAL.
   - **Info** - log only external communications (sending and receiving external messages by any protocol, incoming and outgoing). Used for investigation of production incidents.
 - **Log Payload** - controls payload parts, which must be logged: Headers, Properties, Body. If nothing is selected - no payload data will be logged.
 - **Produce DPT Events** - based on selected option, system either sends DPT events or not:

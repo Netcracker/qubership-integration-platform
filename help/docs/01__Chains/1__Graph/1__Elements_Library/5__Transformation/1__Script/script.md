@@ -19,7 +19,6 @@ exchange.getMessage().setBody("Body")
 For the quick navigation in the code block, use search bar, accessed by clicking combination of Ctrl+F. Refer to [Tutorial Page](1__Tutorial_on_the_Apache_Groovy/tutorial_apache_groovy.md) for additional samples and hints.
 
 ### "Parameters" Tab
-#### Metadata
 | Parameter   | Mandatory | Data Type | Description                                                                                                                         | Sample                  |
 | ----------- | :-------- | :-------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
 | Name        | M         | String    | Name of the element.                                                                                                                | Set body                |

@@ -1,7 +1,7 @@
 # General Functions
 
 ## Notifications
-Notifications ![Bell|20](img/bell.svg) are implemented to communicate interactively with the user. It makes an ability to track the process of system changes. Notification are divided into 3 types:
+Notifications ![](img/bell.svg) are implemented to communicate interactively with the user. It makes an ability to track the process of system changes. Notification are divided into 3 types:
 
 ![excl|20](img/exclamation-circle.svg) **Success** - some process or operation was ended without errors and exceptions (e.g. service discovery was completed or chain was deployed successfully).
 

@@ -31,7 +31,7 @@ Please find the description for all available tools below:
 ### General Actions
 The next actions are available upper right corner:
 
-#### ***Web UI***
+#### <ins>Web UI</ins>
 * ![](img/column-width.svg) - show sequence diagram based on the chain.
 * ![Download|20](img/cloud-download.svg) - export chain. During export, you can adjust the data to be downloaded using the following checkboxes in the dialog window. All checkboxes are unchecked by default:
   - **Export related sub-chains** - if selected, system will also export the whole tree of chains, that are connected via [Chain Call](1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) and [Chain Trigger](1__Elements_Library/6__Triggers/2__Chain_Trigger/chain_trigger.md) elements,
@@ -41,7 +41,7 @@ The next actions are available upper right corner:
 * ![Send|20](img/send.svg) - save and deploy the chain.
 
 
-#### ***VS Code Extension***
+#### <ins>VS Code Extension</ins>
 * ![](img/column-width.svg) - show sequence diagram based on the chain.
 
 ### Add Element to the Graph
@@ -55,6 +55,10 @@ To connect the elements simply drop one element on another one or hover the mous
 
 ### Edit Element
 To edit a particular element, either double-click the element or choose "**Edit**" option from the context menu, that could be requested via right-click on the element. It is also possible to control element's window size with ![20](img/arrows-alt.svg) and ![20](img/shrink.svg) buttons.
+
+>ℹ️ **In‑place element name editing**
+>
+>To quickly change an element's name without switching tabs on the configuration window: hover over the name area (![](img/edit.svg) appears), click it, edit the name, and then click outside the input field."
 
 ### Copy Element
 To copy a particular element, right-click it and choose "**Copy**" option from context menu. Then click right mouse on the space area and choose "**Paste**".

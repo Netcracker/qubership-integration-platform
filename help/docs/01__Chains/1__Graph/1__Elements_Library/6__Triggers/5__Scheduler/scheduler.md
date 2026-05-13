@@ -10,14 +10,9 @@
 
 ---
 ### "Parameters" Tab
-#### Common Parameters
 | Parameter       | Mandatory | Data Type | Description                                       | Sample         |
 | --------------- | :-------- | :-------- | ------------------------------------------------- | -------------- |
 | Cron expression | M         | String    | Specifies a time interval via Quartz cron syntax. | 0/50 * * * * ? |
-
-#### Metadata
-| Parameter   | Mandatory | Data Type | Description                                                | Sample                                         |
-| ----------- | :-------- | :-------- | ---------------------------------------------------------- | ---------------------------------------------- |
 | Name        | M         | String    | Name of the element.                                       | Scheduler                                      |
 | Description | O         | String    | Free text field, that contains description of the element. | Scheduler is used for planned order submission |
 

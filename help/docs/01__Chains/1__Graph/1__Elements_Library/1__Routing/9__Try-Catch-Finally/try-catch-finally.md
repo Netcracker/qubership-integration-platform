@@ -21,34 +21,26 @@ exception = exchange.getProperty(Exchange.EXCEPTION_CAUGHT, Exception.class)
 
 ---
 ### "Parameters" Tab (Try-Catch-Finally)
-#### Try-Catch-Finally Metadata
 | Parameter   | Mandatory | Data Type | Description                                        | Sample                        |
 | ----------- | :-------- | :-------- | -------------------------------------------------- | ----------------------------- |
 | Name        | M         | String    | Name of the "Try-Catch-Finally" container element. | Try - Catch                   |
 | Description | O         | String    | Free text field for module description.            | Applies error handling logic. |
 
 ### "Parameters" Tab (Try)
-#### Try Metadata
 | Parameter   | Mandatory | Data Type | Description                              | Sample                                   |
 | ----------- | :-------- | :-------- | ---------------------------------------- | ---------------------------------------- |
 | Name        | M         | String    | Name of the "Try" container element.     | Order submit                             |
 | Description | O         | String    | Free text field for element description. | Part of the logic that must be executed. |
 
 ### "Parameters" Tab (Catch)
-#### Common Parameters
 | Parameter | Mandatory | Data Type | Description                                                                                                                              | Sample              |
 | --------- | :-------- | :-------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
 | Exception | M         | String    | This field must contain the name of Java class, that must fail to start the chain branch, configured under particular "Catch" container. | java.lang.Exception |
 | Priority  | M         | Number    | Priority of "Catch" containers. Container with priority "0" will be taken for processing first.                                          | 1                   |
-
-#### Catch Metadata
-| Parameter   | Mandatory | Data Type | Description                              | Sample                                  |
-| ----------- | :-------- | :-------- | ---------------------------------------- | --------------------------------------- |
 | Name        | M         | String    | Name of the "Catch" container element.   | Catch Internal server error             |
 | Description | O         | String    | Free text field for element description. | Element handles internal server errors. |
 
 ### "Parameters" Tab (Finally)
-#### Finally Metadata
 | Parameter   | Mandatory | Data Type | Description                              | Sample           |
 | ----------- | :-------- | :-------- | ---------------------------------------- | ---------------- |
 | Name        | M         | String    | Name of the element.                     | Create ticket    |

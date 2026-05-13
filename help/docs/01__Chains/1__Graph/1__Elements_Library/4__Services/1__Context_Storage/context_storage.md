@@ -42,7 +42,6 @@ Depending on selected operation, **additional** parameters will be presented:
   No additional parameters available for operation. It is enough to just pass context identifier.
 
 ### "Parameters" Tab
-#### Metadata
 | Parameter   | Mandatory | Data Type | Description                                                | Sample                                |
 | ----------- | :-------- | :-------- | ---------------------------------------------------------- | ------------------------------------- |
 | Name        | M         | String    | Name of the element.                                       | Create Customer Context Storage       |

@@ -185,7 +185,7 @@ To add specification group to Inner Cloud service:
 3. **Upload** file or archive with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
 > ℹ️ **Note:** For the service with _**grpc**_ protocol there could be uploaded `.zip` archive with more than one `.proto` file.
 4. For **WSDL**, **GraphQL**, **Protobuf** specifications, system will generate the name by autoincrement (e.g. 1.0.0 -> 2.0.0), rename if required.
-5. Confirm operation with **"Create"** button.
+5. Confirm operation with **"Save"** button.
 
 When API specification is added you will see the specification group with respective name and dates. All specifications will be placed under this specification group.
 
@@ -197,7 +197,7 @@ To add API specification into existing specification group:
 > - **API Specification version must be unique inside of API Specification group for any type of service**. Import of API Specification with non-unique version will result in version duplication error.
 > - For service with _**grpc**_ protocol, import archive could contain more than one `.proto` file.
 3. Only for **WSDL**, **GraphQL**, **Protobuf** specifications, system will generate the name by autoincrement (e.g. 1.0.0 -> 2.0.0), rename if required.
-4. Confirm operation with **"Create"** button.
+4. Confirm operation with **"Save"** button.
 
 ### Add Environment
 There is no manual option to create new environment for Inner Cloud Service - it will be created automatically as a result of service discovery process. Each particular Inner Cloud Service could have only one related environment.

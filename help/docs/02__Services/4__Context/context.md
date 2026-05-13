@@ -51,7 +51,7 @@ For _Web UI_ there are some additional information:
 
 **`⛔ Not available via VS Code extension`**
 
-To add new context service, click **"Create"** button marked with ![Plus|20](img/plus.svg).  Specify service name, description and labels on a newly opened pop-up and then click **"Create"**. System opens new window with the **"Parameters"** tab:
+To add new context service, click **"Create"** button marked with ![Plus|20](img/plus.svg).  Specify service name, description and labels on a newly opened pop-up and then click **"Save"**. System opens new window with the **"Parameters"** tab:
 - **Name** - mandatory service name.
 - **Description** - description of service.
 - **Service type** - types of service.

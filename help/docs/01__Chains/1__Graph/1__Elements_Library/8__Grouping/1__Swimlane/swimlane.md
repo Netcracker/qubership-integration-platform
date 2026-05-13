@@ -8,10 +8,6 @@
 
 ---
 ### "Parameters" Tab
-#### Common Parameters
-There is a few color options available via clicking the respective palette element.
-
-#### Metadata
 | Parameter   | Mandatory | Data Type | Description                                                | Sample                 |
 | ----------- | :-------- | :-------- | ---------------------------------------------------------- | ---------------------- |
 | Name        | M         | String    | Name of the element.                                       | Group_1                |
@@ -21,5 +17,5 @@ There is a few color options available via clicking the respective palette eleme
 
 ---
 Please consider next constraints:
-- If the elements are already in container or Swimlane, it is not possible to place such elements in the another Swimlane.
 - Swimlane can't be part of another Swimlane.
+- Default and Reuse swimlanes cannot be removed if the chain contains other swimlanes

@@ -165,7 +165,7 @@ Parameters tab contains minimal set of parameters, that allows to save the exter
 - **Created** - non-editable. Datetime and author of specification group creation.
 - **Modified** - non-editable. Datetime and author of last specification group modification.
 
-Specify the required fields and click **"Create"**. Notification about successful saving means that external service is added to the list of external services.
+Specify the required fields and click **"Save"**. Notification about successful saving means that external service is added to the list of external services.
 
 ### Add Specification Group
 To add specification group to the external service:
@@ -174,7 +174,7 @@ To add specification group to the external service:
 3. **Upload** file or archive with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
 > ℹ️ **Note:** For the service with _**grpc**_ protocol there could be uploaded `.zip` archive with more than one `.proto` file.
 4. For **WSDL**, **GraphQL**, **Protobuf** specifications, system will generate the name by autoincrement (e.g. 1.0.0 -> 2.0.0), rename if required.
-5. Confirm operation with **"Create"** button.
+5. Confirm operation with **"Save"** button.
 
 When API specification is added you will see the specification group with respective name and dates. All specifications will be placed under this specification group.
 
@@ -186,7 +186,7 @@ To add API specification into existing specification group:
 > - **API Specification version must be unique inside of API Specification group for any type of service**. Import of API Specification with non-unique version will result in version duplication error.
 > - For service with _**grpc**_ protocol, import archive could contain more than one `.proto` file.
 3. For **WSDL**, **GraphQL**, **Protobuf** specifications, system will generate the name by autoincrement (e.g. 1.0.0 -> 2.0.0), rename if required.
-4. Confirm operation with **"Create"** button.
+4. Confirm operation with **"Save"** button.
 
 ### Add Environment
 There are several environments might be created for single service, but **only one** environment can be active. To add new environment to the external service, click the name of existing service, navigate to "**Environment**" tab and complete next steps:

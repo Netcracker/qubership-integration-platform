@@ -9,7 +9,6 @@
 
 ---
 ### "Parameters" Tab
-#### Metadata
 | Parameter   | Mandatory | Data Type | Description                              | Sample                     |
 | ----------- | :-------- | :-------- | ---------------------------------------- | -------------------------- |
 | Name        | M         | String    | Name of the element.                     | Reuse                      |

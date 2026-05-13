@@ -320,14 +320,9 @@ In **Text View** remove whole code line, that describes mapping rule in order to
 Left-click any field in **Graph View** to highlight fields and arrows, that are related (connected) to it. When connection arrow is clicked, system will only highlight the arrow itself.
 
 ### "Parameters" Tab
-#### Advanced Parameters
 | Parameter                                 | Mandatory | Data Type | Description                                                                                  | Sample |
 | ----------------------------------------- | :-------- | :-------- | -------------------------------------------------------------------------------------------- | ------ |
 | Throw exception on transformation failure | M         | Boolean   | Checkbox. When checked, throws an exception if transformation fails during chain processing. | N/A    |
-
-#### Metadata
-| Parameter   | Mandatory | Data Type | Description                              | Sample                                                     |
-| ----------- | :-------- | :-------- | ---------------------------------------- | ---------------------------------------------------------- |
 | Name        | M         | String    | Name of the element.                     | Map to new scheme.                                         |
 | Description | O         | String    | Free text field for element description. | Mapper, which builds a new message scheme from input data. |
 
