@@ -29,6 +29,8 @@ import org.qubership.integration.platform.engine.events.CommonVariablesUpdatedEv
 import org.qubership.integration.platform.engine.events.SecuredVariablesUpdatedEvent;
 import org.qubership.integration.platform.engine.kubernetes.KubeOperator;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
+import org.qubership.integration.platform.engine.model.deployment.update.RouteType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -42,6 +44,8 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static java.util.Objects.nonNull;
 
 @Slf4j
 @Component
@@ -212,5 +216,14 @@ public class VariablesService {
 
     public boolean hasVariableReferences(String text) {
         return VARIABLE_PATTERN.matcher(text).find();
+    }
+
+    public void resolveVariablesInRoutes(DeploymentConfiguration deploymentConfiguration) {
+        deploymentConfiguration.getRoutes().stream()
+                .filter(route -> nonNull(route.getVariableName())
+                        && (RouteType.EXTERNAL_SENDER == route.getType()
+                        || RouteType.EXTERNAL_SERVICE == route.getType()))
+                .filter(route -> hasVariableReferences(route.getPath()))
+                .forEach(route -> route.setPath(injectVariables(route.getPath())));
     }
 }
