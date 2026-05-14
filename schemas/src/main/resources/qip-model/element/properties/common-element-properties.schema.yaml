@@ -10,9 +10,11 @@ properties:
   name:
     type: string
     title: Name
+    maxLength: 255
   description:
     type: string
     title: Description
+    maxLength: 255
   swimlaneId:
     type: string
     title: Swimlane Identifier
