@@ -2,7 +2,36 @@ import React, { useEffect, useState } from "react";
 import { Button, Checkbox } from "antd";
 import { ReactSortable } from "react-sortablejs";
 import { parseJsonOrDefault } from "../../misc/json-helper";
+import { ACTIONS_COLUMN_KEY } from "./actionsColumn";
 import { clearColumnMetadata, isColumnVisibilityLocked } from "./useColumnSettingsButton";
+
+const COLUMN_KEYS_EXCLUDED_FROM_PICKER = new Set<string>([
+  ACTIONS_COLUMN_KEY,
+]);
+
+const NON_TOGGLEABLE_VISIBILITY_KEYS = new Set<string>(["name"]);
+
+function isVisibilityToggleDisabled(columnKey: string): boolean {
+  return (
+    NON_TOGGLEABLE_VISIBILITY_KEYS.has(columnKey) ||
+    isColumnVisibilityLocked(columnKey)
+  );
+}
+
+type SortablePickerItem = { id: unknown };
+
+function applyPickerColumnReorder(
+  setColumnsOrder: React.Dispatch<React.SetStateAction<string[]>>,
+  newList: readonly SortablePickerItem[],
+): void {
+  const reordered = newList.map((item) => String(item.id));
+  setColumnsOrder((prev) => {
+    const tail = prev.filter((k) =>
+      COLUMN_KEYS_EXCLUDED_FROM_PICKER.has(k),
+    );
+    return [...reordered, ...tail];
+  });
+}
 
 export interface ColumnFilterProps {
   allColumns: string[];
@@ -80,6 +109,11 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
     if (typeof fromMap === "string" && fromMap.length > 0) return fromMap;
     return humanizeKey(key);
   };
+
+  const columnOrderForPicker = columnsOrder.filter(
+    (key) => !COLUMN_KEYS_EXCLUDED_FROM_PICKER.has(key),
+  );
+
   return (
     <div
       style={{
@@ -92,14 +126,14 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
       }}
     >
       <ReactSortable
-        list={columnsOrder.map((id) => ({ id }))}
+        list={columnOrderForPicker.map((id) => ({ id }))}
         setList={(newList) =>
-          setColumnsOrder(newList.map((item) => String(item.id)))
+          applyPickerColumnReorder(setColumnsOrder, newList)
         }
         animation={150}
         handle=".drag-handle"
       >
-        {columnsOrder.map((key) => (
+        {columnOrderForPicker.map((key) => (
           <div
             key={key}
             style={{
@@ -130,7 +164,7 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
               ≡
             </span>
             <Checkbox
-              disabled={key === "name" || isColumnVisibilityLocked(key)}
+              disabled={isVisibilityToggleDisabled(key)}
               checked={visibleColumns.includes(key)}
               onChange={(e) => {
                 if (e.target.checked) {
