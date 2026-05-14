@@ -19,6 +19,7 @@ import {
   getLibraryElementByType,
   getMainChain,
   getMaskedField,
+  parseElement,
   parseMaskedField,
 } from "./chainApiRead";
 import {
@@ -33,7 +34,21 @@ import {
 } from "./chainApiUtils";
 import { Uri } from "vscode";
 import { fileApi } from "./file";
-import { Element as ElementSchema, DataType } from "@netcracker/qip-schemas";
+import {
+  Element as ElementSchema,
+  DataType,
+  Chain as ChainSchema,
+} from "@netcracker/qip-schemas";
+import {
+  createSwimlane,
+  deleteSwimlane,
+  enrichElementWithSwimlaneId,
+  isSwimlane,
+  isTransferOutOfSwimlane,
+  SWIMLANE_TYPE_NAME,
+  swimlaneValidations,
+  transferToSwimlaneValidations,
+} from "./swimlaneUtils";
 
 export async function updateChain(
   fileUri: Uri,
@@ -261,11 +276,22 @@ export async function transferElement(
 
   const chainElements = chain.content.elements as ElementSchema[];
   for (const elementId of elementRequest.elements) {
-    const element = findAndRemoveElementById(chainElements, elementId);
+    let element: ElementSchema | undefined = findElementById(
+      chainElements,
+      elementId,
+    )?.element;
     if (!element) {
-      console.error(`ElementId not found`);
-      throw Error("ElementId not found");
+      console.error(`Element Id ${elementId} not found`);
+      throw new Error(`Element Id ${elementId} not found`);
     }
+
+    if (isTransferOutOfSwimlane(elementRequest, element, chain)) {
+      continue;
+    }
+
+    transferToSwimlaneValidations(chain, element, elementRequest);
+
+    element = findAndRemoveElementById(chainElements, elementId)!;
 
     (chain.content.dependencies as [])?.forEach((dependency: Dependency) => {
       // TODO change to dependency schema
@@ -441,14 +467,24 @@ async function writeElementProperties(
   }
 }
 
-async function getDefaultElementByType(
+export async function getDefaultElementByType(
   chainId: string,
   elementRequest: CreateElementRequest,
 ): Promise<ElementSchema> {
-  const elementId = crypto.randomUUID();
-  const libraryData = await getLibraryElementByType(
-    elementRequest.type as unknown as string,
+  return getDefaultElement(
+    chainId,
+    elementRequest.type,
+    elementRequest.parentElementId,
   );
+}
+
+export async function getDefaultElement(
+  chainId: string,
+  type: string,
+  parentId?: string,
+): Promise<ElementSchema> {
+  const elementId = crypto.randomUUID();
+  const libraryData = await getLibraryElementByType(type);
 
   let children: ElementSchema[] | undefined = undefined;
   if (
@@ -472,15 +508,12 @@ async function getDefaultElementByType(
     mandatoryChecksPassed: false,
     name: libraryData.title,
     properties: await getDefaultPropertiesForElement(libraryData.properties),
-    type: elementRequest.type as unknown as DataType,
+    type: type as unknown as DataType,
     children: children,
-    parentElementId: elementRequest.parentElementId,
+    parentElementId: parentId,
   };
 
-  if (
-    elementRequest.type === "checkpoint" ||
-    elementRequest.type === "chain-trigger-2"
-  ) {
+  if (type === "checkpoint" || type === "chain-trigger-2") {
     replaceElementPlaceholders(element.properties, chainId, elementId);
   }
 
@@ -498,13 +531,29 @@ export async function createElement(
     throw Error("ChainId mismatch");
   }
 
+  if (elementRequest.type === SWIMLANE_TYPE_NAME) {
+    return await createSwimlane(mainFolderUri, chain, elementRequest);
+  }
   const element = await getDefaultElementByType(chainId, elementRequest);
 
   if (!chain.content.elements) {
     chain.content.elements = [];
   }
   const chainElements = chain.content.elements as ElementSchema[];
-  if (!insertElement(chainElements, element)) {
+  const chainDiff: ActionDifference = {
+    createdElements: [],
+    updatedElements: [],
+  };
+  if (
+    !(await insertElement(
+      mainFolderUri,
+      chain,
+      chainElements,
+      element,
+      chainDiff,
+      elementRequest,
+    ))
+  ) {
     chainElements.push(element);
   }
 
@@ -513,17 +562,31 @@ export async function createElement(
   await writeElementProperties(mainFolderUri, element);
   await fileApi.writeMainChain(mainFolderUri, chain);
 
-  return {
-    createdElements: [await getElement(mainFolderUri, chainId, element.id)],
-  };
+  chainDiff.createdElements?.push(
+    await getElement(mainFolderUri, chainId, element.id),
+  );
+  return chainDiff;
 }
 
-function insertElement(
+async function insertElement(
+  fileUri: Uri,
+  chain: ChainSchema,
   elements: ElementSchema[],
   newElement: ElementSchema,
-): boolean {
+  chainDiff: ActionDifference,
+  elementRequest: CreateElementRequest,
+): Promise<boolean> {
+  swimlaneValidations(chain, newElement, elementRequest);
+
   if (!newElement.parentElementId) {
-    // no parent, add to root
+    await enrichElementWithSwimlaneId(
+      fileUri,
+      chain,
+      elementRequest,
+      newElement,
+      chainDiff,
+    );
+
     elements.push(newElement);
     return true;
   }
@@ -533,13 +596,24 @@ function insertElement(
       if (!element.children) {
         element.children = [];
       }
+      newElement.swimlaneId = element.swimlaneId;
       (element.children as ElementSchema[]).push(newElement);
+      chainDiff.updatedElements?.push(
+        await parseElement(fileUri, element, chain.id),
+      );
       return true;
     }
 
     if (
       element.children &&
-      insertElement(element.children as ElementSchema[], newElement)
+      (await insertElement(
+        fileUri,
+        chain,
+        element.children as ElementSchema[],
+        newElement,
+        chainDiff,
+        elementRequest,
+      ))
     ) {
       return true; // inserted in nested children
     }
@@ -580,7 +654,7 @@ function getDefaultTypedProperties(
   return result;
 }
 
-function findAndRemoveElementById(
+export function findAndRemoveElementById(
   elements: ElementSchema[] | undefined,
   elementId: string,
 ): ElementSchema | undefined {
@@ -653,31 +727,42 @@ export async function deleteElements(
     throw Error("ChainId mismatch");
   }
 
-  const removedElements: any[] = [];
+  const chainDiff: ActionDifference = {
+    removedElements: [],
+    updatedElements: [],
+  };
   const chainElements = chain.content.elements as ElementSchema[];
   for (const elementId of elementIds) {
-    const parentElementId = findElementById(chainElements, elementId)?.parentId;
-    const element = findAndRemoveElementById(chainElements, elementId);
+    const findElementResult = findElementById(chainElements, elementId);
+    const parentElementId = findElementResult?.parentId;
+    const element = findElementResult?.element;
+
     if (!element) {
       console.error(`ElementId not found`);
       throw Error("ElementId not found");
+    } else if (isSwimlane(element)) {
+      const diff = await deleteSwimlane(fileUri, element, chain);
+      chainDiff.removedElements?.push(...(diff.removedElements as any[]));
+      chainDiff.updatedElements?.push(...(diff.updatedElements as any[]));
+      continue;
     }
+    const removedElement = findAndRemoveElementById(chainElements, elementId)!;
 
     for (const childElement of getElementChildren(
-      element.children as ElementSchema[],
+      removedElement.children as ElementSchema[],
     )) {
       await deleteDependenciesForElement(
         childElement.id,
         chain.content.dependencies as Dependency[],
       ); // TODO change to dependency schema
-      removedElements.push(childElement);
+      chainDiff.removedElements?.push(childElement as any);
     }
 
     await deleteDependenciesForElement(
       elementId,
       chain.content.dependencies as Dependency[],
     ); // TODO change to dependency schema
-    removedElements.push(element);
+    chainDiff.removedElements?.push(removedElement as any);
 
     const parentElement = parentElementId
       ? findElementById(chainElements, parentElementId)?.element
@@ -688,11 +773,12 @@ export async function deleteElements(
   }
 
   await fileApi.writeMainChain(fileUri, chain);
-  await deleteElementsPropertyFiles(fileUri, removedElements);
+  await deleteElementsPropertyFiles(
+    fileUri,
+    chainDiff.removedElements as any[],
+  );
 
-  return {
-    removedElements: [...removedElements],
-  };
+  return chainDiff;
 }
 
 async function deleteDependenciesForElement(
