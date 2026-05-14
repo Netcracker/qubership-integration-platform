@@ -440,7 +440,11 @@ export const useChainGraph = (
 
         clearDragVisuals();
       } catch (error) {
-        notificationService.requestFailed("Failed to create element", error);
+        notificationService.errorWithDetails(
+          "Failed to create element",
+          getErrorMessage(error, "Failed to create element"),
+          error,
+        );
       }
     },
     [
@@ -703,7 +707,7 @@ export const useChainGraph = (
       } catch (error) {
         notificationService.errorWithDetails(
           "Drag element failed",
-          "Failed to drag element",
+          getErrorMessage(error, "Failed to drag element"),
           error,
         );
         finalParentId = originalParentId;
