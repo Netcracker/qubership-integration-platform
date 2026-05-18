@@ -30,7 +30,14 @@ jest.mock("../../src/hooks/useMonacoTheme", () => ({
 jest.mock("monaco-editor", () => ({
   editor: {},
   languages: {
-    CompletionItemKind: { Variable: 4, Method: 0 },
+    CompletionItemKind: {
+      Method: 0,
+      Function: 1,
+      Constant: 2,
+      Variable: 4,
+      Keyword: 17,
+      Snippet: 27,
+    },
     CompletionItemInsertTextRule: { InsertAsSnippet: 4 },
   },
 }));
@@ -47,34 +54,11 @@ type EditorProps = {
   options?: Record<string, unknown>;
 };
 
-type FakeMonaco = {
-  languages: {
-    getLanguages: jest.Mock;
-    register: jest.Mock;
-    setMonarchTokensProvider: jest.Mock;
-    registerCompletionItemProvider: jest.Mock;
-  };
-};
+import { createFakeMonaco, FakeMonaco } from "../helpers/fakeMonaco";
 
 let capturedEditorProps: EditorProps | null = null;
 let latestFakeMonaco: FakeMonaco | null = null;
 const initialLanguagesRef: { value: { id: string }[] } = { value: [] };
-
-function createFakeMonaco(initial: { id: string }[] = []): FakeMonaco {
-  const registered = [...initial];
-  const register = jest.fn();
-  register.mockImplementation((lang: unknown) => {
-    registered.push(lang as { id: string });
-  });
-  return {
-    languages: {
-      getLanguages: jest.fn(() => registered),
-      register,
-      setMonarchTokensProvider: jest.fn(),
-      registerCompletionItemProvider: jest.fn(),
-    },
-  };
-}
 
 jest.mock("@monaco-editor/react", () => {
   const actualReact = jest.requireActual<typeof import("react")>("react");
@@ -435,7 +419,9 @@ describe("Script", () => {
   });
 
   describe("Groovy completion provider", () => {
+    type Suggestion = Record<string, unknown>;
     type Provider = {
+      triggerCharacters?: string[];
       provideCompletionItems: (
         model: {
           getWordUntilPosition: (pos: unknown) => {
@@ -443,9 +429,11 @@ describe("Script", () => {
             endColumn: number;
             word: string;
           };
+          getValue: () => string;
+          getOffsetAt: (pos: { lineNumber: number; column: number }) => number;
         },
         position: { lineNumber: number; column: number },
-      ) => { suggestions: Array<Record<string, unknown>> };
+      ) => { suggestions: Suggestion[] };
     };
 
     function getProvider(): Provider {
@@ -456,29 +444,111 @@ describe("Script", () => {
       return provider;
     }
 
-    it("returns the expected suggestions", () => {
+    function makeModel(
+      line: string,
+      word = "",
+    ): Provider extends {
+      provideCompletionItems: (model: infer M, ...args: never[]) => unknown;
+    }
+      ? M
+      : never {
+      return {
+        getWordUntilPosition: () => ({
+          startColumn: line.length - word.length + 1,
+          endColumn: line.length + 1,
+          word,
+        }),
+        getValue: () => line,
+        getOffsetAt: ({ column }: { column: number }) => column - 1,
+      } as never;
+    }
+
+    it("registers '.' as a trigger character", () => {
+      render(<Script value="" />);
+      const provider = getProvider();
+      expect(provider.triggerCharacters).toEqual(["."]);
+    });
+
+    it("returns keywords + snippets + Exchange API at the top level", () => {
+      render(<Script value="" />);
+      const provider = getProvider();
+      const result = provider.provideCompletionItems(makeModel(""), {
+        lineNumber: 1,
+        column: 1,
+      });
+      const labels = result.suggestions.map((s) => s.label as string);
+      // Keywords
+      expect(labels).toContain("if");
+      expect(labels).toContain("def");
+      expect(labels).toContain("for");
+      // Snippets — defined separately from keywords so labels don't collide
+      expect(labels).toContain("ifelse");
+      expect(labels).toContain("forin");
+      expect(labels).toContain("try");
+      expect(labels).toContain("closure");
+      // Exchange API
+      expect(labels).toContain("exchange");
+      expect(labels).toContain("log");
+    });
+
+    it("returns Exchange members after 'exchange.'", () => {
+      render(<Script value="" />);
+      const provider = getProvider();
+      const result = provider.provideCompletionItems(makeModel("exchange."), {
+        lineNumber: 1,
+        column: 10,
+      });
+      const labels = result.suggestions.map((s) => s.label as string);
+      expect(labels).toEqual(
+        expect.arrayContaining([
+          "getIn",
+          "getMessage",
+          "getProperty",
+          "setProperty",
+          "getProperties",
+          "removeProperty",
+          "getException",
+          "getContext",
+          "getFromEndpoint",
+        ]),
+      );
+      // Should NOT include keywords / snippets in this contextual list
+      expect(labels).not.toContain("if");
+      expect(labels).not.toContain("def");
+    });
+
+    it("returns Message members after 'getMessage().'", () => {
       render(<Script value="" />);
       const provider = getProvider();
       const result = provider.provideCompletionItems(
-        {
-          getWordUntilPosition: () => ({
-            startColumn: 1,
-            endColumn: 4,
-            word: "exc",
-          }),
-        },
-        { lineNumber: 2, column: 4 },
+        makeModel("exchange.getMessage()."),
+        { lineNumber: 1, column: 23 },
       );
+      const labels = result.suggestions.map((s) => s.label as string);
+      expect(labels).toEqual(
+        expect.arrayContaining([
+          "getBody",
+          "getBodyAs",
+          "setBody",
+          "getHeader",
+          "getHeaders",
+          "setHeader",
+          "removeHeader",
+          "getMessageId",
+        ]),
+      );
+    });
 
-      expect(result.suggestions).toHaveLength(6);
-      expect(result.suggestions.map((s) => s.label as string)).toEqual([
-        "exchange",
-        "getMessage",
-        "setMessage",
-        "getProperty",
-        "setProperty",
-        "removeProperty",
-      ]);
+    it("returns Message members after 'getIn().'", () => {
+      render(<Script value="" />);
+      const provider = getProvider();
+      const result = provider.provideCompletionItems(makeModel("getIn()."), {
+        lineNumber: 1,
+        column: 9,
+      });
+      const labels = result.suggestions.map((s) => s.label as string);
+      expect(labels).toContain("getBody");
+      expect(labels).toContain("getHeader");
     });
 
     it("computes range based on current word and position", () => {
@@ -491,6 +561,8 @@ describe("Script", () => {
             endColumn: 9,
             word: "some",
           }),
+          getValue: () => "    some",
+          getOffsetAt: () => 8,
         },
         { lineNumber: 7, column: 9 },
       );
@@ -506,32 +578,77 @@ describe("Script", () => {
       }
     });
 
-    it("sets kind, insertText and insertTextRules correctly", () => {
+    it("attaches markdown documentation to Exchange members", () => {
       render(<Script value="" />);
       const provider = getProvider();
+      const result = provider.provideCompletionItems(makeModel("exchange."), {
+        lineNumber: 1,
+        column: 10,
+      });
+      const getMessage = result.suggestions.find(
+        (s) => s.label === "getMessage",
+      );
+      expect(getMessage).toBeTruthy();
+      expect((getMessage?.documentation as { value: string }).value).toContain(
+        "message",
+      );
+    });
+
+    it("inside a method call drops statement keywords and snippets", () => {
+      render(<Script value="" />);
+      const provider = getProvider();
+      const line = "exchange.setProperty('aas', ";
+      const result = provider.provideCompletionItems(makeModel(line), {
+        lineNumber: 1,
+        column: line.length + 1,
+      });
+      const labels = result.suggestions.map((s) => s.label as string);
+      expect(labels).not.toContain("if");
+      expect(labels).not.toContain("for");
+      expect(labels).not.toContain("abstract");
+      expect(labels).not.toContain("ifelse");
+      expect(labels).not.toContain("forin");
+      // Expression-safe values + Exchange API are still offered
+      expect(labels).toContain("null");
+      expect(labels).toContain("true");
+      expect(labels).toContain("exchange");
+    });
+
+    it("returns statement keywords on a fresh line after a completed statement", () => {
+      render(<Script value="" />);
+      const provider = getProvider();
+      // Document: "exchange.getMessage().setHeader('123', null);\n\n\ni"
+      // Cursor on line 4 after the lone "i" — semicolon two lines up is a
+      // hard statement separator, so statement-context should be active.
+      const fullText = "exchange.getMessage().setHeader('123', null);\n\n\ni";
       const result = provider.provideCompletionItems(
         {
           getWordUntilPosition: () => ({
             startColumn: 1,
-            endColumn: 1,
-            word: "",
+            endColumn: 2,
+            word: "i",
           }),
+          getValue: () => fullText,
+          getOffsetAt: () => fullText.length,
         },
-        { lineNumber: 1, column: 1 },
+        { lineNumber: 4, column: 2 },
       );
+      const labels = result.suggestions.map((s) => s.label as string);
+      expect(labels).toContain("if");
+      expect(labels).toContain("for");
+      expect(labels).toContain("ifelse");
+      expect(labels).toContain("forin");
+    });
 
-      const byLabel = Object.fromEntries(
-        result.suggestions.map((s) => [s.label as string, s]),
-      );
-      expect(byLabel.exchange.kind).toBe(4);
-      expect(byLabel.exchange.insertText).toBe("exchange");
-      expect(byLabel.getMessage.kind).toBe(0);
-      expect(byLabel.getMessage.insertText).toBe("getMessage()");
-      expect(byLabel.setMessage.insertText).toBe("setMessage($0)");
-      expect(byLabel.setMessage.insertTextRules).toBe(4);
-      expect(byLabel.getProperty.insertText).toBe("getProperty($0)");
-      expect(byLabel.setProperty.insertText).toBe("setProperty($0)");
-      expect(byLabel.removeProperty.insertText).toBe("removeProperty($0)");
+    it("returns empty suggestion list after a dot on unknown receiver", () => {
+      render(<Script value="" />);
+      const provider = getProvider();
+      const line = "exchange.getException().";
+      const result = provider.provideCompletionItems(makeModel(line), {
+        lineNumber: 1,
+        column: line.length + 1,
+      });
+      expect(result.suggestions).toEqual([]);
     });
   });
 });

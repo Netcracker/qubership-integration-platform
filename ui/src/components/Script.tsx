@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import { Editor } from "@monaco-editor/react";
-import { editor, IRange, languages, Position } from "monaco-editor";
+import { editor, languages, Position } from "monaco-editor";
 import { Flex } from "antd";
 
 type Monaco = typeof import("monaco-editor");
@@ -9,74 +9,27 @@ import {
   useMonacoEditorOptions,
   applyVSCodeThemeToMonaco,
 } from "../hooks/useMonacoTheme";
+import {
+  getRangeForWord,
+  getTextBeforePosition,
+} from "../misc/monaco/completion-helpers";
+import {
+  getGroovyCompletionItems,
+  GROOVY_KEYWORDS,
+} from "../misc/monaco/groovy-suggestions";
+import { GROOVY_LANGUAGE_CONFIGURATION } from "../misc/monaco/language-config";
 
 class GroovyCompletionProvider implements languages.CompletionItemProvider {
-  constructor() {
-    // Do nothing
-  }
+  public readonly triggerCharacters = ["."];
 
   public provideCompletionItems(
     model: editor.ITextModel,
     position: Position,
   ): languages.ProviderResult<languages.CompletionList> {
     const word = model.getWordUntilPosition(position);
-    const range: IRange = {
-      startLineNumber: position.lineNumber,
-      endLineNumber: position.lineNumber,
-      startColumn: word.startColumn,
-      endColumn: word.endColumn,
-    };
-
-    const suggestions: languages.CompletionItem[] = [
-      {
-        label: "exchange",
-        kind: languages.CompletionItemKind.Variable,
-        insertText: "exchange",
-        detail: "Exchange property",
-        range,
-      },
-      {
-        label: "getMessage",
-        kind: languages.CompletionItemKind.Method,
-        insertText: "getMessage()",
-        detail: "Get message object",
-        range,
-      },
-      {
-        label: "setMessage",
-        kind: languages.CompletionItemKind.Method,
-        insertText: "setMessage($0)",
-        insertTextRules: languages.CompletionItemInsertTextRule.InsertAsSnippet,
-        detail: "Set message object",
-        range,
-      },
-      {
-        label: "getProperty",
-        kind: languages.CompletionItemKind.Method,
-        insertText: "getProperty($0)",
-        insertTextRules: languages.CompletionItemInsertTextRule.InsertAsSnippet,
-        detail: "Get message property",
-        range,
-      },
-      {
-        label: "setProperty",
-        kind: languages.CompletionItemKind.Method,
-        insertText: "setProperty($0)",
-        insertTextRules: languages.CompletionItemInsertTextRule.InsertAsSnippet,
-        detail: "Set message property",
-        range,
-      },
-      {
-        label: "removeProperty",
-        kind: languages.CompletionItemKind.Method,
-        insertText: "removeProperty($0)",
-        insertTextRules: languages.CompletionItemInsertTextRule.InsertAsSnippet,
-        detail: "Remove message property",
-        range,
-      },
-    ];
-
-    return { suggestions: suggestions };
+    const range = getRangeForWord(position, word);
+    const textBefore = getTextBeforePosition(model, position);
+    return { suggestions: getGroovyCompletionItems(textBefore, range) };
   }
 }
 
@@ -90,68 +43,15 @@ function configureGroovyLanguage(monaco: Monaco): void {
     return;
   }
   monaco.languages.register({ id: "groovy" });
+  monaco.languages.setLanguageConfiguration(
+    "groovy",
+    GROOVY_LANGUAGE_CONFIGURATION,
+  );
   monaco.languages.setMonarchTokensProvider("groovy", {
     defaultToken: "invalid",
     tokenPostfix: ".groovy",
 
-    keywords: [
-      "abstract",
-      "as",
-      "assert",
-      "boolean",
-      "break",
-      "byte",
-      "case",
-      "catch",
-      "char",
-      "class",
-      "const",
-      "continue",
-      "def",
-      "default",
-      "do",
-      "double",
-      "else",
-      "enum",
-      "extends",
-      "false",
-      "final",
-      "finally",
-      "float",
-      "for",
-      "goto",
-      "if",
-      "implements",
-      "import",
-      "in",
-      "instanceof",
-      "int",
-      "interface",
-      "long",
-      "native",
-      "new",
-      "null",
-      "package",
-      "private",
-      "protected",
-      "public",
-      "return",
-      "short",
-      "static",
-      "strictfp",
-      "super",
-      "switch",
-      "synchronized",
-      "this",
-      "throw",
-      "throws",
-      "transient",
-      "true",
-      "try",
-      "void",
-      "volatile",
-      "while",
-    ],
+    keywords: [...GROOVY_KEYWORDS],
 
     operators: [
       "=",
@@ -476,9 +376,15 @@ export const Script: React.FC<ScriptProps> = ({
             comments: false,
             strings: false,
           },
+          suggestOnTriggerCharacters: true,
+          wordBasedSuggestions: "currentDocument",
           suggest: {
             showKeywords: true,
             showSnippets: true,
+            showWords: true,
+            showFunctions: true,
+            showVariables: true,
+            showMethods: true,
           },
           bracketPairColorization: {
             enabled: true,
