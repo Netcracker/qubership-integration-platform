@@ -469,6 +469,10 @@ pre[class*="language-"] .token.punctuation {
   color: var(--vscode-textLink-foreground, var(--vscode-foreground)) !important;
 }
 
+.ant-notification-notice-warning .ant-notification-notice-icon {
+  color: var(--vscode-warningForeground, #faad14) !important;
+}
+
 .ant-notification-notice-error .ant-notification-notice-icon {
   color: var(--vscode-errorForeground, #f87171) !important;
 }

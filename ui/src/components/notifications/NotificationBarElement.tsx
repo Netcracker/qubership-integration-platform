@@ -22,6 +22,10 @@ export const NotificationBarElement: React.FC<NotificationBarElementProps> = ({
       getComputedStyle(document.documentElement)
         .getPropertyValue("--vscode-textLink-foreground")
         .trim() || "#1890ff";
+    const warningColor =
+      getComputedStyle(document.documentElement)
+        .getPropertyValue("--vscode-warningForeground")
+        .trim() || "#faad14";
 
     switch (type) {
       case "error":
@@ -31,11 +35,18 @@ export const NotificationBarElement: React.FC<NotificationBarElementProps> = ({
             style={{ ...baseStyle, color: errorColor }}
           />
         );
+      case "warning":
+        return (
+          <OverridableIcon
+            name="exclamationCircle"
+            style={{ ...baseStyle, color: warningColor }}
+          />
+        );
       case "info":
       default:
         return (
           <OverridableIcon
-            name="exclamationCircle"
+            name="info"
             style={{ ...baseStyle, color: infoColor }}
           />
         );

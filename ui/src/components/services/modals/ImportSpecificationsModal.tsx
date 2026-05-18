@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import {
+  Alert,
   Button,
   Card,
   Checkbox,
@@ -8,6 +9,7 @@ import {
   message,
   Modal,
   Select,
+  Space,
   Spin,
   Tabs,
   Typography,
@@ -659,85 +661,82 @@ const ImportSpecificationsModal: React.FC<Props> = ({
             : []),
         ]}
       />
-      <div className={styles.actionsContainer}>
-        {activeTabKey === "chains" && isImplementedService && (
-          <>
-            <Button
-              onClick={() => setSelectedChainIds([])}
-              disabled={selectedChainIds.length === 0}
-            >
-              Clear
-            </Button>
+      <Space direction="vertical" size="large" style={{ width: "100%" }}>
+        <div className={styles.actionsContainer}>
+          {activeTabKey === "chains" && isImplementedService && (
+            <>
+              <Button
+                onClick={() => setSelectedChainIds([])}
+                disabled={selectedChainIds.length === 0}
+              >
+                Clear
+              </Button>
+              <Button
+                type="primary"
+                disabled={selectedChainIds.length === 0}
+                onClick={() => void handleGenerateAndImport()}
+              >
+                Create
+              </Button>
+            </>
+          )}
+          {activeTabKey === "file" && (
             <Button
               type="primary"
-              disabled={selectedChainIds.length === 0}
-              onClick={() => void handleGenerateAndImport()}
+              onClick={() => void handleImport()}
+              disabled={
+                !files.length ||
+                (isGroupMode && !name.trim()) ||
+                loading ||
+                polling
+              }
             >
-              Create
+              Import {files.length > 1 ? `${files.length} Files` : "File"}
             </Button>
-          </>
-        )}
-        {activeTabKey === "file" && (
-          <Button
-            type="primary"
-            onClick={() => void handleImport()}
-            disabled={
-              !files.length ||
-              (isGroupMode && !name.trim()) ||
-              loading ||
-              polling
-            }
-          >
-            Import {files.length > 1 ? `${files.length} Files` : "File"}
-          </Button>
-        )}
-        {activeTabKey === "api" && hasApiTab && (
-          <Button
-            type="primary"
-            onClick={() => void handleImportFromApi()}
-            disabled={
-              !selectedSpecApiFile ||
-              (isGroupMode && !name.trim()) ||
-              loading ||
-              polling
-            }
-          >
-            Import
-          </Button>
-        )}
-        <Button onClick={handleCancel}>Cancel</Button>
-      </div>
-      {validationError && (
-        <div className={styles.validationErrorContainer}>
-          <div className={styles.validationErrorHeader}>
-            <OverridableIcon
-              name="exclamationCircle"
-              className={styles.validationErrorIcon}
-            />
-            <span className={styles.validationErrorTitle}>
-              {validationError.message}
-            </span>
-          </div>
-          <ul className={styles.validationErrorList}>
-            {validationError.triggers.map((t) => (
-              <li key={t.id}>
-                <a
-                  href={`/chains/${t.chainId}/graph/${t.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {t.name} on {t.chainName}
-                </a>
-              </li>
-            ))}
-          </ul>
-          <div className={styles.validationErrorActions}>
-            <Button size="small" onClick={() => setValidationError(null)}>
-              Close
+          )}
+          {activeTabKey === "api" && hasApiTab && (
+            <Button
+              type="primary"
+              onClick={() => void handleImportFromApi()}
+              disabled={
+                !selectedSpecApiFile ||
+                (isGroupMode && !name.trim()) ||
+                loading ||
+                polling
+              }
+            >
+              Import
             </Button>
-          </div>
+          )}
+          <Button onClick={handleCancel}>Cancel</Button>
         </div>
-      )}
+        {validationError && (
+          <Alert
+            type="warning"
+            showIcon
+            message={validationError.message}
+            closable
+            onClose={() => setValidationError(null)}
+            description={
+              <div>
+                <ul className={styles.validationErrorList}>
+                  {validationError.triggers.map((t) => (
+                    <li key={t.id}>
+                      <a
+                        href={`/chains/${t.chainId}/graph/${t.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {t.name} on {t.chainName}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            }
+          />
+        )}
+      </Space>
     </Modal>
   );
 };

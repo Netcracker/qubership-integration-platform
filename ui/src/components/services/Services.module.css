@@ -186,36 +186,7 @@
   margin-top: 24px;
 }
 
-.validationErrorContainer {
-  margin-top: 24px;
-  padding: 16px;
-  border: 1px solid var(--vscode-warningForeground, #faad14);
-  border-radius: 8px;
-  background: var(--vscode-input-background, #fffbe6);
-  color: var(--vscode-warningForeground, #ad6800);
-}
-
-.validationErrorHeader {
-  display: flex;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.validationErrorIcon {
-  font-size: 20px;
-  margin-right: 8px;
-}
-
-.validationErrorTitle {
-  font-weight: 500;
-}
-
 .validationErrorList {
   margin: 0;
   padding-left: 24px;
-}
-
-.validationErrorActions {
-  text-align: right;
-  margin-top: 8px;
 }
