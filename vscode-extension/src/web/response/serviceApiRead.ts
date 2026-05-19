@@ -13,7 +13,7 @@ import * as vscode from "vscode";
 import { fileApi } from "./file/fileApiProvider";
 import { LabelUtils } from "../api-services/LabelUtils";
 import { getExtensionsForUri } from "./file/fileExtensions";
-import { Chain, ContextSystem } from "@netcracker/qip-ui";
+import { Chain, ContextSystem, MCPSystem } from "@netcracker/qip-ui";
 import { ContentParser } from "../api-services/parsers/ContentParser";
 
 export async function getCurrentServiceId(
@@ -102,6 +102,45 @@ export async function getContextServices(
 
     return result;
   }
+}
+
+export async function getMcpServices(
+  serviceFileUri: Uri,
+): Promise<MCPSystem[]> {
+  const ext = getExtensionsForUri(serviceFileUri);
+  if (serviceFileUri.path.endsWith(ext.mcpService)) {
+    const service: any = await getMainService(serviceFileUri);
+    if (!service) {
+      return [];
+    }
+
+    return [await getMcpService(serviceFileUri, service.id)];
+  } else {
+    const result: MCPSystem[] = [];
+    const serviceFiles = await fileApi.findFiles(ext.mcpService);
+    for (const serviceFile of serviceFiles) {
+      const service: any = await getMainService(serviceFile);
+      result.push(await getMcpService(serviceFile, service.id));
+    }
+
+    return result;
+  }
+}
+
+export async function getMcpService(
+  serviceFileUri: Uri,
+  serviceId: string,
+): Promise<MCPSystem> {
+  const service = await fileApi.getMcpService(serviceFileUri, serviceId);
+
+  return {
+    id: service.id,
+    name: service.name,
+    description: service.content?.description || "",
+    instructions: service.content?.instructions || "",
+    identifier: service.content?.identifier || "",
+    labels: LabelUtils.toEntityLabels(service.content?.labels || []),
+  };
 }
 
 export async function getEnvironment(

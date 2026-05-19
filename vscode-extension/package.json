@@ -24,7 +24,6 @@
     "qip.createChain",
     "qip.createChainParent",
     "qip.createService",
-    "qip.createContextService",
     "qip.openInTextEditor"
   ],
   "browser": "./dist/web/extension.js",
@@ -45,10 +44,6 @@
       {
         "command": "qip.createService",
         "title": "QIP Create service"
-      },
-      {
-        "command": "qip.createContextService",
-        "title": "QIP Create context service"
       },
       {
         "command": "qip.refreshExplorer",
@@ -108,6 +103,15 @@
             "filenamePattern": "*.context-service.qip.yaml"
           }
         ]
+      },
+      {
+        "viewType": "qip.mcpServiceFile.editor",
+        "displayName": "QIP MCP Service File Visual Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.mcp-service.qip.yaml"
+          }
+        ]
       }
     ],
     "menus": {
@@ -119,11 +123,6 @@
         }
       ],
       "view/item/context": [
-        {
-          "command": "qip.createContextService",
-          "when": "view == qip-main && viewItem == qip-services-category",
-          "group": "inline"
-        },
         {
           "command": "qip.createService",
           "when": "view == qip-main && viewItem == qip-services-category",

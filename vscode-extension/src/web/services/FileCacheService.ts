@@ -11,6 +11,7 @@ export class FileCacheService {
   private static instance: FileCacheService;
   private serviceCache: Map<string, CacheEntry> = new Map();
   private contextServiceCache: Map<string, CacheEntry> = new Map();
+  private mcpServiceCache: Map<string, CacheEntry> = new Map();
   private chainCache: Map<string, CacheEntry> = new Map();
   private specificationGroupCache: Map<string, CacheEntry> = new Map();
   private specificationCache: Map<string, CacheEntry> = new Map();
@@ -69,6 +70,18 @@ export class FileCacheService {
 
   clearContextServiceCache(): void {
     this.contextServiceCache.clear();
+  }
+
+  setMCPServiceUri(serviceId: string, uri: Uri): void {
+    this.setUri(serviceId, uri, this.mcpServiceCache);
+  }
+
+  getMCPServiceUri(serviceId: string): Uri | null {
+    return this.getUri(serviceId, this.mcpServiceCache);
+  }
+
+  clearMCPServiceCache(): void {
+    this.mcpServiceCache.clear();
   }
 
   getServiceUri(serviceId: string): Uri | null {
@@ -144,6 +157,8 @@ export class FileCacheService {
         this.invalidateByUriInCache(this.serviceCache, uri);
       } else if (filename.endsWith(config.extensions.contextService)) {
         this.invalidateByUriInCache(this.contextServiceCache, uri);
+      } else if (filename.endsWith(config.extensions.mcpService)) {
+        this.invalidateByUriInCache(this.mcpServiceCache, uri);
       } else if (filename.endsWith(config.extensions.chain)) {
         this.invalidateByUriInCache(this.chainCache, uri);
       } else if (filename.endsWith(config.extensions.specificationGroup)) {
@@ -184,6 +199,8 @@ export class FileCacheService {
         return this.getServiceUri(id);
       } else if (extension === config.extensions.contextService) {
         return this.getContextServiceUri(id);
+      } else if (extension === config.extensions.mcpService) {
+        return this.getMCPServiceUri(id);
       } else if (extension === config.extensions.chain) {
         return this.getChainUri(id);
       } else if (extension === config.extensions.specificationGroup) {
@@ -210,6 +227,8 @@ export class FileCacheService {
         this.setServiceUri(id, uri);
       } else if (extension === config.extensions.contextService) {
         this.setContextServiceUri(id, uri);
+      } else if (extension === config.extensions.mcpService) {
+        this.setMCPServiceUri(id, uri);
       } else if (extension === config.extensions.chain) {
         this.setChainUri(id, uri);
       } else if (extension === config.extensions.specificationGroup) {
@@ -225,6 +244,7 @@ export class FileCacheService {
   clearAll(): void {
     this.clearServiceCache();
     this.clearContextServiceCache();
+    this.clearMCPServiceCache();
     this.clearChainCache();
     this.clearSpecificationGroupCache();
     this.clearSpecificationCache();

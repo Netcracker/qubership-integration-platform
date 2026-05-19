@@ -18,6 +18,7 @@ import { FileCacheService } from "../../services/FileCacheService";
 import {
   CHAIN_ROUTES,
   CONTEXT_SERVICE_ROUTES,
+  MCP_SERVICE_ROUTES,
   SERVICE_ROUTES,
 } from "../apiRouter";
 import { extractEntityId } from "../navigationUtils";
@@ -64,6 +65,12 @@ export class VSCodeFileApi implements FileApi {
     for (const regexp of CONTEXT_SERVICE_ROUTES) {
       if (regexp.test(path)) {
         extension = extensions.contextService;
+      }
+    }
+
+    for (const regexp of MCP_SERVICE_ROUTES) {
+      if (regexp.test(path)) {
+        extension = extensions.mcpService;
       }
     }
 
@@ -195,6 +202,7 @@ export class VSCodeFileApi implements FileApi {
 
     const extensions = getExtensionsForFile();
     const typesToTry = [
+      extensions.mcpService,
       extensions.contextService,
       extensions.service,
       extensions.chain,
@@ -441,6 +449,23 @@ export class VSCodeFileApi implements FileApi {
     }
   }
 
+  async getMcpService(serviceFileUri: Uri, serviceId: string): Promise<any> {
+    try {
+      const parsed = await ContentParser.parseContentFromFile(serviceFileUri);
+
+      if (parsed && parsed.id === serviceId) {
+        return parsed;
+      }
+      throw Error("Invalid service file content or service ID mismatch");
+    } catch (e) {
+      console.error(
+        `Service file ${serviceFileUri} can't be parsed from QIP Extension API`,
+        e,
+      );
+      throw e;
+    }
+  }
+
   async writeMainService(serviceFileUri: Uri, serviceData: any): Promise<void> {
     await this.writeServiceFile(serviceFileUri, serviceData);
     FileCacheService.getInstance().invalidateByUri(serviceFileUri);
@@ -563,6 +588,7 @@ export class VSCodeFileApi implements FileApi {
 
   async createEmptyService(): Promise<{
     folderUri: Uri;
+    fileName: string;
     serviceId: string;
   } | null> {
     try {
@@ -607,6 +633,16 @@ export class VSCodeFileApi implements FileApi {
             value: "IMPLEMENTED",
             description: "Implemented service",
           },
+          {
+            label: "Context",
+            value: "CONTEXT",
+            description: "Context service",
+          },
+          {
+            label: "MCP",
+            value: "MCP",
+            description: "MCP service",
+          },
         ],
         {
           placeHolder: "Select service type",
@@ -618,6 +654,23 @@ export class VSCodeFileApi implements FileApi {
         return null;
       }
 
+      const identifier =
+        serviceType.value === "MCP"
+          ? await vscode.window.showInputBox({
+              prompt: "Enter MCP service identifier",
+              placeHolder: "myService",
+              validateInput: (value: string) => {
+                if (!value || value.trim().length === 0) {
+                  return "MCP service identifier cannot be empty";
+                }
+                if (value.trim().length > 128) {
+                  return "MCP service identifier cannot be longer than 128 characters";
+                }
+                return null;
+              },
+            })
+          : "";
+
       const serviceDescription = await vscode.window.showInputBox({
         prompt: "Enter service description (optional)",
         placeHolder: "Description of the service",
@@ -633,117 +686,68 @@ export class VSCodeFileApi implements FileApi {
 
       const config = ProjectConfigService.getConfig();
 
-      const service = {
-        $schema: config.schemaUrls.service,
-        id: serviceId,
-        name: serviceName.trim(),
-        content: {
-          description: serviceDescription?.trim() || "",
-          activeEnvironmentId: "",
-          integrationSystemType: serviceType.value,
-          protocol: "",
-          extendedProtocol: "",
-          specification: "",
-          environments: [],
-          labels: [],
-          migrations: [],
-        },
-      };
+      const service =
+        serviceType.value === "CONTEXT"
+          ? {
+              $schema: config.schemaUrls.contextService,
+              id: serviceId,
+              name: serviceName.trim(),
+              content: {
+                description: serviceDescription?.trim() || "",
+                migrations: [],
+              },
+            }
+          : serviceType.value === "MCP"
+            ? {
+                $schema: config.schemaUrls.mcpService,
+                id: serviceId,
+                name: serviceName.trim(),
+                content: {
+                  identifier: identifier?.trim() || "",
+                  instructions: "",
+                  description: serviceDescription?.trim() || "",
+                  migrations: [],
+                },
+              }
+            : {
+                $schema: config.schemaUrls.service,
+                id: serviceId,
+                name: serviceName.trim(),
+                content: {
+                  description: serviceDescription?.trim() || "",
+                  activeEnvironmentId: "",
+                  integrationSystemType: serviceType.value,
+                  protocol: "",
+                  extendedProtocol: "",
+                  specification: "",
+                  environments: [],
+                  labels: [],
+                  migrations: [],
+                },
+              };
+
+      const extension =
+        serviceType.value === "CONTEXT"
+          ? config.extensions.contextService
+          : serviceType.value === "MCP"
+            ? config.extensions.mcpService
+            : config.extensions.service;
 
       // Create service file (folder will be created automatically)
       const serviceFolderUri = vscode.Uri.joinPath(
         workspaceFolders[0].uri,
         serviceId,
       );
-      const serviceFileUri = vscode.Uri.joinPath(
-        serviceFolderUri,
-        `${serviceId}${config.extensions.service}`,
-      );
+      const fileName = `${serviceId}${extension}`;
+      const serviceFileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
       await this.writeServiceFile(serviceFileUri, service);
 
       vscode.window.showInformationMessage(
         `Service "${serviceName}" created successfully with type ${serviceType.label} in folder ${serviceId}`,
       );
-      return { folderUri: serviceFolderUri, serviceId };
+      return { folderUri: serviceFolderUri, fileName, serviceId };
     } catch (err) {
       vscode.window.showErrorMessage(`Failed to create service: ${err}`);
-      return null;
-    }
-  }
-
-  async createEmptyContextService(): Promise<{
-    folderUri: Uri;
-    serviceId: string;
-  } | null> {
-    try {
-      const workspaceFolders = vscode.workspace.workspaceFolders;
-      if (!workspaceFolders) {
-        vscode.window.showErrorMessage("Open a workspace folder first");
-        return null;
-      }
-
-      const serviceName = await vscode.window.showInputBox({
-        prompt: "Enter new context service name",
-        placeHolder: "My Context Service",
-        validateInput: (value: string) => {
-          if (!value || value.trim().length === 0) {
-            return "Service name cannot be empty";
-          }
-          if (value.trim().length > 128) {
-            return "Service name cannot be longer than 128 characters";
-          }
-          return null;
-        },
-      });
-
-      if (!serviceName) {
-        return null;
-      }
-
-      const serviceDescription = await vscode.window.showInputBox({
-        prompt: "Enter service description (optional)",
-        placeHolder: "Description of the service",
-        validateInput: (value: string) => {
-          if (value && value.trim().length > 512) {
-            return "Description cannot be longer than 512 characters";
-          }
-          return null;
-        },
-      });
-
-      const serviceId = crypto.randomUUID();
-
-      const config = ProjectConfigService.getConfig();
-
-      const service = {
-        $schema: config.schemaUrls.contextService,
-        id: serviceId,
-        name: serviceName.trim(),
-        content: {
-          description: serviceDescription?.trim() || "",
-          migrations: [],
-        },
-      };
-
-      // Create service file (folder will be created automatically)
-      const serviceFolderUri = vscode.Uri.joinPath(
-        workspaceFolders[0].uri,
-        serviceId,
-      );
-      const serviceFileUri = vscode.Uri.joinPath(
-        serviceFolderUri,
-        `${serviceId}${config.extensions.contextService}`,
-      );
-      await this.writeServiceFile(serviceFileUri, service);
-
-      vscode.window.showInformationMessage(
-        `Context service "${serviceName}" created successfully in folder ${serviceId}`,
-      );
-      return { folderUri: serviceFolderUri, serviceId };
-    } catch (err) {
-      vscode.window.showErrorMessage(
-        `Failed to create context service: ${err}`,
-      );
       return null;
     }
   }
@@ -756,6 +760,9 @@ export class VSCodeFileApi implements FileApi {
 
       if (stat.type === vscode.FileType.File) {
         const name = extractFilename(fileUri);
+        if (name.endsWith(extensions.mcpService)) {
+          return QipFileType.MCP_SERVICE;
+        }
         if (name.endsWith(extensions.contextService)) {
           return QipFileType.CONTEXT_SERVICE;
         }
@@ -781,6 +788,9 @@ export class VSCodeFileApi implements FileApi {
       }
       if (hasChainFile) {
         return QipFileType.CHAIN;
+      }
+      if (this.hasFileWithExtension(entries, extensions.mcpService)) {
+        return QipFileType.MCP_SERVICE;
       }
       if (this.hasFileWithExtension(entries, extensions.contextService)) {
         return QipFileType.CONTEXT_SERVICE;

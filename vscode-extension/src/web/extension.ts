@@ -374,7 +374,10 @@ async function enrichWebview(
           editor = "qip.serviceFile.editor";
         } else if (documentUri.path.endsWith(fileExtensions.contextService)) {
           editor = "qip.contextServiceFile.editor";
+        } else if (documentUri.path.endsWith(fileExtensions.mcpService)) {
+          editor = "qip.mcpServiceFile.editor";
         }
+
         if (!editor) {
           throw new Error(
             `Unable to find an editor for document: ${documentUri}`,
@@ -416,7 +419,9 @@ async function deleteServiceWithRelatedFiles(
         if (
           fileName.endsWith(ext.specificationGroup) ||
           fileName.endsWith(ext.specification) ||
-          fileName.endsWith(ext.service)
+          fileName.endsWith(ext.service) ||
+          fileName.endsWith(ext.contextService) ||
+          fileName.endsWith(ext.mcpService)
         ) {
           filesToDelete.push(vscode.Uri.joinPath(serviceFolderUri, fileName));
         }
@@ -583,6 +588,14 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
   );
 
   context.subscriptions.push(
+    vscode.window.registerCustomEditorProvider(
+      "qip.mcpServiceFile.editor",
+      new ChainFileEditorProvider(context),
+      editorParams,
+    ),
+  );
+
+  context.subscriptions.push(
     vscode.commands.registerCommand("qip.open", function () {
       // The code you place here will be executed every time your command is executed
 
@@ -629,25 +642,9 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
       const result = await fileApiImpl.createEmptyService();
       qipProvider.refresh();
       if (result) {
-        const ext = getExtensionsForUri();
         const serviceFileUri = vscode.Uri.joinPath(
           result.folderUri,
-          `${result.serviceId}${ext.service}`,
-        );
-        openWebviewForElement(context, serviceFileUri, "service");
-      }
-    }),
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand("qip.createContextService", async () => {
-      const result = await fileApiImpl.createEmptyContextService();
-      qipProvider.refresh();
-      if (result) {
-        const ext = getExtensionsForUri();
-        const serviceFileUri = vscode.Uri.joinPath(
-          result.folderUri,
-          `${result.serviceId}${ext.contextService}`,
+          result.fileName,
         );
         openWebviewForElement(context, serviceFileUri, "service");
       }

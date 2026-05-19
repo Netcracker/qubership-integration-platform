@@ -15,6 +15,12 @@ export async function getContextServiceUri(
   return `/services/context/${await getCurrentServiceId(serviceFileUri)}/parameters`;
 }
 
+export async function getMcpServiceUri(
+  serviceFileUri: vscode.Uri,
+): Promise<string> {
+  return `/services/mcp/${await getCurrentServiceId(serviceFileUri)}/parameters`;
+}
+
 export async function getServiceUri(
   serviceFileUri: vscode.Uri,
 ): Promise<string> {
@@ -93,6 +99,7 @@ export enum QipFileType {
   CHAIN = "CHAIN",
   SERVICE = "SERVICE",
   CONTEXT_SERVICE = "CONTEXT_SERVICE",
+  MCP_SERVICE = "MCP_SERVICE",
   FOLDER = "FOLDER",
   UNKNOWN = "UNKNOWN",
 }

@@ -11,6 +11,7 @@ import * as yaml from "yaml";
 import {
   getContextService,
   getMainService,
+  getMcpService,
   getService,
 } from "./serviceApiRead";
 import vscode, { ExtensionContext, Uri } from "vscode";
@@ -20,7 +21,7 @@ import { fileApi } from "./file/fileApiProvider";
 import { refreshQipExplorer } from "../extension";
 import { LabelUtils } from "../api-services/LabelUtils";
 import { ProjectConfigService } from "../services/ProjectConfigService";
-import { ContextSystem } from "@netcracker/qip-ui";
+import { ContextSystem, MCPSystem } from "@netcracker/qip-ui";
 import { validateAllowedSystemProtocol } from "./serviceApiUtils";
 
 export async function updateContextService(
@@ -43,6 +44,42 @@ export async function updateContextService(
 
   await writeMainService(serviceFileUri, service);
   const updatedService = await getContextService(serviceFileUri, serviceId);
+
+  return updatedService;
+}
+
+export async function updateMcpService(
+  serviceFileUri: Uri,
+  serviceId: string,
+  serviceRequest: Partial<MCPSystem>,
+): Promise<MCPSystem> {
+  const service = await fileApi.getContextService(serviceFileUri, serviceId);
+
+  if (!service.content) {
+    service.content = {};
+  }
+
+  if (serviceRequest.name !== undefined) {
+    service.name = serviceRequest.name;
+  }
+  if (serviceRequest.description !== undefined) {
+    service.content.description = serviceRequest.description;
+  }
+
+  if (serviceRequest.instructions !== undefined) {
+    service.content.instructions = serviceRequest.instructions;
+  }
+
+  if (serviceRequest.identifier !== undefined) {
+    service.content.identifier = serviceRequest.identifier;
+  }
+
+  if (serviceRequest.labels !== undefined) {
+    service.content.labels = LabelUtils.fromEntityLabels(serviceRequest.labels);
+  }
+
+  await writeMainService(serviceFileUri, service);
+  const updatedService = await getMcpService(serviceFileUri, serviceId);
 
   return updatedService;
 }

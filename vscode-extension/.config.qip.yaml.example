@@ -5,11 +5,13 @@ configs:
     extensions:
       chain: .chain.${appName}.yaml
       contextService: .context-service.${appName}.yaml
+      mcpService: .mcp-service.${appName}.yaml
       service: .service.${appName}.yaml
       specificationGroup: .specification-group.${appName}.yaml
       specification: .specification.${appName}.yaml
     schemaUrls:
       contextService: http://qubership.org/schemas/product/${appName}/context-service
+      mcpService: http://qubership.org/schemas/product/${appName}/mcp-service
       service: http://qubership.org/schemas/product/${appName}/service
       chain: http://qubership.org/schemas/product/${appName}/chain
       specification: http://qubership.org/schemas/product/${appName}/specification
@@ -19,11 +21,13 @@ configs:
     extensions:
       chain: .chain.${appName}.yaml
       contextService: .context-service.${appName}.yaml
+      mcpService: .mcp-service.${appName}.yaml
       service: .service.${appName}.yaml
       specificationGroup: .specification-group.${appName}.yaml
       specification: .specification.${appName}.yaml
     schemaUrls:
       contextService: http://qubership.org/schemas/product/${appName}/context-service
+      mcpService: http://qubership.org/schemas/product/${appName}/mcp-service
       service: http://qubership.org/schemas/product/${appName}/service
       chain: http://qubership.org/schemas/product/${appName}/chain
       specification: http://qubership.org/schemas/product/${appName}/specification

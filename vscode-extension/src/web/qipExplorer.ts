@@ -214,7 +214,9 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
       for (const [name, type] of entries) {
         if (
           type === vscode.FileType.File &&
-          (name.endsWith(ext.service) || name.endsWith(ext.contextService))
+          (name.endsWith(ext.service) ||
+            name.endsWith(ext.contextService) ||
+            name.endsWith(ext.mcpService))
         ) {
           try {
             const fileUri = vscode.Uri.joinPath(folderUri, name);
@@ -228,9 +230,15 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
               const protocol = serviceData.content?.protocol || "Unknown";
               const serviceType =
                 serviceData.content?.integrationSystemType ||
-                (name.endsWith(ext.contextService) ? "CONTEXT" : "Unknown");
+                (name.endsWith(ext.contextService)
+                  ? "CONTEXT"
+                  : name.endsWith(ext.mcpService)
+                    ? "MCP"
+                    : "Unknown");
               const label = `${displayName}${
-                serviceType === "CONTEXT" ? "" : `-${protocol}`
+                serviceType === "CONTEXT" || serviceType === "MCP"
+                  ? ""
+                  : `-${protocol}`
               }-${serviceData.id}`;
 
               // Choose icon based on service type
@@ -245,8 +253,12 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
                 case "IMPLEMENTED":
                   iconName = "tools";
                   break;
-                default:
+                case "CONTEXT":
                   iconName = "server";
+                  break;
+                case "MCP":
+                  iconName = "comment-discussion";
+                  break;
               }
 
               const serviceItem: QipExplorerItem = {

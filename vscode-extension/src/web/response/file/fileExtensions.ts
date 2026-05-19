@@ -7,6 +7,7 @@ export type FileExtensionsConfig = {
   chain: string;
   service: string;
   contextService: string;
+  mcpService: string;
   specificationGroup: string;
   specification: string;
 };
@@ -17,6 +18,7 @@ export function buildDefaultExtensions(appName: string): FileExtensionsConfig {
     chain: `.chain.${appName}.yaml`,
     service: `.service.${appName}.yaml`,
     contextService: `.context-service.${appName}.yaml`,
+    mcpService: `.mcp-service.${appName}.yaml`,
     specificationGroup: `.specification-group.${appName}.yaml`,
     specification: `.specification.${appName}.yaml`,
   };
@@ -99,6 +101,7 @@ export function getExtensionsForFile(filename?: string): FileExtensionsConfig {
             appName: foundConfig.appName,
             chain: foundConfig.extensions.chain,
             contextService: foundConfig.extensions.contextService,
+            mcpService: foundConfig.extensions.mcpService,
             service: foundConfig.extensions.service,
             specificationGroup: foundConfig.extensions.specificationGroup,
             specification: foundConfig.extensions.specification,
@@ -144,6 +147,7 @@ export async function initializeContextFromFile(fileUri: Uri): Promise<void> {
     appName: config.appName,
     chain: config.extensions.chain,
     contextService: config.extensions.contextService,
+    mcpService: config.extensions.mcpService,
     service: config.extensions.service,
     specificationGroup: config.extensions.specificationGroup,
     specification: config.extensions.specification,
@@ -158,6 +162,7 @@ export function getExtensionsFromConfig(): FileExtensionsConfig {
     chain: config.extensions.chain,
     service: config.extensions.service,
     contextService: config.extensions.contextService,
+    mcpService: config.extensions.mcpService,
     specificationGroup: config.extensions.specificationGroup,
     specification: config.extensions.specification,
   };

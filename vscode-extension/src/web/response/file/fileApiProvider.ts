@@ -53,6 +53,9 @@ let current: FileApi = {
   getContextService: async () => {
     throw new Error("FileApi not configured");
   },
+  getMcpService: async () => {
+    throw new Error("FileApi not configured");
+  },
   writeMainService: async () => {
     throw new Error("FileApi not configured");
   },
@@ -138,6 +141,8 @@ export const fileApi: FileApi = {
     serviceFileUri: Uri,
     serviceId: string,
   ): Promise<any> => current.getContextService(serviceFileUri, serviceId),
+  getMcpService: async (serviceFileUri: Uri, serviceId: string): Promise<any> =>
+    current.getMcpService(serviceFileUri, serviceId),
   writeMainService: async (
     serviceFileUri: Uri,
     serviceData: any,

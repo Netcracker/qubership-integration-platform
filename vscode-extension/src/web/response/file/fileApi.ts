@@ -50,6 +50,8 @@ export interface FileApi {
 
   getContextService(serviceFileUri: Uri, serviceId: string): Promise<any>;
 
+  getMcpService(serviceFileUri: Uri, serviceId: string): Promise<any>;
+
   writeMainService(serviceFileUri: Uri, serviceData: any): Promise<void>;
 
   writeServiceFile(fileUri: Uri, serviceData: any): Promise<void>;

@@ -5,11 +5,13 @@ configs:
     extensions:
       chain: .chain.qip.yaml
       contextService: .context-service.qip.yaml
+      mcpService: .mcp-service.qip.yaml
       service: .service.qip.yaml
       specificationGroup: .specification-group.qip.yaml
       specification: .specification.qip.yaml
     schemaUrls:
       contextService: http://qubership.org/schemas/product/qip/context-service
+      mcpService: http://qubership.org/schemas/product/qip/mcp-service
       service: http://qubership.org/schemas/product/qip/service
       chain: http://qubership.org/schemas/product/qip/chain
       specification: http://qubership.org/schemas/product/qip/specification

@@ -10,12 +10,14 @@ export interface ProjectConfig {
   extensions: {
     chain: string;
     contextService: string;
+    mcpService: string;
     service: string;
     specificationGroup: string;
     specification: string;
   };
   schemaUrls: {
     contextService: string;
+    mcpService: string;
     service: string;
     chain: string;
     specification: string;
@@ -33,12 +35,14 @@ export interface ProjectConfigFile {
       extensions: {
         chain: string;
         contextService: string;
+        mcpService: string;
         service: string;
         specificationGroup: string;
         specification: string;
       };
       schemaUrls: {
         contextService: string;
+        mcpService: string;
         service: string;
         chain: string;
         specification: string;
@@ -53,6 +57,7 @@ export interface ProjectConfigFile {
 
 const DEFAULT_SCHEMA_URLS = {
   contextService: "http://qubership.org/schemas/product/qip/context-service",
+  mcpService: "http://qubership.org/schemas/product/qip/mcp-service",
   service: "http://qubership.org/schemas/product/qip/service",
   chain: "http://qubership.org/schemas/product/qip/chain",
   specification: "http://qubership.org/schemas/product/qip/specification",
@@ -466,6 +471,7 @@ export class ProjectConfigService {
       extensions: {
         chain: `.chain.${appName}.yaml`,
         contextService: `.context-service.${appName}.yaml`,
+        mcpService: `.mcp-service.${appName}.yaml`,
         service: `.service.${appName}.yaml`,
         specificationGroup: `.specification-group.${appName}.yaml`,
         specification: `.specification.${appName}.yaml`,

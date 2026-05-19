@@ -77,6 +77,7 @@ jest.mock("../src/web/response/file/fileExtensions", () => ({
     chain: ".qip-chain.yaml",
     service: ".qip-service.yaml",
     contextService: ".qip-context-service.yaml",
+    mcpService: ".qip-mcp-service.yaml",
     specificationGroup: ".qip-sg.yaml",
     specification: ".qip-spec.yaml",
   }),
