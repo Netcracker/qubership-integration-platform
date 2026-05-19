@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ElementInfo {
     private String id;
+    private String snapshotElementId;
     private String name;
     private String type;
     private String chainId;

@@ -44,7 +44,7 @@ public class AddClassResolverAction implements EventProcessingAction<CamelEvent.
     private Collection<String> getSpecificationIds(Route route) {
         return MetadataUtil.getElementsInfo(route)
                 .filter(info -> SERVICE_CALL_ELEMENT.equals(info.getType()))
-                .map(info -> MetadataUtil.getBeanForElement(route, info.getId(), ServiceCallInfo.class))
+                .map(info -> MetadataUtil.getBeanForElement(route, info.getSnapshotElementId(), ServiceCallInfo.class))
                 .map(ServiceCallInfo::getSpecificationId)
                 .toList();
     }

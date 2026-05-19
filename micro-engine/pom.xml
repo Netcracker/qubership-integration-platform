@@ -50,6 +50,7 @@
         <quarkus.platform.version>3.27.3</quarkus.platform.version>
         <camel.version>4.14.6</camel.version>
 
+        <quarkus-mcp-server.version>1.8.0</quarkus-mcp-server.version>
         <cloud-core.version>9.1.0</cloud-core.version>
         <maas-client.version>11.2.6</maas-client.version>
         <maas-client-quarkus.version>9.0.3</maas-client-quarkus.version>
@@ -146,6 +147,14 @@
                 <groupId>org.testcontainers</groupId>
                 <artifactId>testcontainers-bom</artifactId>
                 <version>1.20.4</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>io.quarkiverse.mcp</groupId>
+                <artifactId>quarkus-mcp-server-bom</artifactId>
+                <version>${quarkus-mcp-server.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -403,6 +412,10 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-jdbc-postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkiverse.mcp</groupId>
+            <artifactId>quarkus-mcp-server-http</artifactId>
         </dependency>
 
         <dependency>
@@ -1037,7 +1050,7 @@
                     <id>github</id>
                     <name>GitHub Packages</name>
                     <url>
-                        https://maven.pkg.github.com/Netcracker/qubership-integration-sessions-management
+                        https://maven.pkg.github.com/Netcracker/qubership-integration-micro-engine
                     </url>
                 </repository>
             </distributionManagement>
