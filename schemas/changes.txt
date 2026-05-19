@@ -816,3 +816,34 @@ index aa3c00f..20afd45 100644
    "license": "Apache-2.0",
    "description": "Schemas definition for QIP",
    "scripts": {
+diff --git a/package-lock.json b/package-lock.json
+index 52ff777..a29e8d5 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "@netcracker/qip-schemas",
+-  "version": "0.2.27",
++  "version": "0.2.28",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "@netcracker/qip-schemas",
+-      "version": "0.2.27",
++      "version": "0.2.28",
+       "license": "Apache-2.0",
+       "dependencies": {
+         "@apidevtools/json-schema-ref-parser": "^14.1.1",
+diff --git a/package.json b/package.json
+index 20afd45..95a97b3 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "@netcracker/qip-schemas",
+-  "version": "0.2.27",
++  "version": "0.2.28",
+   "license": "Apache-2.0",
+   "description": "Schemas definition for QIP",
+   "scripts": {
