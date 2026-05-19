@@ -22,5 +22,7 @@ import java.io.IOException;
 import java.util.zip.ZipOutputStream;
 
 public interface ExportableObject {
+    String getId();
+
     void accept(ExportableObjectWriterVisitor visitor, ZipOutputStream zipOut, String entryPath) throws IOException;
 }

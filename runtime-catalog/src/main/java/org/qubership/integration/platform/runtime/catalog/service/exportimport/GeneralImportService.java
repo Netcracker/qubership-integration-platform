@@ -58,6 +58,7 @@ public class GeneralImportService {
     private final CommonVariablesService commonVariablesService;
     private final SystemExportImportService systemExportImportService;
     private final ContextExportImportService contextExportImportService;
+    private final MCPSystemImportExportService mcpSystemImportExportService;
     private final ChainImportService chainImportService;
     private final ImportSessionService importSessionService;
     private final ActionsLogService actionsLogService;
@@ -68,7 +69,9 @@ public class GeneralImportService {
     public GeneralImportService(
             CommonVariablesService commonVariablesService,
             SystemExportImportService systemExportImportService,
-            ContextExportImportService contextExportImportService, ChainImportService chainImportService,
+            ContextExportImportService contextExportImportService,
+            MCPSystemImportExportService mcpSystemImportExportService,
+            ChainImportService chainImportService,
             ImportSessionService importSessionService,
             ActionsLogService actionsLogService,
             ImportInstructionsService importInstructionsService,
@@ -77,6 +80,7 @@ public class GeneralImportService {
         this.commonVariablesService = commonVariablesService;
         this.systemExportImportService = systemExportImportService;
         this.contextExportImportService = contextExportImportService;
+        this.mcpSystemImportExportService = mcpSystemImportExportService;
         this.chainImportService = chainImportService;
         this.importSessionService = importSessionService;
         this.actionsLogService = actionsLogService;
@@ -113,6 +117,7 @@ public class GeneralImportService {
                     .chains(chainImportService.getChainsImportPreview(unpackedDirectory, instructionsConfig.getChains()))
                     .systems(systemExportImportService.getSystemsImportPreview(unpackedDirectory, instructionsConfig.getServices()))
                     .contextService(contextExportImportService.getContextServiceImportPreview(unpackedDirectory, instructionsConfig.getContextServices()))
+                    .mcpService(mcpSystemImportExportService.getImportPreview(unpackedDirectory, instructionsConfig.getMcpServices()))
                     .instructions(generalInstructionsMapper.asDTO(importInstructions))
                     .build();
         } finally {
@@ -162,6 +167,7 @@ public class GeneralImportService {
             ImportSystemsAndInstructionsResult importSystemsAndInstructionsResult = systemExportImportService
                     .importSystems(unpackedDirectory, importRequest.getSystemsCommitRequest(), importId, technicalLabels);
             ImportContextServiceAndInstructionsResult importChainsAndContextInstructionsResult = contextExportImportService.importContextService(unpackedDirectory, importRequest.getSystemsCommitRequest(), importId);
+            ImportSystemsAndInstructionsResult importMcpSystemsAndInstructionsResult = mcpSystemImportExportService.importSystems(unpackedDirectory, importRequest.getSystemsCommitRequest(), importId);
             ImportChainsAndInstructionsResult importChainsAndInstructionsResult = chainImportService
                     .importChains(unpackedDirectory, importRequest.getChainCommitRequests(), importId, technicalLabels, validateByHash);
 

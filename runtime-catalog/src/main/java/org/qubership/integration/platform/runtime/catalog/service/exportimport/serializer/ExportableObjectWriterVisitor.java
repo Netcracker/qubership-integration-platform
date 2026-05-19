@@ -84,4 +84,10 @@ public class ExportableObjectWriterVisitor {
                 entryPath + ExportImportUtils.generateMainContextServiceFileExportName(exportedContextService.getId(), appName, isLegacyExport),
                 yamlMapper.writeValueAsString(exportedContextService.getObjectNode()));
     }
+
+    public void visit(ExportedMCPSystemObject exportedMCPSystemObject, ZipOutputStream zipOut, String entryPath) throws IOException {
+        ExportImportUtils.writeSystemObject(zipOut,
+                entryPath + ExportImportUtils.generateMCPServiceFileExportName(exportedMCPSystemObject.getId(), appName, isLegacyExport),
+                yamlMapper.writeValueAsString(exportedMCPSystemObject.getObjectNode()));
+    }
 }

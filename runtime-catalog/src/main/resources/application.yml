@@ -197,6 +197,7 @@ qip:
       chain: ${CHAIN_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/chain}
       service: ${SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/service}
       context-service: ${CONTEXT_SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/context-service}
+      mcp-service: ${MCP_SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/mcp-service}
       specification-group: ${SPECIFICATION_GROUP_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/specification-group}
       specification: ${SPECIFICATION_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/specification}
   element-descriptors:

@@ -229,6 +229,12 @@ public class ExportImportUtils {
                 : id + CONTEXT_SERVICE_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
     }
 
+    public static String generateMCPServiceFileExportName(String id, String appName, boolean isLegacyExport) {
+        return isLegacyExport
+                ? MCP_SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION
+                : id + MCP_SERVICE_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
+    }
+
     public static String generateSourceExportDir(String id) {
         return SOURCE_YAML_NAME_PREFIX + id;
     }

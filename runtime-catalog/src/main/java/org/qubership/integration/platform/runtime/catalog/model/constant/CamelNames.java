@@ -132,6 +132,8 @@ public final class CamelNames {
     public static final String MAAS_CLASSIFIER_TENANT_ENABLED_CAMEL_NAME = "maas.classifier.tenantEnabled";
     public static final String MAAS_CLASSIFIER_TENANT_ID_CAMEL_NAME = "maas.classifier.tenantId";
 
+    public static final String MCP_SERVICE_IDS = "mcpServiceIds";
+
     private CamelNames() {
     }
 

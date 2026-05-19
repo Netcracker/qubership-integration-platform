@@ -50,6 +50,7 @@ public class ConfigurationPropertiesConstants {
     public static final String GRPC_SENDER_ELEMENT = "grpc-sender";
     public static final String CHAIN_CALL_2_ELEMENT = "chain-call-2";
     public static final String HTTP_TRIGGER_ELEMENT = "http-trigger";
+    public static final String MCP_TRIGGER_ELEMENT = "mcp-trigger";
     public static final String SERVICE_CALL_ELEMENT = "service-call";
     public static final String CHAIN_CALL_PROPERTY_OPTION = "chain-call";
     public static final String HTTP_TRIGGER_FAILURE_HANDLER_ACTION = "handleChainFailureAction";

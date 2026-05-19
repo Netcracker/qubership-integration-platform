@@ -58,5 +58,7 @@ public enum FilterFeature {
     SESSION_DURATION,
     EXCHANGE_DURATION,
     MAIN_THREAD,
-    POD_IP
+    POD_IP,
+    IDENTIFIER,
+    INSTRUCTIONS,
 }

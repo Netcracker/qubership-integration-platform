@@ -47,6 +47,7 @@ import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimpo
 import org.qubership.integration.platform.runtime.catalog.service.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ServiceDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ArchiveWriter;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ServiceSerializer;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ElementHelperService;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
@@ -98,6 +99,7 @@ public class SystemExportImportService {
     private final AuditingHandler auditingHandler;
     private final ServiceSerializer serviceSerializer;
     private final ServiceDeserializer serviceDeserializer;
+    private final ArchiveWriter archiveWriter;
     private final ImportSessionService importProgressService;
     private final ImportInstructionsService importInstructionsService;
     private final ElementHelperService elementHelperService;
@@ -118,6 +120,7 @@ public class SystemExportImportService {
             AuditingHandler jpaAuditingHandler,
             ServiceSerializer serviceSerializer,
             ServiceDeserializer serviceDeserializer,
+            ArchiveWriter archiveWriter,
             ImportSessionService importProgressService,
             ImportInstructionsService importInstructionsService,
             ElementHelperService elementHelperService,
@@ -133,6 +136,7 @@ public class SystemExportImportService {
         this.auditingHandler = jpaAuditingHandler;
         this.serviceSerializer = serviceSerializer;
         this.serviceDeserializer = serviceDeserializer;
+        this.archiveWriter = archiveWriter;
         this.importProgressService = importProgressService;
         this.importInstructionsService = importInstructionsService;
         this.elementHelperService = elementHelperService;
@@ -200,7 +204,7 @@ public class SystemExportImportService {
         }
 
         List<ExportedSystemObject> exportedSystems = exportSystems(systems, usedSystemModelIds);
-        byte[] archive = serviceSerializer.writeSerializedArchive(exportedSystems);
+        byte[] archive = archiveWriter.writeArchive(exportedSystems);
         for (IntegrationSystem system : systems) {
             logSystemExportImport(system, null, LogOperation.EXPORT);
         }

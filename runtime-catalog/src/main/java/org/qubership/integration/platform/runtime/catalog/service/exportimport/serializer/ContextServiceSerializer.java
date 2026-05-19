@@ -27,29 +27,20 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.util.List;
-import java.util.zip.ZipOutputStream;
-
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.ARCH_PARENT_DIR;
-
 @Component
 public class ContextServiceSerializer {
 
     private final YAMLMapper yamlMapper;
-    private final ExportableObjectWriterVisitor exportableObjectWriterVisitor;
     private final ContextServiceDtoMapper contextServiceDtoMapper;
     private final FileMigrationService fileMigrationService;
 
     @Autowired
-    public ContextServiceSerializer(YAMLMapper yamlExportImportMapper,
-                                    ExportableObjectWriterVisitor exportableObjectWriterVisitor,
-                                    ContextServiceDtoMapper contextServiceDtoMapper,
-                                    FileMigrationService fileMigrationService) {
+    public ContextServiceSerializer(
+            YAMLMapper yamlExportImportMapper,
+            ContextServiceDtoMapper contextServiceDtoMapper,
+            FileMigrationService fileMigrationService
+    ) {
         this.yamlMapper = yamlExportImportMapper;
-        this.exportableObjectWriterVisitor = exportableObjectWriterVisitor;
         this.contextServiceDtoMapper = contextServiceDtoMapper;
         this.fileMigrationService = fileMigrationService;
     }
@@ -60,20 +51,4 @@ public class ContextServiceSerializer {
 
         return new ExportedContextService(system.getId(), systemNode);
     }
-
-
-    public byte[] writeSerializedArchive(List<ExportedSystemObject> exportedSystems) {
-        try (ByteArrayOutputStream fos = new ByteArrayOutputStream()) {
-            try (ZipOutputStream zipOut = new ZipOutputStream(fos)) {
-                for (ExportedSystemObject exportedSystem : exportedSystems) {
-                    String entryPath = ARCH_PARENT_DIR + File.separator + exportedSystem.getId() + File.separator;
-                    exportedSystem.accept(exportableObjectWriterVisitor, zipOut, entryPath);
-                }
-            }
-            return fos.toByteArray();
-        } catch (IOException e) {
-            throw new RuntimeException("Unknown exception while archive creation: " + e.getMessage(), e);
-        }
-    }
-
 }

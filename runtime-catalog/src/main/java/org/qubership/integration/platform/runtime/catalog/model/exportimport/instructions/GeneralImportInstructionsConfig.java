@@ -47,6 +47,9 @@ public class GeneralImportInstructionsConfig {
     private ImportInstructionsConfig contextServices = new ImportInstructionsConfig();
     @Valid
     @Builder.Default
+    private ImportInstructionsConfig mcpServices = new ImportInstructionsConfig();
+    @Valid
+    @Builder.Default
     @JsonIgnoreProperties(value = "ignore")
     private ImportInstructionsConfig specificationGroups = new ImportInstructionsConfig();
     @Valid

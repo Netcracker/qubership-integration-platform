@@ -33,6 +33,7 @@ public enum EntityType {
     CHAIN_RUNTIME_PROPERTIES,
     DATABASE_SYSTEM,   //removed databases in 24.3
     CONTEXT_SYSTEM,
+    MCP_SYSTEM,
     DATABASE_SCRIPT,   //This types remained to avoid error with old actions(in action log) with databases
     SERVICE_DISCOVERY,
     EXTERNAL_SERVICE,

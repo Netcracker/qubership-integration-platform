@@ -89,6 +89,30 @@ public interface ChainRepository extends CommonRepository<Chain>, JpaRepository<
     @Query(
             nativeQuery = true,
             value = """
+                select distinct on (chain.id) chain.*
+                from catalog.chains chain
+                inner join catalog.elements element
+                on element.chain_id = chain.id
+                where jsonb_extract_path_text(element.properties, :property) = :value
+            """
+    )
+    List<Chain> findChainsWithElementPropertyValue(String property, String value);
+
+    @Query(
+            nativeQuery = true,
+            value = """
+                select distinct on (chain.id) chain.*
+                from catalog.chains chain
+                inner join catalog.elements element
+                on element.chain_id = chain.id
+                where jsonb_exists(jsonb_extract_path(element.properties, :property), :value)
+            """
+    )
+    List<Chain> findChainsWithElementPropertyContainsValue(String property, String value);
+
+    @Query(
+            nativeQuery = true,
+            value = """
                 select chain_id
                 from catalog.elements
                 where id in (select properties ->> 'elementId'

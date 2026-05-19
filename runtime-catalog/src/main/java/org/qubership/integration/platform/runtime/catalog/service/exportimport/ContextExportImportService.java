@@ -44,6 +44,7 @@ import org.qubership.integration.platform.runtime.catalog.service.ActionsLogServ
 import org.qubership.integration.platform.runtime.catalog.service.ContextBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ContextServiceDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ArchiveWriter;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ContextServiceSerializer;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -83,6 +84,7 @@ public class ContextExportImportService {
     protected final ActionsLogService actionLogger;
     private final ContextServiceSerializer contextServiceSerializer;
     private final ContextServiceDeserializer contextServiceDeserializer;
+    private final ArchiveWriter archiveWriter;
     private final ImportSessionService importProgressService;
     private final ImportInstructionsService importInstructionsService;
 
@@ -95,15 +97,19 @@ public class ContextExportImportService {
             YAMLMapper yamlExportImportMapper,
             ActionsLogService actionLogger,
             ContextServiceSerializer contextServiceSerializer,
-            ContextServiceDeserializer contextServiceDeserializer, ImportSessionService importProgressService,
+            ContextServiceDeserializer contextServiceDeserializer,
+            ArchiveWriter archiveWriter,
+            ImportSessionService importProgressService,
             ImportInstructionsService importInstructionsService,
-            @Value("${qip.json.schemas.context-service:http://qubership.org/schemas/product/qip/context-service}") URI contextServiceSchemaUri) {
+            @Value("${qip.json.schemas.context-service:http://qubership.org/schemas/product/qip/context-service}") URI contextServiceSchemaUri
+    ) {
         this.transactionTemplate = transactionTemplate;
         this.contextBaseService = contextBaseService;
         this.yamlMapper = yamlExportImportMapper;
         this.actionLogger = actionLogger;
         this.contextServiceSerializer = contextServiceSerializer;
         this.contextServiceDeserializer = contextServiceDeserializer;
+        this.archiveWriter = archiveWriter;
         this.importProgressService = importProgressService;
         this.importInstructionsService = importInstructionsService;
         this.contextServiceSchemaUri = contextServiceSchemaUri;
@@ -145,7 +151,7 @@ public class ContextExportImportService {
         }
 
         List<ExportedSystemObject> exportedSystems = exportSystems(systems);
-        byte[] archive = contextServiceSerializer.writeSerializedArchive(exportedSystems);
+        byte[] archive = archiveWriter.writeArchive(exportedSystems);
         for (ContextSystem system : systems) {
             logSystemExportImport(system, null, LogOperation.EXPORT);
         }

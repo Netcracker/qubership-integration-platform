@@ -47,6 +47,10 @@ public class CommonBeansBuilder implements ElementBeansBuilder {
         streamWriter.writeAttribute("value", element.getOriginalId());
 
         streamWriter.writeEmptyElement("property");
+        streamWriter.writeAttribute("key", "snapshotElementId");
+        streamWriter.writeAttribute("value", element.getId());
+
+        streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "name");
         streamWriter.writeAttribute("value", element.getName());
 
