@@ -13,3 +13,4 @@ org.qubership.integration.platform.runtime.catalog.configuration.WebAutoConfigur
 org.qubership.integration.platform.runtime.catalog.cr.configuration.YamlMapperConfiguration
 org.qubership.integration.platform.runtime.catalog.cr.configuration.HandlebarConfiguration
 org.qubership.integration.platform.runtime.catalog.configuration.DomainAutoConfiguration
+org.qubership.integration.platform.runtime.catalog.configuration.actuator.InfoContributorsConfiguration
