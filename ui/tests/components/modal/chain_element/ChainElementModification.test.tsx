@@ -15,6 +15,26 @@ import type { ChainGraphNode } from "../../../../src/components/graph/nodes/Chai
 import type { UserPermissions } from "../../../../src/permissions/types";
 import { UserPermissionsContext } from "../../../../src/permissions/UserPermissionsContext";
 import { ChainElementModification } from "../../../../src/components/modal/chain_element/ChainElementModification";
+import { jest } from "@jest/globals";
+
+jest.mock("@monaco-editor/react", () => ({
+  __esModule: true,
+  Editor: (props: Record<string, unknown>) => {
+    return <div data-testid="monaco-editor" data-language={props.language} />;
+  },
+}));
+
+jest.mock("monaco-editor", () => ({
+  languages: {
+    CompletionItemKind: { Variable: 0, Method: 1 },
+    CompletionItemInsertTextRule: { InsertAsSnippet: 4 },
+    getLanguages: () => [],
+    register: jest.fn(),
+    setMonarchTokensProvider: jest.fn(),
+    registerCompletionItemProvider: jest.fn(),
+  },
+  editor: {},
+}));
 
 Object.defineProperty(globalThis, "matchMedia", {
   writable: true,

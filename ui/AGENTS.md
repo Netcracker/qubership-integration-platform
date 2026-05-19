@@ -20,9 +20,6 @@ All UI decisions must account for both environments and all four theme modes.
 - **Test:** `npm run test` runs unit-test, must pass on solution before commits.
   - **Run a single test file:** `npm test -- --testPathPattern=tests/api/restApi`
   - **Run tests matching name:** `npm test -- --testNamePattern="should parse"`
-  - Prefer `flushPromises` (act + Promise.resolve) over `waitFor`/`findBy` when possible — faster and more stable.
-  - For flaky async tests (form submit, API calls): extract handlers into pure functions in a separate
-    `*Handlers.ts` file, unit test them directly.
 - **Linter:** `npm run lint` runs linter on source files.
 - **Prettier:** `npm run format:check` runs code format check, must pass on solution before commits.
 
@@ -89,6 +86,8 @@ const { isDark, isVSCodeWebview, palette } = useVSCodeTheme();
   (`normalizeSearchTerm`, `matchesByFields`) instead of local duplicated logic.
 - In search haystack builders for mixed types, do not use `filter(Boolean)`; keep valid
   `0`/`false` values and explicitly filter only `null`/`undefined`/`""`.
+- Column with action button should have "actions-column" class.
+  See ACTIONS_COLUMN_CLASS constant and functions in `actionsColumn.ts`.
 
 ## Access control
 
@@ -116,6 +115,7 @@ There are two form kinds in the application:
 - Integration chain elements' parameters forms.
 
 Regular forms are build using Ant Design `Form` component.
+Use `normalize` and `getValueProps` callbacks of `Form.Item` to handle non-trivial properties.
 
 Integration chain elements' parameters forms are generated from JSON schemas using `@rjsf/antd`. These
 schemas are dynamically loaded at runtime:
@@ -223,3 +223,10 @@ All in `src/misc/`:
 | `tree-utils.ts`       | Tree structure traversal (folders/chains)                           |
 | `clipboard-util.ts`   | Copy to clipboard                                                   |
 | `log-export-utils.ts` | Export logs to Excel (exceljs)                                      |
+
+## Testing
+
+Description of unit test should follow the following pattern, if applicable: "should ... when ...".
+Here are some examples:
+* should show full URI when no path component exists
+* should export participants with names

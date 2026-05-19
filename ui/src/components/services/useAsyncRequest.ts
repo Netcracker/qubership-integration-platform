@@ -10,6 +10,7 @@ interface AsyncRequestResult<T, Args extends unknown[]> {
   value: T | null;
   loading: boolean;
   error: string | null;
+  errorObject: Error | undefined;
   execute: (...args: Args | []) => Promise<T | undefined>;
   reset: () => void;
 }
@@ -29,6 +30,7 @@ export function useAsyncRequest<
   const [value, setValue] = useState<T | null>(initialValue);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorObject, setErrorObject] = useState<Error>();
   const isMounted = useRef(true);
   const lastArgs = useRef<Args>();
 
@@ -55,6 +57,7 @@ export function useAsyncRequest<
           message = (e as Record<string, unknown>).message as string;
         if (isMounted.current) {
           setError(message);
+          setErrorObject(e as Error);
         }
         if (throwOnError) throw e;
         return undefined;
@@ -70,6 +73,7 @@ export function useAsyncRequest<
   const reset = useCallback(() => {
     setValue(initialValue);
     setError(null);
+    setErrorObject(undefined);
     setLoading(false);
   }, [initialValue]);
 
@@ -86,5 +90,5 @@ export function useAsyncRequest<
     }
   }, [immediate]);
 
-  return { value, loading, error, execute, reset };
+  return { value, loading, errorObject, error, execute, reset };
 }

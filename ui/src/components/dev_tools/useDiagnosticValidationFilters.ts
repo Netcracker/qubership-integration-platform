@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { ReactNode, useMemo } from "react";
 import {
   AdvancedFilterConditions,
   EntityFilterModel,
@@ -18,7 +18,7 @@ export const validationSeverityValues: ListValue[] = [
 
 export const useDiagnosticValidationFilters = (): {
   filters: EntityFilterModel[];
-  filterButton: JSX.Element;
+  filterButton: ReactNode;
 } => {
   const { buildFilterValues } = useElementTypes();
 

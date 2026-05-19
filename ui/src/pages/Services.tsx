@@ -1,11 +1,11 @@
 import { ServiceSidebar } from "../components/services/detail/ServiceSidebar";
-import { ServicesListPage } from "../components/services/ServicesListPage.tsx";
 import { PageWithSidebar } from "./PageWithSidebar";
+import { ServiceListPage } from "../components/services/ServiceListPage.tsx";
 
 export const Services = () => {
   return (
     <PageWithSidebar sidebar={<ServiceSidebar collapsed={false} />}>
-      <ServicesListPage />
+      <ServiceListPage />
     </PageWithSidebar>
   );
 };

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { ReactNode, useMemo } from "react";
 import {
   BooleanFilterConditions,
   DateFilterConditions,
@@ -12,7 +12,7 @@ import { useFilter } from "../../table/filter/useFilter";
 
 export const useLiveExchangeFilters = (): {
   filters: EntityFilterModel[];
-  filterButton: JSX.Element;
+  filterButton: ReactNode;
 } => {
   const filterColumns: FilterColumn[] = useMemo(
     () => [

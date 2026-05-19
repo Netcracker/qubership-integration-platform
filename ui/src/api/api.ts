@@ -90,6 +90,9 @@ import type {
   ImportInstructionResult,
   DeleteImportInstructionsRequest,
   ChainElementCodeResponse,
+  MCPSystem,
+  MCPSystemCreateRequest,
+  MCPSystemUpdateRequest,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 import { isVsCode, VSCodeExtensionApi } from "./rest/vscodeExtensionApi.ts";
@@ -381,6 +384,10 @@ export interface Api {
 
   getContextService(id: string): Promise<ContextSystem>;
 
+  filterContextServices(filters: EntityFilterModel[]): Promise<ContextSystem[]>;
+
+  searchContextServices(searchCondition: string): Promise<ContextSystem[]>;
+
   createContextService(
     system: Pick<ContextSystem, "name" | "description">,
   ): Promise<ContextSystem>;
@@ -602,6 +609,26 @@ export interface Api {
   exportImportInstructions(): Promise<File>;
 
   getElementsAsCode(chainId: string): Promise<ChainElementCodeResponse>;
+
+  getMcpSystems(withChains: boolean): Promise<MCPSystem[]>;
+
+  getMcpSystem(id: string): Promise<MCPSystem>;
+
+  createMcpSystem(request: MCPSystemCreateRequest): Promise<MCPSystem>;
+
+  updateMcpSystem(
+    id: string,
+    request: MCPSystemUpdateRequest,
+  ): Promise<MCPSystem>;
+
+  deleteMcpSystem(id: string): Promise<void>;
+
+  filterMcpSystems(
+    searchString: string,
+    filters: EntityFilterModel[],
+  ): Promise<MCPSystem[]>;
+
+  exportMcpSystems(ids: string[]): Promise<File>;
 
   deployToMicroDomain(
     request: BulkMicroDomainDeployResult,

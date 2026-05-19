@@ -23,6 +23,11 @@ const menuItems = [
     icon: <OverridableIcon name="database" />,
     label: "Context",
   },
+  {
+    key: "mcp",
+    icon: <OverridableIcon name="mcp" />,
+    label: "MCP"
+  }
 ];
 
 export const ServiceSidebar = ({ collapsed }: { collapsed: boolean }) => {

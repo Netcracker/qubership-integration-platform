@@ -21,7 +21,9 @@ export const ServiceNameBreadcrumbItem: React.FC<
   const url =
     props.type === IntegrationSystemType.CONTEXT
       ? `/services/context/${props.id}/parameters`
-      : `/services/systems/${props.id}/specificationGroups`;
+      : props.type === IntegrationSystemType.MCP
+        ? `/services/mcp/${props.id}/parameters`
+        : `/services/systems/${props.id}/specificationGroups`;
 
   return (
     <a

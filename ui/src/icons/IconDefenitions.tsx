@@ -126,6 +126,7 @@ import {
   MinusCircleOutlined,
   SyncOutlined,
   ColumnWidthOutlined,
+  MessageOutlined,
 } from "@ant-design/icons";
 
 /**
@@ -256,6 +257,7 @@ export const commonIcons = {
   importInstructions: ImportOutlined,
   warning: WarningOutlined,
   checkSquare: CheckSquareOutlined,
+  mcp: MessageOutlined,
   comment: CommentOutlined,
   paperClip: PaperClipOutlined,
   user: UserOutlined,

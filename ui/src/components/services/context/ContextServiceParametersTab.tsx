@@ -1,11 +1,14 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { Form, Input, Button, Descriptions, Spin } from "antd";
+import React, { useEffect, useState } from "react";
+import { Form, Input, Button, Descriptions, Spin, Select } from "antd";
 import { ContextSystem } from "../../../api/apiTypes";
 import { api } from "../../../api/api";
 import { useAsyncRequest } from "../useAsyncRequest";
 import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 import { contextServiceCache } from "../utils.tsx";
 import { ServiceParametersTabProps } from "../detail/ServiceParametersTab.tsx";
+import { ContextServiceTag } from "../ServiceLabel.tsx";
+import { useLabelsForm } from "../useLabelsForm.ts";
+import { useUnsavedChangesWithModal } from "../useUnsavedChangesWithModal.tsx";
 
 interface FormValues {
   name: string;
@@ -16,18 +19,16 @@ export const ContextServiceParametersTab: React.FC<
   ServiceParametersTabProps
 > = ({ systemId, activeTab, formatTimestamp, sidePadding, styles }) => {
   const [form] = Form.useForm();
+  const { technicalLabels, userLabels, setUserLabels, onSetLabelsAndForm } =
+    useLabelsForm(form);
   const [system, setSystem] = useState<ContextSystem>();
-  const [hasChanges, setHasChanges] = useState<boolean>(false);
-
-  const setForm = useCallback(
-    (data: ContextSystem) => {
-      form.setFieldsValue({
-        name: data.name,
-        description: data.description,
-      });
+  const { hasChanges, setHasChanges } = useUnsavedChangesWithModal({
+    system,
+    blockerCondition: activeTab === "parameters",
+    onYes: async () => {
+      await handleSave();
     },
-    [form],
-  );
+  });
 
   const {
     loading: loadingSystem,
@@ -50,7 +51,7 @@ export const ContextServiceParametersTab: React.FC<
     void loadSystem(systemId).then((data) => {
       if (data) {
         setSystem(data);
-        setForm(data);
+        onSetLabelsAndForm(data);
       }
     });
   }, [systemId, activeTab]);
@@ -66,6 +67,10 @@ export const ContextServiceParametersTab: React.FC<
       ...system,
       name: values.name,
       description: values.description,
+      labels: [
+        ...technicalLabels.map((name) => ({ name, technical: true })),
+        ...userLabels.map((name) => ({ name, technical: false })),
+      ],
     };
     const updated: ContextSystem = await api.updateContextService(
       systemId,
@@ -98,6 +103,31 @@ export const ContextServiceParametersTab: React.FC<
         </Form.Item>
         <Form.Item label="Description" name="description">
           <Input.TextArea maxLength={512} />
+        </Form.Item>
+        <Form.Item label="Labels" name="labels">
+          <Select
+            mode="tags"
+            style={{ width: "100%" }}
+            value={[...technicalLabels, ...userLabels]}
+            onChange={(allSelected: string[]) => {
+              const updatedUserLabels = allSelected.filter(
+                (label) => !technicalLabels.includes(label),
+              );
+              setUserLabels(updatedUserLabels);
+              form.setFieldsValue({
+                labels: [...technicalLabels, ...updatedUserLabels],
+              });
+              setHasChanges(true);
+            }}
+            tagRender={({ label, onClose }) => {
+              const isTech = technicalLabels.includes(
+                typeof label === "string" ? label : "",
+              );
+
+              return <ContextServiceTag {...{ label, onClose, isTech }} />;
+            }}
+            placeholder="Add labels"
+          />
         </Form.Item>
         {!isVsCode && (
           <Descriptions column={1} size="small" style={{ margin: "24px 0" }}>

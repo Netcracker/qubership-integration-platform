@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Form, Input, Button, Select, Tag, Descriptions, Spin } from "antd";
+import React, { useEffect, useState } from "react";
+import { Form, Input, Button, Select, Descriptions, Spin } from "antd";
 import {
   IntegrationSystem,
   IntegrationSystemType,
@@ -9,9 +9,6 @@ import { useAsyncRequest } from "../useAsyncRequest";
 import { SourceFlagTag } from "../ui/SourceFlagTag";
 import { prepareFile, serviceCache } from "../utils.tsx";
 import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
-import { useBlocker } from "react-router-dom";
-import { useModalsContext } from "../../../Modals.tsx";
-import { UnsavedChangesModal } from "../../modal/UnsavedChangesModal.tsx";
 import { downloadFile } from "../../../misc/download-utils.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { useServiceParametersToolbar } from "./ServiceParametersPage";
@@ -19,6 +16,9 @@ import { usePermissions } from "../../../permissions/usePermissions.tsx";
 import { hasPermissions } from "../../../permissions/funcs.ts";
 import { Require } from "../../../permissions/Require.tsx";
 import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
+import { ContextServiceTag } from "../ServiceLabel.tsx";
+import { useLabelsForm } from "../useLabelsForm.ts";
+import { useUnsavedChangesWithModal } from "../useUnsavedChangesWithModal.tsx";
 
 export interface ServiceParametersTabProps {
   systemId: string;
@@ -44,14 +44,16 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
 }) => {
   const { setToolbar } = useServiceParametersToolbar() ?? {};
   const [form] = Form.useForm();
+  const { technicalLabels, userLabels, setUserLabels, onSetLabelsAndForm } =
+      useLabelsForm(form);
   const [system, setSystem] = useState<IntegrationSystem | null>(null);
-  const [technicalLabels, setTechnicalLabels] = useState<string[]>([]);
-  const [userLabels, setUserLabels] = useState<string[]>([]);
-  const [hasChanges, setHasChanges] = useState<boolean>(false);
-  const blocker = useBlocker(activeTab === "parameters" && hasChanges);
-  /** One modal per router block; avoids re-opening when `system` updates after save (before `proceed`). */
-  const unsavedPromptShownForBlockRef = useRef(false);
-  const { showModal } = useModalsContext();
+  const { hasChanges, setHasChanges } = useUnsavedChangesWithModal({
+    system,
+    blockerCondition: activeTab === "parameters",
+    onYes: async () => {
+      await handleSave();
+    },
+  });
   const notificationService = useNotificationService();
   const permissions = usePermissions();
   const [disabled, setDisabled] = useState<boolean>(false);
@@ -59,28 +61,6 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
   useEffect(() => {
     setDisabled(!hasPermissions(permissions, { service: ["update"] }));
   }, [permissions]);
-
-  const setLabelsAndForm = useCallback(
-    (data: IntegrationSystem) => {
-      setTechnicalLabels(
-        data.labels?.filter((l) => l.technical).map((l) => l.name) || [],
-      );
-      setUserLabels(
-        data.labels?.filter((l) => !l.technical).map((l) => l.name) || [],
-      );
-      form.setFieldsValue({
-        name: data.name,
-        description: data.description,
-        type: data.type,
-        labels: [
-          ...(data.labels?.filter((l) => l.technical).map((l) => l.name) || []),
-          ...(data.labels?.filter((l) => !l.technical).map((l) => l.name) ||
-            []),
-        ],
-      });
-    },
-    [form],
-  );
 
   const {
     loading: loadingSystem,
@@ -103,39 +83,10 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
     void loadSystem(systemId).then((data) => {
       if (data) {
         setSystem(data);
-        setLabelsAndForm(data);
+        onSetLabelsAndForm(data);
       }
     });
   }, [systemId, activeTab]);
-
-  useEffect(() => {
-    if (blocker.state !== "blocked") {
-      unsavedPromptShownForBlockRef.current = false;
-      return;
-    }
-    // Wait until `system` is loaded so save handlers close over real data (not first-paint null).
-    if (!system || unsavedPromptShownForBlockRef.current) return;
-    unsavedPromptShownForBlockRef.current = true;
-    showModal({
-      component: (
-        <UnsavedChangesModal
-          onYes={() => {
-            void handleSave()
-              .then(() => blocker.proceed())
-              .catch(() => {
-                /* validation or save failed — keep blocker */
-              });
-          }}
-          onNo={() => {
-            blocker.proceed();
-          }}
-          onCancelQuestion={() => {
-            blocker.reset();
-          }}
-        />
-      ),
-    });
-  }, [blocker, showModal, system]);
 
   const {
     loading: savingSystem,
@@ -265,16 +216,8 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
               const isTech = technicalLabels.includes(
                 typeof label === "string" ? label : "",
               );
-              return (
-                <Tag
-                  color={isTech ? "blue" : "default"}
-                  closable={!isTech}
-                  onClose={onClose}
-                  style={{ marginRight: 4 }}
-                >
-                  {label}
-                </Tag>
-              );
+
+              return <ContextServiceTag {...{ label, onClose, isTech }} />;
             }}
             placeholder="Add labels"
           />

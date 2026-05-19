@@ -124,13 +124,13 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess, systemType }) => {
 
   const handleFilesChange = (fileList: RcFile[]) => {
     if (fileList.length > 1) {
-      message.warning("Only one Zip file is allowed");
+      void message.warning("Only one Zip file is allowed");
       return;
     }
 
     const validation = validateFiles(fileList, SUPPORTED_EXTENSIONS);
     if (!validation.valid) {
-      message.warning(validation.message);
+      void message.warning(validation.message);
       return;
     }
     setFiles(fileList);

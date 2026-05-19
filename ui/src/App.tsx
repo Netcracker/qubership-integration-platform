@@ -66,6 +66,7 @@ import {
   ChainFullscreenContextProvider,
   useChainFullscreenContext,
 } from "./pages/ChainFullscreenContext.tsx";
+import { McpServiceParametersPage } from "./components/services/mcp/McpServiceParametersPage.tsx";
 
 const { Header } = Layout;
 
@@ -227,6 +228,10 @@ const router = createBrowserRouter(
         <Route
           path="/services/context/:systemId/parameters"
           element={<ContextServiceParametersPage />}
+        />
+        <Route
+          path="/services/mcp/:systemId/parameters"
+          element={<McpServiceParametersPage />}
         />
         <Route path="/doc/*" element={<DocumentationPage />} />
         <Route path="*" element={<NotFound />} />

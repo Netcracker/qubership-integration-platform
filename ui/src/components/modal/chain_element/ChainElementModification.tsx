@@ -87,6 +87,8 @@ import {
 import { usePermissions } from "../../../permissions/usePermissions.tsx";
 import { hasPermissions } from "../../../permissions/funcs.ts";
 import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
+import { JsonAsStringField } from "./field/JsonAsStringField.tsx";
+import { MCPServiceField } from "./field/select/MCPServiceField.tsx";
 
 type ElementModificationProps = {
   node: ChainGraphNode;
@@ -218,7 +220,9 @@ const FIELDS = {
   customArrayField: CustomArrayField,
   scriptField: ScriptField,
   jsonField: JsonField,
+  jsonAsStringField: JsonAsStringField,
   serviceField: ServiceField,
+  mcpServiceField: MCPServiceField,
   specificationField: SpecificationField,
   systemOperationField: SystemOperationField,
   bodyMimeTypeField: BodyMimeTypeField,
@@ -997,36 +1001,36 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         {schema && activeKey && (
           <>
             <Tabs
-            activeKey={activeKey}
-            onChange={handleTabChange}
-            items={uniqueTabs.map((tab) => ({ key: tab, label: tab }))}
-          />
-          <div
-            onClickCapture={markUserInteracted}
-            onKeyDownCapture={markUserInteracted}
-            onMouseDownCapture={markUserInteracted}
-          >
-            <Form
-              ref={formRef}
-              className={styles["parameters-form"]}
-              schema={schema}
-              formData={formData}
-              validator={validator}
-              uiSchema={uiSchema}
-              transformErrors={transformErrors}
-              onError={handleRjsfFormErrors}
-              liveValidate={"onChange"}
-              showErrorList={false}
-              experimental_defaultFormStateBehavior={
-                FORM_DEFAULT_STATE_BEHAVIOR
-              }
-              formContext={formContext}
-              templates={TEMPLATES}
-              fields={FIELDS}
-              widgets={WIDGETS}
-              onChange={handleFormChange}
+              activeKey={activeKey}
+              onChange={handleTabChange}
+              items={uniqueTabs.map((tab) => ({ key: tab, label: tab }))}
             />
-          </div>
+            <div
+              onClickCapture={markUserInteracted}
+              onKeyDownCapture={markUserInteracted}
+              onMouseDownCapture={markUserInteracted}
+            >
+              <Form
+                ref={formRef}
+                className={styles["parameters-form"]}
+                schema={schema}
+                formData={formData}
+                validator={validator}
+                uiSchema={uiSchema}
+                transformErrors={transformErrors}
+                onError={handleRjsfFormErrors}
+                liveValidate={"onChange"}
+                showErrorList={false}
+                experimental_defaultFormStateBehavior={
+                  FORM_DEFAULT_STATE_BEHAVIOR
+                }
+                formContext={formContext}
+                templates={TEMPLATES}
+                fields={FIELDS}
+                widgets={WIDGETS}
+                onChange={handleFormChange}
+              />
+            </div>
           </>
         )}
       </div>

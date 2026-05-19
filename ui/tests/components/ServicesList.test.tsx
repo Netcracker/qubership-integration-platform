@@ -27,13 +27,12 @@ import { describe, it, expect, beforeEach, afterEach } from "@jest/globals";
 import { render, fireEvent, waitFor, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { IntegrationSystemType } from "../../src/api/apiTypes";
-import type { IntegrationSystem, ContextSystem } from "../../src/api/apiTypes";
+import type { IntegrationSystem } from "../../src/api/apiTypes";
 import type { EntityFilterModel } from "../../src/components/table/filter/filter";
 
 const mockGetServices = jest.fn<() => Promise<IntegrationSystem[]>>();
 const mockFilterSystems = jest.fn<() => Promise<IntegrationSystem[]>>();
 const mockSearchSystems = jest.fn<() => Promise<IntegrationSystem[]>>();
-const mockGetContextServices = jest.fn<() => Promise<ContextSystem[]>>();
 const mockShowModal = jest.fn();
 const mockNavigate = jest.fn();
 
@@ -44,7 +43,6 @@ jest.mock("../../src/api/api", () => ({
     getServices: (...args: unknown[]) => mockGetServices(...args),
     filterServices: (...args: unknown[]) => mockFilterSystems(...args),
     searchServices: (...args: unknown[]) => mockSearchSystems(...args),
-    getContextServices: (...args: unknown[]) => mockGetContextServices(...args),
     getApiSpecifications: jest.fn().mockResolvedValue([]),
     exportServices: jest.fn().mockResolvedValue(new File([], "test")),
     exportContextServices: jest.fn().mockResolvedValue(new File([], "test")),
@@ -111,8 +109,7 @@ jest.mock("../../src/components/services/ServicesTreeTable", () => ({
 }));
 
 jest.mock("../../src/components/services/modals/CreateServiceModal", () => ({
-  CreateServiceModal: ({ open }: { open?: boolean }) =>
-    open ? <div data-testid="create-modal" /> : null,
+  CreateServiceModal: () => <div data-testid="create-modal" />,
 }));
 
 jest.mock("../../src/components/services/modals/ImportServicesModal", () => ({
@@ -160,7 +157,7 @@ jest.mock("../../src/permissions/ProtectedButton.tsx", () => ({
 }));
 
 import { message } from "antd";
-import { ServicesListPage } from "../../src/components/services/ServicesListPage";
+import { ServicesList } from "../../src/components/services/ServicesList.tsx";
 
 const makeService = (
   id: string,
@@ -183,13 +180,11 @@ describe("ServicesListPage", () => {
     jest.useFakeTimers();
     messageInfoSpy = jest.spyOn(message, "info").mockImplementation(() => {});
     mockGetServices.mockResolvedValue([
-      makeService("1", "Service A", IntegrationSystemType.IMPLEMENTED),
-      makeService("2", "Service B", IntegrationSystemType.IMPLEMENTED),
+      makeService("1", "Service A", IntegrationSystemType.EXTERNAL),
+      makeService("2", "Service B", IntegrationSystemType.EXTERNAL),
     ]);
-    mockGetContextServices.mockResolvedValue([]);
     mockFilterSystems.mockResolvedValue([]);
     mockSearchSystems.mockResolvedValue([]);
-    window.location.hash = "";
   });
 
   afterEach(() => {
@@ -200,7 +195,7 @@ describe("ServicesListPage", () => {
 
   it("calls getServices on initial load when no search/filters", async () => {
     jest.useRealTimers();
-    render(<ServicesListPage />);
+    render(<ServicesList tab="external" />);
     await waitFor(() => {
       expect(mockGetServices).toHaveBeenCalledWith("", false);
     });
@@ -209,7 +204,7 @@ describe("ServicesListPage", () => {
   });
 
   it("renders search input and updates value when typing", () => {
-    render(<ServicesListPage />);
+    render(<ServicesList tab="external" />);
     const searchInput = screen.getByPlaceholderText("Search services...");
     expect(searchInput).toBeInTheDocument();
     fireEvent.change(searchInput, { target: { value: "test query" } });
@@ -217,12 +212,12 @@ describe("ServicesListPage", () => {
   });
 
   it("renders page without errors", () => {
-    render(<ServicesListPage />);
+    render(<ServicesList tab="external" />);
     expect(screen.getByTestId("services-table")).toBeInTheDocument();
   });
 
   it("updates search input value when typing", () => {
-    render(<ServicesListPage />);
+    render(<ServicesList tab="external" />);
 
     const searchInput = screen.getByPlaceholderText("Search services...");
     fireEvent.change(searchInput, { target: { value: "test query" } });
@@ -231,7 +226,7 @@ describe("ServicesListPage", () => {
   });
 
   it("calls searchServices after user types and debounce passes", async () => {
-    render(<ServicesListPage />);
+    render(<ServicesList tab="external" />);
     const searchInput = screen.getByPlaceholderText("Search services...");
     fireEvent.change(searchInput, { target: { value: "my-service" } });
 
@@ -245,42 +240,42 @@ describe("ServicesListPage", () => {
   it("calls filterServices when filters are present", async () => {
     mockFilters = [{ column: "NAME", condition: "CONTAINS", value: "x" }];
     mockFilterSystems.mockResolvedValue([]);
-    render(<ServicesListPage />);
+    render(<ServicesList tab="external" />);
 
     await waitFor(() => {
       expect(mockFilterSystems).toHaveBeenCalledWith(mockFilters);
     });
   });
 
-  it("calls getContextServices when tab is context", async () => {
-    window.location.hash = "#context";
-    mockGetContextServices.mockResolvedValue([]);
-    render(<ServicesListPage />);
+  it("calls getServices when tab is internal", async () => {
+    jest.useRealTimers();
+    mockGetServices.mockResolvedValue([
+      makeService("3", "Service C", IntegrationSystemType.INTERNAL),
+    ]);
+    render(<ServicesList tab="internal" />);
 
     await waitFor(() => {
-      expect(mockGetContextServices).toHaveBeenCalled();
+      expect(mockGetServices).toHaveBeenCalledWith("", false);
     });
   });
 
-  it("shows External Services title when hash is empty", async () => {
+  it("shows External Services title when tab is external", async () => {
     jest.useRealTimers();
-    window.location.hash = "";
-    render(<ServicesListPage />);
+    render(<ServicesList tab="external" />);
     await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
     expect(screen.getByText("External Services")).toBeInTheDocument();
   });
 
-  it("shows Implemented Services title when hash is #implemented", async () => {
+  it("shows Implemented Services title when tab is implemented", async () => {
     jest.useRealTimers();
-    window.location.hash = "#implemented";
-    render(<ServicesListPage />);
+    render(<ServicesList tab="implemented" />);
     await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
     expect(screen.getByText("Implemented Services")).toBeInTheDocument();
   });
 
   it("calls showModal when Upload services is clicked", async () => {
     jest.useRealTimers();
-    render(<ServicesListPage />);
+    render(<ServicesList tab="external" />);
     await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
     fireEvent.click(screen.getByTestId("svc-action-upload-services"));
     expect(mockShowModal).toHaveBeenCalledWith(
@@ -292,16 +287,19 @@ describe("ServicesListPage", () => {
 
   it("opens Create service modal when Create service is clicked", async () => {
     jest.useRealTimers();
-    render(<ServicesListPage />);
+    render(<ServicesList tab="external" />);
     await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
-    expect(screen.queryByTestId("create-modal")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("svc-action-create-service"));
-    expect(screen.getByTestId("create-modal")).toBeInTheDocument();
+    expect(mockShowModal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        component: expect.anything(),
+      }),
+    );
   });
 
   it("shows message when Download selected with no selection", async () => {
     jest.useRealTimers();
-    render(<ServicesListPage />);
+    render(<ServicesList tab="external" />);
     await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
     fireEvent.click(
       screen.getByTestId("svc-action-download-selected-services"),

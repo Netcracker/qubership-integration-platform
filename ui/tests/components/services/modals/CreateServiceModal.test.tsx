@@ -5,7 +5,6 @@ import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { CreateServiceModal } from "../../../../src/components/services/modals/CreateServiceModal";
-import { IntegrationSystemType } from "../../../../src/api/apiTypes";
 
 Object.defineProperty(globalThis, "matchMedia", {
   writable: true,
@@ -21,36 +20,37 @@ Object.defineProperty(globalThis, "matchMedia", {
   })),
 });
 
+const mockCloseModal = jest.fn();
+
+jest.mock("../../../../src/ModalContextProvider.tsx", () => ({
+  useModalContext: () => ({
+    closeContainingModal: mockCloseModal,
+  }),
+}));
+
 describe("CreateServiceModal", () => {
-  const onCancel = jest.fn();
-  const onCreate = jest.fn().mockResolvedValue(undefined);
+  const mockSubmit = jest.fn().mockResolvedValue(undefined);
 
   beforeEach(() => {
     jest.clearAllMocks();
-    onCreate.mockResolvedValue(undefined);
+    mockSubmit.mockResolvedValue(undefined);
   });
 
-  it("does not render modal content when closed", () => {
+  it("renders with defaultName pre-filled in the Name field", () => {
     render(
       <CreateServiceModal
-        open={false}
-        onCancel={onCancel}
-        onCreate={onCreate}
-        loading={false}
+        defaultName="New external service"
+        onSubmit={mockSubmit}
       />,
     );
-    expect(screen.queryByText("Create service")).not.toBeInTheDocument();
+
+    expect(screen.getByText("Create service")).toBeInTheDocument();
+    const nameInput = screen.getByRole("textbox", { name: /name/i });
+    expect(nameInput).toHaveValue("New external service");
   });
 
-  it("shows Cancel and Create, vertical Name field", () => {
-    render(
-      <CreateServiceModal
-        open={true}
-        onCancel={onCancel}
-        onCreate={onCreate}
-        loading={false}
-      />,
-    );
+  it("shows Cancel and Create buttons and Name field", () => {
+    render(<CreateServiceModal onSubmit={mockSubmit} />);
 
     expect(screen.getByText("Create service")).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: /name/i })).toBeInTheDocument();
@@ -62,34 +62,19 @@ describe("CreateServiceModal", () => {
     ).toBeInTheDocument();
   });
 
-  it("Cancel calls onCancel", () => {
-    render(
-      <CreateServiceModal
-        open={true}
-        onCancel={onCancel}
-        onCreate={onCreate}
-        loading={false}
-      />,
-    );
+  it("Cancel button calls closeContainingModal", () => {
+    render(<CreateServiceModal onSubmit={mockSubmit} />);
 
     fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
-    expect(onCancel).toHaveBeenCalled();
+    expect(mockCloseModal).toHaveBeenCalled();
   });
 
-  it("submit calls onCreate with name, description, type", async () => {
-    render(
-      <CreateServiceModal
-        open={true}
-        onCancel={onCancel}
-        onCreate={onCreate}
-        loading={false}
-        defaultType={IntegrationSystemType.INTERNAL}
-      />,
-    );
+  it("submit calls onSubmit with name and description", async () => {
+    render(<CreateServiceModal onSubmit={mockSubmit} />);
 
-    const nameInput = screen.getByRole("textbox", { name: /name/i });
-    fireEvent.change(nameInput, { target: { value: "svc-a" } });
-
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: "svc-a" },
+    });
     fireEvent.change(screen.getByRole("textbox", { name: /description/i }), {
       target: { value: "desc" },
     });
@@ -97,36 +82,37 @@ describe("CreateServiceModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
 
     await waitFor(() => {
-      expect(onCreate).toHaveBeenCalledWith(
-        "svc-a",
-        "desc",
-        IntegrationSystemType.INTERNAL,
-      );
+      expect(mockSubmit).toHaveBeenCalledWith("svc-a", "desc");
     });
   });
 
-  it("disables service type select while still submitting defaultType", async () => {
-    render(
-      <CreateServiceModal
-        open={true}
-        onCancel={onCancel}
-        onCreate={onCreate}
-        loading={false}
-        defaultType={IntegrationSystemType.EXTERNAL}
-      />,
-    );
+  it("calls closeContainingModal after successful submit", async () => {
+    render(<CreateServiceModal onSubmit={mockSubmit} />);
 
-    const typeSelect = screen.getByRole("combobox", { name: /service type/i });
-    expect(typeSelect).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: "svc-b" },
+    });
 
     fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
 
     await waitFor(() => {
-      expect(onCreate).toHaveBeenCalledWith(
-        expect.any(String),
-        undefined,
-        IntegrationSystemType.EXTERNAL,
-      );
+      expect(mockCloseModal).toHaveBeenCalled();
     });
+  });
+
+  it("shows error alert when onSubmit throws", async () => {
+    mockSubmit.mockRejectedValue(new Error("Creation failed"));
+    render(<CreateServiceModal onSubmit={mockSubmit} />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: "svc-c" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+    expect(mockCloseModal).not.toHaveBeenCalled();
   });
 });

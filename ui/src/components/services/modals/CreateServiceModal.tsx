@@ -1,156 +1,84 @@
-import React, { useState, useEffect } from "react";
-import { Modal, Input, Button, Form, Select } from "antd";
-import { IntegrationSystemType } from "../../../api/apiTypes";
+import React, { useCallback, useState } from "react";
+import { Modal, Input, Button, Form, Alert } from "antd";
 import { getErrorMessage } from "../../../misc/error-utils";
-import { capitalize } from "../../../misc/format-utils";
+import { useModalContext } from "../../../ModalContextProvider.tsx";
 
 interface CreateServiceModalProps {
-  open: boolean;
-  onCancel: () => void;
-  onCreate: (
-    name: string,
-    description: string | undefined,
-    type: IntegrationSystemType,
-  ) => Promise<unknown>;
-  loading: boolean;
-  error?: string | null;
-  defaultType?: IntegrationSystemType;
+  defaultName?: string;
+  onSubmit: (name: string, description: string) => Promise<void>;
 }
 
 type CreateServiceFormValues = {
   name: string;
-  description?: string;
-  type: IntegrationSystemType;
-};
-
-const getServiceTypeLabel = (type: IntegrationSystemType): string => {
-  const result: string | undefined = IntegrationSystemType[type];
-  return result ? capitalize(result) : "Service";
+  description: string;
 };
 
 export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
-  open,
-  onCancel,
-  onCreate,
-  loading,
-  error,
-  defaultType = IntegrationSystemType.EXTERNAL,
+  defaultName,
+  onSubmit,
 }) => {
+  const { closeContainingModal } = useModalContext();
   const [form] = Form.useForm<CreateServiceFormValues>();
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (open) {
-      const serviceTypeLabel = getServiceTypeLabel(defaultType);
-      form.setFieldsValue({
-        type: defaultType,
-        name: `New ${serviceTypeLabel} service`,
-      });
-    }
-  }, [open, defaultType, form]);
-
-  const handleOk = async (values: CreateServiceFormValues) => {
-    try {
-      setSubmitError(null);
-      const type =
-        (form.getFieldValue("type") as IntegrationSystemType | undefined) ??
-        values.type ??
-        defaultType;
-      await onCreate(values.name, values.description, type);
-      form.resetFields();
-    } catch (e) {
-      setSubmitError(getErrorMessage(e));
-    }
-  };
+  const handleOk = useCallback(
+    async ({ name, description }: CreateServiceFormValues) => {
+      try {
+        setIsLoading(true);
+        setErrorText(null);
+        await onSubmit(name, description);
+        closeContainingModal();
+      } catch (e) {
+        setErrorText(getErrorMessage(e));
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [closeContainingModal, onSubmit],
+  );
 
   return (
     <Modal
-      open={open}
+      open={true}
       title="Create service"
-      onCancel={() => {
-        form.resetFields();
-        onCancel();
-      }}
-      footer={null}
-      destroyOnHidden={true}
+      onCancel={closeContainingModal}
+      footer={
+        <>
+          <Button onClick={closeContainingModal} disabled={isLoading}>
+            Cancel
+          </Button>
+          <Button
+            form={"createServiceForm"}
+            type="primary"
+            htmlType="submit"
+            loading={isLoading}
+            disabled={isLoading}
+          >
+            Create
+          </Button>
+        </>
+      }
     >
       <Form<CreateServiceFormValues>
+        id={"createServiceForm"}
         form={form}
         layout="vertical"
-        onFinish={(values) => {
-          void handleOk(values);
-        }}
-        initialValues={{ type: defaultType }}
+        disabled={isLoading}
+        onFinish={(values) => void handleOk(values)}
+        initialValues={{ name: defaultName }}
       >
         <Form.Item
           label="Name"
           name="name"
           rules={[{ required: true, message: "Enter service name" }]}
         >
-          <Input disabled={loading} autoFocus maxLength={128} />
+          <Input autoFocus maxLength={128} />
         </Form.Item>
         <Form.Item label="Description" name="description">
-          <Input.TextArea disabled={loading} maxLength={512} />
+          <Input.TextArea maxLength={512} />
         </Form.Item>
-        <Form.Item
-          label="Service type"
-          name="type"
-          rules={[{ required: true, message: "Select service type" }]}
-        >
-          <Select disabled>
-            <Select.Option value={IntegrationSystemType.EXTERNAL}>
-              External
-            </Select.Option>
-            <Select.Option value={IntegrationSystemType.INTERNAL}>
-              Internal
-            </Select.Option>
-            <Select.Option value={IntegrationSystemType.IMPLEMENTED}>
-              Implemented
-            </Select.Option>
-            <Select.Option value={IntegrationSystemType.CONTEXT}>
-              Context
-            </Select.Option>
-          </Select>
-        </Form.Item>
-        {error && (
-          <div
-            style={{
-              color: "var(--vscode-errorForeground, #d73a49)",
-              marginBottom: 8,
-            }}
-          >
-            {error}
-          </div>
-        )}
-        {submitError && (
-          <div
-            style={{
-              color: "var(--vscode-errorForeground, #d73a49)",
-              marginBottom: 8,
-            }}
-          >
-            {submitError}
-          </div>
-        )}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <Button
-            onClick={() => {
-              form.resetFields();
-              onCancel();
-            }}
-            disabled={loading}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="primary"
-            htmlType="submit"
-            loading={loading}
-            disabled={loading}
-          >
-            Create
-          </Button>
-        </div>
+        {errorText && <Alert message={errorText} type="error" showIcon />}
       </Form>
     </Modal>
   );

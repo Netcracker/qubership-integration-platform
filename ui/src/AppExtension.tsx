@@ -30,6 +30,7 @@ import { ContextServiceParametersPage } from "./components/services/context/Cont
 import { getConfig } from "./appConfig.ts";
 import { reapplyCssVariables } from "./config/initConfig.ts";
 import { UserPermissionsProvider } from "./permissions/UserPermissionsProvider.tsx";
+import { McpServiceParametersPage } from "./components/services/mcp/McpServiceParametersPage.tsx";
 
 const router = createMemoryRouter(
   createRoutesFromElements(
@@ -45,6 +46,10 @@ const router = createMemoryRouter(
       <Route
         path="/services/context/:systemId/parameters"
         element={<ContextServiceParametersPage />}
+      />
+      <Route
+        path="/services/mcp/:systemId/parameters"
+        element={<McpServiceParametersPage />}
       />
       <Route
         path="/services/systems/:systemId/parameters"

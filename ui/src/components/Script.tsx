@@ -308,8 +308,8 @@ export const Script: React.FC<ScriptProps> = ({
       const scrollParent = el.closest(".ant-modal-body") ?? el.parentElement;
       if (!scrollParent) return;
       const parentRect = scrollParent.getBoundingClientRect();
-      const elRect = el.getBoundingClientRect();
-      const available = parentRect.bottom - elRect.top - 60;
+      const available =
+        parentRect.height - 104; /* header + help hint heights */
       if (available > 300) {
         setEditorHeight(available);
       }

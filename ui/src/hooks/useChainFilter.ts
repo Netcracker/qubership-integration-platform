@@ -17,7 +17,7 @@ import {
 } from "../components/table/filter/filter";
 import { useFilter } from "../components/table/filter/useFilter";
 import { capitalize } from "../misc/format-utils.ts";
-import { useMemo } from "react";
+import { ReactNode, useMemo } from "react";
 import { useServiceFilterValues } from "./useServices.ts";
 
 export const LabelsStringTableFilter: FilterConditions = {
@@ -73,7 +73,7 @@ function buildLoggingValues(): ListValue[] {
 
 export const useChainFilters = (): {
   filters: EntityFilterModel[];
-  filterButton: JSX.Element;
+  filterButton: ReactNode;
 } => {
   const { domains } = useDomains();
   const { buildFilterValues } = useElementTypes();

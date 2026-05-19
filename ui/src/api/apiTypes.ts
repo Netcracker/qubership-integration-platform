@@ -1009,37 +1009,49 @@ export type DesignSpecificationSource = {
   specificationContent: string;
 };
 
-export type IntegrationSystem = {
-  id: string;
-  name: string;
+export type IntegrationSystem = BaseEntity & {
   type: IntegrationSystemType;
-  description?: string;
   activeEnvironmentId: string;
   internalServiceName: string;
   protocol: string;
   extendedProtocol: string;
   specification: string;
   labels?: EntityLabel[];
-  createdWhen?: string;
-  createdBy?: User;
-  modifiedWhen?: string;
 };
 
-export type ContextSystem = {
-  id: string;
-  name: string;
+export type ContextSystem = BaseEntity & {
   type: IntegrationSystemType;
-  description?: string;
-  createdWhen?: string;
-  createdBy?: User;
-  modifiedWhen?: string;
+  labels?: EntityLabel[];
+  chains?: Chain[];
 };
+
+export type MCPSystem = BaseEntity & {
+  identifier: string;
+  instructions: string;
+  labels: EntityLabel[];
+  chains?: Chain[];
+};
+
+export type MCPSystemCreateRequest = Partial<
+  Omit<
+    MCPSystem,
+    "id" | "createdWhen" | "modifiedWhen" | "createdBy" | "modifiedBy"
+  >
+>;
+
+export type MCPSystemUpdateRequest = Partial<
+  Omit<
+    MCPSystem,
+    "id" | "createdWhen" | "modifiedWhen" | "createdBy" | "modifiedBy"
+  >
+>;
 
 export enum IntegrationSystemType {
   INTERNAL = "INTERNAL",
   EXTERNAL = "EXTERNAL",
   IMPLEMENTED = "IMPLEMENTED",
   CONTEXT = "CONTEXT",
+  MCP = "MCP",
 }
 
 export type SystemRequest = {

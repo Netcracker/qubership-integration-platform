@@ -1,7 +1,7 @@
 export const PLACEHOLDER = "—";
 
 export function formatOptional<T>(
-  value: T,
+  value: T | null | undefined,
   formatter: (v: T) => string = (v) => String(v),
   placeholder: string = PLACEHOLDER,
 ): string {
@@ -9,7 +9,7 @@ export function formatOptional<T>(
 }
 
 export function formatTimestamp(
-  timestamp: string | number | Date,
+  timestamp: string | number | Date | null | undefined,
   millis?: boolean,
 ): string {
   const formatter = (t: string | number | Date) => {
@@ -30,7 +30,7 @@ export function formatTimestamp(
 }
 
 export function formatTimestampShort(
-  timestamp: string | number | Date,
+  timestamp: string | number | Date | null | undefined,
 ): string {
   const formatter = (t: string | number | Date) => {
     const date = new Date(t);
