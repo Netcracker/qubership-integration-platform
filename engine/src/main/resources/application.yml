@@ -67,6 +67,22 @@ spring:
     serialization:
       indent-output: true
 
+  ai:
+    mcp:
+      server:
+        enabled: true
+        type: SYNC
+        protocol: STREAMABLE
+        annotation-scanner:
+          enabled: true
+        streamable-http:
+          mcp-endpoint: /mcp
+        capabilities:
+          completion: false
+          tool: true
+          resource: false
+          prompt: false
+
 app:
   prefix: qip
 

@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.service.debugger.logging;
 
-import com.networknt.schema.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.CamelException;
 import org.apache.camel.Exchange;
@@ -25,6 +24,7 @@ import org.apache.camel.http.base.HttpOperationFailedException;
 import org.apache.camel.support.http.HttpUtil;
 import org.apache.camel.tracing.ActiveSpanManager;
 import org.apache.camel.tracing.SpanAdapter;
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;

@@ -16,7 +16,7 @@
 
 package org.qubership.integration.platform.engine.opensearch.ism.converters;
 
-import com.networknt.schema.utils.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.opensearch.ism.model.time.TimeValue;
 import org.springframework.boot.context.properties.ConfigurationPropertiesBinding;
 import org.springframework.core.convert.converter.Converter;

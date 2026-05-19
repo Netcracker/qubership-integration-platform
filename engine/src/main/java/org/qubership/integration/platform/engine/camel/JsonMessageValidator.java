@@ -16,55 +16,35 @@
 
 package org.qubership.integration.platform.engine.camel;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersion;
-import com.networknt.schema.ValidationMessage;
+import com.networknt.schema.*;
+import com.networknt.schema.Error;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.errorhandling.ValidationException;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
-import java.util.Set;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Component
 public class JsonMessageValidator {
     public static final String MESSAGE_VALIDATION_ERROR = "Errors during message validation: ";
-    private static final String PARSE_MESSAGE_BODY_ERROR = "Unable to parse message body";
-    private static final String EMPTY_BODY_ERROR = "Message body is empty";
-
-    private final ObjectMapper objectMapper;
-
-    @Autowired
-    public JsonMessageValidator(@Qualifier("jsonMapper") ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
-    }
+    public static final String EMPTY_BODY_ERROR = "Message body is empty";
 
     public void validate(String jsonMessageAsString, String jsonSchemaAsString) {
-        try {
-            JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V7);
-            JsonSchema schemaNode = factory.getSchema(jsonSchemaAsString);
+        SchemaRegistry schemaRegistry = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_7);
+        Schema schema = schemaRegistry.getSchema(jsonSchemaAsString);
 
-            if (StringUtils.isBlank(jsonMessageAsString)) {
-                throw new ValidationException(EMPTY_BODY_ERROR);
-            }
+        if (StringUtils.isBlank(jsonMessageAsString)) {
+            throw new ValidationException(EMPTY_BODY_ERROR);
+        }
 
-            JsonNode messageNode = objectMapper.readTree(jsonMessageAsString);
-            Set<ValidationMessage> errors = schemaNode.validate(messageNode);
-            if (!errors.isEmpty()) {
-                String validationMessages = errors
-                        .stream()
-                        .map(ValidationMessage::getMessage)
-                        .collect(Collectors.joining(", "));
-                throw new ValidationException(MESSAGE_VALIDATION_ERROR.concat(validationMessages));
-            }
-        } catch (JsonProcessingException e) {
-            throw new ValidationException(PARSE_MESSAGE_BODY_ERROR);
+        List<Error> errors = schema.validate(jsonMessageAsString, InputFormat.JSON);
+        if (!errors.isEmpty()) {
+            String validationMessages = errors
+                    .stream()
+                    .map(Error::getMessage)
+                    .collect(Collectors.joining(", "));
+            throw new ValidationException(MESSAGE_VALIDATION_ERROR.concat(validationMessages));
         }
     }
 }
