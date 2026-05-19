@@ -14,6 +14,7 @@ import okhttp3.Request;
 import org.apache.commons.lang3.reflect.FieldUtils;
 import org.qubership.integration.platform.engine.cloudcore.maas.localdev.LocalDevMaaSAPIClient;
 import org.qubership.integration.platform.engine.configuration.security.TokenSupplierProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -30,7 +31,7 @@ public class MaasClientConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(name = "tokenSupplierProvider")
-    TokenSupplierProvider tokenSupplierProvider(M2MManager m2mManager) {
+    TokenSupplierProvider tokenSupplierProvider(@Autowired(required = false) M2MManager m2mManager) {
         return () -> m2mManager != null ? () -> m2mManager.getToken().getTokenValue() : () -> "";
     }
 
