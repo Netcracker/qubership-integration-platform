@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.variables.secrets;
 
-import okhttp3.Call;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.secret.SecretUpdateCallback;
 
 import java.util.Map;
@@ -35,7 +34,7 @@ public interface SecretService {
 
     Map<String, String> removeEntries(String secretName, Set<String> keys);
 
-    Call removeEntriesAsync(String secretName, Set<String> keys, SecretUpdateCallback callback);
+    void removeEntriesAsync(String secretName, Set<String> keys, SecretUpdateCallback callback);
 
     String getSecretTemplate(String secretName);
 

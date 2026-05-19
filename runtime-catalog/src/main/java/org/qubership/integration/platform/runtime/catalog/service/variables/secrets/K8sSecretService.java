@@ -20,7 +20,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.kubernetes.client.openapi.models.V1Secret;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.Call;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SecretNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SecuredVariablesException;
@@ -136,8 +135,8 @@ public class K8sSecretService implements SecretService {
     }
 
     @Override
-    public Call removeEntriesAsync(String secretName, Set<String> keys, SecretUpdateCallback callback) {
-        return kubeSecretOperator.removeSecretDataAsync(secretName, keys, callback);
+    public void removeEntriesAsync(String secretName, Set<String> keys, SecretUpdateCallback callback) {
+        kubeSecretOperator.removeSecretDataAsync(secretName, keys, callback);
     }
 
     @Override
