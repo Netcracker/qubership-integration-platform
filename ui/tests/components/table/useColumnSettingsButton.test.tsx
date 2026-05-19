@@ -6,8 +6,23 @@ import "@testing-library/jest-dom";
 import { render, screen } from "@testing-library/react";
 import { ColumnsType } from "antd/lib/table";
 import React from "react";
-import { ColumnsFilter } from "../../../src/components/table/ColumnsFilter";
-import { useColumnSettingsButton } from "../../../src/components/table/useColumnSettingsButton";
+import {
+  ColumnFilterProps,
+  ColumnsFilter,
+} from "../../../src/components/table/ColumnsFilter";
+import {
+  useColumnSettingsBasedOnColumnsType,
+  useColumnSettingsButton,
+} from "../../../src/components/table/useColumnSettingsButton";
+
+let latestColumnSettingsProps: ColumnFilterProps | undefined;
+
+jest.mock("../../../src/components/table/ColumnSettingsButton", () => ({
+  ColumnSettingsButton: (props: ColumnFilterProps) => {
+    latestColumnSettingsProps = props;
+    return <button type="button">column-settings</button>;
+  },
+}));
 
 // src/components/table/useColumnSettingsButton.test.tsx
 // Mock getColumnsOrderKey and getColumnsVisibleKey from ColumnsFilter
@@ -29,6 +44,7 @@ jest.mock<typeof ColumnsFilter>(
 beforeEach(() => {
   localStorage.clear();
   jest.clearAllMocks();
+  latestColumnSettingsProps = undefined;
 });
 
 // Integration tests for useColumnSettingsButton
@@ -390,6 +406,42 @@ describe("useColumnSettingsButton() useColumnSettingsButton method", () => {
         }
         render(<TestComponent />);
       }).not.toThrow();
+    });
+  });
+});
+
+describe("useColumnSettingsBasedOnColumnsType visibilityLocked", () => {
+  it("passes actionTime* key for Action Time when visibilityLocked is set", () => {
+    const tableColumnDefinitions = [
+      {
+        key: "actionTime",
+        title: "Action Time",
+        settings: { visibilityLocked: true },
+      },
+      { key: "username", title: "Initiator" },
+    ];
+
+    function TestComponent() {
+      const { columnSettingsButton } = useColumnSettingsBasedOnColumnsType(
+        "actionsLogTable",
+        tableColumnDefinitions,
+      );
+      return <div>{columnSettingsButton}</div>;
+    }
+
+    render(<TestComponent />);
+
+    expect(latestColumnSettingsProps?.allColumns).toEqual([
+      "actionTime*",
+      "username",
+    ]);
+    expect(latestColumnSettingsProps?.defaultColumns).toEqual([
+      "actionTime*",
+      "username",
+    ]);
+    expect(latestColumnSettingsProps?.labelsByKey).toEqual({
+      actionTime: "Action Time",
+      username: "Initiator",
     });
   });
 });

@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Checkbox } from "antd";
+import clsx from "clsx";
 import { ReactSortable } from "react-sortablejs";
 import { parseJsonOrDefault } from "../../misc/json-helper";
 import { ACTIONS_COLUMN_KEY } from "./actionsColumn";
 import { clearColumnMetadata, isColumnVisibilityLocked } from "./useColumnSettingsButton";
+import styles from "./ColumnsFilter.module.css";
 
 const COLUMN_KEYS_EXCLUDED_FROM_PICKER = new Set<string>([
   ACTIONS_COLUMN_KEY,
@@ -20,16 +22,42 @@ function isVisibilityToggleDisabled(columnKey: string): boolean {
 
 type SortablePickerItem = { id: unknown };
 
+function buildOrderLockedPrefix(
+  allColumns: string[],
+  orderLockedKeySet: ReadonlySet<string>,
+): string[] {
+  return allColumns.filter((key) => orderLockedKeySet.has(key));
+}
+
+function normalizePickerColumnOrder(
+  order: string[],
+  allColumns: string[],
+  orderLockedKeySet: ReadonlySet<string>,
+): string[] {
+  const lockedPrefix = buildOrderLockedPrefix(allColumns, orderLockedKeySet);
+  if (lockedPrefix.length === 0) {
+    return order;
+  }
+  const tail = order.filter((key) => COLUMN_KEYS_EXCLUDED_FROM_PICKER.has(key));
+  const movable = order.filter(
+    (key) =>
+      !orderLockedKeySet.has(key) && !COLUMN_KEYS_EXCLUDED_FROM_PICKER.has(key),
+  );
+  return [...lockedPrefix, ...movable, ...tail];
+}
+
 function applyPickerColumnReorder(
   setColumnsOrder: React.Dispatch<React.SetStateAction<string[]>>,
   newList: readonly SortablePickerItem[],
+  allColumns: string[],
+  orderLockedKeySet: ReadonlySet<string>,
 ): void {
   const reordered = newList.map((item) => String(item.id));
   setColumnsOrder((prev) => {
-    const tail = prev.filter((k) =>
-      COLUMN_KEYS_EXCLUDED_FROM_PICKER.has(k),
-    );
-    return [...reordered, ...tail];
+    const tail = prev.filter((key) => COLUMN_KEYS_EXCLUDED_FROM_PICKER.has(key));
+    const lockedPrefix = buildOrderLockedPrefix(allColumns, orderLockedKeySet);
+    const movable = reordered.filter((key) => !orderLockedKeySet.has(key));
+    return [...lockedPrefix, ...movable, ...tail];
   });
 }
 
@@ -39,6 +67,7 @@ export interface ColumnFilterProps {
   storageKey: string;
   onChange: (columnsOrder: string[], visibleColumns: string[]) => void;
   labelsByKey?: Record<string, string>;
+  orderLockedKeys?: string[];
 }
 
 export const getColumnsOrderKey = (storageKey: string): string => {
@@ -55,14 +84,43 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
   storageKey,
   onChange,
   labelsByKey,
+  orderLockedKeys = [],
 }) => {
+  const orderLockedKeySet = useMemo(
+    () => new Set(orderLockedKeys),
+    [orderLockedKeys],
+  );
+  const orderLockedPrefix = useMemo(
+    () => buildOrderLockedPrefix(allColumns, orderLockedKeySet),
+    [allColumns, orderLockedKeySet],
+  );
   const initialColumns =
     defaultColumns && defaultColumns.length > 0 ? defaultColumns : allColumns;
 
   const [columnsOrder, setColumnsOrder] = useState<string[]>(() => {
     const stored = localStorage.getItem(getColumnsOrderKey(storageKey));
-    return stored ? parseJsonOrDefault<string[]>(stored, []) : allColumns;
+    const order = stored ? parseJsonOrDefault<string[]>(stored, []) : allColumns;
+    return normalizePickerColumnOrder(order, allColumns, orderLockedKeySet);
   });
+
+  const handlePickerMove = useCallback(
+    (evt: { newIndex?: number; related?: Element }) => {
+      if (orderLockedPrefix.length === 0) {
+        return true;
+      }
+      if (
+        evt.newIndex !== undefined &&
+        evt.newIndex < orderLockedPrefix.length
+      ) {
+        return false;
+      }
+      if (evt.related?.classList.contains("filtered")) {
+        return false;
+      }
+      return true;
+    },
+    [orderLockedPrefix.length],
+  );
 
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     const stored = localStorage.getItem(getColumnsVisibleKey(storageKey));
@@ -115,51 +173,41 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
   );
 
   return (
-    <div
-      style={{
-        padding: 12,
-        background: "var(--vscode-editor-background, #ffffff)",
-        border: "1px solid var(--vscode-border, #d9d9d9)",
-        boxShadow: "var(--vscode-widget-shadow, 0 4px 12px rgba(0, 0, 0, 0.1))",
-        borderRadius: 8,
-        minWidth: 180,
-      }}
-    >
+    <div className={styles.panel}>
       <ReactSortable
         list={columnOrderForPicker.map((id) => ({ id }))}
         setList={(newList) =>
-          applyPickerColumnReorder(setColumnsOrder, newList)
+          applyPickerColumnReorder(
+            setColumnsOrder,
+            newList,
+            allColumns,
+            orderLockedKeySet,
+          )
         }
         animation={150}
         handle=".drag-handle"
+        filter=".filtered"
+        onMove={handlePickerMove}
       >
-        {columnOrderForPicker.map((key) => (
+        {columnOrderForPicker.map((key) => {
+          const isOrderLocked = orderLockedKeySet.has(key);
+          return (
           <div
             key={key}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 6,
-              cursor: "grab",
-            }}
+            className={clsx(
+              styles.row,
+              isOrderLocked && "filtered",
+              isOrderLocked && styles.rowOrderLocked,
+            )}
           >
             <span
-              className="drag-handle"
-              style={{
-                cursor: "grab",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 20,
-                height: 20,
-                fontSize: 20,
-                marginRight: 4,
-                userSelect: "none",
-                borderRadius: 4,
-                transition: "background 0.2s",
-              }}
-              tabIndex={0}
+              className={clsx(
+                styles.grip,
+                isOrderLocked ? "filtered" : "drag-handle",
+                isOrderLocked && styles.gripOrderLocked,
+              )}
+              aria-hidden={isOrderLocked}
+              tabIndex={isOrderLocked ? -1 : 0}
             >
               ≡
             </span>
@@ -173,17 +221,18 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
                   setVisibleColumns((prev) => prev.filter((k) => k !== key));
                 }
               }}
-              style={{ flex: 1 }}
+              className={styles.checkbox}
             >
               {getLabel(key)}
             </Checkbox>
           </div>
-        ))}
+          );
+        })}
       </ReactSortable>
       <Button
         size="small"
         onClick={handleReset}
-        style={{ marginTop: 8, alignSelf: "flex-end" }}
+        className={styles.resetButton}
       >
         Reset
       </Button>

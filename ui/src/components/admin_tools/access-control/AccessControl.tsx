@@ -25,7 +25,6 @@ import {
   TextColumnFilterDropdown,
 } from "../../table/TextColumnFilterDropdown.tsx";
 import { useAccessControl } from "../../../hooks/useAccessControl.tsx";
-import { ColumnsType } from "antd/es/table";
 import { useModalsContext } from "../../../Modals.tsx";
 import { AbacAttributesPopUp } from "./AbacAttributesPopUp.tsx";
 import { AddDeleteRolesPopUp } from "./AddDeleteRolesPopUp.tsx";
@@ -36,7 +35,10 @@ import {
 } from "../../deployment_runtime_states/DeploymentsCumulativeState.tsx";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
-import { useColumnSettingsBasedOnColumnsType } from "../../table/useColumnSettingsButton.tsx";
+import {
+  ColumnsTypeWithSettings,
+  useColumnSettingsBasedOnColumnsType,
+} from "../../table/useColumnSettingsButton.tsx";
 import {
   attachResizeToColumns,
   useTableColumnResize,
@@ -245,11 +247,15 @@ export const AccessControl: React.FC = () => {
     setSelectedRowKeys(selected);
   };
 
-  const columns: ColumnsType<AccessControlData> = [
+  const columns: ColumnsTypeWithSettings<AccessControlData> = [
     {
       title: "Endpoint",
       dataIndex: "endpoint",
       key: "endpoint",
+      settings: {
+        visibilityLocked: true,
+        orderLocked: true,
+      },
       sorter: {
         compare: (a: AccessControlData, b: AccessControlData) => {
           const aPath =

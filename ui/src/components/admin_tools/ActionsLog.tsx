@@ -8,7 +8,6 @@ import {
   Table,
   Tooltip,
 } from "antd";
-import { TableProps } from "antd/lib/table";
 import React, { UIEvent, useMemo, useRef, useState } from "react";
 import { useActionLog } from "../../hooks/useActionLog.tsx";
 import {
@@ -32,7 +31,10 @@ import { useResizeHeight } from "../../hooks/useResizeHeigth.tsx";
 import commonStyles from "./CommonStyle.module.css";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { Require } from "../../permissions/Require.tsx";
-import { useColumnSettingsBasedOnColumnsType } from "../table/useColumnSettingsButton.tsx";
+import {
+  ColumnsTypeWithSettings,
+  useColumnSettingsBasedOnColumnsType,
+} from "../table/useColumnSettingsButton.tsx";
 import {
   attachResizeToColumns,
   useTableColumnResize,
@@ -231,11 +233,15 @@ export const ActionsLog: React.FC = () => {
       : firstLine;
   };
 
-  const columns: TableProps<ActionLog>["columns"] = [
+  const columns: ColumnsTypeWithSettings<ActionLog> = [
     {
       title: "Action Time",
       key: "actionTime",
       dataIndex: "actionTime",
+      settings: {
+        visibilityLocked: true,
+        orderLocked: true,
+      },
       width: actionLogColumnResize.columnWidths.actionTime,
       sorter: (a: ActionLog, b: ActionLog) => b.actionTime - a.actionTime,
       filterDropdown: (props: FilterDropdownProps) => (

@@ -7,7 +7,6 @@ import {
   Modal,
   Space,
   Table,
-  TableProps,
   Tooltip,
 } from "antd";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
@@ -24,7 +23,10 @@ import {
 import { useNavigate } from "react-router";
 import { useLiveExchangeFilters } from "./useLiveExchangeFilters.tsx";
 import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
-import { useColumnSettingsBasedOnColumnsType } from "../../table/useColumnSettingsButton.tsx";
+import {
+  ColumnsTypeWithSettings,
+  useColumnSettingsBasedOnColumnsType,
+} from "../../table/useColumnSettingsButton.tsx";
 import { TablePageLayout } from "../../TablePageLayout.tsx";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import {
@@ -125,12 +127,16 @@ export const LiveExchanges: React.FC = () => {
     [terminateExchange],
   );
 
-  const columns = useMemo((): TableProps<LiveExchangeTableItem>["columns"] => {
+  const columns = useMemo((): ColumnsTypeWithSettings<LiveExchangeTableItem> => {
     return [
       {
         title: "Session ID",
         key: "sessionId",
         dataIndex: "sessionId",
+        settings: {
+          visibilityLocked: true,
+          orderLocked: true,
+        },
         sorter: (a: LiveExchangeTableItem, b: LiveExchangeTableItem) =>
           (b.sessionId ?? "").localeCompare(a.sessionId ?? ""),
         render: (_, item) =>

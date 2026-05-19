@@ -9,6 +9,7 @@ export type ColumnsTypeWithSettings<T> = ColumnTypeWithSettings<T>[];
 
 export type ColumnSettings = {
   visibilityLocked?: boolean;
+  orderLocked?: boolean;
 };
 
 export type ColumnTypeWithSettings<T> = ColumnType<T> & {
@@ -37,6 +38,7 @@ export const useColumnSettingsButton = <T,>(
   allColumnKeys: string[],
   visibleKeys: string[],
   tableColumnDefinitions: ColumnsType<T>,
+  orderLockedKeys: string[] = [],
 ) => {
   const allColumnKeysMemo = useMemo(() => {
     const storedOrder = localStorage.getItem(getColumnsOrderKey(storageKey));
@@ -107,6 +109,7 @@ export const useColumnSettingsButton = <T,>(
         tableColumnDefinitions.map((c) => [c.key as string, c.title as string]),
       )}
       onChange={handleColumnsChange}
+      orderLockedKeys={orderLockedKeys}
     />
   );
   return { orderedColumns, columnSettingsButton };
@@ -124,10 +127,15 @@ export const useColumnSettingsBasedOnColumnsType = <T,>(
     .filter((columnType) => columnType.key && columnType.hidden !== true)
     .map((columnType) => buildKeyWithMetadata(columnType));
 
+  const orderLockedKeys = tableColumnDefinitions
+    .filter((columnType) => columnType.settings?.orderLocked)
+    .map((columnType) => buildKeyWithMetadata(columnType));
+
   return useColumnSettingsButton(
     storageKey,
     allColumnKeys,
     visibleColumns,
     tableColumnDefinitions,
+    orderLockedKeys,
   );
 };

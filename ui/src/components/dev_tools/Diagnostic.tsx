@@ -14,7 +14,6 @@ import {
   ValidationSeverity,
   ValidationState,
 } from "../../api/apiTypes";
-import { TableProps } from "antd/lib/table";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TableRowSelection } from "antd/lib/table/interface";
 import { api } from "../../api/api";
@@ -25,7 +24,10 @@ import { treeExpandIcon } from "../table/TreeExpandIcon";
 import { useModalsContext } from "../../Modals";
 import { DiagnosticValidationModal } from "./DiagnosticValidationModal";
 import { useDiagnosticValidationFilters } from "./useDiagnosticValidationFilters";
-import { useColumnSettingsBasedOnColumnsType } from "../table/useColumnSettingsButton";
+import {
+  ColumnsTypeWithSettings,
+  useColumnSettingsBasedOnColumnsType,
+} from "../table/useColumnSettingsButton";
 import {
   attachResizeToColumns,
   useTableColumnResize,
@@ -97,11 +99,15 @@ export const Diagnostic: React.FC = () => {
   const [searchString, setSearchString] = useState<string>("");
   const { filters, filterButton } = useDiagnosticValidationFilters();
 
-  const columns: TableProps<DiagnosticValidationTableItem>["columns"] = [
+  const columns: ColumnsTypeWithSettings<DiagnosticValidationTableItem> = [
     {
       title: "Name",
       dataIndex: "title",
       key: "title",
+      settings: {
+        visibilityLocked: true,
+        orderLocked: true,
+      },
       sorter: (a, b) => a.title.localeCompare(b.title),
       defaultSortOrder: "ascend",
       render: (_, validation) => {
