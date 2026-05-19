@@ -49,9 +49,7 @@ export const ElementNameInlineEdit = forwardRef<
       editorClassName={styles.editor}
       viewer={
         <span className={styles.viewer}>
-          <span className={styles.name} title={value}>
-            {value}
-          </span>
+          <span className={styles.name}>{value}</span>
           {typeLabel && (
             <span className={styles["type-badge"]}>{typeLabel}</span>
           )}

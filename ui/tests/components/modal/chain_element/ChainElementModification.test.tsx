@@ -604,7 +604,7 @@ describe("ChainElementModification", () => {
     expect(mockCloseContainingModal).toHaveBeenCalled();
   });
 
-  it("handleNameSave: inline name edit calls updateElement and onSubmit", async () => {
+  it("handleNameSave: inline name edit only updates local state, no API call until Save", async () => {
     renderWithPermissions({ chain: ["update"] });
 
     await waitFor(() => {
@@ -616,6 +616,15 @@ describe("ChainElementModification", () => {
     const input = screen.getByTestId("element-name-input");
     fireEvent.change(input, { target: { value: "Updated Script Name" } });
     fireEvent.blur(input);
+
+    await waitFor(() => {
+      expect(screen.getByText("Updated Script Name")).toBeInTheDocument();
+    });
+
+    expect(mockUpdateElement).not.toHaveBeenCalled();
+    expect(defaultProps.onSubmit).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
     await waitFor(() => {
       expect(mockUpdateElement).toHaveBeenCalledWith(
@@ -631,6 +640,29 @@ describe("ChainElementModification", () => {
     await waitFor(() => {
       expect(defaultProps.onSubmit).toHaveBeenCalled();
     });
+  });
+
+  it("handleNameSave: inline edit with unchanged name does not dirty the modal", async () => {
+    renderWithPermissions({ chain: ["update"] });
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /edit name/i }));
+
+    const input = screen.getByTestId("element-name-input");
+    fireEvent.blur(input);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("element-name-input")).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+    expect(mockShowModal).not.toHaveBeenCalled();
+    expect(mockCloseContainingModal).toHaveBeenCalled();
+    expect(defaultProps.onClose).toHaveBeenCalled();
   });
 
   describe("Schema errors", () => {

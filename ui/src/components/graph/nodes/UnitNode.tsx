@@ -2,18 +2,28 @@ import { NodeProps } from "@xyflow/react";
 import { ChainGraphNode } from "./ChainGraphNodeTypes.ts";
 import { useMemo } from "react";
 import { IconName, OverridableIcon } from "../../../icons/IconProvider.tsx";
-import { Flex } from "antd";
+import { Flex, Typography } from "antd";
 import { NodeContentWrapper } from "./NodeContentWrapper.tsx";
 
-export function UnitNode({ data, ...rest }: NodeProps<ChainGraphNode>) {
+export function UnitNode({ data, dragging, ...rest }: NodeProps<ChainGraphNode>) {
   const trimmedLabel = useMemo(
     () => (data.label?.split("\n")[0] ?? "Node").trim(),
     [data.label],
   );
 
+  const ellipsisConfig = useMemo(
+    () => ({
+      rows: 3,
+      tooltip: dragging
+        ? (false as const)
+        : { title: trimmedLabel, mouseEnterDelay: 1 },
+    }),
+    [trimmedLabel, dragging],
+  );
+
   return (
     <NodeContentWrapper
-      {...{ data, ...rest }}
+      {...{ data, dragging, ...rest }}
       style={{
         boxShadow:
           data.mandatoryChecksPassed === false
@@ -43,18 +53,21 @@ export function UnitNode({ data, ...rest }: NodeProps<ChainGraphNode>) {
           <div
             style={{
               flex: 1,
+              minWidth: 0,
             }}
           >
-            <span
+            <Typography.Paragraph
+              ellipsis={ellipsisConfig}
               style={{
                 fontSize: 12,
+                lineHeight: 1.4,
                 textAlign: "left",
                 overflowWrap: "anywhere",
-                display: "block",
+                marginBottom: 0,
               }}
             >
               {trimmedLabel}
-            </span>
+            </Typography.Paragraph>
           </div>
         </Flex>
         <div

@@ -650,31 +650,14 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     !!kafkaError ||
     hasMissingRequiredParams;
 
-  const handleNameSave = useCallback(
-    async (newName: string) => {
-      // Inline name edit is a name-only operation. Send the pristine
-      // description/properties from node.data so we don't silently persist
-      // the user's unsaved form draft along with the rename — otherwise
-      // Cancel wouldn't revert those drafted changes.
-      const request: PatchElementRequest = {
-        name: newName,
-        description: node.data.description,
-        type: node.data.elementType,
-        parentElementId: node.parentId,
-        properties: node.data.properties as Record<string, unknown>,
-      };
-      const changedElement = await updateElement(chainId, elementId, request);
-      if (changedElement) {
-        setFormData((prev) => ({ ...prev, name: newName }));
-        const elementWithProperties = {
-          ...changedElement,
-          properties: node.data.properties,
-        } as Element;
-        onSubmit?.(elementWithProperties, node);
-      }
-    },
-    [node, chainId, elementId, updateElement, onSubmit],
-  );
+  const formDataRef = useRef(formData);
+  formDataRef.current = formData;
+
+  const handleNameSave = useCallback((newName: string) => {
+    if ((formDataRef.current.name as string) === newName) return;
+    setFormData((prev) => ({ ...prev, name: newName }));
+    setHasChanges(true);
+  }, []);
 
   const handleOk = useCallback(async () => {
     const pendingName = elementNameRef.current?.syncIfEditing?.();

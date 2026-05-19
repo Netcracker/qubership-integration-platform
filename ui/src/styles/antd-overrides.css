@@ -424,11 +424,13 @@ pre[class*="language-"] .token.punctuation {
   background-color: var(--vscode-panel-background) !important;
   color: var(--vscode-foreground) !important;
   border: 1px solid var(--vscode-border) !important;
+  border-radius: 8px;
 }
 
 .ant-tooltip .ant-tooltip-inner {
   background-color: var(--vscode-panel-background) !important;
   color: var(--vscode-foreground) !important;
+  padding-left: 16px;
 }
 
 .ant-tooltip .ant-tooltip-arrow::before {
