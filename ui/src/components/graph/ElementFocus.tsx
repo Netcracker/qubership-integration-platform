@@ -1,7 +1,13 @@
-import React, { useContext, useEffect } from "react";
-import { useReactFlow } from "@xyflow/react";
+import React, { useCallback, useContext, useEffect } from "react";
+import { Node, useReactFlow } from "@xyflow/react";
 
 export type FitViewToElementIdFn = (id: string) => void;
+
+const withSingleNodeSelected = <T extends Node>(nodes: T[], selectedId: string): T[] =>
+  nodes.map((node) => ({
+    ...node,
+    selected: node.id === selectedId,
+  }));
 
 export const ElementFocusContext =
   React.createContext<React.MutableRefObject<FitViewToElementIdFn | null> | null>(
@@ -25,22 +31,30 @@ export const useFocusToElementId = (): FitViewToElementIdFn => {
 
 export const ElementFocus = () => {
   const ref = useElementFocusRef();
-  const { fitView, getNodes } = useReactFlow();
+  const { fitView, getNodes, setNodes } = useReactFlow();
 
-  useEffect(() => {
-    ref.current = (id: string) => {
+  const focusToElementId = useCallback<FitViewToElementIdFn>(
+    (id) => {
       const nodes = getNodes();
       if (!nodes.some((n) => n.id === id)) return;
+
+      setNodes((currentNodes) => withSingleNodeSelected(currentNodes, id));
+
       fitView({
         nodes: [{ id }],
         padding: 0.2,
         duration: 300,
       });
-    };
+    },
+    [fitView, getNodes, setNodes],
+  );
+
+  useEffect(() => {
+    ref.current = focusToElementId;
     return () => {
       ref.current = null;
     };
-  }, [ref, fitView, getNodes]);
+  }, [ref, focusToElementId]);
 
   return null;
 };
