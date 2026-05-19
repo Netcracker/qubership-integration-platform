@@ -117,7 +117,7 @@ export class RestApi implements Api {
     this.instance = rateLimit(
       axios.create({
         baseURL: gateway,
-        timeout: 2000,
+        timeout: 30000,
         headers: { "content-type": "application/json" },
       }),
       {
