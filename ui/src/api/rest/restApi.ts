@@ -999,16 +999,23 @@ export class RestApi implements Api {
   getCheckpointSessions = async (
     sessionIds: string[],
   ): Promise<CheckpointSession[]> => {
-    const response = await this.instance.get<CheckpointSession[]>(
-      `${this.v1()}/engine/sessions`,
-      {
-        params: { ids: sessionIds },
-        paramsSerializer: {
-          indexes: null,
-        },
-      },
+    const CHUNK_SIZE = 20;
+    if (sessionIds.length === 0) return [];
+    const chunks: string[][] = [];
+    for (let i = 0; i < sessionIds.length; i += CHUNK_SIZE) {
+      chunks.push(sessionIds.slice(i, i + CHUNK_SIZE));
+    }
+    const responses = await Promise.all(
+      chunks.map((chunk) =>
+        this.instance.get<CheckpointSession[]>(`${this.v1()}/engine/sessions`, {
+          params: { ids: chunk },
+          paramsSerializer: {
+            indexes: null,
+          },
+        }),
+      ),
     );
-    return response.data;
+    return responses.flatMap((response) => response.data);
   };
 
   retrySessionFromCheckpoint = async (

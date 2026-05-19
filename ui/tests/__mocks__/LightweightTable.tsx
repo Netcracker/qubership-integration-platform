@@ -286,49 +286,53 @@ export function LightweightTable({
       data-scroll={scroll === undefined ? undefined : JSON.stringify(scroll)}
     >
       {loading && <div className="ant-spin" data-testid="table-loading" />}
-      <table>
-        <thead>
-          <tr>
-            {rowSelection && (
-              <HeaderCell>
-                <input
-                  type="checkbox"
-                  onChange={() => {
-                    const allKeys = rows.map((r, i) =>
-                      getRowKey(r as Record<string, unknown>, i, rowKeyProp),
-                    );
-                    const allSelected =
-                      rowSelection.selectedRowKeys?.length === allKeys.length;
-                    rowSelection.onChange?.(allSelected ? [] : allKeys, []);
-                  }}
-                />
-              </HeaderCell>
-            )}
-            {cols.map((col, idx) => {
-              const cellProps = col.onHeaderCell?.(col) ?? {};
-              return (
-                <HeaderCell
-                  key={col.key ?? col.dataIndex ?? idx}
-                  {...cellProps}
-                >
-                  {typeof col.title === "function" ? col.title({}) : col.title}
+      <div className="ant-table-body">
+        <table>
+          <thead>
+            <tr>
+              {rowSelection && (
+                <HeaderCell>
+                  <input
+                    type="checkbox"
+                    onChange={() => {
+                      const allKeys = rows.map((r, i) =>
+                        getRowKey(r as Record<string, unknown>, i, rowKeyProp),
+                      );
+                      const allSelected =
+                        rowSelection.selectedRowKeys?.length === allKeys.length;
+                      rowSelection.onChange?.(allSelected ? [] : allKeys, []);
+                    }}
+                  />
                 </HeaderCell>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          <RenderRows
-            rows={rows}
-            columns={cols}
-            rowSelection={rowSelection}
-            expandable={expandable}
-            rowKeyProp={rowKeyProp}
-            rowClassName={rowClassName}
-            onRow={onRow}
-          />
-        </tbody>
-      </table>
+              )}
+              {cols.map((col, idx) => {
+                const cellProps = col.onHeaderCell?.(col) ?? {};
+                return (
+                  <HeaderCell
+                    key={col.key ?? col.dataIndex ?? idx}
+                    {...cellProps}
+                  >
+                    {typeof col.title === "function"
+                      ? col.title({})
+                      : col.title}
+                  </HeaderCell>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            <RenderRows
+              rows={rows}
+              columns={cols}
+              rowSelection={rowSelection}
+              expandable={expandable}
+              rowKeyProp={rowKeyProp}
+              rowClassName={rowClassName}
+              onRow={onRow}
+            />
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

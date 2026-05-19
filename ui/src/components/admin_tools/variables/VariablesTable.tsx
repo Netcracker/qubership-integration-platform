@@ -42,6 +42,7 @@ interface VariablesTableProps {
   flex?: boolean;
   enableEdit?: boolean;
   enableDelete?: boolean;
+  loading?: boolean;
 }
 
 const VariablesTable: React.FC<VariablesTableProps> = ({
@@ -65,6 +66,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
   flex,
   enableEdit = true,
   enableDelete = true,
+  loading,
 }) => {
   const newKeyInputRef = useRef<InputRef>(null);
   const newValueInputRef = useRef<HTMLTextAreaElement>(null);
@@ -306,6 +308,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
       rowKey="key"
       pagination={false}
       size="small"
+      loading={loading}
       rowClassName={() => styles["secret-row"]}
       scroll={{ x: totalColumnsWidth, y: flex ? "" : undefined }}
       rowSelection={{

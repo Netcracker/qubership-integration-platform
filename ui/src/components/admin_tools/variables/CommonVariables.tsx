@@ -35,6 +35,7 @@ export const CommonVariables = () => {
   const {
     variables,
     isAddingNew,
+    isLoading,
     editingKey,
     editingValue,
     setIsAddingNew,
@@ -167,6 +168,7 @@ export const CommonVariables = () => {
       />
       <VariablesTable
         flex
+        loading={isLoading}
         variables={filteredVariables}
         isAddingNew={isAddingNew}
         selectedKeys={selectedRowKeys}

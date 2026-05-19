@@ -1,17 +1,17 @@
 import React, {
-  UIEvent,
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { Flex, message, Table } from "antd";
 import { useNavigate, useParams } from "react-router";
-import { TableProps } from "antd/lib/table";
+import { ColumnsType } from "antd/lib/table";
 import {
   Checkpoint,
+  CheckpointSession,
   ExecutionStatus,
-  PaginationOptions,
   Session,
   SessionFilterAndSearchRequest,
   SessionFilterCondition,
@@ -63,9 +63,12 @@ import commonStyles from "../components/admin_tools/CommonStyle.module.css";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import { AdminToolsHeader } from "../components/admin_tools/AdminToolsHeader.tsx";
 
-type SessionTableItem = Session & {
-  children?: SessionTableItem[];
+type SessionWithCheckpoints = Session & {
   checkpoints?: Checkpoint[];
+};
+
+type SessionTableItem = SessionWithCheckpoints & {
+  children?: SessionTableItem[];
 };
 
 function sortByStartTime(items?: SessionTableItem[]) {
@@ -131,6 +134,10 @@ function compareTimestamps(s1: string, s2: string): number {
 const SESSIONS_EXPAND_COLUMN_WIDTH = 48;
 const SESSIONS_SELECTION_COLUMN_WIDTH = 48;
 
+const INITIAL_PAGE_COUNT = 2;
+
+export const SESSIONS_LOAD_SENTINEL_TEST_ID = "sessions-load-sentinel";
+
 type SessionsProps = {
   variant?: "chain-tab" | "admin-page";
 };
@@ -141,8 +148,8 @@ export const Sessions: React.FC<SessionsProps> = ({
   const { chainId } = useParams<{ chainId: string }>();
   const { showModal } = useModalsContext();
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [sessions, setSessions] = useState<SessionWithCheckpoints[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [offset, setOffset] = useState(0);
   const [allSessionsLoaded, setAllSessionsLoaded] = useState(false);
@@ -150,20 +157,13 @@ export const Sessions: React.FC<SessionsProps> = ({
     filterRequestList: [],
     searchString: "",
   });
-  const [tableData, setTableData] = useState<SessionTableItem[]>([]);
-  const [checkpointMap, setCheckpointMap] = useState<Map<string, Checkpoint[]>>(
-    new Map(),
-  );
   const [messageApi, contextHolder] = message.useMessage();
   const notificationService = useNotificationService();
+  const tableWrapperRef = useRef<HTMLDivElement>(null);
 
-  const updateTableData = useCallback(() => {
-    setIsLoading(true);
+  const tableData = useMemo<SessionTableItem[]>(() => {
     const rowMap = new Map<string, SessionTableItem>(
-      sessions.map((session) => [
-        session.id,
-        { ...session, checkpoints: checkpointMap.get(session.id) },
-      ]),
+      sessions.map((session) => [session.id, { ...session }]),
     );
     const itemsByCorrelationId = new Map<string, SessionTableItem[]>();
     const items: SessionTableItem[] = [];
@@ -220,9 +220,8 @@ export const Sessions: React.FC<SessionsProps> = ({
     items.push(...correlationIdItems);
 
     sortByStartTime(items);
-    setTableData(items);
-    setIsLoading(false);
-  }, [checkpointMap, sessions]);
+    return items;
+  }, [sessions]);
 
   const setTableFilters = (
     tableFilters: Record<string, FilterValue | null>,
@@ -277,26 +276,43 @@ export const Sessions: React.FC<SessionsProps> = ({
   };
 
   const fetchSessions = useCallback(
-    async (offset: number) => {
-      const options: PaginationOptions = { offset };
+    async (initialOffset: number) => {
+      const isInitialLoad = initialOffset === 0;
       setIsLoading(true);
       try {
-        const response = await api.getSessions(chainId, filters, options);
-        setSessions((sessions) => [
-          ...(offset ? sessions : []),
-          ...response.sessions,
-        ]);
-        setOffset(response.offset);
-        setAllSessionsLoaded(response.sessions.length === 0);
-        const ids = response.sessions.map((session) => session.id);
-        const checkpointSessions = await api.getCheckpointSessions(ids);
-        setCheckpointMap((checkpointMap) => {
-          const m = new Map(offset ? checkpointMap.entries() : []);
-          checkpointSessions.forEach((session) =>
-            m.set(session.id, session.checkpoints),
-          );
-          return m;
-        });
+        const pagesToFetch = isInitialLoad ? INITIAL_PAGE_COUNT : 1;
+        const fetched: Session[] = [];
+        let currentOffset = initialOffset;
+        let reachedEnd = false;
+        for (let i = 0; i < pagesToFetch; i++) {
+          const response = await api.getSessions(chainId, filters, {
+            offset: currentOffset,
+          });
+          fetched.push(...response.sessions);
+          currentOffset = response.offset;
+          if (response.sessions.length === 0) {
+            reachedEnd = true;
+            break;
+          }
+        }
+
+        const ids = fetched.map((s) => s.id);
+        const checkpointSessions: CheckpointSession[] =
+          ids.length > 0 ? await api.getCheckpointSessions(ids) : [];
+        const checkpointsById = new Map<string, Checkpoint[]>();
+        checkpointSessions.forEach((cs) =>
+          checkpointsById.set(cs.id, cs.checkpoints),
+        );
+        const withCheckpoints: SessionWithCheckpoints[] = fetched.map((s) => ({
+          ...s,
+          checkpoints: checkpointsById.get(s.id),
+        }));
+
+        setSessions((prev) =>
+          isInitialLoad ? withCheckpoints : [...prev, ...withCheckpoints],
+        );
+        setOffset(currentOffset);
+        setAllSessionsLoaded(reachedEnd);
       } catch (error) {
         notificationService.requestFailed("Failed to fetch sessions", error);
       } finally {
@@ -320,8 +336,8 @@ export const Sessions: React.FC<SessionsProps> = ({
     [messageApi, notificationService],
   );
 
-  const buildColumns = useCallback(
-    (): TableProps<SessionTableItem>["columns"] => [
+  const tableColumnDefinitions = useMemo<ColumnsType<SessionTableItem>>(
+    () => [
       {
         title: "ID",
         dataIndex: "id",
@@ -440,11 +456,6 @@ export const Sessions: React.FC<SessionsProps> = ({
     [chainId, navigate, retryFromLastCheckpoint],
   );
 
-  const tableColumnDefinitions = useMemo(
-    () => buildColumns() ?? [],
-    [buildColumns],
-  );
-
   const sessionsColumnSettingsKey = chainId
     ? "sessionsTableChain"
     : "sessionsTableAdmin";
@@ -495,18 +506,36 @@ export const Sessions: React.FC<SessionsProps> = ({
     [columnsWithResize, sessionsColumnResize.columnWidths],
   );
 
-  const onScroll = useCallback(
-    async (event: UIEvent<HTMLDivElement>) => {
-      if (isLoading || allSessionsLoaded) return;
-      const target = event.target as HTMLDivElement;
-      const isScrolledToTheEnd =
-        target.scrollTop + target.clientHeight + 1 >= target.scrollHeight;
-      if (isScrolledToTheEnd) {
-        await fetchSessions(offset);
-      }
-    },
-    [isLoading, allSessionsLoaded, offset, fetchSessions],
-  );
+  /* Sentinel is appended as a sibling of `<table>` inside `.ant-table-body`
+   * (not inside the table) because Antd's sticky table syncs header/body
+   * column widths via a shared colgroup — any extra cell would desync them. */
+  useEffect(() => {
+    if (isLoading || allSessionsLoaded) return;
+    const wrapper = tableWrapperRef.current;
+    if (!wrapper) return;
+    const root = wrapper.querySelector(".ant-table-body");
+    if (!root) return;
+
+    const sentinel = document.createElement("div");
+    sentinel.dataset.testid = SESSIONS_LOAD_SENTINEL_TEST_ID;
+    sentinel.style.height = "1px";
+    root.appendChild(sentinel);
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          void fetchSessions(offset);
+        }
+      },
+      { root, rootMargin: "200px" },
+    );
+    observer.observe(sentinel);
+
+    return () => {
+      observer.disconnect();
+      sentinel.remove();
+    };
+  }, [isLoading, allSessionsLoaded, offset, fetchSessions]);
 
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
     setSelectedRowKeys(newSelectedRowKeys);
@@ -577,10 +606,6 @@ export const Sessions: React.FC<SessionsProps> = ({
   useEffect(() => {
     void fetchSessions(0);
   }, [fetchSessions]);
-
-  useEffect(() => {
-    void updateTableData();
-  }, [updateTableData]);
 
   const sessionsToolbarActions = useMemo(
     () => (
@@ -667,22 +692,31 @@ export const Sessions: React.FC<SessionsProps> = ({
 
   const sessionsTable = (
     <TablePageLayout>
-      <Table<SessionTableItem>
-        size="small"
-        className="flex-table"
-        columns={columnsWithResize}
-        rowSelection={rowSelection}
-        dataSource={tableData}
-        pagination={false}
-        loading={isLoading}
-        rowKey="id"
-        sticky
-        style={{ flex: 1, minHeight: 0 }}
-        scroll={tableData.length > 0 ? { x: scrollX, y: "" } : { x: scrollX }}
-        components={sessionsColumnResize.resizableHeaderComponents}
-        onScroll={(event) => void onScroll(event)}
-        onChange={(_, tableFilters) => setTableFilters(tableFilters)}
-      />
+      <div
+        ref={tableWrapperRef}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <Table<SessionTableItem>
+          size="small"
+          className="flex-table"
+          columns={columnsWithResize}
+          rowSelection={rowSelection}
+          dataSource={tableData}
+          pagination={false}
+          loading={isLoading}
+          rowKey="id"
+          sticky
+          style={{ flex: 1, minHeight: 0 }}
+          scroll={tableData.length > 0 ? { x: scrollX, y: "" } : { x: scrollX }}
+          components={sessionsColumnResize.resizableHeaderComponents}
+          onChange={(_, tableFilters) => setTableFilters(tableFilters)}
+        />
+      </div>
     </TablePageLayout>
   );
 

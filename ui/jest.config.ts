@@ -153,6 +153,7 @@ const config: Config = {
     "jest-expect-message",
     "<rootDir>/tests/setup/jest-dom.ts",
     "<rootDir>/tests/setup/jsdom-navigation.ts",
+    "<rootDir>/tests/setup/intersection-observer.ts",
   ],
 
   // The number of seconds after which a test is considered as slow and reported as such in the results.

@@ -20,10 +20,14 @@ import {
   type Session,
 } from "../../src/api/apiTypes";
 import { api } from "../../src/api/api.ts";
-import { Sessions } from "../../src/pages/Sessions.tsx";
+import {
+  Sessions,
+  SESSIONS_LOAD_SENTINEL_TEST_ID,
+} from "../../src/pages/Sessions.tsx";
 import { renderPageWithChainHeader } from "../helpers/renderWithChainHeader.tsx";
 import { downloadFile } from "../../src/misc/download-utils.ts";
 import { getLastTableOnChange } from "../__mocks__/LightweightTable.tsx";
+import { triggerIntersection } from "../setup/intersection-observer.ts";
 
 let capturedConfirmOnOk: (() => void | Promise<void>) | undefined;
 
@@ -243,10 +247,9 @@ function renderSessions() {
 }
 
 async function renderWithSessions(sessions: Session[]) {
-  mockGetSessions.mockResolvedValue({
-    sessions,
-    offset: sessions.length,
-  });
+  mockGetSessions
+    .mockResolvedValueOnce({ sessions, offset: sessions.length })
+    .mockResolvedValueOnce({ sessions: [], offset: sessions.length });
 
   renderSessions();
 
@@ -268,10 +271,13 @@ async function renderWithSessions(sessions: Session[]) {
 
 describe("Sessions", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     capturedConfirmOnOk = undefined;
     mockUseParams.mockReturnValue({ chainId: "chain-1" });
     mockGetCheckpointSessions.mockResolvedValue([]);
+    // Empty default terminates the 2-page initial fetch in tests that
+    // only override one page via mockResolvedValueOnce.
+    mockGetSessions.mockResolvedValue({ sessions: [], offset: 0 });
   });
 
   // --- Initial loading ---
@@ -345,7 +351,9 @@ describe("Sessions", () => {
     const second = baseSession({ id: "second-row" });
     mockGetSessions
       .mockResolvedValueOnce({ sessions: [first], offset: 0 })
-      .mockResolvedValueOnce({ sessions: [second], offset: 0 });
+      .mockResolvedValueOnce({ sessions: [], offset: 0 })
+      .mockResolvedValueOnce({ sessions: [second], offset: 0 })
+      .mockResolvedValueOnce({ sessions: [], offset: 0 });
 
     renderSessions();
 
@@ -360,7 +368,7 @@ describe("Sessions", () => {
     });
     expect(screen.queryByText("first-row")).not.toBeInTheDocument();
 
-    expect(mockGetSessions).toHaveBeenCalledTimes(2);
+    expect(mockGetSessions).toHaveBeenCalledTimes(4);
     expect(mockGetSessions).toHaveBeenLastCalledWith(
       "chain-1",
       expect.objectContaining({
@@ -377,10 +385,12 @@ describe("Sessions", () => {
         sessions: [baseSession({ id: "sel-row" })],
         offset: 0,
       })
+      .mockResolvedValueOnce({ sessions: [], offset: 0 })
       .mockResolvedValueOnce({
         sessions: [baseSession({ id: "sel-row" })],
         offset: 0,
-      });
+      })
+      .mockResolvedValueOnce({ sessions: [], offset: 0 });
 
     renderSessions();
 
@@ -395,7 +405,7 @@ describe("Sessions", () => {
     fireEvent.click(screen.getByTestId("sessions-refresh"));
 
     await waitFor(() => {
-      expect(mockGetSessions).toHaveBeenCalledTimes(2);
+      expect(mockGetSessions).toHaveBeenCalledTimes(4);
     });
 
     const rowAfter = screen.getByRole("row", { name: /sel-row/i });
@@ -873,15 +883,25 @@ describe("Sessions", () => {
     expect(screen.getByText("Debug")).toBeInTheDocument();
   });
 
-  // --- Scroll pagination ---
+  // --- Sentinel rendering ---
 
-  test("onScroll is passed to Table component", async () => {
-    // Verifies the onScroll handler is wired up (the handler itself
-    // is a useCallback that guards against duplicate requests when isLoading)
-    await renderWithSessions([baseSession({ id: "scroll-1" })]);
+  test("renders load sentinel while more sessions are available", async () => {
+    mockGetSessions
+      .mockResolvedValueOnce({
+        sessions: [baseSession({ id: "scroll-1" })],
+        offset: 1,
+      })
+      .mockResolvedValueOnce({
+        sessions: [baseSession({ id: "scroll-2" })],
+        offset: 2,
+      });
+    renderSessions();
 
-    const table = document.querySelector("table");
-    expect(table).toBeTruthy();
+    await screen.findByText("scroll-1");
+
+    expect(
+      screen.getByTestId(SESSIONS_LOAD_SENTINEL_TEST_ID),
+    ).toBeInTheDocument();
   });
 
   // --- Correlation item renders session count ---
@@ -915,7 +935,10 @@ describe("Sessions", () => {
 
     fireEvent.click(selectAll);
 
-    const dataRows = screen.getAllByRole("row").slice(1);
+    const dataRows = [
+      screen.getByRole("row", { name: /all-1/i }),
+      screen.getByRole("row", { name: /all-2/i }),
+    ];
     dataRows.forEach((row) => {
       expect(within(row).getByRole("checkbox")).toBeChecked();
     });
@@ -1184,30 +1207,25 @@ describe("Sessions", () => {
     });
   });
 
-  // --- Scroll pagination ---
+  // --- Infinite scroll via IntersectionObserver sentinel ---
 
-  /** Simulate a scroll-to-bottom event on the table container. */
-  function simulateScrollToBottom() {
-    const el = document.querySelector(".flex-table")!;
-    Object.defineProperty(el, "scrollTop", { value: 500, configurable: true });
-    Object.defineProperty(el, "clientHeight", {
-      value: 300,
-      configurable: true,
-    });
-    Object.defineProperty(el, "scrollHeight", {
-      value: 800,
-      configurable: true,
-    });
+  /** Fire IntersectionObserver entries for every observed sentinel. */
+  function fireSentinelIntersection() {
     act(() => {
-      fireEvent.scroll(el);
+      triggerIntersection(true);
     });
   }
 
-  test("scroll to bottom triggers fetchSessions for next page", async () => {
-    mockGetSessions.mockResolvedValueOnce({
-      sessions: [baseSession({ id: "page1" })],
-      offset: 1,
-    });
+  test("sentinel intersection triggers fetch for next page", async () => {
+    mockGetSessions
+      .mockResolvedValueOnce({
+        sessions: [baseSession({ id: "page1" })],
+        offset: 1,
+      })
+      .mockResolvedValueOnce({
+        sessions: [baseSession({ id: "page1b" })],
+        offset: 2,
+      });
     mockGetCheckpointSessions.mockResolvedValue([]);
 
     renderSessions();
@@ -1217,23 +1235,23 @@ describe("Sessions", () => {
     });
 
     mockGetSessions.mockResolvedValueOnce({
-      sessions: [baseSession({ id: "page2" })],
-      offset: 2,
+      sessions: [baseSession({ id: "page3" })],
+      offset: 3,
     });
 
-    simulateScrollToBottom();
+    fireSentinelIntersection();
 
     await waitFor(() => {
-      expect(mockGetSessions).toHaveBeenCalledTimes(2);
+      expect(mockGetSessions).toHaveBeenCalledTimes(3);
       expect(mockGetSessions).toHaveBeenLastCalledWith(
         "chain-1",
         expect.objectContaining({ filterRequestList: [], searchString: "" }),
-        expect.objectContaining({ offset: 1 }),
+        expect.objectContaining({ offset: 2 }),
       );
     });
   });
 
-  test("scroll does not fetch when all sessions are loaded", async () => {
+  test("sentinel does not fetch when all sessions are loaded", async () => {
     mockGetSessions.mockResolvedValueOnce({ sessions: [], offset: 0 });
     mockGetCheckpointSessions.mockResolvedValue([]);
 
@@ -1243,9 +1261,132 @@ describe("Sessions", () => {
       expect(mockGetSessions).toHaveBeenCalledTimes(1);
     });
 
-    simulateScrollToBottom();
+    fireSentinelIntersection();
 
     expect(mockGetSessions).toHaveBeenCalledTimes(1);
+  });
+
+  test("sentinel is removed once all sessions are loaded", async () => {
+    mockGetSessions.mockResolvedValueOnce({ sessions: [], offset: 0 });
+
+    renderSessions();
+
+    await waitFor(() => {
+      expect(mockGetSessions).toHaveBeenCalledTimes(1);
+    });
+
+    expect(
+      screen.queryByTestId(SESSIONS_LOAD_SENTINEL_TEST_ID),
+    ).not.toBeInTheDocument();
+  });
+
+  // --- Checkpoint batching ---
+
+  test("does not call getCheckpointSessions when there are no sessions", async () => {
+    mockGetSessions.mockResolvedValue({ sessions: [], offset: 0 });
+
+    renderSessions();
+
+    await waitFor(() => {
+      expect(mockGetSessions).toHaveBeenCalled();
+    });
+    expect(mockGetCheckpointSessions).not.toHaveBeenCalled();
+  });
+
+  test("initial load fetches two pages and batches checkpoints once", async () => {
+    mockGetSessions
+      .mockResolvedValueOnce({
+        sessions: [baseSession({ id: "p1-s1" })],
+        offset: 1,
+      })
+      .mockResolvedValueOnce({
+        sessions: [baseSession({ id: "p2-s1" })],
+        offset: 2,
+      });
+    mockGetCheckpointSessions.mockResolvedValue([]);
+
+    renderSessions();
+
+    await waitFor(() => {
+      expect(screen.getByText("p1-s1")).toBeInTheDocument();
+      expect(screen.getByText("p2-s1")).toBeInTheDocument();
+    });
+
+    expect(mockGetSessions).toHaveBeenCalledTimes(2);
+    expect(mockGetSessions).toHaveBeenNthCalledWith(
+      1,
+      "chain-1",
+      expect.objectContaining({ filterRequestList: [], searchString: "" }),
+      expect.objectContaining({ offset: 0 }),
+    );
+    expect(mockGetSessions).toHaveBeenNthCalledWith(
+      2,
+      "chain-1",
+      expect.objectContaining({ filterRequestList: [], searchString: "" }),
+      expect.objectContaining({ offset: 1 }),
+    );
+    expect(mockGetCheckpointSessions).toHaveBeenCalledTimes(1);
+    expect(mockGetCheckpointSessions).toHaveBeenCalledWith(["p1-s1", "p2-s1"]);
+  });
+
+  test("initial load terminates when first page is empty", async () => {
+    mockGetSessions.mockResolvedValueOnce({ sessions: [], offset: 0 });
+    mockGetCheckpointSessions.mockResolvedValue([]);
+
+    renderSessions();
+
+    await waitFor(() => {
+      expect(mockGetSessions).toHaveBeenCalled();
+    });
+    expect(mockGetSessions).toHaveBeenCalledTimes(1);
+    expect(mockGetCheckpointSessions).not.toHaveBeenCalled();
+  });
+
+  test("scroll-load preserves prior checkpoints and fetches new ones for appended page", async () => {
+    mockGetSessions
+      .mockResolvedValueOnce({
+        sessions: [baseSession({ id: "early-1" })],
+        offset: 1,
+      })
+      .mockResolvedValueOnce({
+        sessions: [baseSession({ id: "early-2" })],
+        offset: 2,
+      });
+    mockGetCheckpointSessions.mockResolvedValueOnce([
+      baseCheckpointSession("early-1", [
+        { id: "cp1", checkpointElementId: "el1", timestamp: "2024-01-01" },
+      ]),
+    ]);
+
+    renderSessions();
+
+    await waitFor(() => {
+      expect(screen.getByText("early-1")).toBeInTheDocument();
+    });
+    // Retry button confirms checkpoint was merged into early-1
+    expect(screen.getByTestId("protected-btn-")).toBeInTheDocument();
+
+    mockGetSessions.mockResolvedValueOnce({
+      sessions: [baseSession({ id: "late-1" })],
+      offset: 2,
+    });
+    mockGetCheckpointSessions.mockResolvedValueOnce([]);
+
+    fireSentinelIntersection();
+
+    await waitFor(() => {
+      expect(screen.getByText("late-1")).toBeInTheDocument();
+    });
+    expect(screen.getByText("early-1")).toBeInTheDocument();
+    // early-1 still has its retry button (checkpoint preserved across scroll)
+    expect(screen.getByTestId("protected-btn-")).toBeInTheDocument();
+
+    expect(mockGetCheckpointSessions).toHaveBeenCalledTimes(2);
+    expect(mockGetCheckpointSessions).toHaveBeenNthCalledWith(1, [
+      "early-1",
+      "early-2",
+    ]);
+    expect(mockGetCheckpointSessions).toHaveBeenNthCalledWith(2, ["late-1"]);
   });
 
   describe("toolbar layout variants", () => {

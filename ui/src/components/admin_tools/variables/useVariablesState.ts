@@ -24,10 +24,12 @@ export const useVariablesState = ({
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
   const [isAddingNew, setIsAddingNew] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const notificationService = useNotificationService();
 
   const fetchVariables = useCallback(async () => {
+    setIsLoading(true);
     try {
       const response = await getVariables();
       if (response.success) {
@@ -40,6 +42,8 @@ export const useVariablesState = ({
       }
     } catch (error) {
       notificationService.requestFailed("Failed to load variables", error);
+    } finally {
+      setIsLoading(false);
     }
   }, [getVariables, notificationService]);
 
@@ -147,6 +151,7 @@ export const useVariablesState = ({
     editingKey,
     editingValue,
     isAddingNew,
+    isLoading,
     setIsAddingNew,
     onStartEditing: startEditing,
     onChangeEditingValue: setEditingValue,

@@ -45,6 +45,7 @@ export const SecuredVariables: React.FC = () => {
   const [secrets, setSecrets] = useState<string[]>([]);
   const [defaultSecret, setDefaultSecret] = useState<string>("");
   const [variables, setVariables] = useState<Record<string, Variable[]>>({});
+  const [isLoading, setIsLoading] = useState(true);
   const [editing, setEditing] = useState<{
     secret: string;
     key: string;
@@ -88,36 +89,42 @@ export const SecuredVariables: React.FC = () => {
   );
 
   const loadSecrets = useCallback(async () => {
-    const response = await api.getSecuredVariables();
+    setIsLoading(true);
+    try {
+      const response = await api.getSecuredVariables();
 
-    if (response.success && response.data) {
-      const secretsWithVariables: SecretWithVariables[] = response.data;
-      const sorted = [...secretsWithVariables];
-      sorted.sort((a: SecretWithVariables, b: SecretWithVariables) => {
-        if (a.isDefaultSecret) return -1;
-        if (b.isDefaultSecret) return 1;
-        return 0;
-      });
+      if (response.success && response.data) {
+        const secretsWithVariables: SecretWithVariables[] = response.data;
+        const sorted = [...secretsWithVariables];
+        sorted.sort((a: SecretWithVariables, b: SecretWithVariables) => {
+          if (a.isDefaultSecret) return -1;
+          if (b.isDefaultSecret) return 1;
+          return 0;
+        });
 
-      const bySecret: Record<string, Variable[]> = {};
-      const secretNames: string[] = [];
-      let defaultName = "";
+        const bySecret: Record<string, Variable[]> = {};
+        const secretNames: string[] = [];
+        let defaultName = "";
 
-      sorted.forEach(({ secretName, variables, isDefaultSecret }) => {
-        bySecret[secretName] = variables;
-        secretNames.push(secretName);
-        if (isDefaultSecret) defaultName = secretName;
-      });
+        sorted.forEach(({ secretName, variables, isDefaultSecret }) => {
+          bySecret[secretName] = variables;
+          secretNames.push(secretName);
+          if (isDefaultSecret) defaultName = secretName;
+        });
 
-      setSecrets(secretNames);
-      setVariables(bySecret);
-      setDefaultSecret(defaultName);
-    } else {
-      console.error("Failed to load secrets:", response.error);
-      notificationService.requestFailed(
-        response.error?.responseBody.errorMessage || "Failed to load secrets.",
-        null,
-      );
+        setSecrets(secretNames);
+        setVariables(bySecret);
+        setDefaultSecret(defaultName);
+      } else {
+        console.error("Failed to load secrets:", response.error);
+        notificationService.requestFailed(
+          response.error?.responseBody.errorMessage ||
+            "Failed to load secrets.",
+          null,
+        );
+      }
+    } finally {
+      setIsLoading(false);
     }
   }, [notificationService]);
 
@@ -528,6 +535,7 @@ export const SecuredVariables: React.FC = () => {
         className="flex-table"
         dataSource={filteredSecrets.map((s) => ({ key: s, secret: s }))}
         columns={secretListColumnsResized}
+        loading={isLoading}
         expandable={{
           expandIcon: treeExpandIcon(),
           expandedRowRender: (record) => expandedRowRender(record.secret),
