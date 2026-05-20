@@ -1,0 +1,60 @@
+id: "feb52e22-4e16-4249-8670-2aa21ee5b64b"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "0e8dde7c-8542-42ab-a28d-5ddf79fb7762"
+    name: "Mapper"
+    element-type: "mapper-2"
+    original-id: "f8fa7512-0cd8-4aaf-9ecc-8628821cc0b3"
+    properties:
+      throwException: true
+      mappingDescription:
+        source:
+          body:
+            name: "object"
+            schema:
+              id: "6caa5f09ba324532b13cedca48faa63f"
+              attributes:
+                - id: "0076719fec2a4f1ea7038ab5e1c64cbf"
+                  name: "mapperInputTestKey"
+                  type:
+                    name: "string"
+            metadata:
+              dataFormat: "JSON"
+              sourceType: "sample"
+              sourceFormat: "JSON"
+            definitions: []
+          headers: []
+          properties: []
+        target:
+          body:
+            name: "object"
+            schema:
+              id: "290352825a0946c78a56a5ec8fa47ede"
+              attributes:
+                - id: "2e01b10e055c4bb7bf67bc3cea46fd33"
+                  name: "mapperOutputTestKey"
+                  type:
+                    name: "string"
+            metadata:
+              dataFormat: "JSON"
+              sourceType: "sample"
+              sourceFormat: "JSON"
+            definitions: []
+          headers: []
+          properties: []
+        actions:
+          - id: "63215c7940a84d88998c56911c89f6ce"
+            target:
+              kind: "body"
+              path: ["2e01b10e055c4bb7bf67bc3cea46fd33"]
+              type: "attribute"
+            sources:
+              - kind: "body"
+                path: ["0076719fec2a4f1ea7038ab5e1c64cbf"]
+                type: "attribute"
+            transformation: null
+        constants: []
+      exportFileExtension: "json"
+      propertiesToExportInSeparateFile: "mappingDescription"

@@ -1,0 +1,28 @@
+<onCompletion>
+    <process ref="chainFinishProcessor"/>
+</onCompletion>
+<process ref="chainStartProcessor"/>
+
+<from uri="servlet-custom:{{property 'contextPath'}}{{escape (query)}}"/>
+
+<setProperty name="internalProperty_isCheckpointTriggerStep">
+    <constant>true</constant>
+</setProperty>
+
+<setProperty name="internalProperty_rbac_access_policy">
+    <constant resultType="org.qubership.integration.platform.engine.security.QipSecurityAccessPolicy">
+        <![CDATA[
+["ROLE_CIP_SESSION_RETRY","ROLE_M2M"]
+]]>
+    </constant>
+</setProperty>
+
+<step id="{{identifier}}">
+    <policy ref="rbacPolicy">
+        <process ref="contextLoaderProcessor" />
+        <process ref="httpTriggerProcessor" />
+        <removeProperty name="checkpointSessionId"/>
+    </policy>
+</step>
+
+<removeProperty name="internalProperty_isCheckpointTriggerStep"/>

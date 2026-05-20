@@ -1,0 +1,5 @@
+<route>
+    <step id="88408eb3-9f7c-4fd3-9f90-c3ee9be45347">
+        <toD uri="cip-chain:3a0a790b-2f10-429c-8334-50d23af3a2cf?timeout=30000&amp;block=true&amp;failIfNoConsumers=false"/>
+    </step>
+</route>

@@ -1,0 +1,55 @@
+---
+id: "fda9842a-f505-4c39-954f-8bf96b259b0e"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707147459623
+elements:
+  - id: "48a48403-c1f9-42db-89c3-b0cf35d7a8bb"
+    name: "Split Async"
+    description: "Split Async description"
+    element-type: "split-async-2"
+    children:
+      - id: "9b6d86be-ff6e-40dd-a0fd-86bbd658faa5"
+        name: "Async Split Element#1"
+        description: "Async Split Element#1 description"
+        element-type: "async-split-element-2"
+        children:
+          - id: "af9a9712-18c5-4be6-a52c-21f91238f39f"
+            name: "Async Split Element#1 Mapper"
+            description: "Async Split Element#1 Mapper description"
+            element-type: "mapper-2"
+            properties:
+              exportFileExtension: "json"
+              propertiesToExportInSeparateFile: "mappingDescription"
+              throwException: true
+      - id: "9b6d86be-ff6e-40dd-a0fd-86bbd658faa5"
+        name: "Async Split Element#2"
+        description: "Async Split Element#2 description"
+        element-type: "async-split-element-2"
+        children:
+          - id: "e79a09fd-8074-4bd7-9972-b0a3f1e13088"
+            name: "Async Split Element#2 Script"
+            description: "Async Split Element#2 Script description"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+  - id: "d1cf7a65-c035-4dd7-abc2-e97172971afc"
+    name: "Sync Split Element Script"
+    description: "Sync Split Element Script description"
+    element-type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "c958ef28-55ee-4d00-8d67-f04947009b7f"
+    name: "Split Async Script"
+    description: "Split Async Script description"
+    element-type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+dependencies:
+  - from: "d1cf7a65-c035-4dd7-abc2-e97172971afc"
+    to: "c958ef28-55ee-4d00-8d67-f04947009b7f"
+  - from: "48a48403-c1f9-42db-89c3-b0cf35d7a8bb"
+    to: "d1cf7a65-c035-4dd7-abc2-e97172971afc"

@@ -1,0 +1,16 @@
+org.qubership.integration.platform.runtime.catalog.configuration.ApplicationAutoConfiguration
+org.qubership.integration.platform.runtime.catalog.configuration.AsyncAutoConfiguration
+org.qubership.integration.platform.runtime.catalog.configuration.datasource.PersistenceConfiguration
+org.qubership.integration.platform.runtime.catalog.configuration.datasource.PersistenceStandaloneAutoConfiguration
+org.qubership.integration.platform.runtime.catalog.configuration.FreemakerAutoConfiguration
+org.qubership.integration.platform.runtime.catalog.configuration.KubeOperatorAutoConfiguration
+org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration
+org.qubership.integration.platform.runtime.catalog.configuration.MarkdownParserAutoConfiguration
+org.qubership.integration.platform.runtime.catalog.configuration.MicroserviceRestTemplateAutoConfiguration
+org.qubership.integration.platform.runtime.catalog.configuration.SwaggerAutoConfiguration
+org.qubership.integration.platform.runtime.catalog.configuration.TaskSchedulerAutoConfiguration
+org.qubership.integration.platform.runtime.catalog.configuration.WebAutoConfiguration
+org.qubership.integration.platform.runtime.catalog.cr.configuration.YamlMapperConfiguration
+org.qubership.integration.platform.runtime.catalog.cr.configuration.HandlebarConfiguration
+org.qubership.integration.platform.runtime.catalog.configuration.DomainAutoConfiguration
+org.qubership.integration.platform.runtime.catalog.configuration.actuator.InfoContributorsConfiguration

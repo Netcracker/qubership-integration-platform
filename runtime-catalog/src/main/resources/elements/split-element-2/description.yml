@@ -1,0 +1,48 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: split-element-2
+title: Split Element
+folder: routing
+inputEnabled: false
+outputEnabled: false
+container: true
+mandatoryInnerElement: true
+descriptionFormatter: split-element-formatter
+parentRestriction:
+  - split-2
+properties:
+  common:
+    - name: splitName
+      title: Split Name
+      description: Define identifier for subchain. Used as name prefix while propagating headers and properties.
+      type: string
+      mask: "^[-!#-'*+.0-9A-Z^-z|~]+$"
+      unique: true
+      uniqueAmongElements:
+        - split-element-2
+        - main-split-element-2
+      caseInsensitive: true
+      mandatory: true
+      autofocus: true
+    - name: propagateHeaders
+      title: Propagate headers
+      description: Propagate headers from this branch. Split name is used as header name prefix.
+      type: boolean
+      default: false
+    - name: propagateProperties
+      title: Propagate properties
+      description: Propagate properties from this branch. Split name is used as property name prefix.
+      type: boolean
+      default: false

@@ -1,0 +1,55 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: log-record
+title: Log Record
+description: Log Record element allows to configure a message that will be logged for selected logging level
+folder: routing
+inputEnabled: true
+outputEnabled: true
+container: false
+customTabs:
+  - name: Logging
+    uiComponent: log-record
+designParameters:
+    externalParticipantId: '##{ELEMENT_CHAIN_SELF_REF}'
+    requestLineTitle: '##{ELEMENT_NAME_REF}'
+    directionToChain: true
+    hasResponse: false
+properties:
+  hidden:
+    - name: logLevel
+      title: Log Level
+      description: Specifies the type of the message that will be logged to microservice log
+      allowedValues:
+        - Error
+        - Warning
+        - Info
+      default: Error
+    - name: sender
+      title: Sender
+      description: Specifies custom system name that sends a request
+      type: string
+    - name: receiver
+      title: Receiver
+      description: Specifies custom system name that accepts a request
+      type: string
+    - name: businessIdentifiers
+      title: Business Identifiers
+      description: List of business identifiers to be logged
+      type: string
+    - name: message
+      title: Message
+      description: A custom message to be logged
+      type: string

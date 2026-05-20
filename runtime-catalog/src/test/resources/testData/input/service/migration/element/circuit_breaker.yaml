@@ -1,0 +1,60 @@
+---
+id: "fda9842a-f505-4c39-954f-8bf96b259b0e"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707145313467
+elements:
+  - id: "6416354f-5b1f-4255-bc75-d84721ff72c3"
+    name: "Circuit Breaker Script"
+    description: "Circuit Breaker Script description"
+    element-type: "script"
+    properties-filename: "script-6416354f-5b1f-4255-bc75-d84721ff72c3.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "8cf3b7d8-fc6d-43b4-ace2-3ecf12e53b8d"
+    name: "Circuit Breaker Configuration Script"
+    description: "Circuit Breaker Configuration Script description"
+    element-type: "script"
+    properties-filename: "script-8cf3b7d8-fc6d-43b4-ace2-3ecf12e53b8d.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "aed089e8-37ab-4190-a5c2-277baee23086"
+    name: "Circuit Breaker"
+    description: "Circuit Breaker description"
+    element-type: "circuit-breaker"
+    children:
+      - id: "228d316e-ce08-467f-a9e3-2bfdedab1160"
+        name: "Circuit Breaker Configuration"
+        description: "Circuit Breaker Configuration description"
+        element-type: "circuit-breaker-configuration"
+        properties:
+          automaticTransitionFromOpenToHalfOpenEnabled: false
+          failureRateThreshold: 50
+          minimumNumberOfCalls: 100
+          permittedNumberOfCallsInHalfOpenState: 10
+          slidingWindowSize: 100
+          slidingWindowType: "COUNT_BASED"
+          slowCallDurationThreshold: 60
+          slowCallRateThreshold: 100
+          waitDurationInOpenState: 60
+      - id: "cc1c2fc2-3d78-48b1-b9b3-86d2133e0140"
+        name: "On fallback"
+        description: "On fallback description"
+        element-type: "on-fallback"
+  - id: "c43a4b61-08c4-422f-85c5-ac7edeea7eb8"
+    name: "On fallback Script"
+    description: "On fallback Script description"
+    element-type: "script"
+    properties-filename: "script-c43a4b61-08c4-422f-85c5-ac7edeea7eb8.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+dependencies:
+  - from: "228d316e-ce08-467f-a9e3-2bfdedab1160"
+    to: "8cf3b7d8-fc6d-43b4-ace2-3ecf12e53b8d"
+  - from: "aed089e8-37ab-4190-a5c2-277baee23086"
+    to: "6416354f-5b1f-4255-bc75-d84721ff72c3"
+  - from: "cc1c2fc2-3d78-48b1-b9b3-86d2133e0140"
+    to: "c43a4b61-08c4-422f-85c5-ac7edeea7eb8"

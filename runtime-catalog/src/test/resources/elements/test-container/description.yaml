@@ -1,0 +1,10 @@
+name: test-container
+title: Test container
+description: Container for testing
+inputEnabled: true
+outputEnabled: true
+container: true
+allowedChildren:
+  test-case: two-or-many
+  test-default: one-or-many
+  test-sender: one

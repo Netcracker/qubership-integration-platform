@@ -1,0 +1,15 @@
+id: "b1190457-4afc-4deb-b81b-8b8b74f71f88"
+name: "pubsub"
+description: ""
+modifiedWhen: 1692257400264
+elements:
+  - id: "901b0809-56db-4acd-9142-4e10f8e0cae2"
+    name: "PubSub Sender"
+    element-type: "pubsub-sender"
+    properties:
+      destinationName: "test_destination_name"
+      lazyStartProducer: false
+      messageOrderingEnabled: false
+      projectId: "test_project_id"
+      propagateContext: true
+      serviceAccountKey: "test_service_account_name"
