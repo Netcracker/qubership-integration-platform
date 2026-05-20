@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ .Release.Name }}-sessions-management
+  name: {{ .Release.Name }}-sessions-management
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-sessions-management
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-sessions-management
+    spec:
+      containers:
+        - args:
+            - /opt/java/openjdk/bin/java
+            - -Xmx416m
+            - -XX:MetaspaceSize=192m
+            - -XX:MaxMetaspaceSize=192m
+            - -XX:MaxDirectMemorySize=64m
+            - -XX:+ExitOnOutOfMemoryError
+            - -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+            - -Djava.security.egd=file:/dev/./urandom
+            - --add-opens=java.base/java.lang=ALL-UNNAMED
+            - --add-opens=java.base/java.util=ALL-UNNAMED
+            - -Dfile.encoding=UTF-8
+            - -jar
+            - /app/qip-sessions-management.jar
+          env:
+            - name: CONSUL_ADMIN_TOKEN
+              valueFrom:
+                configMapKeyRef:
+                  key: CONSUL_ADMIN_TOKEN
+                  name: {{ .Release.Name }}-env
+            - name: CONSUL_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: CONSUL_URL
+                  name: {{ .Release.Name }}-env
+            - name: NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  key: NAMESPACE
+                  name: {{ .Release.Name }}-env
+            - name: OPENSEARCH_HOST
+              valueFrom:
+                configMapKeyRef:
+                  key: OPENSEARCH_HOST
+                  name: {{ .Release.Name }}-env
+            - name: OPENSEARCH_PORT
+              valueFrom:
+                configMapKeyRef:
+                  key: OPENSEARCH_PORT
+                  name: {{ .Release.Name }}-env
+            - name: OPENSEARCH_PREFIX
+              valueFrom:
+                configMapKeyRef:
+                  key: OPENSEARCH_PREFIX
+                  name: {{ .Release.Name }}-env
+            - name: TRACING_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  key: TRACING_ENABLED
+                  name: {{ .Release.Name }}-env
+          image: ghcr.io/netcracker/qubership-integration-sessions-management:main
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            failureThreshold: 15
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 15
+          name: {{ .Release.Name }}-sessions-management
+          ports:
+            - containerPort: 8080
+          resources: {}
+      restartPolicy: Always

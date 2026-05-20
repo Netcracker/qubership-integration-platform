@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    qip_engine_app: "true"
+    name: {{ .Release.Name }}-engine
+    app: {{ .Release.Name }}-engine
+  name: {{ .Release.Name }}-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-engine
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        qip_engine_app: "true"
+        name: {{ .Release.Name }}-engine
+        app: {{ .Release.Name }}-engine
+    spec:
+      serviceAccountName: {{ .Release.Name }}-service-account
+      containers:
+        - args:
+            - /opt/java/openjdk/bin/java
+            - -Xmx832m
+            - -XX:MetaspaceSize=512m
+            - -XX:MaxMetaspaceSize=224m
+            - -XX:MaxDirectMemorySize=224m
+            - -XX:+ExitOnOutOfMemoryError
+            - -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+            - -Djava.security.egd=file:/dev/./urandom
+            - --add-opens=java.base/java.lang=ALL-UNNAMED
+            - --add-opens=java.base/java.lang.reflect=ALL-UNNAMED
+            - --add-opens=java.base/java.util=ALL-UNNAMED
+            - --add-opens=java.base/java.io=ALL-UNNAMED
+            - -Dfile.encoding=UTF-8
+            - -jar
+            - /app/qip-engine.jar
+          env:
+            - name: CONSUL_ADMIN_TOKEN
+              valueFrom:
+                configMapKeyRef:
+                  key: CONSUL_ADMIN_TOKEN
+                  name: {{ .Release.Name }}-env
+            - name: CONSUL_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: CONSUL_URL
+                  name: {{ .Release.Name }}-env
+            - name: DYNAMIC_ENGINE_CONSUL_STATE_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  key: DYNAMIC_ENGINE_CONSUL_STATE_ENABLED
+                  name: {{ .Release.Name }}-engine-env
+            - name: KUBE_DEV_MODE
+              valueFrom:
+                configMapKeyRef:
+                  key: KUBE_DEV_MODE
+                  name: {{ .Release.Name }}-engine-env
+            - name: RUNTIME_CATALOG_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: RUNTIME_CATALOG_SERVICE_URL
+                  name: {{ .Release.Name }}-engine-env
+            - name: NAMESPACE
+              valueFrom:
+                configMapKeyRef:
+                  key: NAMESPACE
+                  name: {{ .Release.Name }}-env
+            - name: OPENSEARCH_HOST
+              valueFrom:
+                configMapKeyRef:
+                  key: OPENSEARCH_HOST
+                  name: {{ .Release.Name }}-env
+            - name: OPENSEARCH_PORT
+              valueFrom:
+                configMapKeyRef:
+                  key: OPENSEARCH_PORT
+                  name: {{ .Release.Name }}-env
+            - name: OPENSEARCH_PREFIX
+              valueFrom:
+                configMapKeyRef:
+                  key: OPENSEARCH_PREFIX
+                  name: {{ .Release.Name }}-env
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: password
+            - name: POSTGRES_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: POSTGRES_URL
+                  name: {{ .Release.Name }}-engine-env
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: username
+            - name: TRACING_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  key: TRACING_ENABLED
+                  name: {{ .Release.Name }}-env
+            - name: MICROSERVICE_NAME
+              value: {{ .Release.Name }}-engine
+          image: ghcr.io/netcracker/qubership-integration-engine:main
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            failureThreshold: 15
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 15
+          name: {{ .Release.Name }}-engine
+          ports:
+            - containerPort: 8080
+            - containerPort: 5005
+      restartPolicy: Always
