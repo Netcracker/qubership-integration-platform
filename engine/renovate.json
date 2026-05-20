@@ -1,0 +1,3 @@
+{
+  "extends": ["github>Netcracker/qubership-renovate-config"]
+}
