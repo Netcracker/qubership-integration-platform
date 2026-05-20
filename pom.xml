@@ -9,7 +9,7 @@
     <artifactId>qip-monorepo</artifactId>
     <version>0.3-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>Monorepo Aggregator (v0.3)</name>
+    <name>Monorepo Aggregator (release/0.3)</name>
 
     <modules>
         <module>engine</module>
