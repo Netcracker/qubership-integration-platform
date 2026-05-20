@@ -25,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemDto;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupContentDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
@@ -92,19 +93,24 @@ public class ServiceDeserializer {
                     Files.readString(serviceFile.toPath()),
                     importFileMigrations.stream().map(ImportFileMigration.class::cast).toList()
             );
-            IntegrationSystemDto integrationSystemDto = yamlMapper.readValue(serviceData, IntegrationSystemDto.class);
+            ObjectNode migratedServiceNode = (ObjectNode) yamlMapper.readTree(serviceData);
+            IntegrationSystemDto integrationSystemDto = yamlMapper.treeToValue(migratedServiceNode, IntegrationSystemDto.class);
             IntegrationSystem integrationSystem = integrationSystemDtoMapper.toInternalEntity(integrationSystemDto);
 
             Collection<File> files = listFiles(serviceDirectory);
 
-            Stream.concat(getFilesDataDeprecated(files, SPECIFICATION_GROUP_FILE_PREFIX),
-                    getFilesData(files, SPECIFICATION_GROUP_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
-                    .forEach(node -> buildAndAddSpecificationGroup(node, versions, integrationSystem));
+            if (integrationSystemDto.getContent() != null && !integrationSystemDto.getContent().getSpecificationGroups().isEmpty()) {
+                processLegacyService(integrationSystemDto, integrationSystem, versions, migratedServiceNode, serviceDirectory);
+            } else {
+                Stream.concat(getFilesDataDeprecated(files, SPECIFICATION_GROUP_FILE_PREFIX),
+                                getFilesData(files, SPECIFICATION_GROUP_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
+                        .forEach(node -> buildAndAddSpecificationGroup(node, versions, integrationSystem));
 
-            Stream.concat(getFilesDataDeprecated(files, SPECIFICATION_FILE_PREFIX),
-                            getFilesData(files, SPECIFICATION_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
-                    .forEach(node ->
-                    buildAndAddSpecification(node, versions, integrationSystem.getSpecificationGroups(), serviceDirectory));
+                Stream.concat(getFilesDataDeprecated(files, SPECIFICATION_FILE_PREFIX),
+                                getFilesData(files, SPECIFICATION_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
+                        .forEach(node ->
+                                buildAndAddSpecification(node, versions, integrationSystem.getSpecificationGroups(), serviceDirectory));
+            }
 
             return integrationSystem;
         } catch (ServiceImportException e) {
@@ -158,15 +164,101 @@ public class ServiceDeserializer {
         };
     }
 
+    private void processLegacyService(
+            IntegrationSystemDto integrationSystemDto,
+            IntegrationSystem integrationSystem,
+            Collection<Integer> versions,
+            ObjectNode migratedServiceNode,
+            File serviceDirectory
+    ) {
+        if (integrationSystemDto.getContent() == null) {
+            return;
+        }
+
+        List<SpecificationGroupDto> specGroups = integrationSystemDto.getContent().getSpecificationGroups();
+        if (specGroups == null || specGroups.isEmpty()) {
+            return;
+        }
+
+        JsonNode specGroupsNode = migratedServiceNode.path(CONTENT).path("specificationGroups");
+        for (SpecificationGroupDto group : specGroups) {
+            processSpecificationGroup(group, integrationSystem, versions, specGroupsNode, serviceDirectory);
+        }
+    }
+
+    private void processSpecificationGroup(
+            SpecificationGroupDto group,
+            IntegrationSystem integrationSystem,
+            Collection<Integer> versions,
+            JsonNode specGroupsNode,
+            File serviceDirectory
+    ) {
+        setGroupParentId(group, integrationSystem);
+
+        JsonNode synchronization = specGroupsNode.path("synchronization");
+        if (!synchronization.isMissingNode() && !synchronization.isNull()) {
+            group.getContent().setSynchronization(synchronization.asBoolean());
+        }
+        buildAndAddSpecificationGroup(yamlMapper.valueToTree(group), versions, integrationSystem);
+
+        JsonNode systemModelsList = specGroupsNode.path("systemModels");
+        if (systemModelsList.isMissingNode() || systemModelsList.isNull()) {
+            return;
+        }
+        processSystemModels(systemModelsList, group, integrationSystem, versions, serviceDirectory);
+    }
+
+    private void setGroupParentId(SpecificationGroupDto group, IntegrationSystem integrationSystem) {
+        if (integrationSystem.getId() != null) {
+            if (group.getContent() == null) {
+                group.setContent(SpecificationGroupContentDto.builder().build());
+            }
+            group.getContent().setParentId(integrationSystem.getId());
+        }
+    }
+
+    private void processSystemModels(
+            JsonNode systemModelsList,
+            SpecificationGroupDto group,
+            IntegrationSystem integrationSystem,
+            Collection<Integer> versions,
+            File serviceDirectory
+    ) {
+        for (JsonNode model : systemModelsList) {
+            if (model.isMissingNode() || model.isNull()) {
+                return;
+            }
+            ensureModelContentParentId(model, group.getId());
+            buildAndAddSpecification(
+                    yamlMapper.valueToTree(model),
+                    versions,
+                    integrationSystem.getSpecificationGroups(),
+                    serviceDirectory
+            );
+        }
+    }
+
+    private void ensureModelContentParentId(JsonNode model, String groupId) {
+        JsonNode contentModel = model.path(CONTENT);
+        if (contentModel.path(CONTENT).isMissingNode() || contentModel.path(CONTENT).isNull()) {
+            ObjectNode contentNode = yamlMapper.createObjectNode();
+            contentNode.put(PARENT_ID, groupId);
+            ((ObjectNode) model).set(CONTENT, contentNode);
+        } else if (contentModel.path(PARENT_ID).isMissingNode() || contentModel.path(PARENT_ID).isNull()) {
+            ((ObjectNode) contentModel).put(PARENT_ID, groupId);
+        }
+    }
+
     private void buildAndAddSpecificationGroup(
             ObjectNode node,
             Collection<Integer> versions,
             IntegrationSystem integrationSystem
     ) {
         try {
-            ObjectNode migratedNode = migrate(node, versions);
+            ObjectNode migratedNode = node.has(CONTENT) ? node : migrate(node, versions);
             SpecificationGroupDto specificationGroupDto = yamlMapper.treeToValue(migratedNode, SpecificationGroupDto.class);
             SpecificationGroup specificationGroup = specificationGroupDtoMapper.toInternalEntity(specificationGroupDto);
+
             if (Objects.equals(specificationGroupDto.getContent().getParentId(), integrationSystem.getId())) {
                 integrationSystem.addSpecificationGroup(specificationGroup);
             }
@@ -184,7 +276,7 @@ public class ServiceDeserializer {
             File resourceDirectory
     ) {
         try {
-            ObjectNode migratedNode = migrate(node, versions);
+            ObjectNode migratedNode = node.has(CONTENT) ? node : migrate(node, versions);
             SystemModelDto systemModelDto = yamlMapper.treeToValue(migratedNode, SystemModelDto.class);
             SystemModel systemModel = systemModelDtoMapper.toInternalEntity(systemModelDto);
             specificationGroups.stream()
