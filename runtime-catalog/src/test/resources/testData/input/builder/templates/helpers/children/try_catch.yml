@@ -1,0 +1,35 @@
+id: "958fcab3-3e73-4368-aa18-685b0dfba7e0"
+name: "V3"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "56eb0fd3-bc71-44c1-a6a8-9506b2fa6865"
+    name: "Try-Catch-Finally"
+    element-type: "try-catch-finally"
+    original-id: "bf623679-0ccf-4882-8df0-05449b730a53"
+    children:
+      - id: "947b5a9d-5ffb-42c3-ba81-d8d0138a9fd8"
+        name: "Try"
+        element-type: "try"
+        original-id: "50c3f844-48ff-4176-a346-97e1247ab4d6"
+      - id: "2cc75811-640d-42a1-89c9-4ab0661eca81"
+        name: "Catch #1"
+        element-type: "catch"
+        original-id: "52f6df41-4fec-4e9f-a5a9-1ccc2b1b9ac3"
+        properties:
+          exception: "java.lang.IllegalArgumentException"
+          priorityNumber: 0
+      - id: "80a00e04-fc66-4f69-b3e1-21e27ec3f5ce"
+        name: "Catch #2"
+        element-type: "catch"
+        original-id: "a0704be9-0c9d-4ccd-859e-490e65fd8d98"
+        properties:
+          exception: "java.io.IOException"
+          priorityNumber: "1"
+      - id: "a989bb78-ac60-405b-909b-aa5befda70ca"
+        name: "Catch #3"
+        element-type: "catch"
+        original-id: "592e6cf5-82be-4dab-ab08-6403464ae86a"
+        properties:
+          exception: "java.lang.Exception"
+          priorityNumber: "2"

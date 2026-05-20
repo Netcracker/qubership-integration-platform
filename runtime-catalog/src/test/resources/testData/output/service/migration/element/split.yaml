@@ -1,0 +1,80 @@
+---
+id: "fda9842a-f505-4c39-954f-8bf96b259b0e"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707146144465
+elements:
+  - id: "2e576f22-30dc-4191-93a1-122cbb038f6e"
+    name: "Split Script"
+    description: "Split Script description"
+    element-type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "cff2da20-e033-4495-9bef-655804aca089"
+    name: "Split"
+    description: "Split description"
+    element-type: "split-2"
+    properties:
+      aggregationStrategy: "chainsAggregationStrategy"
+      stopOnException: true
+      timeout: 0
+    children:
+      - id: "9b6d86be-ff6e-40dd-a0fd-86bbd658faa5"
+        name: "Split Element#1"
+        description: "Split Element#1 description"
+        element-type: "split-element-2"
+        properties:
+          propagateHeaders: false
+          propagateProperties: false
+          splitName: "split_element_1"
+        children:
+          - id: "0b11be3c-ee4d-4233-9e6d-fcef51c7eb29"
+            name: "Split Element#1 Script"
+            description: "Split Element#1 Script description"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+      - id: "9b6d86be-ff6e-40dd-a0fd-86bbd658faa5"
+        name: "Split Element#0"
+        description: "Split Element#0 description"
+        element-type: "split-element-2"
+        properties:
+          propagateHeaders: false
+          propagateProperties: false
+          splitName: "split_element_0"
+        children:
+          - id: "a07c5948-a7da-436c-b573-629740a6839f"
+            name: "Split Element#0 Script"
+            description: "Split Element#0 Script description"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+      - id: "9b6d86be-ff6e-40dd-a0fd-86bbd658faa5"
+        name: "Main Split Element"
+        description: "Main Split Element description"
+        element-type: "main-split-element-2"
+        properties:
+          splitName: "main_split_element"
+        children:
+          - id: "19868443-0a7b-4c6b-9da8-fe8e7927a2da"
+            name: "Main Split Element Script"
+            description: "Main Split Element Script description"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+  - id: "d62f3f6a-352b-4798-8f4f-80268d7c4c66"
+    name: "Split Result Script"
+    description: "Split Result Script description"
+    element-type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+dependencies:
+  - from: "d62f3f6a-352b-4798-8f4f-80268d7c4c66"
+    to: "2e576f22-30dc-4191-93a1-122cbb038f6e"
+  - from: "cff2da20-e033-4495-9bef-655804aca089"
+    to: "d62f3f6a-352b-4798-8f4f-80268d7c4c66"

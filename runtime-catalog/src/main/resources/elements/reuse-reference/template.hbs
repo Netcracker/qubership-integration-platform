@@ -1,0 +1,11 @@
+{{#if parent}}
+    {{#if-element-type parent not-equals='reuse'}}
+        <setProperty name="internalProperty_{{property 'reuseElementId'}}_currentReuseReferenceParentId">
+            <constant>{{parent-identifier}}</constant>
+        </setProperty>
+        <setProperty name="internalProperty_{{property 'reuseElementId'}}_hasIntermediateParents">
+            <constant>{{has-intermediate-children parent}}</constant>
+        </setProperty>
+    {{/if-element-type}}
+{{/if}}
+<toD uri="direct:{{property 'reuseElementId'}}" />

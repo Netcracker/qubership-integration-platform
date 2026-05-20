@@ -1,0 +1,18 @@
+id: "27a14b65-47a5-4dff-acac-df0b6da71848"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "d849b129-f0b1-4ae6-bd5e-4256e4cf075f"
+    name: "HTTP Sender"
+    element-type: "http-sender"
+    original-id: "682c8f8e-edc9-4bd0-b450-ecf809a65e64"
+    properties:
+      m2m: true
+      uri: "v1/test"
+      httpMethod: "GET"
+      connectTimeout: 120000
+      isExternalCall: false
+      correlationIdName: "test_correlation_id"
+      correlationIdPosition: "Body"
+      propagateContext: true

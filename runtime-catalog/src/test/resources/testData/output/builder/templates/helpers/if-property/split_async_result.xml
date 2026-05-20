@@ -1,0 +1,4 @@
+<step id="6574764f-49a0-42e2-a495-7a98cbc99c1d">
+    <process ref="activeThreadCounterIncrementer"/>
+    <wireTap uri='direct:6574764f-49a0-42e2-a495-7a98cbc99c1d-on-completion'/>
+</step>

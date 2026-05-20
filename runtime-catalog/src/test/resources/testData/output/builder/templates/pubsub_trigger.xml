@@ -1,0 +1,4 @@
+<route>
+    <from uri="ggoogle-pubsub:test_project_id:test_destination_name?maxMessagesPerPoll=1&amp;ackMode=AUTO&amp;serviceAccountKey=base64:test_service_account_name"/>
+    <process id="d760db5a-15c4-4ac9-af6f-7abdd0f360b3" ref="pubSubProcessor"/>
+</route>

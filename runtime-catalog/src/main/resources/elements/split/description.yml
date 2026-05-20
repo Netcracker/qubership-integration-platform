@@ -1,0 +1,64 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: split
+title: Split (deprecated)
+description: Module that allows to start several processes
+folder: deprecated
+inputEnabled: true
+outputEnabled: true
+container: true
+deprecated: true # TODO deprecated since 23.2
+oldStyleContainer: true
+designContainerParameters:
+  firstChildrenType: START_PAR
+  childrenType: PAR_ELSE
+  endOperations:
+    - type: END
+    - type: LINE_WITH_ARROW_SOLID_RIGHT
+      args:
+        - "##{ELEMENT_CHAIN_SELF_REF}"
+        - "##{ELEMENT_CHAIN_SELF_REF}"
+        - "Waiting for 'split elements' to complete"
+  children:
+    - name: main-split-element
+      primaryOperation:
+        args:
+          - "##{splitName}"
+    - name: split-element
+      primaryOperation:
+        args:
+          - "##{splitName}"
+allowedChildren:
+  main-split-element: one-or-zero
+  split-element: one-or-many
+  split-result: one-or-zero
+properties:
+  common:
+    - name: timeout
+      title: Timeout
+      description: Sets a total timeout specified in millis
+      type: number
+      default: 0
+    - name: stopOnException
+      title: Stop On Exception
+      description: Stop further processing if an exception or failure occurred during processing
+      type: boolean
+      default: true
+  hidden:
+    - name: aggregationStrategy
+      title: Aggregation Strategy
+      description: Define reference to Aggregation processor
+      type: string
+      default: chainsAggregationStrategy

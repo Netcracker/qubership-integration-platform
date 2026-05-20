@@ -1,0 +1,11 @@
+id: "51559cff-bbfd-446c-877d-90897fb2cb24"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "558a6a14-d923-40d3-934c-70bc74e50d60"
+    name: "File read"
+    element-type: "file-read"
+    original-id: "d510340a-4b01-4961-98e0-921623ad3e54"
+    properties:
+      antInclude: "test_file.txt"

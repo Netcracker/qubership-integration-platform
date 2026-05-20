@@ -1,0 +1,14 @@
+id: "0d92b2a8-f8f6-474a-bb71-ec2a45de0fe1"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "dff13808-d150-4e1d-a3ab-b0661041af0c"
+    name: "Checkpoint"
+    element-type: "checkpoint"
+    original-id: "123e4b89-e642-4bf7-9b62-582d668005f2"
+    properties:
+      contextPath: "/chains/5964a902-37ec-490b-bfb1-930571dad66f/sessions/{checkpointSessionId}/checkpoint-elements/123e4b89-e642-4bf7-9b62-582d668005f2/retry"
+      externalRoute: false
+      httpMethodRestrict: "POST"
+      checkpointElementId: "123e4b89-e642-4bf7-9b62-582d668005f2"
