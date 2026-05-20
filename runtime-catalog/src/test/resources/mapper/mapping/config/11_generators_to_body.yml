@@ -1,0 +1,270 @@
+source:
+  headers: []
+  properties: []
+target:
+  headers: []
+  properties: []
+  body:
+    name: object
+    schema:
+      id: 873919d6df9e44d5a93aa76ec88fa408
+      attributes:
+        - id: 017fc322a032454d9ca971d258b74e39
+          name: groups
+          type:
+            name: array
+            itemType:
+              name: reference
+              definitionId: aa4d63d83bef4803884580313afb5f89
+        - id: 967944f40996433d8eac552829c1ab0c
+          name: name
+          type:
+            name: string
+        - id: c96cc07962d94866bbe2b4a6cb0508c1
+          name: options
+          type:
+            name: reference
+            definitionId: e726b8a819344a7fa800e1b374cddf2b
+        - id: 862375dfe3cc46a18f59eb0004a61aed
+          name: strings
+          type:
+            name: array
+            itemType:
+              name: string
+        - id: 8bd296212d314e6a99f3dae867c53135
+          name: title
+          type:
+            name: string
+        - id: 5478d13028dd4e10b687506eabd683a4
+          name: topProperties
+          type:
+            name: object
+            schema:
+              id: ffaecd261044469dbfb4f8fbc53fe0bc
+              attributes:
+                - id: 430657dec20f4130be4401cb4f1d04c1
+                  name: description
+                  type:
+                    name: string
+                - id: fdf5c9ff77214e1aaa28a0daacd04e14
+                  name: many_to_one
+                  type:
+                    name: array
+                    itemType:
+                      name: string
+                - id: 3dff6a0d1b91444881f4c02b35487ee9
+                  name: multiple
+                  type:
+                    name: boolean
+                - id: 81ce6381d702435f90a285c1df599241
+                  name: name
+                  type:
+                    name: string
+                - id: d9e701611a7d40eda5221495d5fc32cd
+                  name: title
+                  type:
+                    name: string
+                - id: 8022badbd6b041108fbaebe56c8e1090
+                  name: type
+                  type:
+                    name: string
+    definitions:
+      - id: e726b8a819344a7fa800e1b374cddf2b
+        name: CamelOption
+        type:
+          name: object
+          schema:
+            id: 422e0feede0e4e25b17d522ba0fd0da5
+            attributes:
+              - id: 68640cd15ad442dbb9062cf04630fc7d
+                name: description
+                type:
+                  name: string
+              - id: fa3d3a700f8041bea5c24e6f22f9bae3
+                name: multiple
+                type:
+                  name: boolean
+              - id: 196ed906149547239a9ac9da54b2c8d1
+                name: name
+                type:
+                  name: string
+              - id: c9876647fab34a5d81faf365d44947ed
+                name: title
+                type:
+                  name: string
+              - id: dc4c2e939a3a4114b163e5aaa981241f
+                name: type
+                type:
+                  name: string
+      - id: aa4d63d83bef4803884580313afb5f89
+        name: CamelElementGroup
+        type:
+          name: object
+          schema:
+            id: e213dd56a53b4b608c090877a41772d2
+            attributes:
+              - id: 68e226e74a6a4deeb671ed9ca5a9de38
+                name: element
+                type:
+                  name: reference
+                  definitionId: 5ad300e33d764bb39f65408455ecf2c0
+              - id: c3a5e5dc998b40a1b9c0d25b6c86487a
+                name: name
+                type:
+                  name: string
+              - id: c82d6a97b33b482eacda375a30d3eb36
+                name: title
+                type:
+                  name: string
+      - id: 5ad300e33d764bb39f65408455ecf2c0
+        name: CamelElement
+        type:
+          name: object
+          schema:
+            id: 6344dacee0134f94a396315e9fca457f
+            attributes:
+              - id: dc46dca73b00447faa276658a8c14eba
+                name: allowedChildren
+                type:
+                  name: object
+                  schema:
+                    id: 2d3d441c14f641c986a1268b589818e2
+                    attributes: []
+              - id: a3d3abf757b64ef1a9556ffe3feddfa3
+                name: canReceive
+                type:
+                  name: boolean
+              - id: eac0edc990b94303a7e33684826c240e
+                name: canSend
+                type:
+                  name: boolean
+              - id: 74cbeea31024467fa24c81873df2f68d
+                name: containerTemplate
+                type:
+                  name: boolean
+              - id: 32a15fab35a642bda6f6fdf1d1c0e282
+                name: description
+                type:
+                  name: string
+              - id: b51876a1f22b4b19af46c7cd14f17160
+                name: mandatory
+                type:
+                  name: boolean
+              - id: 86c29dead8a24b2c89b0463407c472b2
+                name: name
+                type:
+                  name: string
+              - id: 1400388f42194ef6841005fb6d5e8dd0
+                name: options
+                type:
+                  name: array
+                  itemType:
+                    name: reference
+                    definitionId: e726b8a819344a7fa800e1b374cddf2b
+              - id: bb9daa54a5cd49cda3b408fb6b86a501
+                name: parentRestriction
+                type:
+                  name: array
+                  itemType:
+                    name: string
+              - id: 98055663ecb242d6822101f231e29d55
+                name: title
+                type:
+                  name: string
+              - id: 6f4bc1783d35401eb664533517f11432
+                name: type
+                type:
+                  name: string
+    metadata:
+      sourceFormat: JSON
+      sourceType: schema
+      dataFormat: JSON
+constants:
+  - id: '08af257c224546d787335d0cfcb04568'
+    name: manual
+    type:
+      name: string
+    valueSupplier:
+      kind: given
+      value: manual
+  - id: 53c34279aab64a2fbbacdf375a1beb67
+    name: uuid_generated
+    type:
+      name: string
+    valueSupplier:
+      kind: generated
+      generator:
+        name: generateUUID
+        parameters: []
+  - id: 738c599cc7984ca28780e1b425570146
+    name: current_date_generated
+    type:
+      name: string
+    valueSupplier:
+      kind: generated
+      generator:
+        name: currentDate
+        parameters: []
+  - id: e268d1f9708c439ab73211c32cc3d33e
+    name: current_time_generated
+    type:
+      name: string
+    valueSupplier:
+      kind: generated
+      generator:
+        name: currentTime
+        parameters: []
+  - id: e031f39f03504f8fa4669e8de82cf4db
+    name: current_date_time_generated
+    type:
+      name: string
+    valueSupplier:
+      kind: generated
+      generator:
+        name: currentDateTime
+        parameters: []
+actions:
+  - id: 141c708806bc4e7c8a5e7434aff2221d
+    sources:
+      - type: constant
+        constantId: '08af257c224546d787335d0cfcb04568'
+    target:
+      type: attribute
+      kind: body
+      path:
+        - 5478d13028dd4e10b687506eabd683a4
+        - 430657dec20f4130be4401cb4f1d04c1
+    transformation:
+  - id: d6d0b6000aa847278e9adedddfdbce96
+    sources:
+      - type: constant
+        constantId: 53c34279aab64a2fbbacdf375a1beb67
+    target:
+      type: attribute
+      kind: body
+      path:
+        - 5478d13028dd4e10b687506eabd683a4
+        - 81ce6381d702435f90a285c1df599241
+    transformation:
+  - id: c283792ad62c48b886c2e500f94d91c6
+    sources:
+      - type: constant
+        constantId: 738c599cc7984ca28780e1b425570146
+    target:
+      type: attribute
+      kind: body
+      path:
+        - 5478d13028dd4e10b687506eabd683a4
+        - d9e701611a7d40eda5221495d5fc32cd
+    transformation:
+  - id: 845dec85eaaf447d84c147a7671175d0
+    sources:
+      - type: constant
+        constantId: e268d1f9708c439ab73211c32cc3d33e
+    target:
+      type: attribute
+      kind: body
+      path:
+        - 5478d13028dd4e10b687506eabd683a4
+        - 8022badbd6b041108fbaebe56c8e1090
+    transformation:

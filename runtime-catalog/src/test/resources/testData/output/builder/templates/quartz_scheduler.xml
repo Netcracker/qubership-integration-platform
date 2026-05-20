@@ -1,0 +1,4 @@
+<route>
+    <from uri="quartz://%%{domain-placeholder}-group/%%{deployment-id-placeholder}-ebdc77f9-39d4-4520-931d-94c6be9529b0?cron=0 */20 * ? * *&amp;deleteJob=false"/>
+    <process id="ebdc77f9-39d4-4520-931d-94c6be9529b0" ref="schedulerProcessor"/>
+</route>

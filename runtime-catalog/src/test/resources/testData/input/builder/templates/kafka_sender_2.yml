@@ -1,0 +1,21 @@
+id: "2b77c300-2879-4c26-9c20-5ef2a95025c2"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "f1eb4aa9-c619-4bf5-b701-b39a3971482e"
+    name: "Kafka Sender"
+    element-type: "kafka-sender-2"
+    original-id: "6f13f9e7-d072-4c69-816a-daf71d195b77"
+    properties:
+      key: "${exchangeProperty.kafka_key}"
+      topics: "test-topic"
+      brokers: "kafka-main:9092"
+      sslProtocol: "TLS"
+      keySerializer: "org.apache.kafka.common.serialization.BytesSerializer"
+      saslMechanism: "GSSAPI"
+      valueSerializer: "org.apache.kafka.common.serialization.StringSerializer"
+      securityProtocol: "PLAINTEXT"
+      connectionSourceType: "manual"
+      sslEndpointAlgorithm: "http://localhost:8080/"
+      propagateContext: true

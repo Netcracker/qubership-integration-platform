@@ -1,0 +1,3 @@
+<route>
+    <toD uri="xslt:file:/tmp/chain_tmp//test/test_template"/>
+</route>

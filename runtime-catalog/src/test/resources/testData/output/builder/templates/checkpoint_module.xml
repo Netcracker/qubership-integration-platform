@@ -1,0 +1,68 @@
+<route>
+    <step>
+        <onCompletion>
+            <process ref="httpTriggerFinishProcessor"/>
+        </onCompletion>
+        <onCompletion mode="BeforeConsumer">
+            <removeHeader name="Authorization"/>
+        </onCompletion>
+        <onCompletion mode="BeforeConsumer" onFailureOnly="true">
+            <setProperty name="internalProperty_httpThreadFailed">
+                <constant>true</constant>
+            </setProperty>
+            <setProperty name="internalProperty_sessionFailed">
+                <constant>true</constant>
+            </setProperty>
+            <process ref="chainExceptionResponseHandlerProcessor"/>
+        </onCompletion>
+        <from uri="servlet-custom:test?chunked=true&amp;tagsProvider=#cb779c9e-77d1-431e-9ef3-6f45ed1788c8"/>
+
+        <step id="cb779c9e-77d1-431e-9ef3-6f45ed1788c8">
+            <setProperty name="internalProperty_rejectRequestIfNonNullBodyGetDelete">
+                <constant>false</constant>
+            </setProperty>
+            <setProperty name="internalProperty_allowedContentTypes">
+                <simple resultType="java.lang.String[]">
+                    []
+                </simple>
+            </setProperty>
+
+            <doTry>
+                <policy ref="rbacPolicy">
+                    <step id="Validate Request--cb779c9e-77d1-431e-9ef3-6f45ed1788c8">
+                        <process ref="httpTriggerProcessor"/>
+                    </step>
+                </policy>
+                <doCatch>
+                    <exception>org.qubership.integration.platform.engine.errorhandling.ValidationException</exception>
+
+                    <setProperty name="internalProperty_sessionFailed">
+                        <constant>true</constant>
+                    </setProperty>
+                    <process ref="chainExceptionResponseHandlerProcessor" />
+
+                    <setProperty name="internalProperty_elementFailed">
+                        <constant>true</constant>
+                    </setProperty>
+                    <process ref="interruptExchangeProcessor" />
+                </doCatch>
+            </doTry>
+        </step>
+    </step>
+    <step>
+        <doTry>
+            <step id="dff13808-d150-4e1d-a3ab-b0661041af0c">
+                <setProperty name="internalProperty_checkpointElementId">
+                    <constant>123e4b89-e642-4bf7-9b62-582d668005f2</constant>
+                </setProperty>
+
+                <process ref="contextSaverProcessor"/>
+
+                <removeProperty name="internalProperty_checkpointElementId"/>
+            </step>
+            <doCatch>
+                <exception>java.lang.Exception</exception>
+            </doCatch>
+        </doTry>
+    </step>
+</route>

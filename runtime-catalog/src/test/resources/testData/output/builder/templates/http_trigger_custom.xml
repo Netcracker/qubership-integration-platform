@@ -1,0 +1,70 @@
+<route>
+    <onCompletion>
+        <process ref="httpTriggerFinishProcessor"/>
+    </onCompletion>
+    <onCompletion mode="BeforeConsumer">
+        <removeHeader name="Authorization"/>
+    </onCompletion>
+    <onCompletion mode="BeforeConsumer" onFailureOnly="true">
+        <setProperty name="internalProperty_httpThreadFailed">
+            <constant>true</constant>
+        </setProperty>
+        <setProperty name="internalProperty_sessionFailed">
+            <constant>true</constant>
+        </setProperty>
+        <process ref="chainExceptionResponseHandlerProcessor"/>
+    </onCompletion>
+    <setProperty name="correlationIdPosition">
+        <constant>Header</constant>
+    </setProperty>
+    <setProperty name="correlationIdName">
+        <constant>test_correlation_id</constant>
+    </setProperty>
+
+    <from uri="servlet-custom:v1/test?chunked=true&amp;httpMethodRestrict=GET&amp;tagsProvider=#d3f6409a-ac98-4509-b093-a4b341651fa5"/>
+
+    <step id="d3f6409a-ac98-4509-b093-a4b341651fa5">
+        <setProperty name="internalProperty_validationSchema">
+            <constant>
+{
+    "title": "testObject",
+    "type": "string",
+    "properties": {
+        "testKey": {
+            "type": "string"
+        }
+    }
+}
+            </constant>
+        </setProperty>
+        <setProperty name="internalProperty_rejectRequestIfNonNullBodyGetDelete">
+            <constant>false</constant>
+        </setProperty>
+        <setProperty name="internalProperty_allowedContentTypes">
+            <simple resultType="java.lang.String[]">
+                []
+            </simple>
+        </setProperty>
+
+        <doTry>
+            <policy ref="rbacPolicy">
+                <step id="Validate Request--d3f6409a-ac98-4509-b093-a4b341651fa5">
+                    <process ref="httpTriggerProcessor"/>
+                </step>
+            </policy>
+            <doCatch>
+                <exception>org.qubership.integration.platform.engine.errorhandling.ValidationException</exception>
+
+                <setProperty name="internalProperty_sessionFailed">
+                    <constant>true</constant>
+                </setProperty>
+                <process ref="chainExceptionResponseHandlerProcessor" />
+
+                <setProperty name="internalProperty_elementFailed">
+                    <constant>true</constant>
+                </setProperty>
+                <process ref="interruptExchangeProcessor" />
+            </doCatch>
+        </doTry>
+    </step>
+</route>

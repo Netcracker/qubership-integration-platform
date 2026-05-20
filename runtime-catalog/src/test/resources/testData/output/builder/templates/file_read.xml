@@ -1,0 +1,7 @@
+<route>
+    <pollEnrich id="558a6a14-d923-40d3-934c-70bc74e50d60">
+        <simple>
+            file:/tmp/chain_tmp/?antInclude=test_file.txt
+        </simple>
+    </pollEnrich>
+</route>

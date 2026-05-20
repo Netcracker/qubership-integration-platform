@@ -1,0 +1,55 @@
+<route>
+    <onCompletion>
+        <process ref="httpTriggerFinishProcessor"/>
+    </onCompletion>
+    <onCompletion mode="BeforeConsumer">
+        <removeHeader name="Authorization"/>
+    </onCompletion>
+    <onCompletion mode="BeforeConsumer" onFailureOnly="true">
+        <setProperty name="internalProperty_httpThreadFailed">
+            <constant>true</constant>
+        </setProperty>
+        <setProperty name="internalProperty_sessionFailed">
+            <constant>true</constant>
+        </setProperty>
+        <process ref="chainExceptionResponseHandlerProcessor"/>
+    </onCompletion>
+    <from uri="servlet-custom://v1/test?chunked=true&amp;httpMethodRestrict=POST&amp;tagsProvider=#63799153-20d0-4dad-b0da-5f1b0db63b8d"/>
+
+    <step id="63799153-20d0-4dad-b0da-5f1b0db63b8d">
+        <setProperty name="internalProperty_rejectRequestIfNonNullBodyGetDelete">
+            <constant>false</constant>
+        </setProperty>
+        <setProperty name="internalProperty_allowedContentTypes">
+            <simple resultType="java.lang.String[]">
+                []
+            </simple>
+        </setProperty>
+
+        <doTry>
+            <setProperty name="internalProperty_rbac_access_policy">
+                <constant resultType="org.qubership.integration.platform.engine.security.QipSecurityAccessPolicy">
+                    ["test_role"]
+                </constant>
+            </setProperty>
+            <policy ref="rbacPolicy">
+                <step id="Validate Request--63799153-20d0-4dad-b0da-5f1b0db63b8d">
+                    <process ref="httpTriggerProcessor"/>
+                </step>
+            </policy>
+            <doCatch>
+                <exception>org.qubership.integration.platform.engine.errorhandling.ValidationException</exception>
+
+                <setProperty name="internalProperty_sessionFailed">
+                    <constant>true</constant>
+                </setProperty>
+                <process ref="chainExceptionResponseHandlerProcessor" />
+
+                <setProperty name="internalProperty_elementFailed">
+                    <constant>true</constant>
+                </setProperty>
+                <process ref="interruptExchangeProcessor" />
+            </doCatch>
+        </doTry>
+    </step>
+</route>

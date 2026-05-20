@@ -1,0 +1,20 @@
+id: "91bbf792-a8bd-4358-ad70-706b391411a0"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "0f3ee4ce-7306-4ba4-8625-1ba6b09b655d"
+    name: "SFTP download"
+    element-type: "sftp-download"
+    original-id: "4c7634e9-e23d-4ca8-96a5-057689bda876"
+    properties:
+      binary: true
+      password: "user"
+      username: "user"
+      antInclude: "test-*.txt"
+      autoCreate: false
+      connectUrl: "/ftp/test"
+      idempotent: true
+      idempotentKey: "${file:name}-${file:size}-${file:modified}"
+      streamDownload: true
+      useUserKnownHostsFile: false

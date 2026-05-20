@@ -1,0 +1,7 @@
+<route>
+    <enrich id="5465d597-0d7f-4f6d-ae0a-20c13b24d872">
+        <simple>
+            file:/tmp/chain_tmp/?fileName=test_file.txt&amp;allowNullBody=true
+        </simple>
+    </enrich>
+</route>

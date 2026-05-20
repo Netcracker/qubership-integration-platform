@@ -1,0 +1,24 @@
+name: test-case
+title: Test case
+description: Case for test
+inputEnabled: false
+outputEnabled: false
+container: true
+ordered: true
+priorityProperty: priority
+parentRestriction:
+  - test-switch
+  - test-container
+properties:
+  common:
+    - name: value
+      title: Value
+      type: string
+      mandatory: true
+    - name: priority
+      title: Priority
+      type: number
+    - name: break
+      title: Break
+      type: boolean
+      default: true
