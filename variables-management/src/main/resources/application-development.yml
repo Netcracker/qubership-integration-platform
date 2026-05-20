@@ -1,0 +1,25 @@
+server:
+  port: 8080
+
+spring:
+  config:
+    activate:
+      on-profile: development
+
+logging:
+  level:
+    root: ${ROOT_LOG_LEVEL:WARN}
+    org.qubership.integration.platform.variables.management: DEBUG
+
+datasource:
+  configuration:
+    enabled: false
+
+kubernetes:
+  devmode: true
+  cluster:
+    token: ${KUBE_USER_TOKEN:}
+
+consul:
+  url: ${CONSUL_URL:http://consul:8500}
+
