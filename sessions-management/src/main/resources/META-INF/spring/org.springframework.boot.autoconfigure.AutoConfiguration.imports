@@ -1,0 +1,7 @@
+org.qubership.integration.platform.sessions.configuration.opensearch.OpenSearchDefaultAutoConfiguration
+org.qubership.integration.platform.sessions.configuration.opensearch.OpenSearchStandaloneAutoConfiguration
+org.qubership.integration.platform.sessions.configuration.RestTemplateAutoConfiguration
+org.qubership.integration.platform.sessions.configuration.SwaggerAutoConfiguration
+org.qubership.integration.platform.sessions.configuration.WebAutoConfiguration
+org.qubership.integration.platform.sessions.configuration.ApplicationAutoConfiguration
+org.qubership.integration.platform.sessions.configuration.actuator.InfoContributorsConfiguration
