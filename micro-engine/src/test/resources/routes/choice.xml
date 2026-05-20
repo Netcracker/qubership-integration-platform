@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<routes xmlns="http://camel.apache.org/schema/spring">
+
+  <route>
+      <from uri="direct:7b266498-6b50-4039-9116-e76ed6972d43"/>
+      <choice id="c53ff150-64be-46c4-8b94-3d3906deadba">
+        <when>
+            <simple>
+                ${exchangeProperty.condition}
+            </simple>
+            <step id="86067f0f-c2b3-4129-8033-5bf34adc36dc">
+                <toD uri='direct:86067f0f-c2b3-4129-8033-5bf34adc36dc'/>
+            </step>
+        </when>
+        <otherwise>
+            <step id="660192bc-d6cc-451a-a988-f717d10da030">
+                <toD uri='direct:660192bc-d6cc-451a-a988-f717d10da030'/>
+            </step>
+        </otherwise>
+      </choice>
+  </route>
+    <route>
+        <from uri="direct:86067f0f-c2b3-4129-8033-5bf34adc36dc"/>
+        <script id="fd613e7a-0c49-45ef-8cce-1536de9c9048">
+            <groovy>exchange.getMessage().setBody(&quot;If&quot;);</groovy>
+        </script>
+    </route>
+    <route>
+        <from uri="direct:660192bc-d6cc-451a-a988-f717d10da030"/>
+            <script id="db5dc172-9bf0-45e6-b5a7-878f165bab66">
+                <groovy>exchange.getMessage().setBody(&quot;Else&quot;);</groovy>
+            </script>
+    </route>
+
+</routes>

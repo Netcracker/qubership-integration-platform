@@ -1,0 +1,1 @@
+moduleClass=org.qubership.integration.platform.engine.mapper.atlasmap.QipJsonAtlasModule,org.qubership.integration.platform.engine.mapper.atlasmap.QipXmlAtlasModule,org.qubership.integration.platform.engine.mapper.atlasmap.QipGeneratedValueAtlasModule

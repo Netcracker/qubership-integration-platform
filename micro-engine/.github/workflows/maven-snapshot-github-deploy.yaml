@@ -1,0 +1,33 @@
+---
+
+# This workflow is used to deploy Maven snapshot artifacts to GitHub packages or Maven Central repository.
+# It is triggered on pushes to branches other than main and release branches.
+# The workflow uses the `netcracker/qubership-workflow-hub/actions/maven-snapshot-deploy` action to perform the deployment.
+# Please read the documentation on how to configure pom.xml for the deployment to work properly:
+# https://github.com/netcracker/.github/blob/main/docs/maven-publish-pom-preparation_doc.md
+
+name: Deploy Maven Snapshot to GitHub
+
+on:
+  workflow_dispatch: {}
+permissions:
+  packages: write # Required for GitHub packages deployment. For maven central deployment it can be ommited
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Deploy Maven Snapshot
+        uses: netcracker/qubership-workflow-hub/actions/maven-snapshot-deploy@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+        with:
+          target-store: 'github'
+          maven-username: ${{ github.actor }}
+          maven-token: ${{ secrets.GITHUB_TOKEN }}
+          gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}

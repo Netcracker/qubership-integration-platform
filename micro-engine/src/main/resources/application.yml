@@ -1,0 +1,310 @@
+cloud:
+  microservice:
+    name: ${CAMEL_K_INTEGRATION:default}
+    namespace: ${NAMESPACE:local}
+    bg_version: ""
+
+tenant:
+  default:
+    id: default
+
+apigateway:
+  control-plane:
+    url: ${CONTROL_PLANE_URL:http://control-plane:8080}
+  routes:
+    registration:
+      enabled: ${ROUTES_REGISTRATION_ENABLED:true}
+
+m2m:
+  enabled: true
+
+application:
+  prefix: qip
+  name: ${CAMEL_K_INTEGRATION:default}
+  namespace: ${NAMESPACE:local}
+  cloud_service_name: ${CLOUD_SERVICE_NAME}
+
+security:
+  role-prefix: 'ROLE_'
+
+consul:
+  url: ${CONSUL_URL:http://consul:8500}
+  keys:
+    prefix: config/${NAMESPACE}
+    engine-config-root: /${application.prefix}-engine-configurations
+    deployments-update: /deployments-update
+    libraries-update: /libraries-update
+    engines-state: /engines-state
+    runtime-configurations: /runtime-configurations
+    chains: /chains
+    common-variables-v2: /variables/common
+  dynamic-state-keys:
+    enabled: ${DYNAMIC_ENGINE_CONSUL_STATE_ENABLED:false}
+  connectTimeout: 25000
+  timeout: 25000
+
+camel:
+  trace:
+    enabled: ${TRACING_ENABLED:false}
+  debug:
+    enabled: true
+  main:
+    name: Camel Context
+    autoStartup: true
+    messageHistory: true
+    streamCachingEnabled: true # enable exchange payload spooling
+    streamCachingBufferSize: 16384
+    globalOptions:
+      CamelJacksonEnableTypeConverter: true
+      CamelJacksonTypeConverterToPojo: true
+      inflightRepositoryBrowseEnabled: true
+  component:
+    bean:
+      bean-info-cache-size: 30 # until took the fix from https://issues.apache.org/jira/browse/CAMEL-22775
+    quartz:
+      autowired-enabled: false
+    kafka: # new parameters will not be automatically set to 'kafka-custom' element, need to change KafkaCustomComponentConfiguration
+      ssl-truststore-location: ${qip.local-truststore.store.path}
+      ssl-truststore-password: ${qip.local-truststore.store.password}
+      ssl-truststore-type: JKS
+    servlet:
+      http-registry: '#gatewayHttpRegistry'
+  servlet:
+    mapping:
+      enabled: false
+  constants:
+    request-filter-header:
+      name: 'requestFilterHeaderAllowlist'
+
+qip:
+  control-plane:
+    egress:
+      name: egress-gateway
+      virtual-service: cip-egress-gateway
+      enable-insecure-tls: false
+    routes:
+      registration:
+        enabled: ${apigateway.routes.registration.enabled}
+      prefix: /${application.prefix}-routes
+  chains:
+    configuration:
+      location: ${QIP_CHAINS_CONFIGURATION_URL:}
+  libraries:
+    path: ${QIP_LIBRARIES_PATH:/tmp/libraries}
+  engine:
+    domain: ${CAMEL_K_INTEGRATION:default}
+  camel:
+    startup:
+      error-handling:
+        ignore-variables-errors: false
+        ignore-route-loading-errors: false
+    routes-prefix: /routes
+    stream-caching:
+      enabled: true # enable exchange payload spooling
+      buffer:
+        size-kb: 16
+    component:
+      quartz:
+        thread-pool-count: 10
+  context-service:
+    cleanup:
+      cron: ${CONTEXT_RECORDS_CLEANUP_CRON:0 0 0 ? * SAT} #  Cleanup task schedule in cron expression format
+  opensearch:
+    client:
+      urls: ${OPENSEARCH_PROTOCOL:http}://${OPENSEARCH_HOST:opensearch}:${OPENSEARCH_PORT:9200}
+      host: ${OPENSEARCH_HOST:opensearch}
+      port: ${OPENSEARCH_PORT:9200}
+      protocol: ${OPENSEARCH_PROTOCOL:http}
+      user-name: ${OPENSEARCH_USERNAME:}
+      password: ${OPENSEARCH_PASSWORD:}
+      prefix: ${OPENSEARCH_PREFIX:}
+    kafka-client:
+      enabled: ${OPENSEARCH_KAFKA_ENABLED:false}
+      bootstrap-servers: ${OPENSEARCH_KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+      topic: ${OPENSEARCH_KAFKA_TOPIC:elements}
+      maas:
+        enabled: ${OPENSEARCH_KAFKA_MAAS_ENABLED:false}
+        classifier:
+          name: ${OPENSEARCH_KAFKA_MAAS_CLASSIFIER_NAME:opersearch.sessions.queue}
+          namespace: ${cloud.microservice.namespace}
+          is-tenant: ${OPENSEARCH_KAFKA_MAAS_CLASSIFIER_IS_TENANT:false}
+    write:
+      batch:
+        count: 100
+      retry:
+        timeout:
+          minimum: 100
+          maximum: 300000
+    index:
+      elements:
+        name: qip-elements-${application.namespace}
+        shards: ${OPENSEARCH_INDEX_SHARDS:3}
+    rollover:
+      min_index_age: 1d
+      min_index_size: ${OPENSEARCH_ROLLOVER_MIN_INDEX_SIZE:}
+      min_rollover_age_to_delete: 14d
+  metrics:
+    enabled: ${MONITORING_ENABLED:false}
+    http-payload-metrics:
+      enabled: true
+      buckets: 128, 1024, 8192, 32768, 262144
+    session-duration:
+      buckets: 100ms, 1s, 10s, 30s, 60s
+    prometheus:
+      # Delay in seconds between init and update new metric (Counter)
+      init:
+        delay: 30
+  mapper:
+    cache-enabled: ${MAPPER_CACHE_ENABLED:true}
+  # session writer performance parameters
+  sessions:
+    sampler:
+      probabilistic: ${SESSION_SAMPLER_PROBABILISTIC:1}
+    queue:
+      max-size-mb: 128
+      capacity: 10000
+    bulk-request:
+      max-size-kb: 4096
+      payload-size-threshold-kb: ${qip.sessions.bulk-request.max-size-kb}
+      elements-count-threshold: 2
+    checkpoints:
+      cleanup:
+        interval: ${SESSIONS_CHECKPOINTS_CLEANUP_INTERVAL:1 month} # logs older than an interval will be deleted, for example, '1 hour', '7 days', '2 years 3 month'
+        cron: ${SESSIONS_CHECKPOINTS_CLEANUP_CRON:0 0 0 ? * SAT} #  Cleanup task schedule in cron expression format
+
+  local-truststore:
+    store:
+      path: /tmp/truststore/defaulttruststore.jks
+      password: ""
+    certs:
+      location: :/tmp/cert/${SSL_SECRET:defaultsslcertificate}
+  production-mode:
+    enabled: ${PRODUCTION_MODE:false}
+  restclient:
+    timeout: 300000
+  idempotency:
+    expired-records-cleanup-cron: ${IDEMPOTENCY_RECORDS_CLEANUP_CRON:0 */5 * ? * *}
+
+kubernetes:
+  devmode: ${KUBE_DEV_MODE:false}
+  cluster:
+    uri: ${KUBE_CLUSTER_URI:https://kubernetes.default}
+    namespace: ${NAMESPACE:}
+    token: ${KUBE_USER_TOKEN:}
+  service-account:
+    token-file-path: ${KUBE_TOKEN_PATH:/var/run/secrets/kubernetes.io/serviceaccount/token}
+    cert: ${KUBE_CERT_PATH:/var/run/secrets/kubernetes.io/serviceaccount/ca.crt}
+  variables-secret:
+    name: ${application.prefix}-secured-variables-v2
+    label: ${application.prefix}-variable-type
+
+quarkus:
+  application:
+    name: ${application.name}
+  log:
+    level: ${ROOT_LOG_LEVEL:INFO}
+    console:
+      level: ${ROOT_LOG_LEVEL:INFO}
+      format: "[%d{yyyy-MM-dd'T'HH:mm:ss.SSS}] [%-5p] [request_id=%-15X{requestId:--}] [thread=%-15.15t] [class=%-60.60c{59}] [traceId=%-16X{X-B3-TraceId:--}] [spanId=%-16X{X-B3-SpanId:--}] [method=%-30.30M] [log_type=%-3X{logType:--}] [session_id=%-36X{internalProperty_sessionId:--}] [chain_id=%-36X{chainId:--}] [chain=%-30X{chainName:--}] [chain_element_id=%-36X{elementId:--}] [chain_element=%-15X{elementName:--}] - %m%n"
+      filter: camel-job-filter
+    category:
+      "org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger":
+        level: INFO
+  http:
+    host: 0.0.0.0
+    port: 8080
+  rest-client:
+    checkpoints:
+      url: "http://localhost:8080${qip.camel.routes-prefix}"
+      scope: jakarta.inject.Singleton
+    control-plane:
+      url: ${apigateway.control-plane.url}
+      scope: jakarta.inject.Singleton
+  consul-source-config:
+    agent:
+      url: ${CONSUL_URL:http://consul:8500}
+    m2m:
+      enabled: ${m2m.enabled}
+  datasource:
+    devservices:
+      enabled: false
+    db-kind: postgresql
+  dbaas:
+    api:
+      agent:
+        url: ${DBAAS_AGENT_URL:http://dbaas-agent:8080}
+    jdbc:
+      min-size: ${PG_MIN_IDLE:0}
+      max-size: ${PG_MAX_POOL_SIZE:30}
+    configs:
+      jdbc:
+        min-size: ${PG_MIN_IDLE:0}
+        max-size: ${PG_MAX_POOL_SIZE:30}
+    flyway:
+      schemas: engine
+      location: db/migration/postgresql/static
+      baseline-on-migrate: true
+      validate-on-migrate: true
+      create-schemas: true
+      out-of-order: true
+      ignore-migration-patterns: '*:future,*:missing'
+      datasources:
+        configs:
+          schemas: engine
+          location: db/migration/postgresql/configs
+          baseline-on-migrate: true
+          validate-on-migrate: true
+          create-schemas: true
+          out-of-order: true
+          ignore-migration-patterns: '*:future,*:missing'
+  hibernate-orm:
+    dialect: org.hibernate.dialect.PostgreSQLDialect
+    packages: org.qubership.integration.platform.engine.persistence.shared.entity
+    physical-naming-strategy: io.hypersistence.utils.hibernate.naming.CamelCaseToSnakeCaseNamingStrategy
+    database:
+      generation:
+        create-schemas: false
+      default-schema: engine
+    jdbc:
+      timezone: UTC
+      statement-batch-size: 30
+    unsupported-properties:
+      "hibernate.order_inserts": true
+      "hibernate.order_updates": true
+      "hibernate.jdbc.lob.non_contextual_creation": true
+      "hibernate.temp.use_jdbc_metadata_defaults": false # disable connection during init
+  smallrye-openapi:
+    enable: true
+  camel:
+    servlet:
+      servlet-name: CamelServlet
+      servlet-class: org.qubership.integration.platform.engine.camel.components.servlet.CustomCamelHttpTransportServlet
+      url-patterns:
+        - "${qip.camel.routes-prefix}/*"
+    trace:
+      enabled: ${TRACING_ENABLED:false}
+  scheduler:
+    use-composite-scheduler: true
+    start-mode: FORCED
+  otel:
+    propagators: b3multi
+    service:
+      name: ${application.name}-${NAMESPACE:local}
+    enabled: true
+    exporter:
+      otlp:
+        protocol: http/protobuf
+        endpoint: http://${TRACING_HOST:nc-diagnostic-agent}:4318
+    traces:
+      enabled: ${TRACING_ENABLED:false}
+      sampler:
+        name: traceidratio
+        arg: ${TRACING_SAMPLER_PROBABILISTIC:0.01}
+    metrics:
+      enabled: false
+    logs:
+      enabled: false
+  micrometer:
+    export:
+      prometheus:
+        path: /metrics
