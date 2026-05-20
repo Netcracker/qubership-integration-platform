@@ -1,0 +1,33 @@
+---
+id: "312dd231-56e7-4187-b1ef-090e0e54ff09"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707222874783
+elements:
+  - id: "92324337-67ba-427b-9520-85ccc0673993"
+    name: "Try"
+    element-type: "try"
+  - id: "c137764b-3a4c-4845-a7fa-3514ce2aafb7"
+    name: "Mapper"
+    element-type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: false
+  - id: "fbc29d01-92b8-4755-b609-8ff1e3ee80fb"
+    name: "Script"
+    element-type: "script"
+    properties-filename: "script-fbc29d01-92b8-4755-b609-8ff1e3ee80fb.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "2ffbd383-b5ba-4613-a53c-5eae4ca2229a"
+    name: "Test element"
+    element-type: "test-element"
+dependencies:
+  - from: "92324337-67ba-427b-9520-85ccc0673993"
+    to: "fbc29d01-92b8-4755-b609-8ff1e3ee80fb"
+  - from: "fbc29d01-92b8-4755-b609-8ff1e3ee80fb"
+    to: "c137764b-3a4c-4845-a7fa-3514ce2aafb7"
+  - from: "c137764b-3a4c-4845-a7fa-3514ce2aafb7"
+    to: "2ffbd383-b5ba-4613-a53c-5eae4ca2229a"

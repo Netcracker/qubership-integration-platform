@@ -1,0 +1,12 @@
+id: "e2ac333d-d3fe-425f-8310-aa5068b0d335"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "5465d597-0d7f-4f6d-ae0a-20c13b24d872"
+    name: "File write"
+    element-type: "file-write"
+    original-id: "be824ef4-dbc3-4a98-8d40-23067c022dfc"
+    properties:
+      fileName: "test_file.txt"
+      allowNullBody: true

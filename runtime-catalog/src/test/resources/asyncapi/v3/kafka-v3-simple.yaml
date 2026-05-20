@@ -1,0 +1,29 @@
+asyncapi: 3.0.0
+info:
+  title: Kafka Simple API
+  version: 1.0.0
+  description: Simple Kafka AsyncAPI v3 example
+servers:
+  production:
+    host: kafka.example.com:9092
+    protocol: kafka
+channels:
+  userSignedUp:
+    address: user/signedup
+    messages:
+      UserSignedUp:
+        payload:
+          type: object
+          properties:
+            userId:
+              type: string
+            email:
+              type: string
+operations:
+  publishUserSignedUp:
+    action: send
+    channel:
+      $ref: '#/channels/userSignedUp'
+    summary: Publish user signed up event
+    messages:
+      - $ref: '#/channels/userSignedUp/messages/UserSignedUp'

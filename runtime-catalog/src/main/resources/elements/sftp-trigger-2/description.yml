@@ -1,0 +1,127 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: sftp-trigger-2
+title: SFTP Trigger
+description: Checks remote file systems over the SFTP protocol
+type: trigger
+folder: triggers
+inputEnabled: false
+colorType: trigger
+outputEnabled: true
+container: false
+designParameters:
+  externalParticipantId: 'SFTP server: ##{connectUrl}'
+  externalParticipantName: 'SFTP server: ##{connectUrl}'
+  requestLineTitle: 'Download created/updated file: ##{antInclude}'
+  directionToChain: false
+  hasResponse: false
+properties:
+  common:
+    - name: connectUrl
+      title: Host:Port/Directory
+      description: Connection url
+      type: string
+      mandatory: true
+      autofocus: true
+    - name: scheduler.cron
+      title: Polling schedule (cron expression)
+      description: 'Quartz cron expression. Example (every 5 minutes): 0 */5 * ? * *'
+      type: string
+      query: true
+      mandatory: true
+  advanced:
+    - name: antInclude
+      title: File Name (mask supported)
+      type: string
+      query: true
+    - name: username
+      title: Username
+      type: string
+      query: true
+    - name: password
+      title: Password
+      description: For security purposes, use reference to secured variables when entering passwords
+      type: string
+      query: true
+    - name: idempotent
+      title: Do not download files with same filekey
+      type: boolean
+      query: true
+      default: true
+    - name: idempotentKey
+      title: Filekey string
+      type: string
+      query: true
+      default: ${file:name}-${file:size}-${file:modified}
+  hidden:
+    - name: scheduler
+      title: Scheduler type
+      type: string
+      default: quartz
+      mandatory: true
+      query: true
+    - name: scheduler.deleteJob
+      title: Scheduler deleteJob parameter
+      type: boolean
+      default: false
+      mandatory: true
+      query: true
+    - name: scheduler.triggerGroup
+      title: Scheduler triggerGroup
+      type: string
+      default: '%%{domain-placeholder}-group'
+      mandatory: true
+      query: true
+    - name: streamDownload
+      title: Stream download (big filesize)
+      default: true
+      type: boolean
+      query: true
+    - name: binary
+      title: Binary
+      description: Specifies the file transfer mode, BINARY or ASCII. Default is ASCII (false)
+      type: boolean
+      default: true
+      query: true
+    - name: autoCreate
+      title: Create directory to file
+      type: boolean
+      query: true
+      default: false
+    - name: jschLoggingLevel
+      title: jschLoggingLevel
+      type: string
+      default: OFF
+      query: true
+    - name: readLockLoggingLevel
+      title: readLockLoggingLevel
+      type: string
+      default: OFF
+      query: true
+    - name: runLoggingLevel
+      title: runLoggingLevel
+      type: string
+      default: OFF
+      query: true
+    - name: ignoreFileNotFoundOrPermissionError
+      title: ignoreFileNotFoundOrPermissionError
+      type: boolean
+      default: true
+      query: true
+    - name: useUserKnownHostsFile
+      title: useUserKnownHostsFile
+      type: boolean
+      default: false
+      query: true

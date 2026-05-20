@@ -1,0 +1,65 @@
+<setProperty name="internalProperty_contextStorage_useCorrelationId">
+    <constant>{{property 'useCorrelationId'}}</constant>
+</setProperty>
+<setProperty name="internalProperty_contextStorage_contextServiceId">
+    <simple>{{property 'contextServiceId'}}</simple>
+</setProperty>
+<setProperty name="internalProperty_contextStorage_contextId">
+    <simple>{{escape (property 'contextId')}}</simple>
+</setProperty>
+<setProperty name="internalProperty_contextStorage_operation">
+    <constant>{{property 'operation'}}</constant>
+</setProperty>
+<setProperty name="internalProperty_contextStorage_key">
+    <simple>{{escape (property 'key')}}</simple>
+</setProperty>
+<setProperty name="internalProperty_contextStorage_value">
+    <simple>{{escape (property 'value')}}</simple>
+</setProperty>
+<setProperty name="internalProperty_contextStorage_ttl">
+    <simple>{{property 'ttl'}}</simple>
+</setProperty>
+<setProperty name="internalProperty_contextStorage_keys">
+    <simple>{{escape (property 'keys')}}</simple>
+</setProperty>
+<setProperty name="internalProperty_contextStorage_target">
+    <constant>{{property 'target'}}</constant>
+</setProperty>
+<setProperty name="internalProperty_contextStorage_targetName">
+    <simple>{{escape (property 'targetName')}}</simple>
+</setProperty>
+<setProperty name="internalProperty_contextStorage_unwrap">
+    <constant>{{property 'unwrap'}}</constant>
+</setProperty>
+<doTry>
+    {{#if-property 'propagateContext' equals='true'}}
+        {{#if-property 'overrideContextParams' presented=''}}
+            <setProperty name="internalProperty_overrideContextParams">
+                <simple>{{escape (property-json 'overrideContextParams')}}</simple>
+            </setProperty>
+        {{/if-property}}
+
+        <process ref="contextPropagationProcessor"/>
+    {{/if-property}}
+
+    <process id="{{identifier}}" ref="contextStorageProcessor"/>
+
+    <process ref="contextRestoreProcessor"/>
+    <doFinally>
+        <removeProperty name="internalProperty_contextStorage_useCorrelationId"/>
+        <removeProperty name="internalProperty_contextStorage_contextServiceId"/>
+        <removeProperty name="internalProperty_contextStorage_contextId"/>
+        <removeProperty name="internalProperty_contextStorage_operation"/>
+        <removeProperty name="internalProperty_contextStorage_key"/>
+        <removeProperty name="internalProperty_contextStorage_value"/>
+        <removeProperty name="internalProperty_contextStorage_ttl"/>
+        <removeProperty name="internalProperty_contextStorage_keys"/>
+        <removeProperty name="internalProperty_contextStorage_target"/>
+        <removeProperty name="internalProperty_contextStorage_targetName"/>
+        <removeProperty name="internalProperty_contextStorage_unwrap"/>
+
+        <removeProperty name="internalProperty_overrideContextParams"/>
+        <process ref="contextRestoreProcessor"/>
+    </doFinally>
+</doTry>
+

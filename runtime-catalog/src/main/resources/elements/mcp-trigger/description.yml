@@ -1,0 +1,78 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: mcp-trigger
+title: MCP Trigger
+description: Expose integration chain as a MCP tool or resource.
+type: trigger
+folder: triggers
+inputEnabled: false
+colorType: trigger
+outputEnabled: true
+container: false
+customTabs:
+  - name: Idempotency
+    uiComponent: idempotency-parameters
+properties:
+  common:
+    - name: name
+      title: Identifier
+      type: string
+      mandatory: true
+    - name: title
+      title: Title
+      description: Human-readable name of the tool for display purposes
+      type: string
+      mandatory: false
+    - name: description
+      title: Description
+      description: Human-readable description of functionality
+      type: string
+      mandatory: true
+    - name: inputSchema
+      title: Input schema
+      description: JSON Schema defining expected parameters
+      type: string
+      mandatory: true
+      default: '{ "type": "object", "additionalProperties": false }'
+    - name: outputSchema
+      title: Output schema
+      description: Optional JSON Schema defining expected output structure
+      type: string
+      mandatory: false
+    - name: readOnly
+      title: Tool doesn't modify its environment
+      description: Indicates the tool only performs read operations and does not change any external state.
+      type: boolean
+      default: false
+    - name: destructive
+      type: boolean
+      default: false
+      title: Tool may perform destructive updates (delete/overwrite data)
+      description: Signals that the tool will modify or delete data, often used to trigger a "human-in-the-loop" (HITL) approval step.
+    - name: idempotent
+      type: boolean
+      default: false
+      title: Calling repeatedly with same args has no additional effect
+      description: Confirms that running the tool multiple times with the same inputs will produce the same result without unintended side effects.
+    - name: openWorld
+      type: boolean
+      default: false
+      title: Tool may interact with external entities beyond its local environment
+      description: Defines if the tool interacts with an unpredictable external environment (like a web search) or a closed, well-defined system.
+    - name: requiresLocal
+      type: boolean
+      default: false
+      title: Tool needs local resources or execution
+      description: A specialized hint (common in Azure MCP) indicating the tool needs local resources or execution.

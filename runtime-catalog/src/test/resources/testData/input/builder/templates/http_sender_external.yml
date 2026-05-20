@@ -1,0 +1,18 @@
+id: "aad98ac4-0ef9-4826-a201-a84b6060d55d"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "a4af88ef-fdb5-453d-9ce3-d6f20413311b"
+    name: "HTTP Sender"
+    element-type: "http-sender"
+    original-id: "c7e16f2f-763c-432c-9c5f-146805402998"
+    properties:
+      m2m: true
+      uri: "http://localhost:8080/v1/test"
+      httpMethod: "POST"
+      connectTimeout: 120000
+      isExternalCall: true
+      correlationIdName: "test_correlation_id"
+      correlationIdPosition: "Header"
+      propagateContext: true

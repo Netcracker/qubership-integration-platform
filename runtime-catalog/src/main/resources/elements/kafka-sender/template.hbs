@@ -1,0 +1,5 @@
+{{#if-property 'propagateContext' not-equals='false'}}
+    <process ref="contextPropagationProcessor"/>
+{{/if-property}}
+
+<toD id="{{identifier}}" uri="kafka:{{property 'topics'}}{{escape (query)}}&amp;kafkaClientFactory=#{{identifier}}"/>
