@@ -1,0 +1,27 @@
+<step id="{{identifier}}">
+    <doTry>
+        {{#if-property 'propagateContext' equals='true'}}
+            {{#if-property 'overrideContextParams' presented=''}}
+                <setProperty name="internalProperty_overrideContextParams">
+                    <simple>{{escape (property-json 'overrideContextParams')}}</simple>
+                </setProperty>
+            {{/if-property}}
+
+            <process ref="contextPropagationProcessor"/>
+        {{/if-property}}
+
+        <toD uri="{{property 'url'}}{{escape (query)}}"/>
+
+        <doCatch>
+            <exception>jakarta.mail.MessagingException</exception>
+            <setBody>
+                <simple>${exchangeProperty.CamelExceptionCaught.message}</simple>
+            </setBody>
+            <process ref="throwCaughtExceptionProcessor" />
+        </doCatch>
+        <doFinally>
+            <removeProperty name="internalProperty_overrideContextParams"/>
+            <process ref="contextRestoreProcessor"/>
+        </doFinally>
+    </doTry>
+</step>

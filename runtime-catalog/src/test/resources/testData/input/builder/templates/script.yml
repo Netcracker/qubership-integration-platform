@@ -1,0 +1,13 @@
+id: "cc9926c0-f32f-4dda-a0a7-1584cd6bb489"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "9e7c926e-6104-48ed-a0be-b204dbcffb9f"
+    name: "Script"
+    element-type: "script"
+    original-id: "d38e4838-a114-4aeb-b803-72063d030651"
+    properties:
+      script: "def requestBody = exchange.getMessage().getBody(String.class)\n\nif (requestBody) {\n    exchange.setProperty(\"testRequestBody\", requestBody)\n}"
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"

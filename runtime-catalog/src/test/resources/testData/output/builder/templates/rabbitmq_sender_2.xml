@@ -1,0 +1,20 @@
+<route>
+    <doTry>
+        <process ref="contextPropagationProcessor"/>
+        <process ref="messagingXHeadersPropagationProcessor"/>
+
+        <process ref="rabbitMqSenderProcessor"/>
+        <toD id="afbc0f25-e888-4716-917e-7087be19c717"
+             uri="rabbitmq-custom:test_exchange?routingKey=test_key&amp;exchangePattern=InOnly&amp;addresses=rabbitmq-main:8080&amp;username=client&amp;password=client&amp;metricsCollector=#afbc0f25-e888-4716-917e-7087be19c717"/>
+
+        <process ref="messagingXHeadersPropagationRestoreProcessor"/>
+        <setProperty name="internalProperty_enableAuthRestore">
+            <constant>true</constant>
+        </setProperty>
+        <removeProperty name ="internalProperty_enableAuthRestore"/>
+        <doFinally>
+            <removeProperty name="internalProperty_overrideContextParams"/>
+            <process ref="contextRestoreProcessor"/>
+        </doFinally>
+    </doTry>
+</route>

@@ -1,0 +1,68 @@
+<route>
+    <step id="c653b031-d1f9-4a51-a6df-331db82c3815">
+        <multicast parallelProcessing="true"
+                   aggregationStrategy="chainsAggregationStrategy"
+                   timeout="0"
+                   stopOnAggregateException="true"
+                   stopOnException="true">
+            <pipeline>
+                <setProperty name="internalProperty_splitId">
+                    <constant>main_split</constant>
+                </setProperty>
+                <setProperty name="internalProperty_splitIdChain">
+                    <simple>${exchangeProperty[internalProperty_splitIdChain]}_main_split</simple>
+                </setProperty>
+                <setProperty name="internalProperty_splitBranchType">
+                    <constant>main</constant>
+                </setProperty>
+                <step id="44694440-e9a2-488b-b2fd-d5e02257a7e2">
+                    <to uri="direct:44694440-e9a2-488b-b2fd-d5e02257a7e2"/>
+                </step>
+            </pipeline>
+            <pipeline>
+                <setProperty name="internalProperty_splitId">
+                    <constant>secondary_split_1</constant>
+                </setProperty>
+                <setProperty name="internalProperty_splitIdChain">
+                    <simple>${exchangeProperty[internalProperty_splitIdChain]}_secondary_split_1</simple>
+                </setProperty>
+                <setProperty name="internalProperty_splitBranchType">
+                    <constant>secondary</constant>
+                </setProperty>
+                <setProperty name="internalProperty_propagateHeaders">
+                    <constant>true</constant>
+                </setProperty>
+                <setProperty name="internalProperty_propagateProperties">
+                    <constant>true</constant>
+                </setProperty>
+                <step id="65b3f876-1f3c-4313-bdda-b5f7c5077027">
+                    <to uri="direct:65b3f876-1f3c-4313-bdda-b5f7c5077027"/>
+                </step>
+            </pipeline>
+            <pipeline>
+                <setProperty name="internalProperty_splitId">
+                    <constant>secondary_split_2</constant>
+                </setProperty>
+                <setProperty name="internalProperty_splitIdChain">
+                    <simple>${exchangeProperty[internalProperty_splitIdChain]}_secondary_split_2</simple>
+                </setProperty>
+                <setProperty name="internalProperty_splitBranchType">
+                    <constant>secondary</constant>
+                </setProperty>
+                <setProperty name="internalProperty_propagateHeaders">
+                    <constant>false</constant>
+                </setProperty>
+                <setProperty name="internalProperty_propagateProperties">
+                    <constant>false</constant>
+                </setProperty>
+                <step id="ef8b389b-dd2d-4a05-953a-eab341671f41">
+                    <to uri="direct:ef8b389b-dd2d-4a05-953a-eab341671f41"/>
+                </step>
+            </pipeline>
+        </multicast>
+        <transform>
+            <simple>${in.body}</simple>
+        </transform>
+        <process ref="emptyProcessor"/>
+    </step>
+</route>

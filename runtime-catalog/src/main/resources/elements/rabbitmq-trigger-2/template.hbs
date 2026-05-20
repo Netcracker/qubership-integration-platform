@@ -1,0 +1,9 @@
+<from uri="rabbitmq-custom:{{property 'exchange'}}{{escape (query)}}&amp;metricsCollector=#{{identifier}}&amp;autoDeclare=false&amp;maximumRetryAttempts=1"/>
+<setProperty name="internalProperty_acknowledgeMode">
+    <constant>{{property 'acknowledgeMode'}}</constant>
+</setProperty>
+<step id="{{identifier}}">
+    <process ref="rabbitMqTriggerProcessor"/>
+    {{> idempotency}}
+</step>
+

@@ -1,0 +1,4 @@
+<route>
+    <from uri="sftp:/ftp/test?scheduler.cron=0 */5 * ? * *&amp;antInclude=test-*.txt&amp;username=user&amp;password=user&amp;idempotent=true&amp;idempotentKey=${file:name}-${file:size}-${file:modified}&amp;scheduler=quartz&amp;scheduler.deleteJob=false&amp;scheduler.triggerGroup=%%{domain-placeholder}-group&amp;streamDownload=true&amp;binary=true&amp;autoCreate=false&amp;jschLoggingLevel=OFF&amp;readLockLoggingLevel=OFF&amp;runLoggingLevel=OFF&amp;ignoreFileNotFoundOrPermissionError=true&amp;useUserKnownHostsFile=false&amp;scheduler.triggerId=%%{deployment-id-placeholder}-45430846-ea21-48d8-a84c-c6b68aaa3cb2"/>
+    <process id="45430846-ea21-48d8-a84c-c6b68aaa3cb2" ref="sftpTriggerProcessor"/>
+</route>

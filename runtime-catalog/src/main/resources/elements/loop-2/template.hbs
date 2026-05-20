@@ -1,0 +1,56 @@
+<step id="{{identifier}}">
+    <loop
+        {{#if-property 'doWhile' presented=''}}
+          doWhile="{{property 'doWhile'}}"
+        {{/if-property}}
+        {{#if-property 'copy' presented=''}}
+          copy="{{property 'copy'}}"
+        {{/if-property}}
+    >
+        <simple>
+            {{escape (property 'expression')}}
+        </simple>
+
+        {{#if-property 'loopIndexPropertyName' not-empty=''}}
+        <setProperty name="{{property 'loopIndexPropertyName'}}">
+            <simple>${exchangeProperty.CamelLoopIndex}</simple>
+        </setProperty>
+        <doTry>
+        {{/if-property}}
+
+        <step id="Iteration--{{identifier}}">
+            {{#if-property 'maxLoopIteration' not-empty=''}}
+                <choice>
+                    <when>
+                        <simple>${exchangeProperty[CamelLoopIndex]} >= {{property 'maxLoopIteration'}}</simple>
+
+                        <throwException message="Maximum number of iterations reached" exceptionType="org.qubership.integration.platform.engine.camel.exceptions.IterationLimitException"/>
+                    </when>
+                </choice>
+            {{/if-property}}
+            <toD uri='direct:{{identifier}}'/>
+
+            <choice>
+                <when>
+                    <simple>${exchangeProperty.internalProperty_element_warning} == 'true'</simple>
+                    <setProperty name="internalProperty_loop_element_warning">
+                        <simple>${exchangeProperty.internalProperty_element_warning}</simple>
+                    </setProperty>
+                </when>
+            </choice>
+
+        </step>
+
+        {{#if-property 'loopIndexPropertyName' not-empty=''}}
+            <doFinally>
+                <removeProperty name="{{property 'loopIndexPropertyName'}}"/>
+            </doFinally>
+        </doTry>
+        {{/if-property}}
+    </loop>
+</step>
+
+<setProperty name="internalProperty_element_warning">
+    <simple>${exchangeProperty.internalProperty_loop_element_warning}</simple>
+</setProperty>
+<removeProperty name="internalProperty_loop_element_warning"/>

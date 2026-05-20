@@ -1,0 +1,83 @@
+{{#if-property 'isExternalCall' not-presented=''}}
+    <setHeader name="CamelHttpUri">
+        <simple>{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{escape (extractPathAndQuery (property 'uri'))}}</simple>
+    </setHeader>
+{{/if-property}}
+{{#if-property 'isExternalCall' presented=''}}
+    {{#if-property 'isExternalCall' equals='true'}}
+        <setHeader name="CamelHttpUri">
+            <simple>{{gatewayProtocol}}://{{gatewayUrl}}{{externalRoutePath}}{{escape (extractPathAndQuery (property 'uri'))}}</simple>
+        </setHeader>
+    {{/if-property}}
+    {{#if-property 'isExternalCall' equals='false'}}
+        <setHeader name="CamelHttpUri">
+            <simple>{{escape (property 'uri')}}</simple>
+        </setHeader>
+    {{/if-property}}
+{{/if-property}}
+{{#if-property 'correlationIdPosition' presented=''}}
+    <setProperty name="correlationIdPosition">
+        <constant>{{property 'correlationIdPosition'}}</constant>
+    </setProperty>
+{{/if-property}}
+{{#if-property 'correlationIdName' presented=''}}
+    <setProperty name="correlationIdName">
+        <constant>{{property 'correlationIdName'}}</constant>
+    </setProperty>
+
+    <process ref="correlationIdPropagationProcessor" />
+{{/if-property}}
+{{#if-property 'm2m' equals='true'}}
+    <process ref="securityProcessor"/>
+{{/if-property}}
+
+<step id="{{identifier}}">
+    <setHeader name="CamelHttpMethod">
+        <constant>{{property 'httpMethod'}}</constant>
+    </setHeader>
+
+    <doTry>
+        <process ref="httpSenderProcessor"/>
+
+        {{#if-property 'propagateContext' equals='true'}}
+            {{#if-property 'overrideContextParams' presented=''}}
+                <setProperty name="internalProperty_overrideContextParams">
+                    <simple>{{escape (property-json 'overrideContextParams')}}</simple>
+                </setProperty>
+            {{/if-property}}
+
+            <process ref="contextPropagationProcessor"/>
+        {{/if-property}}
+        <process ref="httpProducerCharsetProcessor"/>
+        <toD uri="http:stub{{escape (query)}}{{#if-property 'connectTimeout' not-empty=''}}&amp;connectionRequestTimeout={{property 'connectTimeout'}}&amp;soTimeout={{property 'connectTimeout'}}&amp;responseTimeout={{property 'connectTimeout'}}{{/if-property}}&amp;httpClientConfigurer=#{{identifier}}&amp;followRedirects=true" allowOptimisedComponents="false"/>
+
+        {{#if-property 'correlationIdName' presented=''}}
+            <process ref="correlationIdReceiverProcessor" />
+        {{/if-property}}
+
+        <doCatch>
+            <exception>java.lang.Exception</exception>
+
+            <choice>
+                <when>
+                    <simple>${exception} is 'org.apache.camel.http.base.HttpOperationFailedException'</simple>
+
+                    <setHeader name="CamelHttpResponseCode">
+                        <simple>${exchangeProperty.CamelExceptionCaught.statusCode}</simple>
+                    </setHeader>
+                    <process ref="setCaughtHttpExceptionContextProcessor"/>
+                </when>
+            </choice>
+
+            <process ref="throwCaughtExceptionProcessor"/>
+        </doCatch>
+        <doFinally>
+            <removeProperty name="internalProperty_overrideContextParams"/>
+            <process ref="contextRestoreProcessor"/>
+            {{#if-property 'm2m' equals='true'}}
+                <process ref="securityRestoreProcessor"/>
+            {{/if-property}}
+        </doFinally>
+    </doTry>
+</step>
+<removeHeader name="CamelHttpUri"/>

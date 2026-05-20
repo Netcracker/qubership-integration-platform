@@ -1,0 +1,16 @@
+<setProperty name="internalProperty_logRecord_logLevel">
+    <simple>{{escape (property 'logLevel')}}</simple>
+</setProperty>
+<setProperty name="internalProperty_logRecord_sender">
+    <simple>{{escape (property 'sender')}}</simple>
+</setProperty>
+<setProperty name="internalProperty_logRecord_receiver">
+    <simple>{{escape (property 'receiver')}}</simple>
+</setProperty>
+<setProperty name="internalProperty_logRecord_businessIdentifiers">
+    <constant>{{escape (property-json 'businessIdentifiers')}}</constant>
+</setProperty>
+<setProperty name="internalProperty_logRecord_message">
+    <simple>{{escape (property 'message')}}</simple>
+</setProperty>
+<process id="{{identifier}}" ref="logRecordProcessor"/>

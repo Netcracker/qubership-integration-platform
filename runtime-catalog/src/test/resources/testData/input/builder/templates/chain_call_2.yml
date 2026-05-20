@@ -1,0 +1,15 @@
+id: "05e99714-660f-4621-817c-71bd11c972da"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "88408eb3-9f7c-4fd3-9f90-c3ee9be45347"
+    name: "Chain Call"
+    element-type: "chain-call-2"
+    original-id: "9c45c681-bf20-4acc-a4a0-4da8260e0615"
+    properties:
+      timeout: "30000"
+      chainName: "New Chain"
+      elementId: "3a0a790b-2f10-429c-8334-50d23af3a2cf"
+      block: "true"
+      failIfNoConsumers: "false"
