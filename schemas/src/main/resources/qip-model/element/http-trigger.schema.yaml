@@ -1,0 +1,143 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/http-trigger.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: Http Trigger
+description: >
+  HTTP Trigger provides an HTTP endpoint for consuming arriving HTTP requests.
+properties:
+  type:
+    type: string
+    const: http-trigger
+  properties:
+    type: object
+    allOf:
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/correlation-id.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/access-control-properties.schema.yaml"
+      - oneOf:
+          - $ref: "#/definitions/CustomEndpoint"
+          - $ref: "#/definitions/ImplementedServiceEndpoint"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/validation-failure-handler-properties.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/chain-failure-handler-properties.schema.yaml"
+    properties:
+      chunked:
+        type: boolean
+        default: true
+        title: Chunked
+        description: >
+          If this option is false the Servlet will disable the HTTP streaming
+          and set the content-length header on the response.
+      externalRoute:
+        type: boolean
+        default: true
+        title: External route
+        description: >
+          If checked, HTTP trigger will be registered as "external" on public
+          gateway.
+          Checkbox is inactive when default route registration is disabled in
+          global environment settings.
+      privateRoute:
+        type: boolean
+        default: false
+        title: Private route
+        description: >
+          If checked, HTTP trigger will be registered as "Private" on private
+          gateway.
+          Checkbox is inactive when default route registration is disabled in
+          global environment settings.
+      responseFilter:
+        type: boolean
+        title: Response filter
+        description: >
+          Turns on ability to handle additional query parameters "fields" and
+          "excludeFields" to include only specific fields in response
+          or exclude them from there. This is only supported for responses
+          in JSON.
+      connectTimeout:
+        oneOf:
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/simple-expression.schema.yaml"
+        title: Connection timeout (ms)
+        description: >
+          Specifies connection timeout in millis (default value will be used
+          if nothing is given).
+        default: 120000
+      killSessionOnTimeout:
+        type: boolean
+        default: false
+        title: Terminate session on connection timeout
+        description: >
+          If checked, connection timeout will trigger session termination
+          process. Chain session might not be finished.
+      rejectRequestIfNonNullBodyGetDelete:
+        type: boolean
+        default: true
+        title: Reject request if body is not empty for GET, DELETE methods
+        description: >
+          Incoming request will be rejected with an error,
+          if body is received for GET and DELETE methods.
+      allowedContentTypes:
+        type: array
+        items:
+          type: string
+        title: Allowed Content Types
+        description: If no content types defined - validation disabled.
+      validationSchema:
+        type: string
+        title: Scheme
+        description: Schema for input message validation.
+      httpBinding:
+        type: string
+        default: handlingHttpBinding
+definitions:
+  CustomEndpoint:
+    title: Custom
+    type: object
+    properties:
+      contextPath:
+        type: string
+        title: URI
+      httpMethodRestrict:
+        type: string
+        title: HTTP Methods
+        pattern: "^$|^(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS)(,(POST|GET|PUT|DELETE|PATCH|HEAD|OPTIONS))*$"
+    required:
+      - contextPath
+  ImplementedServiceEndpoint:
+    title: Implemented Service
+    type: object
+    properties:
+      integrationOperationId:
+        type: string
+        title: Operation ID
+      integrationSpecificationGroupId:
+        type: string
+        title: Specification group ID
+      integrationSpecificationId:
+        type: string
+        title: Specification ID
+      integrationSystemId:
+        type: string
+        title: Service ID
+      systemType:
+        title: Service type
+        $ref: "http://qubership.org/schemas/product/qip/common-properties/service-type.schema.yaml"
+      httpMethodRestrict:
+        type: string
+        title: Operation method
+      integrationOperationPath:
+        type: string
+        title: Operation name
+    required:
+      - integrationOperationId
+      - integrationSpecificationGroupId
+      - integrationSpecificationId
+      - integrationSystemId
+      - systemType
+      - integrationOperationPath
+      - httpMethodRestrict
+required:
+  - type

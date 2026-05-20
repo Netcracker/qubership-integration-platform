@@ -1,0 +1,8 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/properties/headers.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: Headers
+patternProperties:
+  "^.+$":
+    type: string

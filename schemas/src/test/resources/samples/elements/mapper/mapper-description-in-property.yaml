@@ -1,0 +1,217 @@
+# $schema: http://qubership.org/schemas/product/qip/element/mapper-2.schema.yaml
+{
+  "id": "cb1750c3-e3b9-43ef-99f1-d12ad124c0fb",
+  "name": "Mapper",
+  "createdWhen": 1752569827168,
+  "createdBy": {
+    "id": "0",
+    "username": "developer"
+  },
+  "modifiedWhen": 1752569957009,
+  "modifiedBy": {
+    "id": "0",
+    "username": "developer"
+  },
+  "type": "mapper-2",
+  "properties": {
+    "mappingDescription": {
+      "source": {
+        "headers": [
+          {
+            "name": "foo",
+            "id": "3fa4ca6aa5b145079bbb541983b2a878",
+            "type": {
+              "name": "string"
+            },
+            "required": false
+          }
+        ],
+        "body": {
+          "schema": {
+            "attributes": [
+              {
+                "name": "name",
+                "id": "1411cb3e5ffb4ea59872dee84ad2d86a",
+                "type": {
+                  "name": "string"
+                },
+                "required": true
+              }
+            ],
+            "id": "657c7c0ae57146bd9dde5edba4d8e6bd"
+          },
+          "metadata": {
+            "dataFormat": "JSON"
+          },
+          "name": "object",
+          "definitions": []
+        },
+        "properties": [
+          {
+            "name": "a",
+            "id": "e0eab262cb734e52b7056478988fac96",
+            "type": {
+              "name": "string"
+            },
+            "required": false
+          }
+        ]
+      },
+      "constants": [
+        {
+          "name": "timestamp",
+          "id": "7773673e83ae4f7e80aae10f1f214eda",
+          "valueSupplier": {
+            "kind": "generated",
+            "generator": {
+              "name": "currentDateTime",
+              "parameters": [
+                "false",
+                "yyyy-MM-dd'T'HH:mm:ss.SSS",
+                "",
+                ""
+              ]
+            }
+          },
+          "type": {
+            "name": "string"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "sources": [
+            {
+              "constantId": "7773673e83ae4f7e80aae10f1f214eda",
+              "type": "constant"
+            }
+          ],
+          "id": "6b3785bbf49443bda06d1837828980ab",
+          "target": {
+            "path": [
+              "e3863b48b8ef4a3d8a1dae359981b4c7"
+            ],
+            "kind": "body",
+            "type": "attribute"
+          }
+        },
+        {
+          "metadata": {},
+          "sources": [
+            {
+              "path": [
+                "1411cb3e5ffb4ea59872dee84ad2d86a"
+              ],
+              "kind": "body",
+              "type": "attribute"
+            }
+          ],
+          "id": "8a0707e6837c47d69814233a910d64b0",
+          "transformation": {
+            "name": "expression",
+            "parameters": [
+              "'Hello, ' + body.name + '!'"
+            ]
+          },
+          "target": {
+            "path": [
+              "72904f65fea04d17a013b4301d39614b"
+            ],
+            "kind": "body",
+            "type": "attribute"
+          }
+        },
+        {
+          "sources": [
+            {
+              "path": [
+                "3fa4ca6aa5b145079bbb541983b2a878"
+              ],
+              "kind": "header",
+              "type": "attribute"
+            }
+          ],
+          "id": "101c349623ff4091a1f95417357d5e3e",
+          "target": {
+            "path": [
+              "1ef864f6bd614427826d4780fe32fe9b"
+            ],
+            "kind": "header",
+            "type": "attribute"
+          }
+        },
+        {
+          "sources": [
+            {
+              "path": [
+                "e0eab262cb734e52b7056478988fac96"
+              ],
+              "kind": "property",
+              "type": "attribute"
+            }
+          ],
+          "id": "e1e09ed3bc9a442c8da7723a0faf2b40",
+          "target": {
+            "path": [
+              "d34b7e57f13f4b5884f3790375481a2c"
+            ],
+            "kind": "property",
+            "type": "attribute"
+          }
+        }
+      ],
+      "target": {
+        "headers": [
+          {
+            "name": "foo",
+            "id": "1ef864f6bd614427826d4780fe32fe9b",
+            "type": {
+              "name": "string"
+            },
+            "required": false
+          }
+        ],
+        "body": {
+          "schema": {
+            "attributes": [
+              {
+                "name": "message",
+                "id": "72904f65fea04d17a013b4301d39614b",
+                "type": {
+                  "name": "string"
+                },
+                "required": false
+              },
+              {
+                "name": "timestamp",
+                "id": "e3863b48b8ef4a3d8a1dae359981b4c7",
+                "type": {
+                  "name": "string"
+                },
+                "required": false
+              }
+            ],
+            "id": "0d62b2b8455f4c62998d3c133fa5ffc9"
+          },
+          "metadata": {
+            "dataFormat": "JSON"
+          },
+          "name": "object",
+          "definitions": []
+        },
+        "properties": [
+          {
+            "name": "b",
+            "id": "d34b7e57f13f4b5884f3790375481a2c",
+            "type": {
+              "name": "string"
+            },
+            "required": false
+          }
+        ]
+      }
+    },
+    "throwException": true
+  },
+  "description": "Mapper example"
+}

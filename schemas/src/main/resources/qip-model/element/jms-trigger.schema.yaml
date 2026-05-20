@@ -1,0 +1,65 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/jms-trigger.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: JMS Trigger
+properties:
+  type:
+    type: string
+    const: jms-trigger
+  properties:
+    type: object
+    allOf:
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml"
+    properties:
+      initialContextFactory:
+        type: string
+        title: Initial context factory
+        description: JNDI initial context factory
+      providerUrl:
+        type: string
+        title: Provider URL
+        description: JNDI service provider URL
+      connectionFactoryName:
+        type: string
+        title: Connection factory
+        description: JMS connection factory object name for lookup via JNDI
+      destinationName:
+        type: string
+        title: Destination
+        description: JMS queue or topic object name for lookup via JNDI
+      destinationType:
+        enum:
+          - queue
+          - topic
+        title: Type
+        description: Destination type
+        default: queue
+      acknowledgmentMode:
+        enum:
+          - AUTO_ACKNOWLEDGE
+          - CLIENT_ACKNOWLEDGE
+          - DUPS_OK_ACKNOWLEDGE
+          - SESSION_TRANSACTED
+        title: Acknowledgment mode
+        description: The JMS acknowledgement mode
+        default: AUTO_ACKNOWLEDGE
+      username:
+        type: string
+        title: Username
+      password:
+        type: string
+        title: Password
+        description: For security purposes, use reference to secured variables when entering passwords
+    required:
+      - initialContextFactory
+      - providerUrl
+      - connectionFactoryName
+      - destinationName
+      - destinationType
+      - acknowledgmentMode
+    additionalProperties: false
+required:
+  - type

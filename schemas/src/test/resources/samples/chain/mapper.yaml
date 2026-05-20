@@ -1,0 +1,19 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "50235b71-6c48-43d3-abf0-b9c11ac6e81e"
+name: "Mapper"
+content:
+  modifiedWhen: 1752569957009
+  maskingEnabled: false
+  elements:
+  - id: "cb1750c3-e3b9-43ef-99f1-d12ad124c0fb"
+    name: "Mapper"
+    type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesFilename: "mappingDescription-cb1750c3-e3b9-43ef-99f1-d12ad124c0fb.json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: true
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

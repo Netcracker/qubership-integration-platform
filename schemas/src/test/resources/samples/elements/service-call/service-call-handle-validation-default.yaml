@@ -1,0 +1,25 @@
+# $schema: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
+id: "id"
+name: "name"
+type: "service-call"
+properties:
+  afterValidation: []
+  authorizationConfiguration:
+    type: "m2m"
+  bodyFormData: []
+  bodyMimeType: "None"
+  errorThrowing: true
+  handleValidationAction: "default"
+#  handlerContainer: {}
+  integrationOperationId: "integrationOperationId"
+  integrationOperationMethod: "GET"
+  integrationOperationPath: "/api/v1/integrationOperationPath"
+  integrationOperationProtocolType: "http"
+  integrationOperationQueryParameters: {}
+  integrationSpecificationGroupId: "integrationSpecificationGroupId"
+  integrationSpecificationId: "integrationSpecificationId"
+  integrationSystemId: "integrationSystemId"
+  propagateContext: true
+  retryCount: "1"
+  retryDelay: 5000
+  systemType: "INTERNAL"

@@ -1,0 +1,75 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/mcp-trigger.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: MCP Trigger
+description: Expose integration chain as a MCP tool or resource.
+properties:
+  type:
+    type: string
+    const: mcp-trigger
+  properties:
+    type: object
+    allOf:
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml"
+    properties:
+      mcpServiceIds:
+        type: array
+        items:
+          type: string
+          title: MCP service
+          description: MCP service
+        title: MCP services
+        description: MCP services
+        minItems: 1
+      name:
+        type: string
+        title: Identifier
+        description: Unique identifier for the tool
+        pattern: "^[\\.\\-_0-9a-zA-Z]{1,128}$"
+      title:
+        type: string
+        title: Title
+        description: Human-readable name of the tool for display purposes
+      description:
+        type: string
+        title: Description
+        description: Human-readable description of functionality
+      inputSchema:
+        type: string
+        title: Input schema
+        description: JSON Schema defining expected parameters
+        default: '{ "type": "object", "additionalProperties": false }'
+      outputSchema:
+        type: string
+        title: Output schema
+        description: Optional JSON Schema defining expected output structure
+      readOnly:
+        type: boolean
+        default: false
+        title: Tool doesn't modify its environment
+        description: Indicates the tool only performs read operations and does not change any external state.
+      destructive:
+        type: boolean
+        default: false
+        title: Tool may perform destructive updates (delete/overwrite data)
+        description: Signals that the tool will modify or delete data, often used to trigger a "human-in-the-loop" (HITL) approval step.
+      idempotent:
+        type: boolean
+        default: false
+        title: Calling repeatedly with same args has no additional effect
+        description: Confirms that running the tool multiple times with the same inputs will produce the same result without unintended side effects.
+      openWorld:
+        type: boolean
+        default: false
+        title: Tool may interact with external entities beyond its local environment
+        description: Defines if the tool interacts with an unpredictable external environment (like a web search) or a closed, well-defined system.
+    required:
+      - mcpServiceIds
+      - name
+      - description
+      - inputSchema
+required:
+  - type

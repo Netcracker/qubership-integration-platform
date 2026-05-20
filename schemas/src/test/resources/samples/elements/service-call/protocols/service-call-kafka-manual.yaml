@@ -1,0 +1,24 @@
+# $schema: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
+id: "e9dcb2d1-bef8-49c7-9ad4-5916fa035739"
+name: "Service Call kafka-manual"
+type: "service-call"
+properties:
+  after: []
+  afterValidation: []
+  errorThrowing: true
+  handleValidationAction: "default"
+  integrationGqlQueryHeader: "CamelGraphQLQuery"
+  integrationGqlVariablesHeader: "CamelGraphQLVariables"
+  integrationOperationAsyncProperties: {}
+  integrationOperationId: "ea0034d2-f02d-40a0-ac0c-259b6272ca0a-async-kafka-1.0.0-publishUserSignedUp"
+  integrationOperationMethod: "publish"
+  integrationOperationPath: "user.signedup"
+  integrationOperationProtocolType: "kafka"
+  integrationOperationSkipEmptyQueryParameters: false
+  integrationSpecificationGroupId: "ea0034d2-f02d-40a0-ac0c-259b6272ca0a-async-kafka"
+  integrationSpecificationId: "ea0034d2-f02d-40a0-ac0c-259b6272ca0a-async-kafka-1.0.0"
+  integrationSystemId: "ea0034d2-f02d-40a0-ac0c-259b6272ca0a"
+  propagateContext: true
+  retryCount: 0
+  retryDelay: 5000
+  systemType: "INTERNAL"

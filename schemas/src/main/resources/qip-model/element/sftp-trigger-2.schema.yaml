@@ -1,0 +1,93 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/sftp-trigger-2.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: SFTP Trigger
+properties:
+  type:
+    type: string
+    const: sftp-trigger-2
+  properties:
+    type: object
+    properties:
+      connectUrl:
+        type: string
+        title: Host:Port/Directory
+        description: Connection url
+      antInclude:
+        type: string
+        title: File Name (mask supported)
+      binary:
+        type: boolean
+        title: Binary
+        description: >
+          Specifies the file transfer mode, BINARY or ASCII.
+          Default is ASCII (false).
+        default: true
+      idempotent:
+        type: boolean
+        title: Do not download files with same filekey
+        default: false
+      idempotentKey:
+        type: string
+        title: Filekey string
+        default: ${file:name}-${file:size}-${file:modified}
+      ignoreFileNotFoundOrPermissionError:
+        type: boolean
+        default: true
+        title: Ignore file not found or permission error
+      jschLoggingLevel:
+        type: string
+        default: OFF
+        title: JSCH logging level
+      password:
+        type: string
+        title: Password
+        description: >
+          For security purposes, use reference to secured variables when
+          entering passwords.
+      readLockLoggingLevel:
+        type: string
+        default: OFF
+        title: ReadLock logging level
+      runLoggingLevel:
+        type: string
+        title: Run logging level
+      scheduler:
+        type: string
+        title: Scheduler type
+        default: quartz
+      scheduler.cron:
+        type: string
+        title: Polling schedule (cron expression)
+      scheduler.deleteJob:
+        type: boolean
+        title: Scheduler deleteJob parameter
+        default: false
+      scheduler.triggerGroup:
+        type: string
+        title: Scheduler triggerGroup
+        default: "%%{domain-placeholder}-group"
+      streamDownload:
+        type: boolean
+        title: Stream download (big filesize)
+        default: true
+      username:
+        type: string
+        title: Username
+      useUserKnownHostsFile:
+        type: boolean
+        default: false
+        title: User knows hosts file
+      autoCreate:
+        type: boolean
+        title: Create directory to file
+        default: false
+    required:
+      - connectUrl
+      - scheduler.cron
+    additionalProperties: false
+required:
+  - type

@@ -1,0 +1,20 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "38c8d837-981b-4c3d-b4a1-1b8ef489a535"
+name: "Header Modification"
+content:
+  modifiedWhen: 1752239998698
+  maskingEnabled: false
+  elements:
+  - id: "308ba56e-cfea-4a1a-9376-ea8e3bf77a36"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        bar: "baz"
+        foo: ""
+      headerModificationToRemove:
+      - ".*"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

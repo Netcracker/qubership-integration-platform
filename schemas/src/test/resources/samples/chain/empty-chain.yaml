@@ -1,0 +1,18 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "f15c29d9-89c6-46ad-a2f3-82533534e319"
+name: "Empty Chain"
+content:
+  description: "An empty chain"
+  modifiedWhen: 1751973966050
+  businessDescription: "A placeholder for business description"
+  assumptions: "A placeholder for assumptions"
+  outOfScope: "A placeholder for out-of-scope info"
+  labels:
+  - "test"
+  - "empty"
+  maskingEnabled: false
+  maskedFields:
+  - id: "2dff0c99-5fdd-451d-9bb6-3fc1326cd448"
+    name: "foo"
+  migrations: "[100, 101]"

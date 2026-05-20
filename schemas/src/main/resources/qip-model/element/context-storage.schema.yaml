@@ -1,0 +1,99 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/context-storage.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: Context Storage
+properties:
+  type:
+    type: string
+    const: context-storage
+  properties:
+    type: object
+    properties:
+      contextServiceId:
+        type: string
+        title: Context Service
+      useCorrelationId:
+        type: boolean
+        title: Use correlation ID as context ID
+      operation:
+        type: string
+        oneOf: [
+          {
+            "const": "SET",
+            "title": "Create context"
+          },
+          {
+            "const": "GET",
+            "title": "Get context"
+          },
+          {
+            "const": "DELETE",
+            "title": "Delete context"
+          }
+        ]
+        title: Operation
+    allOf:
+      - if:
+          properties:
+            useCorrelationId:
+              const: false
+        then:
+          properties:
+            contextId:
+              type: string
+              title: Context ID
+          required:
+            - contextId
+      - if:
+          properties:
+            operation:
+              const: SET
+        then:
+          properties:
+            key:
+              type: string
+              title: Key
+            value:
+              type: string
+              title: Value
+            ttl:
+              type: integer
+              title: Lifetime (s)
+              description: Session context life time (in seconds).
+          required:
+            - key
+            - value
+        else:
+          if:
+            properties:
+              operation:
+                const: GET
+          then:
+            properties:
+              keys:
+                type: string
+                title: Keys
+              target:
+                type: string
+                enum:
+                  - BODY
+                  - HEADER
+                  - PROPERTY
+                title: Target
+              targetName:
+                type: string
+                title: Target field's name
+              unwrap:
+                type: boolean
+                title: Unwrap
+            required:
+              - target
+    required:
+      - contextServiceId
+      - useCorrelationId
+      - operation
+required:
+  - type

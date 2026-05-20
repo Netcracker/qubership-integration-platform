@@ -1,0 +1,3 @@
+# $schema: http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml
+idempotency:
+  enabled: false

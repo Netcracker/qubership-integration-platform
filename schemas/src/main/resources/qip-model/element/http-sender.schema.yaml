@@ -1,0 +1,46 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/http-sender.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: Http Sender
+properties:
+  type:
+    type: string
+    const: http-sender
+  properties:
+    type: object
+    allOf:
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/correlation-id.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/context-propagation.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/http-call-common.schema.yaml"
+    properties:
+      httpMethod:
+        title: HTTP Method
+        description: HTTP method
+        $ref: "#/definitions/HttpMethod"
+      connectTimeout:
+        allOf:
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
+        title: Connection timeout (ms)
+        description: >
+          Specifies connection timeout in millis
+          (default value will be used if nothing is given).
+        default: 120000
+      uri:
+        title: URI
+    required:
+      - httpMethod
+definitions:
+  HttpMethod:
+    enum:
+      - POST
+      - GET
+      - PUT
+      - DELETE
+      - PATCH
+      - HEAD
+      - OPTIONS
+required:
+  - type

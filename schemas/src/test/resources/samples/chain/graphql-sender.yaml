@@ -1,0 +1,28 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "f22ef645-1087-4002-a37e-f2d0eae81bf9"
+name: "GraphQL Sender"
+content:
+  modifiedWhen: 1752226497486
+  maskingEnabled: false
+  elements:
+  - id: "de49c666-dfea-4ca7-9310-6f269b90ee06"
+    name: "GraphQL Sender"
+    type: "graphql-sender"
+    properties:
+      isExternalCall: true
+      m2m: true
+      operationName: "sdfsdf"
+      overrideContextParams:
+        sdfsdf: "sdfsdfs"
+        wqerwq: "qweqwe"
+      propagateContext: true
+      query: "{}"
+      queryHeader: "CamelGraphQLQuery"
+      reuseEstablishedConnection: true
+      uri: "localhost:666"
+      variablesHeader: "CamelGraphQLVariables"
+      variablesJSON: "{\n    \"foo\": \"bar\"\n}"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

@@ -1,0 +1,27 @@
+# $schema: http://qubership.org/schemas/product/qip/element/rabbitmq-trigger-2.schema.yaml
+id: "935da466-0e8d-4077-9ec0-18a8eb727e41"
+name: "RabbitMQ Trigger"
+type: "rabbitmq-trigger-2"
+properties:
+  acknowledgeMode: "AUTO"
+  actionOnDuplicate: "ignore"
+  addresses: "localhost"
+  chainCallTimeout: 30000
+  connectionSourceType: "manual"
+  deadLetterExchange: "biz"
+  deadLetterExchangeType: "direct"
+  deadLetterQueue: "qux"
+  deadLetterRoutingKey: "gee"
+  enableIdempotency: false
+  exchange: "default"
+  exchangeType: "direct"
+  idempotency:
+    enabled: true
+    keyExpiry: 600
+    keyExpression: "${header.key}"
+    contextExpression: "${header.context}"
+  idempotencyKeyExpiry: 600
+  password: "bar"
+  queues: "bar"
+  routingKey: "baz"
+  username: "foo"

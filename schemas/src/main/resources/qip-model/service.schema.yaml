@@ -1,0 +1,79 @@
+---
+$id: http://qubership.org/schemas/product/qip/service.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/common-properties/top-level-entity-properties.schema.yaml"
+title: Service
+properties:
+  content:
+    type: object
+    allOf:
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/description-property.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/labels-property.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/migrations-property.schema.yaml"
+    properties:
+      activeEnvironmentId:
+        type: string
+        title: Active environment ID
+      integrationSystemType:
+        title: Integration system type
+        $ref: "http://qubership.org/schemas/product/qip/common-properties/service-type.schema.yaml"
+      protocol:
+        title: Protocol
+        $ref: "#/definitions/Protocol"
+      environments:
+        type: array
+        title: Environments
+        items:
+          $ref: "#/definitions/Environment"
+    required:
+      - integrationSystemType
+      - protocol
+      - environments
+required:
+  - content
+definitions:
+  Protocol:
+    enum:
+      - HTTP
+      - AMQP
+      - KAFKA
+      - SOAP
+      - GRAPHQL
+      - METAMODEL
+      - GRPC
+  SourceType:
+    enum:
+      - MANUAL
+      - MAAS_BY_CLASSIFIER
+  Environment:
+    type: object
+    allOf:
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/description-property.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/labels-property.schema.yaml"
+    properties:
+      id:
+        type: string
+        title: Identifier
+      name:
+        type: string
+        title: Name
+      address:
+        type: string
+      sourceType:
+        $ref: "#/definitions/SourceType"
+      properties:
+        type: object
+      additionalProperties: true
+    required:
+      - id
+      - name
+      - sourceType
+    if:
+      properties:
+        sourceType:
+          const: MANUAL
+    then:
+      required:
+        - address

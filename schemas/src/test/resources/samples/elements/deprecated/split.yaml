@@ -1,0 +1,24 @@
+# $schema: http://qubership.org/schemas/product/qip/element/split.schema.yaml
+id: "16cb1585-f297-4516-9b0f-4fd49bf2e896"
+name: "Split (deprecated)"
+type: "split"
+children:
+  - id: "1019d08e-05c7-4fa1-bf74-e336658a302b"
+    name: "Split Element"
+    type: "split-element"
+    properties:
+      propagateHeaders: false
+      propagateProperties: false
+      splitName: "name"
+  - id: "68ef3fc7-135a-4eb4-84e5-816e0f5f044f"
+    name: "Main Split Element"
+    type: "main-split-element"
+    properties:
+      splitName: "main"
+  - id: "9930fc10-feed-4f84-98d1-980bbcde038b"
+    name: "Split Result"
+    type: "split-result"
+properties:
+  aggregationStrategy: "chainsAggregationStrategy"
+  stopOnException: true
+  timeout: 0

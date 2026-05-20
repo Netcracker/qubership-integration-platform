@@ -1,0 +1,17 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "04454195-0a73-4601-aea7-926d1b30d42b"
+name: "Quartz Scheduler"
+content:
+  modifiedWhen: 1752499215755
+  maskingEnabled: false
+  elements:
+  - id: "35593210-5969-44b2-9833-dd9d2934ce89"
+    name: "Scheduler"
+    type: "quartz-scheduler"
+    properties:
+      cron: "0 */5 * ? * *"
+      deleteJob: false
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

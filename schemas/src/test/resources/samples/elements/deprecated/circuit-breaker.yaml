@@ -1,0 +1,21 @@
+# $schema: http://qubership.org/schemas/product/qip/element/circuit-breaker.schema.yaml
+id: "bc966a29-47cf-4547-af85-76d550f38438"
+name: "Circuit Breaker (deprecated)"
+type: "circuit-breaker"
+children:
+- id: "48a16a5c-9f63-4fc3-a986-e09f6307fdc4"
+  name: "On fallback"
+  type: "on-fallback"
+- id: "756f4e33-0054-4670-ae69-caeec30cba8c"
+  name: "Circuit Breaker Configuration"
+  type: "circuit-breaker-configuration"
+  properties:
+    automaticTransitionFromOpenToHalfOpenEnabled: false
+    failureRateThreshold: 50
+    minimumNumberOfCalls: 100
+    permittedNumberOfCallsInHalfOpenState: 10
+    slidingWindowSize: 100
+    slidingWindowType: "COUNT_BASED"
+    slowCallDurationThreshold: 60
+    slowCallRateThreshold: 100
+    waitDurationInOpenState: 60

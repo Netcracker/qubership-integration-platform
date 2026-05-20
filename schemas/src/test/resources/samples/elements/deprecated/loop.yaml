@@ -1,0 +1,10 @@
+# $schema: http://qubership.org/schemas/product/qip/element/loop.schema.yaml
+id: "282b31e4-10a7-4ba1-9733-0e2437771802"
+name: "Loop (deprecated)"
+type: "loop"
+children:
+  - id: "39dd2308-c302-4b41-990f-633767b22356"
+    name: "Loop Expression"
+    type: "loop-expression"
+    properties:
+      expression: "false"

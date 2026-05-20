@@ -1,0 +1,182 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: Service Call
+description: Make a call to a service registered in API Repository.
+properties:
+  type:
+    type: string
+    const: service-call
+  properties:
+    type: object
+    allOf:
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/operation.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/correlation-id.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/context-propagation.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/validation-failure-handler-properties.schema.yaml"
+    properties:
+      errorThrowing:
+        type: boolean
+      retryCount:
+        oneOf:
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/simple-expression.schema.yaml"
+        default: 0
+        title: Retry count
+        description: >
+          Specifies number of retries for the call before it considers as failed.
+      retryDelay:
+        oneOf:
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/simple-expression.schema.yaml"
+        default: 5000
+        title: Retry delay (ms)
+        description: Specifies delay between retries in millis.
+      before:
+        title: Action
+        $ref: "#/definitions/ExchangeTransformation"
+      after:
+        type: array
+        title: Response Handlers
+        items:
+          $ref: "#/definitions/ResponseHandler"
+      authorizationConfiguration:
+        title: Authorization type
+        oneOf:
+          - $ref: "#/definitions/AuthorizationInherit"
+          - $ref: "#/definitions/AuthorizationNone"
+          - $ref: "#/definitions/AuthorizationBasic"
+          - $ref: "#/definitions/AuthorizationBearerToken"
+          - $ref: "#/definitions/AuthorizationM2MToken"
+    required:
+      - retryCount
+      - retryDelay
+    if:
+      properties:
+        integrationOperationProtocolType:
+          const: http
+    then:
+      properties:
+        afterValidation:
+          type: array
+          items:
+            $ref: "#/definitions/ResponseValidation"
+        integrationOperationSkipEmptyQueryParameters:
+          type: boolean
+          default: false
+          title: Skip empty query parameters
+          description: >
+            If checked, empty query parameters will be excluded from the request URL.
+definitions:
+  AuthorizationInherit:
+    title: Inherit
+    type: object
+    description: "Authorization will be inherited from exchange header"
+    properties:
+      type:
+        const: inherit
+  AuthorizationNone:
+    title: None
+    type: object
+    description: "Authorization will be deleted from exchange header"
+    properties:
+      type:
+        const: none
+  AuthorizationBasic:
+    title: Basic Auth
+    type: object
+    properties:
+      type:
+        const: basic
+      data:
+        type: object
+        properties:
+          username:
+            title: Username
+            type: string
+          password:
+            title: Password
+            type: string
+        required:
+          - username
+          - password
+  AuthorizationBearerToken:
+    title: Bearer Token
+    type: object
+    properties:
+      type:
+        const: bearer
+      data:
+        type: object
+        properties:
+          token:
+            title: Token
+            type: string
+        required:
+          - token
+  AuthorizationM2MToken:
+    title: M2M Token
+    type: object
+    description: "Authorization header will be replaced on the generated machine to machine token"
+    properties:
+      type:
+        const: m2m
+  ResponseValidation:
+    type: object
+    properties:
+      code:
+        type: string
+      contentType:
+        type: string
+      id:
+        type: string
+      label:
+        type: string
+      schema:
+        type: string
+      type:
+        const: responseValidation
+  ExchangeTransformation:
+    oneOf:
+      - type: object
+        title: None
+        properties:
+          type:
+            anyOf:
+              - const: "none"
+              - not: {}
+      - type: object
+        title: Mapper
+        allOf:
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-mapper.schema.yaml"
+        properties:
+          type:
+            const: "mapper-2"
+        required:
+          - type
+      - type: object
+        title: Scripting
+        allOf:
+          - $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-script.schema.yaml"
+        properties:
+          type:
+            const: "script"
+        required:
+          - type
+  ResponseHandler:
+    type: object
+    $ref: "#/definitions/ExchangeTransformation"
+    properties:
+      id:
+        type: string
+      code:
+        type: string
+      label:
+        type: string
+      wildcard:
+        type: boolean
+required:
+  - type

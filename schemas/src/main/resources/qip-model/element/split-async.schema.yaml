@@ -1,0 +1,19 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/split-async.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: Split Async (deprecated)
+properties:
+  type:
+    type: string
+    const: split-async
+  children:
+    type: array
+    items:
+      anyOf:
+        - $ref: "http://qubership.org/schemas/product/qip/element/sync-split-element.schema.yaml"
+        - $ref: "http://qubership.org/schemas/product/qip/element/async-split-element.schema.yaml"
+required:
+  - type

@@ -1,0 +1,23 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: Common element properties
+properties:
+  id:
+    type: string
+    title: Identifier
+  name:
+    type: string
+    title: Name
+    maxLength: 255
+  description:
+    type: string
+    title: Description
+    maxLength: 255
+  swimlaneId:
+    type: string
+    title: Swimlane Identifier
+required:
+  - id
+  - name
