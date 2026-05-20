@@ -6,7 +6,17 @@ import {
   DomainType,
 } from "../../api/apiTypes.ts";
 import { useModalContext } from "../../ModalContextProvider.tsx";
-import { Modal, Button, Flex, Form, Select, Table, Typography, Space, Tag } from "antd";
+import {
+  Modal,
+  Button,
+  Flex,
+  Form,
+  Select,
+  Table,
+  Typography,
+  Space,
+  Tag,
+} from "antd";
 import { Domain, SelectDomains } from "../SelectDomains.tsx";
 import { StatusTag } from "../labels/StatusTag.tsx";
 import type { TableProps } from "antd";
@@ -41,14 +51,15 @@ const resultColumns: TableProps<BulkDeploymentResult>["columns"] = [
   },
   {
     title: "Domain",
-    render: (_, record) => record.domain?.type === DomainType.MICRO ? (
-      <Space size={"small"}>
-        {record.domain?.name}
-        <Tag>micro</Tag>
-      </Space>
-    ) : (
-      record.domain?.name
-    ),
+    render: (_, record) =>
+      record.domain?.type === DomainType.MICRO ? (
+        <Space size={"small"}>
+          {record.domain?.name}
+          <Tag>micro</Tag>
+        </Space>
+      ) : (
+        record.domain?.name
+      ),
   },
   {
     title: "Status",
@@ -68,13 +79,15 @@ export const DeployChains: React.FC<DeployChainsProps> = ({
   const { closeContainingModal } = useModalContext();
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [step, setStep] = useState<"form" | "results">("form");
-  const [results, setResults] = useState<(BulkDeploymentResult & { key: React.Key })[]>([]);
+  const [results, setResults] = useState<
+    (BulkDeploymentResult & { key: React.Key })[]
+  >([]);
 
   const onFinish = async (values: DeployRequest) => {
     setConfirmLoading(true);
     try {
       const deployResults = await onSubmit?.(values);
-      setResults((deployResults ?? []).map((r, i) => ({...r, key: i})));
+      setResults((deployResults ?? []).map((r, i) => ({ ...r, key: i })));
       setStep("results");
     } catch {
       // Stay on form step — error is handled by the caller
@@ -128,8 +141,8 @@ export const DeployChains: React.FC<DeployChainsProps> = ({
             rules={[{ required: true }]}
           >
             <SelectDomains />
-        </Form.Item>
-        <Form.Item name="snapshotAction" label="Snapshot action">
+          </Form.Item>
+          <Form.Item name="snapshotAction" label="Snapshot action">
             <Select
               options={[
                 {

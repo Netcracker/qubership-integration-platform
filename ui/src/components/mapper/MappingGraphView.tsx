@@ -17,11 +17,9 @@ import {
   SchemaKind,
 } from "../../mapper/model/model.ts";
 import {
-  Col,
   Dropdown,
   Flex,
   message,
-  Row,
   Select,
   Space,
   Table,
@@ -1365,58 +1363,62 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
       {...props}
     >
       {contextHolder}
-      <Row ref={containerRef} style={{ height: "100%" }}>
-        <Col span={9} className={graphViewStyles["mapping-table-column"]}>
-          <Table<MappingTableItem>
-            className="flex-table"
-            size="small"
-            showHeader={false}
-            columns={sourceColumns}
-            dataSource={sourceItems}
-            rowKey="id"
-            pagination={false}
-            scroll={{ y: "45vh" }}
-            rowSelection={{
-              selectedRowKeys: selectedSourceKeys,
-              columnWidth: 0,
-              renderCell: () => <></>,
-              onChange: (keys) => {
-                setSelectedSourceKeys(keys);
-              },
-            }}
-            onRow={(item) => ({
-              onClick: () => {
-                selectItem(item, false);
-              },
-            })}
-            expandable={{
-              expandIcon: treeExpandIcon(),
-              defaultExpandedRowKeys: [
-                "constant-group",
-                "header-group",
-                "property-group",
-                "body-group",
-              ],
-              expandedRowKeys: sourceExpandedKeys,
-              onExpandedRowsChange: (keys) => {
-                selectConnections([]);
-                setSourceExpandedKeys([...keys]);
-              },
-            }}
-            rowClassName={(item: MappingTableItem) => {
-              return isHeaderGroup(item) ||
-                isConstantGroup(item) ||
-                isPropertyGroup(item) ||
-                isBodyGroup(item)
-                ? styles["group-row"]
-                : "";
-            }}
-            onScroll={() => {
-              refreshConnectionLines();
-            }}
-          />
-        </Col>
-        <Col span={6} ref={middlePanelRef}>
+      <Flex
+        ref={containerRef}
+        vertical={false}
+        style={{ height: "100%" }}
+        wrap={false}
+      >
+        <Table<MappingTableItem>
+          style={{ width: "35%", flexGrow: 0 }}
+          className="flex-table"
+          size="small"
+          showHeader={false}
+          columns={sourceColumns}
+          dataSource={sourceItems}
+          rowKey="id"
+          pagination={false}
+          scroll={{ y: "" }}
+          rowSelection={{
+            selectedRowKeys: selectedSourceKeys,
+            columnWidth: 0,
+            renderCell: () => <></>,
+            onChange: (keys) => {
+              setSelectedSourceKeys(keys);
+            },
+          }}
+          onRow={(item) => ({
+            onClick: () => {
+              selectItem(item, false);
+            },
+          })}
+          expandable={{
+            expandIcon: treeExpandIcon(),
+            defaultExpandedRowKeys: [
+              "constant-group",
+              "header-group",
+              "property-group",
+              "body-group",
+            ],
+            expandedRowKeys: sourceExpandedKeys,
+            onExpandedRowsChange: (keys) => {
+              selectConnections([]);
+              setSourceExpandedKeys([...keys]);
+            },
+          }}
+          rowClassName={(item: MappingTableItem) => {
+            return isHeaderGroup(item) ||
+              isConstantGroup(item) ||
+              isPropertyGroup(item) ||
+              isBodyGroup(item)
+              ? styles["group-row"]
+              : "";
+          }}
+          onScroll={() => {
+            refreshConnectionLines();
+          }}
+        />
+        <Flex ref={middlePanelRef} style={{ flexGrow: 1 }}>
           <Dropdown
             disabled={selectedConnections.length === 0}
             menu={{
@@ -1439,59 +1441,58 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
             open={contextMenuOpened}
             onOpenChange={setContextMenuOpened}
           ></Dropdown>
-        </Col>
-        <Col span={9} className={graphViewStyles["mapping-table-column"]}>
-          <Table<MappingTableItem>
-            className="flex-table"
-            size="small"
-            showHeader={false}
-            columns={targetColumns}
-            dataSource={targetItems}
-            rowKey="id"
-            pagination={false}
-            scroll={{ y: "45vh" }}
-            rowSelection={{
-              selectedRowKeys: selectedTargetKeys,
-              columnWidth: 0,
-              renderCell: () => <></>,
-              onChange: (keys) => {
-                setSelectedTargetKeys(keys);
-              },
-            }}
-            onRow={(item) => ({
-              onClick: () => {
-                selectItem(item, true);
-              },
-            })}
-            expandable={{
-              expandIcon: treeExpandIcon(),
-              defaultExpandedRowKeys: [
-                "constant-group",
-                "header-group",
-                "property-group",
-                "body-group",
-              ],
-              expandIconColumnIndex: 3,
-              expandedRowKeys: targetExpandedKeys,
-              onExpandedRowsChange: (keys) => {
-                selectConnections([]);
-                setTargetExpandedKeys([...keys]);
-              },
-            }}
-            rowClassName={(item: MappingTableItem) => {
-              return isHeaderGroup(item) ||
-                isConstantGroup(item) ||
-                isPropertyGroup(item) ||
-                isBodyGroup(item)
-                ? styles["group-row"]
-                : "";
-            }}
-            onScroll={() => {
-              refreshConnectionLines();
-            }}
-          />
-        </Col>
-      </Row>
+        </Flex>
+        <Table<MappingTableItem>
+          style={{ width: "35%", flexGrow: 0 }}
+          className="flex-table"
+          size="small"
+          showHeader={false}
+          columns={targetColumns}
+          dataSource={targetItems}
+          rowKey="id"
+          pagination={false}
+          scroll={{ y: "" }}
+          rowSelection={{
+            selectedRowKeys: selectedTargetKeys,
+            columnWidth: 0,
+            renderCell: () => <></>,
+            onChange: (keys) => {
+              setSelectedTargetKeys(keys);
+            },
+          }}
+          onRow={(item) => ({
+            onClick: () => {
+              selectItem(item, true);
+            },
+          })}
+          expandable={{
+            expandIcon: treeExpandIcon(),
+            defaultExpandedRowKeys: [
+              "constant-group",
+              "header-group",
+              "property-group",
+              "body-group",
+            ],
+            expandIconColumnIndex: 3,
+            expandedRowKeys: targetExpandedKeys,
+            onExpandedRowsChange: (keys) => {
+              selectConnections([]);
+              setTargetExpandedKeys([...keys]);
+            },
+          }}
+          rowClassName={(item: MappingTableItem) => {
+            return isHeaderGroup(item) ||
+              isConstantGroup(item) ||
+              isPropertyGroup(item) ||
+              isBodyGroup(item)
+              ? styles["group-row"]
+              : "";
+          }}
+          onScroll={() => {
+            refreshConnectionLines();
+          }}
+        />
+      </Flex>
       {isDragging && dragPosition ? (
         <ArcherElement id={DRAG_POINT_ID}>
           <div

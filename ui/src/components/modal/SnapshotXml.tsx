@@ -1,4 +1,3 @@
-import { Modal } from "antd";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Snapshot } from "../../api/apiTypes.ts";
@@ -9,6 +8,7 @@ import {
   useMonacoTheme,
   applyVSCodeThemeToMonaco,
 } from "../../hooks/useMonacoTheme";
+import { ModalWithFullscreenToggle } from "./ModalWithFullscreenToggle.tsx";
 
 type SnapshotXmlViewProps = {
   snapshotId: string;
@@ -49,27 +49,29 @@ export const SnapshotXmlView: React.FC<SnapshotXmlViewProps> = ({
   }, [monacoTheme]);
 
   return (
-    <Modal
+    <ModalWithFullscreenToggle
       title="XML Definition"
       centered
       open={true}
       onCancel={closeContainingModal}
       footer={null}
-      width={"90%"}
       loading={isLoading}
     >
       <Editor
         className="qip-editor"
-        height={"80vh"}
         defaultLanguage="xml"
         defaultValue={snapshot?.xmlDefinition}
         theme={monacoTheme}
-        options={{ readOnly: true, fixedOverflowWidgets: true }}
+        options={{
+          readOnly: true,
+          fixedOverflowWidgets: true,
+          automaticLayout: true,
+        }}
         onMount={(_editor, monaco) => {
           monacoRef.current = monaco;
           applyVSCodeThemeToMonaco(monaco);
         }}
       />
-    </Modal>
+    </ModalWithFullscreenToggle>
   );
 };

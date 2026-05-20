@@ -13,9 +13,7 @@ import {
 const HOVER_EXPAND_DELAY_MS = 250;
 
 type SetNodesUpdater = (
-  updater: (
-    nodes: Node<ChainGraphNodeData>[],
-  ) => Node<ChainGraphNodeData>[],
+  updater: (nodes: Node<ChainGraphNodeData>[]) => Node<ChainGraphNodeData>[],
 ) => void;
 
 export const useHoverDragVisuals = (

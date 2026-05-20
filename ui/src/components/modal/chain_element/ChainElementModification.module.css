@@ -1,74 +1,9 @@
-.modal {
-  width: 80vw;
-  height: 80vh;
-  top: 50%;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  background: var(--vscode-modal-background, var(--vscode-panel-background));
-  color: var(--vscode-modal-foreground, var(--vscode-foreground));
-  border: 1px solid var(--vscode-border);
-}
-
-.modal-fullscreen {
-  width: 100vw;
-  height: 100vh;
-}
-
 .modal-title {
   display: flex;
-  overflow: hidden;
   min-width: 0;
-  min-height: 30px;
+  min-height: 32px;
   align-items: center;
   flex: 1;
-}
-
-.modal-header {
-  background: var(--vscode-modal-background, var(--vscode-panel-background));
-  color: var(--vscode-modal-foreground, var(--vscode-foreground));
-  height: 54px;
-  min-height: 54px;
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  width: 100%;
-}
-
-.modal-header :global(.ant-modal-title) {
-  flex: 1 1 0;
-  min-width: 0;
-  width: 100%;
-  display: flex;
-}
-
-.modal-footer {
-  margin-top: auto;
-}
-
-.modal-body {
-  overflow: hidden auto;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--vscode-modal-background, var(--vscode-panel-background));
-  color: var(--vscode-modal-foreground, var(--vscode-foreground));
-}
-
-.modal-body-fullscreen {
-  height: calc(100vh - 130px);
-}
-
-.modal-body :global(.rjsf) {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
-.modal-body :global(.ant-form-item-additional) {
-  margin-top: auto !important;
 }
 
 /* Description is now rendered in the footer, hide RJSF's default placement */
@@ -150,4 +85,11 @@
 .description-tooltip:global(.ant-tooltip) :global(.ant-tooltip-inner) {
   border-radius: 8px;
   padding: 8px 12px;
+}
+
+.form-wrapper {
+  min-height: 0;
+  flex-shrink: 1;
+  flex-grow: 1;
+  overflow-y: auto;
 }

@@ -19,10 +19,7 @@ export type DecorativeEdgeData = {
   originalTarget: string;
 };
 
-function buildDecorativeEdges(
-  nodes: ChainGraphNode[],
-  edges: Edge[],
-): Edge[] {
+function buildDecorativeEdges(nodes: ChainGraphNode[], edges: Edge[]): Edge[] {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
 
   const representative = (nodeId: string): string | undefined => {
@@ -73,10 +70,7 @@ function buildDecorativeEdges(
   return out;
 }
 
-export const useDecorativeEdges = (
-  nodes: ChainGraphNode[],
-  edges: Edge[],
-) => {
+export const useDecorativeEdges = (nodes: ChainGraphNode[], edges: Edge[]) => {
   const [decorativeEdges, setDecorativeEdges] = useEdgesState<Edge>([]);
   const decorativeEdgesRef = useRef<Edge[]>(decorativeEdges);
 

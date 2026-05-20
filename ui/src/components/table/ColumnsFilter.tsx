@@ -4,12 +4,13 @@ import clsx from "clsx";
 import { ReactSortable } from "react-sortablejs";
 import { parseJsonOrDefault } from "../../misc/json-helper";
 import { ACTIONS_COLUMN_KEY } from "./actionsColumn";
-import { clearColumnMetadata, isColumnVisibilityLocked } from "./useColumnSettingsButton";
+import {
+  clearColumnMetadata,
+  isColumnVisibilityLocked,
+} from "./useColumnSettingsButton";
 import styles from "./ColumnsFilter.module.css";
 
-const COLUMN_KEYS_EXCLUDED_FROM_PICKER = new Set<string>([
-  ACTIONS_COLUMN_KEY,
-]);
+const COLUMN_KEYS_EXCLUDED_FROM_PICKER = new Set<string>([ACTIONS_COLUMN_KEY]);
 
 const NON_TOGGLEABLE_VISIBILITY_KEYS = new Set<string>(["name"]);
 

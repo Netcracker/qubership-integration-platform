@@ -1,5 +1,5 @@
 import { getAiServiceUrlOverride } from "../config/aiServiceUrlOverride.ts";
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 
 let aiServiceUrl: string | null = null;
 
@@ -34,8 +34,6 @@ export function getAiServiceUrl(): string | null {
 
 export function getIsAiServiceAvailable(): boolean {
   const [isAiServiceAvailable, setIsAiServiceAvailable] = useState(false);
-
-  const url = getAiServiceUrl();
 
   useEffect(() => {
     const url = getAiServiceUrl();

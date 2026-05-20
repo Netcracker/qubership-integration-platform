@@ -43,7 +43,10 @@ export const ErrorDetails: React.FC<ErrorDetailsProps> = ({
   const { closeContainingModal } = useModalContext();
   const { token } = theme.useToken();
 
-  const tone = getDeploymentStatusTone(status ?? DeploymentStatus.FAILED, token);
+  const tone = getDeploymentStatusTone(
+    status ?? DeploymentStatus.FAILED,
+    token,
+  );
   const statusLabel = getStatusLabel(status);
 
   const isDark = isTokenDark(token);

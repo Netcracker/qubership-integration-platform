@@ -87,7 +87,11 @@ export const SessionElementBodyView: React.FC<SessionElementBodyViewProps> = ({
       language={language}
       value={body}
       theme={monacoTheme}
-      options={{ readOnly: true, fixedOverflowWidgets: true }}
+      options={{
+        readOnly: true,
+        fixedOverflowWidgets: true,
+        automaticLayout: true,
+      }}
       onMount={(editor, monaco) => {
         monacoRef.current = monaco;
         setUpDocumentFormatting(editor, monaco);

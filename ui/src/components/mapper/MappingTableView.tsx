@@ -1822,7 +1822,12 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
     <>
       {contextHolder}
       <Flex vertical gap={16} style={{ height: "100%" }} {...otherProps}>
-        <Flex vertical={false} align={"center"} justify={"center"} gap={8}>
+        <Flex
+          vertical={false}
+          align={"center"}
+          justify={"space-between"}
+          gap={8}
+        >
           <Radio.Group
             block
             options={[
@@ -1836,50 +1841,52 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
               setSelectedSchema(event.target.value as SchemaKind)
             }
           />
-          <CompactSearch
-            value={searchString}
-            onChange={(v) => {
-              setSearchString(v);
-              updateControlsState({ searchString: v });
-            }}
-            placeholder="Full text search"
-            allowClear
-          />
-          {columnSettingsButton}
-          <Dropdown
-            menu={{
-              items: [
-                {
-                  key: "saveAsMarkdown",
-                  icon: <OverridableIcon name="fileMarkdown" />,
-                  label: "Save as markdown",
-                  onClick: () => {
-                    exportMappingAsMarkdown(mappingDescription);
+          <Flex vertical={false} gap={8}>
+            <CompactSearch
+              value={searchString}
+              onChange={(v) => {
+                setSearchString(v);
+                updateControlsState({ searchString: v });
+              }}
+              placeholder="Full text search"
+              allowClear
+            />
+            {columnSettingsButton}
+            <Dropdown
+              menu={{
+                items: [
+                  {
+                    key: "saveAsMarkdown",
+                    icon: <OverridableIcon name="fileMarkdown" />,
+                    label: "Save as markdown",
+                    onClick: () => {
+                      exportMappingAsMarkdown(mappingDescription);
+                    },
                   },
-                },
-                {
-                  key: "clearFilters",
-                  icon: <OverridableIcon name="clear" />,
-                  label: "Clear filters",
-                  onClick: () => {
-                    updateControlsState({ filters: {} });
+                  {
+                    key: "clearFilters",
+                    icon: <OverridableIcon name="clear" />,
+                    label: "Clear filters",
+                    onClick: () => {
+                      updateControlsState({ filters: {} });
+                    },
                   },
-                },
-                {
-                  key: "clearSorts",
-                  icon: <OverridableIcon name="clear" />,
-                  label: "Clear sorters",
-                  onClick: () => {
-                    updateControlsState({ sorts: {} });
+                  {
+                    key: "clearSorts",
+                    icon: <OverridableIcon name="clear" />,
+                    label: "Clear sorters",
+                    onClick: () => {
+                      updateControlsState({ sorts: {} });
+                    },
                   },
-                },
-              ],
-            }}
-            trigger={["click"]}
-            placement="bottomLeft"
-          >
-            <Button icon={<OverridableIcon name="more" />} />
-          </Dropdown>
+                ],
+              }}
+              trigger={["click"]}
+              placement="bottomLeft"
+            >
+              <Button icon={<OverridableIcon name="more" />} />
+            </Dropdown>
+          </Flex>
         </Flex>
         <Table<MappingTableItem>
           className="flex-table"

@@ -125,19 +125,11 @@ describe("McpServiceParametersPage", () => {
     renderPage();
 
     await waitFor(() =>
-      expect(screen.getByRole("textbox", { name: /name/i })).toHaveValue(
-        "My MCP",
-      ),
+      expect(screen.getByLabelText("Name")).toHaveValue("My MCP"),
     );
-    expect(screen.getByRole("textbox", { name: /description/i })).toHaveValue(
-      "My description",
-    );
-    expect(screen.getByRole("textbox", { name: /identifier/i })).toHaveValue(
-      "my-id",
-    );
-    expect(screen.getByRole("textbox", { name: /instructions/i })).toHaveValue(
-      "Do this",
-    );
+    expect(screen.getByLabelText("Description")).toHaveValue("My description");
+    expect(screen.getByLabelText("Identifier")).toHaveValue("my-id");
+    expect(screen.getByLabelText("Instructions")).toHaveValue("Do this");
   });
 
   it("should show '...' in the name breadcrumb item before the system is loaded", () => {
@@ -177,9 +169,7 @@ describe("McpServiceParametersPage", () => {
     renderPage();
 
     await waitFor(() =>
-      expect(
-        screen.getByRole("textbox", { name: /name/i }),
-      ).toBeInTheDocument(),
+      expect(screen.getByLabelText("Name")).toBeInTheDocument(),
     );
 
     expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
@@ -189,12 +179,10 @@ describe("McpServiceParametersPage", () => {
     renderPage();
 
     await waitFor(() =>
-      expect(
-        screen.getByRole("textbox", { name: /name/i }),
-      ).toBeInTheDocument(),
+      expect(screen.getByLabelText("Name")).toBeInTheDocument(),
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+    fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Changed Name" },
     });
 
@@ -214,13 +202,11 @@ describe("McpServiceParametersPage", () => {
     renderPage();
 
     await waitFor(() =>
-      expect(
-        screen.getByRole("textbox", { name: /name/i }),
-      ).toBeInTheDocument(),
+      expect(screen.getByLabelText("Name")).toBeInTheDocument(),
     );
 
     // Trigger hasChanges to enable Save; store value is unchanged
-    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+    fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "any" },
     });
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
@@ -241,12 +227,10 @@ describe("McpServiceParametersPage", () => {
     renderPage();
 
     await waitFor(() =>
-      expect(
-        screen.getByRole("textbox", { name: /name/i }),
-      ).toBeInTheDocument(),
+      expect(screen.getByLabelText("Name")).toBeInTheDocument(),
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+    fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "v1" },
     });
 
@@ -266,12 +250,10 @@ describe("McpServiceParametersPage", () => {
     renderPage();
 
     await waitFor(() =>
-      expect(
-        screen.getByRole("textbox", { name: /name/i }),
-      ).toBeInTheDocument(),
+      expect(screen.getByLabelText("Name")).toBeInTheDocument(),
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+    fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "X" },
     });
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
@@ -285,12 +267,10 @@ describe("McpServiceParametersPage", () => {
     renderPage();
 
     await waitFor(() =>
-      expect(
-        screen.getByRole("textbox", { name: /name/i }),
-      ).toBeInTheDocument(),
+      expect(screen.getByLabelText("Name")).toBeInTheDocument(),
     );
 
-    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+    fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "X" },
     });
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
@@ -314,13 +294,11 @@ describe("McpServiceParametersPage", () => {
     renderPage();
 
     await waitFor(() =>
-      expect(
-        screen.getByRole("textbox", { name: /identifier/i }),
-      ).toBeInTheDocument(),
+      expect(screen.getByLabelText("Identifier")).toBeInTheDocument(),
     );
 
     // Enable Save by triggering onChange via the Description field
-    fireEvent.change(screen.getByRole("textbox", { name: /description/i }), {
+    fireEvent.change(screen.getByLabelText("Description"), {
       target: { value: "trigger" },
     });
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
@@ -338,13 +316,11 @@ describe("McpServiceParametersPage", () => {
     renderPage();
 
     await waitFor(() =>
-      expect(
-        screen.getByRole("textbox", { name: /name/i }),
-      ).toBeInTheDocument(),
+      expect(screen.getByLabelText("Name")).toBeInTheDocument(),
     );
 
     // Enable Save by triggering onChange via the Name field
-    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+    fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "trigger" },
     });
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
@@ -381,13 +357,11 @@ describe("McpServiceParametersPage", () => {
     renderPage();
 
     await waitFor(() =>
-      expect(
-        screen.getByRole("textbox", { name: /name/i }),
-      ).toBeInTheDocument(),
+      expect(screen.getByLabelText("Name")).toBeInTheDocument(),
     );
 
     // Modify a field to enable Save, keeping the labels intact
-    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+    fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Changed" },
     });
     fireEvent.click(screen.getByRole("button", { name: /save/i }));

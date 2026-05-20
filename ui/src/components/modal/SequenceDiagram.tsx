@@ -2,7 +2,6 @@ import {
   Button,
   Dropdown,
   MenuProps,
-  Modal,
   Space,
   Spin,
   Tabs,
@@ -27,6 +26,7 @@ import { MenuInfo } from "rc-menu/lib/interface";
 import mermaid from "mermaid";
 import styles from "./SequenceDiagram.module.css";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { ModalWithFullscreenToggle } from "./ModalWithFullscreenToggle.tsx";
 
 type SequenceDiagramProps = {
   title?: string;
@@ -196,7 +196,7 @@ export const SequenceDiagram: React.FC<SequenceDiagramProps> = ({
   };
 
   return (
-    <Modal
+    <ModalWithFullscreenToggle
       title={title ?? "Sequence Diagram"}
       centered
       open={true}
@@ -211,10 +211,9 @@ export const SequenceDiagram: React.FC<SequenceDiagramProps> = ({
           </Button>
         </Dropdown>
       }
-      width={"90%"}
     >
       <Tabs
-        style={{ height: "80vh", resize: "none" }}
+        style={{ resize: "none" }}
         className={"flex-tabs diagram-tabs"}
         items={tabItems}
         activeKey={activeTab}
@@ -226,6 +225,6 @@ export const SequenceDiagram: React.FC<SequenceDiagramProps> = ({
       ) : (
         <></>
       )}
-    </Modal>
+    </ModalWithFullscreenToggle>
   );
 };

@@ -19,6 +19,7 @@ import { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { useChainFullscreenContext } from "./ChainFullscreenContext.tsx";
+import { useNotificationService } from "../hooks/useNotificationService.tsx";
 
 export type ChainContextData = {
   chain: Chain | undefined;
@@ -34,6 +35,7 @@ const ChainPage = () => {
   const { chainId, sessionId } = useParams();
   const [pathItems, setPathItems] = useState<BreadcrumbProps["items"]>([]);
   const [headerActions, setHeaderActions] = useState<ReactNode>(null);
+  const notificationService = useNotificationService();
   const headerActionsRegistrationRef = useRef(0);
 
   const registerHeaderActions = useCallback((actions: ReactNode) => {
@@ -60,13 +62,18 @@ const ChainPage = () => {
     useChain(chainId);
 
   const refreshChain = useCallback(async () => {
-    if (chainId) {
+    if (!chainId) {
+      return;
+    }
+    try {
       const updatedChain = await getChain();
       if (updatedChain) {
         setChain(updatedChain);
       }
+    } catch (err) {
+      notificationService.requestFailed("Failed to refresh chain", err);
     }
-  }, [chainId, getChain, setChain]);
+  }, [chainId, getChain, setChain, notificationService]);
 
   useEffect(() => {
     const link = (href: string, content: React.ReactNode) => (
@@ -86,20 +93,18 @@ const ChainPage = () => {
       .map(([key, value], index, arr) => ({
         title:
           index < arr.length - 1 ? (
-            <span className={styles.breadcrumbItem as string}>
+            <span className={styles.breadcrumbItem}>
               {link(`/chains?folder=${key}`, value)}
             </span>
           ) : (
-            <span className={styles.breadcrumbItem as string}>{value}</span>
+            <span className={styles.breadcrumbItem}>{value}</span>
           ),
       }));
 
     setPathItems([
       {
         title: (
-          <span
-            className={`${styles.breadcrumbItem as string} ${styles.breadcrumbHome as string}`}
-          >
+          <span className={`${styles.breadcrumbItem} ${styles.breadcrumbHome}`}>
             {link("/chains", <OverridableIcon name="home" />)}
           </span>
         ),
@@ -109,17 +114,13 @@ const ChainPage = () => {
         ? [
             {
               title: (
-                <span className={styles.breadcrumbItem as string}>
+                <span className={styles.breadcrumbItem}>
                   {link(`/chains/${chainId}/sessions`, "Sessions")}
                 </span>
               ),
             },
             {
-              title: (
-                <span className={styles.breadcrumbItem as string}>
-                  {sessionId}
-                </span>
-              ),
+              title: <span className={styles.breadcrumbItem}>{sessionId}</span>,
             },
           ]
         : []),
@@ -236,42 +237,37 @@ const ChainPageHeader: FC<ChainPageHeaderProps> = ({
   if (isVsCode) {
     return (
       <Tabs
-        className={styles.chainPageTabs as string}
+        className={styles.chainPageTabs}
         activeKey={activeKey}
         onChange={onTabChange}
         items={tabItems}
         style={{ marginBottom: 0 }}
         tabBarExtraContent={
-          <div className={styles.chainTabBarExtra as string}>
-            {headerActions}
-          </div>
+          <div className={styles.chainTabBarExtra}>{headerActions}</div>
         }
       />
     );
   }
 
   const tabsBarExtra = (
-    <div className={styles.chainTabBarExtra as string}>{headerActions}</div>
+    <div className={styles.chainTabBarExtra}>{headerActions}</div>
   );
 
   return (
-    <div className={styles.chainPageHeader as string}>
+    <div className={styles.chainPageHeader}>
       <Row
-        className={styles.chainPageHeaderRow as string}
+        className={styles.chainPageHeaderRow}
         justify="space-between"
         align="middle"
       >
         <Col flex="auto">
-          <Breadcrumb
-            items={pathItems}
-            className={styles.breadcrumb}
-          />
+          <Breadcrumb items={pathItems} className={styles.breadcrumb} />
         </Col>
         {showUnsavedChanges ? (
           <Col flex="none">
             <Tag
               color="warning"
-              className={styles.unsavedChangesTag as string}
+              className={styles.unsavedChangesTag}
               data-testid="chain-unsaved-changes"
             >
               Unsaved changes
@@ -280,7 +276,7 @@ const ChainPageHeader: FC<ChainPageHeaderProps> = ({
         ) : null}
       </Row>
       <Tabs
-        className={styles.chainPageTabs as string}
+        className={styles.chainPageTabs}
         activeKey={activeKey}
         onChange={onTabChange}
         items={tabItems}

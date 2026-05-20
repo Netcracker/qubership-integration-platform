@@ -1,60 +1,42 @@
 import type React from "react";
 import { useReactFlow, useStore, useViewport } from "@xyflow/react";
 
-import styles from "./CustomControls.module.css";
+import styles from "./ChainGraphViewControls.module.css";
 import { useElkDirectionContext } from "../../pages/ElkDirectionContext.tsx";
 import { useChainFullscreenContext } from "../../pages/ChainFullscreenContext.tsx";
 import { Button } from "antd";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
-type CustomControlsProps = {
-  extraButtons?: React.ReactNode;
-  showLeftPanelToggle?: boolean;
+export type ChainGraphViewControlsProps = {
+  before?: React.ReactNode;
+  after?: React.ReactNode;
   onExpandAllContainers?: () => void;
   onCollapseAllContainers?: () => void;
 };
 
-export const CustomControls = ({
-  extraButtons,
-  showLeftPanelToggle,
+export const ChainGraphViewControls = ({
+  before,
+  after,
   onExpandAllContainers,
   onCollapseAllContainers,
-}: CustomControlsProps) => {
+}: ChainGraphViewControlsProps) => {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const { zoom } = useViewport();
   const { minZoom, maxZoom } = useStore((s) => ({
     minZoom: s.minZoom,
     maxZoom: s.maxZoom,
   }));
-  const {
-    toggleDirection,
-    leftPanel,
-    toggleLeftPanel,
-    rightPanel,
-    toggleRightPanel,
-  } = useElkDirectionContext();
+  const { toggleDirection } = useElkDirectionContext();
   const fullscreenCtx = useChainFullscreenContext();
 
   return (
     <div className={styles.container}>
-      {showLeftPanelToggle && (
-        <Button
-          className={styles.button}
-          type={"text"}
-          title="Left Panel"
-          data-active={leftPanel}
-          onClick={toggleLeftPanel}
-          icon={<OverridableIcon name="leftPanel" />}
-        />
-      )}
-      <Button
-        className={styles.button}
-        type={"text"}
-        title="Right Panel"
-        data-active={rightPanel}
-        onClick={toggleRightPanel}
-        icon={<OverridableIcon name="rightPanel" />}
-      />
+      {before ? (
+        <>
+          {before}
+          <span className={styles.extraDivider} />
+        </>
+      ) : null}
       {fullscreenCtx && (
         <Button
           className={styles.button}
@@ -113,10 +95,10 @@ export const CustomControls = ({
         onClick={onCollapseAllContainers}
         icon={<OverridableIcon name="collapseAll" />}
       />
-      {extraButtons ? (
+      {after ? (
         <>
           <span className={styles.extraDivider} />
-          {extraButtons}
+          {after}
         </>
       ) : null}
     </div>

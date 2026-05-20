@@ -66,6 +66,12 @@
   --container-border-color: #dedacd;
   --container-header-background: #fff9e6;
 
+  /* Node color when compare */
+  --node-not-changed-color: #727272;
+  --node-changed-color: #ffcc02;
+  --node-created-color: #28a745;
+  --node-removed-color: #f48771;
+
   /* Table: warning / unsaved row — low mix so it stays quieter than input panels */
   --qip-table-warning-row-background: color-mix(
     in srgb,

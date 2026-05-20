@@ -1,5 +1,11 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { Spin, Empty } from "antd";
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
+import { Spin, Empty, Flex } from "antd";
 import { UsedProperty } from "../api/apiTypes.ts";
 import { useLibraryContext } from "./LibraryContext.tsx";
 import { OverridableIcon, IconName } from "../icons/IconProvider.tsx";
@@ -101,7 +107,7 @@ export const UsedPropertiesList: React.FC<UsedPropertiesListProps> = ({
   const parsedProperties = useMemo(() => {
     if (!properties || properties.length === 0) {
       return [];
-  }
+    }
 
     const sortedProperties = [...properties].sort((a, b) =>
       a.name.localeCompare(b.name),
@@ -147,13 +153,13 @@ export const UsedPropertiesList: React.FC<UsedPropertiesListProps> = ({
 
   useEffect(() => {
     const menuItems: MenuItem[] = parsedProperties.map((property) => ({
-       key: property.id,
-       label: property.name,
-       name: property.name,
-       children: property.children.map((element) => ({
-       key: element.elementId,
-       label: element.name,
-       name: element.name,
+      key: property.id,
+      label: property.name,
+      name: property.name,
+      children: property.children.map((element) => ({
+        key: element.elementId,
+        label: element.name,
+        name: element.name,
       })),
     }));
 
@@ -217,7 +223,7 @@ export const UsedPropertiesList: React.FC<UsedPropertiesListProps> = ({
   }
 
   return (
-    <div className={styles.usedPropertiesTree}>
+    <Flex vertical className={styles.usedPropertiesTree} gap={4}>
       <SidebarSearch
         items={allItems.current}
         onSearch={handleSearch}
@@ -227,88 +233,97 @@ export const UsedPropertiesList: React.FC<UsedPropertiesListProps> = ({
           setOpenKeysState(openKeysBeforeSearch.current);
         }}
       />
-      {displayProperties.map((property) => {
-        const isExpanded = openKeysState.includes(property.id);
+      <Flex
+        vertical
+        style={{ minHeight: 0, flexGrow: 1, flexShrink: 1, overflow: "auto" }}
+      >
+        {displayProperties.map((property) => {
+          const isExpanded = openKeysState.includes(property.id);
 
-        return (
-          <div key={property.id} className={styles.propertyItem}>
-            <div
-              className={`${styles.propertyRow} ${styles.menuItemContainer}`}
-              onClick={() => toggleProperty(property.id)}
-            >
-              <div className={styles.leftContent}>
-                <span className={styles.propertySource}>
-                  {property.sourceCode}
-                </span>
-                <span className={styles.propertyName}>{property.name}</span>
+          return (
+            <div key={property.id} className={styles.propertyItem}>
+              <div
+                className={`${styles.propertyRow} ${styles.menuItemContainer}`}
+                onClick={() => toggleProperty(property.id)}
+              >
+                <div className={styles.leftContent}>
+                  <span className={styles.propertySource}>
+                    {property.sourceCode}
+                  </span>
+                  <span className={styles.propertyName}>{property.name}</span>
+                </div>
+                <div className={styles.rightContent}>
+                  <span className={styles.propertyType}>
+                    [{property.isArray ? "array of " : ""}
+                    {property.type}]
+                  </span>
+                  <span className={styles.propertyChildrenCount}>
+                    {property.childrenCount > 99
+                      ? "99+"
+                      : property.childrenCount}
+                  </span>
+                  <span className={styles.expandIcon}>
+                    <OverridableIcon
+                      name={isExpanded ? "caretDownFilled" : "caretRightFilled"}
+                      style={{ fontSize: 10 }}
+                    />
+                  </span>
+                </div>
               </div>
-              <div className={styles.rightContent}>
-                <span className={styles.propertyType}>
-                  [{property.isArray ? "array of " : ""}
-                  {property.type}]
-                </span>
-                <span className={styles.propertyChildrenCount}>
-                  {property.childrenCount > 99 ? "99+" : property.childrenCount}
-                </span>
-                <span className={styles.expandIcon}>
-                  <OverridableIcon
-                    name={isExpanded ? "caretDownFilled" : "caretRightFilled"}
-                    style={{ fontSize: 10 }}
-                  />
-                </span>
-              </div>
-            </div>
 
-            {isExpanded && (
-              <div className={styles.elementsContainer}>
-                {property.children.map((element) => (
-                  <div
-                    key={element.id}
-                    className={`${styles.elementRow} ${styles.menuItemContainer}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onElementSingleClick?.(element.elementId);
-                    }}
-                    onDoubleClick={(e) => {
-                      e.stopPropagation();
-                      onElementDoubleClick?.(element.elementId);
-                    }}
-                  >
-                    <div className={styles.leftContent}>
-                      <OverridableIcon
-                        name={element.type as IconName}
-                        style={{ fontSize: 16, marginRight: 8 }}
-                      />
-                      <div className={styles.elementInfo}>
-                        <div className={styles.elementName}>{element.name}</div>
-                        <span className={styles.elementType}>
-                          {element.typeTitle}
-                        </span>
+              {isExpanded && (
+                <div className={styles.elementsContainer}>
+                  {property.children.map((element) => (
+                    <div
+                      key={element.id}
+                      className={`${styles.elementRow} ${styles.menuItemContainer}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onElementSingleClick?.(element.elementId);
+                      }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        onElementDoubleClick?.(element.elementId);
+                      }}
+                    >
+                      <div className={styles.leftContent}>
+                        <OverridableIcon
+                          name={element.type as IconName}
+                          style={{ fontSize: 16, marginRight: 8 }}
+                        />
+                        <div className={styles.elementInfo}>
+                          <div className={styles.elementName}>
+                            {element.name}
+                          </div>
+                          <span className={styles.elementType}>
+                            {element.typeTitle}
+                          </span>
+                        </div>
+                      </div>
+                      <div className={styles.rightContent}>
+                        {element.operations.map((op, idx) => {
+                          const colorClass =
+                            op.operationColor === "green"
+                              ? styles.operationGreen
+                              : styles.operationBlue;
+                          return (
+                            <span
+                              key={idx}
+                              className={`${styles.operationChip} ${colorClass}`}
+                            >
+                              {op.operation}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
-                    <div className={styles.rightContent}>
-                      {element.operations.map((op, idx) => {
-                        const colorClass =
-                          op.operationColor === "green"
-                            ? styles.operationGreen
-                            : styles.operationBlue;
-                        return (
-                          <span
-                            key={idx}
-                            className={`${styles.operationChip} ${colorClass}`}
-                          >
-                            {op.operation}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </Flex>
+    </Flex>
   );
 };

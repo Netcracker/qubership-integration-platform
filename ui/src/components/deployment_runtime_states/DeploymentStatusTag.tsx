@@ -3,7 +3,10 @@ import { Tag, TagProps } from "antd";
 import { capitalize } from "../../misc/format-utils.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
-type DeploymentStatusTagProps = Omit<TagProps, "color" | "icon" | "children"> & {
+type DeploymentStatusTagProps = Omit<
+  TagProps,
+  "color" | "icon" | "children"
+> & {
   status: string;
   text?: React.ReactNode;
 };

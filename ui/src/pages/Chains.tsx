@@ -70,6 +70,7 @@ import { useGenerateDds } from "../hooks/useGenerateDds.tsx";
 const CHAINS_EXPAND_COLUMN_WIDTH = 48;
 const CHAINS_SELECTION_COLUMN_WIDTH = 48;
 import { Domain } from "../components/SelectDomains.tsx";
+import { ChainDiffPopup } from "../components/chains/diff/ChainDiffPopup.tsx";
 
 type ChainTableItem = (FolderItem | ChainItem) & {
   children?: ChainTableItem[];
@@ -142,6 +143,7 @@ const Chains = () => {
   const [folderItems, setFolderItems] = useState<FolderItem[]>([]);
   const [tableItems, setTableItems] = useState<ChainTableItem[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [selectedChains, setSelectedChains] = useState<FolderItem[]>([]);
   const [loadedFolders, setLoadedFolders] = useState<Set<string>>(new Set());
   const [searchParams] = useSearchParams();
   const [folderPath, setFolderPath] = useState<FolderItem[]>([]);
@@ -756,6 +758,20 @@ const Chains = () => {
     });
   };
 
+  const onCompareChainsBtnClick = () => {
+    if (selectedChains.length !== 2) {
+      return;
+    }
+    showModal({
+      component: (
+        <ChainDiffPopup
+          chainId1={selectedChains[0].id}
+          chainId2={selectedChains[1].id}
+        />
+      ),
+    });
+  };
+
   const onDeployBtnClick = () => {
     if (selectedRowKeys.length > 0) {
       showModal({
@@ -1131,6 +1147,16 @@ const Chains = () => {
     setTableItems(buildTableItems(folderItems));
   }, [folderItems]);
 
+  useEffect(() => {
+    setSelectedChains(
+      folderItems.filter(
+        (i) =>
+          selectedRowKeys.includes(i.id) &&
+          i.itemType === CatalogItemType.CHAIN,
+      ),
+    );
+  }, [selectedRowKeys, folderItems]);
+
   return (
     <>
       {contextHolder}
@@ -1154,7 +1180,7 @@ const Chains = () => {
                 onChange={setSearchString}
                 placeholder="Full text search"
                 allowClear
-                className={commonStyles["searchField"] as string}
+                className={commonStyles["searchField"]}
               />
             </Flex>
           }
@@ -1168,7 +1194,11 @@ const Chains = () => {
                   title: "Compare selected chains",
                   placement: "bottom",
                 }}
-                buttonProps={{ iconName: "compare", disabled: true }}
+                buttonProps={{
+                  iconName: "compare",
+                  disabled: selectedChains.length !== 2,
+                  onClick: onCompareChainsBtnClick,
+                }}
               />
               <ProtectedButton
                 require={{ chain: ["create"] }}

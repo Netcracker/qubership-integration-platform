@@ -105,10 +105,7 @@ export const EngineTable: React.FC<Props> = ({
         engineColumnResize.createResizeHandlers,
         { minWidth: 80 },
       ),
-    [
-      engineColumnResize.columnWidths,
-      engineColumnResize.createResizeHandlers,
-    ],
+    [engineColumnResize.columnWidths, engineColumnResize.createResizeHandlers],
   );
 
   return (

@@ -127,6 +127,8 @@ import {
   SyncOutlined,
   ColumnWidthOutlined,
   MessageOutlined,
+  CaretUpOutlined,
+  CaretDownOutlined,
 } from "@ant-design/icons";
 
 /**
@@ -273,6 +275,8 @@ export const commonIcons = {
   documentationSearchResult: FileTextOutlined,
   compare: DiffOutlined,
   diagram: ColumnWidthOutlined,
+  previousChange: CaretUpOutlined,
+  nextChange: CaretDownOutlined,
 };
 
 export const elementIcons = {

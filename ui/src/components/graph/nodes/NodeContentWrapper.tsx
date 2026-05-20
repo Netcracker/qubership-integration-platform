@@ -1,7 +1,17 @@
 import { Handle, NodeProps, Position } from "@xyflow/react";
 import { ChainGraphNode } from "./ChainGraphNodeTypes.ts";
-import React, { HTMLAttributes, PropsWithChildren, ReactNode } from "react";
+import React, {
+  HTMLAttributes,
+  PropsWithChildren,
+  ReactNode,
+  useContext,
+  useMemo,
+} from "react";
 import styles from "./NodeContentWrapper.module.css";
+import {
+  ChainGraphChangeContext,
+  NodeState,
+} from "../../chains/diff/ChainGraphChangeProvider.tsx";
 
 export type NodeContentWrapperProps = PropsWithChildren<
   NodeProps<ChainGraphNode>
@@ -9,6 +19,7 @@ export type NodeContentWrapperProps = PropsWithChildren<
   Pick<HTMLAttributes<HTMLDivElement>, "style">;
 
 export const NodeContentWrapper: React.FC<NodeContentWrapperProps> = ({
+  id,
   data,
   isConnectable,
   selected,
@@ -17,6 +28,8 @@ export const NodeContentWrapper: React.FC<NodeContentWrapperProps> = ({
   style,
   children,
 }): ReactNode => {
+  const changeContext = useContext(ChainGraphChangeContext);
+
   const isGroupContainer = data.elementType === "container";
 
   const shouldRenderTargetHandle = !!data.inputEnabled || isGroupContainer;
@@ -30,12 +43,29 @@ export const NodeContentWrapper: React.FC<NodeContentWrapperProps> = ({
     pointerEvents: "none",
   };
 
+  const backgroundColor = useMemo(() => {
+    const nodeState = changeContext?.nodeState?.get(id);
+    switch (nodeState) {
+      case NodeState.NOT_CHANGED:
+        return "var(--node-not-changed-color, #727272)";
+      case NodeState.CHANGED:
+        return "var(--node-changed-color, #ffcc02)";
+      case NodeState.REMOVED:
+        return "var(--node-removed-color, #f48771)";
+      case NodeState.CREATED:
+        return "var(--node-created-color, #4ec9b0)";
+      default:
+        return style?.["backgroundColor"];
+    }
+  }, [id, changeContext, style]);
+
   return (
     <div
       className={`${styles.wrapper} ${selected ? styles.selected : ""}`}
       style={{
         ...style,
         transition: "outline-color var(--transition-duration, 0.25s) ease",
+        backgroundColor: backgroundColor,
       }}
     >
       {children}

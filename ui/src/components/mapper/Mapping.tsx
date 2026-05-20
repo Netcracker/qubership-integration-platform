@@ -5,6 +5,7 @@ import { Tabs } from "antd";
 import { MappingActionsTextView } from "./MappingActionsTextView.tsx";
 import { MappingUtil } from "../../mapper/util/mapping.ts";
 import { MappingGraphView } from "./MappingGraphView.tsx";
+import { AutoHeight } from "../AutoHeight.tsx";
 
 export type MappingProps = React.HTMLAttributes<HTMLElement> & {
   elementId: string;
@@ -37,45 +38,50 @@ export const Mapping: React.FC<MappingProps> = ({
   );
 
   return (
-    <Tabs
-      style={{ height: "100%" }}
-      className={"flex-tabs"}
-      items={[
-        {
-          key: "graph",
-          label: "Graph",
-          children: (
-            <MappingGraphView
-              elementId={elementId}
-              mapping={value}
-              readonlySource={readonlySource}
-              readonlyTarget={readonlyTarget}
-              onChange={onValueChange}
-            />
-          ),
-        },
-        {
-          key: "table",
-          label: "Table",
-          children: (
-            <MappingTableView
-              elementId={elementId}
-              mapping={value}
-              readonlySource={readonlySource}
-              readonlyTarget={readonlyTarget}
-              onChange={onValueChange}
-            />
-          ),
-        },
-        {
-          key: "text",
-          label: "Text",
-          children: (
-            <MappingActionsTextView mapping={value} onChange={onValueChange} />
-          ),
-        },
-      ]}
-      {...props}
-    />
+    <AutoHeight>
+      <Tabs
+        style={{ height: "100%" }}
+        className={"flex-tabs"}
+        items={[
+          {
+            key: "graph",
+            label: "Graph",
+            children: (
+              <MappingGraphView
+                elementId={elementId}
+                mapping={value}
+                readonlySource={readonlySource}
+                readonlyTarget={readonlyTarget}
+                onChange={onValueChange}
+              />
+            ),
+          },
+          {
+            key: "table",
+            label: "Table",
+            children: (
+              <MappingTableView
+                elementId={elementId}
+                mapping={value}
+                readonlySource={readonlySource}
+                readonlyTarget={readonlyTarget}
+                onChange={onValueChange}
+              />
+            ),
+          },
+          {
+            key: "text",
+            label: "Text",
+            children: (
+              <MappingActionsTextView
+                mapping={value}
+                onChange={onValueChange}
+              />
+            ),
+          },
+        ]}
+        {...props}
+      />
+    </AutoHeight>
   );
 };

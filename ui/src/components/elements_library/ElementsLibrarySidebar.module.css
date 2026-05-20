@@ -1,7 +1,6 @@
 .sideMenu {
   overflow: hidden;
   scrollbar-gutter: auto;
-  border-radius: 8px 0 0 8px;
   background: var(
     --vscode-sideBar-background,
     var(--vscode-editor-background, #fff)
@@ -10,7 +9,7 @@
 
 .sidebarSearchArea {
   flex-shrink: 0;
-  padding: 8px 4px 4px;
+  padding: 8px;
 }
 
 .sidebarMenuArea {
@@ -21,12 +20,10 @@
 }
 
 .rightPanelBorder {
-  border-left: 1px solid var(--vscode-border, rgb(0 0 0 / 15%)) !important;
   height: 100% !important;
   min-height: 100% !important;
   display: flex !important;
   flex-direction: column !important;
-  border-radius: 0 8px 8px 0 !important;
 }
 
 .rightPanelBorder :global(.ant-layout-sider-children) {
@@ -125,7 +122,8 @@
   width: 100%;
   display: flex;
   justify-content: flex-start;
-  margin-left: 20px;
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 .spacedTabs :global(.ant-tabs-tab) {

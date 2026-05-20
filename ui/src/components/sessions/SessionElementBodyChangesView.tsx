@@ -76,6 +76,7 @@ export const SessionElementBodyChangesView: React.FC<
             readOnly: true,
             originalAriaLabel: "Body Before",
             modifiedAriaLabel: "Body After",
+            automaticLayout: true,
           }}
           onMount={(editor, monaco) => handleDiffEditorDidMount(editor, monaco)}
         />

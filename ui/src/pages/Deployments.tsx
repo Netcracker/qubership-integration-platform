@@ -287,10 +287,7 @@ export const Deployments: React.FC = () => {
     [searchTerm, columnSettingsButton, onCreateClick],
   );
 
-  useRegisterChainHeaderActions(chainTabToolbar, [
-    searchTerm,
-    onCreateClick,
-  ]);
+  useRegisterChainHeaderActions(chainTabToolbar, [searchTerm, onCreateClick]);
 
   return (
     <TablePageLayout>

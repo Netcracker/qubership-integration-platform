@@ -100,7 +100,7 @@ const config: Config = {
       "<rootDir>/tests/__mocks__/domainsTablesLayoutModule.cjs",
     "CommonStyle\\.module\\.css$":
       "<rootDir>/tests/__mocks__/commonStyleContainerModule.cjs",
-    "\\.module\\.css$": "<rootDir>/tests/__mocks__/styleMock.js",
+    "\\.module\\.css$": "<rootDir>/tests/__mocks__/cssModuleMock.cjs",
     "\\.css$": "<rootDir>/tests/__mocks__/styleMock.js",
   },
 

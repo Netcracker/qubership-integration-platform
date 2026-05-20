@@ -122,7 +122,8 @@ describe("SequenceDiagram", () => {
     // Export button
     expect(screen.getByText("Export")).toBeDefined();
     // Down icon
-    expect(screen.getByTestId("icon").getAttribute("data-icon")).toBe("down");
+    const icons = screen.getAllByTestId("icon");
+    expect(icons.some((el) => el.getAttribute("data-icon") === "down")).toBe(true);
     // Provider called
     expect(provider).toHaveBeenCalled();
 

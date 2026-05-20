@@ -254,13 +254,16 @@ export const PageWithRightPanel = ({
           flex: 1,
           minHeight: 0,
           overflow: activeTab === "textView" ? "hidden" : "auto",
-          paddingLeft: activeTab === "textView" ? 0 : "12px",
+          paddingLeft: activeTab === "textView" ? 0 : "8px",
+          paddingRight: activeTab === "textView" ? 0 : "8px",
+          paddingBottom: activeTab === "textView" ? 0 : "8px",
         }}
       >
         {activeTab === "listElements" && (
           <Flex
             vertical
             style={{ flex: 1, minHeight: 0, overflow: "auto", width: "100%" }}
+            gap={4}
           >
             <SidebarSearch
               items={elementMenuItems}

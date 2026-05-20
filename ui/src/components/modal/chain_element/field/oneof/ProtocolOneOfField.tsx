@@ -49,11 +49,7 @@ const ProtocolOneOfField: React.FC<
 
   if (matchingIndex === -2) {
     return (
-      <SchemaField
-        {...props}
-        schema={EMPTY_ONEOF_SCHEMA}
-        uiSchema={uiSchema}
-      />
+      <SchemaField {...props} schema={EMPTY_ONEOF_SCHEMA} uiSchema={uiSchema} />
     );
   }
 

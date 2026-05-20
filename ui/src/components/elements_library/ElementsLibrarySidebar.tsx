@@ -151,10 +151,7 @@ export const ElementsLibrarySidebar = ({
       {isLibraryLoading && loading ? (
         <Spin />
       ) : (
-        <Flex
-          vertical
-          style={{ flex: 1, minHeight: 0, width: "100%" }}
-        >
+        <Flex vertical style={{ flex: 1, minHeight: 0, width: "100%" }}>
           <div className={styles.sidebarSearchArea}>
             <SidebarSearch
               items={allItems.current}

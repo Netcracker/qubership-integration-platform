@@ -218,7 +218,10 @@ export const ChainDetailsDrawer: React.FC<ChainDetailsDrawerProps> = ({
               ) : (
                 <Flex wrap="wrap" gap={4}>
                   {logPayload.map((item) => (
-                    <Tag key={item} style={{ fontSize: 13, marginInlineEnd: 0 }}>
+                    <Tag
+                      key={item}
+                      style={{ fontSize: 13, marginInlineEnd: 0 }}
+                    >
                       {capitalize(item)}
                     </Tag>
                   ))}

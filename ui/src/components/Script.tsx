@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import { Editor } from "@monaco-editor/react";
 import { editor, languages, Position } from "monaco-editor";
-import { Flex } from "antd";
 
 type Monaco = typeof import("monaco-editor");
 import {
@@ -18,6 +17,7 @@ import {
   GROOVY_KEYWORDS,
 } from "../misc/monaco/groovy-suggestions";
 import { GROOVY_LANGUAGE_CONFIGURATION } from "../misc/monaco/language-config";
+import { AutoHeight } from "./AutoHeight.tsx";
 
 class GroovyCompletionProvider implements languages.CompletionItemProvider {
   public readonly triggerCharacters = ["."];
@@ -283,9 +283,6 @@ export const Script: React.FC<ScriptProps> = ({
     }
   }, [monacoTheme]);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [editorHeight, setEditorHeight] = useState(300);
-
   const [overflowWidgetsDomNode] = useState<HTMLDivElement>(() => {
     const node = document.createElement("div");
     node.className = "monaco-editor";
@@ -300,37 +297,10 @@ export const Script: React.FC<ScriptProps> = ({
     };
   }, [overflowWidgetsDomNode]);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const calcHeight = () => {
-      const scrollParent = el.closest(".ant-modal-body") ?? el.parentElement;
-      if (!scrollParent) return;
-      const parentRect = scrollParent.getBoundingClientRect();
-      const available =
-        parentRect.height - 104; /* header + help hint heights */
-      if (available > 300) {
-        setEditorHeight(available);
-      }
-    };
-
-    const modalWrap = el.closest(".ant-modal-wrap");
-    if (modalWrap) {
-      modalWrap.addEventListener("transitionend", calcHeight);
-    }
-    window.addEventListener("resize", calcHeight);
-
-    return () => {
-      modalWrap?.removeEventListener("transitionend", calcHeight);
-      window.removeEventListener("resize", calcHeight);
-    };
-  }, []);
-
   return (
-    <Flex vertical ref={containerRef} {...props}>
+    <AutoHeight {...props}>
       <Editor
-        height={editorHeight}
+        height="100%"
         className="qip-editor"
         value={value}
         language={mode}
@@ -391,6 +361,6 @@ export const Script: React.FC<ScriptProps> = ({
           },
         }}
       />
-    </Flex>
+    </AutoHeight>
   );
 };

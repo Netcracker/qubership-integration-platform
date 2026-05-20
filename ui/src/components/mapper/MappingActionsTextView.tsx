@@ -6,7 +6,6 @@ import {
   Transformation,
 } from "../../mapper/model/model.ts";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Flex } from "antd";
 import { Editor, Monaco } from "@monaco-editor/react";
 import {
   useMonacoTheme,
@@ -382,7 +381,9 @@ function configureMapperActionsLanguage(
 ) {
   const alreadyRegistered = monaco.languages
     .getLanguages()
-    .some((language) => language.id === MAPPER_ACTIONS_LANGUAGE_ID);
+    .some(
+      (language: { id: string }) => language.id === MAPPER_ACTIONS_LANGUAGE_ID,
+    );
   if (alreadyRegistered) {
     console.log(`Language already registered: ${MAPPER_ACTIONS_LANGUAGE_ID}`);
     return;
@@ -512,53 +513,21 @@ export const MappingActionsTextView: React.FC<MappingActionsTextViewProps> = ({
   );
 
   const monacoTheme = useMonacoTheme();
+
   useEffect(() => {
     if (monacoRef.current) {
       applyVSCodeThemeToMonaco(monacoRef.current);
     }
   }, [monacoTheme]);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [editorHeight, setEditorHeight] = useState(300);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const calcHeight = () => {
-      const scrollParent = el.closest(".ant-modal-body") ?? el.parentElement;
-      if (!scrollParent) return;
-      const parentRect = scrollParent.getBoundingClientRect();
-      const elRect = el.getBoundingClientRect();
-      const available = parentRect.bottom - elRect.top - 60;
-      if (available > 300) {
-        setEditorHeight(available);
-      }
-    };
-
-    const modalWrap = el.closest(".ant-modal-wrap");
-    if (modalWrap) {
-      modalWrap.addEventListener("transitionend", calcHeight);
-    }
-    window.addEventListener("resize", calcHeight);
-
-    return () => {
-      modalWrap?.removeEventListener("transitionend", calcHeight);
-      window.removeEventListener("resize", calcHeight);
-    };
-  }, []);
-
   return (
-    <Flex vertical ref={containerRef}>
-      <Editor
-        height={editorHeight}
-        className="qip-editor"
-        value={value}
-        language={MAPPER_ACTIONS_LANGUAGE_ID}
-        theme={monacoTheme}
-        onMount={(editor, monaco) => onEditorMount(editor, monaco)}
-        options={{ fixedOverflowWidgets: true }}
-      />
-    </Flex>
+    <Editor
+      className="qip-editor"
+      value={value}
+      language={MAPPER_ACTIONS_LANGUAGE_ID}
+      theme={monacoTheme}
+      onMount={(editor, monaco) => onEditorMount(editor, monaco)}
+      options={{ fixedOverflowWidgets: true, automaticLayout: true }}
+    />
   );
 };

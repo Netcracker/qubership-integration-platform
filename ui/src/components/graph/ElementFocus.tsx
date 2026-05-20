@@ -40,7 +40,7 @@ export const ElementFocus = () => {
 
       setNodes((currentNodes) => withSingleNodeSelected(currentNodes, id));
 
-      fitView({
+      void fitView({
         nodes: [{ id }],
         padding: 0.2,
         duration: 300,

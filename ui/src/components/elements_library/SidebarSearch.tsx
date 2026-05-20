@@ -60,6 +60,7 @@ export const SidebarSearch: React.FC<SidebarSearchProps> = ({
   };
   return (
     <CompactSearch
+      style={{ width: "100%" }}
       value={value}
       onChange={(v) => {
         setValue(v);

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Session, SessionElement } from "../../api/apiTypes.ts";
-import { Button, Flex, message, Modal, Tabs, TabsProps, Tag } from "antd";
+import { Button, Flex, message, Tabs, TabsProps, Tag } from "antd";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import { PLACEHOLDER } from "../../misc/format-utils.ts";
 import { SessionStatus } from "../sessions/SessionStatus.tsx";
@@ -13,6 +13,7 @@ import { copyToClipboard } from "../../misc/clipboard-util.ts";
 import { SessionElementBodyChangesView } from "../sessions/SessionElementBodyChangesView.tsx";
 import { traverseElementsDepthFirst } from "../../misc/tree-utils.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { ModalWithFullscreenToggle } from "./ModalWithFullscreenToggle.tsx";
 
 type SessionElementDetailsProps = {
   session: Session;
@@ -210,7 +211,7 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
   }, [buildTabItems, element]);
 
   return (
-    <Modal
+    <ModalWithFullscreenToggle
       title={
         <>
           <span style={{ marginRight: 8 }}>{element?.elementName}</span>
@@ -228,11 +229,13 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
       centered
       open={true}
       onCancel={closeContainingModal}
-      width={"90%"}
       footer={null}
     >
       {contextHolder}
-      <Flex vertical style={{ height: "80vh", paddingTop: 8 }}>
+      <Flex
+        vertical
+        style={{ paddingTop: 8, flexGrow: 1, flexShrink: 1, minHeight: 0 }}
+      >
         <Flex vertical={false} align="center" justify="space-between">
           <Flex vertical={false} gap={8}>
             <Button
@@ -282,6 +285,6 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
         </Flex>
         <Tabs items={tabItems} style={{ flexGrow: 1 }} className="flex-tabs" />
       </Flex>
-    </Modal>
+    </ModalWithFullscreenToggle>
   );
 };

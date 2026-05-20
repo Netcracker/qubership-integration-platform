@@ -31,19 +31,19 @@ export const ConnectionAnchor = forwardRef<
     ref,
   ) => {
     const [className, setClassName] = useState<string>(
-      `${styles["connection-anchor"] as string} ${styles.disconnected}`,
+      `${styles["connection-anchor"]} ${styles.disconnected}`,
     );
 
     useEffect(() => {
       const classNames: string[] = [
-        styles["connection-anchor"] as string,
+        styles["connection-anchor"],
         connected ? styles.connected : styles.disconnected,
       ];
       if (invalid) {
-        classNames.push(styles.invalid as string);
+        classNames.push(styles.invalid);
       }
       if (required && !connected) {
-        classNames.push(styles.required as string);
+        classNames.push(styles.required);
       }
       setClassName(classNames.join(" "));
     }, [invalid, connected, required]);

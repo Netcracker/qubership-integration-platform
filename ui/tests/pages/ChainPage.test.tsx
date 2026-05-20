@@ -63,6 +63,13 @@ jest.mock("../../src/icons/IconProvider", () => ({
   ),
 }));
 
+const mockRequestFailed = jest.fn();
+jest.mock("../../src/hooks/useNotificationService", () => ({
+  useNotificationService: () => ({
+    requestFailed: mockRequestFailed,
+  }),
+}));
+
 describe("ChainPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();

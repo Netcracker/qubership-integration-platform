@@ -26,7 +26,9 @@ export const clearColumnMetadata = (key: string) => {
   return isColumnVisibilityLocked(key) ? key.slice(0, -1) : key;
 };
 
-const buildKeyWithMetadata = (columnType: ColumnTypeWithSettings<T>): string => {
+const buildKeyWithMetadata = (
+  columnType: ColumnTypeWithSettings<T>,
+): string => {
   const columnString = columnType.key!.toString();
   return columnType.settings?.visibilityLocked
     ? columnString + COLUMN_VISIBILITY_LOCKED_SUFFIX
