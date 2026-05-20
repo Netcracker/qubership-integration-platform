@@ -1,0 +1,13 @@
+node_modules/
+target/
+dist/
+dist-lib/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+.env
+.env.local
+.flattened-pom.xml
+*.tgz

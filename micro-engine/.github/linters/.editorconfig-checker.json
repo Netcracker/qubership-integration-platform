@@ -1,8 +1,0 @@
-{
-  "Exclude": [
-    "^src/main/resources/.*"
-  ],
-  "Disable": {
-    "InsertFinalNewline": true
-  }
-}

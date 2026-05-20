@@ -1,0 +1,19 @@
+{
+  "name": "qubership-integration-platform",
+  "private": true,
+  "workspaces": [
+    "schemas",
+    "ui",
+    "vscode-extension"
+  ],
+  "scripts": {
+    "build": "npm run build -w schemas && npm run build -w ui && npm run compile-web -w vscode-extension",
+    "build:ui": "npm run build -w ui",
+    "build:schemas": "npm run prepublishOnly -w schemas",
+    "test": "npm test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

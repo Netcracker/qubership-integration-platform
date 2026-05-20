@@ -1,0 +1,144 @@
+name: Release All
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0)'
+        required: true
+        type: string
+      modules:
+        description: 'Modules to release (comma-separated, or "all" for everything)'
+        required: false
+        default: 'all'
+        type: string
+      profile:
+        description: 'Maven profile'
+        type: choice
+        options:
+          - 'central'
+          - 'github'
+        required: false
+        default: 'central'
+      build-docker:
+        description: 'Build Docker images for applicable modules'
+        required: false
+        default: true
+        type: boolean
+      create-github-release:
+        description: 'Create GitHub release'
+        required: false
+        default: true
+        type: boolean
+
+permissions: {}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      release-engine: ${{ steps.check.outputs.engine }}
+      release-micro-engine: ${{ steps.check.outputs.micro-engine }}
+      release-runtime-catalog: ${{ steps.check.outputs.runtime-catalog }}
+      release-sessions-management: ${{ steps.check.outputs.sessions-management }}
+      release-schemas: ${{ steps.check.outputs.schemas }}
+      release-ui: ${{ steps.check.outputs.ui }}
+      release-vscode-extension: ${{ steps.check.outputs.vscode-extension }}
+      release-checkstyle: ${{ steps.check.outputs.checkstyle }}
+    steps:
+      - name: Determine modules to release
+        id: check
+        run: |
+          MODULES="${{ inputs.modules }}"
+          ALL_MODULES="engine micro-engine runtime-catalog sessions-management schemas ui vscode-extension checkstyle"
+
+          for mod in $ALL_MODULES; do
+            mod_safe=$(echo "$mod" | tr '-' '_')
+            if [[ "$MODULES" == "all" ]] || echo "$MODULES" | tr ',' '\n' | grep -qw "$mod"; then
+              echo "${mod_safe}=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "${mod_safe}=false" >> "$GITHUB_OUTPUT"
+            fi
+          done
+
+  release-engine:
+    needs: prepare
+    if: needs.prepare.outputs.release-engine == 'true'
+    uses: ./.github/workflows/engine-release.yaml
+    with:
+      version: ${{ inputs.version }}
+      profile: ${{ inputs.profile }}
+      build-docker: ${{ inputs.build-docker }}
+      create-github-release: ${{ inputs.create-github-release }}
+    secrets: inherit
+
+  release-micro-engine:
+    needs: prepare
+    if: needs.prepare.outputs.release-micro-engine == 'true'
+    uses: ./.github/workflows/micro-engine-release.yaml
+    with:
+      version: ${{ inputs.version }}
+      profile: ${{ inputs.profile }}
+      build-docker: ${{ inputs.build-docker }}
+      create-github-release: ${{ inputs.create-github-release }}
+    secrets: inherit
+
+  release-runtime-catalog:
+    needs: prepare
+    if: needs.prepare.outputs.release-runtime-catalog == 'true'
+    uses: ./.github/workflows/runtime-catalog-release.yaml
+    with:
+      version: ${{ inputs.version }}
+      profile: ${{ inputs.profile }}
+      build-docker: ${{ inputs.build-docker }}
+      create-github-release: ${{ inputs.create-github-release }}
+    secrets: inherit
+
+  release-sessions-management:
+    needs: prepare
+    if: needs.prepare.outputs.release-sessions-management == 'true'
+    uses: ./.github/workflows/sessions-management-release.yaml
+    with:
+      version: ${{ inputs.version }}
+      profile: ${{ inputs.profile }}
+      build-docker: ${{ inputs.build-docker }}
+      create-github-release: ${{ inputs.create-github-release }}
+    secrets: inherit
+
+  release-schemas:
+    needs: prepare
+    if: needs.prepare.outputs.release-schemas == 'true'
+    uses: ./.github/workflows/schemas-release.yaml
+    with:
+      version: ${{ inputs.version }}
+      profile: ${{ inputs.profile }}
+      create-github-release: ${{ inputs.create-github-release }}
+    secrets: inherit
+
+  release-ui:
+    needs: [prepare, release-schemas]
+    if: always() && needs.prepare.outputs.release-ui == 'true' && (needs.release-schemas.result == 'success' || needs.release-schemas.result == 'skipped')
+    uses: ./.github/workflows/ui-release.yaml
+    with:
+      version: ${{ inputs.version }}
+      create-github-release: ${{ inputs.create-github-release }}
+    secrets: inherit
+
+  release-vscode-extension:
+    needs: [prepare, release-ui]
+    if: always() && needs.prepare.outputs.release-vscode-extension == 'true' && (needs.release-ui.result == 'success' || needs.release-ui.result == 'skipped')
+    uses: ./.github/workflows/vscode-extension-release.yaml
+    with:
+      version: ${{ inputs.version }}
+      create-github-release: ${{ inputs.create-github-release }}
+    secrets: inherit
+
+  release-checkstyle:
+    needs: prepare
+    if: needs.prepare.outputs.release-checkstyle == 'true'
+    uses: ./.github/workflows/checkstyle-release.yaml
+    with:
+      version: ${{ inputs.version }}
+      profile: ${{ inputs.profile }}
+      create-github-release: ${{ inputs.create-github-release }}
+    secrets: inherit
