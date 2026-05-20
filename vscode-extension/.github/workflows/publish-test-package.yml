@@ -1,0 +1,79 @@
+name: Publish test package
+
+run-name: NPM Test Package publish
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: 'NPM scope for the package'
+        required: false
+        type: string
+        default: '@netcracker'
+      node-version:
+        description: 'Node version'
+        required: false
+        type: string
+        default: "22.x"
+      registry-url:
+        description: 'Registry URL'
+        required: false
+        type: string
+        default: "https://npm.pkg.github.com"
+
+permissions: {}
+
+env:
+  DIST_TAG: 'test'
+
+jobs:
+  npm-build-publish:
+    permissions:
+      packages: write
+    runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          registry-url: ${{ inputs.registry-url }}
+          scope: ${{ inputs.scope }}
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build Project
+        run: |
+          if npm run | grep -q "prepublishOnly"; then
+            npm run prepublishOnly
+          elif npm run | grep -q "build"; then
+            npm run build
+          else
+            echo "No 'prepublishOnly' or 'build' script found. Skipping build step."
+          fi
+
+      - name: Run tests
+        run: npm test --if-present
+
+      - name: Set version and publish package
+        run: |
+          set -e
+
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          TIMESTAMP=$(date +'%Y%m%d%H%M%S')
+          PUBLISH_VERSION="${BASE_VERSION}-dev.${TIMESTAMP}"
+
+          echo "Base version: $BASE_VERSION"
+          echo "Publishing version: $PUBLISH_VERSION"
+
+          npm version "$PUBLISH_VERSION" --no-git-tag-version
+          npm publish --tag dev
