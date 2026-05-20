@@ -1,0 +1,55 @@
+---
+id: "fda9842a-f505-4c39-954f-8bf96b259b0e"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707145313467
+elements:
+  - id: "6416354f-5b1f-4255-bc75-d84721ff72c3"
+    name: "Circuit Breaker Script"
+    description: "Circuit Breaker Script description"
+    element-type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "aed089e8-37ab-4190-a5c2-277baee23086"
+    name: "Circuit Breaker"
+    description: "Circuit Breaker description"
+    element-type: "circuit-breaker-2"
+    children:
+      - id: "9b6d86be-ff6e-40dd-a0fd-86bbd658faa5"
+        name: "Circuit Breaker Configuration"
+        description: "Circuit Breaker Configuration description"
+        element-type: "circuit-breaker-configuration-2"
+        properties:
+          automaticTransitionFromOpenToHalfOpenEnabled: false
+          failureRateThreshold: 50
+          minimumNumberOfCalls: 100
+          permittedNumberOfCallsInHalfOpenState: 10
+          slidingWindowSize: 100
+          slidingWindowType: "COUNT_BASED"
+          slowCallDurationThreshold: 60
+          slowCallRateThreshold: 100
+          waitDurationInOpenState: 60
+        children:
+          - id: "8cf3b7d8-fc6d-43b4-ace2-3ecf12e53b8d"
+            name: "Circuit Breaker Configuration Script"
+            description: "Circuit Breaker Configuration Script description"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+      - id: "9b6d86be-ff6e-40dd-a0fd-86bbd658faa5"
+        name: "On fallback"
+        description: "On fallback description"
+        element-type: "on-fallback-2"
+        children:
+          - id: "c43a4b61-08c4-422f-85c5-ac7edeea7eb8"
+            name: "On fallback Script"
+            description: "On fallback Script description"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+dependencies:
+  - from: "aed089e8-37ab-4190-a5c2-277baee23086"
+    to: "6416354f-5b1f-4255-bc75-d84721ff72c3"

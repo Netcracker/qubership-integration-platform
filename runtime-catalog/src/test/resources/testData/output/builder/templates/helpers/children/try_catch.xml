@@ -1,0 +1,17 @@
+<route>
+    <doCatch>
+        <exception>
+            java.lang.IllegalArgumentException
+        </exception>
+    </doCatch>
+    <doCatch>
+        <exception>
+            java.io.IOException
+        </exception>
+    </doCatch>
+    <doCatch>
+        <exception>
+            java.lang.Exception
+        </exception>
+    </doCatch>
+</route>

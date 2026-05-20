@@ -1,0 +1,89 @@
+---
+id: "fda9842a-f505-4c39-954f-8bf96b259b0e"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707129833938
+elements:
+  - id: "b0736a14-29ee-4593-b241-10ea381afbb7"
+    name: "Try-Catch-Finally"
+    element-type: "try-catch-finally-2"
+    children:
+      - id: "9b6d86be-ff6e-40dd-a0fd-86bbd658faa5"
+        name: "Try"
+        description: "Try description"
+        element-type: "try-2"
+        children:
+          - id: "edc66d20-8a75-4da1-9acd-cfe01277cf6b"
+            name: "Try Script"
+            description: "Try Script description"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+      - id: "9b6d86be-ff6e-40dd-a0fd-86bbd658faa5"
+        name: "Catch#0"
+        description: "Catch#0 description"
+        element-type: "catch-2"
+        properties:
+          exception: "java.lang.Exception"
+          priority: 0
+        children:
+          - id: "e3916119-df88-4495-b75d-a4e9232c2f12"
+            name: "Catch#0 Script"
+            description: "Catch#0 Script description"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+      - id: "9b6d86be-ff6e-40dd-a0fd-86bbd658faa5"
+        name: "Finally"
+        description: "Finally description"
+        element-type: "finally-2"
+        children:
+          - id: "b1a5348f-8369-48f7-962d-7753318d7551"
+            name: "Finally Script"
+            description: "Finally Script description"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+      - id: "9b6d86be-ff6e-40dd-a0fd-86bbd658faa5"
+        name: "Catch#1"
+        description: "Catch#1 description"
+        element-type: "catch-2"
+        properties:
+          exception: "java.lang.Exception"
+          priority: 1
+        children:
+          - id: "ddb84284-a5f7-4f79-b710-17ae7a691318"
+            name: "Catch#1 Script"
+            description: "Catch#1 Script description"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+      - id: "9b6d86be-ff6e-40dd-a0fd-86bbd658faa5"
+        name: "Catch#2"
+        description: "Catch#2 description"
+        element-type: "catch-2"
+        properties:
+          exception: "java.lang.Exception"
+          priority: 2
+        children:
+          - id: "005ca291-8aaa-4921-b019-fb4716317aee"
+            name: "Catch#2 Script"
+            description: "Catch#2 Script description"
+            element-type: "script"
+            properties:
+              exportFileExtension: "groovy"
+              propertiesToExportInSeparateFile: "script"
+  - id: "ceb608c4-3129-408a-a330-ff7cd8aff4f3"
+    name: "Try-Catch-Finally Script"
+    description: "Try-Catch-Finally Script description"
+    element-type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+dependencies:
+  - from: "b0736a14-29ee-4593-b241-10ea381afbb7"
+    to: "ceb608c4-3129-408a-a330-ff7cd8aff4f3"

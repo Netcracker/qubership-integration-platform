@@ -1,0 +1,24 @@
+<route>
+    <step id="720d5009-2ead-49f0-82bd-4f29146571be">
+        <loop doWhile="true" copy="true">
+            <simple>
+                ${exchangeProperty.length} &gt; 0
+            </simple>
+            <step id="Iteration--720d5009-2ead-49f0-82bd-4f29146571be">
+                <toD uri="direct:720d5009-2ead-49f0-82bd-4f29146571be"/>
+                <choice>
+                    <when>
+                        <simple>${exchangeProperty.internalProperty_element_warning} == 'true'</simple>
+                        <setProperty name="internalProperty_loop_element_warning">
+                            <simple>${exchangeProperty.internalProperty_element_warning}</simple>
+                        </setProperty>
+                    </when>
+                </choice>
+            </step>
+        </loop>
+    </step>
+    <setProperty name="internalProperty_element_warning">
+        <simple>${exchangeProperty.internalProperty_loop_element_warning}</simple>
+    </setProperty>
+    <removeProperty name="internalProperty_loop_element_warning"/>
+</route>

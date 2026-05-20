@@ -1,0 +1,18 @@
+id: "19875070-766e-43bc-abf1-627f8aeb443a"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "265336cc-e5e6-4110-89f2-aa8df93f69e9"
+    name: "SFTP upload"
+    element-type: "sftp-upload"
+    original-id: "f8608756-7cc5-4bd9-9727-f398daedcbce"
+    properties:
+      binary: true
+      fileName: "test.txt"
+      password: "client"
+      username: "client"
+      autoCreate: true
+      connectUrl: "/ftp/test"
+      allowNullBody: true
+      useUserKnownHostsFile: false

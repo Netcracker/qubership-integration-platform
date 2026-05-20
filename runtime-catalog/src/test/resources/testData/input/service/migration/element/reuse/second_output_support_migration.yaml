@@ -1,0 +1,26 @@
+---
+id: "af44d2de-7b9e-406e-a277-3784191864d5"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707385989933
+elements:
+  - id: "4c5c12dc-5917-4853-b07e-16103ba46488"
+    name: "Split Async (deprecated)"
+    element-type: "split-async"
+    children:
+      - id: "0cdf12c2-a0cc-4a5f-90cc-5d66e7b83364"
+        name: "Sync Split Element"
+        element-type: "sync-split-element"
+      - id: "e0a4064e-fed4-44b6-af35-ce005e000c32"
+        name: "Async Split Element"
+        element-type: "async-split-element"
+  - id: "7967c5b7-70e7-4852-942e-963596078e14"
+    name: "Script"
+    element-type: "script"
+    properties-filename: "script-7967c5b7-70e7-4852-942e-963596078e14.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+dependencies:
+  - from: "7967c5b7-70e7-4852-942e-963596078e14"
+    to: "4c5c12dc-5917-4853-b07e-16103ba46488"

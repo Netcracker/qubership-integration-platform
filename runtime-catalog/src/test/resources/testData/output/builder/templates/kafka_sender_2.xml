@@ -1,0 +1,22 @@
+<route>
+    <doTry>
+        <process ref="contextPropagationProcessor"/>
+        <process ref="messagingXHeadersPropagationProcessor"/>
+
+        <process ref="kafkaSenderProcessor" />
+        <toD id="f1eb4aa9-c619-4bf5-b701-b39a3971482e"
+             uri="kafka-custom:test-topic?key=${exchangeProperty.kafka_key}&amp;sslProtocol=TLS&amp;sslEndpointAlgorithm=http://localhost:8080/&amp;valueSerializer=org.apache.kafka.common.serialization.StringSerializer&amp;keySerializer=org.apache.kafka.common.serialization.BytesSerializer&amp;brokers=kafka-main:9092&amp;securityProtocol=PLAINTEXT&amp;saslMechanism=GSSAPI&amp;kafkaClientFactory=#f1eb4aa9-c619-4bf5-b701-b39a3971482e-v2"/>
+
+        <process ref="messagingXHeadersPropagationRestoreProcessor"/>
+        <setProperty name="internalProperty_enableAuthRestore">
+            <constant>true</constant>
+        </setProperty>
+
+        <removeProperty name ="internalProperty_enableAuthRestore"/>
+
+        <doFinally>
+            <removeProperty name="internalProperty_overrideContextParams"/>
+            <process ref="contextRestoreProcessor"/>
+        </doFinally>
+    </doTry>
+</route>

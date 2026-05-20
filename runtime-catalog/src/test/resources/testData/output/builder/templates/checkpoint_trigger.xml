@@ -1,0 +1,31 @@
+<route>
+    <step>
+        <onCompletion>
+            <process ref="chainFinishProcessor"/>
+        </onCompletion>
+        <process ref="chainStartProcessor"/>
+        <from uri="servlet-custom:/chains/5964a902-37ec-490b-bfb1-930571dad66f/sessions/{checkpointSessionId}/checkpoint-elements/123e4b89-e642-4bf7-9b62-582d668005f2/retry?httpMethodRestrict=POST"/>
+
+        <setProperty name="internalProperty_isCheckpointTriggerStep">
+            <constant>true</constant>
+        </setProperty>
+
+        <setProperty name="internalProperty_rbac_access_policy">
+            <constant resultType="org.qubership.integration.platform.engine.security.QipSecurityAccessPolicy">
+                <![CDATA[
+["ROLE_CIP_SESSION_RETRY","ROLE_M2M"]
+]]>
+            </constant>
+        </setProperty>
+
+        <step id="dff13808-d150-4e1d-a3ab-b0661041af0c">
+            <policy ref="rbacPolicy">
+                <process ref="contextLoaderProcessor"/>
+                <process ref="httpTriggerProcessor"/>
+                <removeProperty name="checkpointSessionId"/>
+            </policy>
+        </step>
+
+        <removeProperty name="internalProperty_isCheckpointTriggerStep"/>
+    </step>
+</route>

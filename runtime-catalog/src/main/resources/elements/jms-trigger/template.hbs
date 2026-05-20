@@ -1,0 +1,5 @@
+<from uri="jms-{{identifier}}:{{property 'destinationType'}}:{{escape (property 'destinationName')}}?acknowledgementModeName={{property 'acknowledgmentMode'}}&amp;disableReplyTo=true"/>
+<step id="{{identifier}}">
+    <process ref="jmsProcessor"/>
+    {{> idempotency}}
+</step>
