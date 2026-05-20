@@ -21,9 +21,9 @@
 # Please prepare project's pom.xml file according to https://github.com/netcracker/.github/blob/main/docs/maven-publish-pom-preparation_doc.md
 # to be able to use this workflow.
 
-name: Maven release
+name: Sessions Management Release
 
-run-name: ${{ github.event.inputs.version-type }} release for ${{ github.event.repository.name }}
+run-name: ${{ github.event.inputs.version-type }} release for sessions-management
 
 on:
   workflow_dispatch:
@@ -75,14 +75,14 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Check if tag exists
         id: check_tag
-        uses: netcracker/qubership-workflow-hub/actions/tag-action@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+        uses: netcracker/qubership-workflow-hub/actions/tag-action@c1a5c8c2d9c2a79f548134db1d095f36ee0f28e7 # v2.0.7
         with:
           ref: ${{ github.ref }}
           tag-name: 'v${{ inputs.version }}'
@@ -99,11 +99,11 @@ jobs:
       packages: write
     steps:
       - name: "Build and Publish"
-        uses: netcracker/qubership-workflow-hub/actions/maven-release@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+        uses: netcracker/qubership-workflow-hub/actions/maven-release@c1a5c8c2d9c2a79f548134db1d095f36ee0f28e7 # v2.0.7
         with:
           version-type: ${{ github.event.inputs.version-type }}
           ref: ${{ github.ref }}
-          module: ${{ github.event.repository.name }}
+          module: sessions-management
           maven-args: ${{ inputs.mvn-args }}
           profile: ${{ inputs.profile }}
           server-id: ${{ inputs.profile }}
@@ -117,7 +117,7 @@ jobs:
         uses: actions/upload-artifact@v6.0.0
         with:
           name: app-jar
-          path: ${{ github.event.repository.name }}/**/target/*-exec.jar
+          path: sessions-management/**/target/*-exec.jar
   publish-image:
     if: ${{ github.event.inputs.build-docker == 'true' }}
     needs: build-and-publish
@@ -127,7 +127,7 @@ jobs:
     steps:
       - name: "Docker Build"
         id: docker_build
-        uses: netcracker/qubership-workflow-hub/actions/docker-action@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+        uses: netcracker/qubership-workflow-hub/actions/docker-action@c1a5c8c2d9c2a79f548134db1d095f36ee0f28e7 # v2.0.7
         with:
           ref: ${{ github.ref }}
           download-artifact: true
@@ -143,7 +143,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
