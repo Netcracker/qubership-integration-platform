@@ -1,0 +1,12 @@
+org.qubership.integration.platform.engine.mapper.atlasmap.functions.GetFirstFunctionFactory
+org.qubership.integration.platform.engine.mapper.atlasmap.functions.FilterFunctionFactory
+org.qubership.integration.platform.engine.mapper.atlasmap.functions.TrimFunctionFactory
+org.qubership.integration.platform.engine.mapper.atlasmap.functions.ReplaceAllFunctionFactory
+org.qubership.integration.platform.engine.mapper.atlasmap.functions.SortFunctionFactory
+org.qubership.integration.platform.engine.mapper.atlasmap.functions.MapFunctionFactory
+org.qubership.integration.platform.engine.mapper.atlasmap.functions.GetKeysFunctionFactory
+org.qubership.integration.platform.engine.mapper.atlasmap.functions.GetValuesFunctionFactory
+org.qubership.integration.platform.engine.mapper.atlasmap.functions.FormatDateTimeFunctionFactory
+org.qubership.integration.platform.engine.mapper.atlasmap.functions.MakeObjectFunctionFactory
+org.qubership.integration.platform.engine.mapper.atlasmap.functions.MergeObjectsFunctionFactory
+org.qubership.integration.platform.engine.mapper.atlasmap.functions.ListFunctionFactory

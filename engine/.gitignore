@@ -1,0 +1,37 @@
+# Maven
+target/
+logs/
+
+# Eclipse
+bin/
+.classpath
+.project
+.settings/
+.springBeans
+.pmd
+.ruleset
+.factorypath
+
+# IDEA
+.idea/
+*.iml
+
+# Cassandra
+.toDelete
+
+# NetBeans
+**/nbactions.xml
+**/nbactions.tmp
+**/nb-configuration.xml
+**/15/
+
+**/generated-sources/
+**/swagger.json
+
+**/.flattened-pom.xml
+.flattened-pom.xml
+
+.utils
+/utils/
+
+.vscode/
