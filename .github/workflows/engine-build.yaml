@@ -1,11 +1,12 @@
-name: Maven build
+name: Engine Build
 
 on:
   pull_request:
-    types: [ opened, synchronize, reopened ]
-  push:
-    branches:
-      - main
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'engine/**'
+      - 'parent/**'
+      - 'pom.xml'
 
 permissions:
   contents: read
@@ -33,6 +34,7 @@ jobs:
           maven-command: >
             --batch-mode verify
             -Dgpg.skip=true
+            -pl engine
             org.sonarsource.scanner.maven:sonar-maven-plugin:${{ vars.SONAR_PLUGIN_VERSION }}:sonar
             -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
             -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
