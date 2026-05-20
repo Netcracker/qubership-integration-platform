@@ -114,4 +114,5 @@ public class ExportImportConstants {
     public static final String ASSUMPTIONS = "assumptions";
     public static final String OUT_OF_SCOPE = "outOfScope";
     public static final String CONTENT = "content";
+    public static final String PARENT_ID = "parentId";
 }
