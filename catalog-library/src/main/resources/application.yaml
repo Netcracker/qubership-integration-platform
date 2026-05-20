@@ -1,0 +1,30 @@
+app:
+  prefix: qip
+
+protoc:
+  work-directory: /tmp/tmp-data
+  compiler: /usr/bin/protoc
+  grpc-java-plugin: /usr/bin/protoc-gen-grpc-java
+
+consul:
+  url: ${CONSUL_URL:}
+  token: ${CONSUL_ADMIN_TOKEN}
+  keys:
+    prefix: /config/${NAMESPACE}
+    engine-config-root: /${app.prefix}-engine-configurations
+    runtime-configurations: /runtime-configurations
+    chains: /chains
+    deployments-update: /deployments-update
+    engines-state: /engines-state
+    libraries-update: /libraries-update
+
+camel:
+  constants:
+    request-filter-header:
+      name: 'requestFilterHeaderAllowlist'
+
+qip:
+  element-descriptors:
+    # These properties are injected in element descriptors
+    properties:
+      filter-header-allowlist-name: ${camel.constants.request-filter-header.name}

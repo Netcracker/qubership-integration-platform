@@ -1,0 +1,142 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: mail-sender
+title: Mail Sender
+description: Send mail using external mail server
+folder: senders
+inputEnabled: true
+colorType: sender
+outputEnabled: true
+container: false
+designParameters:
+  externalParticipantId: 'Mail server: ##{url}'
+  externalParticipantName: 'Mail server: ##{url}'
+  requestLineTitle: 'Send mail from: ##{from}, to: ##{to}'
+  directionToChain: false
+  hasResponse: false
+properties:
+  common:
+    - name: url
+      title: URL
+      description: "Mail server URI in format: {protocol}://{host}:{port}. Supported protocols are SMTP and SMTPS \
+        (secure variant of SMTP layered over SSL). Default ports are 25 for SMTP, and 465 for SMTPS."
+      type: string
+      mandatory: true
+      autofocus: true
+    - name: from
+      title: From
+      description: The From email address.
+      type: string
+      mandatory: true
+      query: true
+    - name: to
+      title: To
+      description: The To email addresses. Setting the To email addresses in the header takes precedence over this option. In this case any CC and BCC settings are also retrieved from headers.
+      type: string
+      mandatory: false
+      multiple: true
+      query: true
+    - name: replyTo
+      title: Reply-To
+      description: The Reply-To recipients (the receivers of the response mail).
+      type: string
+      mandatory: false
+      multiple: true
+      query: true
+    - name: cc
+      title: CC
+      description: The CC email address.
+      type: string
+      mandatory: false
+      multiple: true
+      query: true
+    - name: bcc
+      title: BCC
+      description: The BCC email address.
+      type: string
+      mandatory: false
+      multiple: true
+      query: true
+    - name: subject
+      title: Subject
+      description: The Subject of the message being sent. Setting the subject in the header takes precedence over this option.
+      type: string
+      mandatory: false
+      query: true
+    - name: username
+      title: Username
+      description: The username for login.
+      type: string
+      query: true
+    - name: password
+      title: Password
+      description: The password for login. For security purposes, use reference to secured variables when entering passwords
+      type: string
+      query: true
+  advanced:
+    - name: connectionTimeout
+      title: Connection timeout (ms)
+      description: Connection timeout in millis (default value will be used if nothing is given)
+      type: number
+      mandatory: false
+      default: 30000
+      query: true
+    - name: contentType
+      title: Content Type
+      description: The mail message content type. Use text/html for HTML mails.
+      type: string
+      default: text/plain
+      allowedValues:
+        - text/plain
+        - text/html
+      allowCustomValue: true
+      query: true
+    - name: alternativeBodyHeader
+      title: Alternative body header
+      description: "Specifies the header that contains an alternative email body. For example, \
+        if you send emails in text/html format and want to provide an alternative mail body \
+        for non-HTML email clients, set the alternative mail body with this key as a header."
+      type: string
+      query: true
+    - name: useInlineAttachments
+      title: Use inline attachments
+      description: Whether to use disposition inline or attachment.
+      type: boolean
+      default: false
+      query: true
+    - name: ignoreUnsupportedCharset
+      title: Ignore unsupported charset
+      description: "Ignore unsupported charset in the local JVM when sending mails. \
+        If the charset is unsupported then charset=XXX (where XXX represents the unsupported charset) \
+        is removed from the content-type and it relies on the platform default instead."
+      type: boolean
+      default: false
+      query: true
+    - name: propagateContext
+      title: Propagate context
+      description: Propagate context to headers before sending message
+      type: boolean
+      default: true
+      query: false
+    - name: overrideContextComponent
+      title: Override Context Component
+      type: custom
+      uiComponent: context-override
+  hidden:
+    - name: overrideContextParams
+      title: Override context parameters
+      description: Propagate props to headers before sending message
+      type: string # map<string, string>
+      query: false

@@ -1,0 +1,33 @@
+<setProperty name="internalProperty_element_warning">
+    <constant>false</constant>
+</setProperty>
+<doTry id="{{identifier}}">
+    {{#children 'try'}}
+        <step id="{{identifier}}">
+            <toD uri='direct:{{identifier}}' />
+        </step>
+    {{/children}}
+    {{#children 'catch' comparison-key-property='priorityNumber'}}
+        <doCatch>
+            {{#with-property 'exception'}}
+                <exception>
+                    {{this}}
+                </exception>
+            {{/with-property}}
+            <step id="{{identifier}}">
+                <toD uri='direct:{{identifier}}' />
+                <setProperty name="internalProperty_element_warning">
+                    <constant>true</constant>
+                </setProperty>
+                <process ref="sessionWarningStatusProcessor"/>
+            </step>
+        </doCatch>
+    {{/children}}
+    {{#children 'finally'}}
+        <doFinally>
+            <step id="{{identifier}}">
+                <toD uri='direct:{{identifier}}' />
+            </step>
+        </doFinally>
+    {{/children}}
+</doTry>

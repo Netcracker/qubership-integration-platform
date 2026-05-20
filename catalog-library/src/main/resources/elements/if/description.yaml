@@ -1,0 +1,40 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: if
+title: If
+folder: routing
+inputEnabled: false
+outputEnabled: false
+container: true
+ordered: true
+priorityProperty: priority
+mandatoryInnerElement: true
+descriptionFormatter: if-formatter
+parentRestriction:
+  - condition
+properties:
+  common:
+    - name: condition
+      title: Condition
+      description: Predicate written using Simple language
+      type: string
+      autofocus: true
+      mandatory: true
+    - name: priority
+      title: Priority
+      description: Determines the order of the if blocks. The lower the number, the earlier the exception will be handled. For general exception classes such as Exception, you need to set a big number.
+      type: number
+      mandatory: true
+      mask: "^0{1}$|^[1-9][0-9]*$"

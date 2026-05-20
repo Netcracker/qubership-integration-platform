@@ -1,0 +1,210 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: kafka-sender-2
+title: Kafka Sender
+description: Produce message in kafka
+folder: senders
+inputEnabled: true
+colorType: sender
+outputEnabled: true
+container: false
+designParameters:
+  externalParticipantId: 'Kafka ##{brokers}'
+  externalParticipantName: 'Kafka ##{brokers}'
+  requestLineTitle: 'Put message to topic(s): ##{topics}'
+  directionToChain: false
+  hasResponse: false
+properties:
+  common:
+    - name: kafkaConnection
+      title: Connection parameters
+      type: custom
+      uiComponent: kafka-connection-2
+      validation:
+        conditions:
+          - property: connectionSourceType
+            equalTo: 'maas'
+            mandatoryProperties: ['topicsClassifierName']
+          - property: connectionSourceType
+            equalTo: 'manual'
+            mandatoryProperties: [
+              'brokers',
+              'securityProtocol',
+              'saslMechanism',
+              'topics'
+            ]
+    - name: key
+      title: Key
+      description: Record key
+      type: string
+      query: true
+  advanced:
+    - name: sslProtocol
+      title: SSL Protocol
+      description: The SSL protocol used to generate the SSLContext. Default setting is TLS, which is fine for most cases
+      type: string
+      allowedValues:
+        - TLS
+        - TLSv1.1
+        - TLSv1.2
+        - TLSv1.3
+      mandatory: true
+      query: true
+      default: TLS
+    - name: sslEndpointAlgorithm
+      title: SSL endpoint algorithm
+      description: The endpoint identification algorithm to validate server hostname using server certificate.
+      type: string
+      mandatory: false
+      query: true
+    - name: valueSerializer
+      title: Message serializer class
+      description: The serializer class for messages
+      type: string
+      allowedValues:
+        - org.apache.kafka.common.serialization.ByteArraySerializer
+        - org.apache.kafka.common.serialization.ByteBufferSerializer
+        - org.apache.kafka.common.serialization.BytesSerializer
+        - org.apache.kafka.common.serialization.DoubleSerializer
+        - org.apache.kafka.common.serialization.FloatSerializer
+        - org.apache.kafka.common.serialization.IntegerSerializer
+        - org.apache.kafka.common.serialization.LongSerializer
+        - org.apache.kafka.common.serialization.ShortSerializer
+        - org.apache.kafka.common.serialization.StringSerializer
+        - org.apache.kafka.common.serialization.UUIDSerializer
+        - org.apache.kafka.common.serialization.VoidSerializer
+      mandatory: true
+      query: true
+      default: org.apache.kafka.common.serialization.StringSerializer
+    - name: keySerializer
+      title: Key Serializer
+      description: The serializer class for keys (defaults to the same as for messages if nothing is given)
+      type: string
+      allowedValues:
+        - ""
+        - org.apache.kafka.common.serialization.ByteArraySerializer
+        - org.apache.kafka.common.serialization.ByteBufferSerializer
+        - org.apache.kafka.common.serialization.BytesSerializer
+        - org.apache.kafka.common.serialization.DoubleSerializer
+        - org.apache.kafka.common.serialization.FloatSerializer
+        - org.apache.kafka.common.serialization.IntegerSerializer
+        - org.apache.kafka.common.serialization.LongSerializer
+        - org.apache.kafka.common.serialization.ShortSerializer
+        - org.apache.kafka.common.serialization.StringSerializer
+        - org.apache.kafka.common.serialization.UUIDSerializer
+        - org.apache.kafka.common.serialization.VoidSerializer
+      mandatory: false
+      query: true
+      default: ""
+    - name: propagateContext
+      title: Propagate context
+      description: Propagate context to headers before sending message
+      type: boolean
+      default: true
+      query: false
+    - name: overrideContextComponent
+      title: Override Context Component
+      type: custom
+      uiComponent: context-override
+  hidden:
+    - name: overrideContextParams
+      title: Override context parameters
+      description: Propagate props to headers before sending message
+      type: string # map<string, string>
+      query: false
+    # Parameters below managed by custom UI tab component
+    - name: brokers
+      title: Brokers
+      type: string
+      query: true
+    # Manual
+    - name: topics
+      title: Topic
+      description: Topics name. Must be present in kafka, auto-creation disabled
+      type: string
+    - name: connectionSourceType
+      title: Connection source type
+      type: string
+      allowedValues:
+        - maas
+        - manual
+      mandatory: true
+      default: manual
+    - name: securityProtocol
+      title: Security Protocol
+      description: Protocol used to communicate with brokers
+      type: string
+      allowedValues:
+        - PLAINTEXT
+        - SASL_PLAINTEXT
+        - SASL_SSL
+        - SSL
+      query: true
+      default: PLAINTEXT
+    - name: saslMechanism
+      title: SASL Mechanism
+      description: The Simple Authentication and Security Layer (SASL) Mechanism used
+      type: string
+      allowedValues:
+        - 9798-M-DSA-SHA1
+        - 9798-M-ECDSA-SHA1
+        - 9798-M-RSA-SHA1-ENC
+        - 9798-U-DSA-SHA1
+        - 9798-U-ECDSA-SHA1
+        - 9798-U-RSA-SHA1-ENC
+        - ANONYMOUS
+        - CRAM-MD5
+        - DIGEST-MD5
+        - EAP-AES128
+        - EAP-AES128-PLUS
+        - ECDH-X25519-CHALLENGE[1]
+        - ECDSA-NIST256P-CHALLENGE[1]
+        - EXTERNAL
+        - GS2-KRB5
+        - GS2-KRB5-PLUS
+        - GSS-SPNEGO
+        - GSSAPI
+        - KERBEROS_V4
+        - KERBEROS_V5
+        - LOGIN
+        - NMAS_AUTHEN
+        - NMAS_LOGIN
+        - NMAS-SAMBA-AUTH
+        - NTLM
+        - OAUTH10A
+        - OAUTHBEARER
+        - OPENID20
+        - OTP
+        - PLAIN
+        - SAML20
+        - SCRAM-SHA-1
+        - SCRAM-SHA-1-PLUS
+        - SCRAM-SHA-256
+        - SCRAM-SHA-256-PLUS
+        - SCRAM-SHA-512
+        - SECURID
+        - SKEY
+        - SPNEGO
+        - SPNEGO-PLUS
+        - XOAUTH
+        - XOAUTH2
+      query: true
+      default: GSSAPI
+    - name: saslJaasConfig
+      title: SASL JAAS Config
+      description: "Expose the kafka sasl.jaas.config parameter Example: org.apache.kafka.common.security.plain.PlainLoginModule required username=example password=example;"
+      type: string
+      mandatory: false
+      query: true

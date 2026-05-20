@@ -1,0 +1,58 @@
+{{#if-property 'idempotency' presented=''}}
+{{#with-property 'idempotency'}}
+{{#if-property 'enabled' equals="true"}}
+ <step id="Idempotency--{{identifier}}">
+    <setProperty name="systemProperty_idempotencyKey">
+        <simple>
+            {{escape (property 'keyExpression')}}
+        </simple>
+    </setProperty>
+    <setProperty name="systemProperty_idempotencyContext">
+        <simple>
+            {{escape (property 'contextExpression')}}
+        </simple>
+    </setProperty>
+    <setProperty name="systemProperty_keyExpiry">
+        <constant>{{property 'keyExpiry'}}</constant>
+    </setProperty>
+    <idempotentConsumer
+        idempotentRepository="idempotentRepository"
+        eager="true"
+        completionEager="false"
+        skipDuplicate="true"
+        removeOnFailure="false"
+    >
+        <simple>
+            {{escape (property 'contextExpression')}}:{{escape (property 'keyExpression')}}
+        </simple>
+        <process ref="noopProcessor"/>
+    </idempotentConsumer>
+    <choice>
+        <when>
+            <simple>
+                ${exchangeProperty.CamelDuplicateMessage} == true
+            </simple>
+            {{#if-property 'actionOnDuplicate' equals='ignore'}}
+                {{#if-element-type equals="http-trigger"}}
+                <setHeader name="CamelHttpResponseCode"><constant>202</constant></setHeader>
+                {{/if-element-type}}
+                <process ref="interruptExchangeProcessor" />
+            {{/if-property}}
+            {{#if-property 'actionOnDuplicate' equals='throw-exception'}}
+                <throwException
+                    exceptionType="org.qubership.integration.platform.engine.camel.idempotency.DuplicateException"
+                    message="Duplicated idempotency key"
+                ></throwException>
+            {{/if-property}}
+            {{#if-property 'actionOnDuplicate' equals='execute-subchain'}}
+            {{#with-property 'chainTriggerParameters'}}
+                <toD uri="cip-chain:{{property 'triggerElementId'}}{{#if-property 'chainCallTimeout' presented=''}}?timeout={{property 'chainCallTimeout'}}&amp;block=true&amp;failIfNoConsumers=false{{/if-property}}"/>
+                <process ref="interruptExchangeProcessor" />
+            {{/with-property}}
+            {{/if-property}}
+        </when>
+    </choice>
+</step>
+{{/if-property}}
+{{/with-property}}
+{{/if-property}}
