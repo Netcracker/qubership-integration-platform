@@ -1,0 +1,29 @@
+.parameters {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-auto-flow: row;
+  gap: 4px 12px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.parameter-values {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.title {
+  text-align: center;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.title::first-letter {
+  text-transform: uppercase;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+}

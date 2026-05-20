@@ -1,0 +1,65 @@
+.container {
+  display: flex;
+  height: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 0;
+  flex: 1;
+  background: var(--vscode-panel-background, #fafafa);
+}
+
+.sidebar {
+  background: var(--vscode-editor-background, #fff);
+}
+
+.sidebarInner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.sidebarMenu {
+  flex-grow: 1;
+  overflow-y: auto;
+}
+
+.sidebarToggleBar {
+  height: 40px;
+  line-height: 40px;
+  text-align: center;
+  cursor: pointer;
+
+  /* font-size: 16px; */
+  font-weight: bold;
+  user-select: none;
+  transition: background 0.2s;
+}
+
+.sidebarToggleBar:hover {
+  background-color: var(--vscode-list-hoverBackground, #f0f0f0);
+}
+
+.mainContentWrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.contentArea {
+  flex-grow: 1;
+  overflow: auto;
+  padding: 16px;
+  min-height: 0;
+  height: 100%;
+  background: var(--vscode-editor-background, #fff);
+  border-radius: 0 8px 8px 0;
+}
+
+.moduleContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}

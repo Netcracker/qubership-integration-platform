@@ -1,0 +1,151 @@
+.header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.leftHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.iconWrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge {
+  min-width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  background: rgb(22 119 255 / 15%);
+  background: color-mix(
+    in srgb,
+    var(--vscode-textLink-foreground, #1677ff) 18%,
+    transparent
+  );
+  color: var(--vscode-textLink-foreground, #1677ff);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.noEntries {
+  font-weight: 600;
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--table-bg, var(--vscode-editor-background, #fff));
+}
+
+.th {
+  text-align: left;
+  border-bottom: 1px solid var(--vscode-input-border, #d9d9d9);
+  padding: 8px 4px;
+  font-weight: 500;
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+}
+
+.td {
+  border-bottom: 1px solid var(--vscode-input-border, #d9d9d9);
+  padding: 4px;
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+}
+
+.requiredRow {
+  background-color: var(--vscode-errorForeground);
+}
+
+.nameCell {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.paramName {
+  font-weight: 500;
+}
+
+.labels {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.overriddenTag {
+  font-size: 10px;
+  padding: 0 4px;
+  height: 16px;
+  line-height: 14px;
+  background-color: rgb(250 173 20 / 12%);
+  background-color: color-mix(
+    in srgb,
+    var(--vscode-warningForeground, #faad14) 20%,
+    transparent
+  );
+  border: 1px solid var(--vscode-warningForeground, #d46b08);
+  color: var(--vscode-warningForeground, #d46b08);
+  margin: 0;
+}
+
+.deprecatedTag {
+  font-size: 10px;
+  padding: 0 4px;
+  height: 16px;
+  line-height: 14px;
+  background-color: rgb(244 114 102 / 15%);
+  background-color: color-mix(
+    in srgb,
+    var(--vscode-errorForeground, #f87171) 20%,
+    transparent
+  );
+  border: 1px solid var(--vscode-errorForeground, #cf1322);
+  color: var(--vscode-errorForeground, #cf1322);
+  margin: 0;
+}
+
+.lockedTag {
+  font-size: 10px;
+  padding: 0 4px;
+  height: 16px;
+  line-height: 14px;
+  background-color: rgb(99 132 255 / 15%);
+  background-color: color-mix(
+    in srgb,
+    var(--vscode-focusBorder, #2f54eb) 18%,
+    transparent
+  );
+  border: 1px solid var(--vscode-focusBorder, #2f54eb);
+  color: var(--vscode-focusBorder, #2f54eb);
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+}
+
+.deleteBtn {
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+}
+
+.restoreBtn {
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+}
+
+.checkboxRow {
+  padding: 12px 4px;
+}

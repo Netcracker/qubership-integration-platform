@@ -1,0 +1,45 @@
+/* Domains admin: layout and nested tables (overflow / flex / visual parity with services list). */
+
+.pageRoot {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.tableSection {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.mainTable {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  background: var(--vscode-editor-background);
+  border-radius: 12px;
+}
+
+/*
+ * Prevents nested expandable tables from widening the page by a few pixels
+ * (flex default min-width: auto on descendants).
+ */
+.nestedExpandWrap {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.nestedTableHost {
+  width: 100%;
+  min-width: 0;
+}
+
+.nestedTable {
+  width: 100%;
+  min-width: 0;
+  background: var(--vscode-editor-background);
+}

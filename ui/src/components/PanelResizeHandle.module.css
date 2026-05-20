@@ -1,0 +1,26 @@
+.handle {
+  flex-shrink: 0;
+  width: 0;
+  min-width: 0;
+  cursor: col-resize;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  position: relative;
+  overflow: visible;
+}
+
+.handle::before {
+  content: "";
+  position: absolute;
+  inset: 0 -4px;
+}
+
+.line {
+  display: none;
+}

@@ -1,0 +1,323 @@
+import React, { useRef, useEffect } from "react";
+import { Table, Input, Button, Popconfirm, TableProps } from "antd";
+import type { InputRef } from "antd";
+import "./Resizable.css";
+import { NEW_VARIABLE_KEY } from "./useVariablesState";
+import styles from "./VariablesTable.module.css";
+import {
+  TextColumnFilterDropdown,
+  getTextColumnFilterFn,
+} from "../../table/TextColumnFilterDropdown";
+import type { FilterDropdownProps } from "antd/lib/table/interface";
+import type { Variable } from "../../../api/apiTypes.ts";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
+import {
+  attachResizeToColumns,
+  useTableColumnResize,
+} from "../../table/useTableColumnResize.tsx";
+import {
+  createActionsSizing,
+  DEFAULT_ACTIONS_COLUMN_WIDTH,
+} from "../../table/actionsColumn.ts";
+
+interface VariablesTableProps {
+  variables: Variable[];
+  selectedKeys: string[];
+  onSelectedChange: (keys: string[]) => void;
+  isValueHidden: boolean;
+  isAddingNew: boolean;
+  onAdd: (key: string, value: string) => void;
+  onDelete: (key: string) => void;
+  onStartEditing: (key: string, value: string) => void;
+  onCancelEditing: () => void;
+  editingKey: string | null;
+  editingValue: string;
+  onChangeEditingValue: (value: string) => void;
+  onConfirmEdit: (key: string, newValue: string) => void;
+  enableKeySort?: boolean;
+  enableValueSort?: boolean;
+  enableKeyFilter?: boolean;
+  enableValueFilter?: boolean;
+  calculateScrollHeight?: () => number;
+  flex?: boolean;
+  enableEdit?: boolean;
+  enableDelete?: boolean;
+  loading?: boolean;
+}
+
+const VariablesTable: React.FC<VariablesTableProps> = ({
+  variables,
+  selectedKeys,
+  onSelectedChange,
+  isValueHidden,
+  isAddingNew,
+  onAdd,
+  onDelete,
+  onStartEditing,
+  onCancelEditing,
+  editingKey,
+  editingValue,
+  onChangeEditingValue,
+  onConfirmEdit,
+  enableKeySort,
+  enableValueSort,
+  enableKeyFilter,
+  enableValueFilter,
+  flex,
+  enableEdit = true,
+  enableDelete = true,
+  loading,
+}) => {
+  const newKeyInputRef = useRef<InputRef>(null);
+  const newValueInputRef = useRef<HTMLTextAreaElement>(null);
+
+  const newRecord = useRef<{ key: string; value: string }>({
+    key: "",
+    value: "",
+  });
+  const variablesColumnResize = useTableColumnResize({
+    key: 300,
+    value: 400,
+  });
+
+  useEffect(() => {
+    if (isAddingNew && newKeyInputRef.current) {
+      newKeyInputRef.current.focus();
+    }
+  }, [isAddingNew]);
+
+  const addVariable = () => {
+    if (newRecord.current.key && newRecord.current.key !== NEW_VARIABLE_KEY) {
+      onAdd(newRecord.current.key, newRecord.current.value);
+    }
+  };
+
+  const handleAddKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    newRecord.current.key = e.target.value;
+  };
+
+  const handleAddKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addVariable();
+    }
+  };
+
+  const totalColumnsWidth =
+    variablesColumnResize.totalColumnsWidth + DEFAULT_ACTIONS_COLUMN_WIDTH;
+
+  /* Ant Design Table column/row types infer as error/any in strict mode; types are safe for Variable. */
+  const columns: TableProps<Variable>["columns"] = [
+    {
+      title: "Key",
+      dataIndex: "key",
+      key: "key",
+      width: variablesColumnResize.columnWidths.key,
+      sorter: enableKeySort
+        ? (a: Variable, b: Variable) => a.key.localeCompare(b.key)
+        : undefined,
+      filterDropdown: enableKeyFilter
+        ? (props: FilterDropdownProps) => (
+            <TextColumnFilterDropdown {...props} />
+          )
+        : undefined,
+      onFilter: enableKeyFilter
+        ? getTextColumnFilterFn<Variable>((record) => record.key)
+        : undefined,
+      render: (_: string, record: Variable) =>
+        record.key === NEW_VARIABLE_KEY ? (
+          <Input
+            ref={newKeyInputRef}
+            placeholder="Key"
+            size="small"
+            onChange={handleAddKeyChange}
+            onKeyDown={handleAddKeyDown}
+          />
+        ) : (
+          <div className={styles["key-text"]}>{record.key}</div>
+        ),
+    },
+    {
+      title: "Value",
+      dataIndex: "value",
+      key: "value",
+      width: variablesColumnResize.columnWidths.value,
+      sorter: enableValueSort
+        ? (a: Variable, b: Variable) => a.value.localeCompare(b.value)
+        : undefined,
+      filterDropdown: enableValueFilter
+        ? (props: FilterDropdownProps) => (
+            <TextColumnFilterDropdown {...props} />
+          )
+        : undefined,
+      onFilter: enableValueFilter
+        ? getTextColumnFilterFn<Variable>((record) => record.value)
+        : undefined,
+      render: (_: string, record: Variable) => {
+        const isEditing = enableEdit && editingKey === record.key;
+
+        if (isEditing) {
+          const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              onCancelEditing();
+            } else if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              onConfirmEdit(record.key, editingValue);
+            }
+          };
+
+          return (
+            <div className={styles["editing-wrapper"]}>
+              <Input.TextArea
+                autoFocus
+                value={editingValue}
+                onChange={(e) => onChangeEditingValue(e.target.value)}
+                onKeyDown={onKeyDown}
+                rows={isValueHidden ? 1 : 3}
+              />
+              <div className={styles["editing-buttons"]}>
+                <Button
+                  icon={<OverridableIcon name="check" />}
+                  type="text"
+                  onClick={() => onConfirmEdit(record.key, editingValue)}
+                />
+                <Button
+                  icon={<OverridableIcon name="close" />}
+                  type="text"
+                  onClick={onCancelEditing}
+                />
+              </div>
+            </div>
+          );
+        }
+
+        if (record.key === NEW_VARIABLE_KEY) {
+          const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              addVariable();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              onCancelEditing();
+            }
+          };
+
+          return (
+            <div className={styles["editing-wrapper"]}>
+              <Input.TextArea
+                ref={newValueInputRef}
+                autoFocus
+                placeholder="Value"
+                defaultValue={record.value}
+                onChange={(e) => (newRecord.current.value = e.target.value)}
+                onKeyDown={onKeyDown}
+                rows={isValueHidden ? 1 : 3}
+              />
+              <div className={styles["editing-buttons"]}>
+                <Button
+                  icon={<OverridableIcon name="check" />}
+                  type="text"
+                  onClick={addVariable}
+                />
+                <Button
+                  icon={<OverridableIcon name="close" />}
+                  type="text"
+                  onClick={onCancelEditing}
+                />
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div
+            className={styles["editable-cell-wrapper"]}
+            onClick={() =>
+              enableEdit && onStartEditing(record.key, record.value)
+            }
+          >
+            <div className={styles["value-text"]}>
+              {isValueHidden
+                ? "*****"
+                : `${record.value.split("\n")[0]}${record.value.includes("\n") || record.value.length > 40 ? "..." : ""}`}
+            </div>
+            {record.value.includes("\n") && (
+              <OverridableIcon
+                name="fileText"
+                className={`${styles["inline-icon"]} ${styles["multiline-icon"]}`}
+              />
+            )}
+            {enableEdit && (
+              <OverridableIcon name="edit" className={styles["inline-icon"]} />
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      title: "",
+      key: "actions",
+      align: "right" as const,
+      ...createActionsSizing<Variable>(),
+      render: (_: unknown, record: Variable) =>
+        record.key !== NEW_VARIABLE_KEY &&
+        enableDelete && (
+          <Popconfirm
+            title="Delete variable?"
+            placement="topLeft"
+            onConfirm={() => onDelete(record.key)}
+          >
+            <Button
+              icon={<OverridableIcon name="delete" />}
+              size="small"
+              type="text"
+              className={styles["delete-button"]}
+            />
+          </Popconfirm>
+        ),
+    },
+  ];
+  const columnsWithResize = attachResizeToColumns(
+    columns,
+    variablesColumnResize.columnWidths,
+    variablesColumnResize.createResizeHandlers,
+    { minWidth: 80 },
+  );
+  const columnsWithResizeNoRightActionsHandle = columnsWithResize.map(
+    (column) =>
+      column.key === "value"
+        ? {
+            ...column,
+            onHeaderCell: undefined,
+          }
+        : column,
+  );
+
+  const dataWithNewRow: Variable[] = [
+    ...(isAddingNew ? [{ key: NEW_VARIABLE_KEY, value: "" }] : []),
+    ...variables,
+  ];
+
+  return (
+    <Table<Variable>
+      className={flex ? "flex-table" : undefined}
+      dataSource={dataWithNewRow}
+      columns={columnsWithResizeNoRightActionsHandle}
+      components={variablesColumnResize.resizableHeaderComponents}
+      rowKey="key"
+      pagination={false}
+      size="small"
+      loading={loading}
+      rowClassName={() => styles["secret-row"]}
+      scroll={{ x: totalColumnsWidth, y: flex ? "" : undefined }}
+      rowSelection={{
+        selectedRowKeys: selectedKeys,
+        onChange: (newSelectedKeys) =>
+          onSelectedChange(newSelectedKeys as string[]),
+      }}
+    />
+  );
+};
+
+export default VariablesTable;

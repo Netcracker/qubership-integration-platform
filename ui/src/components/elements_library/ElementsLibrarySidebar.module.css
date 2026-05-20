@@ -1,0 +1,204 @@
+.sideMenu {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+  background: var(
+    --vscode-sideBar-background,
+    var(--vscode-editor-background, #fff)
+  ) !important;
+}
+
+.sidebarSearchArea {
+  flex-shrink: 0;
+  padding: 8px;
+}
+
+.sidebarMenuArea {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.rightPanelBorder {
+  height: 100% !important;
+  min-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.rightPanelBorder :global(.ant-layout-sider-children) {
+  height: 100% !important;
+  min-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.sideMenuRight {
+  border-radius: 0 8px 8px 0;
+}
+
+.sideMenu :global(.ant-layout-sider-children),
+.sideMenuRight :global(.ant-layout-sider-children) {
+  background: var(
+    --vscode-sideBar-background,
+    var(--vscode-editor-background, #fff)
+  ) !important;
+  display: flex;
+}
+
+.sideMenu :global(.ant-input-affix-wrapper) {
+  border-radius: 8px;
+}
+
+.libraryElements {
+  /* Ant Design inline menu adds a right border — override at same specificity */
+  border-inline-end: none !important;
+  background: transparent;
+}
+
+.libraryElements :global(.ant-menu-item .anticon),
+.libraryElements :global(.ant-menu-submenu-title .anticon) {
+  font-size: 18px;
+}
+
+/* Uniform layout for all menu items — consistent highlight width with rounded corners */
+.libraryElements :global(.ant-menu-item),
+.libraryElements :global(.ant-menu-submenu-title) {
+  /* Ant Design sets width: calc(100% - 8px) via CSS-in-JS — same value, kept for clarity */
+  width: calc(100% - 8px) !important;
+
+  /* rc-menu sets padding-left via inline style (inlineIndent prop) — !important needed */
+  padding-left: 8px !important;
+  margin-inline: 4px;
+  border-radius: 8px;
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+}
+
+/* Indent child items inside expanded folders */
+.libraryElements :global(.ant-menu-sub .ant-menu-item),
+.libraryElements :global(.ant-menu-sub .ant-menu-submenu-title) {
+  padding-left: 20px !important;
+}
+
+/* Allow multi-line element names */
+.libraryElements :global(.ant-menu-item) {
+  height: auto;
+  min-height: 40px;
+  padding-block: 6px;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+.libraryElements :global(.ant-menu-item .ant-menu-title-content) {
+  overflow: visible;
+  white-space: normal;
+}
+
+.libraryElements :global(.ant-menu-item:hover),
+.libraryElements :global(.ant-menu-submenu-title:hover) {
+  /* !important: Ant Design CSS-in-JS has equal specificity and loads after CSS modules */
+  background-color: color-mix(
+    in srgb,
+    var(--vscode-foreground, rgb(0 0 0 / 88%)) 14%,
+    transparent
+  ) !important;
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+}
+
+.libraryElements :global(.ant-menu-item-selected) {
+  background-color: color-mix(
+    in srgb,
+    var(--vscode-foreground, rgb(0 0 0 / 88%)) 20%,
+    transparent
+  ) !important;
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+}
+
+.libraryElements :global(.ant-menu-submenu-selected > .ant-menu-submenu-title) {
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%)) !important;
+}
+
+.spacedTabs :global(.ant-tabs-nav-list) {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.spacedTabs :global(.ant-tabs-tab) {
+  position: relative;
+}
+
+.spacedTabs {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.rightPanelTabs {
+  margin-bottom: 0 !important;
+}
+
+.spacedTabs :global(.ant-tabs-nav) {
+  width: 100%;
+  margin: 0;
+  padding: 1px;
+}
+
+.spacedTabs :global(.ant-tabs-nav::before) {
+  width: 100% !important;
+  left: 0 !important;
+}
+
+.elementListItemLabel {
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+}
+
+.elementListItemIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  font-size: 16px;
+  color: inherit;
+}
+
+.elementListItemContent {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  color: inherit;
+}
+
+.elementTypeBadge {
+  display: inline-block;
+  background-color: var(--vscode-badge-background, #e8e8e8);
+  color: var(--vscode-badge-foreground, #333);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  width: fit-content;
+}
+
+.rightPanelCodeBlock {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.rightPanelCodeBlock :global(.monaco-editor) {
+  flex: 1;
+  min-height: 0;
+}

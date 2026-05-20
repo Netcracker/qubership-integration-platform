@@ -1,0 +1,439 @@
+import MiniSearch from "minisearch";
+
+import type {
+  DocumentMappingRule,
+  HighlightSegment,
+  SearchResult,
+  TableOfContentNode,
+} from "./documentationTypes";
+import {
+  DOCUMENTATION_ROUTE_BASE,
+  getDocumentationAssetsBaseUrl,
+  joinUrl,
+} from "./documentationUrlUtils";
+import {
+  escapeRegExp,
+  extractWords,
+  formatFragmentSegments,
+  segmentsToSafeHtml,
+} from "./documentationHighlightUtils";
+import { onConfigChange } from "../../appConfig";
+
+interface SearchDocument {
+  id: number;
+  title: string;
+  body: string;
+}
+
+type Fetcher = (url: string) => Promise<Response>;
+type WindowOpener = (url: string, target: string) => Window | null;
+
+/**
+ * Configuration for element type aliases.
+ * Maps base element types to their alternative names.
+ */
+const ELEMENT_ALIASES: Record<string, string[]> = {
+  condition: ["else", "if"],
+  "try-catch-finally": [
+    "try",
+    "catch",
+    "finally",
+    "try-2",
+    "catch-2",
+    "finally-2",
+    "try-catch-finally-2",
+  ],
+  "headers-modification": ["header-modification"],
+  "asyncapi-trigger": ["async-api-trigger"],
+  scheduler: ["quartz", "quartz-scheduler"],
+  "chain-call": ["chain-call-2"],
+  "chain-trigger": ["chain-trigger-2"],
+  "circuit-breaker": [
+    "circuit-breaker-2",
+    "circuit-breaker-configuration-2",
+    "on-fallback-2",
+  ],
+  loop: ["loop-2"],
+  split: ["split-2", "split-element-2", "main-split-element-2"],
+  "split-async": ["split-async-2", "async-split-element-2"],
+  "kafka-sender": ["kafka-sender-2"],
+  "kafka-trigger": ["kafka-trigger-2"],
+  "rabbitmq-sender": ["rabbitmq-sender-2"],
+  "rabbitmq-trigger": ["rabbitmq-trigger-2"],
+  mapper: ["mapper-2"],
+  "sftp-trigger": ["sftp-trigger-2"],
+};
+
+export class DocumentationService {
+  private readonly MAX_FOUND_DOCUMENT_FRAGMENTS = 5;
+  private readonly ELEMENTS_LIBRARY_PATH = "QIP_Elements_Library";
+  private readonly INDEX_FILENAME = "index";
+
+  private pathsPromise: Promise<string[]> | null = null;
+  private namesPromise: Promise<string[][]> | null = null;
+  private tocPromise: Promise<TableOfContentNode> | null = null;
+  private searchIndexPromise: Promise<MiniSearch<SearchDocument>> | null = null;
+  private contextMappingPromise: Promise<DocumentMappingRule[]> | null = null;
+  private elementMappingPromise: Promise<DocumentMappingRule[]> | null = null;
+  elementTypeMappingCache: Record<string, string> | null = null;
+
+  constructor(
+    private fetcher: Fetcher = (url: string) => fetch(url),
+    private windowOpener: WindowOpener = (url: string, target: string) =>
+      window.open(url, target),
+  ) {}
+
+  public resetCaches(): void {
+    this.pathsPromise = null;
+    this.namesPromise = null;
+    this.tocPromise = null;
+    this.searchIndexPromise = null;
+    this.contextMappingPromise = null;
+    this.elementMappingPromise = null;
+    this.elementTypeMappingCache = null;
+  }
+
+  private async loadResource<T>(path: string): Promise<T> {
+    const fullPath = joinUrl(
+      getDocumentationAssetsBaseUrl(),
+      path.startsWith("/") ? path : `/${path}`,
+    );
+
+    const response = await this.fetcher(fullPath);
+
+    if (!response.ok) {
+      throw new Error(`Failed to load ${fullPath}: ${response.statusText}`);
+    }
+
+    // Check if response is actually JSON, not HTML from Vite SPA fallback
+    const contentType = response.headers.get("content-type");
+    if (!contentType?.includes("application/json")) {
+      const text = await response.text();
+      const isHtmlResponse =
+        contentType?.includes("text/html") ||
+        text.trim().startsWith("<!DOCTYPE") ||
+        text.trim().startsWith("<html") ||
+        text.trim().startsWith("<!doctype");
+
+      if (isHtmlResponse) {
+        throw new Error(
+          `Resource not found: ${fullPath} (received HTML instead of JSON)`,
+        );
+      }
+    }
+
+    return (await response.json()) as T;
+  }
+
+  public loadPaths(): Promise<string[]> {
+    if (!this.pathsPromise) {
+      this.pathsPromise = this.loadResource<string[]>("paths.json");
+    }
+    return this.pathsPromise;
+  }
+
+  public loadNames(): Promise<string[][]> {
+    if (!this.namesPromise) {
+      this.namesPromise = this.loadResource<string[][]>("names.json");
+    }
+    return this.namesPromise;
+  }
+
+  public loadTOC(): Promise<TableOfContentNode> {
+    if (!this.tocPromise) {
+      this.tocPromise = this.loadResource<TableOfContentNode>("toc.json");
+    }
+    return this.tocPromise;
+  }
+
+  public loadSearchIndex(): Promise<MiniSearch<SearchDocument>> {
+    if (!this.searchIndexPromise) {
+      this.searchIndexPromise = this.loadResource<{
+        documents?: SearchDocument[];
+      }>("search-index.json").then((dump) =>
+        this.buildMiniSearchIndex(dump.documents ?? []),
+      );
+    }
+    return this.searchIndexPromise;
+  }
+
+  private buildMiniSearchIndex(
+    docs: SearchDocument[],
+  ): MiniSearch<SearchDocument> {
+    const index = new MiniSearch<SearchDocument>({
+      fields: ["title", "body"],
+      storeFields: ["title", "body"],
+      searchOptions: {
+        boost: { title: 2 },
+        prefix: true,
+        fuzzy: 0.2,
+      },
+    });
+    index.addAll(docs);
+    return index;
+  }
+
+  public loadContextMapping(): Promise<DocumentMappingRule[]> {
+    if (!this.contextMappingPromise) {
+      this.contextMappingPromise = this.loadResource<DocumentMappingRule[]>(
+        "context-doc-mapping.json",
+      );
+    }
+    return this.contextMappingPromise;
+  }
+
+  public async loadElementMapping(): Promise<DocumentMappingRule[]> {
+    if (!this.elementMappingPromise) {
+      this.elementMappingPromise = this.buildElementMappingRules();
+    }
+    return this.elementMappingPromise;
+  }
+
+  /**
+   * Builds mapping rules from auto-generated element type mapping.
+   * Converts Record<string, string> to DocumentMappingRule[] for compatibility.
+   */
+  private async buildElementMappingRules(): Promise<DocumentMappingRule[]> {
+    const mapping = await this.buildElementTypeMapping();
+
+    return Object.entries(mapping).map(([elementType, docPath]) => ({
+      pattern: `^${escapeRegExp(elementType)}$`, // Exact match pattern
+      doc: docPath,
+    }));
+  }
+
+  /**
+   * Builds element type to documentation path mapping automatically from paths.json.
+   * Extracts element types from file names and folder names in QIP_Elements_Library paths.
+   */
+  public async buildElementTypeMapping(): Promise<Record<string, string>> {
+    if (this.elementTypeMappingCache) {
+      return this.elementTypeMappingCache;
+    }
+
+    const paths = await this.loadPaths();
+    const autoMapping: Record<string, string> = {};
+
+    // Auto-generate mapping from file/folder names
+    paths.forEach((path) => {
+      if (!path.includes(this.ELEMENTS_LIBRARY_PATH)) return;
+
+      const parts = path.split("/");
+      const fileName = parts[parts.length - 1].replace(".md", "");
+      const folderName = parts[parts.length - 2];
+
+      // Extract element types from both file name and folder name
+      const elementTypes = new Set<string>();
+
+      // From file name: "http_trigger" → "http-trigger"
+      if (fileName && fileName !== this.INDEX_FILENAME) {
+        elementTypes.add(fileName.replace(/_/g, "-"));
+      }
+
+      // From folder name: "1__HTTP_Trigger" → "http-trigger"
+      const folderPart = folderName.split("__")[1];
+      if (folderPart) {
+        elementTypes.add(folderPart.replace(/_/g, "-").toLowerCase());
+      }
+
+      // Register all variants (use nullish coalescing for more modern syntax)
+      const docPath = `/doc/${path.replace(".md", "")}`;
+      elementTypes.forEach((type) => {
+        autoMapping[type] ??= docPath;
+      });
+    });
+
+    // Apply hardcoded aliases for elements with multiple IDs
+    const aliases = this.getElementTypeAliases(autoMapping);
+    const finalMapping = { ...autoMapping, ...aliases };
+
+    this.elementTypeMappingCache = finalMapping;
+    return finalMapping;
+  }
+
+  /**
+   * Returns hardcoded aliases for elements that have multiple type IDs.
+   * These are edge cases where element type doesn't match file/folder name.
+   */
+  public getElementTypeAliases(
+    baseMapping: Record<string, string>,
+  ): Record<string, string> {
+    const aliases: Record<string, string> = {};
+
+    Object.entries(ELEMENT_ALIASES).forEach(([baseType, aliasNames]) => {
+      const docPath = baseMapping[baseType];
+      if (docPath) {
+        aliasNames.forEach((alias) => {
+          aliases[alias] = docPath;
+        });
+      }
+    });
+
+    return aliases;
+  }
+
+  public async search(query: string): Promise<SearchResult[]> {
+    const index = await this.loadSearchIndex();
+    const raw = index.search(query);
+    return raw.map((r) => ({
+      ref: r.id as number,
+      score: r.score,
+      terms: r.terms,
+    }));
+  }
+
+  public async getSearchDetail(
+    ref: number,
+    query: string,
+    terms?: string[],
+  ): Promise<string[]> {
+    const segments = await this.getSearchDetailSegments(ref, query, terms);
+    return segments.map((fragment) => segmentsToSafeHtml(fragment));
+  }
+
+  public async getSearchDetailSegments(
+    ref: number,
+    query: string,
+    terms?: string[],
+  ): Promise<HighlightSegment[][]> {
+    const index = await this.loadSearchIndex();
+    const doc = index.getStoredFields(ref) as SearchDocument | undefined;
+    if (!doc?.body) {
+      return [];
+    }
+
+    const paragraphs = this.extractParagraphs(doc.body);
+    // Use matched terms for paragraph filtering and highlighting when available.
+    // This ensures fuzzy results (e.g. "Transformabion" → terms: ["transformation"])
+    // still produce snippets by matching the corrected word in text, not the typo.
+    const effectiveQuery = terms?.length ? terms.join(" ") : query;
+    return this.findMatchingParagraphs(paragraphs, effectiveQuery)
+      .slice(0, this.MAX_FOUND_DOCUMENT_FRAGMENTS)
+      .map((text) =>
+        formatFragmentSegments(text, effectiveQuery, (w) => w.toLowerCase()),
+      );
+  }
+
+  private extractParagraphs(text: string): string[] {
+    return text.split(/\n\n+/).filter((par) => extractWords(par).length > 1);
+  }
+
+  private findMatchingParagraphs(
+    paragraphs: string[],
+    query: string,
+  ): string[] {
+    const words = extractWords(query).map((w) => w.toLowerCase());
+    if (words.length === 0) return [];
+
+    return paragraphs.filter((par) => {
+      const lower = par.toLowerCase();
+      return words.some((w) => lower.includes(w));
+    });
+  }
+
+  /**
+   * Maps element type directly to documentation path using auto-generated mapping.
+   * More efficient than regex-based search.
+   */
+  public async mapPathByElementType(elementType: string): Promise<string> {
+    const mapping = await this.buildElementTypeMapping();
+    const docPath = mapping[elementType];
+
+    if (docPath) {
+      console.log("Documentation mapping:", elementType, "->", docPath);
+      return docPath;
+    }
+
+    console.log("Documentation mapping not found for:", elementType);
+    return `${DOCUMENTATION_ROUTE_BASE}/not-found`;
+  }
+
+  public async openChainElementDocumentation(
+    elementType: string,
+    onError?: (error: Error) => void,
+  ): Promise<void> {
+    console.log("Opening", elementType, "chain element documentation...");
+    try {
+      const docPath = await this.mapPathByElementType(elementType);
+      this.openPage(docPath);
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      console.error("Failed to open element documentation:", err);
+      onError?.(err);
+      // Fallback to documentation home
+      this.openPage(DOCUMENTATION_ROUTE_BASE);
+    }
+  }
+
+  public openContextDocumentation(onError?: (error: Error) => void): void {
+    console.log("Opening context documentation...");
+    const path = window.location.pathname + window.location.hash;
+    void this.openMappedDocumentation(this.loadContextMapping(), path).catch(
+      (error) => {
+        const err = error instanceof Error ? error : new Error(String(error));
+        console.error("Failed to open context documentation:", err);
+        onError?.(err);
+        // Fallback to documentation home if context mapping fails
+        this.openPage(DOCUMENTATION_ROUTE_BASE);
+      },
+    );
+  }
+
+  public openPage(url: string): void {
+    this.windowOpener(url, "_blank");
+  }
+
+  private async openMappedDocumentation(
+    mappingRules: Promise<DocumentMappingRule[]>,
+    path: string,
+  ): Promise<void> {
+    const rules = await mappingRules;
+    const mappedPath = this.mapPath(rules, path);
+    this.openPage(mappedPath);
+  }
+
+  private mapPath(mappingRules: DocumentMappingRule[], path: string): string {
+    const mappingRule = mappingRules.find((rule) =>
+      // NOSONAR - patterns from trusted config (element mapping, context-doc-mapping.json)
+      new RegExp(rule.pattern).test(path),
+    );
+    if (mappingRule) {
+      console.log("Documentation mapping rule:", mappingRule);
+    } else {
+      console.log("Documentation mapping rule not found");
+    }
+    const mappedPath =
+      mappingRule?.doc || `${DOCUMENTATION_ROUTE_BASE}/not-found`;
+    console.log("Documentation mapping:", path, "->", mappedPath);
+    return mappedPath;
+  }
+
+  public async mapElementToDoc(elementType: string): Promise<string | null> {
+    const rules = await this.loadElementMapping();
+    const rule = rules.find((r) =>
+      // NOSONAR - patterns from buildElementMappingRules (escapeRegExp)
+      new RegExp(r.pattern).test(elementType),
+    );
+    return rule?.doc || null;
+  }
+
+  public async mapContextToDoc(path: string): Promise<string | null> {
+    const rules = await this.loadContextMapping();
+    const rule = rules.find((r) =>
+      // NOSONAR - patterns from trusted config (context-doc-mapping.json)
+      new RegExp(r.pattern).test(path),
+    );
+    return rule?.doc || null;
+  }
+
+  public async getDefaultDocumentPath(): Promise<string> {
+    const paths = await this.loadPaths();
+    return paths.length ? paths[0] : "";
+  }
+}
+
+export const documentationService = new DocumentationService();
+
+onConfigChange(() => {
+  documentationService.resetCaches();
+});

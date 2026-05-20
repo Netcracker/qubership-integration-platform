@@ -1,0 +1,192 @@
+.container {
+  background: var(--vscode-editor-background, #fff);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 20px;
+  color: var(--vscode-foreground, rgb(0 0 0 / 85%));
+  transition: color var(--transition-duration) var(--transition-easing);
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+}
+
+.icon {
+  margin-right: 12px;
+  transition:
+    transform 0.2s var(--transition-easing),
+    color var(--transition-duration) var(--transition-easing);
+}
+
+.loadingRow {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.codeBlock {
+  background: var(--vscode-editor-background, #fff) !important;
+  border-radius: 4px;
+  max-height: 350px;
+  overflow: auto;
+  font-size: 14px;
+  padding: 12px !important;
+  border: 1px solid var(--vscode-panel-border, var(--vscode-border, #d9d9d9));
+}
+
+.codeBlock > code {
+  background: transparent !important;
+}
+
+.rightAlignedUsedBy {
+  text-align: center;
+}
+
+.variables-container {
+  background: var(--vscode-editor-background, #fff);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding-right: 32px;
+  overflow: auto;
+}
+
+.variables-title {
+  font-size: 20px;
+  color: var(--vscode-foreground, rgb(0 0 0 / 85%));
+  margin: 0;
+  font-weight: 500;
+}
+
+.serviceApiSpecsTabHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px;
+}
+
+.serviceApiSpecsTabHeaderLeft {
+  display: flex;
+  align-items: center;
+}
+
+.serviceApiSpecsTabHeaderRight {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
+.serviceApiSpecsTabFilterGroup {
+  display: inline-block;
+}
+
+.serviceApiSpecsTabFilterNone {
+  display: none;
+}
+
+.serviceApiSpecsTabSpin {
+  margin: 32px;
+}
+
+.serviceApiSpecsTabError {
+  color: var(--vscode-errorForeground, red);
+}
+
+.chainCard {
+  margin-bottom: 12px;
+}
+
+.chainCardBody {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+}
+
+.chainNameLink {
+  font-weight: bold;
+  color: var(--vscode-textLink-foreground, #1677ff);
+  text-decoration: none;
+}
+
+.chainNameLink:hover {
+  text-decoration: underline;
+}
+
+.chainId {
+  margin-left: 4px;
+}
+
+.triggerNameLink {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #888);
+  text-decoration: none;
+}
+
+.triggerNameLink:hover {
+  text-decoration: underline;
+}
+
+/* ImportSpecificationsModal styles */
+.formItemMargin {
+  margin-bottom: 12px;
+}
+
+.importButton {
+  margin-top: 16px;
+}
+
+.loadingContainer {
+  margin-top: 24px;
+  text-align: center;
+}
+
+.loadingText {
+  display: block;
+  margin-top: 8px;
+}
+
+.checkboxMargin {
+  margin-bottom: 16px;
+}
+
+.spinCenter {
+  display: block;
+  margin: 24px auto;
+}
+
+.chainsContainer {
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.checkboxRightMargin {
+  margin-right: 12px;
+}
+
+.actionsContainer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.validationErrorList {
+  margin: 0;
+  padding-left: 24px;
+}

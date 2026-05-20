@@ -1,0 +1,146 @@
+import { TextDecoder, TextEncoder } from "node:util";
+
+// CSS.escape is not implemented in jsdom. Provide a standards-compliant polyfill.
+if (typeof CSS === "undefined" || typeof CSS.escape !== "function") {
+  const cssEscape = (value: string): string => {
+    const str = String(value);
+    let result = "";
+    for (let i = 0; i < str.length; i++) {
+      const code = str.charCodeAt(i);
+      if (code === 0) {
+        result += "�";
+        continue;
+      }
+      if (
+        (code >= 0x01 && code <= 0x1f) ||
+        code === 0x7f ||
+        (i === 0 && code >= 0x30 && code <= 0x39)
+      ) {
+        result += "\\" + code.toString(16) + " ";
+        continue;
+      }
+      if (
+        code >= 0x80 ||
+        code === 0x2d ||
+        code === 0x5f ||
+        (code >= 0x30 && code <= 0x39) ||
+        (code >= 0x41 && code <= 0x5a) ||
+        (code >= 0x61 && code <= 0x7a)
+      ) {
+        result += str[i];
+        continue;
+      }
+      result += "\\" + str[i];
+    }
+    return result;
+  };
+  (globalThis as unknown as { CSS: { escape: (s: string) => string } }).CSS = {
+    escape: cssEscape,
+  };
+}
+
+const globalForEncoders = globalThis as unknown as {
+  TextEncoder?: typeof TextEncoder;
+  TextDecoder?: typeof TextDecoder;
+};
+
+globalForEncoders.TextEncoder ??= TextEncoder;
+globalForEncoders.TextDecoder ??= TextDecoder;
+
+/**
+ * JSDOM and test environment setup.
+ *
+ * 1. Prevents JSDOM "Not implemented: navigation" errors by blocking anchor default
+ *    behavior. JSDOM does not implement full navigation; clicking <a href> throws.
+ *
+ * 2. Suppresses known deprecation warnings from third-party libraries (antd, rc-component)
+ *    that we cannot fix: findDOMNode (rc-tooltip / rc-resize-observer via antd Table).
+ *
+ * 3. Suppresses "was not wrapped in act(...)" warnings from antd components (Tabs, Modal, etc.)
+ *    that trigger internal state updates; fixing requires intrusive test changes with limited benefit.
+ *
+ * 4. Suppresses expected console.error from tests that intentionally trigger error paths
+ *    (e.g. fetch rejection) to verify error handling — DocumentationPage, documentationService,
+ *    PageWithRightPanel (refresh chain structure / schema load failures).
+ *
+ * 5. Polyfill for structuredClone (Node 17+ / modern browsers) when running in older jsdom.
+ *
+ * 6. Polyfill for HTMLFormElement.requestSubmit (not implemented in older jsdom).
+ *
+ * 7. Suppresses rc-field-form / antd noise when Form instance is unmounted or mocked
+ *    ("useForm is not connected to any Form element") in jsdom tests.
+ */
+if (
+  typeof (globalThis as { structuredClone?: unknown }).structuredClone ===
+  "undefined"
+) {
+  (globalThis as { structuredClone: <T>(val: T) => T }).structuredClone = <T>(
+    val: T,
+  ): T => JSON.parse(JSON.stringify(val)) as T;
+}
+
+if (typeof globalThis.HTMLFormElement !== "undefined") {
+  const proto = HTMLFormElement.prototype as HTMLFormElement & {
+    requestSubmit?: (submitter?: HTMLElement) => void;
+  };
+  proto.requestSubmit = function (_submitter?: HTMLElement) {
+    /* no-op: jsdom throws "Not implemented"; prevents errors when Save button triggers form submit */
+  };
+}
+
+const originalConsoleError = console.error;
+console.error = (...args: unknown[]) => {
+  const fullMsg = args
+    .map((a) =>
+      typeof a === "string" ? a : a instanceof Error ? a.message : String(a),
+    )
+    .join(" ");
+  if (
+    fullMsg.includes("findDOMNode is deprecated") ||
+    fullMsg.includes("was not wrapped in act") ||
+    fullMsg.includes("Not implemented: navigation") ||
+    fullMsg.includes("Failed to load documentation") ||
+    fullMsg.includes("Failed to open element documentation") ||
+    fullMsg.includes("Failed to open context documentation") ||
+    fullMsg.includes("Unable to parse JSON") ||
+    fullMsg.includes("Function components cannot be given refs") ||
+    fullMsg.includes("Maximum update depth exceeded") ||
+    fullMsg.includes(
+      "Not implemented: HTMLFormElement.prototype.requestSubmit",
+    ) ||
+    fullMsg.includes("Failed to parse schema") ||
+    fullMsg.includes("not connected to any Form element") ||
+    fullMsg.includes("Failed to refresh chain structure before loading schema")
+  ) {
+    return;
+  }
+  originalConsoleError.apply(console, args);
+};
+
+// jsdom does not implement scrollIntoView; stub it so components calling it don't throw.
+if (
+  typeof Element !== "undefined" &&
+  typeof Element.prototype.scrollIntoView !== "function"
+) {
+  Element.prototype.scrollIntoView = () => {};
+}
+
+if (
+  typeof document !== "undefined" &&
+  typeof document.addEventListener === "function"
+) {
+  document.addEventListener(
+    "click",
+    (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      const anchor =
+        target && "closest" in target
+          ? (target as Element).closest("a[href]")
+          : null;
+      if (anchor) {
+        e.preventDefault();
+      }
+    },
+    true,
+  );
+}

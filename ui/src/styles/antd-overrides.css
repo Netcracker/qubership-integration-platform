@@ -1,0 +1,929 @@
+/* Global Ant Design overrides - CSS variables already defined in theme-variables.css */
+
+.ant-input,
+.ant-input-affix-wrapper {
+  background-color: var(--vscode-input-background) !important;
+  color: var(--vscode-input-foreground) !important;
+  border-color: var(--vscode-editorGroup-border) !important;
+}
+
+.ant-input:focus,
+.ant-input:focus-within,
+.ant-input-affix-wrapper:focus,
+.ant-input-affix-wrapper:focus-within,
+.ant-input-number:focus,
+.ant-input-number:focus-within,
+.ant-input-number-focused {
+  border-color: var(--vscode-focusBorder, #1677ff) !important;
+  box-shadow: 0 0 0 2px rgb(22 119 255 / 15%) !important;
+}
+
+.ant-select-selector {
+  background-color: var(--vscode-input-background) !important;
+  color: var(--vscode-input-foreground) !important;
+  border-color: var(--vscode-editorGroup-border) !important;
+}
+
+.ant-select-focused .ant-select-selector {
+  border-color: var(--vscode-focusBorder, #1677ff) !important;
+  box-shadow: 0 0 0 2px rgb(22 119 255 / 15%) !important;
+}
+
+/* Validation error state: red border */
+.ant-form-item-has-error .ant-input,
+.ant-form-item-has-error .ant-input-affix-wrapper,
+.ant-form-item-has-error .ant-input-number,
+.ant-form-item-has-error .ant-select-selector {
+  border-color: var(--vscode-errorForeground, #ff4d4f) !important;
+}
+
+/* Validation error + focus: red border with red shadow */
+.ant-form-item-has-error .ant-input:focus,
+.ant-form-item-has-error .ant-input:focus-within,
+.ant-form-item-has-error .ant-input-affix-wrapper:focus,
+.ant-form-item-has-error .ant-input-affix-wrapper:focus-within,
+.ant-form-item-has-error .ant-input-number:focus,
+.ant-form-item-has-error .ant-input-number:focus-within,
+.ant-form-item-has-error .ant-input-number-focused {
+  border-color: var(--vscode-errorForeground, #ff4d4f) !important;
+  box-shadow: 0 0 0 2px rgb(255 77 79 / 15%) !important;
+}
+
+.ant-form-item-has-error .ant-select-focused .ant-select-selector {
+  border-color: var(--vscode-errorForeground, #ff4d4f) !important;
+  box-shadow: 0 0 0 2px rgb(255 77 79 / 15%) !important;
+}
+
+.ant-select-selection-placeholder,
+.ant-select-selection-item {
+  color: var(--vscode-input-foreground) !important;
+}
+
+.ant-input::placeholder,
+.ant-input-affix-wrapper input::placeholder {
+  color: var(--vscode-input-placeholderForeground) !important;
+}
+
+/* Search button - same style as settings button (transparent background) */
+.ant-input-search-button {
+  color: var(--vscode-foreground) !important;
+  background-color: transparent !important;
+  border-color: var(--vscode-editorGroup-border) !important;
+}
+
+.ant-input-search-button:hover {
+  background-color: var(--vscode-list-hoverBackground) !important;
+  border-color: var(--vscode-border) !important;
+}
+
+.ant-input-search-button .anticon {
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-layout-sider {
+  background: var(--vscode-editor-background) !important;
+}
+
+/* Drawer theming */
+.ant-drawer-content {
+  background-color: var(--vscode-editor-background) !important;
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-drawer-header {
+  background-color: var(--vscode-editor-background) !important;
+  color: var(--vscode-foreground) !important;
+  border-bottom-color: var(--vscode-border) !important;
+}
+
+.ant-drawer-body {
+  background-color: var(--vscode-editor-background) !important;
+  color: var(--vscode-foreground) !important;
+}
+
+/* List theming in Drawer */
+.ant-list {
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-list-item {
+  border-bottom-color: var(--vscode-border) !important;
+}
+
+.ant-list-item-meta-title {
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-list-item-meta-description {
+  color: var(--vscode-descriptionForeground) !important;
+}
+
+/* SyntaxHighlighter (react-syntax-highlighter) theming */
+pre[class*="language-"] {
+  background: var(--vscode-editor-background) !important;
+  text-shadow: none !important;
+}
+
+code[class*="language-"] {
+  background: transparent !important;
+  text-shadow: none !important;
+}
+
+/* Tabs theming */
+.ant-tabs {
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-tabs-tab {
+  color: var(--vscode-foreground) !important;
+  border-color: transparent !important;
+}
+
+.ant-tabs .ant-tabs-tab + .ant-tabs-tab {
+  margin: 0 0 0 16px !important;
+}
+
+.ant-tabs .ant-tabs-tab {
+  padding: 6px 0 !important;
+}
+
+.ant-tabs .ant-tabs-tab-btn {
+  padding: 0 4px !important;
+}
+
+.ant-tabs-tab:hover {
+  color: var(--vscode-textLink-foreground, #1677ff) !important;
+}
+
+.ant-notification-notice-message > span {
+  color: inherit !important;
+}
+
+/* Only remove text-shadow, keep syntax highlighting colors */
+[data-theme="dark"] pre[class*="language-"] .token,
+[data-theme="dark"] pre[class*="language-"] span,
+[data-theme="high-contrast"] pre[class*="language-"] .token,
+[data-theme="high-contrast"] pre[class*="language-"] span {
+  text-shadow: none !important;
+}
+
+/* Fix punctuation tokens (colons, brackets, etc.) background */
+pre[class*="language-"] .token.punctuation {
+  background-color: transparent !important;
+  text-shadow: none !important;
+}
+
+/* Fix button shadows in VS Code webview */
+.ant-btn {
+  text-shadow: none !important;
+  box-shadow: none !important;
+  border-color: var(
+    --vscode-editorGroup-border,
+    var(--vscode-border)
+  ) !important;
+}
+
+.ant-btn:hover,
+.ant-btn:focus,
+.ant-btn:active {
+  text-shadow: none !important;
+  border-color: var(
+    --vscode-editorGroup-border,
+    var(--vscode-border)
+  ) !important;
+}
+
+.ant-btn-default {
+  background-color: var(--vscode-editor-background) !important;
+  color: var(--vscode-foreground) !important;
+  border-color: var(
+    --vscode-editorGroup-border,
+    var(--vscode-border)
+  ) !important;
+}
+
+.ant-btn-default:hover {
+  background-color: var(--vscode-list-hoverBackground) !important;
+  border-color: var(
+    --vscode-editorGroup-border,
+    var(--vscode-border)
+  ) !important;
+  color: var(--vscode-foreground) !important;
+}
+
+/* Icon-only buttons: standard toolbar icon size */
+.ant-btn.ant-btn-icon-only .anticon {
+  font-size: 16px;
+}
+
+.ant-btn.ant-btn-icon-only .anticon svg {
+  width: 1em;
+  height: 1em;
+}
+
+/* Sequence diagram Unicode icon: match visual size of SVG icons (symbol fonts often render smaller) */
+.ant-btn.ant-btn-icon-only [data-icon="sequence-diagram"] {
+  font-size: 1.8em;
+}
+
+/* Icon-only default buttons: borderless, transparent like toolbar actions */
+.ant-btn-default.ant-btn-icon-only,
+.ant-btn.ant-btn-icon-only:not(.ant-btn-primary) {
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
+
+.ant-btn-default.ant-btn-icon-only:hover,
+.ant-btn.ant-btn-icon-only:not(.ant-btn-primary):hover {
+  background-color: var(--vscode-list-hoverBackground) !important;
+  border-color: transparent !important;
+}
+
+.ant-btn-outlined,
+.ant-btn[class*="ant-btn-variant-outlined"] {
+  border-color: var(
+    --vscode-editorGroup-border,
+    var(--vscode-border)
+  ) !important;
+}
+
+.ant-btn-outlined:hover,
+.ant-btn[class*="ant-btn-variant-outlined"]:hover {
+  border-color: var(
+    --vscode-editorGroup-border,
+    var(--vscode-border)
+  ) !important;
+}
+
+.ant-btn-text {
+  color: var(--vscode-foreground) !important;
+  border-color: transparent !important;
+}
+
+.ant-btn-text:hover {
+  background-color: var(--vscode-list-hoverBackground) !important;
+  color: var(--vscode-foreground) !important;
+  border-color: transparent !important;
+}
+
+/* Icon-only text buttons (dropdown triggers, kebab menu, settings, etc.)
+   Remove the extra inner "white rim" (border/outline/after effects) and keep a single VS Code-like focus ring. */
+.ant-btn.ant-btn-text.ant-btn-icon-only,
+.ant-btn.ant-btn-icon-only[class*="ant-btn-variant-text"] {
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.ant-btn.ant-btn-text.ant-btn-icon-only::before,
+.ant-btn.ant-btn-text.ant-btn-icon-only::after,
+.ant-btn.ant-btn-icon-only[class*="ant-btn-variant-text"]::before,
+.ant-btn.ant-btn-icon-only[class*="ant-btn-variant-text"]::after {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.ant-btn.ant-btn-text.ant-btn-icon-only:focus-visible,
+.ant-btn.ant-btn-icon-only[class*="ant-btn-variant-text"]:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #007acc) !important;
+  outline-offset: 2px;
+}
+
+.ant-btn-primary {
+  background-color: var(--vscode-button-background, #0078d4) !important;
+  border-color: var(--vscode-button-background, #0078d4) !important;
+  color: var(--vscode-button-foreground, #fff) !important;
+}
+
+.ant-btn-primary:hover {
+  background-color: var(--vscode-button-hoverBackground, #106ebe) !important;
+  border-color: var(--vscode-button-hoverBackground, #106ebe) !important;
+  color: var(--vscode-button-foreground, #fff) !important;
+}
+
+/* Primary button focus/active: prevent white border in dark theme */
+.ant-btn-primary:focus,
+.ant-btn-primary:active,
+.ant-btn-primary:focus-visible {
+  background-color: var(--vscode-button-hoverBackground, #106ebe) !important;
+  border-color: var(--vscode-button-hoverBackground, #106ebe) !important;
+  color: var(--vscode-button-foreground, #fff) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.ant-btn-primary:focus::before,
+.ant-btn-primary:active::before,
+.ant-btn-primary:focus::after,
+.ant-btn-primary:active::after {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Primary icon-only toolbar buttons: ensure icons inherit foreground color */
+.ant-btn-primary .anticon {
+  color: inherit;
+}
+
+/* Disabled buttons: gray, non-interactive appearance */
+.ant-btn:disabled,
+.ant-btn.ant-btn-disabled {
+  color: var(--vscode-descriptionForeground, #9ca3af) !important;
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
+
+.ant-btn:disabled .anticon,
+.ant-btn.ant-btn-disabled .anticon {
+  color: inherit !important;
+}
+
+.ant-btn-primary:disabled,
+.ant-btn-primary.ant-btn-disabled {
+  color: var(--vscode-button-foreground, #fff) !important;
+  background-color: var(--vscode-descriptionForeground, #9ca3af) !important;
+  border-color: var(--vscode-descriptionForeground, #9ca3af) !important;
+  opacity: 0.8;
+}
+
+/* Fix radio button group borders */
+.ant-radio-button-wrapper {
+  border: 1px solid var(--vscode-border) !important;
+  box-shadow: none !important;
+}
+
+.ant-radio-button-wrapper-checked {
+  border: 1px solid var(--vscode-focusBorder) !important;
+  box-shadow: none !important;
+}
+
+.ant-radio-button-wrapper:hover {
+  border-color: var(--vscode-focusBorder) !important;
+}
+
+/* Fix form label colors - keep them bright and readable in dark theme */
+[data-theme="dark"] .ant-form-item-label > label,
+[data-theme="high-contrast"] .ant-form-item-label > label {
+  color: rgb(255 255 255 / 85%) !important;
+}
+
+[data-theme="light"] .ant-form-item-label > label {
+  color: rgb(0 0 0 / 88%) !important;
+}
+
+/* Fix Tag text color for colored tags with inline styles (like Source tags) */
+[data-theme="light"] .ant-tag[style*="background:"],
+[data-theme="light"] .ant-tag[style*="background-color:"] {
+  color: rgb(0 0 0 / 88%) !important;
+}
+
+[data-theme="dark"] .ant-tag[style*="background:"],
+[data-theme="dark"] .ant-tag[style*="background-color:"],
+[data-theme="high-contrast"] .ant-tag[style*="background:"],
+[data-theme="high-contrast"] .ant-tag[style*="background-color:"] {
+  color: var(--vscode-foreground, rgb(255 255 255 / 90%)) !important;
+}
+
+/* Light-background tags need dark text for readability in dark theme */
+[data-theme="dark"] .ant-tag[style*="background:"][style*="217"],
+[data-theme="dark"] .ant-tag[style*="background:"][style*="245"],
+[data-theme="dark"] .ant-tag[style*="background:"][style*="240"],
+[data-theme="dark"] .ant-tag[style*="background:"][style*="250"],
+[data-theme="dark"] .ant-tag[style*="background:"][style*="232"],
+.vscode-webview[data-theme="dark"] .ant-tag[style*="background:"][style*="217"],
+.vscode-webview[data-theme="dark"] .ant-tag[style*="background:"][style*="245"],
+.vscode-webview[data-theme="dark"] .ant-tag[style*="background:"][style*="240"],
+.vscode-webview[data-theme="dark"] .ant-tag[style*="background:"][style*="250"],
+.vscode-webview[data-theme="dark"]
+  .ant-tag[style*="background:"][style*="232"] {
+  color: rgb(0 0 0 / 88%) !important;
+}
+
+/* Default Tags (no color) in dark theme - antd may use dark text */
+[data-theme="dark"] .ant-tag,
+[data-theme="high-contrast"] .ant-tag {
+  color: var(--vscode-foreground, rgb(255 255 255 / 90%)) !important;
+}
+
+/* Monaco Editor fixes for proper mouse selection */
+.monaco-editor {
+  user-select: text !important;
+}
+
+.monaco-editor .view-lines {
+  user-select: text !important;
+}
+
+.monaco-editor .margin,
+.monaco-editor .line-numbers {
+  background-color: var(--vscode-editor-background) !important;
+}
+
+/* Tooltip theming for FloatButton and other components */
+.ant-tooltip {
+  background-color: var(--vscode-panel-background) !important;
+  color: var(--vscode-foreground) !important;
+  border: 1px solid var(--vscode-border) !important;
+  border-radius: 8px;
+}
+
+.ant-tooltip .ant-tooltip-inner {
+  background-color: var(--vscode-panel-background) !important;
+  color: var(--vscode-foreground) !important;
+  padding-left: 16px;
+}
+
+.ant-tooltip .ant-tooltip-arrow::before {
+  background-color: var(--vscode-panel-background) !important;
+  border: 1px solid var(--vscode-border) !important;
+}
+
+/* FloatButton theming */
+.ant-float-btn {
+  background-color: var(--vscode-panel-background) !important;
+  color: var(--vscode-foreground) !important;
+  border: 1px solid var(--vscode-border) !important;
+}
+
+.ant-float-btn:hover {
+  background-color: var(--vscode-list-hoverBackground) !important;
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-float-btn-group {
+  background-color: var(--vscode-panel-background) !important;
+}
+
+/* Notification theming */
+.ant-notification-notice {
+  background-color: var(--vscode-editor-background) !important;
+  color: var(--vscode-foreground) !important;
+  border: 1px solid var(--vscode-border) !important;
+  box-shadow: none !important;
+}
+
+.ant-notification-notice-message,
+.ant-notification-notice-description {
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-notification-notice-icon {
+  color: var(--vscode-textLink-foreground, var(--vscode-foreground)) !important;
+}
+
+.ant-notification-notice-warning .ant-notification-notice-icon {
+  color: var(--vscode-warningForeground, #faad14) !important;
+}
+
+.ant-notification-notice-error .ant-notification-notice-icon {
+  color: var(--vscode-errorForeground, #f87171) !important;
+}
+
+.ant-notification-notice-close {
+  color: var(--vscode-foreground) !important;
+}
+
+/* Environment modal — Properties table: same chrome as list tables (no bordered grid) */
+.environment-params-properties-table.ant-table-wrapper {
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* Table theming */
+.ant-table {
+  border-color: var(
+    --vscode-editorGroup-border,
+    var(--vscode-border)
+  ) !important;
+  background-color: var(--vscode-editor-background) !important;
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-table-container {
+  border-color: var(
+    --vscode-editorGroup-border,
+    var(--vscode-border)
+  ) !important;
+}
+
+/* Horizontal scroll "ping" gradients on table edges (Ant Design fixed-column / overflow cue) */
+.ant-table-wrapper .ant-table-ping-left .ant-table-container::before,
+.ant-table-wrapper .ant-table-ping-right .ant-table-container::after {
+  box-shadow: none !important;
+}
+
+.ant-table-wrapper .ant-table-ping-left .ant-table-cell-fix-left-first::after,
+.ant-table-wrapper .ant-table-ping-left .ant-table-cell-fix-left-last::after,
+.ant-table-wrapper .ant-table-ping-right .ant-table-cell-fix-right-first::after,
+.ant-table-wrapper .ant-table-ping-right .ant-table-cell-fix-right-last::after {
+  box-shadow: none !important;
+}
+
+.ant-table-thead > tr > th {
+  border-color: var(
+    --vscode-editorGroup-border,
+    var(--vscode-border)
+  ) !important;
+  background-color: var(--vscode-editor-background) !important;
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-table-tbody > tr > td {
+  border-color: var(
+    --vscode-editorGroup-border,
+    var(--vscode-border)
+  ) !important;
+  background-color: var(--vscode-editor-background) !important;
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-table-tbody > tr:hover > td {
+  background-color: var(--vscode-list-hoverBackground) !important;
+}
+
+.ant-table-tbody > tr.highlight-row > td {
+  background-color: var(--qip-table-warning-row-background, #f7f6f2) !important;
+}
+
+.ant-table-tbody > tr.highlight-row:hover > td {
+  background-color: var(
+    --qip-table-warning-row-background-hover,
+    #f1f0eb
+  ) !important;
+}
+
+.ant-table-cell {
+  border-color: var(
+    --vscode-editorGroup-border,
+    var(--vscode-border)
+  ) !important;
+}
+
+.ant-table a {
+  color: var(--vscode-textLink-foreground, #1677ff) !important;
+}
+
+.ant-table a:hover {
+  color: var(--vscode-textLink-foreground, #1677ff) !important;
+  opacity: 0.8;
+}
+
+/* Fix: native <button> in table cells inherits cell color (dark theme) */
+.ant-table-tbody .ant-table-cell button:not(.ant-btn) {
+  color: inherit !important;
+}
+
+/* Segmented theming */
+.ant-segmented {
+  background-color: var(--vscode-editor-background) !important;
+  border: none !important;
+}
+
+.ant-segmented-item {
+  color: var(--vscode-foreground) !important;
+  border-color: transparent !important;
+}
+
+.ant-segmented-item::before {
+  background-color: transparent !important;
+}
+
+.ant-segmented-item:hover {
+  background-color: var(--vscode-list-hoverBackground);
+  color: var(--vscode-foreground) !important;
+  border-color: transparent !important;
+}
+
+.ant-segmented-item-disabled:hover,
+.ant-segmented-item-selected-disabled:hover,
+.ant-segmented-item-disabled:focus,
+.ant-segmented-disabled .ant-segmented-item:hover {
+  background-color: transparent !important;
+  color: var(--vscode-descriptionForeground, #fff) !important;
+}
+
+.ant-segmented-item-selected.ant-segmented-item-disabled:hover,
+.ant-segmented-item-selected.ant-segmented-item-disabled:focus {
+  background-color: var(--vscode-list-hoverBackground, #f5f5f5) !important;
+  color: var(--vscode-descriptionForeground, #fff) !important;
+  border-color: transparent !important;
+}
+
+.ant-segmented-item-selected {
+  background-color: var(--vscode-button-background, #0078d4);
+  color: var(--vscode-button-foreground, #fff) !important;
+  border-color: transparent;
+}
+
+.ant-segmented-item-selected.ant-segmented-item-disabled {
+  background-color: var(--vscode-list-hoverBackground, #f5f5f5) !important;
+  color: var(--vscode-descriptionForeground, #fff) !important;
+  border-color: transparent;
+}
+
+.ant-segmented-item.ant-segmented-item-disabled .ant-segmented-item-label {
+  color: var(--vscode-descriptionForeground, #fff) !important;
+}
+
+.ant-segmented-item-selected::before {
+  background-color: transparent !important;
+}
+
+.ant-segmented-item-label {
+  color: inherit !important;
+}
+
+.ant-tabs-tab-active {
+  color: var(--vscode-textLink-foreground, #1677ff) !important;
+}
+
+.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--vscode-textLink-foreground, #1677ff) !important;
+}
+
+.ant-tabs-ink-bar {
+  background: var(--vscode-textLink-foreground, #1677ff) !important;
+  height: 2px !important;
+}
+
+.ant-tabs-nav {
+  border-bottom: none !important;
+}
+
+.ant-tabs-nav::before {
+  border-bottom: none !important;
+}
+
+/* Modal theming */
+.ant-modal,
+.ant-modal-content {
+  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
+}
+
+.ant-modal-header {
+  background-color: var(
+    --vscode-modal-background,
+    var(--vscode-panel-background)
+  ) !important;
+  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
+  border-bottom-color: var(--vscode-border) !important;
+}
+
+.ant-modal-title {
+  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
+}
+
+.ant-modal-body {
+  background-color: var(
+    --vscode-modal-background,
+    var(--vscode-panel-background)
+  ) !important;
+  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
+}
+
+.ant-modal .ant-form-item-label > label,
+.ant-modal .ant-checkbox-wrapper,
+.ant-modal .ant-checkbox-wrapper span {
+  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
+}
+
+.ant-modal-footer {
+  background-color: var(
+    --vscode-modal-background,
+    var(--vscode-panel-background)
+  ) !important;
+  border-top-color: var(--vscode-border) !important;
+}
+
+.ant-modal-close {
+  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
+}
+
+.ant-modal-close:hover {
+  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
+}
+
+.ant-modal-root .ant-modal-wrap {
+  background: transparent !important;
+  backdrop-filter: blur(1px);
+}
+
+.ant-modal {
+  margin: 0 auto !important;
+  min-width: 0;
+  transform-origin: center !important;
+}
+
+.ant-modal-content {
+  box-shadow: var(--modal-shadow, 0 12px 32px rgb(0 0 0 / 16%)) !important;
+
+  /* Important: set the modal content background too (otherwise default white bleeds as a "frame" in dark theme). */
+  background-color: var(
+    --vscode-modal-background,
+    var(--vscode-panel-background)
+  ) !important;
+  background-clip: padding-box;
+
+  /* Keep border subtle and theme-driven; avoid color-mix to prevent unsupported/ignored rule fallback. */
+  border: 1px solid var(--vscode-border, #303030) !important;
+}
+
+.ant-modal-mask {
+  background-color: color-mix(
+    in srgb,
+    var(--vscode-editor-background, #000) 75%,
+    transparent
+  ) !important;
+  opacity: 0.5 !important;
+}
+
+/* Modal confirm theming */
+.ant-modal-confirm-title,
+.ant-modal-confirm-content {
+  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
+}
+
+.ant-modal-confirm-btns .ant-btn-primary {
+  border: none !important;
+  border-color: transparent !important;
+}
+
+.ant-modal-confirm-btns .ant-btn-primary:hover {
+  border: none !important;
+  border-color: transparent !important;
+}
+
+/* Message theming */
+.ant-message-notice {
+  /* Keep notice wrapper transparent; style the inner bubble only.
+     Otherwise message becomes a full-width bar (looks like a big frame). */
+  background-color: transparent !important;
+  color: var(--vscode-foreground) !important;
+}
+
+.ant-message-notice-content {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 8px 12px !important;
+  background-color: var(
+    --vscode-modal-background,
+    var(--vscode-panel-background)
+  ) !important;
+  color: var(--vscode-foreground) !important;
+  border: 1px solid var(--vscode-border, #303030) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 22%) !important;
+}
+
+.ant-message-custom-content {
+  color: var(--vscode-foreground) !important;
+}
+
+/*
+ * Edit / Add Environment modal (rootClassName on Modal):
+ * — collapsed: shrink to content (no giant gap under Properties);
+ * — expanded: cap to viewport; flex chain so only the Properties table scrolls.
+ * Placed last so it wins over earlier .ant-modal* rules and typical CSS-in-JS order.
+ *
+ * Expanded: antd `.ant-modal-wrap` uses overflow:auto; `.ant-modal` has padding-bottom.
+ * Near-full vh + padding overflows the wrap → spurious outer scroll (see #552 progress).
+ */
+
+/* Collapsed only — when expanded, only the `--expanded` rules below should apply
+   (avoids competing height/max-height on the same nodes). */
+html
+  body
+  .ant-modal-root.environment-params-modal:not(
+    .environment-params-modal--expanded
+  )
+  .ant-modal {
+  height: auto !important;
+  max-height: calc(100dvh - 24px) !important;
+}
+
+html
+  body
+  .ant-modal-root.environment-params-modal:not(
+    .environment-params-modal--expanded
+  )
+  .ant-modal-content {
+  height: auto !important;
+  max-height: calc(100dvh - 24px) !important;
+}
+
+html
+  body
+  .ant-modal-root.environment-params-modal:not(
+    .environment-params-modal--expanded
+  )
+  .ant-modal-body {
+  height: auto !important;
+  flex: none !important;
+  min-height: 0 !important;
+}
+
+html
+  body
+  .ant-modal-root.environment-params-modal:not(
+    .environment-params-modal--expanded
+  )
+  .ant-modal-body
+  .ant-form {
+  height: auto !important;
+}
+
+html
+  body
+  .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+  .ant-modal-wrap {
+  overflow: hidden;
+}
+
+html
+  body
+  .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+  .ant-modal {
+  display: flex !important;
+  flex-direction: column !important;
+  top: 24px !important;
+  height: calc(100dvh - 48px) !important;
+  min-height: calc(100dvh - 48px);
+  max-height: calc(100dvh - 48px);
+  padding-bottom: 0;
+}
+
+html
+  body
+  .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+  .ant-modal-content {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: calc(100dvh - 48px);
+  overflow: hidden !important;
+}
+
+html
+  body
+  .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+  .ant-modal-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+html
+  body
+  .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+  .ant-modal-body
+  .ant-form {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Expanded: more vertical space on tall viewports (table readability). Step 1 wrap fix
+ * stays; only the vh budget tightens so the dialog uses more of the screen. */
+@media (height >= 960px) {
+  html
+    body
+    .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+    .ant-modal {
+    top: 16px !important;
+    height: calc(100dvh - 32px) !important;
+    min-height: calc(100dvh - 32px) !important;
+    max-height: calc(100dvh - 32px) !important;
+  }
+
+  html
+    body
+    .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+    .ant-modal-content {
+    max-height: calc(100dvh - 32px) !important;
+  }
+}
+
+@media (height >= 1100px) {
+  html
+    body
+    .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+    .ant-modal {
+    top: 12px !important;
+    height: calc(100dvh - 24px) !important;
+    min-height: calc(100dvh - 24px) !important;
+    max-height: calc(100dvh - 24px) !important;
+  }
+
+  html
+    body
+    .ant-modal-root.environment-params-modal.environment-params-modal--expanded
+    .ant-modal-content {
+    max-height: calc(100dvh - 24px) !important;
+  }
+}

@@ -1,0 +1,40 @@
+.smallHeaderTable {
+  width: 100% !important;
+}
+
+.columnHeader {
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.8;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.nestedTableContainer {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 !important;
+  margin-top: 0 !important;
+}
+
+.nestedTableContainer :global(.ant-table) {
+  border: none;
+  box-shadow: none;
+  margin-top: 0 !important;
+}
+
+.nestedTableContainer :global(.ant-table-content) {
+  background: transparent;
+}
+
+.mainTable :global(.ant-table-thead > tr > th) {
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+  height: 26px;
+}
+
+:global(.ant-table-expanded-row > .ant-table-cell) {
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}

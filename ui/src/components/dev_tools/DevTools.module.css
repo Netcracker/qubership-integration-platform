@@ -1,0 +1,47 @@
+.container {
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  font-size: 20px;
+  color: var(--vscode-foreground, rgb(0 0 0 / 85%)) !important;
+  transition: color var(--transition-duration) var(--transition-easing);
+}
+
+.title:hover {
+  color: var(--vscode-textLink-foreground, #1890ff);
+}
+
+.icon {
+  margin-right: 12px;
+  transition:
+    transform 0.2s var(--transition-easing),
+    color var(--transition-duration) var(--transition-easing);
+}
+
+.icon:hover {
+  transform: scale(1.1);
+  color: var(--vscode-textLink-foreground, #1890ff);
+}
+
+@media (width <= 768px) {
+  .title {
+    font-size: 18px;
+  }
+}
+
+@media (width <= 480px) {
+  .container {
+    padding: 16px;
+  }
+
+  .title {
+    font-size: 16px;
+  }
+}

@@ -1,0 +1,134 @@
+.stretched {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-height: 0;
+}
+
+.pageContainer {
+  flex: 1;
+  background: var(--vscode-editor-background, #fff);
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+  padding: 24px;
+  border-radius: 8px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.pageContainer :global(.ant-form-item-label > label),
+.pageContainer :global(.ant-checkbox-wrapper),
+.pageContainer :global(.ant-checkbox-wrapper span) {
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+}
+
+.formContent {
+  max-width: 800px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+}
+
+.chainPageHeader {
+  flex-shrink: 0;
+}
+
+.chainPageHeaderRow {
+  padding: 6px 15px 6px 4px;
+}
+
+.breadcrumb ol {
+  align-items: center;
+}
+
+.breadcrumb li:last-child {
+  cursor: default;
+}
+
+.breadcrumb :global(.ant-breadcrumb-separator) {
+  margin-inline: 2px;
+}
+
+.breadcrumbItem {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background-color 0.15s ease;
+}
+
+.breadcrumbItem:hover {
+  background: var(--vscode-list-hoverBackground, rgb(0 0 0 / 4%));
+}
+
+.breadcrumbHome {
+  padding-inline: 4px;
+}
+
+.unsavedChangesTag {
+  flex-shrink: 0;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  padding: 3px 11px;
+}
+
+/* Fills space to the right of tab labels; child row lays out search + actions */
+.chainTabBarExtra {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+  align-items: center;
+  margin-inline-start: 12px;
+}
+
+/* Shrink-wrap search + buttons; parent .chainTabBarExtra uses flex-end to align right */
+.chainTabToolbarRow {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 100%;
+  justify-content: flex-end;
+}
+
+.chainPageTabs :global(.ant-tabs-nav) {
+  width: 100%;
+  padding-left: 4px;
+  padding-right: 15px;
+  margin-bottom: 0;
+}
+
+.chainPageTabs :global(.ant-tabs-extra-content) {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.chainTabs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.chainTabs :global(.ant-tabs-content) {
+  flex: 1;
+  min-height: 0;
+}
+
+.chainTabs :global(.ant-tabs-content-holder) {
+  flex: 1;
+  min-height: 0;
+}
+
+.chainTabs :global(.ant-tabs-tabpane) {
+  height: 100%;
+}
+
+.chainTabs :global(.ant-tabs-tabpane-active) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}

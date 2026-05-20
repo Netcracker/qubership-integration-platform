@@ -1,0 +1,612 @@
+import { ActionLog, EntityType, LogOperation } from "../../api/apiTypes.ts";
+import {
+  Badge,
+  Button,
+  Descriptions,
+  Drawer,
+  Flex,
+  Table,
+  Tooltip,
+} from "antd";
+import React, { UIEvent, useMemo, useRef, useState } from "react";
+import { useActionLog } from "../../hooks/useActionLog.tsx";
+import {
+  capitalize,
+  formatSnakeCased,
+  formatTimestamp,
+} from "../../misc/format-utils.ts";
+import DateRangePicker from "../modal/DateRangePicker.tsx";
+import { exportActionsLogAsExcel } from "../../misc/log-export-utils.ts";
+import type { FilterDropdownProps } from "antd/lib/table/interface";
+import {
+  getTextColumnFilterFn,
+  TextColumnFilterDropdown,
+} from "../table/TextColumnFilterDropdown.tsx";
+import {
+  getTimestampColumnFilterFn,
+  TimestampColumnFilterDropdown,
+} from "../table/TimestampColumnFilterDropdown.tsx";
+import { makeEnumColumnFilterDropdown } from "../EnumColumnFilterDropdown.tsx";
+import { useResizeHeight } from "../../hooks/useResizeHeigth.tsx";
+import commonStyles from "./CommonStyle.module.css";
+import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { Require } from "../../permissions/Require.tsx";
+import {
+  ColumnsTypeWithSettings,
+  useColumnSettingsBasedOnColumnsType,
+} from "../table/useColumnSettingsButton.tsx";
+import {
+  attachResizeToColumns,
+  useTableColumnResize,
+} from "../table/useTableColumnResize.tsx";
+import { matchesByFields } from "../table/tableSearch.ts";
+import { TableToolbar } from "../table/TableToolbar.tsx";
+import { AdminToolsHeader } from "./AdminToolsHeader.tsx";
+
+export enum OperationType {
+  READ = "read",
+  DELETE = "delete",
+  UPDATE = "update",
+  CREATE = "create",
+}
+
+export const OperationTypeColour: { [key: string]: string } = {
+  [OperationType.READ]: "#49cc90",
+  [OperationType.CREATE]: "#61affe",
+  [OperationType.UPDATE]: "#0d5aa7",
+  [OperationType.DELETE]: "#f93e3e",
+};
+
+export const EntityTypeIconsMap: { [key: string]: React.ReactNode } = {
+  [EntityType.FOLDER]: <OverridableIcon name="folder" />,
+  [EntityType.CHAIN]: <OverridableIcon name="apartment" />,
+  [EntityType.CHAINS]: <OverridableIcon name="apartment" />,
+  [EntityType.SNAPSHOT]: <OverridableIcon name="save" />,
+  [EntityType.SNAPSHOT_CLEANUP]: <OverridableIcon name="save" />,
+  [EntityType.DEPLOYMENT]: <OverridableIcon name="send" />,
+  [EntityType.ELEMENT]: <OverridableIcon name="settings" />,
+  [EntityType.MASKED_FIELD]: <OverridableIcon name="eyeInvisible" />,
+  [EntityType.CHAIN_RUNTIME_PROPERTIES]: <OverridableIcon name="settings" />,
+
+  [EntityType.SERVICE_DISCOVERY]: <OverridableIcon name="radarChart" />,
+  [EntityType.EXTERNAL_SERVICE]: <OverridableIcon name="global" />,
+  [EntityType.SERVICES]: <OverridableIcon name="global" />,
+  [EntityType.INNER_CLOUD_SERVICE]: <OverridableIcon name="cloud" />,
+  [EntityType.IMPLEMENTED_SERVICE]: <OverridableIcon name="cluster" />,
+  [EntityType.ENVIRONMENT]: <OverridableIcon name="api" />,
+  [EntityType.SPECIFICATION]: <OverridableIcon name="fileDone" />,
+  [EntityType.SPECIFICATION_GROUP]: <OverridableIcon name="group" />,
+
+  [EntityType.SECRET]: <OverridableIcon name="fileUnknown" />,
+  [EntityType.SECURED_VARIABLE]: <OverridableIcon name="unorderedList" />,
+  [EntityType.COMMON_VARIABLE]: <OverridableIcon name="unorderedList" />,
+  [EntityType.MAAS_KAFKA]: <OverridableIcon name="deploymentUnit" />,
+  [EntityType.MAAS_RABBITMQ]: <OverridableIcon name="deploymentUnit" />,
+  [EntityType.DETAILED_DESIGN_TEMPLATE]: <OverridableIcon name="fileText" />,
+  [EntityType.IMPORT_INSTRUCTION]: <OverridableIcon name="solution" />,
+  [EntityType.IMPORT_INSTRUCTIONS]: <OverridableIcon name="solution" />,
+};
+
+export const OperationTypeMap: { [key: string]: OperationType } = {
+  [LogOperation.CREATE]: OperationType.CREATE,
+  [LogOperation.UPDATE]: OperationType.UPDATE,
+  [LogOperation.CREATE_OR_UPDATE]: OperationType.CREATE,
+  [LogOperation.DELETE]: OperationType.DELETE,
+  [LogOperation.COPY]: OperationType.CREATE,
+  [LogOperation.MOVE]: OperationType.UPDATE,
+  [LogOperation.REVERT]: OperationType.UPDATE,
+  [LogOperation.GROUP]: OperationType.UPDATE,
+  [LogOperation.UNGROUP]: OperationType.UPDATE,
+  [LogOperation.EXPORT]: OperationType.READ,
+  [LogOperation.IMPORT]: OperationType.UPDATE,
+  [LogOperation.SCALE]: OperationType.UPDATE,
+  [LogOperation.EXECUTE]: OperationType.UPDATE,
+  [LogOperation.ACTIVATE]: OperationType.UPDATE,
+  [LogOperation.DEPRECATE]: OperationType.UPDATE,
+};
+
+const entityLinkMap: Partial<
+  Record<
+    EntityType,
+    (entityId?: string, parentId?: string, entityName?: string) => string
+  >
+> = {
+  [EntityType.FOLDER]: (entityId) => `/chains/folders/${entityId}`,
+  [EntityType.CHAIN]: (entityId) => `/chains/${entityId}`,
+  [EntityType.CHAINS]: (entityId) => `/chains/${entityId}`,
+  [EntityType.SNAPSHOT]: (_entityId, parentId) =>
+    `/chains/${parentId}/snapshots`,
+  [EntityType.DEPLOYMENT]: (_entityId, parentId) =>
+    `/chains/${parentId}/deployments`,
+  [EntityType.ELEMENT]: (entityId, parentId) =>
+    `/chains/${parentId}/graph/${entityId}`,
+  [EntityType.MASKED_FIELD]: (_entityId, parentId) =>
+    `/chains/${parentId}/logging-settings`,
+  //TODO update after pages been implemented
+  [EntityType.EXTERNAL_SERVICE]: (/*entityId*/) => `/not-implemented`,
+  [EntityType.INNER_CLOUD_SERVICE]: (/*entityId*/) => `/not-implemented`,
+  [EntityType.IMPLEMENTED_SERVICE]: (/*entityId*/) => `/not-implemented`,
+  [EntityType.ENVIRONMENT]: (/*parentId*/) => `/not-implemented`,
+  [EntityType.SPECIFICATION_GROUP]: (/*entityId, parentId*/) =>
+    `/not-implemented`,
+  [EntityType.SPECIFICATION]: () => "/not-implemented",
+  //TODO end
+  [EntityType.SECRET]: (_entityId, _parentId, entityName) =>
+    `/admintools/variables/secured/${entityName}`,
+  [EntityType.SECURED_VARIABLE]: (_entityId, parentId) =>
+    `/admintools/variables/secured/${parentId || ""}`,
+  [EntityType.COMMON_VARIABLE]: () => `/admintools/variables/common`,
+};
+
+const externalEntityType: EntityType[] = [
+  EntityType.SPECIFICATION,
+  EntityType.IMPORT_INSTRUCTION,
+  EntityType.IMPORT_INSTRUCTIONS,
+  EntityType.DETAILED_DESIGN_TEMPLATE,
+];
+
+const EXTERNAL_ENTITY_PATTERN = /^[^\\/:*?"<>|]+\.(zip|ya?ml|xml|wsdl)$/i;
+
+function actionLogMatchesSearch(log: ActionLog, term: string): boolean {
+  return matchesByFields(term, [
+    log.username,
+    log.userId,
+    log.operation,
+    log.entityType,
+    log.parentType,
+    log.entityName,
+    log.parentName,
+    log.entityId,
+    log.parentId,
+    log.requestId,
+  ]);
+}
+
+export const ActionsLog: React.FC = () => {
+  const {
+    logsData,
+    fetchNextPage,
+    hasNextPage,
+    isFetching,
+    isLoading,
+    refresh,
+  } = useActionLog();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentActionLog, setCurrentActionLog] = useState<ActionLog | null>(
+    null,
+  );
+
+  const filteredLogsData = useMemo(
+    () => logsData.filter((log) => actionLogMatchesSearch(log, searchTerm)),
+    [logsData, searchTerm],
+  );
+
+  const onScroll = async (event: UIEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLDivElement;
+    const isScrolledToTheEnd =
+      target.scrollTop + target.clientHeight + 1 >= target.scrollHeight;
+    if (hasNextPage && isScrolledToTheEnd) {
+      await fetchNextPage();
+    }
+  };
+
+  const [containerRef, containerHeight] = useResizeHeight<HTMLElement>();
+
+  const actionLogColumnResize = useTableColumnResize({
+    actionTime: 200,
+    username: 200,
+    operation: 200,
+    entityType: 300,
+    entityName: 500,
+    parentName: 400,
+    entityId: 300,
+    parentId: 300,
+    requestId: 300,
+  });
+
+  const operationOptions = Object.values(LogOperation).map((value) => ({
+    label: formatSnakeCased(capitalize(value)),
+    value,
+  }));
+
+  const entityTypeOptions = Object.values(EntityType).map((value) => ({
+    label: formatSnakeCased(capitalize(value)),
+    value,
+  }));
+
+  const { filterDropdown: operationFilter, onFilter: operationOnFilter } =
+    makeEnumColumnFilterDropdown(operationOptions, "operation", true);
+
+  const { filterDropdown: entityTypeFilter, onFilter: entityTypeOnFilter } =
+    makeEnumColumnFilterDropdown(entityTypeOptions, "entityType", true);
+
+  const [openSidebar, setOpenSidebar] = useState(false);
+
+  const observerRef = useRef<HTMLDivElement | null>(null);
+
+  const getTrimmedValue = (value: string, columnWidth: number): string => {
+    const maxVisibleChars = Math.floor(columnWidth / 10);
+    const firstLine = value.split("\n")[0];
+
+    return firstLine.length > maxVisibleChars
+      ? firstLine.slice(0, maxVisibleChars) + "..."
+      : firstLine;
+  };
+
+  const columns: ColumnsTypeWithSettings<ActionLog> = [
+    {
+      title: "Action Time",
+      key: "actionTime",
+      dataIndex: "actionTime",
+      settings: {
+        visibilityLocked: true,
+        orderLocked: true,
+      },
+      width: actionLogColumnResize.columnWidths.actionTime,
+      sorter: (a: ActionLog, b: ActionLog) => b.actionTime - a.actionTime,
+      filterDropdown: (props: FilterDropdownProps) => (
+        <TimestampColumnFilterDropdown {...props} />
+      ),
+      onFilter: getTimestampColumnFilterFn((log) => log.actionTime),
+      render: (_, actionLog) => <>{formatTimestamp(actionLog.actionTime)}</>,
+    },
+    {
+      title: "Initiator",
+      key: "username",
+      dataIndex: "username",
+      width: actionLogColumnResize.columnWidths.username,
+      filterDropdown: (props: FilterDropdownProps) => (
+        <TextColumnFilterDropdown {...props} />
+      ),
+      onFilter: getTextColumnFilterFn((log) =>
+        log?.username ? log?.username : "",
+      ),
+    },
+    {
+      title: "Operation",
+      key: "operation",
+      dataIndex: "operation",
+      width: actionLogColumnResize.columnWidths.operation,
+      filterDropdown: operationFilter,
+      onFilter: operationOnFilter,
+      render: (_, actionLog) => (
+        <>
+          <Badge
+            color={OperationTypeColour[OperationTypeMap[actionLog.operation]]}
+            style={{ marginRight: 10 }}
+          />
+          {formatSnakeCased(capitalize(actionLog.operation))}
+        </>
+      ),
+    },
+    {
+      title: "Entity Type",
+      key: "entityType",
+      dataIndex: "entityType",
+      width: actionLogColumnResize.columnWidths.entityType,
+      filterDropdown: entityTypeFilter,
+      onFilter: entityTypeOnFilter,
+      render: (_, actionLog) => (
+        <>
+          {getIconByEntityType(actionLog.entityType)}
+          {formatSnakeCased(capitalize(actionLog.entityType))}
+        </>
+      ),
+    },
+    {
+      title: "Entity Name",
+      key: "entityName",
+      dataIndex: "entityName",
+      width: actionLogColumnResize.columnWidths.entityName,
+      filterDropdown: (props: FilterDropdownProps) => (
+        <TextColumnFilterDropdown {...props} />
+      ),
+      onFilter: getTextColumnFilterFn((log) =>
+        log?.entityName ? log.entityName : "",
+      ),
+      render: (_, actionLog) =>
+        renderEntityLink(
+          actionLog,
+          actionLogColumnResize.columnWidths.entityName,
+        ),
+    },
+    {
+      title: "Parent Name",
+      key: "parentName",
+      dataIndex: "parentName",
+      width: actionLogColumnResize.columnWidths.parentName,
+      filterDropdown: (props: FilterDropdownProps) => (
+        <TextColumnFilterDropdown {...props} />
+      ),
+      onFilter: getTextColumnFilterFn((log) =>
+        log?.parentName ? log.parentName : "",
+      ),
+      render: (_, actionLog) =>
+        renderParentLink(
+          actionLog,
+          actionLogColumnResize.columnWidths.parentName,
+        ),
+    },
+    {
+      title: "ID",
+      dataIndex: "id",
+      hidden: true,
+    },
+    {
+      title: "Entity Id",
+      key: "entityId",
+      dataIndex: "entityId",
+      width: actionLogColumnResize.columnWidths.entityId,
+      hidden: true,
+    },
+    {
+      title: "Parent Id",
+      key: "parentId",
+      dataIndex: "parentId",
+      width: actionLogColumnResize.columnWidths.parentId,
+      hidden: true,
+    },
+    {
+      title: "Request Id",
+      key: "requestId",
+      dataIndex: "requestId",
+      width: actionLogColumnResize.columnWidths.requestId,
+      hidden: true,
+    },
+  ];
+
+  const { orderedColumns, columnSettingsButton } =
+    useColumnSettingsBasedOnColumnsType<ActionLog>("actionsLogTable", columns);
+  const orderedColumnsResized = useMemo(
+    () =>
+      attachResizeToColumns(
+        orderedColumns,
+        actionLogColumnResize.columnWidths,
+        actionLogColumnResize.createResizeHandlers,
+        { minWidth: 80 },
+      ),
+    [
+      orderedColumns,
+      actionLogColumnResize.columnWidths,
+      actionLogColumnResize.createResizeHandlers,
+    ],
+  );
+
+  const showDrawer = (actionLog: ActionLog) => {
+    setCurrentActionLog(actionLog);
+    setOpenSidebar(true);
+  };
+
+  const onClose = () => {
+    setOpenSidebar(false);
+    setCurrentActionLog(null);
+  };
+
+  const getEntityLink = (
+    entityType?: EntityType,
+    entityId?: string,
+    parentId?: string,
+    entityName?: string,
+  ): string => {
+    const resolver = entityType ? entityLinkMap[entityType] : undefined;
+    return resolver ? resolver(entityId, parentId, entityName) : "/chains";
+  };
+
+  const renderEntityLink = (actionLog: ActionLog, columnWith?: number) => {
+    return renderLink(
+      actionLog.actionTime,
+      actionLog.entityType,
+      actionLog.entityId,
+      actionLog.parentId,
+      actionLog.entityName,
+      columnWith,
+    );
+  };
+
+  const renderParentLink = (actionLog: ActionLog, columnWith?: number) => {
+    return renderLink(
+      actionLog.actionTime,
+      actionLog.parentType,
+      actionLog.parentId,
+      undefined,
+      actionLog.parentName,
+      columnWith,
+    );
+  };
+
+  const renderLink = (
+    actionTime: number,
+    type?: EntityType,
+    id?: string,
+    parentId?: string,
+    name?: string,
+    columnWith?: number,
+  ) => {
+    const displayedName = columnWith
+      ? getTrimmedValue(name ?? "", columnWith)
+      : name;
+
+    const alreadyDeleted = logsData.find(
+      (actionLog) =>
+        (actionLog.entityId == id ||
+          (parentId && actionLog.entityId == parentId)) &&
+        actionLog.actionTime >= actionTime &&
+        actionLog.operation === LogOperation.DELETE,
+    );
+
+    const isExternalEntity =
+      EXTERNAL_ENTITY_PATTERN.test(name ?? "") ||
+      (type ? externalEntityType.includes(type) : true);
+
+    if (alreadyDeleted || isExternalEntity) {
+      return displayedName ? displayedName : "—";
+    }
+
+    const link = (
+      <Flex vertical={true} gap={4}>
+        <a
+          onClick={() => {
+            window.open(getEntityLink(type, id, parentId, name), "_blank");
+          }}
+        >
+          {displayedName}
+        </a>
+      </Flex>
+    );
+
+    return displayedName ? link : "—";
+  };
+
+  const getIconByEntityType = (type: EntityType): React.ReactNode => {
+    const icon = EntityTypeIconsMap[type] ?? (
+      <OverridableIcon name="question" />
+    );
+    return React.cloneElement(icon as React.ReactElement, {
+      style: { marginRight: 10 },
+    });
+  };
+
+  const exportActionLogs = async (from: Date, to: Date) => {
+    await exportActionsLogAsExcel(from, to);
+  };
+
+  const auditToolbar = (
+    <TableToolbar
+      variant="admin"
+      search={{
+        value: searchTerm,
+        onChange: setSearchTerm,
+        placeholder: "Search audit log...",
+        allowClear: true,
+      }}
+      columnSettingsButton={columnSettingsButton}
+      actions={
+        <>
+          <Tooltip title="Refresh" placement="bottom">
+            <Button
+              icon={<OverridableIcon name="refresh" />}
+              onClick={() => void refresh()}
+            />
+          </Tooltip>
+          {!(isLoading || isFetching) && (
+            <Require permissions={{ actionLog: ["export"] }}>
+              <Tooltip title="Export action logs" placement="bottom">
+                <span>
+                  <DateRangePicker
+                    trigger={
+                      <Button icon={<OverridableIcon name="cloudDownload" />} />
+                    }
+                    onRangeApply={(from, to) => {
+                      void exportActionLogs(from, to);
+                    }}
+                  />
+                </span>
+              </Tooltip>
+            </Require>
+          )}
+        </>
+      }
+    />
+  );
+
+  return (
+    <Flex vertical className={commonStyles["container"]}>
+      <AdminToolsHeader title="Audit" iconName="audit" toolbar={auditToolbar} />
+      <Flex
+        style={{
+          flex: "1 1 auto",
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          borderRadius: "8px",
+          overflow: "hidden",
+        }}
+      >
+        {currentActionLog && (
+          <Drawer
+            title="Action Details"
+            placement="right"
+            open={openSidebar}
+            closable={false}
+            onClose={onClose}
+          >
+            <Descriptions column={1} size="small" layout="vertical">
+              <Descriptions.Item label="Action Time">
+                {formatTimestamp(currentActionLog.actionTime)}
+              </Descriptions.Item>
+              <Descriptions.Item label="Initiator">
+                {currentActionLog.username}
+              </Descriptions.Item>
+              <Descriptions.Item label="Operation">
+                {capitalize(OperationTypeMap[currentActionLog.operation])}
+              </Descriptions.Item>
+              <Descriptions.Item label="Entity Id">
+                {currentActionLog.entityId}
+              </Descriptions.Item>
+              <Descriptions.Item label="Entity Type">
+                {capitalize(currentActionLog.entityType)}
+              </Descriptions.Item>
+              <Descriptions.Item label="Entity Name">
+                {renderEntityLink(currentActionLog)}
+              </Descriptions.Item>
+              <Descriptions.Item label="Parent Id">
+                {currentActionLog.parentId}
+              </Descriptions.Item>
+              <Descriptions.Item label="Parent Name">
+                {renderParentLink(currentActionLog)}
+              </Descriptions.Item>
+              <Descriptions.Item label="Request Id">
+                {currentActionLog.requestId}
+              </Descriptions.Item>
+            </Descriptions>
+          </Drawer>
+        )}
+        <Flex
+          style={{
+            width: "100%",
+            maxWidth: "100%",
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            overflow: "hidden",
+            height: "100%",
+          }}
+        >
+          <div
+            ref={containerRef as unknown as React.Ref<HTMLDivElement>}
+            style={{
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <Table<ActionLog>
+              className="flex-table"
+              size="small"
+              columns={orderedColumnsResized}
+              dataSource={filteredLogsData}
+              scroll={{
+                x: actionLogColumnResize.totalColumnsWidth,
+                y: containerHeight - 59 || 400,
+              }}
+              pagination={false}
+              rowKey="id"
+              loading={isFetching}
+              onScroll={(event) => void onScroll(event)}
+              components={actionLogColumnResize.resizableHeaderComponents}
+              onRow={(row) => {
+                return {
+                  onClick: () => {
+                    showDrawer(row);
+                  },
+                };
+              }}
+            />
+            <div ref={observerRef} style={{ height: 1 }} />
+          </div>
+        </Flex>
+      </Flex>
+    </Flex>
+  );
+};

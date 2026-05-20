@@ -1,0 +1,171 @@
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--pill-border, currentColor);
+  background: var(--pill-bg, transparent);
+  color: var(--pill-fg, inherit);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  transition:
+    border-color 120ms ease,
+    background 160ms ease;
+  user-select: none;
+  max-width: 100%;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.clickable:hover {
+  border-color: var(--pill-border-strong, currentColor);
+  background: var(--pill-bg, transparent);
+}
+
+.clickable:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--pill-focus, currentColor);
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dot-color, currentColor);
+  flex-shrink: 0;
+}
+
+.pulse::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: var(--dot-color, currentColor);
+  opacity: 0.5;
+  animation: pill-pulse 1.6s ease-out infinite;
+  z-index: 0;
+}
+
+.pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--dot-color, currentColor);
+}
+
+@keyframes pill-pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.55;
+  }
+
+  70% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse::before {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+.infoIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  opacity: 0.7;
+  transition: opacity 120ms ease;
+  margin-left: 2px;
+}
+
+.clickable:hover .infoIcon {
+  opacity: 1;
+}
+
+.popover {
+  min-width: 220px;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.popoverHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.popoverHeaderDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dot-color, currentColor);
+  flex-shrink: 0;
+}
+
+.popoverSectionLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.popoverMessage {
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  max-height: 140px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.popoverActions {
+  display: flex;
+  justify-content: flex-start;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.popoverLink,
+.popoverLink:hover,
+.popoverLink:focus,
+.popoverLink:active {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 0;
+  height: auto;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}

@@ -1,0 +1,449 @@
+import {
+  Button,
+  Flex,
+  Form,
+  Input,
+  message,
+  Table,
+  TableProps,
+  Tabs,
+} from "antd";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { InlineEdit } from "../../../InlineEdit";
+import {
+  KeyValuePair,
+  makeArray,
+  parse,
+  sliceParameter,
+} from "./key-value-text-util";
+import { TextValueEdit } from "../../../table/TextValueEdit";
+import { Editor, Monaco } from "@monaco-editor/react";
+import { editor, languages, MarkerSeverity } from "monaco-editor";
+import { isParseError } from "../../../../mapper/actions-text/parser.ts";
+import { LocationRange } from "pegjs";
+import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
+import {
+  useMonacoTheme,
+  applyVSCodeThemeToMonaco,
+} from "../../../../hooks/useMonacoTheme";
+import {
+  attachResizeToColumns,
+  sumScrollXForColumns,
+  useTableColumnResize,
+} from "../../../table/useTableColumnResize.tsx";
+
+const MAPPER_DICTIONARY_LANGUAGE_ID = "qip-mapper-dictionary";
+
+const MAPPER_DICTIONARY_LANGUAGE_CONFIGURATION: languages.LanguageConfiguration =
+  {};
+
+const MAPPER_DICTIONARY_LANGUAGE_TOKENIZER: languages.IMonarchLanguage = {
+  tokenizer: {
+    start: [
+      { regex: /[ \t\r\n]+/, action: { token: "white" } },
+      { regex: /([^=;\\]|\\[=;\\])+/, action: { token: "string" } },
+      { regex: /[=;]/, action: { token: "delimiter" } },
+    ],
+  },
+  defaultToken: "invalid",
+  start: "start",
+  includeLF: true,
+};
+
+function configureMapperDictionaryLanguage(monaco: Monaco) {
+  const alreadyRegistered = monaco.languages
+    .getLanguages()
+    .some((language) => language.id === MAPPER_DICTIONARY_LANGUAGE_ID);
+  if (alreadyRegistered) {
+    console.log(
+      `Language already registered: ${MAPPER_DICTIONARY_LANGUAGE_ID}`,
+    );
+    return;
+  }
+  monaco.languages.register({
+    id: MAPPER_DICTIONARY_LANGUAGE_ID,
+  });
+  monaco.languages.setLanguageConfiguration(
+    MAPPER_DICTIONARY_LANGUAGE_ID,
+    MAPPER_DICTIONARY_LANGUAGE_CONFIGURATION,
+  );
+  monaco.languages.setMonarchTokensProvider(
+    MAPPER_DICTIONARY_LANGUAGE_ID,
+    MAPPER_DICTIONARY_LANGUAGE_TOKENIZER,
+  );
+}
+
+export type DictionaryEditorProps = {
+  value?: string;
+  onChange?: (value: KeyValuePair[]) => void;
+};
+
+export type DictionaryAdapterProps = {
+  value?: string[];
+  onChange?: (value: string[]) => void;
+};
+
+function removeDuplicateKeys(data: KeyValuePair[]): KeyValuePair[] {
+  const seenKeys = new Set<string>();
+  return data.filter((item) => {
+    if (seenKeys.has(item.key)) {
+      return false;
+    } else {
+      seenKeys.add(item.key);
+      return true;
+    }
+  });
+}
+
+const DictionaryTableEditor: React.FC<DictionaryEditorProps> = ({
+  onChange,
+  value,
+}) => {
+  const [messageApi, contextHolder] = message.useMessage();
+  const [tableData, setTableData] = useState<
+    TableProps<KeyValuePair>["dataSource"]
+  >([]);
+
+  useEffect(() => {
+    try {
+      setTableData(removeDuplicateKeys(parse(value ?? "")));
+    } catch (error) {
+      void messageApi.error(`Invalid dictionary: ${String(error)}`);
+      setTableData([]);
+    }
+  }, [messageApi, value]);
+
+  const updateRecord = useCallback(
+    (index: number, changes: Partial<KeyValuePair>) => {
+      setTableData((data) => {
+        const result =
+          data?.map((r, idx) => (idx === index ? { ...r, ...changes } : r)) ??
+          [];
+        onChange?.(result);
+        return result;
+      });
+    },
+    [onChange],
+  );
+
+  const addRecord = useCallback(() => {
+    setTableData((data) => {
+      if (data?.some((r) => r.key === "")) {
+        return data;
+      }
+      const result = [...(data ?? []), { key: "", value: "" }];
+      onChange?.(result);
+      return result;
+    });
+  }, [onChange]);
+
+  const deleteRecord = useCallback(
+    (index: number) => {
+      setTableData((data) => {
+        const result =
+          data?.slice(0, index)?.concat(data?.slice(index + 1)) ?? [];
+        onChange?.(result);
+        return result;
+      });
+    },
+    [onChange],
+  );
+
+  const clearRecords = useCallback(() => {
+    setTableData([]);
+    onChange?.([]);
+  }, [onChange]);
+
+  const dictionaryColumns = useMemo(
+    () => [
+      {
+        key: "key",
+        title: "Input",
+        dataIndex: "key",
+        sorter: (
+          a: KeyValuePair,
+          b: KeyValuePair,
+          sortOrder: string | undefined,
+        ) => {
+          if (sortOrder === "ascend") {
+            return a.key.localeCompare(b.key);
+          } else if (sortOrder === "descend") {
+            return b.key.localeCompare(a.key);
+          }
+          return 0;
+        },
+        render: (value: string, _record: KeyValuePair, index: number) => {
+          return (
+            <InlineEdit<{ value: string }>
+              values={{ value }}
+              editor={<TextValueEdit name="value" />}
+              viewer={value}
+              initialActive={value === ""}
+              onSubmit={({ value }) => {
+                if (tableData?.some((r) => r.key === value)) {
+                  messageApi.error(`Already exists: ${value}`);
+                } else {
+                  updateRecord(index, { key: value });
+                }
+              }}
+            />
+          );
+        },
+      },
+      {
+        key: "value",
+        title: "Result",
+        dataIndex: "value",
+        sorter: (
+          a: KeyValuePair,
+          b: KeyValuePair,
+          sortOrder: string | undefined,
+        ) => {
+          if (sortOrder === "ascend") {
+            return a.value.localeCompare(b.value);
+          } else if (sortOrder === "descend") {
+            return b.value.localeCompare(a.value);
+          }
+          return 0;
+        },
+        render: (value: string, _record: KeyValuePair, index: number) => {
+          return (
+            <InlineEdit<{ value: string }>
+              values={{ value }}
+              editor={<TextValueEdit name="value" rules={[]} />}
+              viewer={value}
+              onSubmit={({ value }) => {
+                updateRecord(index, { value });
+              }}
+            />
+          );
+        },
+      },
+      {
+        key: "actions",
+        className: "actions-column",
+        width: 40,
+        align: "right" as const,
+        render: (_: unknown, _record: KeyValuePair, index: number) => {
+          return (
+            <Button
+              type="text"
+              icon={<OverridableIcon name="delete" />}
+              onClick={() => deleteRecord(index)}
+            />
+          );
+        },
+      },
+    ],
+    [tableData, messageApi, updateRecord, deleteRecord],
+  );
+
+  const dictionaryColumnResize = useTableColumnResize({
+    key: 160,
+    value: 220,
+  });
+
+  const columnsWithResize = useMemo(
+    () =>
+      attachResizeToColumns(
+        dictionaryColumns,
+        dictionaryColumnResize.columnWidths,
+        dictionaryColumnResize.createResizeHandlers,
+        { minWidth: 80 },
+      ),
+    [
+      dictionaryColumns,
+      dictionaryColumnResize.columnWidths,
+      dictionaryColumnResize.createResizeHandlers,
+    ],
+  );
+
+  const scrollX = useMemo(
+    () =>
+      sumScrollXForColumns(
+        columnsWithResize,
+        dictionaryColumnResize.columnWidths,
+      ),
+    [columnsWithResize, dictionaryColumnResize.columnWidths],
+  );
+
+  return (
+    <>
+      {contextHolder}
+      <Flex style={{ height: "100%" }} vertical gap={8}>
+        <Flex wrap="wrap" vertical={false} gap={8}>
+          <Button
+            size="small"
+            icon={<OverridableIcon name="plusCircle" />}
+            onClick={() => addRecord()}
+          >
+            Add rule
+          </Button>
+          <Button
+            size="small"
+            icon={<OverridableIcon name="delete" />}
+            onClick={() => clearRecords()}
+          >
+            Clear rules
+          </Button>
+        </Flex>
+        <Table
+          className="flex-table"
+          size="small"
+          scroll={tableData?.length ? { x: scrollX, y: "" } : { x: scrollX }}
+          columns={columnsWithResize}
+          dataSource={tableData}
+          pagination={false}
+          rowKey={(record) => record.key}
+          components={dictionaryColumnResize.resizableHeaderComponents}
+        />
+      </Flex>
+    </>
+  );
+};
+
+const DictionaryTextEditor: React.FC<DictionaryEditorProps> = ({
+  onChange,
+  value,
+}) => {
+  const [text, setText] = useState<string>("");
+
+  useEffect(() => {
+    setText(value ?? "");
+  }, [value]);
+
+  const editorRef = useRef<editor.IStandaloneCodeEditor>();
+  const monacoRef = useRef<Monaco>();
+  const monacoTheme = useMonacoTheme();
+  useEffect(() => {
+    if (monacoRef.current) {
+      applyVSCodeThemeToMonaco(monacoRef.current);
+    }
+  }, [monacoTheme]);
+
+  const setMarkers = useCallback((markers: editor.IMarkerData[]) => {
+    const model = editorRef.current?.getModel();
+    if (!model) {
+      return;
+    }
+    monacoRef.current?.editor?.setModelMarkers(
+      model,
+      MAPPER_DICTIONARY_LANGUAGE_ID,
+      markers,
+    );
+  }, []);
+
+  const setMarker = useCallback(
+    (locationRange: LocationRange, message: string) => {
+      const markers: editor.IMarkerData[] = [
+        {
+          severity: MarkerSeverity.Error,
+          message,
+          startLineNumber: locationRange.start.line,
+          startColumn: locationRange.start.column,
+          endLineNumber: locationRange.end.line,
+          endColumn: locationRange.end.column,
+        },
+      ];
+      setMarkers(markers);
+    },
+    [setMarkers],
+  );
+
+  const clearMarkers = useCallback(() => {
+    setMarkers([]);
+  }, [setMarkers]);
+
+  return (
+    <Editor
+      className="qip-editor"
+      theme={monacoTheme}
+      value={text}
+      language={MAPPER_DICTIONARY_LANGUAGE_ID}
+      onMount={(editor, monaco) => {
+        editorRef.current = editor;
+        monacoRef.current = monaco;
+        configureMapperDictionaryLanguage(monaco);
+        applyVSCodeThemeToMonaco(monaco);
+      }}
+      onChange={(value) => {
+        const v = value ?? "";
+        setText(v);
+        try {
+          const parsed = parse(v);
+          onChange?.(parsed);
+          clearMarkers();
+        } catch (error) {
+          if (isParseError(error)) {
+            setMarker(error.location, error.message);
+          }
+        }
+      }}
+      options={{
+        fixedOverflowWidgets: true,
+      }}
+    />
+  );
+};
+
+const DictionaryEditor: React.FC<DictionaryAdapterProps> = ({
+  onChange,
+  value,
+}) => {
+  const safeValue = value ?? [];
+  const base = safeValue[0] ?? "";
+  const parameters = sliceParameter(safeValue);
+
+  const handleChange = (updatedParams: KeyValuePair[]) => {
+    const merged = makeArray(updatedParams);
+    onChange?.(merged.length ? [base, ...merged] : [base]);
+  };
+
+  return (
+    <Tabs
+      style={{ height: "100%", width: "100%" }}
+      className={"flex-tabs"}
+      tabPosition="bottom"
+      size="small"
+      defaultActiveKey="table"
+      items={[
+        {
+          key: "table",
+          label: "Table",
+          children: (
+            <DictionaryTableEditor value={parameters} onChange={handleChange} />
+          ),
+        },
+        {
+          key: "text",
+          label: "Text",
+          children: (
+            <DictionaryTextEditor value={parameters} onChange={handleChange} />
+          ),
+        },
+      ]}
+    />
+  );
+};
+
+export const DictionaryParameters: React.FC = () => {
+  return (
+    <>
+      <Form.Item name={["parameters", 0]} label="Default" initialValue={""}>
+        <Input />
+      </Form.Item>
+      <Form.Item
+        className={"flex-form-item flex-form-item-h100"}
+        name={["parameters"]}
+      >
+        <DictionaryEditor />
+      </Form.Item>
+    </>
+  );
+};

@@ -1,0 +1,318 @@
+import Navigation from "./components/Navigation.tsx";
+import {
+  createBrowserRouter,
+  createRoutesFromElements,
+  Navigate,
+  Outlet,
+  Route,
+  RouterProvider,
+} from "react-router";
+import Chains from "./pages/Chains";
+import ChainPage from "./pages/ChainPage.tsx";
+import { App as AntdApp, ConfigProvider, Layout } from "antd";
+
+import styles from "./App.module.css";
+import "./styles/theme-variables.css";
+import "./index.css";
+import "./styles/reactflow-theme.css";
+import { Modals } from "./Modals.tsx";
+import { Snapshots } from "./pages/Snapshots.tsx";
+import { Deployments } from "./pages/Deployments.tsx";
+import { ChainGraph } from "./pages/ChainGraph.tsx";
+import { NotFound } from "./pages/NotFound.tsx";
+import { Content } from "antd/es/layout/layout";
+import { LoggingSettings } from "./pages/LoggingSettings.tsx";
+import { Sessions } from "./pages/Sessions.tsx";
+import { SessionPage } from "./pages/SessionPage.tsx";
+import { ChainProperties } from "./pages/ChainProperties.tsx";
+import { EventNotification } from "./components/notifications/EventNotification.tsx";
+
+import { CommonVariables } from "./components/admin_tools/variables/CommonVariables.tsx";
+import { SecuredVariables } from "./components/admin_tools/variables/SecuredVariables.tsx";
+import { Domains } from "./components/admin_tools/domains/Domains.tsx";
+import { ActionsLog } from "./components/admin_tools/ActionsLog.tsx";
+import { AccessControl } from "./components/admin_tools/access-control/AccessControl.tsx";
+import { NotImplemented } from "./pages/NotImplemented.tsx";
+import { SessionsPage } from "./pages/SessionsPage.tsx";
+import Services from "./pages/Services.tsx";
+import { ServiceParametersPage } from "./components/services/detail/ServiceParametersPage.tsx";
+import AdminTools from "./pages/AdminTools.tsx";
+import { Masking } from "./pages/Masking.tsx";
+import { DocumentationPage } from "./pages/DocumentationPage.tsx";
+import {
+  applyThemeToDOM,
+  initializeBrowserTheme,
+  setupThemeListener,
+  ThemeMode,
+} from "./theme/themeInit.ts";
+import { getAntdThemeConfig } from "./theme/antdTokens.ts";
+import { IconProvider } from "./icons/IconProvider.tsx";
+import { useContext, useEffect, useState } from "react";
+import { getConfig } from "./appConfig.ts";
+import { reapplyCssVariables } from "./config/initConfig.ts";
+import { LiveExchanges } from "./components/admin_tools/exchanges/LiveExchanges.tsx";
+import { ContextServiceParametersPage } from "./components/services/context/ContextServiceParametersPage.tsx";
+import DevTools from "./pages/DevTools.tsx";
+import { DiagnosticValidationPage } from "./components/dev_tools/DiagnosticValidationPage.tsx";
+import { KafkaMaasPage } from "./components/dev_tools/maas/KafkaMaasPage.tsx";
+import { RabbitMQMaasPage } from "./components/dev_tools/maas/RabbitMQMaasPage.tsx";
+import { DesignTemplates } from "./components/admin_tools/design-templates/DesignTemplates.tsx";
+import { ImportInstructions } from "./components/admin_tools/ImportInstructions.tsx";
+import { UserPermissionsProvider } from "./permissions/UserPermissionsProvider.tsx";
+import { Require } from "./permissions/Require.tsx";
+import { NotAuthorized } from "./permissions/NotAuthorized.tsx";
+import { ThemeContext, ThemeContextValue } from "./theme/context.tsx";
+import {
+  ChainFullscreenContextProvider,
+  useChainFullscreenContext,
+} from "./pages/ChainFullscreenContext.tsx";
+import { McpServiceParametersPage } from "./components/services/mcp/McpServiceParametersPage.tsx";
+
+const { Header } = Layout;
+
+const RootLayout = () => {
+  const themeContext = useContext(ThemeContext);
+  return (
+    <ChainFullscreenContextProvider>
+      <RootLayoutInner themeContext={themeContext} />
+    </ChainFullscreenContextProvider>
+  );
+};
+
+const RootLayoutInner = ({
+  themeContext,
+}: {
+  themeContext: ThemeContextValue | null;
+}) => {
+  const fullscreenCtx = useChainFullscreenContext();
+  return (
+    <Layout className={styles.layout}>
+      {!fullscreenCtx?.fullscreen && (
+        <Header className={styles.header}>
+          <Navigation
+            showThemeSwitcher={themeContext?.showThemeSwitcher ?? false}
+            currentTheme={themeContext?.theme}
+            onThemeChange={themeContext?.onThemeChange}
+          />
+        </Header>
+      )}
+      <Content className={styles.content}>
+        <Outlet />
+      </Content>
+    </Layout>
+  );
+};
+
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <>
+      <Route element={<RootLayout />}>
+        <Route
+          path="/devtools"
+          element={
+            <Require
+              permissions={{ devTools: ["read"] }}
+              fallback={<NotAuthorized />}
+            >
+              <DevTools />
+            </Require>
+          }
+        >
+          <Route path="" element={<Navigate to="maas/kafka" />} />
+          <Route path="maas/kafka" element={<KafkaMaasPage />} />
+          <Route path="maas/rabbitmq" element={<RabbitMQMaasPage />} />
+          <Route
+            path="diagnostic/validations"
+            element={<DiagnosticValidationPage />}
+          />
+        </Route>
+        <Route
+          path="/admintools"
+          element={
+            <Require
+              permissions={{ adminTools: ["read"] }}
+              fallback={<NotAuthorized />}
+            >
+              <AdminTools />
+            </Require>
+          }
+        >
+          <Route path="" element={<Navigate to="domains" />} />
+          <Route path="domains" element={<Domains />} />
+          <Route
+            path="engine-list"
+            element={<Navigate to="../domains" relative={"path"} />}
+          />
+          <Route path="variables/common" element={<CommonVariables />} />
+          <Route path="variables/secured" element={<SecuredVariables />} />
+          <Route path="audit" element={<ActionsLog />} />
+          <Route path="sessions" element={<SessionsPage />} />
+          <Route path="import-instructions" element={<ImportInstructions />} />
+          <Route path="access-control" element={<AccessControl />} />
+          <Route path="exchanges" element={<LiveExchanges />} />
+          <Route
+            path="detailed-design/templates"
+            element={<DesignTemplates />}
+          />
+        </Route>
+        <Route index path="/" element={<Navigate to="/chains" />} />
+        <Route
+          index
+          path="/chains"
+          element={
+            <Require
+              permissions={{ chain: ["list"] }}
+              fallback={<NotAuthorized />}
+            >
+              <Chains />
+            </Require>
+          }
+        />
+        <Route
+          path="/chains/:chainId"
+          element={
+            <Require
+              permissions={{ chain: ["read"] }}
+              fallback={<NotAuthorized />}
+            >
+              <ChainPage />
+            </Require>
+          }
+        >
+          <Route index element={<ChainGraph />} />
+          <Route index path="graph" element={<ChainGraph />} />
+          <Route path="graph/:elementId" element={<ChainGraph />} />
+          <Route path="snapshots" element={<Snapshots />} />
+          <Route path="deployments" element={<Deployments />} />
+          <Route path="sessions" element={<Sessions />} />
+          <Route path="sessions/:sessionId" element={<SessionPage />} />
+          <Route path="logging-settings" element={<LoggingSettings />} />
+          <Route path="masking" element={<Masking />} />
+          <Route path="properties" element={<ChainProperties />} />
+        </Route>
+        <Route
+          path="/services"
+          element={
+            <Require
+              permissions={{ service: ["list"] }}
+              fallback={<NotAuthorized />}
+            >
+              <Services />
+            </Require>
+          }
+        />
+        <Route
+          path="/services/systems/:systemId/parameters"
+          element={<ServiceParametersPage />}
+        />
+        <Route
+          path="/services/systems/:systemId/specificationGroups"
+          element={<ServiceParametersPage />}
+        />
+        <Route
+          path="/services/systems/:systemId/specificationGroups/:groupId/specifications"
+          element={<ServiceParametersPage />}
+        />
+        <Route
+          path="/services/systems/:systemId/specificationGroups/:groupId/specifications/:specId/operations"
+          element={<ServiceParametersPage />}
+        />
+        <Route
+          path="/services/systems/:systemId/specificationGroups/:groupId/specifications/:specId/operations/:operationId"
+          element={<ServiceParametersPage />}
+        />
+        <Route
+          path="/services/systems/:systemId/environments"
+          element={<ServiceParametersPage />}
+        />
+        <Route
+          path="/services/context/:systemId/parameters"
+          element={<ContextServiceParametersPage />}
+        />
+        <Route
+          path="/services/mcp/:systemId/parameters"
+          element={<McpServiceParametersPage />}
+        />
+        <Route path="/doc/*" element={<DocumentationPage />} />
+        <Route path="*" element={<NotFound />} />
+        <Route path="/not-implemented" element={<NotImplemented />} />
+      </Route>
+    </>,
+  ),
+);
+
+const App = () => {
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    return initializeBrowserTheme();
+  });
+  const [, setThemeUpdateKey] = useState(0);
+
+  useEffect(() => {
+    applyThemeToDOM(theme);
+    const timeoutId = setTimeout(() => {
+      setThemeUpdateKey((prev) => prev + 1);
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [theme]);
+
+  useEffect(() => {
+    return setupThemeListener(setTheme);
+  }, []);
+
+  useEffect(() => {
+    const handleThemeVariablesUpdated = () => {
+      setThemeUpdateKey((prev) => prev + 1);
+      reapplyCssVariables();
+    };
+
+    window.addEventListener(
+      "theme-variables-updated",
+      handleThemeVariablesUpdated,
+    );
+    return () => {
+      window.removeEventListener(
+        "theme-variables-updated",
+        handleThemeVariablesUpdated,
+      );
+    };
+  }, []);
+
+  const isDark = theme === "dark" || theme === "high-contrast";
+  const config = getConfig();
+
+  useEffect(() => {
+    if (config.themeOverrides) {
+      setThemeUpdateKey((prev) => prev + 1);
+    }
+    if (config.cssVariables) {
+      reapplyCssVariables();
+    }
+  }, [config.themeOverrides, config.cssVariables]);
+
+  const antdConfig = getAntdThemeConfig(isDark, config.themeOverrides);
+
+  const themeContextValue: ThemeContextValue = {
+    theme,
+    onThemeChange: setTheme,
+    showThemeSwitcher: true,
+  };
+
+  return (
+    <ConfigProvider theme={antdConfig}>
+      <UserPermissionsProvider>
+        <AntdApp>
+          <IconProvider>
+            <ThemeContext.Provider value={themeContextValue}>
+              <EventNotification>
+                <Modals>
+                  <RouterProvider router={router} />
+                </Modals>
+              </EventNotification>
+            </ThemeContext.Provider>
+          </IconProvider>
+        </AntdApp>
+      </UserPermissionsProvider>
+    </ConfigProvider>
+  );
+};
+export default App;

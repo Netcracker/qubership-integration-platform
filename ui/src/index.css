@@ -1,0 +1,306 @@
+html {
+  background: white;
+  height: 100%;
+
+  /* Toolbar tooltips near the right edge can extend past the viewport by a
+     subpixel amount; that triggers html scrollbars and a second-axis gutter
+     (Deployments, Sessions). Clipping x overflow keeps layout stable. */
+  overflow-x: clip;
+}
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* color-scheme: light dark; */
+
+  /* color: rgba(255, 255, 255, 0.87); */
+
+  /* background-color: #242424; */
+
+  font-synthesis: none;
+  text-rendering: optimizelegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  height: 100%;
+
+  /* Portaled tooltips attach under body; clip here too if html alone is not enough. */
+  overflow-x: clip;
+}
+
+#root {
+  height: 100%;
+  min-height: 100vh;
+}
+
+.ant-app {
+  height: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.ant-app .ant-app-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+
+button:hover {
+  border-color: #646cff;
+}
+
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #fff;
+  }
+
+  a:hover {
+    color: #747bff;
+  }
+
+  button {
+    background-color: #f9f9f9;
+  }
+}
+
+/* Ant design table styles */
+.clickable-row {
+  cursor: pointer;
+}
+
+.dndnode {
+  outline: black solid 1px;
+  border-radius: 4px;
+  cursor: grab;
+}
+
+.chain-layout {
+  all: unset;
+  display: flex;
+  height: 100%;
+  border-radius: 12px;
+  border: black 4px;
+}
+
+.trigger-node {
+  outline: black solid 1px;
+  border-radius: 4px;
+  background-color: white;
+}
+
+.trigger-node-input .tooltiptext {
+  visibility: hidden;
+}
+
+.trigger-node-input:hover .tooltiptext {
+  visibility: visible;
+}
+
+.ant-table-body {
+  overflow-y: auto !important;
+}
+
+.not-displayed {
+  display: none;
+}
+
+.flex-tabs {
+  min-height: 0;
+  flex-grow: 1;
+  flex-shrink: 1;
+
+  .ant-tabs-content-holder {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ant-tabs-content {
+    flex-shrink: 1;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .ant-tabs-tabpane {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-height: 0;
+  }
+}
+
+.flex-table {
+  min-height: 0;
+  flex-grow: 1;
+  flex-shrink: 1;
+
+  > .ant-spin-nested-loading {
+    height: 100%;
+
+    > .ant-spin-container {
+      height: 100%;
+
+      > .ant-table {
+        height: 100%;
+
+        > .ant-table-container {
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+
+          > .ant-table-header {
+            flex-shrink: 0;
+          }
+
+          > .ant-table-body {
+            min-height: 0;
+            flex-grow: 1;
+            flex-shrink: 1;
+          }
+
+          > .ant-table-body .ant-table-body-inner,
+          > .ant-table-body table {
+            height: auto !important;
+          }
+        }
+      }
+    }
+  }
+}
+
+.qip-editor {
+  border: solid 1px var(--vscode-border, lightgrey);
+  border-radius: 4px;
+  margin-top: 8px;
+  position: relative;
+}
+
+.qip-editor .monaco-editor,
+.qip-editor .monaco-editor-background,
+.qip-editor .monaco-editor .overflow-guard {
+  border-radius: 4px;
+}
+
+.chain-text-view-highlighted-block {
+  box-shadow: inset 2px 0 0 var(--vscode-focusBorder, #1890ff);
+}
+
+.flex-dragger {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.diagram-tabs {
+  .ant-tabs-content {
+    overflow: auto;
+  }
+}
+
+.mapper-element-reference-select {
+  .ant-select-selection-item {
+    padding-left: 0 !important;
+    border: 1px solid #d9d9d9 !important;
+  }
+
+  .ant-select-selection-item-content {
+    font-size: 12px;
+    display: flex !important;
+    background-color: #ecedef !important;
+    min-width: 0;
+  }
+}
+
+.flex-form-item {
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+
+  .ant-form-item-row,
+  .ant-form-item-control,
+  .ant-form-item-control-input,
+  .ant-form-item-control-input-content {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+  }
+
+  .ant-form-item-control-input-content {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.flex-form-item-h100 {
+  .ant-form-item-control {
+    height: 100%;
+  }
+}
+
+.width100 {
+  width: 100%;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  scrollbar-gutter: auto;
+}
+
+*:hover {
+  scrollbar-width: thin;
+  scrollbar-color: lightgray transparent;
+}
+
+.ant-table-cell.actions-column:not(.ant-table-cell-row-hover) > * {
+  visibility: collapse;
+}
+
+.ant-table-filter-dropdown {
+  z-index: 1050;
+}

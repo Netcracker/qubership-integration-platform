@@ -1,0 +1,292 @@
+/* Unified Theme System for QIP UI */
+
+/* Light Theme (Default for Browser) */
+:root:not(.vscode-webview) {
+  /* Editor Colors - Light defaults */
+  --vscode-editor-background: #fff;
+  --vscode-editor-foreground: rgb(0 0 0 / 88%);
+
+  /* Panel Colors */
+  --vscode-panel-background: #fafafa;
+  --vscode-sideBar-background: #fff;
+  --vscode-editorGroupHeader-tabsBackground: #fafafa;
+  --vscode-editorGroupHeader-foreground: rgb(0 0 0 / 88%);
+
+  /* Button Colors */
+  --vscode-button-background: #0078d4;
+  --vscode-button-foreground: #fff;
+  --vscode-button-hoverBackground: #106ebe;
+
+  /* Input Colors */
+  --vscode-input-background: #fff;
+  --vscode-input-foreground: rgb(0 0 0 / 88%);
+  --vscode-input-border: #d9d9d9;
+  --vscode-input-placeholderForeground: rgb(0 0 0 / 45%);
+
+  /* Text Colors */
+  --vscode-foreground: rgb(0 0 0 / 88%);
+  --vscode-descriptionForeground: #9ca3af;
+
+  /* Border Colors */
+  --vscode-border: #d9d9d9;
+  --vscode-editorGroup-border: #d9d9d9;
+  --vscode-focusBorder: #007acc;
+
+  /* Status Colors */
+  --vscode-errorForeground: #d73a49;
+  --vscode-warningForeground: #e36209;
+  --vscode-textLink-foreground: #1677ff;
+  --vscode-terminal-ansiGreen: #28a745;
+
+  /* List Colors */
+  --vscode-list-activeSelectionBackground: #0078d4;
+  --vscode-list-activeSelectionForeground: #fff;
+  --vscode-list-hoverBackground: #f5f5f5;
+
+  /* Badge Colors */
+  --vscode-badge-background: #e8e8e8;
+  --vscode-badge-foreground: #333;
+
+  /* Shadows */
+  --modal-shadow: 0 12px 32px rgb(0 0 0 / 12%);
+
+  /* Font Settings */
+  --vscode-font-family: "Segoe UI", tahoma, geneva, verdana, sans-serif;
+  --vscode-font-size: 14px;
+  --vscode-font-weight: normal;
+  --vscode-line-height: 1.5;
+
+  /* Animation Control */
+  --transition-duration: 0.25s;
+
+  /* Code Block Background */
+  --vscode-textCodeBlock-background: #f6f8fa;
+
+  /* Container Node Colors */
+  --container-border-color: #dedacd;
+  --container-header-background: #fff9e6;
+
+  /* Node color when compare */
+  --node-not-changed-color: #727272;
+  --node-changed-color: #ffcc02;
+  --node-created-color: #28a745;
+  --node-removed-color: #f48771;
+
+  /* Table: warning / unsaved row — low mix so it stays quieter than input panels */
+  --qip-table-warning-row-background: color-mix(
+    in srgb,
+    var(--vscode-warningForeground) 7%,
+    var(--vscode-editor-background)
+  );
+  --qip-table-warning-row-background-hover: color-mix(
+    in srgb,
+    var(--vscode-warningForeground) 11%,
+    var(--vscode-list-hoverBackground)
+  );
+}
+
+:root[data-theme="dark"] {
+  --doc-bg: #1f1f1f;
+  --doc-fg: rgb(255 255 255 / 85%);
+}
+
+/* UI token mappings removed - use --vscode-* variables directly for better maintainability */
+
+/* Dark Theme Override (Browser fallback only) */
+:root:not(.vscode-webview)[data-theme="dark"] {
+  --vscode-editor-background: #1f1f1f;
+  --vscode-editor-foreground: rgb(255 255 255 / 85%);
+  --vscode-panel-background: #141414;
+  --vscode-sideBar-background: #1f1f1f;
+  --vscode-editorGroupHeader-tabsBackground: #1f1f1f;
+  --vscode-editorGroupHeader-foreground: rgb(255 255 255 / 85%);
+  --vscode-button-background: #0078d4;
+  --vscode-button-foreground: #fff;
+  --vscode-button-hoverBackground: #106ebe;
+  --vscode-input-background: #1f1f1f;
+  --vscode-input-foreground: rgb(255 255 255 / 85%);
+  --vscode-input-border: #303030;
+  --vscode-input-placeholderForeground: rgb(255 255 255 / 45%);
+  --vscode-modal-background: #1f1f1f;
+  --vscode-modal-foreground: rgb(255 255 255 / 85%);
+  --vscode-foreground: rgb(255 255 255 / 85%);
+  --vscode-descriptionForeground: #9ca3af;
+  --vscode-border: #303030;
+  --vscode-editorGroup-border: #303030;
+  --vscode-focusBorder: #007acc;
+  --vscode-errorForeground: #f48771;
+  --vscode-warningForeground: #ffcc02;
+  --vscode-textLink-foreground: #69b1ff;
+  --vscode-terminal-ansiGreen: #4ec9b0;
+  --vscode-list-activeSelectionBackground: #264f78;
+  --vscode-list-activeSelectionForeground: #fff;
+  --vscode-list-hoverBackground: #262626;
+
+  /* Badge Colors */
+  --vscode-badge-background: #3a3a3a;
+  --vscode-badge-foreground: rgb(255 255 255 / 85%);
+  --modal-shadow: 0 4px 12px rgb(0 0 0 / 30%);
+
+  /* Code Block Background */
+  --vscode-textCodeBlock-background: #2d2d2d;
+
+  /* Container Node Colors */
+  --container-border-color: #fff9e6;
+  --container-header-background: #fff9e6;
+  --qip-table-warning-row-background: color-mix(
+    in srgb,
+    var(--vscode-warningForeground) 6%,
+    var(--vscode-editor-background)
+  );
+  --qip-table-warning-row-background-hover: color-mix(
+    in srgb,
+    var(--vscode-warningForeground) 12%,
+    var(--vscode-list-hoverBackground)
+  );
+}
+
+:root[data-theme="high-contrast"] {
+  --doc-bg: #000;
+  --doc-fg: #fff;
+}
+
+/* High Contrast Theme Override (Browser fallback only) */
+:root:not(.vscode-webview)[data-theme="high-contrast"] {
+  --vscode-editor-background: #000;
+  --vscode-editor-foreground: #fff;
+  --vscode-panel-background: #000;
+  --vscode-sideBar-background: #000;
+  --vscode-button-background: #fff;
+  --vscode-button-foreground: #000;
+  --vscode-button-hoverBackground: #f0f0f0;
+  --vscode-input-background: #000;
+  --vscode-input-foreground: #fff;
+  --vscode-input-border: #fff;
+  --vscode-input-placeholderForeground: #fff;
+  --vscode-modal-background: #000;
+  --vscode-modal-foreground: #fff;
+  --vscode-foreground: #fff;
+  --vscode-descriptionForeground: #fff;
+  --vscode-border: #fff;
+  --vscode-focusBorder: #ff0;
+  --vscode-errorForeground: #f00;
+  --vscode-warningForeground: #ff0;
+  --vscode-textLink-foreground: #0ff;
+  --vscode-terminal-ansiGreen: #0f0;
+  --vscode-list-activeSelectionBackground: #ff0;
+  --vscode-list-activeSelectionForeground: #000;
+  --vscode-list-hoverBackground: #333;
+
+  /* Badge Colors */
+  --vscode-badge-background: #333;
+  --vscode-badge-foreground: #fff;
+  --modal-shadow: 0 4px 12px rgb(255 255 255 / 30%);
+
+  /* Code Block Background */
+  --vscode-textCodeBlock-background: #1a1a1a;
+
+  /* Container Node Colors */
+  --container-border-color: #fff9e6;
+  --container-header-background: #fff9e6;
+  --qip-table-warning-row-background: color-mix(
+    in srgb,
+    var(--vscode-warningForeground) 16%,
+    var(--vscode-editor-background)
+  );
+  --qip-table-warning-row-background-hover: color-mix(
+    in srgb,
+    var(--vscode-warningForeground) 24%,
+    var(--vscode-list-hoverBackground)
+  );
+}
+
+/* Documentation viewer variables (safe in webview too) */
+:root {
+  --doc-bg: #fff;
+  --doc-fg: rgb(0 0 0 / 88%);
+}
+
+/* Container Node Colors - available in webview too */
+.vscode-webview,
+.vscode-webview[data-theme="light"],
+.vscode-webview[data-theme="dark"],
+.vscode-webview[data-theme="high-contrast"] {
+  --container-border-color: var(--vscode-border, #dedacd);
+  --container-header-background: #fff9e6;
+}
+
+/* In VS Code webview prefer live VS Code theme variables. */
+:root.vscode-webview {
+  --doc-bg: var(--vscode-editor-background, #fff);
+  --doc-fg: var(--vscode-foreground, rgb(0 0 0 / 88%));
+
+  /* Host warning hue at low mix — table tint stays softer than validation panels */
+  --qip-table-warning-row-background: color-mix(
+    in srgb,
+    var(--vscode-warningForeground, #cca700) 8%,
+    var(--vscode-editor-background, #fff)
+  );
+  --qip-table-warning-row-background-hover: color-mix(
+    in srgb,
+    var(--vscode-warningForeground, #cca700) 13%,
+    var(--vscode-list-hoverBackground, var(--vscode-editor-background, #f5f5f5))
+  );
+}
+
+/* Smooth theme transitions */
+.theme-switching * {
+  transition: none !important;
+}
+
+:root:not(.theme-switching) * {
+  transition:
+    background-color var(--transition-duration) ease,
+    color var(--transition-duration) ease,
+    border-color var(--transition-duration) ease,
+    box-shadow var(--transition-duration) ease;
+}
+
+/* Apply theme to body */
+body {
+  background-color: var(--vscode-editor-background);
+  color: var(--vscode-editor-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  font-weight: var(--vscode-font-weight);
+  line-height: var(--vscode-line-height);
+}
+
+/* Scrollbar theming */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--vscode-panel-background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--vscode-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--vscode-focusBorder);
+}
+
+/* Focus styles */
+.vscode-focusable:focus {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
+}
+
+.vscode-webview[data-theme="dark"] {
+  --container-border-color: #fff9e6;
+  --container-header-background: #fff9e6;
+}
+
+.vscode-webview[data-theme="high-contrast"] {
+  --container-border-color: #fff9e6;
+  --container-header-background: #fff9e6;
+}

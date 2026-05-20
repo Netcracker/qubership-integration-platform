@@ -1,0 +1,48 @@
+.container {
+  position: absolute;
+  left: 15px;
+  top: 15px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  background: var(--vscode-panel-background, #fafafa);
+  border: 1px solid var(--vscode-border, #d9d9d9);
+  border-radius: 4px;
+  box-shadow: var(--vscode-widget-shadow, 0 3px 8px rgb(0 0 0 / 20%));
+  z-index: 4;
+}
+
+.button {
+  border: none;
+  color: var(--vscode-foreground, #000);
+  background: transparent;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.button:hover,
+.button:focus {
+  background: var(--vscode-list-hoverBackground, rgb(0 0 0 / 4%));
+  color: var(--vscode-button-background, #0078d4);
+}
+
+.button:global(.ant-btn-text) {
+  color: inherit;
+}
+
+.button[data-active="true"]:global(.ant-btn-text),
+.button[data-active="true"]:global(.ant-btn.ant-btn-icon-only) {
+  color: var(--vscode-button-background, #0078d4) !important;
+}
+
+.button + .button {
+  border-left: 1px solid var(--vscode-border, #d9d9d9);
+}
+
+.extraDivider {
+  width: 1px;
+  height: 20px;
+  background: var(--vscode-border, #d9d9d9);
+  margin: 0 2px;
+}

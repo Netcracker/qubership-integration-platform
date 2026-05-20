@@ -1,0 +1,1260 @@
+import type {
+  ApiResponse,
+  DeleteImportInstructionsRequest,
+  DiscoveryResponse,
+  GeneralImportInstructions,
+  ImportInstruction,
+  ImportInstructionRequest,
+  ImportInstructionResult,
+  MCPSystem,
+  MCPSystemUpdateRequest,
+  SecretWithVariables,
+  Variable,
+} from "../apiTypes.ts";
+import {
+  AccessControlResponse,
+  ActionDifference,
+  ActionLogResponse,
+  BaseEntity,
+  BulkDeploymentResult,
+  Chain,
+  ChainDeployment,
+  ChainDetailedDesign,
+  ChainElementCodeResponse,
+  ChainItem,
+  ChainLoggingSettings,
+  CheckpointSession,
+  Connection,
+  ConnectionRequest,
+  ContextSystem,
+  CreateElementRequest,
+  CreateMaasKafkaRequest,
+  CreateMaasRabbitMQRequest,
+  Deployment,
+  DetailedDesignTemplate,
+  DiagnosticValidation,
+  Element,
+  ElementFilter,
+  ElementsSequenceDiagrams,
+  ElementWithChainName,
+  Engine,
+  EngineDomain,
+  Environment,
+  EnvironmentRequest,
+  EventsUpdate,
+  FolderItem,
+  GetMaasKafkaDeclarativeRequest,
+  GetMaasRabbitMQDeclarativeRequest,
+  ImportCommitResponse,
+  ImportPreview,
+  ImportSpecificationGroupRequest,
+  ImportSpecificationResult,
+  ImportStatusResponse,
+  ImportSystemResult,
+  ImportVariablesResult,
+  IntegrationSystem,
+  IntegrationSystemType,
+  LibraryData,
+  LibraryElement,
+  LiveExchange,
+  MaskedField,
+  MaskedFields,
+  OperationInfo,
+  PaginationOptions,
+  PatchElementRequest,
+  RestApiError,
+  SerializedFile,
+  Session,
+  SessionSearchResponse,
+  Snapshot,
+  SpecApiFile,
+  Specification,
+  SpecificationGroup,
+  SystemOperation,
+  SystemRequest,
+  TransferElementRequest,
+  UsedProperty,
+  UsedService,
+  VariableImportPreview,
+} from "../apiTypes.ts";
+import { Api } from "../api.ts";
+import { getAppName } from "../../appConfig.ts";
+
+export const NAVIGATE_EVENT = "navigate";
+export const STARTUP_EVENT = "startup";
+export const isVsCode = window.location.protocol === "vscode-webview:";
+
+export class VSCodeExtensionApi implements Api {
+  vscode: VSCodeApi<never>;
+  responseResolvers: Record<string, MessageResolver> = {};
+
+  constructor() {
+    this.vscode = acquireVsCodeApi();
+
+    // Listener for messages FROM extension
+    window.addEventListener(
+      "message",
+      (event: MessageEvent<VSCodeResponse<never>>) => {
+        const message: VSCodeResponse<never> = event.data;
+        const { requestId, error } = message;
+
+        if (requestId && this.responseResolvers[requestId]) {
+          if (error) {
+            this.responseResolvers[requestId].reject(
+              new RestApiError(
+                error.message
+                  ? error.message
+                  : "Unknown error happened on VSCode Extension side",
+                0,
+                undefined,
+                error,
+              ),
+            );
+          } else {
+            this.responseResolvers[requestId].resolve(message);
+          }
+          delete this.responseResolvers[requestId];
+        }
+      },
+    );
+  }
+
+  sendMessageToExtension = async <T, V>(
+    type: string,
+    payload?: V,
+  ): Promise<VSCodeResponse<T>> => {
+    const requestId = crypto.randomUUID();
+    const message: VSCodeMessage<V> = { type, requestId, payload };
+
+    this.vscode.postMessage({
+      command: getAppName(),
+      // @ts-expect-error since any type is prohibited
+      data: message,
+    });
+
+    return new Promise((resolve, reject) => {
+      this.responseResolvers[requestId] = { resolve, reject };
+    });
+  };
+
+  getLibrary = async (): Promise<LibraryData> => {
+    return <LibraryData>(
+      (await this.sendMessageToExtension("getLibrary")).payload
+    );
+  };
+
+  getElements = async (chainId: string): Promise<Element[]> => {
+    return <Element[]>(
+      (await this.sendMessageToExtension("getElements", chainId)).payload
+    );
+  };
+
+  createElement = async (
+    elementRequest: CreateElementRequest,
+    chainId: string,
+  ): Promise<ActionDifference> => {
+    return <ActionDifference>(
+      await this.sendMessageToExtension("createElement", {
+        chainId,
+        elementRequest,
+      })
+    ).payload;
+  };
+
+  updateElement = async (
+    elementRequest: PatchElementRequest,
+    chainId: string,
+    elementId: string,
+  ): Promise<ActionDifference> => {
+    return <ActionDifference>(
+      await this.sendMessageToExtension("updateElement", {
+        chainId,
+        elementId,
+        elementRequest,
+      })
+    ).payload;
+  };
+
+  transferElement = async (
+    transferElementRequest: TransferElementRequest,
+    chainId: string,
+  ): Promise<ActionDifference> => {
+    return <ActionDifference>(
+      await this.sendMessageToExtension("transferElement", {
+        chainId,
+        transferElementRequest,
+      })
+    ).payload;
+  };
+
+  deleteElements = async (
+    elementIds: string[],
+    chainId: string,
+  ): Promise<ActionDifference> => {
+    return <ActionDifference>(
+      await this.sendMessageToExtension("deleteElements", {
+        chainId,
+        elementIds,
+      })
+    ).payload;
+  };
+
+  getConnections = async (chainId: string): Promise<Connection[]> => {
+    return <Connection[]>(
+      (await this.sendMessageToExtension("getConnections", chainId)).payload
+    );
+  };
+
+  createConnection = async (
+    connectionRequest: ConnectionRequest,
+    chainId: string,
+  ): Promise<ActionDifference> => {
+    return <ActionDifference>(
+      await this.sendMessageToExtension("createConnection", {
+        chainId,
+        connectionRequest,
+      })
+    ).payload;
+  };
+
+  deleteConnections = async (
+    connectionIds: string[],
+    chainId: string,
+  ): Promise<ActionDifference> => {
+    return <ActionDifference>(
+      await this.sendMessageToExtension("deleteConnections", {
+        chainId,
+        connectionIds,
+      })
+    ).payload;
+  };
+
+  getLibraryElementByType = async (type: string): Promise<LibraryElement> => {
+    return <LibraryElement>(
+      (await this.sendMessageToExtension("getLibraryElementByType", type))
+        .payload
+    );
+  };
+
+  getChain = async (id: string): Promise<Chain> => {
+    return <Chain>(await this.sendMessageToExtension("getChain", id)).payload;
+  };
+
+  findChainByElementId = async (elementId: string): Promise<Chain> => {
+    return <Chain>(
+      (await this.sendMessageToExtension("findChainByElementId", elementId))
+        .payload
+    );
+  };
+
+  updateChain = async (id: string, chain: Partial<Chain>): Promise<Chain> => {
+    return <Chain>(
+      (await this.sendMessageToExtension("updateChain", { id, chain })).payload
+    );
+  };
+
+  getMaskedFields = async (chainId: string): Promise<MaskedField[]> => {
+    return (<MaskedFields>(
+      (await this.sendMessageToExtension("getMaskedFields", chainId)).payload
+    ))?.fields;
+  };
+
+  createMaskedField = async (
+    chainId: string,
+    maskedField: Partial<Omit<MaskedField, "id">>,
+  ): Promise<MaskedField> => {
+    return <MaskedField>(
+      await this.sendMessageToExtension("createMaskedField", {
+        chainId,
+        maskedField,
+      })
+    ).payload;
+  };
+
+  deleteMaskedFields = async (
+    chainId: string,
+    maskedFieldIds: string[],
+  ): Promise<void> => {
+    await this.sendMessageToExtension("deleteMaskedFields", {
+      chainId,
+      maskedFieldIds,
+    });
+  };
+
+  deleteMaskedField = async (
+    chainId: string,
+    maskedFieldId: string,
+  ): Promise<void> => {
+    await this.deleteMaskedFields(chainId, [maskedFieldId]);
+  };
+
+  updateMaskedField = async (
+    chainId: string,
+    id: string,
+    maskedField: Partial<Omit<MaskedField, "id">>,
+  ): Promise<MaskedField> => {
+    return <MaskedField>(
+      await this.sendMessageToExtension("updateMaskedField", {
+        id,
+        chainId,
+        maskedField,
+      })
+    ).payload;
+  };
+
+  getElementsByType = async (
+    chainId: string,
+    elementType: string,
+  ): Promise<ElementWithChainName[]> => {
+    return <ElementWithChainName[]>(
+      await this.sendMessageToExtension("getElementsByType", {
+        chainId,
+        elementType,
+      })
+    ).payload;
+  };
+
+  getRootFolders = (): Promise<FolderItem[]> => {
+    return Promise.resolve([]);
+  };
+
+  getChainsUsedByService(): Promise<BaseEntity[]> {
+    return Promise.resolve([]);
+  }
+
+  exportSpecifications(): Promise<File> {
+    throw new Error("Method exportSpecifications not implemented.");
+  }
+
+  generateApiSpecification(): Promise<File> {
+    throw new Error("Method generateApiSpecification not implemented.");
+  }
+
+  getServices = async (): Promise<IntegrationSystem[]> => {
+    return <IntegrationSystem[]>(
+      (await this.sendMessageToExtension("getServices")).payload
+    );
+  };
+
+  filterServices(): Promise<IntegrationSystem[]> {
+    throw new Error("Method filterServices not implemented.");
+  }
+
+  searchServices(): Promise<IntegrationSystem[]> {
+    throw new Error("Method searchServices not implemented.");
+  }
+
+  createService = async (
+    request: SystemRequest,
+  ): Promise<IntegrationSystem> => {
+    return <IntegrationSystem>(
+      (await this.sendMessageToExtension("createService", request)).payload
+    );
+  };
+
+  createEnvironment = async (
+    systemId: string,
+    request: EnvironmentRequest,
+  ): Promise<Environment> => {
+    return <Environment>(
+      await this.sendMessageToExtension("createEnvironment", {
+        serviceId: systemId,
+        environment: request,
+      })
+    ).payload;
+  };
+
+  updateEnvironment = async (
+    systemId: string,
+    environmentId: string,
+    request: EnvironmentRequest,
+  ): Promise<Environment> => {
+    return <Environment>(
+      await this.sendMessageToExtension("updateEnvironment", {
+        serviceId: systemId,
+        environmentId,
+        environment: request,
+      })
+    ).payload;
+  };
+
+  deleteEnvironment = async (
+    systemId: string,
+    environmentId: string,
+  ): Promise<void> => {
+    await this.sendMessageToExtension("deleteEnvironment", {
+      serviceId: systemId,
+      environmentId,
+    });
+  };
+
+  deleteService(): Promise<void> {
+    throw new Error("Method deleteService not implemented.");
+  }
+
+  importSystems = async (
+    file: File,
+    systemType: IntegrationSystemType,
+    systemIds?: string[],
+    deployLabel?: string,
+    packageName?: string,
+    packageVersion?: string,
+    packagePartOf?: string,
+  ): Promise<ImportSystemResult[]> => {
+    const response = await this.sendMessageToExtension("importSystems", {
+      file,
+      systemType,
+      systemIds,
+      deployLabel,
+      packageName,
+      packageVersion,
+      packagePartOf,
+    });
+    return response.payload as ImportSystemResult[];
+  };
+
+  importSpecification = async (
+    specificationGroupId: string,
+    files: File[],
+    systemId: string,
+  ): Promise<ImportSpecificationResult> => {
+    const serializedFiles: SerializedFile[] = await Promise.all(
+      files.map(async (file) => ({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified,
+        content: await file.arrayBuffer(),
+      })),
+    );
+
+    return <ImportSpecificationResult>(
+      await this.sendMessageToExtension("importSpecification", {
+        specificationGroupId,
+        files: serializedFiles,
+        systemId,
+      })
+    ).payload;
+  };
+
+  getImportSpecificationResult = async (
+    importId: string,
+  ): Promise<ImportSpecificationResult> => {
+    return <ImportSpecificationResult>(
+      await this.sendMessageToExtension("getImportSpecificationResult", {
+        importId,
+      })
+    ).payload;
+  };
+
+  importSpecificationGroup = async (
+    systemId: string,
+    name: string,
+    files: File[],
+    protocol?: string,
+  ): Promise<ImportSpecificationResult> => {
+    const serializedFiles: SerializedFile[] = await Promise.all(
+      files.map(async (file) => {
+        return {
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          lastModified: file.lastModified,
+          content: await file.arrayBuffer(),
+        };
+      }),
+    );
+
+    const request: ImportSpecificationGroupRequest = {
+      systemId,
+      name,
+      files: serializedFiles,
+      protocol,
+    };
+    return <ImportSpecificationResult>(
+      (await this.sendMessageToExtension("importSpecificationGroup", request))
+        .payload
+    );
+  };
+
+  deleteSpecificationGroup = async (groupId: string): Promise<void> => {
+    await this.sendMessageToExtension("deleteSpecificationGroup", groupId);
+  };
+
+  getService = async (systemId: string): Promise<IntegrationSystem> => {
+    const response = await this.sendMessageToExtension("getService", systemId);
+    return <IntegrationSystem>response.payload;
+  };
+
+  updateService = async (
+    systemId: string,
+    service: Partial<IntegrationSystem>,
+  ): Promise<IntegrationSystem> => {
+    return <IntegrationSystem>(
+      await this.sendMessageToExtension("updateService", {
+        id: systemId,
+        service,
+      })
+    ).payload;
+  };
+
+  getContextServices = async (): Promise<ContextSystem[]> => {
+    return <ContextSystem[]>(
+      (await this.sendMessageToExtension("getContextServices")).payload
+    );
+  };
+
+  getContextService = async (systemId: string): Promise<ContextSystem> => {
+    const response = await this.sendMessageToExtension(
+      "getContextService",
+      systemId,
+    );
+    return <ContextSystem>response.payload;
+  };
+
+  filterContextServices(): Promise<ContextSystem[]> {
+    throw new Error("Method filterContextServices not implemented.");
+  }
+
+  searchContextServices(): Promise<ContextSystem[]> {
+    throw new Error("Method searchContextServices not implemented.");
+  }
+
+  createContextService = async (
+    system: Pick<ContextSystem, "name" | "description">,
+  ): Promise<ContextSystem> => {
+    return <ContextSystem>(
+      (await this.sendMessageToExtension("createContextService", system))
+        .payload
+    );
+  };
+
+  updateContextService = async (
+    id: string,
+    service: Partial<ContextSystem>,
+  ): Promise<ContextSystem> => {
+    return <ContextSystem>(
+      await this.sendMessageToExtension("updateContextService", {
+        id: id,
+        service,
+      })
+    ).payload;
+  };
+
+  deleteContextService(): Promise<void> {
+    throw new Error("Method deleteContextService not implemented.");
+  }
+
+  exportContextServices(): Promise<File> {
+    throw new Error("Method exportContextServices not implemented.");
+  }
+
+  getEnvironment = async (
+    systemId: string,
+    environmentId: string,
+  ): Promise<Environment> => {
+    return <Environment>(
+      await this.sendMessageToExtension("getEnvironment", {
+        serviceId: systemId,
+        environmentId,
+      })
+    ).payload;
+  };
+
+  getEnvironments = async (systemId: string): Promise<Environment[]> => {
+    return <Environment[]>(
+      (await this.sendMessageToExtension("getEnvironments", systemId)).payload
+    );
+  };
+
+  getApiSpecifications = async (
+    systemId: string,
+  ): Promise<SpecificationGroup[]> => {
+    return <SpecificationGroup[]>(
+      (await this.sendMessageToExtension("getApiSpecifications", systemId))
+        .payload
+    );
+  };
+
+  getLatestApiSpecification = async (
+    systemId: string,
+  ): Promise<Specification> => {
+    return <Specification>(
+      (await this.sendMessageToExtension("getLatestApiSpecification", systemId))
+        .payload
+    );
+  };
+
+  updateApiSpecificationGroup = async (
+    groupId: string,
+    group: Partial<SpecificationGroup>,
+  ): Promise<SpecificationGroup> => {
+    return <SpecificationGroup>(
+      await this.sendMessageToExtension("updateApiSpecificationGroup", {
+        id: groupId,
+        group,
+      })
+    ).payload;
+  };
+
+  getSpecificationModel = async (
+    systemId: string,
+    groupId: string,
+  ): Promise<Specification[]> => {
+    return <Specification[]>(
+      await this.sendMessageToExtension("getSpecificationModel", {
+        serviceId: systemId,
+        groupId,
+      })
+    ).payload;
+  };
+
+  getSpecificationModelSource = async (id: string): Promise<string> => {
+    return <string>(
+      (await this.sendMessageToExtension("getSpecificationModelSource", id))
+        .payload
+    );
+  };
+
+  updateSpecificationModel = async (
+    modelId: string,
+    model: Partial<Specification>,
+  ): Promise<Specification> => {
+    return <Specification>(
+      await this.sendMessageToExtension("updateSpecificationModel", {
+        id: modelId,
+        model,
+      })
+    ).payload;
+  };
+
+  getOperations = async (
+    modelId: string,
+    _paginationOptions: PaginationOptions = {},
+  ): Promise<SystemOperation[]> => {
+    console.log("ALSU VSCODE API");
+    return <SystemOperation[]>(
+      (await this.sendMessageToExtension("getOperations", modelId)).payload
+    );
+  };
+
+  getOperationInfo = async (operationId: string): Promise<OperationInfo> => {
+    return <OperationInfo>(
+      (await this.sendMessageToExtension("getOperationInfo", operationId))
+        .payload
+    );
+  };
+
+  openChainInNewTab = async (chainId: string): Promise<void> => {
+    await this.sendMessageToExtension("openChainInNewTab", chainId);
+  };
+
+  navigateInNewTab = async (path: string): Promise<void> => {
+    await this.sendMessageToExtension("navigateInNewTab", path);
+  };
+
+  navigateToSpecifications = async (groupId: string): Promise<string> => {
+    return <string>(
+      await this.sendMessageToExtension("navigateToSpecifications", {
+        groupId,
+      })
+    ).payload;
+  };
+
+  navigateToOperations = async (
+    groupId: string,
+    specId: string,
+  ): Promise<string> => {
+    return <string>(
+      await this.sendMessageToExtension("navigateToOperations", {
+        groupId,
+        specId,
+      })
+    ).payload;
+  };
+
+  deprecateModel = async (modelId: string): Promise<Specification> => {
+    return <Specification>(
+      (await this.sendMessageToExtension("deprecateModel", modelId)).payload
+    );
+  };
+
+  deleteSpecificationModel = async (modelId: string): Promise<void> => {
+    await this.sendMessageToExtension("deleteSpecificationModel", modelId);
+  };
+
+  moveChain = async (chainId: string, folder?: string): Promise<Chain> => {
+    return <Chain>(
+      (await this.sendMessageToExtension("moveChain", { chainId, folder }))
+        .payload
+    );
+  };
+
+  getDetailedDesignTemplates(): Promise<DetailedDesignTemplate[]> {
+    throw new Error("Method getDetailedDesignTemplates not implemented.");
+  }
+
+  getDetailedDesignTemplate(): Promise<DetailedDesignTemplate> {
+    throw new Error("Method getDetailedDesignTemplate not implemented.");
+  }
+
+  createOrUpdateDetailedDesignTemplate(): Promise<DetailedDesignTemplate> {
+    throw new Error(
+      "Method createOrUpdateDetailedDesignTemplate not implemented.",
+    );
+  }
+
+  deleteDetailedDesignTemplates(): Promise<void> {
+    throw new Error("Method deleteDetailedDesignTemplates not implemented.");
+  }
+
+  getChainDetailedDesign(): Promise<ChainDetailedDesign> {
+    throw new Error("Method getChainDetailedDesign not implemented.");
+  }
+
+  getChainSequenceDiagram(): Promise<ElementsSequenceDiagrams> {
+    throw new Error("Method getChainSequenceDiagram not implemented.");
+  }
+
+  getSnapshotSequenceDiagram(): Promise<ElementsSequenceDiagrams> {
+    throw new Error("Method getSnapshotSequenceDiagram not implemented.");
+  }
+
+  modifyHttpTriggerProperties(): Promise<void> {
+    throw new Error("Method modifyHttpTriggerProperties not implemented.");
+  }
+
+  getElementTypes(): Promise<ElementFilter[]> {
+    throw new Error("Method getElementTypes not implemented.");
+  }
+
+  getDeploymentsByEngine(): Promise<ChainDeployment[]> {
+    throw new Error("Method getDeploymentsByEngine not implemented.");
+  }
+
+  getEnginesByDomain(): Promise<Engine[]> {
+    throw new Error("Method getEnginesByDomain not implemented.");
+  }
+
+  loadCatalogActionsLog(): Promise<ActionLogResponse> {
+    throw new Error("Method loadCatalogActionsLog not implemented.");
+  }
+
+  loadVariablesManagementActionsLog(): Promise<ActionLogResponse> {
+    throw new Error(
+      "Method loadVariablesManagementActionsLog not implemented.",
+    );
+  }
+
+  exportCatalogActionsLog(): Promise<Blob> {
+    throw new Error("Method exportCatalogActionsLog not implemented.");
+  }
+
+  exportVariablesManagementActionsLog(): Promise<Blob> {
+    throw new Error(
+      "Method exportVariablesManagementActionsLog not implemented.",
+    );
+  }
+
+  getChains(): Promise<Chain[]> {
+    throw new Error("Method getChains not implemented.");
+  }
+
+  createChain(): Promise<Chain> {
+    throw new Error("Method createChain not implemented.");
+  }
+
+  deleteChain(): Promise<void> {
+    throw new Error("Method deleteChain not implemented.");
+  }
+
+  duplicateChain(): Promise<Chain> {
+    throw new Error("Method duplicateChain not implemented.");
+  }
+
+  copyChain(): Promise<Chain> {
+    throw new Error("Method copyChain not implemented.");
+  }
+
+  exportAllChains(): Promise<File> {
+    throw new Error("Method exportAllChains not implemented.");
+  }
+
+  exportChains(): Promise<File> {
+    throw new Error("Method exportChains not implemented.");
+  }
+
+  createSnapshot(): Promise<Snapshot> {
+    throw new Error("Method createSnapshot not implemented.");
+  }
+
+  getSnapshots(): Promise<Snapshot[]> {
+    throw new Error("Method getSnapshots not implemented.");
+  }
+
+  getSnapshot(): Promise<Snapshot> {
+    throw new Error("Method getSnapshot not implemented.");
+  }
+
+  deleteSnapshot(): Promise<void> {
+    throw new Error("Method deleteSnapshot not implemented.");
+  }
+
+  deleteSnapshots(): Promise<void> {
+    throw new Error("Method deleteSnapshots not implemented.");
+  }
+
+  revertToSnapshot(): Promise<Snapshot> {
+    throw new Error("Method revertToSnapshot not implemented.");
+  }
+
+  updateSnapshot(): Promise<Snapshot> {
+    throw new Error("Method updateSnapshot not implemented.");
+  }
+
+  getDeployments(): Promise<Deployment[]> {
+    throw new Error("Method getDeployments not implemented.");
+  }
+
+  createDeployment(): Promise<Deployment> {
+    throw new Error("Method createDeployment not implemented.");
+  }
+
+  deleteDeployment(): Promise<void> {
+    throw new Error("Method deleteDeployment not implemented.");
+  }
+
+  getDomains(): Promise<EngineDomain[]> {
+    throw new Error("Method getDomains not implemented.");
+  }
+
+  getLoggingSettings(): Promise<ChainLoggingSettings> {
+    throw new Error("Method getLoggingSettings not implemented.");
+  }
+
+  setLoggingProperties(): Promise<void> {
+    throw new Error("Method setLoggingProperties not implemented.");
+  }
+
+  deleteLoggingSettings(): Promise<void> {
+    throw new Error("Method deleteLoggingSettings not implemented.");
+  }
+
+  getSessions(): Promise<SessionSearchResponse> {
+    throw new Error("Method getSessions not implemented.");
+  }
+
+  deleteSessions(): Promise<void> {
+    throw new Error("Method deleteSessions not implemented.");
+  }
+
+  deleteSessionsByChainId(): Promise<void> {
+    throw new Error("Method deleteSessionsByChainId not implemented.");
+  }
+
+  exportSessions(): Promise<File> {
+    throw new Error("Method exportSessions not implemented.");
+  }
+
+  importSessions(): Promise<Session[]> {
+    throw new Error("Method importSessions not implemented.");
+  }
+
+  retryFromLastCheckpoint(): Promise<void> {
+    throw new Error("Method retryFromLastCheckpoint not implemented.");
+  }
+
+  getSession(): Promise<Session> {
+    throw new Error("Method getSession not implemented.");
+  }
+
+  getCheckpointSessions(): Promise<CheckpointSession[]> {
+    throw new Error("Method getCheckpointSessions not implemented.");
+  }
+
+  retrySessionFromCheckpoint(): Promise<void> {
+    throw new Error("Method retrySessionFromLastCheckpoint not implemented.");
+  }
+
+  getNestedChains(): Promise<Chain[]> {
+    throw new Error("Method getNestedChains not implemented.");
+  }
+
+  getServicesUsedByChains(): Promise<UsedService[]> {
+    throw new Error("Method getServicesUsedByChains not implemented.");
+  }
+
+  exportServices(): Promise<File> {
+    throw new Error("Method exportServices not implemented.");
+  }
+
+  getImportPreview(): Promise<ImportPreview> {
+    throw new Error("Method getImportPreview not implemented.");
+  }
+
+  commitImport(): Promise<ImportCommitResponse> {
+    throw new Error("Method commitImport not implemented.");
+  }
+
+  getImportStatus(): Promise<ImportStatusResponse> {
+    throw new Error("Method getImportStatus not implemented.");
+  }
+
+  getEvents(): Promise<EventsUpdate> {
+    throw new Error("Method getEvents not implemented.");
+  }
+
+  deleteChains(): Promise<void> {
+    throw new Error("Method deleteChains not implemented.");
+  }
+
+  getFolder(): Promise<FolderItem> {
+    throw new Error("Method getFolder not implemented.");
+  }
+
+  getPathToFolder(): Promise<FolderItem[]> {
+    throw new Error("Method getPathToFolder not implemented.");
+  }
+
+  getPathToFolderByName(): Promise<FolderItem[]> {
+    throw new Error("Method getPathToFolder not implemented.");
+  }
+
+  listFolder(): Promise<(FolderItem | ChainItem)[]> {
+    throw new Error("Method listFolder not implemented.");
+  }
+
+  createFolder(): Promise<FolderItem> {
+    throw new Error("Method createFolder not implemented.");
+  }
+
+  updateFolder(): Promise<FolderItem> {
+    throw new Error("Method updateFolder not implemented.");
+  }
+
+  deleteFolder(): Promise<void> {
+    throw new Error("Method deleteFolder not implemented.");
+  }
+
+  deleteFolders(): Promise<void> {
+    throw new Error("Method deleteFolders not implemented.");
+  }
+
+  moveFolder(): Promise<FolderItem> {
+    throw new Error("Method moveFolder not implemented.");
+  }
+
+  buildCR(): Promise<string> {
+    throw new Error("Method buildCR not implemented.");
+  }
+
+  getSpecApiFiles = async (): Promise<SpecApiFile[]> => {
+    return <SpecApiFile[]>(
+      (await this.sendMessageToExtension("getSpecApiFiles")).payload
+    );
+  };
+
+  readSpecificationFileContent = async (
+    fileUri: string,
+    specificationFilePath: string,
+  ): Promise<string> => {
+    return <string>(
+      await this.sendMessageToExtension("readSpecificationFileContent", {
+        fileUri,
+        specificationFilePath,
+      })
+    ).payload;
+  };
+
+  groupElements = async (
+    chainId: string,
+    elementIds: string[],
+  ): Promise<Element> => {
+    return <Element>(
+      await this.sendMessageToExtension("groupElements", {
+        chainId,
+        elementIds,
+      })
+    ).payload;
+  };
+
+  ungroupElements = async (
+    chainId: string,
+    groupId: string,
+  ): Promise<Element[]> => {
+    return <Element[]>(
+      await this.sendMessageToExtension("ungroupElements", {
+        chainId,
+        groupId,
+      })
+    ).payload;
+  };
+
+  cloneElements = async (
+    chainId: string,
+    ids: string[],
+    containerId?: string,
+  ): Promise<Element[]> => {
+    return <Element[]>(
+      await this.sendMessageToExtension("cloneElements", {
+        chainId,
+        ids,
+        containerId,
+      })
+    ).payload;
+  };
+
+  getExchanges(): Promise<LiveExchange[]> {
+    throw new Error("Method getExchanges not implemented.");
+  }
+
+  getAndFilterExchanges(): Promise<LiveExchange[]> {
+    throw new Error("Method getAndFilterExchanges not implemented.");
+  }
+
+  terminateExchange(): Promise<void> {
+    throw new Error("Method terminateExchange not implemented.");
+  }
+
+  getValidations(): Promise<DiagnosticValidation[]> {
+    throw new Error("Method getValidations not implemented.");
+  }
+
+  getValidation(): Promise<DiagnosticValidation> {
+    throw new Error("Method getValidation not implemented.");
+  }
+
+  runValidations(): Promise<void> {
+    throw new Error("Method runValidations not implemented.");
+  }
+
+  bulkDeploy(): Promise<BulkDeploymentResult[]> {
+    throw new Error("Method bulkDeploy not implemented.");
+  }
+  createMaasKafkaEntity(_request: CreateMaasKafkaRequest): Promise<void> {
+    throw new Error("Method createMaasKafkaEntity not implemented.");
+  }
+
+  createMaasRabbitMQEntity(_request: CreateMaasRabbitMQRequest): Promise<void> {
+    throw new Error("Method createMaasRabbitMQEntity not implemented.");
+  }
+
+  getMaasKafkaDeclarativeFile(
+    _request: GetMaasKafkaDeclarativeRequest,
+  ): Promise<File> {
+    throw new Error("Method getMaasKafkaDeclarativeFile not implemented.");
+  }
+
+  getMaasRabbitMQDeclarativeFile(
+    _request: GetMaasRabbitMQDeclarativeRequest,
+  ): Promise<File> {
+    throw new Error("Method getMaasRabbitMQDeclarativeFile not implemented.");
+  }
+
+  loadHttpTriggerAccessControl = async (): Promise<AccessControlResponse> => {
+    throw new Error("Method loadHttpTriggerAccessControl not implemented.");
+  };
+
+  updateHttpTriggerAccessControl = async (): Promise<AccessControlResponse> => {
+    throw new Error("Method updateHttpTriggerAccessControl not implemented.");
+  };
+
+  bulkDeployChainsAccessControl = async (): Promise<AccessControlResponse> => {
+    throw new Error("Method bulkDeployChainsAccessControl not implemented.");
+  };
+
+  getCommonVariables(): Promise<ApiResponse<Variable[]>> {
+    throw new RestApiError("Not implemented", 501);
+  }
+
+  createCommonVariable(_variable: Variable): Promise<ApiResponse<string[]>> {
+    throw new RestApiError("Not implemented", 501);
+  }
+
+  updateCommonVariable(_variable: Variable): Promise<ApiResponse<Variable>> {
+    throw new RestApiError("Not implemented", 501);
+  }
+
+  deleteCommonVariables(_keys: string[]): Promise<boolean> {
+    throw new RestApiError("Not implemented", 501);
+  }
+
+  exportVariables(_keys: string[], _asArchive?: boolean): Promise<File> {
+    throw new RestApiError("Not implemented", 501);
+  }
+
+  importVariablesPreview(
+    _formData: FormData,
+  ): Promise<ApiResponse<VariableImportPreview[]>> {
+    throw new RestApiError("Not implemented", 501);
+  }
+
+  importVariables(
+    _formData: FormData,
+  ): Promise<ApiResponse<ImportVariablesResult>> {
+    throw new RestApiError("Not implemented", 501);
+  }
+
+  getSecuredVariables(): Promise<ApiResponse<SecretWithVariables[]>> {
+    throw new RestApiError("Not implemented", 501);
+  }
+
+  getSecuredVariablesForSecret(
+    _secretName: string,
+  ): Promise<ApiResponse<Variable[]>> {
+    throw new RestApiError("Not implemented", 501);
+  }
+
+  createSecuredVariables(
+    _secretName: string,
+    _variables: Variable[],
+  ): Promise<ApiResponse<Variable[]>> {
+    throw new RestApiError("Not implemented", 501);
+  }
+
+  updateSecuredVariables(
+    _secretName: string,
+    _variables: Variable[],
+  ): Promise<ApiResponse<Variable[]>> {
+    throw new RestApiError("Not implemented", 501);
+  }
+
+  deleteSecuredVariables(
+    _secretName: string,
+    _keys: string[],
+  ): Promise<ApiResponse<boolean>> {
+    throw new RestApiError("Not implemented", 501);
+  }
+
+  createSecret(_secretName: string): Promise<ApiResponse<boolean>> {
+    throw new RestApiError("Not implemented", 501);
+  }
+
+  downloadHelmChart(_secretName: string): Promise<File> {
+    throw new RestApiError("Not implemented", 501);
+  }
+
+  getUsedProperties(_chainId: string): Promise<UsedProperty[]> {
+    throw new Error("Method getUsedProperties not implemented.");
+  }
+
+  runServiceDiscovery(): Promise<unknown> {
+    throw new Error("Method runServiceDiscovery not implemented.");
+  }
+  isAutodiscoveryInProgress(): Promise<number> {
+    throw new Error("Method isAutodiscoveryInProgress not implemented.");
+  }
+  getAutodiscoveryResult(): Promise<DiscoveryResponse> {
+    throw new Error("Method getAutodiscoveryResult not implemented.");
+  }
+
+  getImportInstructions(): Promise<GeneralImportInstructions> {
+    throw new Error("Method getImportInstructions not implemented.");
+  }
+  addImportInstruction(
+    _request: ImportInstructionRequest,
+  ): Promise<void | ImportInstruction> {
+    throw new Error("Method addImportInstruction not implemented.");
+  }
+  updateImportInstruction(
+    _request: ImportInstructionRequest,
+  ): Promise<void | ImportInstruction> {
+    throw new Error("Method updateImportInstruction not implemented.");
+  }
+  deleteImportInstructions(
+    _payload: DeleteImportInstructionsRequest,
+  ): Promise<void> {
+    throw new Error("Method deleteImportInstructions not implemented.");
+  }
+  uploadImportInstructions(_file: File): Promise<ImportInstructionResult[]> {
+    throw new Error("Method uploadImportInstructions not implemented.");
+  }
+  exportImportInstructions(): Promise<File> {
+    throw new Error("Method exportImportInstructions not implemented.");
+  }
+
+  getElementsAsCode(_chainId: string): Promise<ChainElementCodeResponse> {
+    throw new Error("Method getElementsAsCode not implemented.");
+  }
+  deployToMicroDomain(): Promise<BulkDeploymentResult[]> {
+    throw new Error("Method deployToMicroDomain not implemented.");
+  }
+  deploySnapshotsToMicroDomain(): Promise<void> {
+    throw new Error("Method deploySnapshotsToMicroDomain not implemented.");
+  }
+  deleteMicroDomain(): Promise<void> {
+    throw new Error("Method deleteMicroDomain not implemented.");
+  }
+  deleteSnapshotFromMicroDomain(): Promise<void> {
+    throw new Error("Method deleteSnapshotFromMicroDomain not implemented.");
+  }
+
+  getMcpSystems = async (): Promise<MCPSystem[]> => {
+    return <MCPSystem[]>(
+      (await this.sendMessageToExtension("getMcpServices")).payload
+    );
+  };
+
+  getMcpSystem = async (id: string): Promise<MCPSystem> => {
+    return <MCPSystem>(
+      (await this.sendMessageToExtension("getMcpService", { id })).payload
+    );
+  };
+
+  createMcpSystem(): Promise<MCPSystem> {
+    throw new Error("Method createMcpSystem not implemented.");
+  }
+
+  updateMcpSystem = async (
+    id: string,
+    request: MCPSystemUpdateRequest,
+  ): Promise<MCPSystem> => {
+    return <MCPSystem>(
+      (await this.sendMessageToExtension("updateMcpService", { id, request }))
+        .payload
+    );
+  };
+
+  deleteMcpSystem(): Promise<void> {
+    throw new Error("Method deleteMcpSystem not implemented.");
+  }
+
+  filterMcpSystems(): Promise<MCPSystem[]> {
+    throw new Error("Method filterMcpSystems not implemented.");
+  }
+
+  exportMcpSystems(): Promise<File> {
+    throw new Error("Method exportMcpSystems not implemented.");
+  }
+}
+
+interface VSCodeApi<T> {
+  postMessage: (message: VSCodeMessageWrapper<T>) => void;
+  getState?: () => never;
+  setState?: (newState: never) => void;
+}
+
+export type VSCodeMessageWrapper<T> = {
+  command: string;
+  data: VSCodeMessage<T>;
+};
+
+export type VSCodeMessage<T> = {
+  type: string;
+  requestId: string;
+  payload?: T;
+};
+
+export type VSCodeResponse<T> = {
+  type: string;
+  requestId: string;
+  payload?: T;
+  error?: Error;
+};
+
+type MessageResolver = {
+  resolve: (value: VSCodeResponse<never>) => void;
+  reject: (value: Error) => void;
+};
+
+declare function acquireVsCodeApi<T>(): VSCodeApi<T>;

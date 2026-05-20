@@ -1,0 +1,11 @@
+.badge {
+  display: inline-flex;
+  color: var(--vscode-foreground);
+}
+
+.badge :global(.ant-badge-count) {
+  background-color: var(--container-header-background, #fff9e6);
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+  border-color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 88%);
+}

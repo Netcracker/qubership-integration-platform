@@ -1,0 +1,32 @@
+.header {
+  background: rgb(0 104 255);
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
+  padding: 0 15px !important;
+  line-height: 40px;
+}
+
+.layout {
+  min-height: 100vh;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  background: var(--vscode-panel-background, #fafafa);
+}
+
+/* Outlet route root fills main area so height: 100% / flex-table chains work. */
+.content > * {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+}

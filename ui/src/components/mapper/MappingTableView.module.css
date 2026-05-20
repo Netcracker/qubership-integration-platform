@@ -1,0 +1,15 @@
+.group-row {
+  background-color: var(--vscode-list-hoverBackground, #f5f5f5) !important;
+}
+
+.group-row:hover {
+  background-color: var(--vscode-list-hoverBackground, #f5f5f5) !important;
+}
+
+.group-row.ant-table-row-selected {
+  background-color: var(--vscode-list-hoverBackground, #f5f5f5) !important;
+}
+
+.invalid-value {
+  background-color: var(--vscode-inputValidation-errorBackground, #ffc2c1);
+}

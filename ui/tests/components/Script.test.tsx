@@ -1,0 +1,654 @@
+/**
+ * @jest-environment jsdom
+ */
+import { render, act } from "@testing-library/react";
+import {
+  describe,
+  it,
+  expect,
+  jest,
+  beforeEach,
+  afterEach,
+} from "@jest/globals";
+
+const applyVSCodeThemeToMonaco = jest.fn();
+const useMonacoThemeMock = jest.fn(() => "vs-dark");
+const useMonacoEditorOptionsMock = jest.fn(() => ({
+  fontSize: 12,
+  lineHeight: 18,
+  fontFamily: "monospace",
+  fontWeight: "normal",
+}));
+
+jest.mock("../../src/hooks/useMonacoTheme", () => ({
+  useMonacoTheme: () => useMonacoThemeMock(),
+  useMonacoEditorOptions: () => useMonacoEditorOptionsMock(),
+  applyVSCodeThemeToMonaco: (monaco: unknown) =>
+    applyVSCodeThemeToMonaco(monaco),
+}));
+
+jest.mock("monaco-editor", () => ({
+  editor: {},
+  languages: {
+    CompletionItemKind: {
+      Method: 0,
+      Function: 1,
+      Constant: 2,
+      Variable: 4,
+      Keyword: 17,
+      Snippet: 27,
+    },
+    CompletionItemInsertTextRule: { InsertAsSnippet: 4 },
+  },
+}));
+
+type EditorProps = {
+  value?: string;
+  language?: string;
+  theme?: string;
+  height?: number | string;
+  className?: string;
+  beforeMount?: (monaco: FakeMonaco) => void;
+  onMount?: (editor: unknown, monaco: FakeMonaco) => void;
+  onChange?: (value: string | undefined) => void;
+  options?: Record<string, unknown>;
+};
+
+import { createFakeMonaco, FakeMonaco } from "../helpers/fakeMonaco";
+
+let capturedEditorProps: EditorProps | null = null;
+let latestFakeMonaco: FakeMonaco | null = null;
+const initialLanguagesRef: { value: { id: string }[] } = { value: [] };
+
+jest.mock("@monaco-editor/react", () => {
+  const actualReact = jest.requireActual<typeof import("react")>("react");
+  return {
+    __esModule: true,
+    Editor: (props: EditorProps) => {
+      capturedEditorProps = props;
+      actualReact.useEffect(() => {
+        latestFakeMonaco = createFakeMonaco(initialLanguagesRef.value);
+        props.beforeMount?.(latestFakeMonaco);
+        props.onMount?.({}, latestFakeMonaco);
+      }, []);
+      return actualReact.createElement("div", { "data-testid": "editor" });
+    },
+  };
+});
+
+import { Script } from "../../src/components/Script";
+
+function cleanBody(): void {
+  while (document.body.firstChild) {
+    document.body.removeChild(document.body.firstChild);
+  }
+}
+
+describe("Script", () => {
+  beforeEach(() => {
+    applyVSCodeThemeToMonaco.mockClear();
+    useMonacoThemeMock.mockReturnValue("vs-dark");
+    useMonacoEditorOptionsMock.mockReturnValue({
+      fontSize: 12,
+      lineHeight: 18,
+      fontFamily: "monospace",
+      fontWeight: "normal",
+    });
+    capturedEditorProps = null;
+    latestFakeMonaco = null;
+    initialLanguagesRef.value = [];
+  });
+
+  afterEach(() => {
+    cleanBody();
+  });
+
+  describe("rendering", () => {
+    it("renders an Editor element", () => {
+      const { getByTestId } = render(<Script value="" />);
+      expect(getByTestId("editor")).toBeTruthy();
+    });
+
+    it("uses groovy language by default", () => {
+      render(<Script value="" />);
+      expect(capturedEditorProps?.language).toBe("groovy");
+    });
+
+    it("uses json language when mode='json'", () => {
+      render(<Script value='{"a":1}' mode="json" />);
+      expect(capturedEditorProps?.language).toBe("json");
+    });
+
+    it("passes value to editor", () => {
+      render(<Script value="hello" />);
+      expect(capturedEditorProps?.value).toBe("hello");
+    });
+
+    it("passes theme from useMonacoTheme", () => {
+      useMonacoThemeMock.mockReturnValue("hc-black");
+      render(<Script value="" />);
+      expect(capturedEditorProps?.theme).toBe("hc-black");
+    });
+
+    it("applies readOnly=false by default", () => {
+      render(<Script value="" />);
+      expect(capturedEditorProps?.options?.readOnly).toBe(false);
+    });
+
+    it("applies readOnly=true when requested", () => {
+      render(<Script value="" readOnly />);
+      expect(capturedEditorProps?.options?.readOnly).toBe(true);
+    });
+
+    it("propagates font options from useMonacoEditorOptions", () => {
+      useMonacoEditorOptionsMock.mockReturnValue({
+        fontSize: 20,
+        lineHeight: 28,
+        fontFamily: "Consolas",
+        fontWeight: "bold",
+      });
+      render(<Script value="" />);
+      expect(capturedEditorProps?.options?.fontSize).toBe(20);
+      expect(capturedEditorProps?.options?.lineHeight).toBe(28);
+      expect(capturedEditorProps?.options?.fontFamily).toBe("Consolas");
+      expect(capturedEditorProps?.options?.fontWeight).toBe("bold");
+    });
+
+    it("spreads extra HTML attributes onto the container", () => {
+      const { container } = render(<Script value="" data-custom-attr="wrap" />);
+      expect(container.querySelector('[data-custom-attr="wrap"]')).toBeTruthy();
+    });
+  });
+
+  describe("onChange", () => {
+    it("invokes onChange with value when not readOnly", () => {
+      const onChange = jest.fn();
+      render(<Script value="" onChange={onChange} />);
+      act(() => {
+        capturedEditorProps?.onChange?.("new value");
+      });
+      expect(onChange).toHaveBeenCalledWith("new value");
+    });
+
+    it("does not invoke onChange when readOnly", () => {
+      const onChange = jest.fn();
+      render(<Script value="" onChange={onChange} readOnly />);
+      act(() => {
+        capturedEditorProps?.onChange?.("new value");
+      });
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it("substitutes empty string when value is undefined", () => {
+      const onChange = jest.fn();
+      render(<Script value="" onChange={onChange} />);
+      act(() => {
+        capturedEditorProps?.onChange?.(undefined);
+      });
+      expect(onChange).toHaveBeenCalledWith("");
+    });
+
+    it("does not throw when onChange is omitted", () => {
+      render(<Script value="" />);
+      expect(() => {
+        act(() => {
+          capturedEditorProps?.onChange?.("x");
+        });
+      }).not.toThrow();
+    });
+  });
+
+  describe("beforeMount / onMount", () => {
+    it("registers groovy language when not already registered", () => {
+      render(<Script value="" />);
+      expect(latestFakeMonaco?.languages.register).toHaveBeenCalledWith({
+        id: "groovy",
+      });
+      expect(
+        latestFakeMonaco?.languages.setMonarchTokensProvider,
+      ).toHaveBeenCalledTimes(1);
+      expect(
+        latestFakeMonaco?.languages.registerCompletionItemProvider,
+      ).toHaveBeenCalledWith("groovy", expect.anything());
+    });
+
+    it("skips registration if groovy is already registered", () => {
+      initialLanguagesRef.value = [{ id: "groovy" }];
+      render(<Script value="" />);
+      expect(latestFakeMonaco?.languages.register).not.toHaveBeenCalled();
+      expect(
+        latestFakeMonaco?.languages.setMonarchTokensProvider,
+      ).not.toHaveBeenCalled();
+      expect(
+        latestFakeMonaco?.languages.registerCompletionItemProvider,
+      ).not.toHaveBeenCalled();
+    });
+
+    it("applies VSCode theme on mount", () => {
+      render(<Script value="" />);
+      expect(applyVSCodeThemeToMonaco).toHaveBeenCalledWith(latestFakeMonaco);
+    });
+
+    it("reapplies VSCode theme when theme changes", () => {
+      const { rerender } = render(<Script value="" />);
+      const before = applyVSCodeThemeToMonaco.mock.calls.length;
+
+      useMonacoThemeMock.mockReturnValue("hc-black");
+      rerender(<Script value="" />);
+
+      expect(applyVSCodeThemeToMonaco.mock.calls.length).toBeGreaterThan(
+        before,
+      );
+    });
+  });
+
+  describe("overflow widgets DOM node", () => {
+    it("creates a div with monaco-editor class appended to body", () => {
+      render(<Script value="" />);
+      const node = capturedEditorProps?.options
+        ?.overflowWidgetsDomNode as HTMLDivElement;
+      expect(node).toBeInstanceOf(HTMLDivElement);
+      expect(node.className).toBe("monaco-editor");
+      expect(node.style.zIndex).toBe("10000");
+      expect(node.parentElement).toBe(document.body);
+    });
+
+    it("enables fixedOverflowWidgets", () => {
+      render(<Script value="" />);
+      expect(capturedEditorProps?.options?.fixedOverflowWidgets).toBe(true);
+    });
+
+    it("removes the node from body on unmount", () => {
+      const { unmount } = render(<Script value="" />);
+      const node = capturedEditorProps?.options
+        ?.overflowWidgetsDomNode as HTMLDivElement;
+      expect(document.body.contains(node)).toBe(true);
+      unmount();
+      expect(document.body.contains(node)).toBe(false);
+    });
+  });
+
+  describe("height calculation", () => {
+    function mockRect(el: Element, rect: Partial<DOMRect>): void {
+      el.getBoundingClientRect = () =>
+        ({
+          top: 0,
+          bottom: 0,
+          left: 0,
+          right: 0,
+          width: 0,
+          height: 0,
+          x: 0,
+          y: 0,
+          toJSON: () => ({}),
+          ...rect,
+        }) as DOMRect;
+    }
+
+    it("defaults to 300px height", () => {
+      const { container } = render(<Script value="" />);
+      expect((container.firstElementChild as HTMLElement).style.height).toBe("300px");
+    });
+
+    it("updates height on window resize when available space > 300", () => {
+      const modalBody = document.createElement("div");
+      modalBody.className = "ant-modal-body";
+      document.body.appendChild(modalBody);
+
+      const { container } = render(<Script value="" />, {
+        container: modalBody,
+      });
+      const flexDiv = container.firstElementChild as HTMLElement;
+
+      mockRect(modalBody, { top: 0, bottom: 1000 });
+      mockRect(flexDiv.firstElementChild as HTMLElement, { top: 100, bottom: 200 });
+
+      act(() => {
+        window.dispatchEvent(new Event("resize"));
+      });
+
+      expect(flexDiv.style.height).toBe(`${1000 - 100 - 60}px`);
+    });
+
+    it("does not update height when available space <= 300", () => {
+      const modalBody = document.createElement("div");
+      modalBody.className = "ant-modal-body";
+      document.body.appendChild(modalBody);
+
+      const { container } = render(<Script value="" />, {
+        container: modalBody,
+      });
+      const flexDiv = container.firstElementChild as HTMLElement;
+
+      mockRect(modalBody, { top: 0, bottom: 300 });
+      mockRect(flexDiv.firstElementChild as HTMLElement, { top: 50, bottom: 100 });
+
+      act(() => {
+        window.dispatchEvent(new Event("resize"));
+      });
+
+      expect(flexDiv.style.height).toBe("300px");
+    });
+
+    it("uses parentElement when no ant-modal-body ancestor exists", () => {
+      const parent = document.createElement("div");
+      document.body.appendChild(parent);
+
+      const { container } = render(<Script value="" />, { container: parent });
+      const flexDiv = container.firstElementChild as HTMLElement;
+
+      mockRect(parent, { top: 0, bottom: 900 });
+      mockRect(flexDiv.firstElementChild as HTMLElement, { top: 0, bottom: 100 });
+
+      act(() => {
+        window.dispatchEvent(new Event("resize"));
+      });
+
+      expect(flexDiv.style.height).toBe(`${900 - 60}px`);
+    });
+
+    it("recalculates height on ant-modal-wrap transitionend", () => {
+      const modalWrap = document.createElement("div");
+      modalWrap.className = "ant-modal-wrap";
+      document.body.appendChild(modalWrap);
+      const modalBody = document.createElement("div");
+      modalBody.className = "ant-modal-body";
+      modalWrap.appendChild(modalBody);
+
+      const { container } = render(<Script value="" />, {
+        container: modalBody,
+      });
+      const flexDiv = container.firstElementChild as HTMLElement;
+
+      mockRect(modalBody, { top: 0, bottom: 800 });
+      mockRect(flexDiv.firstElementChild as HTMLElement, { top: 0, bottom: 50 });
+
+      act(() => {
+        modalWrap.dispatchEvent(new Event("transitionend"));
+      });
+
+      expect(flexDiv.style.height).toBe(`${800 - 60}px`);
+    });
+
+    it("does not update height when container has no scroll parent", () => {
+      const parent = document.createElement("div");
+      document.body.appendChild(parent);
+
+      const { container } = render(<Script value="" />, { container: parent });
+      const flexDiv = container.firstElementChild as HTMLElement;
+
+      Object.defineProperty(flexDiv, "parentElement", {
+        configurable: true,
+        get: () => null,
+      });
+      flexDiv.closest = () => null;
+
+      act(() => {
+        window.dispatchEvent(new Event("resize"));
+      });
+
+      expect(flexDiv.style.height).toBe("300px");
+    });
+
+    it("removes window resize listener on unmount", () => {
+      const removeSpy = jest.spyOn(window, "removeEventListener");
+      const { unmount } = render(<Script value="" />);
+      unmount();
+      expect(removeSpy).toHaveBeenCalledWith("resize", expect.any(Function));
+      removeSpy.mockRestore();
+    });
+
+    it("removes transitionend listener on unmount when ant-modal-wrap exists", () => {
+      const modalWrap = document.createElement("div");
+      modalWrap.className = "ant-modal-wrap";
+      document.body.appendChild(modalWrap);
+      const modalBody = document.createElement("div");
+      modalBody.className = "ant-modal-body";
+      modalWrap.appendChild(modalBody);
+
+      const removeSpy = jest.spyOn(modalWrap, "removeEventListener");
+      const { unmount } = render(<Script value="" />, {
+        container: modalBody,
+      });
+      unmount();
+      expect(removeSpy).toHaveBeenCalledWith(
+        "transitionend",
+        expect.any(Function),
+      );
+    });
+  });
+
+  describe("Groovy completion provider", () => {
+    type Suggestion = Record<string, unknown>;
+    type Provider = {
+      triggerCharacters?: string[];
+      provideCompletionItems: (
+        model: {
+          getWordUntilPosition: (pos: unknown) => {
+            startColumn: number;
+            endColumn: number;
+            word: string;
+          };
+          getValue: () => string;
+          getOffsetAt: (pos: { lineNumber: number; column: number }) => number;
+        },
+        position: { lineNumber: number; column: number },
+      ) => { suggestions: Suggestion[] };
+    };
+
+    function getProvider(): Provider {
+      const calls =
+        latestFakeMonaco?.languages.registerCompletionItemProvider.mock.calls ??
+        [];
+      const [, provider] = calls[0] as [string, Provider];
+      return provider;
+    }
+
+    function makeModel(
+      line: string,
+      word = "",
+    ): Provider extends {
+      provideCompletionItems: (model: infer M, ...args: never[]) => unknown;
+    }
+      ? M
+      : never {
+      return {
+        getWordUntilPosition: () => ({
+          startColumn: line.length - word.length + 1,
+          endColumn: line.length + 1,
+          word,
+        }),
+        getValue: () => line,
+        getOffsetAt: ({ column }: { column: number }) => column - 1,
+      } as never;
+    }
+
+    it("registers '.' as a trigger character", () => {
+      render(<Script value="" />);
+      const provider = getProvider();
+      expect(provider.triggerCharacters).toEqual(["."]);
+    });
+
+    it("returns keywords + snippets + Exchange API at the top level", () => {
+      render(<Script value="" />);
+      const provider = getProvider();
+      const result = provider.provideCompletionItems(makeModel(""), {
+        lineNumber: 1,
+        column: 1,
+      });
+      const labels = result.suggestions.map((s) => s.label as string);
+      // Keywords
+      expect(labels).toContain("if");
+      expect(labels).toContain("def");
+      expect(labels).toContain("for");
+      // Snippets — defined separately from keywords so labels don't collide
+      expect(labels).toContain("ifelse");
+      expect(labels).toContain("forin");
+      expect(labels).toContain("try");
+      expect(labels).toContain("closure");
+      // Exchange API
+      expect(labels).toContain("exchange");
+      expect(labels).toContain("log");
+    });
+
+    it("returns Exchange members after 'exchange.'", () => {
+      render(<Script value="" />);
+      const provider = getProvider();
+      const result = provider.provideCompletionItems(makeModel("exchange."), {
+        lineNumber: 1,
+        column: 10,
+      });
+      const labels = result.suggestions.map((s) => s.label as string);
+      expect(labels).toEqual(
+        expect.arrayContaining([
+          "getIn",
+          "getMessage",
+          "getProperty",
+          "setProperty",
+          "getProperties",
+          "removeProperty",
+          "getException",
+          "getContext",
+          "getFromEndpoint",
+        ]),
+      );
+      // Should NOT include keywords / snippets in this contextual list
+      expect(labels).not.toContain("if");
+      expect(labels).not.toContain("def");
+    });
+
+    it("returns Message members after 'getMessage().'", () => {
+      render(<Script value="" />);
+      const provider = getProvider();
+      const result = provider.provideCompletionItems(
+        makeModel("exchange.getMessage()."),
+        { lineNumber: 1, column: 23 },
+      );
+      const labels = result.suggestions.map((s) => s.label as string);
+      expect(labels).toEqual(
+        expect.arrayContaining([
+          "getBody",
+          "getBodyAs",
+          "setBody",
+          "getHeader",
+          "getHeaders",
+          "setHeader",
+          "removeHeader",
+          "getMessageId",
+        ]),
+      );
+    });
+
+    it("returns Message members after 'getIn().'", () => {
+      render(<Script value="" />);
+      const provider = getProvider();
+      const result = provider.provideCompletionItems(makeModel("getIn()."), {
+        lineNumber: 1,
+        column: 9,
+      });
+      const labels = result.suggestions.map((s) => s.label as string);
+      expect(labels).toContain("getBody");
+      expect(labels).toContain("getHeader");
+    });
+
+    it("computes range based on current word and position", () => {
+      render(<Script value="" />);
+      const provider = getProvider();
+      const result = provider.provideCompletionItems(
+        {
+          getWordUntilPosition: () => ({
+            startColumn: 5,
+            endColumn: 9,
+            word: "some",
+          }),
+          getValue: () => "    some",
+          getOffsetAt: () => 8,
+        },
+        { lineNumber: 7, column: 9 },
+      );
+
+      const expectedRange = {
+        startLineNumber: 7,
+        endLineNumber: 7,
+        startColumn: 5,
+        endColumn: 9,
+      };
+      for (const suggestion of result.suggestions) {
+        expect(suggestion.range).toEqual(expectedRange);
+      }
+    });
+
+    it("attaches markdown documentation to Exchange members", () => {
+      render(<Script value="" />);
+      const provider = getProvider();
+      const result = provider.provideCompletionItems(makeModel("exchange."), {
+        lineNumber: 1,
+        column: 10,
+      });
+      const getMessage = result.suggestions.find(
+        (s) => s.label === "getMessage",
+      );
+      expect(getMessage).toBeTruthy();
+      expect((getMessage?.documentation as { value: string }).value).toContain(
+        "message",
+      );
+    });
+
+    it("inside a method call drops statement keywords and snippets", () => {
+      render(<Script value="" />);
+      const provider = getProvider();
+      const line = "exchange.setProperty('aas', ";
+      const result = provider.provideCompletionItems(makeModel(line), {
+        lineNumber: 1,
+        column: line.length + 1,
+      });
+      const labels = result.suggestions.map((s) => s.label as string);
+      expect(labels).not.toContain("if");
+      expect(labels).not.toContain("for");
+      expect(labels).not.toContain("abstract");
+      expect(labels).not.toContain("ifelse");
+      expect(labels).not.toContain("forin");
+      // Expression-safe values + Exchange API are still offered
+      expect(labels).toContain("null");
+      expect(labels).toContain("true");
+      expect(labels).toContain("exchange");
+    });
+
+    it("returns statement keywords on a fresh line after a completed statement", () => {
+      render(<Script value="" />);
+      const provider = getProvider();
+      // Document: "exchange.getMessage().setHeader('123', null);\n\n\ni"
+      // Cursor on line 4 after the lone "i" — semicolon two lines up is a
+      // hard statement separator, so statement-context should be active.
+      const fullText = "exchange.getMessage().setHeader('123', null);\n\n\ni";
+      const result = provider.provideCompletionItems(
+        {
+          getWordUntilPosition: () => ({
+            startColumn: 1,
+            endColumn: 2,
+            word: "i",
+          }),
+          getValue: () => fullText,
+          getOffsetAt: () => fullText.length,
+        },
+        { lineNumber: 4, column: 2 },
+      );
+      const labels = result.suggestions.map((s) => s.label as string);
+      expect(labels).toContain("if");
+      expect(labels).toContain("for");
+      expect(labels).toContain("ifelse");
+      expect(labels).toContain("forin");
+    });
+
+    it("returns empty suggestion list after a dot on unknown receiver", () => {
+      render(<Script value="" />);
+      const provider = getProvider();
+      const line = "exchange.getException().";
+      const result = provider.provideCompletionItems(makeModel(line), {
+        lineNumber: 1,
+        column: line.length + 1,
+      });
+      expect(result.suggestions).toEqual([]);
+    });
+  });
+});

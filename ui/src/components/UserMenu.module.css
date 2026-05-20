@@ -1,0 +1,48 @@
+.card {
+  width: 320px;
+  background: var(--vscode-editor-background);
+  color: var(--vscode-foreground);
+  border: 1px solid var(--vscode-border);
+  border-radius: 6px;
+  box-shadow: var(--modal-shadow);
+  overflow: hidden;
+}
+
+.header {
+  padding: 14px 16px 12px;
+}
+
+.divider {
+  margin: 0;
+}
+
+.info {
+  padding: 10px 16px 12px;
+}
+
+.label {
+  font-size: 12px;
+}
+
+.mono {
+  font-family:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.actions {
+  padding: 6px;
+}
+
+.card .actionButton {
+  justify-content: flex-start;
+  height: 32px;
+  padding-inline: 10px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.card .actionButton :global(.anticon) {
+  font-size: 14px;
+  margin-inline-end: 8px;
+}

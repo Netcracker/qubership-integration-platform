@@ -1,0 +1,38 @@
+/* Must use float: left to match Ant Design's .ant-table-row-indent layout */
+.expandIcon {
+  all: unset;
+  float: left;
+  cursor: pointer;
+  color: var(--vscode-descriptionForeground, rgb(0 0 0 / 45%));
+  display: inline-flex;
+  align-items: center;
+  margin-right: 6px;
+  border: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Drop UA / theme focus rings (white+blue in dark, black in light) on this control */
+.expandIcon:focus,
+.expandIcon:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.expandIcon::-moz-focus-inner {
+  border: 0;
+}
+
+/* Zero-width space establishes line-height so the icon
+   vertically centers with adjacent text content */
+.expandIcon::before {
+  content: "\200b";
+}
+
+.expandSpacer {
+  float: left;
+  width: 17px;
+}
+
+.expandSpacer::before {
+  content: "\200b";
+}
