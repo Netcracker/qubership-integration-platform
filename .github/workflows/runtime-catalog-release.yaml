@@ -21,9 +21,9 @@
 # Please prepare project's pom.xml file according to https://github.com/netcracker/.github/blob/main/docs/maven-publish-pom-preparation_doc.md
 # to be able to use this workflow.
 
-name: Maven release
+name: Runtime Catalog Release
 
-run-name: ${{ github.event.inputs.version-type }} release for ${{ github.event.repository.name }}
+run-name: ${{ github.event.inputs.version-type }} release for runtime-catalog
 
 on:
   workflow_dispatch:
@@ -103,7 +103,7 @@ jobs:
         with:
           version-type: ${{ github.event.inputs.version-type }}
           ref: ${{ github.ref }}
-          module: ${{ github.event.repository.name }}
+          module: runtime-catalog
           maven-args: ${{ inputs.mvn-args }}
           profile: ${{ inputs.profile }}
           server-id: ${{ inputs.profile }}
@@ -117,7 +117,7 @@ jobs:
         uses: actions/upload-artifact@v6.0.0
         with:
           name: app-jar
-          path: ${{ github.event.repository.name }}/**/target/*-exec.jar
+          path: runtime-catalog/**/target/*-exec.jar
   publish-image:
     if: ${{ github.event.inputs.build-docker == 'true' }}
     needs: build-and-publish
