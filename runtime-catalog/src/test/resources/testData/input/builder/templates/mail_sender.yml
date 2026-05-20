@@ -1,0 +1,24 @@
+id: "fd7a353c-b81b-49bf-954f-fa626d383723"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "c8925e95-954c-439a-bb63-572a9a350d5c"
+    name: "Mail Sender"
+    element-type: "mail-sender"
+    original-id: "ae36db8a-54e3-4a95-a67d-967aac5d7806"
+    properties:
+      cc: ["copy-to@test.mail"]
+      to: ["to@test.mail"]
+      bcc: ["copy-to@test.mail"]
+      url: "http://localhost:8080"
+      from: "from@test.mail"
+      replyTo: ["reply-to@test.mail"]
+      subject: "Test mail"
+      password: "user"
+      username: "user"
+      contentType: "text/plain"
+      connectionTimeout: 30000
+      useInlineAttachments: false
+      ignoreUnsupportedCharset: true
+      propagateContext: true

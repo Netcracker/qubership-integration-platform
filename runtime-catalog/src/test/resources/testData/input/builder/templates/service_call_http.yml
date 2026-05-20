@@ -1,0 +1,212 @@
+id: "f0de3c9b-4855-4af5-88f7-cabd1dba47d1"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "8ff3584f-3666-4c75-ba40-a3c8955c44e8"
+    name: "Service Call"
+    element-type: "service-call"
+    original-id: "5c7569e5-b969-4adb-a7a8-9ee67dc6cf5f"
+    properties:
+      after:
+        - id: "200"
+          code: "200"
+          type: "script"
+          label: "200"
+          script: "exchange.setProperty(\"responseBody\", exchange.getMessage().getBody(String.class))"
+          wildcard: false
+        - id: "400..499"
+          code: "400..499"
+          type: "mapper"
+          label: "4xx"
+          source:
+            id: "/"
+            name: "source"
+            path: "/"
+            type: "object"
+            children:
+              - id: "/errorCode"
+                name: "errorCode"
+                path: "/errorCode"
+                type: "string"
+                connected: false
+                displayType: "string"
+            metaInfo:
+              id: "source"
+              uri: "atlas:json:source"
+              jsonType: "io.atlasmap.json.v2.JsonDataSource"
+              dataSourceType: "SOURCE"
+            connected: false
+          target:
+            id: "/"
+            name: "target"
+            path: "/"
+            type: "object"
+            children:
+              - id: "/responseBody"
+                name: "responseBody"
+                path: "/responseBody"
+                type: "object"
+                children:
+                  - id: "/responseBody/errorCode"
+                    name: "errorCode"
+                    path: "/responseBody/errorCode"
+                    type: "string"
+                    connected: false
+                    displayType: "string"
+                connected: false
+                displayType: "object"
+            metaInfo:
+              id: "target"
+              uri: "atlas:json:target"
+              jsonType: "io.atlasmap.json.v2.JsonDataSource"
+              dataSourceType: "TARGET"
+            connected: false
+          mapping:
+            name: "UI.40539a7f359e4478bc072100e5961e5b"
+            jsonType: "io.atlasmap.v2.AtlasMapping"
+            mappings:
+              mapping:
+                - id: "mapping.f72ad4d30eeb4e0981ce9fe245b1389d"
+                  jsonType: "io.atlasmap.v2.Mapping"
+                  inputField:
+                    - name: "errorCode"
+                      path: "/errorCode"
+                      docId: "source"
+                      index: 0
+                      jsonType: "io.atlasmap.json.v2.JsonField"
+                      fieldType: "STRING"
+                      userCreated: false
+                  mappingType: "MAP"
+                  outputField:
+                    - name: "errorCode"
+                      path: "/responseBody/errorCode"
+                      docId: "target"
+                      index: 0
+                      jsonType: "io.atlasmap.json.v2.JsonField"
+                      fieldType: "STRING"
+                      userCreated: false
+            constants:
+              constant: []
+            dataSource:
+              - id: "source"
+                uri: "atlas:json:source"
+                jsonType: "io.atlasmap.json.v2.JsonDataSource"
+                dataSourceType: "SOURCE"
+              - id: "target"
+                uri: "atlas:json:target"
+                jsonType: "io.atlasmap.json.v2.JsonDataSource"
+                dataSourceType: "TARGET"
+            properties:
+              property: []
+            lookupTables:
+              lookupTable: []
+            wildcard: true
+      before:
+        type: "mapper"
+        source:
+          id: "/"
+          name: "source"
+          path: "/"
+          type: "object"
+          children:
+            - id: "/testInputRequestBody"
+              name: "testInputRequestBody"
+              path: "/testInputRequestBody"
+              type: "string"
+              connected: false
+              displayType: "string"
+          metaInfo:
+            id: "source"
+            uri: "atlas:json:source"
+            jsonType: "io.atlasmap.json.v2.JsonDataSource"
+            dataSourceType: "SOURCE"
+          connected: false
+        target:
+          id: "/"
+          name: "target"
+          path: "/"
+          type: "object"
+          children:
+            - id: "/testOutputRequestBody"
+              name: "testOutputRequestBody"
+              path: "/testOutputRequestBody"
+              type: "string"
+              connected: false
+              displayType: "string"
+          metaInfo:
+            id: "target"
+            uri: "atlas:json:target"
+            jsonType: "io.atlasmap.json.v2.JsonDataSource"
+            dataSourceType: "TARGET"
+          connected: false
+        mapping:
+          name: "UI.52e2590335614b15bf37bd838a08fa97"
+          jsonType: "io.atlasmap.v2.AtlasMapping"
+          mappings:
+            mapping:
+              - id: "mapping.896a1113ac094c26b67943cb90d59b0a"
+                jsonType: "io.atlasmap.v2.Mapping"
+                inputField:
+                  - name: "testInputRequestBody"
+                    path: "/testInputRequestBody"
+                    docId: "source"
+                    index: 0
+                    jsonType: "io.atlasmap.json.v2.JsonField"
+                    fieldType: "STRING"
+                    userCreated: false
+                mappingType: "MAP"
+                outputField:
+                  - name: "testOutputRequestBody"
+                    path: "/testOutputRequestBody"
+                    docId: "target"
+                    index: 0
+                    jsonType: "io.atlasmap.json.v2.JsonField"
+                    fieldType: "STRING"
+                    userCreated: false
+          constants:
+            constant: []
+          dataSource:
+            - id: "source"
+              uri: "atlas:json:source"
+              jsonType: "io.atlasmap.json.v2.JsonDataSource"
+              dataSourceType: "SOURCE"
+            - id: "target"
+              uri: "atlas:json:target"
+              jsonType: "io.atlasmap.json.v2.JsonDataSource"
+              dataSourceType: "TARGET"
+          properties:
+            property: []
+          lookupTables:
+            lookupTable: []
+      retryCount: "1"
+      retryDelay: 5000
+      systemType: "EXTERNAL"
+      bodyFormData: []
+      errorThrowing: true
+      connectionTimeout: 120000
+      correlationIdName: "test_correlation_id"
+      integrationSystemId: "0842c42f-9c40-4372-8101-ce1cd0fdb52b"
+      correlationIdPosition: "Body"
+      integrationOperationId: "c024c64d-eca4-4a45-b728-c4a7a35a5f61"
+      integrationOperationPath: "/RestNotify_1"
+      integrationGqlQueryHeader: "CamelGraphQLQuery"
+      integrationOperationMethod: "POST"
+      integrationSpecificationId: "06933856-1571-4605-9cdc-0b93cb846ed2"
+      createRelatedEntitiesViaMaas: "false"
+      integrationGqlVariablesHeader: "CamelGraphQLVariables"
+      integrationSpecificationGroupId: "78a90c20-9d90-424c-a0a9-5b37de84933d"
+      integrationOperationProtocolType: "http"
+      integrationOperationPathParameters: {}
+      propagateContext: true
+    service-environment:
+      id: "0c151b35-1a38-4032-af81-77d1385c2c04"
+      name: "[Stub] ITF"
+      address: "http://external.service"
+      systemId: "0842c42f-9c40-4372-8101-ce1cd0fdb52b"
+      properties: {}
+      sourceType: "MANUAL"
+      createdWhen: 1666715855740
+      description: null
+      modifiedWhen: 1669643915590
+      notActivated: false

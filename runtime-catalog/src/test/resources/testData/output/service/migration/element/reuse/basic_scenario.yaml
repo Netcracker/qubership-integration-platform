@@ -1,0 +1,16 @@
+---
+id: "af44d2de-7b9e-406e-a277-3784191864d5"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707372496018
+elements:
+  - id: "41cb70d0-d3c3-4256-ad10-22ad17b40efd"
+    name: "Script"
+    element-type: "reuse"
+    children:
+      - id: "e3fbd779-a45c-447a-bfc4-bb3b8bb0c09c"
+        name: "Script"
+        element-type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesToExportInSeparateFile: "script"

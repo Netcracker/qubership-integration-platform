@@ -1,0 +1,19 @@
+<choice id="{{identifier}}">
+    {{#children 'if' comparison-key-property='priority'}}
+        <when>
+            <simple>
+                {{escape (property 'condition')}}
+            </simple>
+            <step id="{{identifier}}">
+                <toD uri='direct:{{identifier}}'/>
+            </step>
+        </when>
+    {{/children}}
+    {{#children 'else'}}
+        <otherwise>
+            <step id="{{identifier}}">
+                <toD uri='direct:{{identifier}}'/>
+            </step>
+        </otherwise>
+    {{/children}}
+</choice>

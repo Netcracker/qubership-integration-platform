@@ -1,0 +1,7 @@
+<route>
+    <pollEnrich id="0f3ee4ce-7306-4ba4-8625-1ba6b09b655d">
+        <simple>
+            sftp:/ftp/test?antInclude=test-*.txt&amp;username=user&amp;password=user&amp;idempotent=true&amp;idempotentKey=${file:name}-${file:size}-${file:modified}&amp;streamDownload=true&amp;binary=true&amp;autoCreate=false&amp;useUserKnownHostsFile=false
+        </simple>
+    </pollEnrich>
+</route>

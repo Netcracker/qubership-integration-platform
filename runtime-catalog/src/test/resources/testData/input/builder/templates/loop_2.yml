@@ -1,0 +1,13 @@
+id: "e6488ed2-f29c-47b8-8f84-27d9aa935c10"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "720d5009-2ead-49f0-82bd-4f29146571be"
+    name: "Loop"
+    element-type: "loop-2"
+    original-id: "c4184743-f990-4e21-a33b-61ad3725e857"
+    properties:
+      copy: true
+      doWhile: true
+      expression: "${exchangeProperty.length} > 0"
