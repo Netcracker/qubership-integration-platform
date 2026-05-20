@@ -1,0 +1,13 @@
+# Module ownership
+/engine/                @Netcracker/qip-engine-team
+/micro-engine/          @Netcracker/qip-engine-team
+/runtime-catalog/       @Netcracker/qip-catalog-team
+/sessions-management/   @Netcracker/qip-sessions-team
+/schemas/               @Netcracker/qip-schemas-team
+/ui/                    @Netcracker/qip-ui-team
+/vscode-extension/      @Netcracker/qip-ui-team
+/checkstyle/            @Netcracker/qip-platform-team
+/infrastructure/        @Netcracker/qip-platform-team
+/help/                  @Netcracker/qip-docs-team
+/parent/                @Netcracker/qip-platform-team
+/.github/               @Netcracker/qip-platform-team
