@@ -1,0 +1,463 @@
+source:
+  headers: []
+  properties: []
+  body:
+    name: object
+    schema:
+      id: 0e8e89bd61b040a7a93f424e53a58ecf
+      attributes:
+        - id: 279b70d3e72b45b3a13458ef12433a7e
+          name: topology
+          type:
+            name: object
+            schema:
+              id: 0ed2ed88e47c43f8a38e163f87b7b3d8
+              attributes:
+                - id: 75fdd8ce3b644854be010d4ffe85f8df
+                  name: "@xmlns"
+                  type:
+                    name: string
+                - id: b05dde3bf9dd4c1d84f49843936e1d95
+                  name: "@xmlns:xsd"
+                  type:
+                    name: string
+                - id: c8b7cfbb829c45ea90040c3b06362308
+                  name: "@xmlns:xsi"
+                  type:
+                    name: string
+                - id: 2950914163774495b98c264c6621cd12
+                  name: headend
+                  type:
+                    name: string
+                - id: eb9217d61ed14843a4baa3f8090336dd
+                  name: hub
+                  type:
+                    name: string
+                - id: 06af8560e38f4dc98671c4d295aaaf71
+                  name: link
+                  type:
+                    name: object
+                    schema:
+                      id: c48917dff9d647dab153ca6458ff07ce
+                      attributes:
+                        - id: 18eee5e682174259964866165c4f7923
+                          name: "@href"
+                          type:
+                            name: string
+                        - id: e25d6181cc8f4ca8957bab940df5a39b
+                          name: "@rel"
+                          type:
+                            name: string
+                - id: 9601e5dec4a142f89c7d6854c15b967e
+                  name: locationid
+                  type:
+                    name: number
+                - id: 20cf7b9f762645f9936278b351f80efd
+                  name: networkelements
+                  type:
+                    name: object
+                    schema:
+                      id: 9bbd97fb837f4f2cb511ef2001a8824e
+                      attributes:
+                        - id: 59be03fd1c5649cf820e633171c9fa9d
+                          name: device
+                          type:
+                            name: array
+                            itemType:
+                              name: object
+                              schema:
+                                id: fbc4326acfab4e0ba659719ea9663f7a
+                                attributes:
+                                  - id: 6441f08c6b244a968f8ccfcca6c47a13
+                                    name: "@default"
+                                    type:
+                                      name: string
+                                  - id: 4dba684b9b024cffa56d3e92a7508749
+                                    name: "@manufacturer"
+                                    type:
+                                      name: string
+                                  - id: cf396b8aaed840d1ba60416c472d7d52
+                                    name: "@model"
+                                    type:
+                                      name: string
+                                  - id: 07d03cdbc1074e76a828e00875b987e3
+                                    name: "@type"
+                                    type:
+                                      name: string
+                                  - id: 0166407d6b5f4bd3a4eaf3662f3fa199
+                                    name: clli
+                                    type:
+                                      name: string
+                                  - id: 4cb098e3800a4607b0f6d491894fb3b0
+                                    name: fqdn
+                                    type:
+                                      name: string
+                                  - id: 4b947453c6bd45fc923b2b240d85a6d8
+                                    name: lrn
+                                    type:
+                                      name: number
+                                  - id: 5b5d0c73e9df404891c471456bc96dd3
+                                    name: pointcode
+                                    type:
+                                      name: string
+                - id: d5404ff5504144498db38630d7a21f5b
+                  name: node
+                  type:
+                    name: string
+                - id: c994aa3f4b584094b03225f5145c86d0
+                  name: port
+                  type:
+                    name: string
+    definitions: []
+    metadata:
+      sourceFormat: XML
+      sourceType: sample
+      dataFormat: XML
+      xmlNamespaces:
+        - alias: xsi
+          uri: http://www.w3.org/2001/XMLSchema-instance
+        - alias: xsd
+          uri: http://www.w3.org/2001/XMLSchema
+target:
+  headers: []
+  properties: []
+  body:
+    name: object
+    schema:
+      id: 16972d2272f84a8c9766a081342c2e16
+      attributes:
+        - id: b69d1d10e6f4499791aad6438cc240c7
+          name: groups
+          type:
+            name: array
+            itemType:
+              name: reference
+              definitionId: 9363b4ec26224698a00134b3fabf30f3
+        - id: d15b0c03b07a44938438df697ad8fa2c
+          name: name
+          type:
+            name: string
+        - id: b69885054b8348d1ba574a0a837850dd
+          name: options
+          type:
+            name: reference
+            definitionId: 84cc910fc8ac47d08b714153599a3a28
+        - id: d3d36f316a6d457d8dbeced824e23c72
+          name: strings
+          type:
+            name: array
+            itemType:
+              name: string
+        - id: ed5d195f24ba443991eb786ae9e19f77
+          name: title
+          type:
+            name: string
+        - id: 44b815fdd5b640328bca9790239e13f0
+          name: topProperties
+          type:
+            name: object
+            schema:
+              id: 3b8af4d1824a4fb0adb9267fd16c4457
+              attributes:
+                - id: a2138889511d46c68630188c03929ded
+                  name: description
+                  type:
+                    name: string
+                - id: ac639b08c6ba4f5d97e3c20b607b1397
+                  name: many_to_one
+                  type:
+                    name: array
+                    itemType:
+                      name: string
+                - id: 3a3a7f030ea844cbbd3acc6753e7c19e
+                  name: multiple
+                  type:
+                    name: boolean
+                - id: 70a1e68b1d0342508d9598717c7195e1
+                  name: name
+                  type:
+                    name: string
+                - id: 33d884a49e5e490fa72d0e0e3a2ffa28
+                  name: title
+                  type:
+                    name: string
+                - id: f781e34c3ce049b4ab9f395271285b15
+                  name: type
+                  type:
+                    name: string
+    definitions:
+      - id: 84cc910fc8ac47d08b714153599a3a28
+        name: CamelOption
+        type:
+          name: object
+          schema:
+            id: f0841fc8423948d28d0bd1902f0f4b1a
+            attributes:
+              - id: df8173ebf1f540cabd6eebc011777887
+                name: description
+                type:
+                  name: string
+              - id: 4e3146fa9dac417585bfe9d6740cd40a
+                name: multiple
+                type:
+                  name: boolean
+              - id: 7f73156b7261458782a03390c747c3ae
+                name: name
+                type:
+                  name: string
+              - id: 3c0f13cc75164403b46a54bf2c14f586
+                name: title
+                type:
+                  name: string
+              - id: 69fac1038c824dc88d24aa266c6d43ae
+                name: type
+                type:
+                  name: string
+      - id: 9363b4ec26224698a00134b3fabf30f3
+        name: CamelElementGroup
+        type:
+          name: object
+          schema:
+            id: 3215cdf60e414427b5db0ad8f2d3b570
+            attributes:
+              - id: 6b8a1303136a470a940ef294f88ef608
+                name: element
+                type:
+                  name: reference
+                  definitionId: e2ca5373198c40e190dbdfb733f83161
+              - id: 57b32eb94635419dbfae989863f15abb
+                name: name
+                type:
+                  name: string
+              - id: c4ff864c8daa4bbfb822ceed79c79479
+                name: title
+                type:
+                  name: string
+      - id: e2ca5373198c40e190dbdfb733f83161
+        name: CamelElement
+        type:
+          name: object
+          schema:
+            id: 7e1b691e22ad43e8b891718a72c60694
+            attributes:
+              - id: 78d4074609414819bf0e316313f5b63a
+                name: allowedChildren
+                type:
+                  name: object
+                  schema:
+                    id: aa141b7b3f6647afa7c6f415b8f498ae
+                    attributes: []
+              - id: 5b4cee5a78fd478b8dfb18bdc3fe6af3
+                name: canReceive
+                type:
+                  name: boolean
+              - id: a29a921580704e818e7ead510bb06e48
+                name: canSend
+                type:
+                  name: boolean
+              - id: 5fb507435ccc42dca4cc9c52a9595ea8
+                name: containerTemplate
+                type:
+                  name: boolean
+              - id: 6314594611a5423988cbcfb99b43a650
+                name: description
+                type:
+                  name: string
+              - id: 261d4afe0e4f40608314e95a62eff04e
+                name: mandatory
+                type:
+                  name: boolean
+              - id: 79384303fa594ad39eb16273ed42c5bf
+                name: name
+                type:
+                  name: string
+              - id: 791f02d24a6c41b5a17ff9c467fdbde8
+                name: options
+                type:
+                  name: array
+                  itemType:
+                    name: reference
+                    definitionId: 84cc910fc8ac47d08b714153599a3a28
+              - id: c49bb020a329453d89b09f36db101274
+                name: parentRestriction
+                type:
+                  name: array
+                  itemType:
+                    name: string
+              - id: e7d20cd68dad430e86ca35ebb606d3b0
+                name: title
+                type:
+                  name: string
+              - id: 651c9b95aa584e3cb6bcaef9840bc94b
+                name: type
+                type:
+                  name: string
+    metadata:
+      sourceFormat: JSON
+      sourceType: schema
+      dataFormat: JSON
+constants: []
+actions:
+  - id: 2c66f16ca1694ac4b2c09f3cb1836019
+    sources:
+      - type: attribute
+        kind: body
+        path:
+          - 279b70d3e72b45b3a13458ef12433a7e
+          - 9601e5dec4a142f89c7d6854c15b967e
+    target:
+      type: attribute
+      kind: body
+      path:
+        - b69d1d10e6f4499791aad6438cc240c7
+        - 6b8a1303136a470a940ef294f88ef608
+        - 79384303fa594ad39eb16273ed42c5bf
+    transformation:
+  - id: f7dd8e2907084f1a8ce4d65e15a286d6
+    sources:
+      - type: attribute
+        kind: body
+        path:
+          - 279b70d3e72b45b3a13458ef12433a7e
+          - d5404ff5504144498db38630d7a21f5b
+    target:
+      type: attribute
+      kind: body
+      path:
+        - b69d1d10e6f4499791aad6438cc240c7
+        - 6b8a1303136a470a940ef294f88ef608
+        - 6314594611a5423988cbcfb99b43a650
+    transformation:
+  - id: f007c0efd4a74a499c2b2efd0ca46b18
+    sources:
+      - type: attribute
+        kind: body
+        path:
+          - 279b70d3e72b45b3a13458ef12433a7e
+          - 20cf7b9f762645f9936278b351f80efd
+          - 59be03fd1c5649cf820e633171c9fa9d
+          - 07d03cdbc1074e76a828e00875b987e3
+    target:
+      type: attribute
+      kind: body
+      path:
+        - b69d1d10e6f4499791aad6438cc240c7
+        - 6b8a1303136a470a940ef294f88ef608
+        - 791f02d24a6c41b5a17ff9c467fdbde8
+        - 69fac1038c824dc88d24aa266c6d43ae
+    transformation:
+  - id: '09b455c5fdb346d18a44bbb0e2fb53ef'
+    sources:
+      - type: attribute
+        kind: body
+        path:
+          - 279b70d3e72b45b3a13458ef12433a7e
+          - 20cf7b9f762645f9936278b351f80efd
+          - 59be03fd1c5649cf820e633171c9fa9d
+          - cf396b8aaed840d1ba60416c472d7d52
+    target:
+      type: attribute
+      kind: body
+      path:
+        - b69d1d10e6f4499791aad6438cc240c7
+        - 6b8a1303136a470a940ef294f88ef608
+        - 791f02d24a6c41b5a17ff9c467fdbde8
+        - 7f73156b7261458782a03390c747c3ae
+    transformation:
+  - id: d6b834d043dc4599ab61154276e9ec4a
+    sources:
+      - type: attribute
+        kind: body
+        path:
+          - 279b70d3e72b45b3a13458ef12433a7e
+          - 20cf7b9f762645f9936278b351f80efd
+          - 59be03fd1c5649cf820e633171c9fa9d
+          - 4dba684b9b024cffa56d3e92a7508749
+    target:
+      type: attribute
+      kind: body
+      path:
+        - b69d1d10e6f4499791aad6438cc240c7
+        - 6b8a1303136a470a940ef294f88ef608
+        - 791f02d24a6c41b5a17ff9c467fdbde8
+        - 3c0f13cc75164403b46a54bf2c14f586
+    transformation:
+  - id: bf00b1f1a50e4748aa2c5d34f90ff505
+    sources:
+      - type: attribute
+        kind: body
+        path:
+          - 279b70d3e72b45b3a13458ef12433a7e
+          - 20cf7b9f762645f9936278b351f80efd
+          - 59be03fd1c5649cf820e633171c9fa9d
+          - 0166407d6b5f4bd3a4eaf3662f3fa199
+    target:
+      type: attribute
+      kind: body
+      path:
+        - b69d1d10e6f4499791aad6438cc240c7
+        - 6b8a1303136a470a940ef294f88ef608
+        - 791f02d24a6c41b5a17ff9c467fdbde8
+        - df8173ebf1f540cabd6eebc011777887
+    transformation:
+  - id: 46b5576dd6f44b7babd4625ff54da321
+    sources:
+      - type: attribute
+        kind: body
+        path:
+          - 279b70d3e72b45b3a13458ef12433a7e
+          - 75fdd8ce3b644854be010d4ffe85f8df
+    target:
+      type: attribute
+      kind: body
+      path:
+        - 44b815fdd5b640328bca9790239e13f0
+        - 70a1e68b1d0342508d9598717c7195e1
+    transformation:
+  - id: 0ff4c534f0f84188a8f0e757336836e5
+    sources:
+      - type: attribute
+        kind: body
+        path:
+          - 279b70d3e72b45b3a13458ef12433a7e
+          - b05dde3bf9dd4c1d84f49843936e1d95
+    target:
+      type: attribute
+      kind: body
+      path:
+        - 44b815fdd5b640328bca9790239e13f0
+        - 33d884a49e5e490fa72d0e0e3a2ffa28
+    transformation:
+  - id: 025e12dfa7b347f98aa51621c23bf1c2
+    sources:
+      - type: attribute
+        kind: body
+        path:
+          - 279b70d3e72b45b3a13458ef12433a7e
+          - c8b7cfbb829c45ea90040c3b06362308
+    target:
+      type: attribute
+      kind: body
+      path:
+        - 44b815fdd5b640328bca9790239e13f0
+        - f781e34c3ce049b4ab9f395271285b15
+    transformation:
+  - id: 7d9b888fdd4641bf90c819ee3c50fe1c
+    sources:
+      - type: attribute
+        kind: body
+        path:
+          - 279b70d3e72b45b3a13458ef12433a7e
+          - 2950914163774495b98c264c6621cd12
+      - type: attribute
+        kind: body
+        path:
+          - 279b70d3e72b45b3a13458ef12433a7e
+          - eb9217d61ed14843a4baa3f8090336dd
+    target:
+      type: attribute
+      kind: body
+      path:
+        - 44b815fdd5b640328bca9790239e13f0
+        - a2138889511d46c68630188c03929ded
+    transformation:

@@ -1,0 +1,53 @@
+---
+id: "4c2d092d-a9fd-43f2-a702-36cd214eda4e"
+name: "New Chain"
+description: ""
+modifiedWhen: 1707894601357
+elements:
+  - id: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+    name: "Try-Catch-Finally"
+    element-type: "reuse"
+    children:
+      - id: "714bdb42-ca67-452a-b567-517c7746a88b"
+        name: "Try-Catch-Finally"
+        element-type: "try-catch-finally-2"
+        children:
+          - id: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+            name: "Try"
+            element-type: "try-2"
+            children:
+              - id: "c42f64db-86b9-4118-bd34-3bfff8372185"
+                name: "Try Script"
+                description: "Try Script description"
+                element-type: "script"
+                properties:
+                  exportFileExtension: "groovy"
+                  propertiesToExportInSeparateFile: "script"
+              - id: "fa7a8bc9-4489-4c64-b4e7-ae38fa642cfe"
+                name: "Header Modification"
+                element-type: "header-modification"
+              - id: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+                name: "Reuse Reference"
+                element-type: "reuse-reference"
+                properties:
+                  reuseElementId: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+          - id: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+            name: "Catch"
+            element-type: "catch-2"
+            properties:
+              exception: "java.lang.Exception"
+              priority: 0
+            children:
+              - id: "1b6e933d-eae9-4bfe-a20c-f365e35215c9"
+                name: "Catch Mapper"
+                description: "Catch Mapper description"
+                element-type: "mapper-2"
+                properties:
+                  exportFileExtension: "json"
+                  propertiesToExportInSeparateFile: "mappingDescription"
+                  throwException: false
+dependencies:
+  - from: "fa7a8bc9-4489-4c64-b4e7-ae38fa642cfe"
+    to: "d2ecaeed-9249-40dd-b92d-7e0440622794"
+  - from: "c42f64db-86b9-4118-bd34-3bfff8372185"
+    to: "fa7a8bc9-4489-4c64-b4e7-ae38fa642cfe"

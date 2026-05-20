@@ -1,0 +1,10 @@
+org.qubership.integration.platform.designtime.catalog.configuration.datasource.PersistenceAutoConfiguration
+org.qubership.integration.platform.designtime.catalog.configuration.ApplicationAutoConfiguration
+org.qubership.integration.platform.designtime.catalog.configuration.AsyncAutoConfiguration
+org.qubership.integration.platform.designtime.catalog.configuration.FreemakerAutoConfiguration
+org.qubership.integration.platform.designtime.catalog.configuration.KubeOperatorAutoConfiguration
+org.qubership.integration.platform.designtime.catalog.configuration.MapperAutoConfiguration
+org.qubership.integration.platform.designtime.catalog.configuration.MarkdownParserAutoConfiguration
+org.qubership.integration.platform.designtime.catalog.configuration.MicroserviceRestTemplateAutoConfiguration
+org.qubership.integration.platform.designtime.catalog.configuration.SwaggerAutoConfiguration
+org.qubership.integration.platform.designtime.catalog.configuration.WebAutoConfiguration

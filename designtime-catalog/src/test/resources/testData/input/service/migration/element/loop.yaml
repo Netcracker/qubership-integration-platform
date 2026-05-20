@@ -1,0 +1,57 @@
+---
+id: "e96e7c5a-753a-4931-91fc-73bf9abc32a3"
+name: "New Chain"
+description: ""
+modifiedWhen: 1682600564542
+maskingEnabled: false
+elements:
+  - id: "3a1bc21a-801a-46f7-a9a3-fbc56afeaa5c"
+    name: "Container"
+    element-type: "container"
+    children:
+      - id: "c647a397-1d43-4e61-b26d-93b9d797d58d"
+        name: "Script #3"
+        description: "Test script #3 description"
+        element-type: "script"
+        properties-filename: "script-c647a397-1d43-4e61-b26d-93b9d797d58d.groovy"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesToExportInSeparateFile: "script"
+      - id: "c7923025-2b93-4653-83c5-437afa1eb8f4"
+        name: "Script #2"
+        description: "Test script #2 description"
+        element-type: "script"
+        properties-filename: "script-c7923025-2b93-4653-83c5-437afa1eb8f4.groovy"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesToExportInSeparateFile: "script"
+  - id: "d20ea4e9-428d-4c38-95c0-e6f508b8570b"
+    name: "Loop (deprecated)"
+    description: "Loop description"
+    element-type: "loop"
+    children:
+      - id: "36bc14c2-76fc-4e71-a491-43daceaf6aee"
+        name: "Loop Expression"
+        description: "Loop expression description"
+        element-type: "loop-expression"
+        properties:
+          copy: true
+          doWhile: true
+          expression: "${exchangeProperty.index} > 0"
+  - id: "e7b5c614-97ee-453d-a995-e2d8f7c10226"
+    name: "Script #1"
+    description: "Test script #1 description"
+    element-type: "script"
+    properties-filename: "script-e7b5c614-97ee-453d-a995-e2d8f7c10226.groovy"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesToExportInSeparateFile: "script"
+dependencies:
+  - from: "36bc14c2-76fc-4e71-a491-43daceaf6aee"
+    to: "e7b5c614-97ee-453d-a995-e2d8f7c10226"
+  - from: "d20ea4e9-428d-4c38-95c0-e6f508b8570b"
+    to: "c647a397-1d43-4e61-b26d-93b9d797d58d"
+  - from: "e7b5c614-97ee-453d-a995-e2d8f7c10226"
+    to: "c647a397-1d43-4e61-b26d-93b9d797d58d"
+  - from: "e7b5c614-97ee-453d-a995-e2d8f7c10226"
+    to: "c7923025-2b93-4653-83c5-437afa1eb8f4"
