@@ -78,6 +78,9 @@ permissions: {}
 
 jobs:
   release:
+    permissions:
+      contents: write
+      packages: write
     uses: ./.github/workflows/_maven-module-release.yaml
     with:
       module: sessions-management

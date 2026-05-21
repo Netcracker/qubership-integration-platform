@@ -68,6 +68,9 @@ jobs:
   release-engine:
     needs: prepare
     if: needs.prepare.outputs.release-engine == 'true'
+    permissions:
+      contents: write
+      packages: write
     uses: ./.github/workflows/engine-release.yaml
     with:
       version: ${{ inputs.version }}
@@ -79,6 +82,9 @@ jobs:
   release-micro-engine:
     needs: prepare
     if: needs.prepare.outputs.release-micro-engine == 'true'
+    permissions:
+      contents: write
+      packages: write
     uses: ./.github/workflows/micro-engine-release.yaml
     with:
       version: ${{ inputs.version }}
@@ -90,6 +96,9 @@ jobs:
   release-runtime-catalog:
     needs: prepare
     if: needs.prepare.outputs.release-runtime-catalog == 'true'
+    permissions:
+      contents: write
+      packages: write
     uses: ./.github/workflows/runtime-catalog-release.yaml
     with:
       version: ${{ inputs.version }}
@@ -101,6 +110,9 @@ jobs:
   release-sessions-management:
     needs: prepare
     if: needs.prepare.outputs.release-sessions-management == 'true'
+    permissions:
+      contents: write
+      packages: write
     uses: ./.github/workflows/sessions-management-release.yaml
     with:
       version: ${{ inputs.version }}
@@ -112,6 +124,9 @@ jobs:
   release-schemas:
     needs: prepare
     if: needs.prepare.outputs.release-schemas == 'true'
+    permissions:
+      contents: write
+      packages: write
     uses: ./.github/workflows/schemas-release.yaml
     with:
       version: ${{ inputs.version }}
@@ -122,6 +137,9 @@ jobs:
   release-ui:
     needs: [prepare, release-schemas]
     if: always() && needs.prepare.outputs.release-ui == 'true' && (needs.release-schemas.result == 'success' || needs.release-schemas.result == 'skipped')
+    permissions:
+      contents: write
+      packages: write
     uses: ./.github/workflows/ui-release.yaml
     with:
       version: ${{ inputs.version }}
@@ -131,6 +149,9 @@ jobs:
   release-vscode-extension:
     needs: [prepare, release-ui]
     if: always() && needs.prepare.outputs.release-vscode-extension == 'true' && (needs.release-ui.result == 'success' || needs.release-ui.result == 'skipped')
+    permissions:
+      contents: write
+      packages: write
     uses: ./.github/workflows/vscode-extension-release.yaml
     with:
       version: ${{ inputs.version }}
@@ -140,6 +161,9 @@ jobs:
   release-checkstyle:
     needs: prepare
     if: needs.prepare.outputs.release-checkstyle == 'true'
+    permissions:
+      contents: write
+      packages: write
     uses: ./.github/workflows/checkstyle-release.yaml
     with:
       version: ${{ inputs.version }}
