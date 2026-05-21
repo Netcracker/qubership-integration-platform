@@ -12,4 +12,5 @@ org.qubership.integration.platform.runtime.catalog.configuration.TaskSchedulerAu
 org.qubership.integration.platform.runtime.catalog.configuration.WebAutoConfiguration
 org.qubership.integration.platform.runtime.catalog.cr.configuration.YamlMapperConfiguration
 org.qubership.integration.platform.runtime.catalog.cr.configuration.HandlebarConfiguration
+org.qubership.integration.platform.runtime.catalog.cr.configuration.SuffixGeneratorConfiguration
 org.qubership.integration.platform.runtime.catalog.configuration.DomainAutoConfiguration
