@@ -1,0 +1,143 @@
+---
+
+# Reusable Maven module release workflow.
+# All per-module specifics (tag prefix, jar artifact name, release name) are
+# derived from the `module` input.
+
+name: Maven Module Release (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      module:
+        required: true
+        type: string
+        description: 'Module directory name (e.g. engine, runtime-catalog)'
+      version:
+        required: true
+        type: string
+        description: 'Release version (e.g., 1.0.0)'
+      version-type:
+        description: 'Version type to release'
+        type: string
+        required: false
+        default: 'patch'
+      profile:
+        description: 'Maven profile to use'
+        type: string
+        required: false
+        default: 'central'
+      build-docker:
+        description: 'Build Docker image'
+        required: false
+        default: true
+        type: boolean
+      create-github-release:
+        description: 'Create release'
+        required: false
+        default: true
+        type: boolean
+      mvn-args:
+        description: 'Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)'
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.module }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  check-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check if tag exists
+        id: check_tag
+        uses: netcracker/qubership-workflow-hub/actions/tag-action@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+        with:
+          ref: ${{ github.ref }}
+          tag-name: '${{ inputs.module }}-v${{ inputs.version }}'
+          create-tag: 'false'
+          check-tag: 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-publish:
+    needs: check-tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: "Build and Publish"
+        uses: netcracker/qubership-workflow-hub/actions/maven-release@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+        with:
+          version-type: ${{ inputs.version-type }}
+          ref: ${{ github.ref }}
+          module: ${{ inputs.module }}
+          maven-args: ${{ inputs.mvn-args }}
+          profile: ${{ inputs.profile }}
+          server-id: ${{ inputs.profile }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          maven-user: ${{ inputs.profile == 'github' && github.actor || secrets.MAVEN_USER }}
+          maven-password: ${{ inputs.profile == 'github' && secrets.GITHUB_TOKEN || secrets.MAVEN_PASSWORD }}
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+          dry-run: 'false'
+      - name: Upload JAR
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ inputs.module }}-jar
+          path: ${{ inputs.module }}/**/target/*-exec.jar
+
+  publish-image:
+    if: ${{ inputs.build-docker == true }}
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: "Docker Build"
+        id: docker_build
+        uses: netcracker/qubership-workflow-hub/actions/docker-action@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+        with:
+          ref: ${{ github.ref }}
+          download-artifact: true
+          download-artifact-name: ${{ inputs.module }}-jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  create-release:
+    if: ${{ inputs.create-github-release == true }}
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+      - name: Run Release Drafter
+        uses: netcracker/release-drafter@86f4276a3894b5af70480e826c32fe3648ac6a70 # v1.0.0
+        with:
+          config-name: "release-drafter-config.yml"
+          publish: true
+          prerelease: ${{ github.ref_name != 'main' }}
+          name: '${{ inputs.module }}-${{ inputs.version }}'
+          tag: '${{ inputs.module }}-v${{ inputs.version }}'
+          version: '${{ inputs.module }}-v${{ inputs.version }}'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -18,6 +18,39 @@ concurrency:
 permissions: {}
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '22.x'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@netcracker'
+          cache: 'npm'
+
+      - name: Install dependencies (root workspaces)
+        run: npm ci --legacy-peer-deps
+
+      - name: ESLint
+        working-directory: ui
+        run: npm run lint
+
+      - name: TypeScript type check
+        working-directory: ui
+        run: npm run check-types
+
   npm-build:
     runs-on: ubuntu-latest
     permissions:
@@ -62,8 +95,9 @@ jobs:
           args: >
             -Dsonar.host.url=https://sonarcloud.io
             -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
-            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.projectKey=${{ vars.SONAR_UI_PROJECT_KEY }}
             -Dsonar.sources=src
             -Dsonar.tests=src
             -Dsonar.test.inclusions=**/*.test.ts,**/*.spec.ts,**/*.test.tsx,**/*.spec.tsx
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.qualitygate.wait=true

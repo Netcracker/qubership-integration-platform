@@ -6,7 +6,13 @@
   <version>0.5.4-SNAPSHOT</version>
   <name>QIP Sessions Management</name>
   <description>Managing recorded sessions of integration flows execution stored in OpenSearch index</description>
-  <url>https://github.com/Netcracker/qubership-integration-sessions-management</url>
+  <url>https://github.com/Netcracker/qubership-integration-platform</url>
+  <scm>
+    <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
+    <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
+    <url>https://github.com/Netcracker/qubership-integration-platform</url>
+    <tag>HEAD</tag>
+  </scm>
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-monorepo-parent</artifactId>
