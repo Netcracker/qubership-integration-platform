@@ -160,7 +160,7 @@ qip:
       service:
         suffix: -svc
       chain:
-        suffix-length: 5
+        suffix-length: 7
     build:
       container:
         image: ${ENGINE_CONTAINER_IMAGE:}
