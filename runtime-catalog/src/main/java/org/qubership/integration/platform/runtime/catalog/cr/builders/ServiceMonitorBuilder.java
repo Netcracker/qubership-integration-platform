@@ -12,6 +12,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrate
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -20,10 +21,15 @@ import java.util.List;
 public class ServiceMonitorBuilder implements ResourceBuilder<List<Snapshot>> {
     private static final String TEMPLATE_NAME = "service-monitor";
 
+    @Value("${qip.cr.labels.domain}")
+    String domainLabel;
+
     @Data
     @Builder
     private static class TemplateData {
         private String name;
+        private String domainLabel;
+        private String domainName;
         private String integrationName;
         private String serviceName;
         private String interval;
@@ -69,6 +75,8 @@ public class ServiceMonitorBuilder implements ResourceBuilder<List<Snapshot>> {
 
     private TemplateData buildTemplateData(ResourceBuildContext<List<Snapshot>> context) {
         return TemplateData.builder()
+                .domainLabel(domainLabel)
+                .domainName(context.getBuildInfo().getOptions().getName())
                 .name(serviceMonitorNamingStrategy.getName(context))
                 .integrationName(integrationResourceNamingStrategy.getName(context))
                 .serviceName(serviceNamingStrategy.getName(context))

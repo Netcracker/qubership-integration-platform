@@ -18,6 +18,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.Resourc
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -28,6 +29,9 @@ import java.util.stream.IntStream;
 public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Snapshot>> {
     private static final String QIP_CHAINS_CONFIGURATION_PATH = "/etc/integrations-config.yaml";
     private static final String TEMPLATE_NAME = "integration";
+
+    @Value("${qip.cr.labels.domain}")
+    String domainLabel;
 
     @Data
     @Builder
@@ -40,6 +44,8 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
     @Builder
     private static class TemplateData {
         private String name;
+        private String domainLabel;
+        private String domainName;
         private ContainerData container;
         private Collection<String> resources;
         private Collection<String> properties;
@@ -106,6 +112,8 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
     private TemplateData buildTemplateData(ResourceBuildContext<List<Snapshot>> context) {
         return TemplateData.builder()
                 .name(integrationResourceNamingStrategy.getName(context))
+                .domainLabel(domainLabel)
+                .domainName(context.getBuildInfo().getOptions().getName())
                 .container(buildContainerData(context.getBuildInfo().getOptions().getContainer()))
                 .resources(buildResources(context))
                 .propertiesEnabled(!context.getBuildInfo().getOptions()
@@ -176,6 +184,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
     private Collection<String> buildEnvironmentVars(ResourceBuildContext<List<Snapshot>> context) {
         Map<String, String> environment = new HashMap<>(context.getBuildInfo().getOptions().getEnvironment());
         environment.put("CLOUD_SERVICE_NAME", serviceNamingStrategy.getName(context));
+        environment.put("QIP_ENGINE_DOMAIN", context.getBuildInfo().getOptions().getName());
         if (!context.getBuildInfo().getOptions().getIntegrations().isCamelKSourcesUtilized()) {
             String location = context.getBuildInfo().getOptions().getIntegrations().getConfigurationLocation();
             environment.put("QIP_CHAINS_CONFIGURATION_URL",

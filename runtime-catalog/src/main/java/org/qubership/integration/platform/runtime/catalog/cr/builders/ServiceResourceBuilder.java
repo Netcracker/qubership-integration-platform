@@ -12,6 +12,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrate
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -21,9 +22,14 @@ import java.util.List;
 public class ServiceResourceBuilder  implements ResourceBuilder<List<Snapshot>> {
     private static final String TEMPLATE_NAME = "service";
 
+    @Value("${qip.cr.labels.domain}")
+    String domainLabel;
+
     @Data
     @Builder
     private static class TemplateData {
+        private String domainLabel;
+        private String domainName;
         private String name;
         private String integrationName;
     }
@@ -62,6 +68,8 @@ public class ServiceResourceBuilder  implements ResourceBuilder<List<Snapshot>> 
 
     private TemplateData buildTemplateData(ResourceBuildContext<List<Snapshot>> context) {
         return TemplateData.builder()
+                .domainLabel(domainLabel)
+                .domainName(context.getBuildInfo().getOptions().getName())
                 .name(serviceNamingStrategy.getName(context))
                 .integrationName(integrationResourceNamingStrategy.getName(context))
                 .build();

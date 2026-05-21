@@ -13,7 +13,7 @@ import java.util.List;
 public class IntegrationsConfigurationResourceNamingStrategy extends K8sResourceNamingStrategy<ResourceBuildContext<List<Snapshot>>> {
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
 
-    @Value("${qip.cr.naming.chains-configuration.suffix:-sources-cfg}")
+    @Value("${qip.cr.naming.chains-configuration.suffix:-src-cfg}")
     private String suffix;
 
     public IntegrationsConfigurationResourceNamingStrategy(

@@ -14,7 +14,7 @@ import java.util.List;
 public class ServiceMonitorNamingStrategy extends K8sResourceNamingStrategy<ResourceBuildContext<List<Snapshot>>> {
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
 
-    @Value("${qip.cr.naming.service-monitor.suffix:-monitor}")
+    @Value("${qip.cr.naming.service-monitor.suffix:-smon}")
     private String suffix;
 
     @Autowired
