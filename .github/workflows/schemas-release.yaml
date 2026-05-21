@@ -1,9 +1,5 @@
 ---
 
-# This workflow is used to build and publish a Maven module from the monorepo.
-# It can be called from the unified release-all workflow or triggered manually.
-# Based on the original per-repo maven-release-v2.yaml workflow.
-
 name: Schemas Release
 
 on:
@@ -26,7 +22,7 @@ on:
       build-docker:
         description: 'Build Docker image'
         required: false
-        default: true
+        default: false
         type: boolean
       create-github-release:
         description: 'Create release'
@@ -65,7 +61,7 @@ on:
       build-docker:
         description: 'Build Docker image'
         required: false
-        default: true
+        default: false
         type: boolean
       create-github-release:
         description: 'Create release'
@@ -78,100 +74,17 @@ on:
         default: ''
         type: string
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
-
 permissions: {}
 
 jobs:
-  check-tag:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Check if tag exists
-        id: check_tag
-        uses: netcracker/qubership-workflow-hub/actions/tag-action@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
-        with:
-          ref: ${{ github.ref }}
-          tag-name: 'schemas-v${{ inputs.version }}'
-          create-tag: 'false'
-          check-tag: 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build-and-publish:
-    needs: check-tag
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-    steps:
-      - name: "Build and Publish"
-        uses: netcracker/qubership-workflow-hub/actions/maven-release@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
-        with:
-          version-type: ${{ inputs.version-type }}
-          ref: ${{ github.ref }}
-          module: schemas
-          maven-args: ${{ inputs.mvn-args }}
-          profile: ${{ inputs.profile }}
-          server-id: ${{ inputs.profile }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          maven-user: ${{ inputs.profile == 'github' && github.actor || secrets.MAVEN_USER }}
-          maven-password: ${{ inputs.profile == 'github' && secrets.GITHUB_TOKEN || secrets.MAVEN_PASSWORD }}
-          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-          dry-run: 'false'
-      - name: Upload JAR
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: schemas-jar
-          path: schemas/**/target/*-exec.jar
-  publish-image:
-    if: ${{ inputs.build-docker == true }}
-    needs: build-and-publish
-    runs-on: ubuntu-latest
-    permissions:
-      packages: write
-    steps:
-      - name: "Docker Build"
-        id: docker_build
-        uses: netcracker/qubership-workflow-hub/actions/docker-action@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
-        with:
-          ref: ${{ github.ref }}
-          download-artifact: true
-          download-artifact-name: schemas-jar
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  create-release:
-    if: ${{ inputs.create-github-release == true }}
-    needs: build-and-publish
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-          ref: ${{ github.ref }}
-      - name: Run Release Drafter
-        uses: netcracker/release-drafter@86f4276a3894b5af70480e826c32fe3648ac6a70 #v1.0.0
-        with:
-          config-name: "release-drafter-config.yml"
-          publish: true
-          prerelease: ${{ github.ref_name != 'main' }}
-          name: 'schemas-${{ inputs.version }}'
-          tag: 'schemas-v${{ inputs.version }}'
-          version: 'schemas-v${{ inputs.version }}'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  release:
+    uses: ./.github/workflows/_maven-module-release.yaml
+    with:
+      module: schemas
+      version: ${{ inputs.version }}
+      version-type: ${{ inputs.version-type }}
+      profile: ${{ inputs.profile }}
+      build-docker: ${{ inputs.build-docker }}
+      create-github-release: ${{ inputs.create-github-release }}
+      mvn-args: ${{ inputs.mvn-args }}
+    secrets: inherit

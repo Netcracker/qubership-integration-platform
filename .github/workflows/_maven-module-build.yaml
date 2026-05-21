@@ -1,0 +1,121 @@
+---
+
+# Reusable PR build workflow for a Maven module.
+#
+# To block PR merge on red Sonar Quality Gate, mark the `sonar` job
+# as a required status check in the branch protection rule.
+
+name: Maven Module Build (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      module:
+        required: true
+        type: string
+        description: 'Module directory name (e.g. engine, runtime-catalog)'
+      sonar-project-key:
+        required: false
+        type: string
+        default: ''
+        description: 'Sonar project key for this module. Leave empty to skip the Sonar scan.'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.module }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Java (pre-warm Maven cache)
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Verify and publish SNAPSHOT
+        uses: netcracker/qubership-workflow-hub/actions/maven-snapshot-deploy@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+        with:
+          target-store: 'github'
+          java-version: '21'
+          maven-username: ${{ github.actor }}
+          maven-token: ${{ github.token }}
+          maven-command: >
+            --batch-mode verify
+            -Dgpg.skip=true
+            -pl ${{ inputs.module }}
+
+      - name: Upload Sonar inputs
+        if: ${{ inputs.sonar-project-key != '' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ inputs.module }}-target
+          # Sonar only needs compiled classes, generated sources, and the
+          # JaCoCo / Surefire reports — not the shaded -exec.jar (~200 MB).
+          path: |
+            ${{ inputs.module }}/target/classes
+            ${{ inputs.module }}/target/test-classes
+            ${{ inputs.module }}/target/generated-sources
+            ${{ inputs.module }}/target/generated-test-sources
+            ${{ inputs.module }}/target/site
+            ${{ inputs.module }}/target/surefire-reports
+            ${{ inputs.module }}/target/jacoco.exec
+          if-no-files-found: ignore
+          retention-days: 1
+
+  sonar:
+    needs: build
+    if: ${{ inputs.sonar-project-key != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Sonar uses git blame for new-code detection.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Download Sonar inputs
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: ${{ inputs.module }}-target
+          path: ${{ inputs.module }}/target
+
+      - name: Sonar scan (blocks on red Quality Gate)
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PLUGIN_VERSION: ${{ vars.SONAR_PLUGIN_VERSION }}
+          SONAR_PROJECT_KEY: ${{ inputs.sonar-project-key }}
+          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+          MODULE: ${{ inputs.module }}
+        run: |
+          mvn --batch-mode -pl "$MODULE" \
+            "org.sonarsource.scanner.maven:sonar-maven-plugin:${SONAR_PLUGIN_VERSION}:sonar" \
+            -Dsonar.token="$SONAR_TOKEN" \
+            -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
+            -Dsonar.organization="$SONAR_ORGANIZATION" \
+            -Dsonar.host.url="$SONAR_HOST_URL" \
+            -Dsonar.qualitygate.wait=true

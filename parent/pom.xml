@@ -14,6 +14,8 @@
     <version>0.5.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
+    <url>https://github.com/Netcracker/qubership-integration-platform</url>
+
     <licenses>
         <license>
             <name>Apache License, Version 2.0</name>

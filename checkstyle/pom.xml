@@ -37,7 +37,7 @@
         
         <revision>0.0.3</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <repo-name>qubership-integration-checkstyle</repo-name>
+        <repo-name>qubership-integration-platform</repo-name>
     </properties>
 
     <distributionManagement>
