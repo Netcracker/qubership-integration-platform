@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
+import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -37,6 +38,7 @@ public class ServiceResourceBuilder  implements ResourceBuilder<List<Snapshot>> 
     private final Handlebars templates;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> serviceNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
+    private final K8sNameValidator k8sNameValidator;
 
     @Autowired
     public ServiceResourceBuilder(
@@ -46,11 +48,14 @@ public class ServiceResourceBuilder  implements ResourceBuilder<List<Snapshot>> 
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> serviceNamingStrategy,
 
             @Qualifier("integrationResourceNamingStrategy")
-            NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
+
+            K8sNameValidator k8sNameValidator
     ) {
         this.templates = templates;
         this.serviceNamingStrategy = serviceNamingStrategy;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
+        this.k8sNameValidator = k8sNameValidator;
     }
 
     @Override
@@ -69,7 +74,7 @@ public class ServiceResourceBuilder  implements ResourceBuilder<List<Snapshot>> 
     private TemplateData buildTemplateData(ResourceBuildContext<List<Snapshot>> context) {
         return TemplateData.builder()
                 .domainLabel(domainLabel)
-                .domainName(context.getBuildInfo().getOptions().getName())
+                .domainName(k8sNameValidator.validate(context.getBuildInfo().getOptions().getName()))
                 .name(serviceNamingStrategy.getName(context))
                 .integrationName(integrationResourceNamingStrategy.getName(context))
                 .build();

@@ -13,6 +13,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.builders.chain.Sour
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.SourceDefinition;
 import org.qubership.integration.platform.runtime.catalog.cr.locations.SourceMountPointGetter;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
+import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ContainerOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
@@ -61,6 +62,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationsConfigurationConfigMapNamingStrategy;
     private final SourceMountPointGetter sourceMountPointGetter;
     private final SourceDefinitionBuilder sourceDefinitionBuilder;
+    private final K8sNameValidator k8sNameValidator;
 
     @Autowired
     public CamelKIntegrationResourceBuilder(
@@ -80,8 +82,8 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
             NamingStrategy<ResourceBuildContext<Snapshot>> sourceDslConfigMapNamingStrategy,
 
             SourceMountPointGetter sourceMountPointGetter,
-
-            SourceDefinitionBuilder sourceDefinitionBuilder
+            SourceDefinitionBuilder sourceDefinitionBuilder,
+            K8sNameValidator k8sNameValidator
     ) {
         this.templates = templates;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
@@ -90,6 +92,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
         this.integrationsConfigurationConfigMapNamingStrategy = integrationsConfigurationConfigMapNamingStrategy;
         this.sourceMountPointGetter = sourceMountPointGetter;
         this.sourceDefinitionBuilder = sourceDefinitionBuilder;
+        this.k8sNameValidator = k8sNameValidator;
     }
 
     @Override
@@ -113,7 +116,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
         return TemplateData.builder()
                 .name(integrationResourceNamingStrategy.getName(context))
                 .domainLabel(domainLabel)
-                .domainName(context.getBuildInfo().getOptions().getName())
+                .domainName(k8sNameValidator.validate(context.getBuildInfo().getOptions().getName()))
                 .container(buildContainerData(context.getBuildInfo().getOptions().getContainer()))
                 .resources(buildResources(context))
                 .propertiesEnabled(!context.getBuildInfo().getOptions()
