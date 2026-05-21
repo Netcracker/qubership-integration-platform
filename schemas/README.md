@@ -4,14 +4,14 @@ This repository is for store integration schemas that used in [Runtime Catalog](
 
 ## Contribution
 
-For the details on contribution, see [Contribution Guide](CONTRIBUTING.md). For details on reporting of security issues
-see [Security Reporting Process](SECURITY.md).
+For the details on contribution, see [Contribution Guide](../CONTRIBUTING.md). For details on reporting of security issues
+see [Security Reporting Process](../SECURITY.md).
 
 Commits and pool requests should follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) strategy.
 
 ## Licensing
 
-This software is licensed under Apache License Version 2.0. License text is located in [LICENSE](LICENSE) file.
+This software is licensed under Apache License Version 2.0. License text is located in [LICENSE](../LICENSE) file.
 
 ## Additional Resources
 

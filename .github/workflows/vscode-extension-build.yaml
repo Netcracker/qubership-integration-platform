@@ -1,3 +1,8 @@
+---
+
+# Triggers on changes in vscode-extension/, ui/, or schemas/ since the
+# extension embeds @netcracker/qip-ui and consumes @netcracker/qip-schemas.
+
 name: Vscode Extension Build
 
 on:
@@ -7,35 +12,58 @@ on:
       - 'vscode-extension/**'
       - 'ui/**'
       - 'schemas/**'
+      - 'package.json'
+      - 'package-lock.json'
 
-permissions:
-  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
 
 jobs:
-  mvn-with-sonar:
+  npm-build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ github.ref }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Code quality/security scan on SonarQube
-        uses: netcracker/qubership-workflow-hub/actions/maven-snapshot-deploy@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '22.x'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@netcracker'
+          cache: 'npm'
+
+      - name: Install dependencies (root workspaces)
+        run: npm ci --legacy-peer-deps
+
+      - name: Test with coverage
+        working-directory: vscode-extension
+        run: npm test -- --coverage
+
+      - name: Sonar scan (SonarQube Cloud)
+        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          target-store: 'github'
-          java-version: '21'
-          maven-username: ${{ github.actor }}
-          maven-token: ${{ github.token }}
-          sonar-token: ${{ env.SONAR_TOKEN }}
-          maven-command: >
-            --batch-mode verify
-            -Dgpg.skip=true
-            -pl vscode-extension
-            org.sonarsource.scanner.maven:sonar-maven-plugin:${{ vars.SONAR_PLUGIN_VERSION }}:sonar
-            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+          projectBaseDir: vscode-extension
+          args: >
+            -Dsonar.host.url=https://sonarcloud.io
             -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
-            -Dsonar.host.url=${{ vars.SONAR_HOST_URL }}
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.sources=src
+            -Dsonar.tests=src
+            -Dsonar.test.inclusions=**/*.test.ts,**/*.spec.ts,**/*.test.tsx,**/*.spec.tsx
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info

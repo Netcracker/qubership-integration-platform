@@ -78,6 +78,10 @@ on:
         default: ''
         type: string
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions: {}
 
 jobs:
@@ -97,7 +101,7 @@ jobs:
         uses: netcracker/qubership-workflow-hub/actions/tag-action@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
         with:
           ref: ${{ github.ref }}
-          tag-name: 'v${{ inputs.version }}'
+          tag-name: 'sessions-management-v${{ inputs.version }}'
           create-tag: 'false'
           check-tag: 'true'
         env:
@@ -126,9 +130,9 @@ jobs:
           gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
           dry-run: 'false'
       - name: Upload JAR
-        uses: actions/upload-artifact@v6.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: app-jar
+          name: sessions-management-jar
           path: sessions-management/**/target/*-exec.jar
   publish-image:
     if: ${{ inputs.build-docker == true }}
@@ -143,7 +147,7 @@ jobs:
         with:
           ref: ${{ github.ref }}
           download-artifact: true
-          download-artifact-name: app-jar
+          download-artifact-name: sessions-management-jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -166,8 +170,8 @@ jobs:
           config-name: "release-drafter-config.yml"
           publish: true
           prerelease: ${{ github.ref_name != 'main' }}
-          name: ${{ inputs.version }}
-          tag: 'v${{ inputs.version }}'
-          version: 'v${{ inputs.version }}'
+          name: 'sessions-management-${{ inputs.version }}'
+          tag: 'sessions-management-v${{ inputs.version }}'
+          version: 'sessions-management-v${{ inputs.version }}'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

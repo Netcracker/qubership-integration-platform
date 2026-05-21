@@ -50,9 +50,9 @@ Executing rule checking on compile phase guaranties that the project can't be bu
 
 ## Contribution
 
-For the details on contribution, see [Contribution Guide](CONTRIBUTING.md).
-For details on reporting of security issues see [Security Reporting Process](SECURITY.md).
+For the details on contribution, see [Contribution Guide](../CONTRIBUTING.md).
+For details on reporting of security issues see [Security Reporting Process](../SECURITY.md).
 
 ## Licensing
 
-This software is licensed under Apache License Version 2.0. License text is located in [LICENSE](LICENSE) file.
+This software is licensed under Apache License Version 2.0. License text is located in [LICENSE](../LICENSE) file.

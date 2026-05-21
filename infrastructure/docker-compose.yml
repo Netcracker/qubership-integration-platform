@@ -2,7 +2,9 @@ services:
 
     ###### QIP
     qip-runtime-catalog:
-        image: ghcr.io/netcracker/qubership-integration-runtime-catalog:main
+        build:
+          context: ../runtime-catalog
+          dockerfile: Dockerfile
         container_name: qip-runtime-catalog
         read_only: true
         ports:
@@ -38,7 +40,9 @@ services:
                 condition: service_healthy
 
     qip-engine:
-        image: ghcr.io/netcracker/qubership-integration-engine:main
+        build:
+          context: ../engine
+          dockerfile: Dockerfile
         container_name: qip-engine
         read_only: true
         ports:
@@ -54,6 +58,8 @@ services:
             "-XX:MaxMetaspaceSize=224m",
             "-XX:MaxDirectMemorySize=224m",
             "-XX:+ExitOnOutOfMemoryError",
+            "-XX:+HeapDumpOnOutOfMemoryError",
+            "-XX:HeapDumpPath=/tmp/leak.hprof",
             "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
             "-Djava.security.egd=file:/dev/./urandom",
             "--add-opens=java.base/java.lang=ALL-UNNAMED",
@@ -83,7 +89,9 @@ services:
                 condition: service_healthy
 
     qip-sessions-management:
-        image: ghcr.io/netcracker/qubership-integration-sessions-management:main
+        build:
+          context: ../sessions-management
+          dockerfile: Dockerfile
         container_name: qip-sessions-management
         read_only: true
         ports:
@@ -135,6 +143,46 @@ services:
         qip-engine:
           condition: service_started
 
+#    ###### AI Assistant (optional, activated by `--profile ai`)
+#    qip-ai-assistant:
+#        build:
+#          context: ../ai-assistant
+#          dockerfile: Dockerfile
+#        container_name: qip-ai-assistant
+#        profiles: [ai]
+#        ports:
+#        - "8094:8094"
+#        environment:
+#          QIP_AI_SERVICE_PORT: "8094"
+#          QIP_AI_LOG_LEVEL: "INFO"
+#          QIP_AI_LOG_FORMAT: "json"
+#          QIP_AI_LLM_PROVIDER: "${QIP_AI_LLM_PROVIDER:-gemini}"
+#          QIP_AI_GEMINI_API_KEY: "${QIP_AI_GEMINI_API_KEY:-}"
+#          QIP_AI_GEMINI_MODEL: "${QIP_AI_GEMINI_MODEL:-gemini-2.5-flash}"
+#          QIP_AI_OPENROUTER_API_KEY: "${QIP_AI_OPENROUTER_API_KEY:-}"
+#          QIP_AI_OPENROUTER_MODEL: "${QIP_AI_OPENROUTER_MODEL:-google/gemini-2.5-flash}"
+#          QIP_AI_POSTGRES_DSN: "postgresql+asyncpg://postgres:postgres@postgres:5432/postgres"
+#          QIP_AI_CATALOG_BASE_URL: "http://runtime-catalog:8080"
+#        command:
+#        - "/bin/sh"
+#        - "-c"
+#        - "alembic upgrade head && exec qip-ai"
+#        healthcheck:
+#            test: ["CMD-SHELL", "curl --silent --fail localhost:8094/health || exit 1"]
+#            interval: 15s
+#            timeout: 10s
+#            retries: 10
+#            start_period: 30s
+#        networks:
+#            default:
+#                aliases:
+#                - ai-assistant
+#        depends_on:
+#            postgres:
+#                condition: service_healthy
+#            qip-runtime-catalog:
+#                condition: service_started
+
     ###### 3rd party services
 
     postgres:
@@ -184,3 +232,8 @@ services:
         - "8600:8600/tcp"
         - "8600:8600/udp"
         command: "agent -bootstrap-expect=1"
+
+#    fake-otel-collector:
+#      image: alpine/socat
+#      command: [ "TCP-LISTEN:4318,fork,reuseaddr", "OPEN:/dev/null" ]
+#      networks: [ default ]
