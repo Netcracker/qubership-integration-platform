@@ -26,7 +26,7 @@ public class ServiceMonitorNamingStrategy extends K8sResourceNamingStrategy<Reso
         @Qualifier("integrationResourceNamingStrategy")
         NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
 
-        @Value("${qip.cr.naming.service-monitor.suffix:-smon}")
+        @Value("${qip.cr.naming.service-monitor.suffix:}")
         String suffix
     ) {
         super(nameVerifier);

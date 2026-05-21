@@ -26,7 +26,7 @@ public class ServiceNamingStrategy extends K8sResourceNamingStrategy<ResourceBui
         @Qualifier("integrationResourceNamingStrategy")
         NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
 
-        @Value("${qip.cr.naming.service.suffix:-svc}")
+        @Value("${qip.cr.naming.service.suffix:}")
         String suffix
     ) {
         super(nameVerifier);

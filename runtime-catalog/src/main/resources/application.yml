@@ -156,9 +156,9 @@ qip:
       chains-configuration:
         suffix: -src-cfg
       service-monitor:
-        suffix: -smon
+        suffix: ""
       service:
-        suffix: -svc
+        suffix: ""
       chain:
         suffix-length: 7
     build:
