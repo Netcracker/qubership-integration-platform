@@ -19,4 +19,5 @@ jobs:
     with:
       module: sessions-management
       sonar-project-key: ${{ vars.SONAR_SESSIONS_MANAGEMENT_PROJECT_KEY }}
-    secrets: inherit
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

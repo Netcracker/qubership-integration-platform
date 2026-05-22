@@ -77,7 +77,11 @@ jobs:
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
       create-github-release: ${{ inputs.create-github-release }}
-    secrets: inherit
+    secrets:
+      MAVEN_USER: ${{ secrets.MAVEN_USER }}
+      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+      MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
   release-micro-engine:
     needs: prepare
@@ -91,7 +95,11 @@ jobs:
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
       create-github-release: ${{ inputs.create-github-release }}
-    secrets: inherit
+    secrets:
+      MAVEN_USER: ${{ secrets.MAVEN_USER }}
+      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+      MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
   release-runtime-catalog:
     needs: prepare
@@ -105,7 +113,11 @@ jobs:
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
       create-github-release: ${{ inputs.create-github-release }}
-    secrets: inherit
+    secrets:
+      MAVEN_USER: ${{ secrets.MAVEN_USER }}
+      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+      MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
   release-sessions-management:
     needs: prepare
@@ -119,7 +131,11 @@ jobs:
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
       create-github-release: ${{ inputs.create-github-release }}
-    secrets: inherit
+    secrets:
+      MAVEN_USER: ${{ secrets.MAVEN_USER }}
+      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+      MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
   release-schemas:
     needs: prepare
@@ -132,7 +148,11 @@ jobs:
       version: ${{ inputs.version }}
       profile: ${{ inputs.profile }}
       create-github-release: ${{ inputs.create-github-release }}
-    secrets: inherit
+    secrets:
+      MAVEN_USER: ${{ secrets.MAVEN_USER }}
+      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+      MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
   release-ui:
     needs: [prepare, release-schemas]
@@ -144,7 +164,6 @@ jobs:
     with:
       version: ${{ inputs.version }}
       create-github-release: ${{ inputs.create-github-release }}
-    secrets: inherit
 
   release-vscode-extension:
     needs: [prepare, release-ui]
@@ -156,7 +175,6 @@ jobs:
     with:
       version: ${{ inputs.version }}
       create-github-release: ${{ inputs.create-github-release }}
-    secrets: inherit
 
   release-checkstyle:
     needs: prepare
@@ -169,4 +187,8 @@ jobs:
       version: ${{ inputs.version }}
       profile: ${{ inputs.profile }}
       create-github-release: ${{ inputs.create-github-release }}
-    secrets: inherit
+    secrets:
+      MAVEN_USER: ${{ secrets.MAVEN_USER }}
+      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+      MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}

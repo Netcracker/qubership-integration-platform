@@ -42,6 +42,19 @@ on:
         required: false
         default: ''
         type: string
+    secrets:
+      MAVEN_USER:
+        required: false
+        description: 'Username for the non-github Maven repository (e.g. Central). Unused when profile=github.'
+      MAVEN_PASSWORD:
+        required: false
+        description: 'Password/token for the non-github Maven repository. Unused when profile=github.'
+      MAVEN_GPG_PRIVATE_KEY:
+        required: false
+        description: 'GPG private key used to sign release artifacts.'
+      MAVEN_GPG_PASSPHRASE:
+        required: false
+        description: 'Passphrase for MAVEN_GPG_PRIVATE_KEY.'
 
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.module }}-${{ github.ref }}

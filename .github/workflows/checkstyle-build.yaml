@@ -17,4 +17,3 @@ jobs:
     uses: ./.github/workflows/_maven-module-build.yaml
     with:
       module: checkstyle
-    secrets: inherit
