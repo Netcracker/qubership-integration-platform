@@ -9,8 +9,10 @@ import { useModalsContext } from "../../../Modals";
 import { CreateDesignTemplateModal } from "./CreateDesignTemplateModal";
 import { TableRowSelection } from "antd/es/table/interface";
 import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
-import { useColumnSettingsBasedOnColumnsType } from "../../table/useColumnSettingsButton";
-import { ColumnsType } from "antd/lib/table";
+import {
+  ColumnsTypeWithSettings,
+  useColumnSettingsBasedOnColumnsType,
+} from "../../table/useColumnSettingsButton";
 import {
   attachResizeToColumns,
   useTableColumnResize,
@@ -47,11 +49,15 @@ export const DesignTemplates: React.FC = () => {
     [tableData, searchTerm],
   );
 
-  const columns: ColumnsType<DetailedDesignTemplate> = [
+  const columns: ColumnsTypeWithSettings<DetailedDesignTemplate> = [
     {
       title: "Name",
       dataIndex: "name",
       key: "name",
+      settings: {
+        visibilityLocked: true,
+        orderLocked: true,
+      },
       sorter: (a, b) => a.name.localeCompare(b.name),
       defaultSortOrder: "ascend",
     },

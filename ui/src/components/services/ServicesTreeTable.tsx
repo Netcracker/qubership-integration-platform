@@ -614,6 +614,7 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
         allServicesTreeTableColumns.map((c) => [c.key, c.title]),
       )}
       onChange={handleColumnsChange}
+      orderLockedKeys={["name"]}
     />
   );
 
