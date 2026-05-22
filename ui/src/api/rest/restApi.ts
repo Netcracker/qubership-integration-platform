@@ -95,6 +95,7 @@ import {
   type MCPSystem,
   type MCPSystemCreateRequest,
   type MCPSystemUpdateRequest,
+  ChainSnapshot,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getFileFromResponse } from "../../misc/download-utils.ts";
@@ -2312,5 +2313,12 @@ export class RestApi implements Api {
       { responseType: "blob" },
     );
     return getFileFromResponse(response);
+  };
+
+  getChainSnapshot = async (snapshotId: string): Promise<ChainSnapshot> => {
+    const response = await this.instance.get<ChainSnapshot>(
+      `${this.v2()}/catalog/snapshots/${snapshotId}/full`,
+    );
+    return response.data;
   };
 }

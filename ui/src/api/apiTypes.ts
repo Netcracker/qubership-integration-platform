@@ -34,6 +34,16 @@ export type Chain = BaseEntity & {
   overridesChainName?: string;
 };
 
+export type ChainSnapshot = { chain: BaseEntity } & Pick<
+  Chain,
+  | keyof BaseEntity
+  | "elements"
+  | "dependencies"
+  | "defaultSwimlaneId"
+  | "reuseSwimlaneId"
+  | "labels"
+>;
+
 export type Dependency = {
   id: string;
   from: string;

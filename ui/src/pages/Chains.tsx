@@ -765,8 +765,8 @@ const Chains = () => {
     showModal({
       component: (
         <ChainDiffPopup
-          chainId1={selectedChains[0].id}
-          chainId2={selectedChains[1].id}
+          item1={{ kind: "chain", id: selectedChains[0].id }}
+          item2={{ kind: "chain", id: selectedChains[1].id }}
         />
       ),
     });
