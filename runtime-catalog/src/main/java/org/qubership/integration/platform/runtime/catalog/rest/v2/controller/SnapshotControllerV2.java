@@ -4,6 +4,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.SnapshotMapper;
+import org.qubership.integration.platform.runtime.catalog.rest.v2.dto.SnapshotDTO;
 import org.qubership.integration.platform.runtime.catalog.service.SnapshotService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -19,11 +22,26 @@ import java.util.List;
 @CrossOrigin(origins = "*")
 public class SnapshotControllerV2 {
     private final SnapshotService snapshotService;
+    private final SnapshotMapper snapshotMapper;
 
     @Autowired
-    public SnapshotControllerV2(SnapshotService snapshotService) {
+    public SnapshotControllerV2(SnapshotService snapshotService, SnapshotMapper snapshotMapper) {
         this.snapshotService = snapshotService;
+        this.snapshotMapper = snapshotMapper;
     }
+
+    @GetMapping("/{snapshotId}/full")
+    @Operation(description = "Get snapshot")
+    public ResponseEntity<SnapshotDTO> findById(
+        @PathVariable
+        @Parameter(description = "Snapshot id")
+        String snapshotId
+    ) {
+        Snapshot snapshot = snapshotService.findById(snapshotId);
+        SnapshotDTO snapshotDTO = snapshotMapper.asDTO(snapshot);
+        return ResponseEntity.ok(snapshotDTO);
+    }
+
 
     @PostMapping("/bulk-delete")
     @Operation(description = "Bulk delete snapshots")
