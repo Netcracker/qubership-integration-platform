@@ -17,8 +17,8 @@ Main Mapping Tab that allows to map source message structure to the target one v
 
 **Graph** and **Table** views contain next set of sections:
 - **Constant** - available for Source structure only. Value that will be mapped to target message field(s) as constant (not changing) value.
-- **Header** - Camel exchange header from the input message.
-- **Property** - Camel exchange property.
+- **Headers** - Camel exchange header from the input message.
+- **Properties** - Camel exchange property.
 - **Body** - body structure of the message.
 
 Variables are also available to use for "**Constants**" and "**Properties**" sections. Please refer to the [Variables article](../../../../../03__Admin_Tools/2__Variables/variables.md) for more details and syntax samples.
@@ -27,10 +27,10 @@ Variables are also available to use for "**Constants**" and "**Properties**" sec
 Default View for Mapper. The window is divided into two parts, where left part represents the source message structure, and the right part represents the target message structure. When attributes are mapped, there will be connection arrows presented between them.
 To see the tooltip with detailed information about transformation type and transformation description, hover the mouse over connection circle for target attribute.
 
-Structure's sections, mentioned above, are supplied with control buttons:
+Structure's sections, mentioned above, are supplied with control buttons under ![](img/more.svg) for each section:
 - ![Plus circle|20](img/plus-circle.svg) - allows to add a new entity (constant, header, property or body parameter). For Headers and Properties, while specifying name, it will be possible to see suggestions with matching names of parameters already existing in the chain.
   The list of suggestions won't contain nested properties. When data is created from suggestion it will preserve its type and structure. It is also possible to set "Required" flag, while creating new entity under any sections except Constant, to define if the attribute is mandatory.
-- ![Close|20](img/close.svg) - allows to fully clear a specific section.
+- ![Close|20](img/clear.svg) - allows to fully clear a specific section.
 - ![Upload|20](img/cloud-upload.svg) - allows to upload or specify a body scheme.
 - ![Download|20](img/cloud-download.svg) - allows to download existing body scheme in JSON format.
 
@@ -41,7 +41,7 @@ There are next control elements available on the view:
 - **Source/Target** switcher - represent type of scheme current table refers to.
 - ![Filter|20](img/filter.svg) - opens filter pop-up. It's also available by clicking table column names.
 - ![Settings|20](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
-- **Search** - search box, provides ability  to find particular parameter(s) by name value, targets/sources value, description value, transformation value.
+- **Full text search** - search box, provides ability  to find particular parameter(s) by name value, targets/sources value, description value, transformation value.
 - ![20](img/more.svg) - allows to choose the following options:
   - ![Markdown file|20](img/file-markdown.svg) - downloads target message structure in markdown.
   - ![Clear|20](img/clear.svg) - clears filters.
