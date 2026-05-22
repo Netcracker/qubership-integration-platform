@@ -16,4 +16,3 @@ jobs:
     uses: ./.github/workflows/_maven-module-build.yaml
     with:
       module: schemas
-    secrets: inherit
