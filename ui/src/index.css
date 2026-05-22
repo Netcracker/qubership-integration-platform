@@ -137,10 +137,6 @@ button:focus-visible {
   visibility: visible;
 }
 
-.ant-table-body {
-  overflow-y: auto !important;
-}
-
 .not-displayed {
   display: none;
 }
@@ -197,6 +193,7 @@ button:focus-visible {
             min-height: 0;
             flex-grow: 1;
             flex-shrink: 1;
+            overflow-y: auto;
           }
 
           > .ant-table-body .ant-table-body-inner,

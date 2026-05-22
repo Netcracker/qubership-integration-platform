@@ -113,7 +113,7 @@ export const EngineTable: React.FC<Props> = ({
       <Spin spinning={isLoading}>
         <Table
           rowKey="id"
-          className={`flex-table ${layoutStyles.nestedTable}`}
+          className={layoutStyles.nestedTable}
           columns={columnsWithResize}
           dataSource={engines}
           pagination={false}
