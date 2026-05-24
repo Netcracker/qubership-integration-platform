@@ -49,6 +49,7 @@ import {
   swimlaneValidations,
   transferToSwimlaneValidations,
 } from "./swimlaneUtils";
+import { OrderedElementService } from "../api-services/OrderedElementService";
 
 export async function updateChain(
   fileUri: Uri,
@@ -219,19 +220,28 @@ export async function updateElement(
     throw Error("ChainId mismatch");
   }
 
-  const element = findAndRemoveElementById(
-    chain.content.elements as ElementSchema[],
+  const chainElements = chain.content.elements as ElementSchema[];
+  let element: ElementSchema | undefined = findElementById(
+    chainElements,
     elementId,
-  );
+  )?.element;
+
   if (!element) {
     console.error(`ElementId not found`);
     throw Error("ElementId not found");
   }
 
+  const isChangeParent =
+    element.parentElementId !== elementRequest.parentElementId;
+
+  if (isChangeParent) {
+    element = findAndRemoveElementById(chainElements, elementId)!;
+  }
+
   let parentElement = undefined;
   if (elementRequest.parentElementId) {
     parentElement = findElementById(
-      chain.content.elements as ElementSchema[],
+      chainElements,
       elementRequest.parentElementId,
     );
     if (!parentElement) {
@@ -242,15 +252,23 @@ export async function updateElement(
 
   element.name = elementRequest.name;
   element.description = elementRequest.description;
+  const diff = await new OrderedElementService(
+    fileUri,
+    chainId,
+    chainElements,
+  ).updateProperties(element, elementRequest);
   (element as any).properties = elementRequest.properties;
+
   element.parentElementId = elementRequest.parentElementId;
-  if (parentElement) {
-    if (!(parentElement.element.children as ElementSchema[])?.length) {
-      parentElement.element.children = [];
+  if (isChangeParent) {
+    if (parentElement) {
+      if (!(parentElement.element.children as ElementSchema[])?.length) {
+        parentElement.element.children = [];
+      }
+      (parentElement.element.children as ElementSchema[]).push(element);
+    } else {
+      (chain.content.elements as ElementSchema[]).push(element);
     }
-    (parentElement.element.children as ElementSchema[]).push(element);
-  } else {
-    (chain.content.elements as ElementSchema[]).push(element);
   }
 
   await checkRestrictions(element, chain.content.elements as ElementSchema[]);
@@ -258,8 +276,14 @@ export async function updateElement(
   await writeElementProperties(fileUri, element);
   await fileApi.writeMainChain(fileUri, chain);
 
+  const updatedElement = await getElement(fileUri, chainId, elementId);
+  if (diff?.updatedElements?.length) {
+    diff.updatedElements.push(updatedElement);
+    return diff;
+  }
+
   return {
-    updatedElements: [await getElement(fileUri, chainId, elementId)],
+    updatedElements: [updatedElement],
   };
 }
 
@@ -559,6 +583,12 @@ export async function createElement(
 
   await checkRestrictions(element, chainElements);
 
+  await new OrderedElementService(
+    mainFolderUri,
+    chainId,
+    chainElements,
+  ).updatePriority(element);
+
   await writeElementProperties(mainFolderUri, element);
   await fileApi.writeMainChain(mainFolderUri, chain);
 
@@ -746,6 +776,13 @@ export async function deleteElements(
       chainDiff.updatedElements?.push(...(diff.updatedElements as any[]));
       continue;
     }
+
+    await new OrderedElementService(
+      fileUri,
+      chainId,
+      chainElements,
+    ).removeElementIfOrderedAndMergeDiff(element, chainDiff);
+
     const removedElement = findAndRemoveElementById(chainElements, elementId)!;
 
     for (const childElement of getElementChildren(

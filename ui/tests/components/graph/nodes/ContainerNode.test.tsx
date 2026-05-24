@@ -38,6 +38,16 @@ jest.mock("../../../../src/components/graph/nodes/EllipsisLabel.tsx", () => ({
   EllipsisLabel: ({ text }: { text: string }) => <span>{text}</span>,
 }));
 
+jest.mock("../../../../src/components/LibraryContext", () => ({
+  LibraryProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  useLibraryContext: () => ({
+    isLibraryLoading: false,
+    libraryElements: [{ name: "script", title: "Script", type: "script" }],
+  }),
+}));
+
 describe("ContainerNode", () => {
   it("renders label text", () => {
     const { container } = render(<ContainerNode {...makeProps()} />);

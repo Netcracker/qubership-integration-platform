@@ -40,4 +40,7 @@ module.exports = {
     ],
     coverageDirectory: "coverage",
     coverageReporters: ["text", "lcov", "html"],
+    moduleNameMapper: {
+        "^vscode$": "<rootDir>/tests/__mocks__/vscode.ts",
+    },
 };

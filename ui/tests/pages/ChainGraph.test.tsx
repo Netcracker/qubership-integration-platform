@@ -120,7 +120,7 @@ jest.mock("../../src/hooks/graph/useChainGraph", () => ({
   }),
 }));
 
-jest.mock("../../src/hooks/graph/useContextMenu", () => ({
+jest.mock("../../src/hooks/graph/context_menu/useContextMenu", () => ({
   useContextMenu: () => ({
     menu: null,
     closeMenu: jest.fn(),
