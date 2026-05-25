@@ -173,7 +173,7 @@
     "compile-web": "webpack",
     "watch-web": "webpack --watch",
     "package-web": "webpack --mode production --devtool hidden-source-map",
-    "prepare-deps": "npm run build -w @netcracker/qip-schemas && npm run build:lib -w @netcracker/qip-ui && npm run build:lib:types -w @netcracker/qip-ui",
+    "prepare-deps": "npm run build -w @netcracker/qip-schemas && npm run build:lib:bundled -w @netcracker/qip-ui && npm run build:lib:types -w @netcracker/qip-ui",
     "build": "npm run prepare-deps && npm run compile-web",
     "lint": "eslint --fix src",
     "check-types": "tsc --noEmit",
