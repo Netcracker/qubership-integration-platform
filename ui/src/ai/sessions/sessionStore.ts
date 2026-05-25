@@ -8,7 +8,21 @@ import { ChatMessage } from "../modelProviders/types.ts";
 import { v4 as uuidv4 } from "uuid";
 
 const STORAGE_KEY = "qip_ai_chat_sessions";
+const LAST_ACTIVE_SESSION_ID_KEY = "qip_ai_last_active_session_id";
 const STORAGE_DEBOUNCE_MS = 500;
+
+function getLatestSessionId(sessions: ChatSession[]): string | null {
+  if (sessions.length === 0) {
+    return null;
+  }
+  let latest = sessions[0];
+  for (let i = 1; i < sessions.length; i++) {
+    if (sessions[i].updatedAt > latest.updatedAt) {
+      latest = sessions[i];
+    }
+  }
+  return latest.id;
+}
 
 class ChatSessionStore {
   private memorySessions: ChatSession[] | null = null;
@@ -84,6 +98,37 @@ class ChatSessionStore {
     return this.getStoredSessions();
   }
 
+  setLastActiveSessionId(sessionId: string): void {
+    try {
+      localStorage.setItem(LAST_ACTIVE_SESSION_ID_KEY, sessionId);
+    } catch {
+      // Ignore storage errors
+    }
+  }
+
+  /** Last opened tab, or the most recently updated chat if none is stored. */
+  resolveDefaultSessionId(sessions: ChatSession[]): string | null {
+    if (sessions.length === 0) {
+      return null;
+    }
+    let sessionId: string | null = null;
+    try {
+      const stored = localStorage.getItem(LAST_ACTIVE_SESSION_ID_KEY);
+      if (stored && sessions.some((s) => s.id === stored)) {
+        sessionId = stored;
+      }
+    } catch {
+      // Ignore storage errors
+    }
+    if (!sessionId) {
+      sessionId = getLatestSessionId(sessions);
+    }
+    if (sessionId) {
+      this.setLastActiveSessionId(sessionId);
+    }
+    return sessionId;
+  }
+
   getSession(sessionId: string): ChatSession | null {
     const sessions = this.getStoredSessions();
     return sessions.find((s) => s.id === sessionId) || null;
@@ -102,6 +147,7 @@ class ChatSessionStore {
     };
     sessions.push(newSession);
     this.saveSessions(sessions, true); // Immediate save for session creation
+    this.setLastActiveSessionId(newSession.id);
     return newSession;
   }
 
@@ -168,6 +214,19 @@ class ChatSessionStore {
     }
   }
 
+  updateSessionLastAttachmentObjectKeys(
+    sessionId: string,
+    keys: string[] | undefined,
+  ): void {
+    const sessions = this.getStoredSessions();
+    const session = sessions.find((s) => s.id === sessionId);
+    if (session) {
+      session.lastAttachmentObjectKeys = keys;
+      session.updatedAt = Date.now();
+      this.saveSessions(sessions, true);
+    }
+  }
+
   updateSessionMode(sessionId: string, mode: ChatMode): void {
     const sessions = this.getStoredSessions();
     const session = sessions.find((s) => s.id === sessionId);
@@ -183,6 +242,18 @@ class ChatSessionStore {
     const sessions = this.getStoredSessions();
     const filtered = sessions.filter((s) => s.id !== sessionId);
     this.saveSessions(filtered, true); // Immediate save for deletion
+    try {
+      if (localStorage.getItem(LAST_ACTIVE_SESSION_ID_KEY) === sessionId) {
+        const nextId = getLatestSessionId(filtered);
+        if (nextId) {
+          localStorage.setItem(LAST_ACTIVE_SESSION_ID_KEY, nextId);
+        } else {
+          localStorage.removeItem(LAST_ACTIVE_SESSION_ID_KEY);
+        }
+      }
+    } catch {
+      // Ignore storage errors
+    }
   }
 
   updateChainCreationPlan(

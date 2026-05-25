@@ -143,45 +143,59 @@ services:
         qip-engine:
           condition: service_started
 
-#    ###### AI Assistant (optional, activated by `--profile ai`)
-#    qip-ai-assistant:
-#        build:
-#          context: ../ai-assistant
-#          dockerfile: Dockerfile
-#        container_name: qip-ai-assistant
-#        profiles: [ai]
-#        ports:
-#        - "8094:8094"
-#        environment:
-#          QIP_AI_SERVICE_PORT: "8094"
-#          QIP_AI_LOG_LEVEL: "INFO"
-#          QIP_AI_LOG_FORMAT: "json"
-#          QIP_AI_LLM_PROVIDER: "${QIP_AI_LLM_PROVIDER:-gemini}"
-#          QIP_AI_GEMINI_API_KEY: "${QIP_AI_GEMINI_API_KEY:-}"
-#          QIP_AI_GEMINI_MODEL: "${QIP_AI_GEMINI_MODEL:-gemini-2.5-flash}"
-#          QIP_AI_OPENROUTER_API_KEY: "${QIP_AI_OPENROUTER_API_KEY:-}"
-#          QIP_AI_OPENROUTER_MODEL: "${QIP_AI_OPENROUTER_MODEL:-google/gemini-2.5-flash}"
-#          QIP_AI_POSTGRES_DSN: "postgresql+asyncpg://postgres:postgres@postgres:5432/postgres"
-#          QIP_AI_CATALOG_BASE_URL: "http://runtime-catalog:8080"
-#        command:
-#        - "/bin/sh"
-#        - "-c"
-#        - "alembic upgrade head && exec qip-ai"
-#        healthcheck:
-#            test: ["CMD-SHELL", "curl --silent --fail localhost:8094/health || exit 1"]
-#            interval: 15s
-#            timeout: 10s
-#            retries: 10
-#            start_period: 30s
-#        networks:
-#            default:
-#                aliases:
-#                - ai-assistant
-#        depends_on:
-#            postgres:
-#                condition: service_healthy
-#            qip-runtime-catalog:
-#                condition: service_started
+    ###### QIP AI Service (optional, activated by `--profile ai`)
+    qip-ai-service:
+        build:
+          context: ../ai-service
+          dockerfile: Dockerfile
+        container_name: qip-ai-service
+        profiles: [ai]
+        ports:
+        - "8094:8080"
+        env_file:
+        - ai-service-dev.env
+        healthcheck:
+            test: ["CMD-SHELL", "curl --silent --fail localhost:8080/q/health || exit 1"]
+            interval: 15s
+            timeout: 10s
+            retries: 10
+            start_period: 45s
+        networks:
+            default:
+                aliases:
+                - ai-service
+        # Ollama on the host: Linux (Docker 20.10+); Docker Desktop resolves host.docker.internal without this.
+        extra_hosts:
+        - "host.docker.internal:host-gateway"
+        depends_on:
+            qip-runtime-catalog:
+                condition: service_started
+            minio:
+                condition: service_healthy
+
+    minio:
+        profiles: [ai]
+        image: minio/minio:latest
+        container_name: minio
+        environment:
+        - MINIO_ROOT_USER=minioadmin
+        - MINIO_ROOT_PASSWORD=minioadmin
+        ports:
+        - "9000:9000"
+        - "9001:9001"
+        command: server /data --console-address ":9001"
+        healthcheck:
+            test: [ "CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1" ]
+            interval: 10s
+            timeout: 15s
+            retries: 15
+            start_period: 15s
+        volumes:
+        - minio-data:/data
+        networks:
+            default:
+                aliases:
+                - minio
 
     ###### 3rd party services
 
@@ -237,3 +251,6 @@ services:
 #      image: alpine/socat
 #      command: [ "TCP-LISTEN:4318,fork,reuseaddr", "OPEN:/dev/null" ]
 #      networks: [ default ]
+
+volumes:
+  minio-data:

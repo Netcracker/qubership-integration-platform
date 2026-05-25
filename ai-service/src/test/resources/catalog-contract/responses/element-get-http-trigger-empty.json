@@ -1,0 +1,7 @@
+{
+  "id": "e1",
+  "name": "HTTP Trigger",
+  "type": "http-trigger",
+  "properties": {},
+  "mandatoryChecksPassed": false
+}

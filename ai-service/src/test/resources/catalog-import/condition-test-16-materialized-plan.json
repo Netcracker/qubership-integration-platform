@@ -1,0 +1,108 @@
+{
+  "chain": null,
+  "elements": [
+    {
+      "clientId": "http-trigger-1",
+      "elementId": "98e8bfd4-aaa1-49d2-9efb-51a7f0d86c9a",
+      "type": "http-trigger",
+      "displayName": null,
+      "expectedProperties": {
+        "contextPath": "/condition-test",
+        "httpMethodRestrict": "GET"
+      },
+      "children": null,
+      "connections": null
+    },
+    {
+      "clientId": "condition-1",
+      "elementId": "46ed79db-f881-4b64-87d9-a2351e2944b2",
+      "type": "condition",
+      "displayName": null,
+      "expectedProperties": {},
+      "children": [
+        {
+          "clientId": "if-even",
+          "elementId": "c44e7611-1e81-4e14-ac23-e120e65e5272",
+          "type": "if",
+          "displayName": null,
+          "parentElementId": "46ed79db-f881-4b64-87d9-a2351e2944b2",
+          "expectedProperties": {
+            "condition": "currentMinute % 2 == 0",
+            "priority": 0
+          },
+          "children": [
+            {
+              "clientId": "script-greetings",
+              "elementId": "0ad293d4-8b51-498d-932e-4a694e58f9f1",
+              "type": "script",
+              "displayName": null,
+              "parentElementId": "c44e7611-1e81-4e14-ac23-e120e65e5272",
+              "expectedProperties": {
+                "script": "return 'Greetings!';"
+              },
+              "children": null,
+              "connections": null
+            }
+          ],
+          "connections": null
+        },
+        {
+          "clientId": "if-zero",
+          "elementId": "43b112cc-fb89-487c-a5af-8b809dde48ce",
+          "type": "if",
+          "displayName": null,
+          "parentElementId": "46ed79db-f881-4b64-87d9-a2351e2944b2",
+          "expectedProperties": {
+            "condition": "currentMinute == 0",
+            "priority": 1
+          },
+          "children": [
+            {
+              "clientId": "script-congratulations",
+              "elementId": "41f33119-e435-4d14-9090-5e9b86f61cdc",
+              "type": "script",
+              "displayName": null,
+              "parentElementId": "43b112cc-fb89-487c-a5af-8b809dde48ce",
+              "expectedProperties": {
+                "script": "return 'Congratulations!';"
+              },
+              "children": null,
+              "connections": null
+            }
+          ],
+          "connections": null
+        },
+        {
+          "clientId": "else-default",
+          "elementId": "20ced036-1bb9-4984-ab16-1dafc3b63317",
+          "type": "else",
+          "displayName": null,
+          "parentElementId": "46ed79db-f881-4b64-87d9-a2351e2944b2",
+          "expectedProperties": {},
+          "children": [
+            {
+              "clientId": "script-hello",
+              "elementId": "7ca46b66-7a0d-45df-81f1-3f0d2059328c",
+              "type": "script",
+              "displayName": null,
+              "parentElementId": "20ced036-1bb9-4984-ab16-1dafc3b63317",
+              "expectedProperties": {
+                "script": "return 'Hello!';"
+              },
+              "children": null,
+              "connections": null
+            }
+          ],
+          "connections": null
+        }
+      ],
+      "connections": null
+    }
+  ],
+  "connections": [
+    {
+      "fromClientId": "http-trigger-1",
+      "toClientId": "condition-1"
+    }
+  ]
+}

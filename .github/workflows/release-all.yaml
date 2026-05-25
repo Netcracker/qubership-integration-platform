@@ -49,12 +49,13 @@ jobs:
       release-ui: ${{ steps.check.outputs.ui }}
       release-vscode-extension: ${{ steps.check.outputs.vscode-extension }}
       release-checkstyle: ${{ steps.check.outputs.checkstyle }}
+      release-ai-service: ${{ steps.check.outputs.ai-service }}
     steps:
       - name: Determine modules to release
         id: check
         run: |
           MODULES="${{ inputs.modules }}"
-          ALL_MODULES="engine micro-engine runtime-catalog sessions-management schemas ui vscode-extension checkstyle"
+          ALL_MODULES="engine micro-engine runtime-catalog sessions-management ai-service schemas ui vscode-extension checkstyle"
 
           for mod in $ALL_MODULES; do
             mod_safe=$(echo "$mod" | tr '-' '_')
@@ -175,6 +176,24 @@ jobs:
     with:
       version: ${{ inputs.version }}
       create-github-release: ${{ inputs.create-github-release }}
+
+  release-ai-service:
+    needs: prepare
+    if: needs.prepare.outputs.release-ai-service == 'true'
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/ai-service-release.yaml
+    with:
+      version: ${{ inputs.version }}
+      profile: ${{ inputs.profile }}
+      build-docker: ${{ inputs.build-docker }}
+      create-github-release: ${{ inputs.create-github-release }}
+    secrets:
+      MAVEN_USER: ${{ secrets.MAVEN_USER }}
+      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+      MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
   release-checkstyle:
     needs: prepare

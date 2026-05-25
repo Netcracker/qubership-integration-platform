@@ -1,0 +1,10 @@
+{
+  "id": "e1",
+  "name": "Log Record",
+  "type": "log-record",
+  "properties": {
+    "logLevel": "Error",
+    "message": "base-msg"
+  },
+  "mandatoryChecksPassed": true
+}

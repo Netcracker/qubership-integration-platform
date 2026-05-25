@@ -1,0 +1,211 @@
+[
+  {
+    "id": "0ad293d4-8b51-498d-932e-4a694e58f9f1",
+    "name": "Script",
+    "type": "script",
+    "parentElementId": "c44e7611-1e81-4e14-ac23-e120e65e5272",
+    "properties": {
+      "propertiesToExportInSeparateFile": "script",
+      "exportFileExtension": "groovy",
+      "script": "return 'Greetings!';"
+    },
+    "mandatoryChecksPassed": true
+  },
+  {
+    "id": "20ced036-1bb9-4984-ab16-1dafc3b63317",
+    "name": "Else",
+    "type": "else",
+    "parentElementId": "46ed79db-f881-4b64-87d9-a2351e2944b2",
+    "properties": {},
+    "children": [
+      {
+        "id": "7ca46b66-7a0d-45df-81f1-3f0d2059328c",
+        "name": "Script",
+        "type": "script",
+        "parentElementId": "20ced036-1bb9-4984-ab16-1dafc3b63317",
+        "properties": {
+          "propertiesToExportInSeparateFile": "script",
+          "exportFileExtension": "groovy",
+          "script": "return 'Hello!';"
+        },
+        "mandatoryChecksPassed": true
+      }
+    ],
+    "mandatoryChecksPassed": true
+  },
+  {
+    "id": "41f33119-e435-4d14-9090-5e9b86f61cdc",
+    "name": "Script",
+    "type": "script",
+    "parentElementId": "43b112cc-fb89-487c-a5af-8b809dde48ce",
+    "properties": {
+      "propertiesToExportInSeparateFile": "script",
+      "exportFileExtension": "groovy",
+      "script": "return 'Congratulations!';"
+    },
+    "mandatoryChecksPassed": true
+  },
+  {
+    "id": "43b112cc-fb89-487c-a5af-8b809dde48ce",
+    "name": "If",
+    "type": "if",
+    "parentElementId": "46ed79db-f881-4b64-87d9-a2351e2944b2",
+    "properties": {
+      "condition": "currentMinute == 0",
+      "priority": 1
+    },
+    "children": [
+      {
+        "id": "41f33119-e435-4d14-9090-5e9b86f61cdc",
+        "name": "Script",
+        "type": "script",
+        "parentElementId": "43b112cc-fb89-487c-a5af-8b809dde48ce",
+        "properties": {
+          "propertiesToExportInSeparateFile": "script",
+          "exportFileExtension": "groovy",
+          "script": "return 'Congratulations!';"
+        },
+        "mandatoryChecksPassed": true
+      }
+    ],
+    "mandatoryChecksPassed": true
+  },
+  {
+    "id": "46ed79db-f881-4b64-87d9-a2351e2944b2",
+    "name": "Condition",
+    "type": "condition",
+    "properties": {},
+    "children": [
+      {
+        "id": "20ced036-1bb9-4984-ab16-1dafc3b63317",
+        "name": "Else",
+        "type": "else",
+        "parentElementId": "46ed79db-f881-4b64-87d9-a2351e2944b2",
+        "properties": {},
+        "children": [
+          {
+            "id": "7ca46b66-7a0d-45df-81f1-3f0d2059328c",
+            "name": "Script",
+            "type": "script",
+            "parentElementId": "20ced036-1bb9-4984-ab16-1dafc3b63317",
+            "properties": {
+              "propertiesToExportInSeparateFile": "script",
+              "exportFileExtension": "groovy",
+              "script": "return 'Hello!';"
+            },
+            "mandatoryChecksPassed": true
+          }
+        ],
+        "mandatoryChecksPassed": true
+      },
+      {
+        "id": "43b112cc-fb89-487c-a5af-8b809dde48ce",
+        "name": "If",
+        "type": "if",
+        "parentElementId": "46ed79db-f881-4b64-87d9-a2351e2944b2",
+        "properties": {
+          "condition": "currentMinute == 0",
+          "priority": 1
+        },
+        "children": [
+          {
+            "id": "41f33119-e435-4d14-9090-5e9b86f61cdc",
+            "name": "Script",
+            "type": "script",
+            "parentElementId": "43b112cc-fb89-487c-a5af-8b809dde48ce",
+            "properties": {
+              "propertiesToExportInSeparateFile": "script",
+              "exportFileExtension": "groovy",
+              "script": "return 'Congratulations!';"
+            },
+            "mandatoryChecksPassed": true
+          }
+        ],
+        "mandatoryChecksPassed": true
+      },
+      {
+        "id": "c44e7611-1e81-4e14-ac23-e120e65e5272",
+        "name": "If",
+        "type": "if",
+        "parentElementId": "46ed79db-f881-4b64-87d9-a2351e2944b2",
+        "properties": {
+          "condition": "currentMinute % 2 == 0",
+          "priority": 0
+        },
+        "children": [
+          {
+            "id": "0ad293d4-8b51-498d-932e-4a694e58f9f1",
+            "name": "Script",
+            "type": "script",
+            "parentElementId": "c44e7611-1e81-4e14-ac23-e120e65e5272",
+            "properties": {
+              "propertiesToExportInSeparateFile": "script",
+              "exportFileExtension": "groovy",
+              "script": "return 'Greetings!';"
+            },
+            "mandatoryChecksPassed": true
+          }
+        ],
+        "mandatoryChecksPassed": true
+      }
+    ],
+    "mandatoryChecksPassed": true
+  },
+  {
+    "id": "7ca46b66-7a0d-45df-81f1-3f0d2059328c",
+    "name": "Script",
+    "type": "script",
+    "parentElementId": "20ced036-1bb9-4984-ab16-1dafc3b63317",
+    "properties": {
+      "propertiesToExportInSeparateFile": "script",
+      "exportFileExtension": "groovy",
+      "script": "return 'Hello!';"
+    },
+    "mandatoryChecksPassed": true
+  },
+  {
+    "id": "98e8bfd4-aaa1-49d2-9efb-51a7f0d86c9a",
+    "name": "HTTP Trigger",
+    "type": "http-trigger",
+    "properties": {
+      "externalRoute": true,
+      "handleChainFailureAction": "default",
+      "accessControlType": "NONE",
+      "httpMethodRestrict": "GET",
+      "httpBinding": "handlingHttpBinding",
+      "privateRoute": false,
+      "rejectRequestIfNonNullBodyGetDelete": true,
+      "contextPath": "/condition-test",
+      "connectTimeout": 120000,
+      "chunked": true,
+      "handleValidationAction": "default",
+      "killSessionOnTimeout": false
+    },
+    "mandatoryChecksPassed": true
+  },
+  {
+    "id": "c44e7611-1e81-4e14-ac23-e120e65e5272",
+    "name": "If",
+    "type": "if",
+    "parentElementId": "46ed79db-f881-4b64-87d9-a2351e2944b2",
+    "properties": {
+      "condition": "currentMinute % 2 == 0",
+      "priority": 0
+    },
+    "children": [
+      {
+        "id": "0ad293d4-8b51-498d-932e-4a694e58f9f1",
+        "name": "Script",
+        "type": "script",
+        "parentElementId": "c44e7611-1e81-4e14-ac23-e120e65e5272",
+        "properties": {
+          "propertiesToExportInSeparateFile": "script",
+          "exportFileExtension": "groovy",
+          "script": "return 'Greetings!';"
+        },
+        "mandatoryChecksPassed": true
+      }
+    ],
+    "mandatoryChecksPassed": true
+  }
+]

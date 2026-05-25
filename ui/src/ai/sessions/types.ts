@@ -48,8 +48,10 @@ export interface ChatSession {
   createdAt: number;
   updatedAt: number;
   chainCreationPlan?: ChainCreationPlan;
-  /** MinIO attachment URLs from the last user message that had attachments. Passed on "Agree" so backend can persist design URL in chain. */
+  /** MinIO attachment URLs from the last user message that had attachments. */
   lastAttachmentUrls?: string[];
+  /** S3 object keys merged across sends so follow-ups keep access without re-picking the file. */
+  lastAttachmentObjectKeys?: string[];
   /** Server-side conversation ID for lightweight mode. */
   conversationId?: string;
 }

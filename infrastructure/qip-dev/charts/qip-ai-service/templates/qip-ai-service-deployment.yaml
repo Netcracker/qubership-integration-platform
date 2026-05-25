@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ .Release.Name }}-ai-service
+  name: {{ .Release.Name }}-ai-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-ai-service
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-ai-service
+    spec:
+      containers:
+        - name: {{ .Release.Name }}-ai-service
+          image: {{ .Values.global.qip.ai.image }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: QUARKUS_HTTP_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-ai-service-env
+                  key: QUARKUS_HTTP_PORT
+            - name: CATALOG_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-ai-service-env
+                  key: CATALOG_URL
+            - name: STORAGE_INIT_BUCKET_ON_STARTUP
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-ai-service-env
+                  key: STORAGE_INIT_BUCKET_ON_STARTUP
+            - name: LLM_API_KEY
+              value: {{ .Values.global.qip.ai.llmApiKey | default "placeholder" | quote }}
+          livenessProbe:
+            httpGet:
+              path: /q/health
+              port: 8080
+            failureThreshold: 15
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            timeoutSeconds: 15
+          resources: {}
+      restartPolicy: Always

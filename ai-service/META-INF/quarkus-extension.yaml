@@ -1,0 +1,26 @@
+---
+name: "LangChain4j Core"
+artifact: "io.quarkiverse.langchain4j:quarkus-langchain4j-core::jar:1.8.0.CR2"
+description: "Provides the basic integration with LangChain4j"
+metadata:
+  keywords:
+  - "ai"
+  - "langchain4j"
+  guide: "https://docs.quarkiverse.io/quarkus-langchain4j/dev/index.html"
+  categories:
+  - "ai"
+  status: "preview"
+  built-with-quarkus-core: "3.27.2"
+  requires-quarkus-core: "[3.27,)"
+  minimum-java-version: "17"
+  scm-url: "https://github.com/quarkiverse/quarkus-langchain4j"
+  extension-dependencies:
+  - "io.quarkus:quarkus-arc"
+  - "io.quarkus:quarkus-core"
+  - "io.quarkus:quarkus-jackson"
+  - "io.quarkus:quarkus-qute"
+  - "io.quarkus:quarkus-vertx"
+  - "io.quarkus:quarkus-netty"
+  - "io.quarkus:quarkus-mutiny"
+  - "io.quarkus:quarkus-smallrye-context-propagation"
+  - "io.quarkus:quarkus-virtual-threads"

@@ -1,0 +1,109 @@
+# Copyright 2024-2025 NetCracker Technology Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: rabbitmq
+title: RabbitMQ Trigger (deprecated)
+description: RabbitMQ Trigger
+type: trigger
+folder: deprecated
+inputEnabled: false
+colorType: trigger
+outputEnabled: true
+container: false
+deprecated: true # TODO deprecated since 22.3
+designParameters:
+  externalParticipantId: 'RabbitMQ ##{addresses}'
+  externalParticipantName: 'RabbitMQ ##{addresses}'
+  requestLineTitle: 'Pull message from exchange: ##{exchange}, queues: ##{queues}'
+  directionToChain: true
+  hasResponse: false
+properties:
+  common:
+    - name: rabbitConnection
+      title: Connection parameters
+      type: custom
+      uiComponent: rabbit-connection
+    - name: exchange
+      title: Exchange Name
+      type: string
+      mandatory: true
+    - name: queues
+      title: Queue Name
+      type: string
+      query: true
+    - name: routingKey
+      title: Routing Key
+      type: string
+      query: true
+  advanced:
+    - name: exchangeType
+      title: Exchange Type
+      allowCustomValue: false
+      type: string
+      allowedValues:
+        - direct
+        - fanout
+        - headers
+        - topic
+      mandatory: false
+      query: true
+      default: direct
+    - name: deadLetterExchange
+      title: Dead Letter Exchange
+      type: string
+      query: true
+    - name: deadLetterExchangeType
+      title: Dead Letter Exchange Type
+      allowCustomValue: false
+      type: string
+      allowedValues:
+        - direct
+        - fanout
+        - headers
+        - topic
+      query: true
+      mandatory: false
+      default: direct
+    - name: deadLetterQueue
+      title: Dead Letter Queue
+      type: string
+      query: true
+    - name: deadLetterRoutingKey
+      title: Dead Letter Routing Key
+      type: string
+      query: true
+  hidden:
+    # Parameters below managed by custom UI tab component
+    - name: connectionSourceType
+      title: Connection source type
+      type: string
+      allowedValues:
+        - maas
+        - manual
+      mandatory: true
+      default: manual
+    - name: addresses
+      title: Addresses
+      type: string
+      mandatory: true
+      query: true
+    - name: username
+      title: Username
+      type: string
+      query: true
+    - name: password
+      title: Password
+      type: string
+      query: true
+

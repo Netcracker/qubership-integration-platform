@@ -15,6 +15,12 @@ export interface ChatRequest {
   maxTokens?: number;
   abortSignal?: AbortSignal;
   attachmentUrls?: string[];
+  /** S3/MinIO object keys from POST /api/v1/storage/objects */
+  attachmentObjectKeys?: string[];
+  /**
+   * Optional backend scenario override (Jackson enum name), e.g. IMPLEMENT_CHAIN.
+   */
+  scenarioHint?: string;
   context?: {
     type: "chain" | "service" | "operation";
     chainId?: string;
@@ -54,9 +60,25 @@ export interface ChatResponse {
   conversationId?: string;
 }
 
-export type StreamingChunkType = "done" | "error" | "progress";
+export interface ProviderCapabilities {
+  supportsStreaming: boolean;
+  supportsTools: boolean;
+}
 
-/** SSE chunks from POST /api/chat/with-progress */
+export interface HitlCheckpointPayload {
+  checkpointId: string;
+  question: string;
+  options?: string[];
+}
+
+export type StreamingChunkType =
+  | "done"
+  | "error"
+  | "progress"
+  | "delta"
+  | "hitl_checkpoint";
+
+/** SSE chunks from POST /api/v1/chat */
 export interface StreamingChunk {
   type: StreamingChunkType;
   usage?: ChatUsage;
@@ -65,4 +87,7 @@ export interface StreamingChunk {
   progressMessage?: string;
   toolName?: string;
   toolArgs?: Record<string, unknown>;
+  contentDelta?: string;
+  conversationId?: string;
+  hitlCheckpoint?: HitlCheckpointPayload;
 }

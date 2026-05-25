@@ -13,6 +13,7 @@ This repository is a **monorepo** that consolidates the previously separate `qub
 | `micro-engine/` | Execution engine (Quarkus variant) — faster startup, lower memory | Java 21, Quarkus 3.27, Apache Camel 4.14 |
 | `runtime-catalog/` | Central catalog: chains, elements, deployments, snapshots, specifications, systems, variables | Java 21, Spring Boot 3.5, PostgreSQL, Consul, Flyway |
 | `sessions-management/` | Recorded sessions of integration flow executions | Java 21, Spring Boot 3.5, OpenSearch, Consul |
+| `ai-service/` | AI assistant for chain design, planning, and catalog implementation | Java 21, Quarkus 3.32, LangChain4j |
 | `ui/` | Web UI — visual flow editor, chain/service management, session monitoring | React 18, TypeScript, Vite, Ant Design 5 |
 | `vscode-extension/` | VS Code extension for offline chain/service editing | TypeScript, VS Code Extension API |
 | `schemas/` | JSON Schema definitions for chains, services, elements | TypeScript, JSON Schema, Gulp |
@@ -139,7 +140,7 @@ To start over completely:
 
 ```bash
 rm -rf node_modules ui/node_modules vscode-extension/node_modules \
-       engine/target runtime-catalog/target sessions-management/target \
+       engine/target runtime-catalog/target sessions-management/target ai-service/target \
        micro-engine/target checkstyle/target parent/target \
        schemas/assets schemas/types schemas/dist \
        ui/dist vscode-extension/dist ui/dist-lib
@@ -163,6 +164,7 @@ Maven artifacts published from each module:
 | runtime-catalog | `org.qubership.integration-platform:qip-runtime-catalog` |
 | sessions-management | `org.qubership.integration-platform:qip-sessions-management` |
 | micro-engine | `org.qubership.integration-platform:qip-micro-engine` |
+| ai-service | `org.qubership.integration.platform:qip-ai-service` |
 | checkstyle | `org.qubership.integration-platform:qip-checkstyle` |
 
 ### Frontend modules (npm workspaces)
@@ -183,12 +185,19 @@ NPM packages:
 docker compose -f infrastructure/docker-compose.yml up -d --build
 ```
 
+Optional AI service (requires LLM keys in `infrastructure/ai-service-dev.env`):
+
+```bash
+docker compose -f infrastructure/docker-compose.yml --profile ai up -d --build
+```
+
 Services exposed:
 - Runtime Catalog: `http://localhost:8091`
 - Engine: `http://localhost:8092`
 - Sessions Management: `http://localhost:8093`
+- AI Service (profile `ai`): `http://localhost:8094` (direct), health `GET /q/health`
 - UI: `http://localhost:4200`
-- Nginx proxy: `http://localhost:8080`
+- Nginx proxy: `http://localhost:8080` (gateway for catalog/engine/sessions; AI routes `/api/chat/`, `/api/v1/storage/`, `/q/health` when profile `ai` is up)
 
 ## License
 

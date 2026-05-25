@@ -1,0 +1,12 @@
+[
+  {
+    "id": "e1",
+    "name": "HTTP Trigger",
+    "type": "http-trigger",
+    "parentElementId": null,
+    "swimlaneId": null,
+    "properties": {"httpMethod": "POST"},
+    "mandatoryChecksPassed": true,
+    "children": null
+  }
+]

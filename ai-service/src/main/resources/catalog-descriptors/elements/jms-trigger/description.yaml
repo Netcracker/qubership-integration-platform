@@ -1,0 +1,95 @@
+name: jms-trigger
+title: JMS Trigger
+description: Consume message from JMS queue or topic.
+type: trigger
+folder: triggers
+colorType: trigger
+inputEnabled: false
+outputEnabled: true
+container: false
+customTabs:
+  - name: Idempotency
+    uiComponent: idempotency-parameters
+designParameters:
+  externalParticipantId: 'JNDI service provider ##{providerUrl}'
+  externalParticipantName: 'JNDI service provider ##{providerUrl}'
+  requestLineTitle: 'Pull message from ##{destinationType}: ##{destinationName}'
+  directionToChain: true
+  hasResponse: false
+properties:
+  common:
+    - name: initialContextFactory
+      title: Initial context factory
+      description: JNDI initial context factory
+      type: string
+      mandatory: true
+    - name: providerUrl
+      title: Provider URL
+      description: JNDI service provider URL
+      type: string
+      mandatory: true
+    - name: connectionFactoryName
+      title: Connection factory
+      description: JMS connection factory object name for lookup via JNDI
+      type: string
+      mandatory: true
+    - name: destinationName
+      title: Destination
+      description: JMS queue or topic object name for lookup via JNDI
+      type: string
+      mandatory: true
+    - name: destinationType
+      title: Type
+      description: Destination type
+      type: string
+      default: queue
+      allowedValues:
+        - queue
+        - topic
+    - name: acknowledgmentMode
+      title: Acknowledgment mode
+      description: The JMS acknowledgement mode
+      type: string
+      default: AUTO_ACKNOWLEDGE
+      allowedValues:
+        - AUTO_ACKNOWLEDGE
+        - CLIENT_ACKNOWLEDGE
+        - DUPS_OK_ACKNOWLEDGE
+        - SESSION_TRANSACTED
+    - name: username
+      title: Username
+      type: string
+      query: true
+    - name: password
+      title: Password
+      description: For security purposes, use reference to secured variables when entering passwords
+      type: string
+      query: true
+  hidden:
+    - name: idempotencyKeyExpression
+      title: Key expression
+      type: string
+    - name: enableIdempotency
+      title: Enable idempotency
+      type: boolean
+      default: false
+    - name: idempotencyKeyExpiry
+      title: Key expiration time (seconds)
+      type: number
+      default: 600
+    - name: actionOnDuplicate
+      title: Action on duplicate message
+      type: string
+      allowedValues:
+          - ignore
+          - throw-exception
+          - execute-subchain
+      default: ignore
+    - name: chainTriggerElementId
+      title: Reference to chain trigger
+      type: string
+      reference: true
+    - name: chainCallTimeout
+      title: Timeout (ms)
+      type: number
+      default: 30000

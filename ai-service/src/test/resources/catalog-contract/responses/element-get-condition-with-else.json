@@ -1,0 +1,23 @@
+{
+  "id": "cond-1",
+  "name": "Condition",
+  "type": "condition",
+  "properties": {},
+  "children": [
+    {
+      "id": "if-1",
+      "name": "If",
+      "type": "if",
+      "properties": {},
+      "mandatoryChecksPassed": true
+    },
+    {
+      "id": "else-1",
+      "name": "Else",
+      "type": "else",
+      "properties": {},
+      "mandatoryChecksPassed": true
+    }
+  ],
+  "mandatoryChecksPassed": true
+}

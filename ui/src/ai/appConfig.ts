@@ -16,7 +16,7 @@ export function getAiServiceUrl(): string | null {
     return aiServiceUrl;
   }
 
-  const envUrl = import.meta.env.VITE_AI_SERVICE_URL as string | undefined;
+  const envUrl = import.meta.env.VITE_AI_SERVICE_URL;
   if (envUrl) {
     return envUrl;
   }
@@ -42,7 +42,7 @@ export function useIsAiServiceAvailable(): boolean {
       return;
     }
     const base = url.replace(/\/$/, "");
-    fetch(`${base}/health`, { method: "GET" })
+    fetch(`${base}/q/health`, { method: "GET" })
       .then((response) => {
         setIsAiServiceAvailable(response.ok);
       })

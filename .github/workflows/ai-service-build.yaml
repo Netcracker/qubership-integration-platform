@@ -1,0 +1,23 @@
+name: AI Service Build
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'ai-service/**'
+      - 'schemas/**'
+      - 'pom.xml'
+
+permissions: {}
+
+jobs:
+  build:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/_maven-module-build.yaml
+    with:
+      module: ai-service
+      sonar-project-key: ${{ vars.SONAR_AI_SERVICE_PROJECT_KEY }}
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

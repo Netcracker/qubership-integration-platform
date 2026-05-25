@@ -1,0 +1,78 @@
+# Curated utterances for embedding-based scenario routing (see EmbeddingScenarioRouter).
+# phases: conversation phases when this example applies; use "*" for all phases.
+routes:
+  - scenario: CREATE_DESIGN
+    phases: ["*", "COLD"]
+    utterances:
+      - "create a new integration design"
+      - "write an IDS for REST to database sync"
+      - "integration design specification for order flow"
+      - "1. plain text 2. No"
+      - "1. Yes 2. No"
+
+  - scenario: ASK_DESIGN
+    phases: ["*", "COLD", "PLAN_DRAFT"]
+    utterances:
+      - "what does this design mean"
+      - "explain the integration design"
+      - "how does the IDS describe the flow"
+
+  - scenario: CREATE_CHAIN_PLAN
+    phases: ["COLD", "PLAN_DRAFT", "DISCOVERY"]
+    utterances:
+      - "Draft the chain implementation plan for REST flow"
+      - "Create chain test99 for REST"
+      - "Build chain test99 for REST"
+      - "these operations already exist in the plan"
+      - "these operation has already exists in the plan"
+      - "operations already in the plan"
+      - "prepare the chain implementation plan"
+      - "structure the chain plan"
+      - "chain implementation plan for the integration"
+      - "new chain for the petstore flow"
+      - "plan the chain elements and connections"
+      - "take operations from the IDS"
+      - "use operations from the integration design specification"
+      - "create chain plan from the attached design"
+      - "use the attached IDS and create chain plan"
+      - "build the chain plan from this design"
+      - "use this design for the chain implementation plan"
+      - "create a chain plan using the IDS"
+
+  - scenario: IMPLEMENT_CHAIN
+    phases: ["PLAN_APPROVED"]
+    utterances:
+      - "Please create the chain"
+      - "Please implement the chain from the design"
+      - "Build the chain in the catalog"
+      - "go ahead and create the chain"
+      - "execute the chain now"
+
+  - scenario: COMPARE_AND_PATCH
+    phases: ["*", "COLD", "PLAN_APPROVED"]
+    utterances:
+      - "compare the new design with the deployed chain"
+      - "apply the design changes to the existing chain"
+      - "patch the chain to match the IDS update"
+      - "update chain from change request"
+
+  - scenario: CHAIN_TO_DESIGN
+    phases: ["*", "COLD"]
+    utterances:
+      - "generate design from this chain"
+      - "reverse engineer the chain to an IDS"
+      - "document this chain as a design"
+
+  - scenario: CREATE_TEST_CASES
+    phases: ["*", "COLD"]
+    utterances:
+      - "generate test cases for this chain"
+      - "sunny day and rainy day scenarios"
+      - "create automated tests for the integration"
+
+  - scenario: CREATE_POSTMAN_COLLECTION
+    phases: ["*", "COLD"]
+    utterances:
+      - "export a Postman collection"
+      - "create Postman requests for the APIs"
+      - "postman collection from the chain"

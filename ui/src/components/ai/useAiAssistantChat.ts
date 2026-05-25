@@ -29,7 +29,7 @@ import {
 } from "./chatMessageUtils.ts";
 import {
   extractDesignUrlFromMessages,
-  lastUserMessageIsAgree,
+  lastUserMessageIsBuildChainIntent,
   tryParseChainModificationProposal,
 } from "./chainModificationContent.ts";
 import { WORKING_DOTS } from "./aiAssistantConstants.ts";
@@ -110,7 +110,10 @@ export function useAiAssistantChat(open: boolean) {
     // Copy: store returns the same array reference it mutates in place; React skips setState if the reference is unchanged.
     setSessions([...allSessions]);
     if (allSessions.length > 0 && !currentSessionId) {
-      setCurrentSessionId(allSessions[0].id);
+      const defaultId = sessionStore.resolveDefaultSessionId(allSessions);
+      if (defaultId) {
+        setCurrentSessionId(defaultId);
+      }
     }
   }, [currentSessionId, sessionStore]);
 
@@ -225,6 +228,16 @@ export function useAiAssistantChat(open: boolean) {
       let currentMessages = [...requestMessages];
 
       const onChunk = (chunk: StreamingChunk) => {
+        if (chunk.type === "delta" && chunk.contentDelta) {
+          accumulatedContent += chunk.contentDelta;
+          currentMessages = upsertAssistantMessage(
+            currentMessages,
+            accumulatedContent,
+          );
+          sessionStore.updateSessionMessages(sessionId, currentMessages);
+          refreshSessions();
+          scrollToBottom();
+        }
         if (chunk.type === "progress" && chunk.progressMessage) {
           accumulatedContent += `\n\n> 💡 ${chunk.progressMessage}\n\n`;
           currentMessages = upsertAssistantMessage(
@@ -315,7 +328,7 @@ export function useAiAssistantChat(open: boolean) {
     async (
       sessionId: string,
       messages: ChatMessage[],
-      attachmentUrls?: string[],
+      attachmentObjectKeys?: string[],
       newMessages?: ChatMessage[],
     ) => {
       if (sendInProgressRef.current) {
@@ -365,11 +378,13 @@ export function useAiAssistantChat(open: boolean) {
         const messagesToApi =
           serverConversationId && newMessages ? newMessages : messages;
 
+        const conversationId = serverConversationId ?? crypto.randomUUID();
+
         const requestPayload: ChatRequest = {
           messages: messagesToApi,
-          conversationId: serverConversationId,
+          conversationId,
           abortSignal: abortControllerRef.current.signal,
-          attachmentUrls,
+          attachmentObjectKeys,
           temperature: 1,
         };
 
@@ -383,7 +398,6 @@ export function useAiAssistantChat(open: boolean) {
         }
 
         const start = performance.now();
-
         await runChat(aiProvider, requestPayload, sessionId, messages, start);
       } catch (error) {
         const message =
@@ -429,18 +443,18 @@ export function useAiAssistantChat(open: boolean) {
     const session = sessionStore.getSession(sessionId);
     if (!session) return;
 
-    let attachmentUrls: string[] | undefined;
+    let attachmentObjectKeys: string[] | undefined;
     if (attachedFiles.length > 0) {
       try {
         const aiProvider = getDefaultAiProvider();
         if (aiProvider.uploadFile) {
-          attachmentUrls = (
+          attachmentObjectKeys = (
             await Promise.all(
               attachedFiles.map((file) =>
                 aiProvider.uploadFile!(file, sessionId),
               ),
             )
-          ).map((r) => r.url);
+          ).map((r) => r.objectKey);
         }
       } catch (e) {
         console.warn(
@@ -452,16 +466,20 @@ export function useAiAssistantChat(open: boolean) {
     }
 
     const userContent =
-      messageText || (attachmentUrls?.length ? "See attached files." : "");
+      messageText ||
+      (attachmentObjectKeys?.length ? "See attached files." : "");
     const userMessage: ChatMessage = { role: "user", content: userContent };
     const next = [...session.messages, userMessage];
     sessionStore.updateSessionMessages(sessionId, next);
-    if (attachmentUrls?.length) {
-      sessionStore.updateSessionLastAttachmentUrls(sessionId, attachmentUrls);
+    if (attachmentObjectKeys?.length) {
+      sessionStore.updateSessionLastAttachmentUrls(
+        sessionId,
+        attachmentObjectKeys,
+      );
     }
     setInputValue("");
     refreshSessions();
-    await sendToProvider(sessionId, next, attachmentUrls, [userMessage]);
+    await sendToProvider(sessionId, next, attachmentObjectKeys, [userMessage]);
 
     const after = sessionStore.getSession(sessionId);
     if (
@@ -484,26 +502,29 @@ export function useAiAssistantChat(open: boolean) {
     sessionStore,
   ]);
 
-  const handleExecutePlanClick = useCallback(async () => {
+  const handleBuildChainClick = useCallback(async () => {
     if (!currentSessionId || isLoading || isStreaming) return;
     const session = sessionStore.getSession(currentSessionId);
     if (!session) return;
-    if (lastUserMessageIsAgree(session.messages)) return;
+    if (lastUserMessageIsBuildChainIntent(session.messages)) return;
 
-    const agreeMessage: ChatMessage = { role: "user", content: "Agree" };
-    const next = [...session.messages, agreeMessage];
+    const buildMessage: ChatMessage = {
+      role: "user",
+      content: "Create the chain",
+    };
+    const next = [...session.messages, buildMessage];
     sessionStore.updateSessionMessages(currentSessionId, next);
     refreshSessions();
 
     const latestSession = sessionStore.getSession(currentSessionId);
-    let attachmentUrls =
+    let attachmentObjectKeys =
       latestSession?.lastAttachmentUrls ?? session.lastAttachmentUrls;
-    if (!attachmentUrls?.length) {
+    if (!attachmentObjectKeys?.length) {
       const designUrl = extractDesignUrlFromMessages(session.messages);
-      if (designUrl) attachmentUrls = [designUrl];
+      if (designUrl) attachmentObjectKeys = [designUrl];
     }
-    await sendToProvider(currentSessionId, next, attachmentUrls, [
-      agreeMessage,
+    await sendToProvider(currentSessionId, next, attachmentObjectKeys, [
+      buildMessage,
     ]);
   }, [
     currentSessionId,
@@ -630,8 +651,18 @@ export function useAiAssistantChat(open: boolean) {
       const newSession = sessionStore.createSession();
       setCurrentSessionId(newSession.id);
       refreshSessions();
+      return;
     }
-  }, [sessionStore, refreshSessions]);
+    const hasActiveSession =
+      currentSessionId !== null &&
+      sessionStore.getSession(currentSessionId) !== null;
+    if (!hasActiveSession) {
+      const defaultId = sessionStore.resolveDefaultSessionId(allSessions);
+      if (defaultId) {
+        setCurrentSessionId(defaultId);
+      }
+    }
+  }, [sessionStore, refreshSessions, currentSessionId]);
 
   const handleDeleteSession = useCallback(
     (sessionId: string) => {
@@ -640,7 +671,9 @@ export function useAiAssistantChat(open: boolean) {
       if (currentSessionId === sessionId) {
         const updatedSessions = sessionStore.getAllSessions();
         setCurrentSessionId(
-          updatedSessions.length > 0 ? updatedSessions[0].id : null,
+          updatedSessions.length > 0
+            ? sessionStore.resolveDefaultSessionId(updatedSessions)
+            : null,
         );
       }
     },
@@ -696,7 +729,7 @@ export function useAiAssistantChat(open: boolean) {
     refreshChainContexts,
     handleSend,
     handleAbort,
-    handleExecutePlanClick,
+    handleBuildChainClick,
     handleClear,
     handlePrepareRegenerateFromIndex,
     handleRegenerateFromIndex,
@@ -708,7 +741,10 @@ export function useAiAssistantChat(open: boolean) {
       setCurrentSessionId(newSession.id);
       refreshSessions();
     },
-    handleSessionChange: (sessionId: string) => setCurrentSessionId(sessionId),
+    handleSessionChange: (sessionId: string) => {
+      sessionStore.setLastActiveSessionId(sessionId);
+      setCurrentSessionId(sessionId);
+    },
     handleDeleteSession,
     handleTabEdit,
     tabItems,
