@@ -43,6 +43,9 @@ jobs:
       - name: Install dependencies (root workspaces)
         run: npm ci --legacy-peer-deps
 
+      - name: Build schemas
+        run: npm -w @netcracker/qip-schemas run build
+
       - name: ESLint
         working-directory: ui
         run: npm run lint
@@ -76,6 +79,9 @@ jobs:
 
       - name: Install dependencies (root workspaces)
         run: npm ci --legacy-peer-deps
+
+      - name: Build schemas
+        run: npm -w @netcracker/qip-schemas run build
 
       - name: Test with coverage
         working-directory: ui
