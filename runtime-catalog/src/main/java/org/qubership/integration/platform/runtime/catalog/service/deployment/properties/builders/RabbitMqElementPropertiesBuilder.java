@@ -16,29 +16,35 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties.builders;
 
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
+import org.qubership.integration.platform.runtime.catalog.model.constant.ConnectionSourceType;
+import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.AdditionalPropertiesBuilder;
-import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.AdditionalPropertiesBuilderProvider;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
+import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.MaasPropertiesUtils;
+import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
+import org.qubership.integration.platform.runtime.catalog.util.MaasUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.MAAS_CLASSIFIER_NAME_PROP;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.*;
 
 @Component
 public class RabbitMqElementPropertiesBuilder implements ElementPropertiesBuilder {
 
-    private final Collection<AdditionalPropertiesBuilder> additionalPropertiesBuilders;
+    private final MaasPropertiesUtils maasPropertiesUtils;
 
     @Autowired
-    public RabbitMqElementPropertiesBuilder(AdditionalPropertiesBuilderProvider additionalPropertiesBuilderProvider) {
-        this.additionalPropertiesBuilders = additionalPropertiesBuilderProvider.getBuilders(RabbitMqElementPropertiesBuilder.class);
+    public RabbitMqElementPropertiesBuilder(MaasPropertiesUtils maasPropertiesUtils) {
+        this.maasPropertiesUtils = maasPropertiesUtils;
     }
 
     @Override
@@ -91,6 +97,70 @@ public class RabbitMqElementPropertiesBuilder implements ElementPropertiesBuilde
     }
 
     public void enrichWithAdditionalProperties(ChainElement element, Map<String, String> elementProperties) {
-        additionalPropertiesBuilders.forEach(builder -> elementProperties.putAll(builder.build(element)));
+        String elementOriginalId = element.getOriginalId();
+
+        if (isMaasRabbitTriggerOrSender(element)) {
+            elementProperties.put(SSL, MaasUtils.getMaasParamPlaceholder(elementOriginalId, SSL));
+            elementProperties.put(ADDRESSES, MaasUtils.getMaasParamPlaceholder(elementOriginalId, ADDRESSES));
+            elementProperties.put(USERNAME, MaasUtils.getMaasParamPlaceholder(elementOriginalId, USERNAME));
+            elementProperties.put(CamelOptions.PASSWORD, MaasUtils.getMaasParamPlaceholder(elementOriginalId, PASSWORD));
+            elementProperties.put(CamelOptions.VHOST, MaasUtils.getMaasParamPlaceholder(elementOriginalId, VHOST));
+            elementProperties.put(
+                    CamelOptions.MAAS_DEPLOYMENT_CLASSIFIER_PROP,
+                    element.getPropertyAsString(CamelOptions.MAAS_VHOST_CLASSIFIER_NAME_PROP)
+            );
+            maasPropertiesUtils.enrichWithMaasEnvProperties(element, elementProperties);
+            return;
+        }
+        if (isAsyncElement(element)) {
+            if (isMaasEnvParameterEnabled(element)) {
+                elementProperties.put(SSL, MaasUtils.getMaasParamPlaceholder(elementOriginalId, SSL));
+                elementProperties.put(ADDRESSES, MaasUtils.getMaasParamPlaceholder(elementOriginalId, ADDRESSES));
+                elementProperties.put(USERNAME, MaasUtils.getMaasParamPlaceholder(elementOriginalId, USERNAME));
+                elementProperties.put(CamelOptions.PASSWORD, MaasUtils.getMaasParamPlaceholder(elementOriginalId, PASSWORD));
+                elementProperties.put(VHOST, MaasUtils.getMaasParamPlaceholder(elementOriginalId, VHOST));
+            }
+            elementProperties.put(
+                    MAAS_DEPLOYMENT_CLASSIFIER_PROP,
+                    (String) ElementUtils.extractOperationAsyncProperties(element.getProperties()).get(MAAS_CLASSIFIER_NAME_PROP)
+            );
+            elementProperties.put(
+                    MAAS_CLASSIFIER_NAMESPACE_PROP,
+                    (String) ElementUtils.extractOperationAsyncProperties(element.getProperties()).get(CamelNames.MAAS_CLASSIFIER_NAMESPACE_PROP)
+            );
+            elementProperties.put(
+                    MaasPropertiesUtils.MAAS_CLASSIFIER_TENANT_ENABLED_PROP,
+                    (String) ElementUtils.extractOperationAsyncProperties(element.getProperties()).get(MaasPropertiesUtils.MAAS_CLASSIFIER_TENANT_ENABLED_CAMEL_NAME)
+            );
+            elementProperties.put(
+                    MaasPropertiesUtils.MAAS_CLASSIFIER_TENANT_ID_PROP,
+                    (String) ElementUtils.extractOperationAsyncProperties(element.getProperties()).get(MaasPropertiesUtils.MAAS_CLASSIFIER_TENANT_ID_CAMEL_NAME)
+            );
+            return;
+        }
+
+        elementProperties.put(CamelOptions.MAAS_DEPLOYMENT_CLASSIFIER_PROP, element.getPropertyAsString(CamelOptions.MAAS_VHOST_CLASSIFIER_NAME_PROP));
+        maasPropertiesUtils.enrichWithMaasEnvProperties(element, elementProperties);
+    }
+
+    private boolean isMaasRabbitTriggerOrSender(ChainElement element) {
+        String elementType = element.getType();
+        return (
+                StringUtils.equalsIgnoreCase(elementType, CamelNames.RABBITMQ_SENDER_2_COMPONENT)
+                        || StringUtils.equalsIgnoreCase(elementType, CamelNames.RABBITMQ_TRIGGER_2_COMPONENT)
+        )
+                && ConnectionSourceType.MAAS.toString().equalsIgnoreCase(element.getPropertyAsString(CONNECTION_SOURCE_TYPE_PROP));
+    }
+
+    private boolean isAsyncElement(ChainElement element) {
+        String type = element.getType();
+        return CamelNames.ASYNC_API_TRIGGER_COMPONENT.equals(type)
+                || CamelNames.SERVICE_CALL_COMPONENT.equals(type);
+    }
+
+    private boolean isMaasEnvParameterEnabled(ChainElement element) {
+        return Optional.ofNullable(element.getEnvironment())
+                .map(environment -> environment.getSourceType() == EnvironmentSourceType.MAAS_BY_CLASSIFIER)
+                .orElse(false);
     }
 }

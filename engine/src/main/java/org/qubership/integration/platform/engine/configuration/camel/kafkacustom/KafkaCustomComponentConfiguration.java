@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.engine.configuration.camel.kafkacustom;
 
-import org.apache.camel.component.kafka.KafkaConfiguration;
 import org.apache.camel.component.kafka.springboot.KafkaComponentConfiguration;
 import org.apache.camel.spi.ComponentCustomizer;
 import org.apache.camel.spring.boot.ComponentConfigurationProperties;
 import org.apache.camel.spring.boot.util.ConditionalOnHierarchicalProperties;
 import org.qubership.integration.platform.engine.camel.components.kafka.KafkaCustomComponent;
+import org.qubership.integration.platform.engine.camel.components.kafka.configuration.KafkaCustomConfiguration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -46,7 +46,7 @@ public class KafkaCustomComponentConfiguration {
     public ComponentCustomizer kafkaCustomComponentCustomizer() {
         return ComponentCustomizer.builder(KafkaCustomComponent.class)
             .build((component) -> {
-                KafkaConfiguration config = component.getConfiguration();
+                KafkaCustomConfiguration config = component.getConfiguration();
 
                 // copy only necessary properties
                 config.setSslTruststoreLocation(configuration.getSslTruststoreLocation());

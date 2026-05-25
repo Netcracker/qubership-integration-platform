@@ -41,7 +41,10 @@ public class OperationElementPropertiesBuilder implements ElementPropertiesBuild
     private final RabbitMqElementPropertiesBuilder rabbitMqElementPropertiesBuilder;
 
     @Autowired
-    public OperationElementPropertiesBuilder(KafkaElementPropertiesBuilder kafkaElementPropertiesBuilder, RabbitMqElementPropertiesBuilder rabbitMqElementPropertiesBuilder) {
+    public OperationElementPropertiesBuilder(
+            KafkaElementPropertiesBuilder kafkaElementPropertiesBuilder,
+            RabbitMqElementPropertiesBuilder rabbitMqElementPropertiesBuilder
+    ) {
         this.kafkaElementPropertiesBuilder = kafkaElementPropertiesBuilder;
         this.rabbitMqElementPropertiesBuilder = rabbitMqElementPropertiesBuilder;
     }
@@ -83,7 +86,7 @@ public class OperationElementPropertiesBuilder implements ElementPropertiesBuild
                             environment.getSourceType() != null ? String.valueOf(environment.getSourceType()) : null
                     ))
                     .orElseThrow(() -> getEnvironmentNotFoundException(element));
-            kafkaElementPropertiesBuilder.enrichWithAdditionalProperties(element, elementProperties);
+            kafkaElementPropertiesBuilder.enrichWithMaasProperties(element, elementProperties);
             return elementProperties;
         } else if (CamelNames.OPERATION_PROTOCOL_TYPE_AMQP.equals(protocolType)) {
             Map<String, String> elementProperties = Optional.ofNullable(environment.getProperties())

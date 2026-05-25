@@ -25,26 +25,23 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
-import java.util.Optional;
 
 import static java.util.Objects.isNull;
 
 @Slf4j
 @Component
 public class ExternalLibraryGroovyShellFactory implements GroovyShellFactory {
-    private final Optional<ExternalLibraryService> externalLibraryService;
+    private final ExternalLibraryService externalLibraryService;
 
     @Autowired
-    public ExternalLibraryGroovyShellFactory(Optional<ExternalLibraryService> externalLibraryService) {
+    public ExternalLibraryGroovyShellFactory(ExternalLibraryService externalLibraryService) {
         this.externalLibraryService = externalLibraryService;
     }
 
     @Override
     public GroovyShell createGroovyShell(Exchange exchange) {
         log.debug("Requesting groovy shell for {}", isNull(exchange) ? Collections.emptyMap() : exchange.getProperties());
-        GroovyClassLoader groovyClassLoader = new GroovyClassLoader(externalLibraryService.isPresent()
-                ? externalLibraryService.get().getShellClassLoader()
-                : getClass().getClassLoader());
+        GroovyClassLoader groovyClassLoader = new GroovyClassLoader(externalLibraryService.getShellClassLoader());
         return new GroovyShell(groovyClassLoader);
     }
 }
