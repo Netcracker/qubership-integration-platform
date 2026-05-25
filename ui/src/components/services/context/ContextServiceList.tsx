@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Button, message, Modal, Table, TableProps } from "antd";
+import { Button, message, Modal, Table } from "antd";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../../api/api";
 import { IntegrationSystemType } from "../../../api/apiTypes";
@@ -20,7 +20,10 @@ import { InlineEdit } from "../../InlineEdit.tsx";
 import { LabelsEdit } from "../../table/LabelsEdit.tsx";
 import { formatOptional, formatTimestamp } from "../../../misc/format-utils.ts";
 import { ProtectedDropdown } from "../../../permissions/ProtectedDropdown.tsx";
-import { useColumnSettingsBasedOnColumnsType } from "../../table/useColumnSettingsButton.tsx";
+import {
+  ColumnsTypeWithSettings,
+  useColumnSettingsBasedOnColumnsType,
+} from "../../table/useColumnSettingsButton.tsx";
 import { ChainColumn } from "../ui/ChainColumn.tsx";
 import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
 
@@ -67,11 +70,15 @@ export const ContextServiceList: React.FC = () => {
     }
   }, [loadingError, notificationService]);
 
-  const columns: TableProps<ContextSystem>["columns"] = [
+  const columns: ColumnsTypeWithSettings<ContextSystem> = [
     {
       title: "Name",
       dataIndex: "name",
       key: "name",
+      settings: {
+        visibilityLocked: true,
+        orderLocked: true,
+      },
       width: 200,
       minWidth: 120,
       render: (_: unknown, system) => (

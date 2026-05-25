@@ -7,7 +7,6 @@ import React, {
 } from "react";
 import { Flex, message, Table } from "antd";
 import { useNavigate, useParams } from "react-router";
-import { ColumnsType } from "antd/lib/table";
 import {
   Checkpoint,
   CheckpointSession,
@@ -53,7 +52,10 @@ import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
-import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
+import {
+  ColumnsTypeWithSettings,
+  useColumnSettingsBasedOnColumnsType,
+} from "../components/table/useColumnSettingsButton.tsx";
 import {
   attachResizeToColumns,
   sumScrollXForColumns,
@@ -336,12 +338,16 @@ export const Sessions: React.FC<SessionsProps> = ({
     [messageApi, notificationService],
   );
 
-  const tableColumnDefinitions = useMemo<ColumnsType<SessionTableItem>>(
+  const tableColumnDefinitions = useMemo<ColumnsTypeWithSettings<SessionTableItem>>(
     () => [
       {
         title: "ID",
         dataIndex: "id",
         key: "id",
+        settings: {
+          visibilityLocked: true,
+          orderLocked: true,
+        },
         render: (_, item) =>
           isCorrelationItem(item) ? (
             <span style={{ fontWeight: 600 }}>{item.id}</span>
