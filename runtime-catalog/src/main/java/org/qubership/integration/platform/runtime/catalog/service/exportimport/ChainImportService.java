@@ -156,32 +156,7 @@ public class ChainImportService {
     }
 
     public EntityDifferenceResult compareChains(File importDirectory, ChainDifferenceRequest diffRequest) {
-        File[] chainDirs = new File(importDirectory + File.separator + CHAINS_ARCH_PARENT_DIR)
-                .listFiles(File::isDirectory);
-
-        if (ArrayUtils.isEmpty(chainDirs)) {
-            throw new ChainDifferenceClientException("Imported chain directory not found for compare");
-        }
-        File chainDir = Optional.ofNullable(chainDirs)
-                .map(Stream::of)
-                .flatMap(dirsStream -> dirsStream
-                        .filter(dir -> StringUtils.equals(dir.getName(), diffRequest.getRightChainId()))
-                        .findFirst())
-                .orElseThrow(() -> new ChainDifferenceClientException(
-                        "Imported chain with id " + diffRequest.getRightChainId() + " not found in the archive"));
-
-        Chain rightChain;
-        try {
-            String chainYAML = Files.readString(getChainYAMLFile(chainDir).toPath());
-            chainYAML = migrateToActualFileVersion(chainYAML);
-            ChainExternalEntity chainExternalEntity = yamlMapper.readValue(chainYAML, ChainExternalEntity.class);
-            rightChain = chainExternalEntityMapper.toInternalEntity(ChainExternalMapperEntity.builder()
-                    .chainExternalEntity(chainExternalEntity)
-                    .chainFilesDirectory(chainDir)
-                    .build());
-        } catch (Exception e) {
-            throw new ChainDifferenceException("Exception while converting " + diffRequest.getRightChainId() + " chain for compare", e);
-        }
+        Chain rightChain = extractChain(importDirectory, diffRequest.getRightChainId());
 
         if (diffRequest.getLeftSnapshotId() == null) {
             return chainDifferenceService.findChainsDifferences(
@@ -195,6 +170,33 @@ public class ChainImportService {
                         .orElseThrow(() -> new ComparisonEntityNotFoundException("Can't find snapshot with id: " + diffRequest.getLeftSnapshotId())),
                 rightChain
         );
+    }
+
+    public Chain extractChain(File importDirectory, String chainId) {
+        File[] chainDirs = new File(importDirectory + File.separator + CHAINS_ARCH_PARENT_DIR)
+            .listFiles(File::isDirectory);
+
+        if (ArrayUtils.isEmpty(chainDirs)) {
+            throw new ChainDifferenceClientException("Imported chain directory not found");
+        }
+        File chainDir = Optional.ofNullable(chainDirs)
+            .map(Stream::of)
+            .flatMap(dirsStream -> dirsStream
+                .filter(dir -> StringUtils.equals(dir.getName(), chainId))
+                .findFirst())
+            .orElseThrow(() -> new ChainDifferenceClientException(
+                "Chain with id " + chainId + " not found in the archive"));
+        try {
+            String chainYAML = Files.readString(getChainYAMLFile(chainDir).toPath());
+            chainYAML = migrateToActualFileVersion(chainYAML);
+            ChainExternalEntity chainExternalEntity = yamlMapper.readValue(chainYAML, ChainExternalEntity.class);
+            return chainExternalEntityMapper.toInternalEntity(ChainExternalMapperEntity.builder()
+                .chainExternalEntity(chainExternalEntity)
+                .chainFilesDirectory(chainDir)
+                .build());
+        } catch (Exception e) {
+            throw new ChainDifferenceException("Exception while extracting chain " + chainId, e);
+        }
     }
 
     public ImportChainsAndInstructionsResult importChains(

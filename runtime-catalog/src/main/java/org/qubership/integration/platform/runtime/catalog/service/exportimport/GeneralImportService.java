@@ -30,6 +30,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.instructions.ImportInstruction;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportPreviewResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportRequest;
@@ -131,6 +132,16 @@ public class GeneralImportService {
         try {
             unpackedDirectory = unpackDirectory(file);
             return chainImportService.compareChains(unpackedDirectory, diffRequest);
+        } finally {
+            ExportImportUtils.deleteFile(unpackedDirectory);
+        }
+    }
+
+    public Chain extractChain(MultipartFile file, String chainId) {
+        File unpackedDirectory = null;
+        try {
+            unpackedDirectory = unpackDirectory(file);
+            return chainImportService.extractChain(unpackedDirectory, chainId);
         } finally {
             ExportImportUtils.deleteFile(unpackedDirectory);
         }

@@ -1237,6 +1237,10 @@ export class VSCodeExtensionApi implements Api {
   getChainSnapshot(): Promise<ChainSnapshot> {
     throw new Error("Method getChainSnapshot not implemented.");
   }
+
+  extractChain(): Promise<Chain> {
+    throw new Error("Method extractChain not implemented.");
+  }
 }
 
 interface VSCodeApi<T> {
