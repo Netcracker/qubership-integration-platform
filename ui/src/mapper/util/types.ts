@@ -20,7 +20,7 @@ import {
 import { MappingUtil } from "./mapping.ts";
 
 export interface TypeResolutionResult {
-  type: DataType | undefined;
+  type: DataType | null | undefined;
   definitions: TypeDefinition[];
 }
 
@@ -156,7 +156,7 @@ export class DataTypes {
       }
       type = definition?.type;
     }
-    return { type: type ?? undefined, definitions: typeDefinitions };
+    return { type: type, definitions: typeDefinitions };
   }
 
   public static resolveArrayItemType(
@@ -170,7 +170,7 @@ export class DataTypes {
         t.definitions,
       );
       const result = DataTypes.resolveType(t.itemType, typeDefinitions);
-      t = result.type;
+      t = result.type ?? undefined;
       typeDefinitions = result.definitions;
     }
     return { type: t, definitions: typeDefinitions };

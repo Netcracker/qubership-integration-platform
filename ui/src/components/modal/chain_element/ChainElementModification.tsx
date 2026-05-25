@@ -315,7 +315,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     hasUserEditedFormRef.current = false;
     hasUserInteractedRef.current = false;
     const schemaModules = getSchemaModules();
-    const raw = schemaModules[node.data.elementType as keyof typeof schemaModules];
+    const raw = schemaModules[node.data.elementType];
 
     if (!raw) {
       notificationService.errorWithDetails(
@@ -333,7 +333,6 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       if (parsed.description) {
         setElementDescription(parsed.description.trim());
       }
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { description: _, ...schemaWithoutDescription } = parsed;
       setSchema(schemaWithoutDescription);
 

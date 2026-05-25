@@ -27,7 +27,7 @@ export const ElementSchemasProvider: React.FC<PropsWithChildren> = ({
     (type: string) => {
       try {
         const schemaModules = getSchemaModules();
-        const raw = schemaModules[type as keyof typeof schemaModules];
+        const raw = schemaModules[type];
         return yaml.load(raw) as JSONSchema7;
       } catch (error) {
         notificationService.errorWithDetails(

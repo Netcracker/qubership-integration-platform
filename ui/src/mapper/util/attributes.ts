@@ -74,9 +74,10 @@ export class Attributes {
     typeDefinitions: TypeDefinition[],
   ): DataType | undefined {
     const result = DataTypes.resolveType(attribute?.type, typeDefinitions);
-    return result.type && DataTypes.isArrayType(result.type)
-      ? DataTypes.resolveArrayItemType(result.type, result.definitions).type
-      : result.type;
+    const type = result.type ?? undefined;
+    return type && DataTypes.isArrayType(type)
+      ? (DataTypes.resolveArrayItemType(type, result.definitions).type ?? undefined)
+      : type;
   }
 
   public static resolveAttributeSchema(
