@@ -19,6 +19,10 @@ on:
         type: string
         default: ''
         description: 'Sonar project key for this module. Leave empty to skip the Sonar scan.'
+    secrets:
+      SONAR_TOKEN:
+        required: false
+        description: 'SonarCloud token. Required when sonar-project-key is set.'
 
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.module }}-${{ github.ref }}
@@ -104,15 +108,15 @@ jobs:
           path: ${{ inputs.module }}/target
 
       - name: Sonar scan (blocks on red Quality Gate)
+        working-directory: ${{ inputs.module }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_PLUGIN_VERSION: ${{ vars.SONAR_PLUGIN_VERSION }}
           SONAR_PROJECT_KEY: ${{ inputs.sonar-project-key }}
           SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
           SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
-          MODULE: ${{ inputs.module }}
         run: |
-          mvn --batch-mode -pl "$MODULE" \
+          mvn --batch-mode \
             "org.sonarsource.scanner.maven:sonar-maven-plugin:${SONAR_PLUGIN_VERSION}:sonar" \
             -Dsonar.token="$SONAR_TOKEN" \
             -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
