@@ -92,8 +92,8 @@ describe("EngineTable", () => {
     const host = container.querySelector(`.${layoutStyles.nestedTableHost}`);
     expect(host).toBeInTheDocument();
 
-    const tableRoot = container.querySelector(".flex-table");
-    expect(tableRoot).toHaveClass(layoutStyles.nestedTable);
+    const tableRoot = container.querySelector(`.${layoutStyles.nestedTable}`);
+    expect(tableRoot).toBeInTheDocument();
 
     fireEvent.click(
       container.querySelector("tbody tr td button[type='button']")!,
