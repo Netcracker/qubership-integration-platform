@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { GenericServiceListPage } from "../GenericServiceListPage.tsx";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
-import { Button, message, Table, TableProps } from "antd";
+import { Button, message, Table } from "antd";
 import {
   IntegrationSystemType,
   MCPSystem,
@@ -22,7 +22,10 @@ import { LabelsEdit } from "../../table/LabelsEdit.tsx";
 import { ProtectedDropdown } from "../../../permissions/ProtectedDropdown.tsx";
 import { downloadFile } from "../../../misc/download-utils.ts";
 import { toStringIds } from "../../../misc/selection-utils.ts";
-import { useColumnSettingsBasedOnColumnsType } from "../../table/useColumnSettingsButton.tsx";
+import {
+  ColumnsTypeWithSettings,
+  useColumnSettingsBasedOnColumnsType,
+} from "../../table/useColumnSettingsButton.tsx";
 import {
   attachResizeToColumns,
   sumScrollXForColumns,
@@ -131,11 +134,15 @@ export const McpServiceList: React.FC = () => {
     void loadSystems();
   }, [loadSystems]);
 
-  const columns: TableProps<MCPSystem>["columns"] = [
+  const columns: ColumnsTypeWithSettings<MCPSystem> = [
     {
       title: "Name",
       dataIndex: "name",
       key: "name",
+      settings: {
+        visibilityLocked: true,
+        orderLocked: true,
+      },
       width: 200,
       minWidth: 120,
       render: (_: unknown, system) => (

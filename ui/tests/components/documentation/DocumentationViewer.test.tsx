@@ -35,7 +35,6 @@ jest.mock("../../../src/theme/context", () => {
       _currentValue: {
         theme: "light",
         onThemeChange: jest.fn(),
-        showThemeSwitcher: true,
       },
     },
   };
