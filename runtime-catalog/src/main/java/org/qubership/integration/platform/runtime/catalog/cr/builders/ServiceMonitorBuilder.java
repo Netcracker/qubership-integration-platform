@@ -9,9 +9,11 @@ import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
+import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -20,10 +22,15 @@ import java.util.List;
 public class ServiceMonitorBuilder implements ResourceBuilder<List<Snapshot>> {
     private static final String TEMPLATE_NAME = "service-monitor";
 
+    @Value("${qip.cr.labels.domain}")
+    String domainLabel;
+
     @Data
     @Builder
     private static class TemplateData {
         private String name;
+        private String domainLabel;
+        private String domainName;
         private String integrationName;
         private String serviceName;
         private String interval;
@@ -34,6 +41,7 @@ public class ServiceMonitorBuilder implements ResourceBuilder<List<Snapshot>> {
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> serviceNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> serviceMonitorNamingStrategy;
+    private final K8sNameValidator k8sNameValidator;
 
     @Autowired
     public ServiceMonitorBuilder(
@@ -46,12 +54,15 @@ public class ServiceMonitorBuilder implements ResourceBuilder<List<Snapshot>> {
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> serviceNamingStrategy,
 
             @Qualifier("serviceMonitorNamingStrategy")
-            NamingStrategy<ResourceBuildContext<List<Snapshot>>> serviceMonitorNamingStrategy
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> serviceMonitorNamingStrategy,
+
+            K8sNameValidator k8sNameValidator
     ) {
         this.templates = templates;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
         this.serviceNamingStrategy = serviceNamingStrategy;
         this.serviceMonitorNamingStrategy = serviceMonitorNamingStrategy;
+        this.k8sNameValidator = k8sNameValidator;
     }
 
     @Override
@@ -69,6 +80,8 @@ public class ServiceMonitorBuilder implements ResourceBuilder<List<Snapshot>> {
 
     private TemplateData buildTemplateData(ResourceBuildContext<List<Snapshot>> context) {
         return TemplateData.builder()
+                .domainLabel(domainLabel)
+                .domainName(k8sNameValidator.validate(context.getBuildInfo().getOptions().getName()))
                 .name(serviceMonitorNamingStrategy.getName(context))
                 .integrationName(integrationResourceNamingStrategy.getName(context))
                 .serviceName(serviceNamingStrategy.getName(context))

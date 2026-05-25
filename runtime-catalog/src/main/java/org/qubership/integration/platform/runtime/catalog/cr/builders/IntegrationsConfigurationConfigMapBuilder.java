@@ -10,9 +10,11 @@ import org.qubership.integration.platform.runtime.catalog.cr.integrations.config
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfiguration;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfigurationBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
+import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -33,6 +35,10 @@ public class IntegrationsConfigurationConfigMapBuilder implements ResourceBuilde
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
     private final IntegrationsConfigurationBuilder integrationsConfigurationBuilder;
     private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
+    private final K8sNameValidator k8sNameValidator;
+
+    @Value("${qip.cr.labels.domain}")
+    String domainLabel;
 
     @Autowired
     public IntegrationsConfigurationConfigMapBuilder(
@@ -46,13 +52,15 @@ public class IntegrationsConfigurationConfigMapBuilder implements ResourceBuilde
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
 
             IntegrationsConfigurationBuilder integrationsConfigurationBuilder,
-            IntegrationConfigurationSerdes integrationConfigurationSerdes
+            IntegrationConfigurationSerdes integrationConfigurationSerdes,
+            K8sNameValidator k8sNameValidator
     ) {
         this.resourceYamlMapper = resourceYamlMapper;
         this.namingStrategy = namingStrategy;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
         this.integrationsConfigurationBuilder = integrationsConfigurationBuilder;
         this.integrationConfigurationSerdes = integrationConfigurationSerdes;
+        this.k8sNameValidator = k8sNameValidator;
     }
 
     @Override
@@ -72,8 +80,9 @@ public class IntegrationsConfigurationConfigMapBuilder implements ResourceBuilde
             metadataNode.set("name", metadataNode.textNode(name));
 
             String integrationName = integrationResourceNamingStrategy.getName(context.updateTo(Collections.emptyList()));
-            metadataNode.withObject("labels")
-                    .set(CAMEL_K_INTEGRATION_LABEL, metadataNode.textNode(integrationName));
+            ObjectNode labelsNode = metadataNode.withObject("labels");
+            labelsNode.set(CAMEL_K_INTEGRATION_LABEL, metadataNode.textNode(integrationName));
+            labelsNode.set(domainLabel, metadataNode.textNode(k8sNameValidator.validate(context.getBuildInfo().getOptions().getName())));
 
 
             IntegrationsConfiguration integrationsConfiguration = integrationsConfigurationBuilder.build(context);

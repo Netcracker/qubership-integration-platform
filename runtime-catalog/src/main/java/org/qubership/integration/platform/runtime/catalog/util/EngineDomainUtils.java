@@ -16,10 +16,13 @@
 
 package org.qubership.integration.platform.runtime.catalog.util;
 
+import lombok.Getter;
+import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubeDeployment;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 @Component
@@ -29,6 +32,10 @@ public class EngineDomainUtils {
 
     @Value("${qip.domain.default}")
     private String engineDefaultDomain;
+
+    @Value("${qip.cr.labels.domain}")
+    @Getter
+    private String domainLabel;
 
     @Autowired
     public EngineDomainUtils(@Value("${qip.internal-services.engine}") String engineNamePrefix) {
@@ -41,5 +48,11 @@ public class EngineDomainUtils {
         return isDefault
                 ? engineDefaultDomain
                 : deploymentName.replaceFirst(DASH_VERSION_REGEX, "");
+    }
+
+    public String getDomainName(KubeDeployment deployment) {
+        return Optional.ofNullable(deployment.getLabels())
+                .map(labels -> labels.get(domainLabel))
+                .orElseGet(() -> convertKubeDeploymentToDomainName(deployment.getName()));
     }
 }

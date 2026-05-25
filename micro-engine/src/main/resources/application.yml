@@ -92,7 +92,7 @@ qip:
   libraries:
     path: ${QIP_LIBRARIES_PATH:/tmp/libraries}
   engine:
-    domain: ${CAMEL_K_INTEGRATION:default}
+    domain: ${QIP_ENGINE_DOMAIN:default}
   camel:
     startup:
       error-handling:
