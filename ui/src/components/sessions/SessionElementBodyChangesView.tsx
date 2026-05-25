@@ -6,8 +6,10 @@ import {
   SessionElementBodyView,
   setUpDocumentFormatting,
 } from "./SessionElementBodyView.tsx";
-import { DiffEditor, Monaco } from "@monaco-editor/react";
+import { DiffEditor } from "@monaco-editor/react";
+import type * as monacoNs from "monaco-editor";
 import { editor as editor_ } from "monaco-editor";
+type Monaco = typeof monacoNs;
 import {
   useMonacoTheme,
   applyVSCodeThemeToMonaco,
@@ -78,7 +80,9 @@ export const SessionElementBodyChangesView: React.FC<
             modifiedAriaLabel: "Body After",
             automaticLayout: true,
           }}
-          onMount={(editor, monaco) => handleDiffEditorDidMount(editor, monaco)}
+          onMount={(editor, monaco: Monaco) =>
+            handleDiffEditorDidMount(editor, monaco)
+          }
         />
       ) : (
         <>

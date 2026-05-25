@@ -13,13 +13,13 @@ jest.mock("../../src/api/api.ts", () => ({
     findChainByElementId: jest.fn().mockResolvedValue({
       id: "called-chain-id",
       name: "chain trigger",
-    } as Partial<Chain>),
+    } as never),
     getService: jest.fn().mockResolvedValue({
       id: "service-1",
       name: "TestService",
       activeEnvironmentId: "env-1",
-    }),
-    getEnvironments: jest.fn().mockResolvedValue([]),
+    } as never),
+    getEnvironments: jest.fn().mockResolvedValue([] as never),
   },
 }));
 
@@ -46,27 +46,6 @@ function makeChain(
     elements,
     dependencies,
   } as unknown as Chain;
-}
-
-function findMessage(
-  actions: unknown[],
-  predicate: (msg: Record<string, unknown>) => boolean,
-): Record<string, unknown> | undefined {
-  for (const action of actions) {
-    const a = action as Record<string, unknown>;
-    if (a.type === "message" && predicate(a)) return a;
-    if (a.actions) {
-      const found = findMessage(a.actions as unknown[], predicate);
-      if (found) return found;
-    }
-    if (a.branches) {
-      for (const b of a.branches as Record<string, unknown>[]) {
-        const found = findMessage(b.actions as unknown[], predicate);
-        if (found) return found;
-      }
-    }
-  }
-  return undefined;
 }
 
 function collectMessages(actions: unknown[]): string[] {
@@ -159,7 +138,7 @@ describe("buildSequenceDiagram", () => {
       const loopAction = diagram.actions
         .flatMap((a) => {
           const act = a as Record<string, unknown>;
-          return act.actions ? (act.actions as unknown[]) : [a];
+          return act.actions ? (act.actions) : [a];
         })
         .find((a) => (a as Record<string, unknown>).type === "loop") as
         | Record<string, unknown>
@@ -190,7 +169,7 @@ describe("buildSequenceDiagram", () => {
       const loopAction = diagram.actions
         .flatMap((a) => {
           const act = a as Record<string, unknown>;
-          return act.actions ? (act.actions as unknown[]) : [a];
+          return act.actions ? (act.actions) : [a];
         })
         .find((a) => (a as Record<string, unknown>).type === "loop") as
         | Record<string, unknown>

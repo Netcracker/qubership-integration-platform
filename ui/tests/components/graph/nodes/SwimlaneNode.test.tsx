@@ -33,7 +33,13 @@ function renderWithChainContext(
 ) {
   return render(
     <ChainContext.Provider
-      value={{ chain, update: jest.fn(), refresh: jest.fn() }}
+      value={{
+        chain,
+        update: jest.fn() as unknown as (
+          changes: Partial<Chain>,
+        ) => Promise<void>,
+        refresh: jest.fn() as unknown as () => Promise<void>,
+      }}
     >
       <SwimlaneNode
         {...makeProps({ id, data: { label: "Lane", direction } })}

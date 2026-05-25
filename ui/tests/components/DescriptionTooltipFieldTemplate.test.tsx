@@ -60,7 +60,7 @@ function makeProps(
     onChange: jest.fn(),
     onKeyRename: jest.fn(),
     onKeyRenameBlur:
-      jest.fn() as unknown as FieldTemplateProps["onKeyRenameBlur"],
+      jest.fn(),
     onRemoveProperty: jest.fn(),
     rawDescription: "",
     rawErrors: [],

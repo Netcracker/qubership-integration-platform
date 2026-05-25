@@ -131,7 +131,7 @@ export function deepMergeThemeConfig(
     merged.token = {
       ...(base.token ?? {}),
       ...overrides.token,
-    } as ThemeConfig["token"];
+    };
   }
 
   if (overrides.components) {
@@ -148,7 +148,7 @@ export function deepMergeThemeConfig(
       );
     }
 
-    merged.components = mergedComponents as ThemeConfig["components"];
+    merged.components = mergedComponents;
   }
 
   return merged;

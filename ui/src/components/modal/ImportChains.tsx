@@ -96,7 +96,7 @@ const RESULT_COMMON_VARIABLES_TABLE_COLUMNS: TableProps<ImportVariableResult>["c
       dataIndex: "status",
       key: "status",
       render: (_, item) => (
-        <ImportStatus status={item.status} message={item.error} />
+        <StatusTag status={item.status} message={item.error} />
       ),
     },
   ];

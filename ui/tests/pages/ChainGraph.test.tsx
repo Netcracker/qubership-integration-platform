@@ -165,7 +165,10 @@ jest.mock("../../src/pages/ChainHeaderActionsContext", () => {
   const ReactDOM =
     require("react-dom/client") as typeof import("react-dom/client");
   return {
-    useRegisterChainHeaderActions: (actions: R.ReactNode, deps: unknown[]) => {
+    useRegisterChainHeaderActions: (
+      actions: React.ReactNode,
+      deps: unknown[],
+    ) => {
       R.useEffect(() => {
         const container = document.createElement("div");
         container.dataset.testid = "chain-header-actions-slot";

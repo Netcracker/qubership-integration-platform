@@ -66,7 +66,7 @@ describe("useDecorativeEdges hook", () => {
       source: "s",
       target: "t",
       ...overrides,
-    }) as Edge;
+    });
 
   it("returns empty decorative edges when all endpoints are visible", async () => {
     const nodes = [

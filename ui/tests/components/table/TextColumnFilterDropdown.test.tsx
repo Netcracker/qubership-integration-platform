@@ -96,6 +96,7 @@ describe("TextColumnFilterDropdown", () => {
         setSelectedKeys={setSelectedKeys}
         selectedKeys={[]}
         confirm={confirm}
+        close={jest.fn()}
         clearFilters={clearFilters}
         {...props}
       />,
@@ -125,6 +126,7 @@ describe("TextColumnFilterDropdown", () => {
         setSelectedKeys={setSelectedKeys}
         selectedKeys={[JSON.stringify({ condition: "contains", value: "x" })]}
         confirm={jest.fn()}
+        close={jest.fn()}
       />,
     );
     const input = screen.getByRole("textbox");

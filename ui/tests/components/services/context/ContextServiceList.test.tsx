@@ -9,7 +9,6 @@ jest.mock("antd", () => {
   const {
     antdMockWithLightweightTable,
   } = require("tests/helpers/antdMockWithLightweightTable");
-  const React = require("react");
   return antdMockWithLightweightTable({
     message: {
       info: (...args: unknown[]) => mockMessageInfo(...args),
@@ -30,7 +29,7 @@ import { message } from "antd";
 // Mock matchMedia for Ant Design components
 Object.defineProperty(window, "matchMedia", {
   writable: true,
-  value: jest.fn().mockImplementation((query: string) => ({
+  value: jest.fn().mockImplementation(((query: string) => ({
     matches: false,
     media: query,
     onchange: null,
@@ -39,25 +38,24 @@ Object.defineProperty(window, "matchMedia", {
     addEventListener: jest.fn(),
     removeEventListener: jest.fn(),
     dispatchEvent: jest.fn(),
-  })),
+  })) as (...args: unknown[]) => unknown),
 });
 
 // Mock API
-const mockGetContextServices = jest.fn<() => Promise<ContextSystem[]>>();
+const mockGetContextServices =
+  jest.fn<(...args: unknown[]) => Promise<ContextSystem[]>>();
 const mockSearchContextServices =
-  jest.fn<(query: string) => Promise<ContextSystem[]>>();
+  jest.fn<(...args: unknown[]) => Promise<ContextSystem[]>>();
 const mockFilterContextServices =
-  jest.fn<(filters: unknown[]) => Promise<ContextSystem[]>>();
+  jest.fn<(...args: unknown[]) => Promise<ContextSystem[]>>();
 const mockUpdateContextService =
-  jest.fn<
-    (id: string, changes: Partial<ContextSystem>) => Promise<ContextSystem>
-  >();
-const mockDeleteContextService = jest.fn<(id: string) => Promise<void>>();
-const mockExportContextServices = jest.fn<(ids: string[]) => Promise<Blob>>();
+  jest.fn<(...args: unknown[]) => Promise<ContextSystem>>();
+const mockDeleteContextService =
+  jest.fn<(...args: unknown[]) => Promise<void>>();
+const mockExportContextServices =
+  jest.fn<(...args: unknown[]) => Promise<Blob>>();
 const mockCreateContextService =
-  jest.fn<
-    (data: { name: string; description: string }) => Promise<ContextSystem>
-  >();
+  jest.fn<(...args: unknown[]) => Promise<ContextSystem>>();
 const mockShowModal = jest.fn();
 
 jest.mock("../../../../src/api/api", () => ({
@@ -224,7 +222,7 @@ jest.mock(
   () => ({
     GenericServiceListPage: ({
       title,
-      icon,
+      icon: _icon,
       extraActions,
       children,
       onSearch,
@@ -469,7 +467,7 @@ describe("ContextServiceList", () => {
   it("should show 'No services selected' message when the toolbar export button is clicked with no rows selected", async () => {
     const messageInfoSpy = jest
       .spyOn(message, "info")
-      .mockImplementation(() => {});
+      .mockImplementation((() => {}) as never);
     await renderAndWaitForLoad([]);
 
     await waitFor(() => {

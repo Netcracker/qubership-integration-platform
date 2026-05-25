@@ -120,6 +120,12 @@ jest.mock("../../../src/components/table/ResizableTitle.tsx", () => ({
     ...rest
   }: {
     children?: React.ReactNode;
+    onResize?: unknown;
+    onResizeStop?: unknown;
+    width?: number;
+    minResizeWidth?: number;
+    maxResizeWidth?: number;
+    resizeHandleZIndex?: number;
   }) => <th {...rest}>{children}</th>,
 }));
 

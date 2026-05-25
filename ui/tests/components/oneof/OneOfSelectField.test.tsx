@@ -46,7 +46,7 @@ function makeBaseProps(overrides: Partial<Props> = {}): Props {
     onChange: jest.fn(),
     disabled: false,
     readonly: false,
-    schema: { type: "object" } as RJSFSchema,
+    schema: { type: "object" },
     uiSchema: {},
     registry: {
       formContext: {} as FormContext,
@@ -89,11 +89,10 @@ describe("OneOfSelectField", () => {
 
   it("applies transformSchema when provided", () => {
     const transform = jest.fn(
-      (_opt: OneOfOption, idx: number) =>
-        ({
-          type: "object",
-          properties: { transformed: { type: "string", title: `#${idx}` } },
-        }) as RJSFSchema,
+      (_opt: OneOfOption, idx: number): RJSFSchema => ({
+        type: "object",
+        properties: { transformed: { type: "string", title: `#${idx}` } },
+      }),
     );
     render(
       <OneOfSelectField

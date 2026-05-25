@@ -23,8 +23,8 @@ describe("actionsColumn", () => {
   it("createActionsSizing applies fixed width styles on header and cell", () => {
     const sizing = createActionsSizing(48);
     expect(sizing.width).toBe(48);
-    const headerProps = sizing.onHeaderCell?.();
-    const cellProps = sizing.onCell?.();
+    const headerProps = sizing.onHeaderCell?.({});
+    const cellProps = sizing.onCell?.({});
     expect(headerProps?.style).toEqual({
       width: 48,
       minWidth: 48,
@@ -76,7 +76,7 @@ describe("actionsColumn", () => {
     expect(next[0].onHeaderCell).not.toBe(prevOnHeaderCell);
 
     const mockCol = { key: "name" };
-    const header = next[0].onHeaderCell?.(mockCol as never);
+    const header = next[0].onHeaderCell?.(mockCol);
     expect(prevOnHeaderCell).toHaveBeenCalledWith(mockCol);
     expect(header).toEqual({ className: "hdr" });
     expect(header).not.toHaveProperty("onResize");
@@ -88,7 +88,7 @@ describe("actionsColumn", () => {
       { key: ACTIONS_COLUMN_KEY, title: "" },
     ];
     const next = disableResizeBeforeActions(cols);
-    const header = next[0].onHeaderCell?.({} as never);
+    const header = next[0].onHeaderCell?.({});
     expect(header).toEqual({});
   });
 });

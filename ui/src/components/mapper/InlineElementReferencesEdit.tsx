@@ -153,7 +153,7 @@ function buildTreeData(
               a,
               "body",
               [],
-              DataTypes.getTypeDefinitions(schema.body!),
+              DataTypes.getTypeDefinitions(schema.body),
             ),
           )
         : undefined,

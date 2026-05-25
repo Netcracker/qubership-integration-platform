@@ -14,7 +14,7 @@ import {
   protectMenuItems,
 } from "../permissions/ProtectedDropdown.tsx";
 import { AiAssistant } from "./ai/AiAssistant.tsx";
-import { getIsAiServiceAvailable } from "../ai/appConfig";
+import { useIsAiServiceAvailable } from "../ai/appConfig";
 import { UserMenu } from "./UserMenu.tsx";
 
 interface NavigationProps {
@@ -35,7 +35,7 @@ const Navigation = ({
   const selectedKey = pathname.split("/")[1] || "chains";
   const permissions = usePermissions();
 
-  const isAiServiceAvailable = getIsAiServiceAvailable();
+  const isAiServiceAvailable = useIsAiServiceAvailable();
 
   const items = useMemo(() => {
     const protectedItems: ProtectedMenuItem[] = [

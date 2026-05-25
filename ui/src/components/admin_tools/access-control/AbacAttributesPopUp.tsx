@@ -16,10 +16,10 @@ export const AbacAttributesPopUp: React.FC<AbacAttributesPopUpProps> = ({
   record,
 }) => {
   const { closeContainingModal } = useModalContext();
-  const props = record.properties as unknown as
+  const accessControlProps = record.properties as unknown as
     | AccessControlProperty
     | undefined;
-  const abac = props?.abacParameters;
+  const abac = accessControlProps?.abacParameters;
 
   return (
     <Modal

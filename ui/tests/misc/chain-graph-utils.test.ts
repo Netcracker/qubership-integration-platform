@@ -89,7 +89,7 @@ function makeNode(overrides: Partial<ChainGraphNode> = {}): ChainGraphNode {
       properties: {} as ChainGraphNodeData["properties"],
     },
     ...overrides,
-  } as ChainGraphNode;
+  };
 }
 
 describe("getDataFromElement", () => {

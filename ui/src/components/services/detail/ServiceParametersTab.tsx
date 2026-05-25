@@ -23,7 +23,7 @@ import { useUnsavedChangesWithModal } from "../useUnsavedChangesWithModal.tsx";
 export interface ServiceParametersTabProps {
   systemId: string;
   activeTab: string;
-  formatTimestamp: (val: string) => string;
+  formatTimestamp: (val: string | number | Date | null | undefined) => string;
   sidePadding: number;
   styles: Record<string, string>;
 }
@@ -225,10 +225,10 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
         {!isVsCode && (
           <Descriptions column={1} size="small" style={{ margin: "24px 0" }}>
             <Descriptions.Item label="Created">
-              {formatTimestamp(system.createdWhen as string)}
+              {formatTimestamp(system.createdWhen)}
             </Descriptions.Item>
             <Descriptions.Item label="Modified">
-              {formatTimestamp(system.modifiedWhen as string)}
+              {formatTimestamp(system.modifiedWhen)}
             </Descriptions.Item>
           </Descriptions>
         )}

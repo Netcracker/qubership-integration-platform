@@ -17,12 +17,14 @@ import { ServiceParametersTab } from "../../../../src/components/services/detail
 import { useNotificationService } from "../../../../src/hooks/useNotificationService.tsx";
 import { useBlocker } from "react-router-dom";
 
-const mockGetService = jest.fn();
-const mockUpdateService = jest.fn();
-const mockExportServices = jest.fn();
-const mockShowModal = jest.fn();
-const mockSetToolbar = jest.fn();
-const mockRequestFailed = jest.fn();
+const mockGetService =
+  jest.fn<(...args: unknown[]) => Promise<IntegrationSystem>>();
+const mockUpdateService =
+  jest.fn<(...args: unknown[]) => Promise<IntegrationSystem>>();
+const mockExportServices = jest.fn<(...args: unknown[]) => Promise<File>>();
+const mockShowModal = jest.fn<(...args: unknown[]) => void>();
+const mockSetToolbar = jest.fn<(...args: unknown[]) => void>();
+const mockRequestFailed = jest.fn<(...args: unknown[]) => void>();
 let isVsCodeFlag = false;
 
 jest.mock("../../../../src/api/api", () => ({
@@ -98,7 +100,7 @@ jest.mock("../../../../src/permissions/ProtectedButton.tsx", () => ({
       <button
         type="button"
         data-testid={`param-toolbar-${String(tooltipProps.title).replace(/\s+/g, "-").toLowerCase()}`}
-        {...(rest as React.ButtonHTMLAttributes<HTMLButtonElement>)}
+        {...(rest)}
       />
     );
   },
@@ -129,7 +131,7 @@ function renderTab(ui?: React.ReactElement) {
     <ServiceParametersTab
       systemId="sys-1"
       activeTab="parameters"
-      formatTimestamp={(v) => v}
+      formatTimestamp={(v) => String(v ?? "")}
       sidePadding={8}
       styles={{ "variables-actions": "va" }}
     />
@@ -152,18 +154,21 @@ describe("ServiceParametersTab", () => {
     isVsCodeFlag = false;
     mockGetService.mockResolvedValue(makeSystem());
     mockUpdateService.mockImplementation(
-      async (_id: string, s: IntegrationSystem) => s,
+      async (..._args: unknown[]) => _args[1] as IntegrationSystem,
     );
     mockExportServices.mockResolvedValue(new File([], "x"));
     jest.mocked(useNotificationService).mockReturnValue({
       requestFailed: mockRequestFailed,
       info: jest.fn(),
+      warning: jest.fn(),
+      errorWithDetails: jest.fn(),
     });
     jest.mocked(useBlocker).mockReturnValue({
-      state: "unblocked" as const,
+      state: "unblocked",
       proceed: jest.fn(),
       reset: jest.fn(),
-    });
+      location: undefined,
+    } as unknown as ReturnType<typeof useBlocker>);
   });
 
   it("hides Type field on web (not VS Code)", async () => {
@@ -266,17 +271,19 @@ describe("ServiceParametersTab", () => {
   it("unsaved modal Yes saves and then calls blocker proceed", async () => {
     const proceed = jest.fn();
     jest.mocked(useBlocker).mockReturnValue({
-      state: "blocked" as const,
+      state: "blocked",
       proceed,
       reset: jest.fn(),
-    });
+      location: { pathname: "/" },
+    } as unknown as ReturnType<typeof useBlocker>);
     renderTab();
     await waitFor(() =>
       expect(screen.getByRole("textbox", { name: /name/i })).toHaveValue("Svc"),
     );
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
-    const modal = mockShowModal.mock.calls.at(-1)?.[0]
-      .component as React.ReactElement;
+    const modal = (
+      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement }
+    ).component;
     render(modal);
     fireEvent.click(screen.getByTestId("unsaved-yes"));
     await waitFor(() => expect(mockUpdateService).toHaveBeenCalled());
@@ -286,18 +293,20 @@ describe("ServiceParametersTab", () => {
   it("unsaved modal Yes does not open a second prompt when save updates system", async () => {
     const proceed = jest.fn();
     jest.mocked(useBlocker).mockReturnValue({
-      state: "blocked" as const,
+      state: "blocked",
       proceed,
       reset: jest.fn(),
-    });
+      location: { pathname: "/" },
+    } as unknown as ReturnType<typeof useBlocker>);
     renderTab();
     await waitFor(() =>
       expect(screen.getByRole("textbox", { name: /name/i })).toHaveValue("Svc"),
     );
     await waitFor(() => expect(mockShowModal).toHaveBeenCalledTimes(1));
     const showModalCallsAfterFirstPrompt = mockShowModal.mock.calls.length;
-    const modal = mockShowModal.mock.calls.at(-1)?.[0]
-      .component as React.ReactElement;
+    const modal = (
+      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement }
+    ).component;
     render(modal);
     fireEvent.click(screen.getByTestId("unsaved-yes"));
     await waitFor(() => expect(mockUpdateService).toHaveBeenCalled());
@@ -312,14 +321,16 @@ describe("ServiceParametersTab", () => {
   it("unsaved modal No calls blocker proceed without saving", async () => {
     const proceed = jest.fn();
     jest.mocked(useBlocker).mockReturnValue({
-      state: "blocked" as const,
+      state: "blocked",
       proceed,
       reset: jest.fn(),
-    });
+      location: { pathname: "/" },
+    } as unknown as ReturnType<typeof useBlocker>);
     renderTab();
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
-    const modal = mockShowModal.mock.calls.at(-1)?.[0]
-      .component as React.ReactElement;
+    const modal = (
+      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement }
+    ).component;
     render(modal);
     fireEvent.click(screen.getByTestId("unsaved-no"));
     expect(proceed).toHaveBeenCalled();
@@ -329,14 +340,16 @@ describe("ServiceParametersTab", () => {
   it("unsaved modal close keeps editing by resetting blocker", async () => {
     const reset = jest.fn();
     jest.mocked(useBlocker).mockReturnValue({
-      state: "blocked" as const,
+      state: "blocked",
       proceed: jest.fn(),
       reset,
-    });
+      location: { pathname: "/" },
+    } as unknown as ReturnType<typeof useBlocker>);
     renderTab();
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
-    const modal = mockShowModal.mock.calls.at(-1)?.[0]
-      .component as React.ReactElement;
+    const modal = (
+      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement }
+    ).component;
     render(modal);
     fireEvent.click(screen.getByTestId("unsaved-close"));
     expect(reset).toHaveBeenCalled();

@@ -96,8 +96,6 @@ jest.mock("antd", () => {
 import VariablesTable from "../../../../src/components/admin_tools/variables/VariablesTable";
 import { NEW_VARIABLE_KEY } from "../../../../src/components/admin_tools/variables/useVariablesState";
 
-const defaultColumnsWidth = { key: 200, value: 400 };
-const defaultOnResize = () => () => undefined;
 
 const sampleVariables = [
   { key: "var-key-1", value: "val-1" },
@@ -121,8 +119,6 @@ function renderTable(
     editingValue: "",
     onChangeEditingValue: jest.fn(),
     onConfirmEdit: jest.fn(),
-    columnsWidth: defaultColumnsWidth,
-    onResize: defaultOnResize,
     ...overrides,
   };
   return render(<VariablesTable {...props} />);

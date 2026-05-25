@@ -26,19 +26,16 @@ jest.mock("../../../src/components/table/ColumnSettingsButton", () => ({
 
 // src/components/table/useColumnSettingsButton.test.tsx
 // Mock getColumnsOrderKey and getColumnsVisibleKey from ColumnsFilter
-jest.mock<typeof ColumnsFilter>(
-  "../../../src/components/table/ColumnsFilter",
-  () => {
-    const actual = jest.requireActual<typeof ColumnsFilter>(
-      "../../../src/components/table/ColumnsFilter",
-    );
-    return {
-      ...actual,
-      getColumnsOrderKey: jest.fn().mockReturnValue("order-key"),
-      getColumnsVisibleKey: jest.fn().mockReturnValue("visible-key"),
-    };
-  },
-);
+jest.mock("../../../src/components/table/ColumnsFilter", () => {
+  const actual = jest.requireActual<typeof ColumnsFilter>(
+    "../../../src/components/table/ColumnsFilter",
+  );
+  return {
+    ...actual,
+    getColumnsOrderKey: jest.fn().mockReturnValue("order-key"),
+    getColumnsVisibleKey: jest.fn().mockReturnValue("visible-key"),
+  };
+});
 
 // Helper to clear localStorage before each test
 beforeEach(() => {

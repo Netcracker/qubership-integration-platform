@@ -63,7 +63,7 @@ jest.mock(
   () => {
     const actual = jest.requireActual(
       "../../../src/components/admin_tools/importInstructionsHandlers.ts",
-    ) as Record<string, unknown>;
+    );
     return {
       ...actual,
       uploadImportInstructionsFile: jest.fn(),

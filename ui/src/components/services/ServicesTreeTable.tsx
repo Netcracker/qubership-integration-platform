@@ -677,7 +677,7 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
 
   const mergedExpandable = useMemo(
     () => ({
-      expandIcon: treeExpandIcon(),
+      expandIcon: treeExpandIcon<T>(),
       ...expandable,
       indentSize: 24,
     }),

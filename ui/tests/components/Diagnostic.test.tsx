@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, jest } from "@jest/globals";
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
-  value: jest.fn().mockImplementation((query: string) => ({
+  value: jest.fn().mockImplementation(((query: string) => ({
     matches: false,
     media: query,
     onchange: null,
@@ -15,7 +15,7 @@ Object.defineProperty(window, "matchMedia", {
     addEventListener: jest.fn(),
     removeEventListener: jest.fn(),
     dispatchEvent: jest.fn(),
-  })),
+  })) as (...args: unknown[]) => unknown),
 });
 
 jest.mock("react-resizable/css/styles.css", () => ({}));

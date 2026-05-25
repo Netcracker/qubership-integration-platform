@@ -21,7 +21,7 @@ Object.defineProperty(globalThis, "matchMedia", {
 });
 
 jest.mock("antd", () => {
-  const actual = jest.requireActual("antd") as Record<string, unknown>;
+  const actual = jest.requireActual("antd");
   return {
     ...actual,
     Modal: jest.fn(({ title }: any) => (
@@ -57,7 +57,7 @@ import { ModalWithFullscreenToggle } from "../../../src/components/modal/ModalWi
 
 const MockModal = Modal as jest.MockedFunction<typeof Modal>;
 const getLastModalProps = (): ModalProps =>
-  MockModal.mock.calls[MockModal.mock.calls.length - 1][0] as unknown as ModalProps;
+  MockModal.mock.calls[MockModal.mock.calls.length - 1][0];
 
 describe("ModalWithFullscreenToggle", () => {
   it("should render the provided title when title prop is given", () => {

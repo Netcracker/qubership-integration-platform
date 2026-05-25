@@ -282,7 +282,7 @@ describe("Script", () => {
           y: 0,
           toJSON: () => ({}),
           ...rect,
-        }) as DOMRect;
+        });
     }
 
     it("defaults to 300px height", () => {
@@ -460,7 +460,7 @@ describe("Script", () => {
         }),
         getValue: () => line,
         getOffsetAt: ({ column }: { column: number }) => column - 1,
-      } as never;
+      };
     }
 
     it("registers '.' as a trigger character", () => {

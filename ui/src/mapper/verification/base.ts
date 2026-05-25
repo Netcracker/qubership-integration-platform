@@ -24,8 +24,8 @@ export interface TransformationParameterDetail extends MappingActionDetail {
 }
 
 export interface DataTypeDetail {
-  name: string;
-  type: DataType;
+  name?: string;
+  type?: DataType | null;
   definitions: TypeDefinition[];
 }
 
@@ -132,13 +132,13 @@ class IsPrimitiveType extends Verifier<DataTypeDetail> {
   }
 
   private isPrimitiveType(
-    type: DataType,
+    type: DataType | null | undefined,
     definitions: TypeDefinition[],
   ): boolean {
     return (
       DataTypes.isPrimitiveType(type) ||
       (DataTypes.isCompoundType(type) &&
-        this.isPrimitiveCompoundType(type as CompoundType, definitions))
+        this.isPrimitiveCompoundType(type, definitions))
     );
   }
 
@@ -187,7 +187,10 @@ export function itemType(
   verifier: Verifier<DataTypeDetail>,
 ): Verifier<DataTypeDetail> {
   return map((entity) => {
-    const result = DataTypes.resolveType(entity.type, entity.definitions);
+    const result = DataTypes.resolveType(
+      entity.type ?? undefined,
+      entity.definitions,
+    );
     const type = result.type?.name === "array" ? result.type.itemType : null;
     const definitions =
       result.type?.name === "array"
@@ -200,8 +203,8 @@ export function itemType(
   }, verifier);
 }
 
-export function hasName<T extends { name: string }>(
-  verifier: Verifier<string>,
+export function hasName<T extends { name?: string }>(
+  verifier: Verifier<string | undefined>,
 ): Verifier<T> {
   return map((entity) => entity?.name, verifier);
 }

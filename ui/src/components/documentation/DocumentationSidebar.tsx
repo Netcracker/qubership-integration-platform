@@ -108,7 +108,7 @@ const DocumentationSidebarComponent: React.FC<DocumentationSidebarProps> = ({
           for (const node of nodes) {
             const key = String(node.key);
             parentByKey[key] = parentKey;
-            const children = node.children as DataNode[] | undefined;
+            const children = node.children;
             if (Array.isArray(children) && children.length > 0) {
               expandable.add(key);
               walk(children, key);

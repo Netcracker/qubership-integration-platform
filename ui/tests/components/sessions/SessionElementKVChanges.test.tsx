@@ -2,7 +2,6 @@
  * @jest-environment jsdom
  */
 
-import React from "react";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { PLACEHOLDER } from "../../../src/misc/format-utils.ts";

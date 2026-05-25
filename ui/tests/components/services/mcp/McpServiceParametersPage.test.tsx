@@ -1,7 +1,6 @@
 /**
  * @jest-environment jsdom
  */
-import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { MCPSystem } from "../../../../src/api/apiTypes";
@@ -102,6 +101,8 @@ describe("McpServiceParametersPage", () => {
     jest.mocked(useNotificationService).mockReturnValue({
       requestFailed: mockRequestFailed,
       info: jest.fn(),
+      warning: jest.fn(),
+      errorWithDetails: jest.fn(),
     });
   });
 

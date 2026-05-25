@@ -15,7 +15,12 @@ export class DictionaryEntryVerifier extends Verifier<TransformationParameterDet
       parseKeyValuePairs(entity.parameterValue + ";");
       return [];
     } catch (exception) {
-      return [{ message: exception.message as string }];
+      return [
+        {
+          message:
+            exception instanceof Error ? exception.message : String(exception),
+        },
+      ];
     }
   }
 }
@@ -36,7 +41,7 @@ export class TransformationExpressionVerifier extends Verifier<TransformationPar
       entity.parameterValue,
       attributes,
       constants,
-      (location, message) => errors.push({ message }),
+      (_location, message) => errors.push({ message }),
     );
     return errors;
   }
@@ -52,7 +57,7 @@ export class RegexVerifier extends Verifier<string> {
       new RegExp(entity); // NOSONAR - syntax validation only; regex execution in transformation engine
       return [];
     } catch (e) {
-      return [{ message: e.message as string }];
+      return [{ message: e instanceof Error ? e.message : String(e) }];
     }
   }
 }

@@ -19,7 +19,9 @@ import {
 } from "antd";
 import { useModalContext } from "../../ModalContextProvider";
 import Dragger from "antd/lib/upload/Dragger";
-import { Editor, Monaco } from "@monaco-editor/react";
+import { Editor } from "@monaco-editor/react";
+import type * as monacoNs from "monaco-editor";
+type Monaco = typeof monacoNs;
 import {
   useMonacoTheme,
   applyVSCodeThemeToMonaco,
@@ -226,15 +228,15 @@ function importCode(
   }
 }
 
-function addOperationMetadata(element: Element, type: DataType) {
+function addOperationMetadata(element: Element, type: DataType): DataType {
   return [
     "integrationSystemId",
     "integrationSpecificationGroupId",
     "integrationSpecificationId",
     "integrationOperationId",
-  ].reduce((t, name) => {
+  ].reduce<DataType>((t, name) => {
     const value = element.properties?.[name] as string;
-    return value ? MetadataUtil.setValue(t, name, value) : t;
+    return value ? (MetadataUtil.setValue(t, name, value) as DataType) : t;
   }, type);
 }
 
@@ -512,7 +514,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
     if (!form || elementOptions.length === 0) {
       return;
     }
-    const fieldPath = ["schema", "element"];
+    const fieldPath: ["schema", "element"] = ["schema", "element"];
     const currentValue = form.getFieldValue(fieldPath) as string | undefined;
     const currentOption = elementOptions.find(
       (option) => option.value === currentValue,
@@ -564,7 +566,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
     if (!form) {
       return;
     }
-    const operationField = ["schema", "operation"];
+    const operationField: ["schema", "operation"] = ["schema", "operation"];
     const currentValue = form.getFieldValue(operationField) as
       | string
       | undefined;
@@ -773,7 +775,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                             readOnly: true,
                             fixedOverflowWidgets: true,
                           }}
-                          onMount={(_editor, monaco) =>
+                          onMount={(_editor, monaco: Monaco) =>
                             registerMonacoInstance(monaco)
                           }
                         />
@@ -792,7 +794,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                             readOnly: true,
                             fixedOverflowWidgets: true,
                           }}
-                          onMount={(_editor, monaco) =>
+                          onMount={(_editor, monaco: Monaco) =>
                             registerMonacoInstance(monaco)
                           }
                         />
@@ -810,7 +812,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                         options={{ readOnly: true, fixedOverflowWidgets: true }}
                         language={"json"}
                         theme={monacoTheme}
-                        onMount={(_editor, monaco) =>
+                        onMount={(_editor, monaco: Monaco) =>
                           registerMonacoInstance(monaco)
                         }
                       />
@@ -941,7 +943,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                             ]);
                           }}
                           options={{ fixedOverflowWidgets: true }}
-                          onMount={(_editor, monaco) =>
+                          onMount={(_editor, monaco: Monaco) =>
                             registerMonacoInstance(monaco)
                           }
                         />
@@ -983,7 +985,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                             ]);
                           }}
                           options={{ fixedOverflowWidgets: true }}
-                          onMount={(_editor, monaco) =>
+                          onMount={(_editor, monaco: Monaco) =>
                             registerMonacoInstance(monaco)
                           }
                         />
@@ -1027,7 +1029,7 @@ export const LoadSchemaDialog: React.FC<LoadSchemaDialogProps> = ({
                           void form.validateFields([["sample", "text"]]);
                         }}
                         options={{ fixedOverflowWidgets: true }}
-                        onMount={(_editor, monaco) =>
+                        onMount={(_editor, monaco: Monaco) =>
                           registerMonacoInstance(monaco)
                         }
                       />

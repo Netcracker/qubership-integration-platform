@@ -18,7 +18,7 @@ describe("completion-helpers", () => {
     it("converts position + word into IRange", () => {
       const range = getRangeForWord(
         { lineNumber: 5, column: 10 } as never,
-        { startColumn: 6, endColumn: 10, word: "test" } as never,
+        { startColumn: 6, endColumn: 10, word: "test" },
       );
       expect(range).toEqual({
         startLineNumber: 5,
@@ -97,7 +97,7 @@ describe("completion-helpers", () => {
         { label: "a", kind: 1, insertText: "a" },
         { label: "b", kind: 1, insertText: "b" },
       ];
-      const result = withRange(items as never, range);
+      const result = withRange(items, range);
       expect(result).toHaveLength(2);
       expect(result[0]).toEqual({
         label: "a",

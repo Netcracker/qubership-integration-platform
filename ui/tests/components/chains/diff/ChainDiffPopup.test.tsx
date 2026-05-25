@@ -103,7 +103,7 @@ describe("ChainDiffPopup", () => {
   it("should pass chain1, chain2, changes, and selectedChangeId to ChainDiffView when not loading", () => {
     const chain1 = { id: "chain-1" } as Chain;
     const chain2 = { id: "chain-2" } as Chain;
-    const changes: Change[] = [{ id: "c1", kind: "element" } as Change];
+    const changes: Change[] = [{ id: "c1", kind: "element" }];
     mockUseChainDiff.mockReturnValue({
       ...defaultHookReturn,
       chain1,

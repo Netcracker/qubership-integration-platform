@@ -167,7 +167,7 @@ export const ResizableTitle = React.forwardRef<
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
-  const thStyle = isResizable
+  const thStyle: React.CSSProperties | undefined = isResizable
     ? { position: "relative", ...restProps.style, width }
     : restProps.style;
 

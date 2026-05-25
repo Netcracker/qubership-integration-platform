@@ -10,7 +10,7 @@ import {
   TypeDefinitionsAware,
 } from "../../../src/mapper/model/model.ts";
 
-function getContext(type: DataType): string {
+function getContext(type: DataType | Metadata | null | undefined): string {
   return type === undefined ? "undefined" : JSON.stringify(type);
 }
 
@@ -51,7 +51,7 @@ describe("Mapper", () => {
     describe("arrayType", () => {
       it("should return ArrayType with specified definitions and metadata", () => {
         const itemType: DataType = { name: "string" };
-        const definitions = [];
+        const definitions: TypeDefinition[] = [];
         const metadata = {};
         const arrayType = DataTypes.arrayType(itemType, definitions, metadata);
         expect(arrayType.itemType).toBe(itemType);
@@ -63,7 +63,7 @@ describe("Mapper", () => {
     describe("objectType", () => {
       it("should return ObjectType with specified schema, definitions, and metadata", () => {
         const schema = { id: "", attributes: [] };
-        const definitions = [];
+        const definitions: TypeDefinition[] = [];
         const metadata = {};
         const objectType = DataTypes.objectType(schema, definitions, metadata);
         expect(objectType.schema).toBe(schema);
@@ -74,7 +74,7 @@ describe("Mapper", () => {
 
     describe("referenceType", () => {
       it("should return ReferenceType with specified definition ID, definitions, and metadata", () => {
-        const definitions = [];
+        const definitions: TypeDefinition[] = [];
         const metadata = {};
         const referenceType = DataTypes.referenceType(
           "foo",
@@ -362,7 +362,7 @@ describe("Mapper", () => {
           { id: "bar", name: "bar", type: { name: "string" } },
         ];
         const result: DataType = DataTypes.updateDefinitions(type, definitions);
-        expect((result as TypeDefinitionsAware).definitions.sort()).toEqual(
+        expect((result as TypeDefinitionsAware).definitions?.sort()).toEqual(
           definitions.sort(),
         );
       });
@@ -380,7 +380,7 @@ describe("Mapper", () => {
           { id: "baz", name: "baz", type: { name: "string" } },
         ];
         const result: DataType = DataTypes.updateDefinitions(type, definitions);
-        expect((result as TypeDefinitionsAware).definitions.sort()).toEqual(
+        expect((result as TypeDefinitionsAware).definitions?.sort()).toEqual(
           typeDefinitions.concat(definitions).sort(),
         );
       });
@@ -499,9 +499,9 @@ describe("Mapper", () => {
     });
 
     describe("resolveArrayItemType", () => {
-      it("should resolve to null when type is null", () => {
+      it("should resolve to undefined when type is null", () => {
         expect(DataTypes.resolveArrayItemType(null, [])).toEqual({
-          type: null,
+          type: undefined,
           definitions: [],
         });
       });

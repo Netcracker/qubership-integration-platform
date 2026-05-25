@@ -15,7 +15,7 @@ export interface PlannedElement {
   type: string;
   name: string;
   order: number;
-  properties: Record<string, any>;
+  properties: Record<string, unknown>;
   status: ElementCreationStatus;
   elementId?: string;
   error?: string;
