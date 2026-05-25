@@ -59,7 +59,7 @@ When service is clicked, system shows Parameters tab with the following informat
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
   **Technical** labels cannot be updated manually.
 
-For _Web UI_ there are some additional information:
+For <ins>Web UI</ins> there are some additional information:
 
 - Created - datetime of entity creation.
 - Modified - datetime of entity modifying.

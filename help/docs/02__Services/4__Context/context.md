@@ -42,7 +42,7 @@ When service is clicked, system shows Parameters tab with the following informat
 - Name - mandatory service name.
 - Description - description of service.
 
-For _Web UI_ there are some additional information:
+For <ins>Web UI</ins> there are some additional information:
 
 - Created - datetime of entity creation.
 - Modified - datetime of entity modifying.
