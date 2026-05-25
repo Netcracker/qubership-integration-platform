@@ -5,6 +5,7 @@ import { describe, it, expect, jest, beforeEach } from "@jest/globals";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import type { Chain } from "../../../../src/api/apiTypes";
 import type { Change } from "../../../../src/components/chains/diff/compare/types";
+import type { ComparableItem } from "../../../../src/components/chains/diff/useChainDiff";
 
 const mockGetChain = jest.fn<(id: string) => Promise<Chain>>();
 const mockRequestFailed = jest.fn<(...args: unknown[]) => void>();
@@ -34,6 +35,9 @@ import { useChainDiff } from "../../../../src/components/chains/diff/useChainDif
 const chain1 = { id: "chain-1", name: "Alpha" } as unknown as Chain;
 const chain2 = { id: "chain-2", name: "Beta" } as unknown as Chain;
 
+const item1: ComparableItem = { kind: "chain", id: "chain-1" };
+const item2: ComparableItem = { kind: "chain", id: "chain-2" };
+
 function resolveById(id: string): Promise<Chain> {
   if (id === "chain-1") return Promise.resolve(chain1);
   if (id === "chain-2") return Promise.resolve(chain2);
@@ -48,7 +52,7 @@ describe("useChainDiff", () => {
   it("should return undefined chains, empty changes, and undefined selectedChangeId when first rendered", () => {
     mockGetChain.mockImplementation(resolveById);
 
-    const { result } = renderHook(() => useChainDiff("chain-1", "chain-2"));
+    const { result } = renderHook(() => useChainDiff(item1, item2));
 
     expect(result.current.chain1).toBeUndefined();
     expect(result.current.chain2).toBeUndefined();
@@ -59,7 +63,7 @@ describe("useChainDiff", () => {
   it("should call api.getChain for chainId1 and chainId2 when rendered", async () => {
     mockGetChain.mockImplementation(resolveById);
 
-    renderHook(() => useChainDiff("chain-1", "chain-2"));
+    renderHook(() => useChainDiff(item1, item2));
 
     await waitFor(() => {
       expect(mockGetChain).toHaveBeenCalledWith("chain-1");
@@ -70,7 +74,7 @@ describe("useChainDiff", () => {
   it("should set chain1 to the resolved value when the api call for chainId1 succeeds", async () => {
     mockGetChain.mockImplementation(resolveById);
 
-    const { result } = renderHook(() => useChainDiff("chain-1", "chain-2"));
+    const { result } = renderHook(() => useChainDiff(item1, item2));
 
     await waitFor(() => {
       expect(result.current.chain1).toEqual(chain1);
@@ -80,7 +84,7 @@ describe("useChainDiff", () => {
   it("should set chain2 to the resolved value when the api call for chainId2 succeeds", async () => {
     mockGetChain.mockImplementation(resolveById);
 
-    const { result } = renderHook(() => useChainDiff("chain-1", "chain-2"));
+    const { result } = renderHook(() => useChainDiff(item1, item2));
 
     await waitFor(() => {
       expect(result.current.chain2).toEqual(chain2);
@@ -90,7 +94,7 @@ describe("useChainDiff", () => {
   it("should set isLoading to true while chains are being fetched", () => {
     mockGetChain.mockReturnValue(new Promise<Chain>(() => {}));
 
-    const { result } = renderHook(() => useChainDiff("chain-1", "chain-2"));
+    const { result } = renderHook(() => useChainDiff(item1, item2));
 
     expect(result.current.isLoading).toBe(true);
   });
@@ -98,7 +102,7 @@ describe("useChainDiff", () => {
   it("should set isLoading to false after both chains finish loading", async () => {
     mockGetChain.mockImplementation(resolveById);
 
-    const { result } = renderHook(() => useChainDiff("chain-1", "chain-2"));
+    const { result } = renderHook(() => useChainDiff(item1, item2));
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -108,7 +112,7 @@ describe("useChainDiff", () => {
   it("should call compareChains with chain1 and chain2 when both chains have loaded", async () => {
     mockGetChain.mockImplementation(resolveById);
 
-    renderHook(() => useChainDiff("chain-1", "chain-2"));
+    renderHook(() => useChainDiff(item1, item2));
 
     await waitFor(() => {
       expect(mockCompareChains).toHaveBeenCalledWith(chain1, chain2);
@@ -120,7 +124,7 @@ describe("useChainDiff", () => {
     mockGetChain.mockImplementation(resolveById);
     mockCompareChains.mockReturnValue(changes);
 
-    const { result } = renderHook(() => useChainDiff("chain-1", "chain-2"));
+    const { result } = renderHook(() => useChainDiff(item1, item2));
 
     await waitFor(() => {
       expect(result.current.changes).toEqual(changes);
@@ -134,7 +138,7 @@ describe("useChainDiff", () => {
         : Promise.reject(new Error("Not found")),
     );
 
-    renderHook(() => useChainDiff("chain-1", "chain-2"));
+    renderHook(() => useChainDiff(item1, item2));
 
     await waitFor(() => {
       expect(mockRequestFailed).toHaveBeenCalled();
@@ -149,7 +153,7 @@ describe("useChainDiff", () => {
       id === "chain-1" ? Promise.reject(error) : Promise.resolve(chain2),
     );
 
-    renderHook(() => useChainDiff("chain-1", "chain-2"));
+    renderHook(() => useChainDiff(item1, item2));
 
     await waitFor(() => {
       expect(mockRequestFailed).toHaveBeenCalledWith(
@@ -165,7 +169,7 @@ describe("useChainDiff", () => {
       id === "chain-1" ? Promise.resolve(chain1) : Promise.reject(error),
     );
 
-    renderHook(() => useChainDiff("chain-1", "chain-2"));
+    renderHook(() => useChainDiff(item1, item2));
 
     await waitFor(() => {
       expect(mockRequestFailed).toHaveBeenCalledWith(
@@ -182,7 +186,7 @@ describe("useChainDiff", () => {
       throw error;
     });
 
-    renderHook(() => useChainDiff("chain-1", "chain-2"));
+    renderHook(() => useChainDiff(item1, item2));
 
     await waitFor(() => {
       expect(mockErrorWithDetails).toHaveBeenCalledWith(
@@ -199,7 +203,7 @@ describe("useChainDiff", () => {
       throw new Error("Compare failed");
     });
 
-    const { result } = renderHook(() => useChainDiff("chain-1", "chain-2"));
+    const { result } = renderHook(() => useChainDiff(item1, item2));
 
     await waitFor(() => {
       expect(mockErrorWithDetails).toHaveBeenCalled();
@@ -218,15 +222,24 @@ describe("useChainDiff", () => {
     });
 
     const { result, rerender } = renderHook(
-      ({ id1, id2 }: { id1: string; id2: string }) => useChainDiff(id1, id2),
-      { initialProps: { id1: "chain-1", id2: "chain-2" } },
+      ({ i1, i2 }: { i1: ComparableItem; i2: ComparableItem }) =>
+        useChainDiff(i1, i2),
+      {
+        initialProps: {
+          i1: { kind: "chain" as const, id: "chain-1" },
+          i2: { kind: "chain" as const, id: "chain-2" },
+        },
+      },
     );
 
     await waitFor(() => {
       expect(result.current.chain1).toEqual(chain1);
     });
 
-    rerender({ id1: "chain-3", id2: "chain-2" });
+    rerender({
+      i1: { kind: "chain" as const, id: "chain-3" },
+      i2: { kind: "chain" as const, id: "chain-2" },
+    });
 
     await waitFor(() => {
       expect(result.current.chain1).toEqual(chain3);
@@ -244,15 +257,24 @@ describe("useChainDiff", () => {
     });
 
     const { result, rerender } = renderHook(
-      ({ id1, id2 }: { id1: string; id2: string }) => useChainDiff(id1, id2),
-      { initialProps: { id1: "chain-1", id2: "chain-2" } },
+      ({ i1, i2 }: { i1: ComparableItem; i2: ComparableItem }) =>
+        useChainDiff(i1, i2),
+      {
+        initialProps: {
+          i1: { kind: "chain" as const, id: "chain-1" },
+          i2: { kind: "chain" as const, id: "chain-2" },
+        },
+      },
     );
 
     await waitFor(() => {
       expect(result.current.chain2).toEqual(chain2);
     });
 
-    rerender({ id1: "chain-1", id2: "chain-4" });
+    rerender({
+      i1: { kind: "chain" as const, id: "chain-1" },
+      i2: { kind: "chain" as const, id: "chain-4" },
+    });
 
     await waitFor(() => {
       expect(result.current.chain2).toEqual(chain4);
@@ -263,7 +285,7 @@ describe("useChainDiff", () => {
   it("should update selectedChangeId when setSelectedChangeId is called", () => {
     mockGetChain.mockImplementation(resolveById);
 
-    const { result } = renderHook(() => useChainDiff("chain-1", "chain-2"));
+    const { result } = renderHook(() => useChainDiff(item1, item2));
 
     expect(result.current.selectedChangeId).toBeUndefined();
 

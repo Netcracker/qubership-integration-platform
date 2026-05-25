@@ -20,7 +20,6 @@ import {
   getTimestampColumnFilterFn,
   TimestampColumnFilterDropdown,
 } from "../components/table/TimestampColumnFilterDropdown.tsx";
-import { SnapshotsCompare } from "../components/modal/SnapshotsCompare.tsx";
 import { InlineEdit } from "../components/InlineEdit.tsx";
 import { TextValueEdit } from "../components/table/TextValueEdit.tsx";
 import { LabelsEdit } from "../components/table/LabelsEdit.tsx";
@@ -47,6 +46,7 @@ import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { ChainContext } from "./ChainPage.tsx";
+import { ChainDiffPopup } from "../components/chains/diff/ChainDiffPopup.tsx";
 
 const SNAPSHOTS_SELECTION_COLUMN_WIDTH = 48;
 
@@ -156,7 +156,12 @@ export const Snapshots: React.FC = () => {
     if (selectedRowKeys.length !== 2) return;
     const [oneId, otherId] = toStringIds(selectedRowKeys);
     showModal({
-      component: <SnapshotsCompare oneId={oneId} otherId={otherId} />,
+      component: (
+        <ChainDiffPopup
+          item1={{ kind: "snapshot", id: oneId }}
+          item2={{ kind: "snapshot", id: otherId }}
+        />
+      ),
     });
   };
 
