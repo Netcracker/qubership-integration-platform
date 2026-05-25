@@ -10,17 +10,7 @@
     "rootDir": "src",
     "strict": true,
     "skipLibCheck": true,
-    "types": ["vscode", "webpack-env", "jest", "mocha", "assert", "js-yaml", "yauzl"],
-    "paths": {
-      "@netcracker/qip-schemas": [
-        "./node_modules/@netcracker/qip-schemas",
-        "./node_modules/@netcracker/qip-ui/node_modules/@netcracker/qip-schemas"
-      ],
-      "@netcracker/qip-schemas/*": [
-        "./node_modules/@netcracker/qip-schemas/*",
-        "./node_modules/@netcracker/qip-ui/node_modules/@netcracker/qip-schemas/*"
-      ]
-    }
+    "types": ["vscode", "webpack-env", "jest", "mocha", "assert", "js-yaml", "yauzl"]
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist", "tests"]

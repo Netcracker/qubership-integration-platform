@@ -11,7 +11,19 @@
       "problemMatcher": [
         "$ts-webpack",
         "$tslint-webpack"
-      ]
+      ],
+      "detail": "Fast: rebuild only vscode-extension. Requires schemas/dist + ui/dist-lib (run 'build' once after clone or when ui/schemas change)."
+    },
+    {
+      "label": "build",
+      "type": "npm",
+      "script": "build",
+      "group": "build",
+      "problemMatcher": [
+        "$ts-webpack",
+        "$tslint-webpack"
+      ],
+      "detail": "Slow: schemas + ui library + vscode-extension. Run after fresh clone or when ui/schemas changed."
     },
     {
       "type": "npm",

@@ -152,11 +152,11 @@
     },
     "webviewAssets": [
       {
-        "path": "node_modules/@netcracker/qip-ui/dist-lib",
+        "path": "dist/web/qip-ui",
         "type": "resource"
       },
       {
-        "path": "node_modules/@netcracker/qip-schemas",
+        "path": "dist/web/qip-schemas",
         "type": "resource"
       }
     ]
@@ -167,12 +167,14 @@
     "test:integration:headless": "xvfb-run -a npm run test:integration",
     "test:unit": "jest -c jest.config.cjs",
     "test:unit:coverage": "jest -c jest.config.cjs --coverage",
-    "prepublishOnly": "rimraf dist && npm run compile-web",
+    "prepublishOnly": "rimraf dist && npm run build",
     "postpublish": "rimraf dist",
-    "vscode:prepublish": "npm run package-web",
+    "vscode:prepublish": "npm run prepare-deps && npm run package-web",
     "compile-web": "webpack",
     "watch-web": "webpack --watch",
     "package-web": "webpack --mode production --devtool hidden-source-map",
+    "prepare-deps": "npm run build -w @netcracker/qip-schemas && npm run build:lib -w @netcracker/qip-ui && npm run build:lib:types -w @netcracker/qip-ui",
+    "build": "npm run prepare-deps && npm run compile-web",
     "lint": "eslint --fix src",
     "check-types": "tsc --noEmit",
     "run-in-browser": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. ."
@@ -188,6 +190,7 @@
     "@typescript-eslint/parser": "^8.31.1",
     "@vscode/test-web": "^0.0.69",
     "assert": "^2.1.0",
+    "copy-webpack-plugin": "^13.0.1",
     "eslint": "^9.25.1",
     "jest": "^29.7.0",
     "mocha": "^11.1.0",
