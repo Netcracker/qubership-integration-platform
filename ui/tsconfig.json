@@ -16,7 +16,14 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+    "types": [
+      "vite/client",
+      "jest",
+      "node",
+      "@testing-library/jest-dom",
+      "jest-expect-message"
+    ]
   },
   "include": [
     "src",
@@ -24,7 +31,8 @@
     "global-definitions.d.ts",
     "vite-env.d.ts",
     "vite.config.ts",
+    "vite.config.lib.ts",
+    "vite.config.lib.bundled.mts",
     "jest.config.ts"
-  ],
-  "types": ["vite/client"]
+  ]
 }

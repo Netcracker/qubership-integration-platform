@@ -100,41 +100,41 @@ describe("hasCriticalErrors", () => {
 
   it("returns true for required, type, pattern, format, enum, minimum, maximum", () => {
     expect(
-      hasCriticalErrors([{ name: "required", property: ".x", message: "x" }]),
+      hasCriticalErrors([{ name: "required", property: ".x", message: "x", stack: "" }]),
     ).toBe(true);
     expect(
-      hasCriticalErrors([{ name: "type", property: ".x", message: "x" }]),
+      hasCriticalErrors([{ name: "type", property: ".x", message: "x", stack: "" }]),
     ).toBe(true);
     expect(
-      hasCriticalErrors([{ name: "pattern", property: ".x", message: "x" }]),
+      hasCriticalErrors([{ name: "pattern", property: ".x", message: "x", stack: "" }]),
     ).toBe(true);
     expect(
-      hasCriticalErrors([{ name: "format", property: ".x", message: "x" }]),
+      hasCriticalErrors([{ name: "format", property: ".x", message: "x", stack: "" }]),
     ).toBe(true);
     expect(
-      hasCriticalErrors([{ name: "enum", property: ".x", message: "x" }]),
+      hasCriticalErrors([{ name: "enum", property: ".x", message: "x", stack: "" }]),
     ).toBe(true);
     expect(
-      hasCriticalErrors([{ name: "minimum", property: ".x", message: "x" }]),
+      hasCriticalErrors([{ name: "minimum", property: ".x", message: "x", stack: "" }]),
     ).toBe(true);
     expect(
-      hasCriticalErrors([{ name: "maximum", property: ".x", message: "x" }]),
+      hasCriticalErrors([{ name: "maximum", property: ".x", message: "x", stack: "" }]),
     ).toBe(true);
   });
 
   it("returns false for oneOf and anyOf", () => {
     expect(
-      hasCriticalErrors([{ name: "oneOf", property: ".x", message: "x" }]),
+      hasCriticalErrors([{ name: "oneOf", property: ".x", message: "x", stack: "" }]),
     ).toBe(false);
     expect(
-      hasCriticalErrors([{ name: "anyOf", property: ".x", message: "x" }]),
+      hasCriticalErrors([{ name: "anyOf", property: ".x", message: "x", stack: "" }]),
     ).toBe(false);
   });
 
   it("returns true for unknown error types", () => {
     expect(
       hasCriticalErrors([
-        { name: "custom", property: ".x", message: "x" } as RJSFValidationError,
+        { name: "custom", property: ".x", message: "x", stack: "" },
       ]),
     ).toBe(true);
   });
@@ -142,8 +142,8 @@ describe("hasCriticalErrors", () => {
   it("returns true when any error is critical in mixed array", () => {
     expect(
       hasCriticalErrors([
-        { name: "anyOf", property: ".x", message: "x" },
-        { name: "required", property: ".y", message: "y" },
+        { name: "anyOf", property: ".x", message: "x", stack: "" },
+        { name: "required", property: ".y", message: "y", stack: "" },
       ]),
     ).toBe(true);
   });
@@ -151,8 +151,8 @@ describe("hasCriticalErrors", () => {
   it("returns false when all errors are oneOf/anyOf", () => {
     expect(
       hasCriticalErrors([
-        { name: "oneOf", property: ".x", message: "x" },
-        { name: "anyOf", property: ".y", message: "y" },
+        { name: "oneOf", property: ".x", message: "x", stack: "" },
+        { name: "anyOf", property: ".y", message: "y", stack: "" },
       ]),
     ).toBe(false);
   });
@@ -165,6 +165,7 @@ describe("formatValidationError", () => {
         name: "required",
         property: ".properties.name",
         message: "is required",
+        stack: "",
       }),
     ).toBe('Field ".properties.name": is required');
   });
@@ -174,6 +175,7 @@ describe("formatValidationError", () => {
       formatValidationError({
         name: "type",
         message: "must be string",
+        stack: "",
       }),
     ).toBe("Form: must be string");
   });

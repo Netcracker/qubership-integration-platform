@@ -8,8 +8,8 @@ import { useContext } from "react";
 import type { JSONSchema7 } from "json-schema";
 
 const mockErrorWithDetails = jest.fn();
-const mockGetSchemaModules = jest.fn();
-const mockYamlLoad = jest.fn();
+const mockGetSchemaModules = jest.fn<Record<string, string>, []>();
+const mockYamlLoad = jest.fn<unknown, [string]>();
 
 jest.mock("../../../../src/hooks/useNotificationService.tsx", () => ({
   useNotificationService: () => ({ errorWithDetails: mockErrorWithDetails }),
@@ -18,12 +18,12 @@ jest.mock("../../../../src/hooks/useNotificationService.tsx", () => ({
 jest.mock(
   "../../../../src/components/modal/chain_element/chainElementSchemaModules.ts",
   () => ({
-    getSchemaModules: () => mockGetSchemaModules(),
+    getSchemaModules: (): Record<string, string> => mockGetSchemaModules(),
   }),
 );
 
 jest.mock("js-yaml", () => ({
-  load: (...args: unknown[]) => mockYamlLoad(...args),
+  load: (raw: string): unknown => mockYamlLoad(raw),
 }));
 
 import {
@@ -55,14 +55,16 @@ describe("ElementSchemasProvider", () => {
     expect(getByTestId("child")).toBeInTheDocument();
   });
 
-  it("should call getSchemaModules on mount", () => {
+  it("should call getSchemaModules when getSchema is invoked", () => {
+    mockGetSchemaModules.mockReturnValue({});
     render(
       <ElementSchemasProvider>
         <ContextCapture />
       </ElementSchemasProvider>,
     );
 
-    expect(mockGetSchemaModules).toHaveBeenCalledTimes(1);
+    capturedContext!.getSchema("any-type-mount-test");
+    expect(mockGetSchemaModules).toHaveBeenCalled();
   });
 
   it("should provide a getSchema function through context", () => {
@@ -79,8 +81,7 @@ describe("ElementSchemasProvider", () => {
     const rawYaml = "type: object";
     const parsedSchema: JSONSchema7 = { type: "object" };
     mockGetSchemaModules.mockReturnValue({
-      "/node_modules/@netcracker/qip-schemas/assets/http-trigger-t1.schema.yaml":
-        rawYaml,
+      "http-trigger-t1": rawYaml,
     });
     mockYamlLoad.mockImplementation((raw: unknown) =>
       raw === rawYaml ? parsedSchema : undefined,
@@ -111,8 +112,7 @@ describe("ElementSchemasProvider", () => {
     const rawYaml = "type: string";
     const parsedSchema: JSONSchema7 = { type: "string" };
     mockGetSchemaModules.mockReturnValue({
-      "/node_modules/@netcracker/qip-schemas/assets/cached-type-t3.schema.yaml":
-        rawYaml,
+      "cached-type-t3": rawYaml,
     });
     mockYamlLoad.mockReturnValue(parsedSchema);
 
@@ -131,8 +131,7 @@ describe("ElementSchemasProvider", () => {
   it("should call errorWithDetails and return undefined when yaml parsing throws", () => {
     const parseError = new Error("YAML parse error");
     mockGetSchemaModules.mockReturnValue({
-      "/node_modules/@netcracker/qip-schemas/assets/broken-t4.schema.yaml":
-        "bad-yaml",
+      "broken-t4": "bad-yaml",
     });
     mockYamlLoad.mockImplementation(() => {
       throw parseError;

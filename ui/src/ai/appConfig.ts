@@ -16,7 +16,7 @@ export function getAiServiceUrl(): string | null {
     return aiServiceUrl;
   }
 
-  const envUrl = import.meta.env.VITE_AI_SERVICE_URL;
+  const envUrl = import.meta.env.VITE_AI_SERVICE_URL as string | undefined;
   if (envUrl) {
     return envUrl;
   }
@@ -32,7 +32,7 @@ export function getAiServiceUrl(): string | null {
   return null;
 }
 
-export function getIsAiServiceAvailable(): boolean {
+export function useIsAiServiceAvailable(): boolean {
   const [isAiServiceAvailable, setIsAiServiceAvailable] = useState(false);
 
   useEffect(() => {
@@ -44,7 +44,6 @@ export function getIsAiServiceAvailable(): boolean {
     const base = url.replace(/\/$/, "");
     fetch(`${base}/health`, { method: "GET" })
       .then((response) => {
-        console.log("status:", response.status);
         setIsAiServiceAvailable(response.ok);
       })
       .catch(() => setIsAiServiceAvailable(false));

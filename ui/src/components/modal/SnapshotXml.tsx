@@ -2,7 +2,9 @@ import { useModalContext } from "../../ModalContextProvider.tsx";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Snapshot } from "../../api/apiTypes.ts";
 import { api } from "../../api/api.ts";
-import { Editor, Monaco } from "@monaco-editor/react";
+import { Editor } from "@monaco-editor/react";
+import type * as monacoNs from "monaco-editor";
+type Monaco = typeof monacoNs;
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import {
   useMonacoTheme,
@@ -67,7 +69,7 @@ export const SnapshotXmlView: React.FC<SnapshotXmlViewProps> = ({
           fixedOverflowWidgets: true,
           automaticLayout: true,
         }}
-        onMount={(_editor, monaco) => {
+        onMount={(_editor, monaco: Monaco) => {
           monacoRef.current = monaco;
           applyVSCodeThemeToMonaco(monaco);
         }}

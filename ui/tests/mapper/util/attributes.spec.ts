@@ -4,7 +4,7 @@ import {
   DataType,
   ObjectSchema,
   TypeDefinition,
-} from "../model/model.ts";
+} from "../../../src/mapper/model/model.ts";
 
 describe("Mapper", () => {
   describe("Attributes", () => {
@@ -42,8 +42,8 @@ describe("Mapper", () => {
 
     describe("extractTypeDefinitions", () => {
       it("should return an empty list when the attributes list is undefined or null", () => {
-        ([undefined, null] as unknown as Attribute[]).forEach(
-          (attributes: Attribute[]) => {
+        ([undefined, null] as unknown as Attribute[][]).forEach(
+          (attributes) => {
             expect(
               Attributes.extractTypeDefinitions(attributes),
               String(attributes as unknown as undefined | null),
@@ -71,7 +71,7 @@ describe("Mapper", () => {
               ],
             },
           },
-          { id: "a1", name: "a1", type: undefined },
+          { id: "a1", name: "a1", type: undefined as unknown as DataType },
           {
             id: "a1",
             name: "a1",
@@ -94,7 +94,7 @@ describe("Mapper", () => {
 
     describe("resolveAttributeType", () => {
       it("should return undefined value when attribute is undefined or null", () => {
-        [undefined, null].forEach((attribute: Attribute) => {
+        [undefined, null].forEach((attribute) => {
           expect(
             Attributes.resolveAttributeType(attribute, []),
           ).toBeUndefined();
@@ -104,7 +104,7 @@ describe("Mapper", () => {
       it("should return undefined value when attribute type is undefined", () => {
         expect(
           Attributes.resolveAttributeType(
-            { id: "foo", name: "bar", type: undefined },
+            { id: "foo", name: "bar", type: undefined as unknown as DataType },
             [],
           ),
         ).toBeUndefined();
@@ -140,7 +140,7 @@ describe("Mapper", () => {
 
     describe("resolveAttributeSchema", () => {
       it("should return null value when attribute is undefined or null", () => {
-        [undefined, null].forEach((attribute: Attribute) => {
+        [undefined, null].forEach((attribute) => {
           expect(Attributes.resolveAttributeSchema(attribute, [])).toBeNull();
         });
       });
@@ -148,7 +148,7 @@ describe("Mapper", () => {
       it("should return null value when attribute type is undefined", () => {
         expect(
           Attributes.resolveAttributeSchema(
-            { id: "foo", name: "bar", type: undefined },
+            { id: "foo", name: "bar", type: undefined as unknown as DataType },
             [],
           ),
         ).toBeNull();
@@ -205,7 +205,7 @@ describe("Mapper", () => {
 
     describe("getChildAttributes", () => {
       it("should return an empty list when the attribute is undefined or null", () => {
-        [undefined, null].forEach((attribute: Attribute) => {
+        [undefined, null].forEach((attribute) => {
           expect(Attributes.getChildAttributes(attribute, [])).toEqual([]);
         });
       });
@@ -304,7 +304,7 @@ describe("Mapper", () => {
 
     describe("restorePath", () => {
       it("should return null when attribute is null or undefined", () => {
-        [undefined, null].forEach((attribute: Attribute) => {
+        [undefined, null].forEach((attribute) => {
           expect(Attributes.restorePath(attribute, ["foo"])).toBeNull();
         });
       });
@@ -401,7 +401,7 @@ describe("Mapper", () => {
 
     describe("pathExists", () => {
       it("should return false when attribute is null or undefined", () => {
-        [undefined, null].forEach((attribute: Attribute) => {
+        [undefined, null].forEach((attribute) => {
           expect(Attributes.pathExists(attribute, ["foo"])).toBeFalsy();
         });
       });
@@ -467,7 +467,7 @@ describe("Mapper", () => {
 
     describe("attributeSchemaPresentsInPath", () => {
       it("should return false when the attribute is undefined or null", () => {
-        [undefined, null].forEach((attribute: Attribute) => {
+        [undefined, null].forEach((attribute) => {
           expect(
             Attributes.attributeSchemaPresentsInPath(
               attribute,

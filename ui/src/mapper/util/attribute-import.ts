@@ -676,7 +676,7 @@ export class AttributeImporter {
         modifiedValue[name] =
           typeof sch === "object"
             ? this.postprocessSchema(sch as JsonSchema)
-            : (sch as JsonSchema);
+            : (sch);
       }
       // @ts-expect-error Didn't find a way to set value by key to schema without triggering a type checker
       changes[key] = modifiedValue;
@@ -699,7 +699,7 @@ export class AttributeImporter {
         continue;
       }
       // @ts-expect-error Didn't find a way to set value by key to schema without triggering a type checker
-      changes[key] = this.postprocessSchema(value as JsonSchema);
+      changes[key] = this.postprocessSchema(value);
     }
 
     for (const key of [

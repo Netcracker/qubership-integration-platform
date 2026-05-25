@@ -1,22 +1,13 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import sassDts from "vite-plugin-sass-dts";
-import dts from "vite-plugin-dts";
 import * as path from "node:path";
 
 // Library build config for web applications - React is external (smaller bundle)
 // This is the default version published to npm for use in Vite/Webpack projects
+// Types are emitted separately by `build:lib:types` (tsc) — see package.json.
 export default defineConfig({
-  plugins: [
-    react(),
-    sassDts(),
-    dts({
-      entryRoot: "src",
-      outDir: "dist-lib/types",
-      insertTypesEntry: true,
-      rollupTypes: true,
-    }),
-  ],
+  plugins: [react(), sassDts()],
   build: {
     outDir: "dist-lib",
     emptyOutDir: true,

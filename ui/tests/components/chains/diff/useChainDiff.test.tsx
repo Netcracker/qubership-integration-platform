@@ -6,10 +6,10 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import type { Chain } from "../../../../src/api/apiTypes";
 import type { Change } from "../../../../src/components/chains/diff/compare/types";
 
-const mockGetChain = jest.fn();
-const mockRequestFailed = jest.fn();
-const mockErrorWithDetails = jest.fn();
-const mockCompareChains = jest.fn();
+const mockGetChain = jest.fn<(id: string) => Promise<Chain>>();
+const mockRequestFailed = jest.fn<(...args: unknown[]) => void>();
+const mockErrorWithDetails = jest.fn<(...args: unknown[]) => void>();
+const mockCompareChains = jest.fn<(...args: unknown[]) => Change[]>();
 const stableNotificationService = {
   requestFailed: mockRequestFailed,
   errorWithDetails: mockErrorWithDetails,
@@ -116,7 +116,7 @@ describe("useChainDiff", () => {
   });
 
   it("should set changes to the result returned by compareChains when comparison succeeds", async () => {
-    const changes: Change[] = [{ id: "c1", kind: "element" } as Change];
+    const changes: Change[] = [{ id: "c1", kind: "element" }];
     mockGetChain.mockImplementation(resolveById);
     mockCompareChains.mockReturnValue(changes);
 

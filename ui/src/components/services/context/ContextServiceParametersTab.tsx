@@ -132,10 +132,10 @@ export const ContextServiceParametersTab: React.FC<
         {!isVsCode && (
           <Descriptions column={1} size="small" style={{ margin: "24px 0" }}>
             <Descriptions.Item label="Created">
-              {formatTimestamp(system.createdWhen as string)}
+              {formatTimestamp(system.createdWhen)}
             </Descriptions.Item>
             <Descriptions.Item label="Modified">
-              {formatTimestamp(system.modifiedWhen as string)}
+              {formatTimestamp(system.modifiedWhen)}
             </Descriptions.Item>
           </Descriptions>
         )}

@@ -11,7 +11,7 @@ import {
 import Sider from "antd/lib/layout/Sider";
 import styles from "../components/elements_library/ElementsLibrarySidebar.module.css";
 import { Flex, Menu, Tabs } from "antd";
-import { OverridableIcon, IconName } from "../icons/IconProvider.tsx";
+import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { Element } from "../api/apiTypes.ts";
 import { useModalsContext } from "../Modals.tsx";
 import { useParams, useNavigate } from "react-router-dom";
@@ -20,7 +20,6 @@ import {
   getLibraryElement,
   getNodeFromElement,
 } from "../misc/chain-graph-utils.ts";
-import type { MenuProps } from "antd";
 import { api } from "../api/api.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { ChainContext } from "./ChainPage.tsx";
@@ -29,7 +28,6 @@ import { ChainGraphNode } from "../components/graph/nodes/ChainGraphNodeTypes.ts
 import { useElkDirectionContext } from "./ElkDirectionContext.tsx";
 import { useFocusToElementId } from "../components/graph/ElementFocus.tsx";
 import { UsedPropertiesList } from "../components/UsedPropertiesList.tsx";
-import { AnalyzableElement } from "../misc/used-properties-analyzer.ts";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import { SidebarSearch } from "../components/elements_library/SidebarSearch.tsx";
 import { ChainTextViewPanel } from "../components/chains/ChainTextViewPanel.tsx";
@@ -66,7 +64,7 @@ export const PageWithRightPanel = ({
   );
 
   const allItems = useRef<MenuItem[]>([]);
-  const [items, setItems] = useState<MenuItem[]>([]);
+  const [, setItems] = useState<MenuItem[]>([]);
   const [openKeysState, setOpenKeysState] = useState<string[]>();
   const openKeysBeforeSearch = useRef<string[]>();
   const [isSearch, setIsSearch] = useState(false);
@@ -195,7 +193,7 @@ export const PageWithRightPanel = ({
             }}
           >
             <span className={styles.elementListItemIcon}>
-              <OverridableIcon name={element.type as IconName} />
+              <OverridableIcon name={element.type} />
             </span>
             <div className={styles.elementListItemContent}>
               <span>{elementName}</span>
@@ -287,7 +285,7 @@ export const PageWithRightPanel = ({
         )}
         {activeTab === "elementProperties" && chainId && (
           <UsedPropertiesList
-            elements={elements as unknown as AnalyzableElement[]}
+            elements={elements}
             onElementSingleClick={handleElementSingleClick}
             onElementDoubleClick={handleElementDoubleClickById}
           />

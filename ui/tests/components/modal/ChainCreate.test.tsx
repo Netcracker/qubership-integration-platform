@@ -1,7 +1,6 @@
 /**
  * @jest-environment jsdom
  */
-import React from "react";
 import {
   render,
   screen,
@@ -71,7 +70,7 @@ function minimalChain(overrides: Partial<Chain> = {}): Chain {
     containsDeprecatedElements: false,
     containsUnsupportedElements: false,
     ...overrides,
-  } as Chain;
+  };
 }
 
 describe("ChainCreate", () => {

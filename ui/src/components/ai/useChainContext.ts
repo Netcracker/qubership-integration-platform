@@ -64,7 +64,6 @@ export function useChainContext(): ChainContext | null {
         error,
       );
       if (isDebugEnabled) {
-        // eslint-disable-next-line no-console
         console.debug("[AI Chat] Failed to refresh chain for context", error);
       }
     }
@@ -137,7 +136,6 @@ export function useChainContext(): ChainContext | null {
       })
       .catch((error) => {
         if (isDebugEnabled) {
-          // eslint-disable-next-line no-console
           console.debug("[AI Chat] Failed to load chain for context", error);
         }
         if (lastChainIdRef.current === chainId) {
@@ -172,7 +170,7 @@ export function useChainContext(): ChainContext | null {
         console.log(
           `[useChainContext] Refreshing chain data for chainId: ${chainId}`,
         );
-        refreshChain();
+        void refreshChain();
       }
     };
 

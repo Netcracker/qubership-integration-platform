@@ -2,6 +2,8 @@ import {
   ImportInstructionAction,
   ImportInstructionResult,
   ImportEntityType,
+  ImportInstructionRequest,
+  ImportInstruction,
 } from "../../api/apiTypes.ts";
 
 export type InstructionEntityType = "Chain" | "Service" | "Common Variable";
@@ -24,7 +26,9 @@ export type AddInstructionFormLike = {
 };
 
 export type AddInstructionApi = {
-  addImportInstruction: (params: unknown) => Promise<unknown>;
+  addImportInstruction: (
+    request: ImportInstructionRequest,
+  ) => Promise<void | ImportInstruction>;
 };
 
 export type NotificationService = {

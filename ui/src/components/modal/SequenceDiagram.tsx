@@ -102,7 +102,7 @@ export const SequenceDiagram: React.FC<SequenceDiagramProps> = ({
       return;
     }
     let cancelled = false;
-    mermaid
+    void mermaid
       .render(`seq-diagram-${activeTab}`, activeDiagram)
       .then(({ svg }) => {
         if (!cancelled) {

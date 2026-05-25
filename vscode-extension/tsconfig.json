@@ -9,6 +9,8 @@
     "sourceMap": true,
     "rootDir": "src",
     "strict": true,
+    "skipLibCheck": true,
+    "types": ["vscode", "webpack-env", "jest", "mocha", "assert", "js-yaml", "yauzl"],
     "paths": {
       "@netcracker/qip-schemas": [
         "./node_modules/@netcracker/qip-schemas",

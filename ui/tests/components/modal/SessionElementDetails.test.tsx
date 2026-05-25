@@ -105,7 +105,7 @@ jest.mock(
           cmp(same, same);
           cmp({ type: "b", value: "x" }, { type: "a", value: "y" });
           cmp({ type: "a", value: "z" }, { type: "a", value: "x" });
-          cmp({} as { type?: string; value?: string }, {
+          cmp({}, {
             type: "z",
             value: "v",
           });
@@ -187,7 +187,6 @@ jest.mock(
 );
 
 jest.mock("antd", () => {
-  const React = require("react") as typeof import("react");
   return {
     Flex: ({
       children,
@@ -640,7 +639,7 @@ describe("SessionElementDetails", () => {
     const el = {
       ...baseElement({ elementId: "e1", elementName: "NoStatus" }),
       executionStatus: undefined,
-    } as SessionElement;
+    } as unknown as SessionElement;
     render(
       <SessionElementDetails session={baseSession([el])} elementId="e1" />,
     );

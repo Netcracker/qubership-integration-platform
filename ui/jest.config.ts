@@ -96,6 +96,7 @@ const config: Config = {
   // A map from regular expressions to module names or to arrays of module names that allow to stub out resources with a single module
   moduleNameMapper: {
     "^tests/helpers/(.*)$": "<rootDir>/tests/helpers/$1",
+    "^@netcracker/qip-schemas$": "<rootDir>/tests/__mocks__/qipSchemasStub.cjs",
     "DomainsTablesLayout\\.module\\.css$":
       "<rootDir>/tests/__mocks__/domainsTablesLayoutModule.cjs",
     "CommonStyle\\.module\\.css$":
@@ -164,6 +165,15 @@ const config: Config = {
 
   // The test environment that will be used for testing
   testEnvironment: "node",
+
+  // Default test timeout is 5s — too tight for UI-heavy suites under parallel
+  // worker load (Antd modals, RJSF schemas, ResizeObserver-driven layouts).
+  // Raised to 30s to avoid flaky timeouts on loaded machines / CI.
+  testTimeout: 30000,
+
+  // Cap workers to avoid heavy contention that turns 5–15s waitFor into a
+  // forced timeout. 50% of CPU is the sweet spot for Antd/Monaco-heavy specs.
+  maxWorkers: "50%",
 
   // Options that will be passed to the testEnvironment
   // testEnvironmentOptions: {},

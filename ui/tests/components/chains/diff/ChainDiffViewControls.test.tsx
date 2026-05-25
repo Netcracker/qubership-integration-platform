@@ -39,9 +39,9 @@ jest.mock("../../../../src/icons/IconProvider.tsx", () => ({
 
 import { ChainDiffViewControls } from "../../../../src/components/chains/diff/ChainDiffViewControls";
 
-const c1: Change = { id: "c1", kind: "element" } as Change;
-const c2: Change = { id: "c2", kind: "element" } as Change;
-const c3: Change = { id: "c3", kind: "element" } as Change;
+const c1: Change = { id: "c1", kind: "element" };
+const c2: Change = { id: "c2", kind: "element" };
+const c3: Change = { id: "c3", kind: "element" };
 const changes = [c1, c2, c3];
 
 const prevBtn = () =>

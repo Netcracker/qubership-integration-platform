@@ -8,6 +8,7 @@ import {
   TableProps,
   Tabs,
 } from "antd";
+import type { ColumnsType } from "antd/es/table";
 import React, {
   useCallback,
   useEffect,
@@ -23,8 +24,10 @@ import {
   sliceParameter,
 } from "./key-value-text-util";
 import { TextValueEdit } from "../../../table/TextValueEdit";
-import { Editor, Monaco } from "@monaco-editor/react";
+import { Editor } from "@monaco-editor/react";
+import type * as monacoNs from "monaco-editor";
 import { editor, languages, MarkerSeverity } from "monaco-editor";
+type Monaco = typeof monacoNs;
 import { isParseError } from "../../../../mapper/actions-text/parser.ts";
 import { LocationRange } from "pegjs";
 import { OverridableIcon } from "../../../../icons/IconProvider.tsx";
@@ -59,7 +62,10 @@ const MAPPER_DICTIONARY_LANGUAGE_TOKENIZER: languages.IMonarchLanguage = {
 function configureMapperDictionaryLanguage(monaco: Monaco) {
   const alreadyRegistered = monaco.languages
     .getLanguages()
-    .some((language) => language.id === MAPPER_DICTIONARY_LANGUAGE_ID);
+    .some(
+      (language: { id: string }) =>
+        language.id === MAPPER_DICTIONARY_LANGUAGE_ID,
+    );
   if (alreadyRegistered) {
     console.log(
       `Language already registered: ${MAPPER_DICTIONARY_LANGUAGE_ID}`,
@@ -160,17 +166,13 @@ const DictionaryTableEditor: React.FC<DictionaryEditorProps> = ({
     onChange?.([]);
   }, [onChange]);
 
-  const dictionaryColumns = useMemo(
+  const dictionaryColumns = useMemo<ColumnsType<KeyValuePair>>(
     () => [
       {
         key: "key",
         title: "Input",
         dataIndex: "key",
-        sorter: (
-          a: KeyValuePair,
-          b: KeyValuePair,
-          sortOrder: string | undefined,
-        ) => {
+        sorter: (a, b, sortOrder) => {
           if (sortOrder === "ascend") {
             return a.key.localeCompare(b.key);
           } else if (sortOrder === "descend") {
@@ -200,11 +202,7 @@ const DictionaryTableEditor: React.FC<DictionaryEditorProps> = ({
         key: "value",
         title: "Result",
         dataIndex: "value",
-        sorter: (
-          a: KeyValuePair,
-          b: KeyValuePair,
-          sortOrder: string | undefined,
-        ) => {
+        sorter: (a, b, sortOrder) => {
           if (sortOrder === "ascend") {
             return a.value.localeCompare(b.value);
           } else if (sortOrder === "descend") {
@@ -366,7 +364,7 @@ const DictionaryTextEditor: React.FC<DictionaryEditorProps> = ({
       theme={monacoTheme}
       value={text}
       language={MAPPER_DICTIONARY_LANGUAGE_ID}
-      onMount={(editor, monaco) => {
+      onMount={(editor, monaco: Monaco) => {
         editorRef.current = editor;
         monacoRef.current = monaco;
         configureMapperDictionaryLanguage(monaco);

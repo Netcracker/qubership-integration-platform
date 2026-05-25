@@ -58,14 +58,14 @@ function makeProps(overrides: Partial<Props> & {
     name: "mappingDescription",
     formData: undefined,
     onChange: jest.fn(),
-    schema: { type: "object" } as JSONSchema7,
+    schema: { type: "object" },
     uiSchema: {},
     registry: {
       formContext: {
         elementType: "service-call",
         integrationOperationProtocolType: "http",
         ...formContext,
-      } as FormContext,
+      },
     } as Props["registry"],
     fieldPathId: {
       $id: `root_${path.join("_")}`,
@@ -163,7 +163,7 @@ describe("MappingField", () => {
       render(<MappingField {...props} />);
 
       expect(onChange).toHaveBeenCalledTimes(1);
-      const arg = (onChange as jest.Mock).mock
+      const arg = (onChange).mock
         .calls[0][0] as MappingDescription;
       expect(arg.target.body).toBeTruthy();
       expect(arg.target.body?.name).toBe("object");
@@ -224,7 +224,7 @@ describe("MappingField", () => {
       });
       const first = render(<MappingField {...firstProps} />);
       expect(onChange).toHaveBeenCalledTimes(1);
-      const populatedFormData = (onChange as jest.Mock).mock
+      const populatedFormData = (onChange).mock
         .calls[0][0] as MappingDescription;
       first.unmount();
 
@@ -259,7 +259,7 @@ describe("MappingField", () => {
       render(<MappingField {...props} />);
 
       expect(onChange).toHaveBeenCalledTimes(1);
-      const arg = (onChange as jest.Mock).mock
+      const arg = (onChange).mock
         .calls[0][0] as MappingDescription;
       expect(arg.source.body).toBeTruthy();
       expect(arg.target.body).toBeNull();

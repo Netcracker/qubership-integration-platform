@@ -17,7 +17,7 @@ function mockRect(overrides: Partial<DOMRect> = {}): DOMRect {
     y: 0,
     toJSON: () => ({}),
     ...overrides,
-  } as DOMRect;
+  };
 }
 
 describe("AutoHeight", () => {

@@ -30,9 +30,9 @@ import { IntegrationSystemType } from "../../src/api/apiTypes";
 import type { IntegrationSystem } from "../../src/api/apiTypes";
 import type { EntityFilterModel } from "../../src/components/table/filter/filter";
 
-const mockGetServices = jest.fn<() => Promise<IntegrationSystem[]>>();
-const mockFilterSystems = jest.fn<() => Promise<IntegrationSystem[]>>();
-const mockSearchSystems = jest.fn<() => Promise<IntegrationSystem[]>>();
+const mockGetServices = jest.fn<Promise<IntegrationSystem[]>, unknown[]>();
+const mockFilterSystems = jest.fn<Promise<IntegrationSystem[]>, unknown[]>();
+const mockSearchSystems = jest.fn<Promise<IntegrationSystem[]>, unknown[]>();
 const mockShowModal = jest.fn();
 const mockNavigate = jest.fn();
 
@@ -126,7 +126,7 @@ jest.mock("../../src/components/services/utils.tsx", () => ({
 }));
 
 jest.mock("../../src/misc/error-utils", () => ({
-  getErrorMessage: (e: unknown, msg: string) => msg,
+  getErrorMessage: (_e: unknown, msg: string) => msg,
 }));
 
 jest.mock("../../src/hooks/useResizeHeigth.tsx", () => ({
@@ -150,7 +150,7 @@ jest.mock("../../src/permissions/ProtectedButton.tsx", () => ({
       <button
         type="button"
         data-testid={`svc-action-${String(tooltipProps.title).replace(/\s+/g, "-").toLowerCase()}`}
-        {...(rest as React.ButtonHTMLAttributes<HTMLButtonElement>)}
+        {...(rest)}
       />
     );
   },
@@ -170,7 +170,7 @@ const makeService = (
     type,
     description: "",
     labels: [],
-  }) as IntegrationSystem;
+  }) as unknown as IntegrationSystem;
 
 describe("ServicesListPage", () => {
   let messageInfoSpy: jest.SpyInstance;
@@ -178,7 +178,9 @@ describe("ServicesListPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
-    messageInfoSpy = jest.spyOn(message, "info").mockImplementation(() => {});
+    messageInfoSpy = jest
+      .spyOn(message, "info")
+      .mockImplementation((() => {}) as never);
     mockGetServices.mockResolvedValue([
       makeService("1", "Service A", IntegrationSystemType.EXTERNAL),
       makeService("2", "Service B", IntegrationSystemType.EXTERNAL),
@@ -208,7 +210,7 @@ describe("ServicesListPage", () => {
     const searchInput = screen.getByPlaceholderText("Search services...");
     expect(searchInput).toBeInTheDocument();
     fireEvent.change(searchInput, { target: { value: "test query" } });
-    expect(searchInput.value).toBe("test query");
+    expect((searchInput as HTMLInputElement).value).toBe("test query");
   });
 
   it("renders page without errors", () => {
@@ -222,7 +224,7 @@ describe("ServicesListPage", () => {
     const searchInput = screen.getByPlaceholderText("Search services...");
     fireEvent.change(searchInput, { target: { value: "test query" } });
 
-    expect(searchInput.value).toBe("test query");
+    expect((searchInput as HTMLInputElement).value).toBe("test query");
   });
 
   it("calls searchServices after user types and debounce passes", async () => {

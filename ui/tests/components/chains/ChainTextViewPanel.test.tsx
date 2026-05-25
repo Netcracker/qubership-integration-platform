@@ -100,7 +100,7 @@ const mkElement = (id: string, modifiedWhen?: number): Element =>
     properties: undefined as never,
     mandatoryChecksPassed: true,
     modifiedWhen,
-  }) as Element;
+  });
 
 describe("ChainTextViewPanel", () => {
   beforeEach(() => {

@@ -36,11 +36,11 @@ function isGroupContainer(node: ChainGraphNode): boolean {
 
 function normalizeEdgeHandles(edge: Edge): Edge {
   const next: Edge = { ...edge };
-  if ((next as any).sourceHandle == null) {
-    delete (next as any).sourceHandle;
+  if (next.sourceHandle == null) {
+    delete next.sourceHandle;
   }
-  if ((next as any).targetHandle == null) {
-    delete (next as any).targetHandle;
+  if (next.targetHandle == null) {
+    delete next.targetHandle;
   }
   return next;
 }
@@ -170,7 +170,7 @@ function buildDecorativeEdgesFrom(
         decorative: true,
         originalEdgeId: edge.id,
         expandContainerIds,
-      } as any,
+      },
       zIndex: (edge.zIndex ?? 0) + 1,
     });
   }

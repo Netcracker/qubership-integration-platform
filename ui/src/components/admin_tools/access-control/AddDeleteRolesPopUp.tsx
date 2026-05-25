@@ -105,15 +105,9 @@ export const AddDeleteRolesPopUp: React.FC<AddDeleteRolesPopUpProps> = ({
           let finalRoles: string[];
 
           if (isDeleteMode) {
-            if (!existingRoles || existingRoles.length > 0) {
-              if (existingRoles) {
-                finalRoles = existingRoles.filter(
-                  (role: string) => !selectedRoles.includes(role),
-                );
-              }
-            } else {
-              finalRoles = [];
-            }
+            finalRoles = existingRoles.filter(
+              (role: string) => !selectedRoles.includes(role),
+            );
           } else {
             const mergedRoles = [...existingRoles, ...selectedRoles];
             finalRoles = Array.from(new Set(mergedRoles));

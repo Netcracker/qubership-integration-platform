@@ -155,14 +155,14 @@ function makeProps(
     onChange: jest.fn(),
     disabled: false,
     readonly: false,
-    schema: { type: "array" } as RJSFSchema,
+    schema: { type: "array" },
     registry: {
       formContext: {
         elementType: "service-call",
         integrationOperationProtocolType: "http",
         integrationOperationId: undefined,
         ...fcOverrides,
-      } as FormContext,
+      },
     } as FieldProps<ArrayItem[], RJSFSchema, FormContext>["registry"],
     fieldPathId: { path: "root_after" },
     ...rest,

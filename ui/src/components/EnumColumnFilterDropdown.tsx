@@ -21,7 +21,7 @@ export function makeEnumColumnFilterDropdown<
           placeholder="Select value"
           options={options}
           value={selectedKeys as V[]}
-          onChange={(vals) => setSelectedKeys(vals as React.Key[])}
+          onChange={(vals) => setSelectedKeys(vals)}
         />
       ) : (
         <Select<V>

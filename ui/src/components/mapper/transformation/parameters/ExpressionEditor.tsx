@@ -6,7 +6,9 @@ import React, {
   useState,
 } from "react";
 import { TransformationContext } from "../../TransformationEditDialog.tsx";
-import { Editor, Monaco } from "@monaco-editor/react";
+import { Editor } from "@monaco-editor/react";
+import type * as monacoNs from "monaco-editor";
+type Monaco = typeof monacoNs;
 import {
   useMonacoTheme,
   applyVSCodeThemeToMonaco,
@@ -680,7 +682,7 @@ function configureMapperActionsLanguage(monaco: Monaco) {
   const alreadyRegistered = monaco.languages
     .getLanguages()
     .some(
-      (language) =>
+      (language: { id: string }) =>
         language.id === MAPPER_TRANSFORMATION_EXPRESSION_LANGUAGE_ID,
     );
   if (alreadyRegistered) {
@@ -805,7 +807,7 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
       language={MAPPER_TRANSFORMATION_EXPRESSION_LANGUAGE_ID}
       path={action.id}
       theme={monacoTheme}
-      onMount={(editor, monaco) => {
+      onMount={(editor, monaco: Monaco) => {
         editorRef.current = editor;
         monacoRef.current = monaco;
         configureMapperActionsLanguage(monaco);

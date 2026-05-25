@@ -27,7 +27,7 @@ export function treeExpandIcon<T = unknown>() {
         type="button"
         className={styles.expandIcon}
         onClick={(e) => {
-          onExpand(record, e as unknown as React.MouseEvent<HTMLElement>);
+          onExpand(record, e);
           e.stopPropagation();
         }}
       >

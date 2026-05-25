@@ -277,7 +277,7 @@ async function loadChainDependencies(
   const elementIds: string[] = Array.from(context.elementMap.values())
     .flatMap((element) => {
       return [
-        element.properties["elementId"] as string,
+        element.properties["elementId"],
         element.properties["idempotency"]?.["chainTriggerParameters"]?.[
           "triggerElementId"
         ],

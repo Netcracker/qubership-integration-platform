@@ -110,7 +110,6 @@ import type {
   SecretWithVariables,
   Variable,
 } from "../apiTypes.ts";
-import { File } from "node:buffer";
 
 export class RestApi implements Api {
   instance: AxiosInstance;

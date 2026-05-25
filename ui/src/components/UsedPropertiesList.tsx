@@ -8,7 +8,7 @@ import React, {
 import { Spin, Empty, Flex } from "antd";
 import { UsedProperty } from "../api/apiTypes.ts";
 import { useLibraryContext } from "./LibraryContext.tsx";
-import { OverridableIcon, IconName } from "../icons/IconProvider.tsx";
+import { OverridableIcon } from "../icons/IconProvider.tsx";
 import styles from "./UsedPropertiesList.module.css";
 import { SidebarSearch } from "./elements_library/SidebarSearch.tsx";
 import { MenuItem } from "./elements_library/ElementsLibrarySidebar";
@@ -288,7 +288,7 @@ export const UsedPropertiesList: React.FC<UsedPropertiesListProps> = ({
                     >
                       <div className={styles.leftContent}>
                         <OverridableIcon
-                          name={element.type as IconName}
+                          name={element.type}
                           style={{ fontSize: 16, marginRight: 8 }}
                         />
                         <div className={styles.elementInfo}>

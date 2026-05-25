@@ -24,9 +24,9 @@ import path from "path";
 export function antdMockWithLightweightTable(
   overrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
-  const actual = jest.requireActual("antd") as Record<string, unknown>;
+  const actual = jest.requireActual("antd");
   const mod = jest.requireActual(
     path.join(__dirname, "../__mocks__/LightweightTable"),
-  ) as { LightweightTable: unknown };
+  );
   return { ...actual, Table: mod.LightweightTable, ...overrides };
 }

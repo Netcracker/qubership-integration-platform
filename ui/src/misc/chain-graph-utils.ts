@@ -1,12 +1,12 @@
-import { Element, ElementColorType, LibraryElement } from "../api/apiTypes.ts";
-import { Edge, Node, Position, XYPosition } from "@xyflow/react";
-import { ElkDirection } from "../hooks/graph/useElkDirection.tsx";
+import {Element, ElementColorType, LibraryElement} from "../api/apiTypes.ts";
+import {Edge, Node, Position, XYPosition} from "@xyflow/react";
+import {ElkDirection} from "../hooks/graph/useElkDirection.tsx";
 import {
   ChainGraphNode,
   ChainGraphNodeData,
   ChainGraphNodeWithChildren,
 } from "../components/graph/nodes/ChainGraphNodeTypes.ts";
-import { api } from "../api/api.ts";
+import {api} from "../api/api.ts";
 
 export function getDataFromElement(
   element: Element,
@@ -533,11 +533,7 @@ export function normalizeHandleId(v: unknown): string | undefined {
 }
 
 export function sanitizeEdge(e: Edge): Edge {
-  const anyEdge = e as Edge & {
-    sourceHandle?: unknown;
-    targetHandle?: unknown;
-  };
-  const { sourceHandle, targetHandle, ...rest } = anyEdge as unknown as Record<
+  const { sourceHandle, targetHandle, ...rest } = e as unknown as Record<
     string,
     unknown
   >;

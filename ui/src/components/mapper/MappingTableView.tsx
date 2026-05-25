@@ -1636,11 +1636,11 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
                       onSubmit={({ description }) => {
                         updateActions((action) => {
                           return item.actions.some((a) => a.id === action.id)
-                            ? MetadataUtil.setValue(
+                            ? (MetadataUtil.setValue(
                                 action,
                                 DESCRIPTION_KEY,
                                 description,
-                              )
+                              ) as MappingAction)
                             : action;
                         });
                       }}

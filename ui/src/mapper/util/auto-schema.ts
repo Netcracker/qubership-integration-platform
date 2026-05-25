@@ -416,7 +416,7 @@ function isUsableSchema(value: unknown): boolean {
   if (value === undefined || value === null) return false;
   if (typeof value === "string") return value.trim().length > 0;
   if (typeof value !== "object") return false;
-  return Object.keys(value as Record<string, unknown>).length > 0;
+  return Object.keys(value).length > 0;
 }
 
 /**
@@ -425,7 +425,7 @@ function isUsableSchema(value: unknown): boolean {
  */
 function isMediaTypeMap(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
-  const keys = Object.keys(value as Record<string, unknown>);
+  const keys = Object.keys(value);
   if (keys.length === 0) return false;
   return keys.every((key) => key.includes("/"));
 }

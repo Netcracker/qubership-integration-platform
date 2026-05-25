@@ -53,7 +53,7 @@ describe("buildElementsSignature", () => {
       properties: undefined as never,
       mandatoryChecksPassed: true,
       modifiedWhen,
-    }) as Element;
+    });
 
   test("returns empty string for empty list", () => {
     expect(buildElementsSignature([])).toBe("");

@@ -79,7 +79,7 @@ function buildTableItems(exchanges: LiveExchange[]): LiveExchangeTableItem[] {
 
 function liveExchangeRowKey(record: LiveExchangeTableItem): React.Key {
   if (isLiveExchangeGroup(record)) {
-    return `group-${record.sessionId ?? record.exchangeId}`;
+    return `group-${record.sessionId ?? record.exchanges[0]?.exchangeId ?? ""}`;
   }
   return record.exchangeId;
 }

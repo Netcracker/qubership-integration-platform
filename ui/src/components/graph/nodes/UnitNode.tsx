@@ -1,7 +1,7 @@
 import { NodeProps } from "@xyflow/react";
 import { ChainGraphNode } from "./ChainGraphNodeTypes.ts";
 import { useMemo } from "react";
-import { IconName, OverridableIcon } from "../../../icons/IconProvider.tsx";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { Flex, Typography } from "antd";
 import { NodeContentWrapper } from "./NodeContentWrapper.tsx";
 
@@ -47,7 +47,7 @@ export function UnitNode({ data, dragging, ...rest }: NodeProps<ChainGraphNode>)
           style={{ width: "100%", padding: "0 8px 0 8px" }}
         >
           <OverridableIcon
-            name={data.elementType as IconName}
+            name={data.elementType}
             style={{ fontSize: 16 }}
           />
           <div
