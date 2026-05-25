@@ -47,7 +47,7 @@ import {
 } from "./theme/themeInit.ts";
 import { getAntdThemeConfig } from "./theme/antdTokens.ts";
 import { IconProvider } from "./icons/IconProvider.tsx";
-import { useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { getConfig } from "./appConfig.ts";
 import { reapplyCssVariables } from "./config/initConfig.ts";
 import { LiveExchanges } from "./components/admin_tools/exchanges/LiveExchanges.tsx";
@@ -71,29 +71,20 @@ import { McpServiceParametersPage } from "./components/services/mcp/McpServicePa
 const { Header } = Layout;
 
 const RootLayout = () => {
-  const themeContext = useContext(ThemeContext);
   return (
     <ChainFullscreenContextProvider>
-      <RootLayoutInner themeContext={themeContext} />
+      <RootLayoutInner />
     </ChainFullscreenContextProvider>
   );
 };
 
-const RootLayoutInner = ({
-  themeContext,
-}: {
-  themeContext: ThemeContextValue | null;
-}) => {
+const RootLayoutInner = () => {
   const fullscreenCtx = useChainFullscreenContext();
   return (
     <Layout className={styles.layout}>
       {!fullscreenCtx?.fullscreen && (
         <Header className={styles.header}>
-          <Navigation
-            showThemeSwitcher={themeContext?.showThemeSwitcher ?? false}
-            currentTheme={themeContext?.theme}
-            onThemeChange={themeContext?.onThemeChange}
-          />
+          <Navigation />
         </Header>
       )}
       <Content className={styles.content}>
@@ -294,7 +285,6 @@ const App = () => {
   const themeContextValue: ThemeContextValue = {
     theme,
     onThemeChange: setTheme,
-    showThemeSwitcher: true,
   };
 
   return (

@@ -13,6 +13,7 @@ import {
 
 import { UserMenu } from "../../src/components/UserMenu";
 import { configure } from "../../src/appConfig";
+import { ThemeContext } from "../../src/theme/context";
 
 let capturedConfirmOnOk: (() => void | Promise<void>) | undefined;
 
@@ -21,6 +22,19 @@ jest.mock("../../src/misc/confirm-utils.ts", () => ({
     capturedConfirmOnOk = opts.onOk;
   },
 }));
+
+
+const mockOnThemeChange = jest.fn();
+
+function renderWithTheme(ui: React.ReactElement = <UserMenu />) {
+  return render(
+    <ThemeContext.Provider
+      value={{ theme: "light", onThemeChange: mockOnThemeChange }}
+    >
+      {ui}
+    </ThemeContext.Provider>,
+  );
+}
 
 function resetUserConfig(): void {
   configure({
@@ -39,6 +53,7 @@ describe("UserMenu", () => {
     jest.clearAllMocks();
     resetUserConfig();
     capturedConfirmOnOk = undefined;
+    mockOnThemeChange.mockClear();
     localStorage.clear();
   });
 
@@ -211,6 +226,43 @@ describe("UserMenu", () => {
     });
 
     expect(renderSpy.mock.calls.length).toBe(initialCalls);
+  });
+
+
+  it("hides Theme settings when ThemeContext is not provided", async () => {
+    const { container } = render(<UserMenu />);
+    fireEvent.click(container.querySelector('button[aria-label="User menu"]')!);
+
+    await screen.findByText("Reset UI preferences");
+    expect(screen.queryByText("Theme settings")).toBeNull();
+  });
+
+  it("shows Theme settings above Reset UI preferences when ThemeContext is provided", async () => {
+    configure({ userInfo: { userName: "Alice" } });
+
+    const { container } = renderWithTheme();
+    fireEvent.click(container.querySelector('button[aria-label="User menu"]')!);
+
+    const themeSettings = await screen.findByText("Theme settings");
+    const reset = screen.getByText("Reset UI preferences");
+    expect(
+      themeSettings.compareDocumentPosition(reset) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("opens theme switcher popover when Theme settings is clicked", async () => {
+    configure({ userInfo: { userName: "Alice" } });
+
+    const { container } = renderWithTheme();
+    fireEvent.click(container.querySelector('button[aria-label="User menu"]')!);
+
+    fireEvent.click(await screen.findByText("Theme settings"));
+
+    expect(await screen.findByText("System")).toBeTruthy();
+    expect(screen.getByText("Light")).toBeTruthy();
+    expect(screen.getByText("Dark")).toBeTruthy();
+    expect(screen.getByText("HC")).toBeTruthy();
   });
 
   it("reacts to configure() updates after mount", async () => {
