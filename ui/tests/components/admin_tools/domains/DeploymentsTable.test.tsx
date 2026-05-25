@@ -82,9 +82,8 @@ describe("DeploymentsTable", () => {
     const host = container.querySelector(`.${layoutStyles.nestedTableHost}`);
     expect(host).toBeInTheDocument();
 
-    const tableRoot = container.querySelector(".flex-table");
+    const tableRoot = container.querySelector(`.${layoutStyles.nestedTable}`);
     expect(tableRoot).toBeInTheDocument();
-    expect(tableRoot).toHaveClass(layoutStyles.nestedTable);
 
     expect(screen.getByText("integration-chain")).toBeInTheDocument();
     expect(screen.getByTestId("deploy-runtime-state")).toBeInTheDocument();

@@ -150,7 +150,7 @@ import type {
   OnDeleteEvent,
 } from "../../../src/components/graph/nodes/ChainGraphNodeTypes";
 import type { EdgeChange, NodeChange, Edge } from "@xyflow/react";
-import type { Chain } from "../../../src/api/apiTypes";
+import type { Chain, Element } from "../../../src/api/apiTypes";
 
 type HookResult = ReturnType<typeof useChainGraph>;
 
@@ -274,7 +274,7 @@ describe("useChainGraph", () => {
     it("loads elements and connections on mount", async () => {
       const chain = makeChain({
         elements: [
-          { id: "elem-1", type: "script", name: "Elem", description: "" },
+          { id: "elem-1", type: "script", name: "Elem", description: "" } as unknown as Element,
         ],
         dependencies: [{ id: "conn-1", from: "a", to: "b" }],
       });
@@ -302,7 +302,7 @@ describe("useChainGraph", () => {
 
       const chain = makeChain({
         elements: [
-          { id: "elem-1", type: "script", name: "Elem", description: "" },
+          { id: "elem-1", type: "script", name: "Elem", description: "" } as unknown as Element,
         ],
       });
       await renderChainGraph(undefined, { chain });
@@ -325,7 +325,7 @@ describe("useChainGraph", () => {
       mockIsLibraryLoading = true;
       const chain = makeChain({
         elements: [
-          { id: "elem-1", type: "script", name: "Elem", description: "" },
+          { id: "elem-1", type: "script", name: "Elem", description: "" } as unknown as Element,
         ],
       });
       const { result } = await renderChainGraph(undefined, { chain });
@@ -1107,7 +1107,7 @@ describe("useChainGraph", () => {
             id: "decorative:edge-1",
             type: "select",
             selected: true,
-          } as EdgeChange,
+          },
         ]);
       });
 
@@ -1499,7 +1499,7 @@ describe("useChainGraph", () => {
       const { result } = await renderChainGraph();
 
       const unselectedNodes = initialNodes.map(
-        (n) => ({ ...n, selected: false }) as ChainGraphNode,
+        (n) => ({ ...n, selected: false }),
       );
       act(() => {
         result.current.setNodes(unselectedNodes);
@@ -1511,7 +1511,7 @@ describe("useChainGraph", () => {
       await act(async () => {
         await result.current.onNodeDragStop(
           {} as React.MouseEvent,
-          { ...draggedNode, selected: false } as ChainGraphNode,
+          { ...draggedNode, selected: false },
         );
       });
 
@@ -1527,7 +1527,7 @@ describe("useChainGraph", () => {
       await act(async () => {
         await result.current.onNodeDragStop(
           {} as React.MouseEvent,
-          { ...draggedNode, id: "ghost" } as ChainGraphNode,
+          { ...draggedNode, id: "ghost" },
         );
       });
 

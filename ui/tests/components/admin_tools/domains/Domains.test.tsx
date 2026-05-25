@@ -14,7 +14,6 @@ jest.mock("../../../../src/hooks/useDomains", () => ({
   }),
 }));
 
-import React from "react";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { Domains } from "../../../../src/components/admin_tools/domains/Domains.tsx";

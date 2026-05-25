@@ -5,7 +5,9 @@ import {
   ConstantReference,
   MappingDescription,
   MessageSchema,
-} from "../model/model.ts";
+  Transformation,
+  ValueSupplier,
+} from "../../../src/mapper/model/model.ts";
 
 describe("Mapper", () => {
   describe("MappingUtil", () => {
@@ -102,7 +104,7 @@ describe("Mapper", () => {
               id: "foo",
               name: "bar",
               type: { name: "string" },
-              valueSupplier: null,
+              valueSupplier: null as unknown as ValueSupplier,
             },
           ],
           actions: [],
@@ -119,7 +121,7 @@ describe("Mapper", () => {
               id: "foo",
               name: "bar",
               type: { name: "string" },
-              valueSupplier: null,
+              valueSupplier: null as unknown as ValueSupplier,
             },
           ],
           actions: [],
@@ -143,7 +145,7 @@ describe("Mapper", () => {
               id: "foo",
               name: "bar",
               type: { name: "string" },
-              valueSupplier: null,
+              valueSupplier: null as unknown as ValueSupplier,
             },
           ],
           actions: [],
@@ -156,7 +158,7 @@ describe("Mapper", () => {
           id: "foo",
           name: "bar",
           type: { name: "string" },
-          valueSupplier: null,
+          valueSupplier: null as unknown as ValueSupplier,
         };
         const mapping: MappingDescription = {
           source: { headers: [], properties: [], body: null },
@@ -183,7 +185,7 @@ describe("Mapper", () => {
               id: "foo",
               name: "bar",
               type: { name: "string" },
-              valueSupplier: null,
+              valueSupplier: null as unknown as ValueSupplier,
             },
           ],
           actions: [],
@@ -196,7 +198,7 @@ describe("Mapper", () => {
           id: "foo",
           name: "bar",
           type: { name: "string" },
-          valueSupplier: null,
+          valueSupplier: null as unknown as ValueSupplier,
         };
         const mapping: MappingDescription = {
           source: { headers: [], properties: [], body: null },
@@ -218,7 +220,7 @@ describe("Mapper", () => {
               id: "foo",
               name: "bar",
               type: { name: "string" },
-              valueSupplier: null,
+              valueSupplier: null as unknown as ValueSupplier,
             },
           ],
           actions: [],
@@ -231,7 +233,7 @@ describe("Mapper", () => {
           id: "foo",
           name: "bar",
           type: { name: "string" },
-          valueSupplier: null,
+          valueSupplier: null as unknown as ValueSupplier,
         };
         const mapping: MappingDescription = {
           source: { headers: [], properties: [], body: null },
@@ -255,13 +257,13 @@ describe("Mapper", () => {
               id: "foo",
               name: "bar",
               type: { name: "string" },
-              valueSupplier: null,
+              valueSupplier: null as unknown as ValueSupplier,
             },
             {
               id: "baz",
               name: "biz",
               type: { name: "number" },
-              valueSupplier: null,
+              valueSupplier: null as unknown as ValueSupplier,
             },
           ],
           actions: [],
@@ -279,13 +281,13 @@ describe("Mapper", () => {
               id: "foo",
               name: "fiz",
               type: { name: "string" },
-              valueSupplier: null,
+              valueSupplier: null as unknown as ValueSupplier,
             },
             {
               id: "baz",
               name: "biz",
               type: { name: "number" },
-              valueSupplier: null,
+              valueSupplier: null as unknown as ValueSupplier,
             },
           ],
           actions: [],
@@ -300,8 +302,8 @@ describe("Mapper", () => {
           target: { headers: [], properties: [], body: null },
           constants: [],
           actions: [
-            { id: "foo", sources: [], target: null, transformation: null },
-            { id: "baz", sources: [], target: null, transformation: null },
+            { id: "foo", sources: [], target: null as unknown as AttributeReference, transformation: null as unknown as Transformation },
+            { id: "baz", sources: [], target: null as unknown as AttributeReference, transformation: null as unknown as Transformation },
           ],
         };
         expect(
@@ -317,11 +319,11 @@ describe("Mapper", () => {
             {
               id: "foo",
               sources: [],
-              target: null,
-              transformation: null,
+              target: null as unknown as AttributeReference,
+              transformation: null as unknown as Transformation as unknown as Transformation,
               metadata: { a: "b" },
             },
-            { id: "baz", sources: [], target: null, transformation: null },
+            { id: "baz", sources: [], target: null as unknown as AttributeReference, transformation: null as unknown as Transformation },
           ],
         });
       });
@@ -334,8 +336,8 @@ describe("Mapper", () => {
           target: { headers: [], properties: [], body: null },
           constants: [],
           actions: [
-            { id: "foo", sources: [], target: null, transformation: null },
-            { id: "baz", sources: [], target: null, transformation: null },
+            { id: "foo", sources: [], target: null as unknown as AttributeReference, transformation: null as unknown as Transformation },
+            { id: "baz", sources: [], target: null as unknown as AttributeReference, transformation: null as unknown as Transformation },
           ],
         };
         const transformation = { name: "a", parameters: ["b", "c"] };
@@ -346,8 +348,8 @@ describe("Mapper", () => {
           target: { headers: [], properties: [], body: null },
           constants: [],
           actions: [
-            { id: "foo", sources: [], target: null, transformation },
-            { id: "baz", sources: [], target: null, transformation: null },
+            { id: "foo", sources: [], target: null as unknown as AttributeReference, transformation },
+            { id: "baz", sources: [], target: null as unknown as AttributeReference, transformation: null as unknown as Transformation },
           ],
         });
       });
@@ -422,7 +424,7 @@ describe("Mapper", () => {
               id: "foo",
               name: "bar",
               type: { name: "string" },
-              valueSupplier: null,
+              valueSupplier: null as unknown as ValueSupplier,
             },
           ],
           actions: [],
@@ -462,7 +464,7 @@ describe("Mapper", () => {
               id: "foo",
               name: "bar",
               type: { name: "string" },
-              valueSupplier: null,
+              valueSupplier: null as unknown as ValueSupplier,
             },
           ],
           actions: [],
@@ -486,7 +488,7 @@ describe("Mapper", () => {
               id: "foo",
               sources: [],
               target: { type: "attribute", kind: "property", path: ["bar"] },
-              transformation: null,
+              transformation: null as unknown as Transformation as unknown as Transformation,
             },
           ],
         };
@@ -515,7 +517,7 @@ describe("Mapper", () => {
               id: "fiz",
               name: "qux",
               type: { name: "string" },
-              valueSupplier: null,
+              valueSupplier: null as unknown as ValueSupplier,
             },
           ],
           actions: [
@@ -526,7 +528,7 @@ describe("Mapper", () => {
                 { type: "attribute", kind: "body", path: ["foo", "bar"] },
               ],
               target: { type: "attribute", kind: "property", path: ["bar"] },
-              transformation: null,
+              transformation: null as unknown as Transformation as unknown as Transformation,
             },
           ],
         };
@@ -542,7 +544,7 @@ describe("Mapper", () => {
               id: "fiz",
               name: "qux",
               type: { name: "string" },
-              valueSupplier: null,
+              valueSupplier: null as unknown as ValueSupplier,
             },
           ],
           actions: [
@@ -550,7 +552,7 @@ describe("Mapper", () => {
               id: "foo",
               sources: [{ type: "constant", constantId: "fiz" }],
               target: { type: "attribute", kind: "property", path: ["bar"] },
-              transformation: null,
+              transformation: null as unknown as Transformation as unknown as Transformation,
             },
           ],
         });
@@ -573,7 +575,7 @@ describe("Mapper", () => {
                 { type: "attribute", kind: "body", path: ["foo", "bar"] },
               ],
               target: { type: "attribute", kind: "property", path: ["bar"] },
-              transformation: null,
+              transformation: null as unknown as Transformation as unknown as Transformation,
             },
           ],
         };
@@ -598,7 +600,7 @@ describe("Mapper", () => {
               id: "fiz",
               name: "qux",
               type: { name: "string" },
-              valueSupplier: null,
+              valueSupplier: null as unknown as ValueSupplier,
             },
           ],
           actions: [
@@ -606,7 +608,7 @@ describe("Mapper", () => {
               id: "foo",
               sources: [{ type: "constant", constantId: "fiz" }],
               target: { type: "attribute", kind: "property", path: ["bar"] },
-              transformation: null,
+              transformation: null as unknown as Transformation as unknown as Transformation,
             },
           ],
         };
@@ -618,7 +620,7 @@ describe("Mapper", () => {
               id: "fiz",
               name: "qux",
               type: { name: "string" },
-              valueSupplier: null,
+              valueSupplier: null as unknown as ValueSupplier,
             },
           ],
           actions: [],

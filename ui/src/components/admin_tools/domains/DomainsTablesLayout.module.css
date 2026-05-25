@@ -10,7 +10,7 @@
   flex: 1;
   min-height: 0;
   min-width: 0;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 .mainTable {
@@ -29,7 +29,7 @@
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  overflow-x: hidden;
+  overflow: visible;
   box-sizing: border-box;
 }
 

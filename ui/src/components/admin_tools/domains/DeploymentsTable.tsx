@@ -78,7 +78,7 @@ export const DeploymentsTable: React.FC<Props> = ({
       <Spin spinning={isLoading}>
         <Table
           rowKey="id"
-          className={`flex-table ${layoutStyles.nestedTable}`}
+          className={layoutStyles.nestedTable}
           columns={columnsWithResize}
           dataSource={deployments}
           pagination={false}

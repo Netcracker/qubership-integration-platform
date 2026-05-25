@@ -20,7 +20,7 @@ import {
 import { MappingUtil } from "./mapping.ts";
 
 export interface TypeResolutionResult {
-  type: DataType | undefined;
+  type: DataType | null | undefined;
   definitions: TypeDefinition[];
 }
 
@@ -77,7 +77,22 @@ export class DataTypes {
     return { name: "oneOf", types, metadata };
   }
 
-  public static updateMetadata(type: DataType, metadata: Metadata): DataType {
+  public static updateMetadata(
+    type: DataType,
+    metadata: Metadata | null | undefined,
+  ): DataType;
+  public static updateMetadata(
+    type: null,
+    metadata: Metadata | null | undefined,
+  ): null;
+  public static updateMetadata(
+    type: undefined,
+    metadata: Metadata | null | undefined,
+  ): undefined;
+  public static updateMetadata(
+    type: DataType | null | undefined,
+    metadata: Metadata | null | undefined,
+  ): DataType | null | undefined {
     return type
       ? {
           ...type,
@@ -99,8 +114,20 @@ export class DataTypes {
   public static updateDefinitions(
     type: DataType,
     definitions: TypeDefinition[],
-  ): DataType {
-    return this.typeIsDefinitionsAware(type) && definitions
+  ): DataType;
+  public static updateDefinitions(
+    type: null,
+    definitions: TypeDefinition[],
+  ): null;
+  public static updateDefinitions(
+    type: undefined,
+    definitions: TypeDefinition[],
+  ): undefined;
+  public static updateDefinitions(
+    type: DataType | null | undefined,
+    definitions: TypeDefinition[],
+  ): DataType | null | undefined {
+    return type && this.typeIsDefinitionsAware(type) && definitions
       ? ({
           ...type,
           definitions: DataTypes.mergeTypeDefinitions(
@@ -112,7 +139,7 @@ export class DataTypes {
   }
 
   public static resolveType(
-    type: DataType | undefined,
+    type: DataType | null | undefined,
     typeDefinitions: TypeDefinition[],
   ): TypeResolutionResult {
     while (type && DataTypes.isReferenceType(type)) {
@@ -129,32 +156,36 @@ export class DataTypes {
       }
       type = definition?.type;
     }
-    return { type, definitions: typeDefinitions };
+    return { type: type, definitions: typeDefinitions };
   }
 
   public static resolveArrayItemType(
-    type: DataType,
+    type: DataType | null | undefined,
     typeDefinitions: TypeDefinition[],
   ): TypeResolutionResult {
-    let t: DataType | undefined = type;
+    let t: DataType | undefined = type ?? undefined;
     while (t && DataTypes.isArrayType(t)) {
       typeDefinitions = DataTypes.mergeTypeDefinitions(
         typeDefinitions,
         t.definitions,
       );
       const result = DataTypes.resolveType(t.itemType, typeDefinitions);
-      t = result.type;
+      t = result.type ?? undefined;
       typeDefinitions = result.definitions;
     }
     return { type: t, definitions: typeDefinitions };
   }
 
-  public static getTypeDefinitions(type: DataType): TypeDefinition[] {
-    return this.typeIsDefinitionsAware(type) ? (type.definitions ?? []) : [];
+  public static getTypeDefinitions(
+    type: DataType | null | undefined,
+  ): TypeDefinition[] {
+    return type && this.typeIsDefinitionsAware(type)
+      ? (type.definitions ?? [])
+      : [];
   }
 
   public static typeIsDefinitionsAware(
-    type: DataType,
+    type: DataType | null | undefined,
   ): type is DataType & TypeDefinitionsAware {
     return ["array", "object", "reference", "oneOf", "anyOf", "allOf"].some(
       (name) => name === type?.name,
@@ -162,15 +193,15 @@ export class DataTypes {
   }
 
   public static isCompoundType(
-    type: DataType,
-  ): type is DataType & CompoundType {
+    type: DataType | null | undefined,
+  ): type is AllOfType | AnyOfType | OneOfType {
     return (
       type?.name === "anyOf" || type?.name === "oneOf" || type?.name === "allOf"
     );
   }
 
   public static isPrimitiveType(
-    type: DataType,
+    type: DataType | null | undefined,
   ): type is StringType | IntegerType | BooleanType {
     return (
       type?.name === "string" ||
@@ -179,11 +210,15 @@ export class DataTypes {
     );
   }
 
-  public static isArrayType(type: DataType): type is ArrayType {
+  public static isArrayType(
+    type: DataType | null | undefined,
+  ): type is ArrayType {
     return type?.name === "array";
   }
 
-  public static isReferenceType(type: DataType): type is ReferenceType {
+  public static isReferenceType(
+    type: DataType | null | undefined,
+  ): type is ReferenceType {
     return type?.name === "reference";
   }
 
@@ -192,7 +227,28 @@ export class DataTypes {
     path: string[],
     typeDefinitions: TypeDefinition[],
     modifyFn: (attributes: Attribute[]) => Attribute[],
-  ): DataType {
+  ): DataType;
+  public static modifyAttributes(
+    type: null,
+    path: string[],
+    typeDefinitions: TypeDefinition[],
+    modifyFn: (attributes: Attribute[]) => Attribute[],
+  ): null;
+  public static modifyAttributes(
+    type: undefined,
+    path: string[],
+    typeDefinitions: TypeDefinition[],
+    modifyFn: (attributes: Attribute[]) => Attribute[],
+  ): undefined;
+  public static modifyAttributes(
+    type: DataType | null | undefined,
+    path: string[],
+    typeDefinitions: TypeDefinition[],
+    modifyFn: (attributes: Attribute[]) => Attribute[],
+  ): DataType | null | undefined {
+    if (type === null || type === undefined) {
+      return type;
+    }
     const resolutionResult = this.resolveType(type, typeDefinitions);
     const resolvedType = resolutionResult.type;
     const resolvedDefinitions = resolutionResult.definitions;
@@ -262,8 +318,8 @@ export class DataTypes {
   }
 
   public static same(
-    one: DataType | undefined,
-    other: DataType | undefined,
+    one: DataType | null | undefined,
+    other: DataType | null | undefined,
     typeDefinitions: TypeDefinition[],
   ): boolean {
     return (
@@ -288,7 +344,7 @@ export class DataTypes {
           (one &&
             this.isCompoundType(one) &&
             DataTypes.compoundTypesHaveSameSubtypes(
-              one as CompoundType,
+              one,
               other as CompoundType,
               typeDefinitions,
             )) ||

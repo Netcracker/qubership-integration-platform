@@ -196,7 +196,9 @@ describe("LiveExchanges", () => {
     const rows = document.querySelectorAll("[data-row-key]");
     expect(rows.length).toBeGreaterThanOrEqual(1);
     expect(
-      Array.from(rows).some((r) => r.dataset.rowKey?.startsWith("group-")),
+      Array.from(rows).some((r) =>
+        (r as HTMLElement).dataset.rowKey?.startsWith("group-"),
+      ),
     ).toBe(true);
   });
 

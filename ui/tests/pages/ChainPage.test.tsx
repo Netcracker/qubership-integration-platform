@@ -1,7 +1,6 @@
 /**
  * @jest-environment jsdom
  */
-import React from "react";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import type { Chain } from "../../src/api/apiTypes";
@@ -34,7 +33,6 @@ const baseChain: Chain = {
   containsDeprecatedContainers: false,
   containsDeprecatedElements: false,
   containsUnsupportedElements: false,
-  overallStatus: {},
 };
 
 let mockChain: Chain = { ...baseChain };

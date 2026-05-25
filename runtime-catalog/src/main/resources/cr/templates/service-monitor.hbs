@@ -7,6 +7,7 @@ metadata:
     app.kubernetes.io/component: monitoring # defined label that is used by Prometheus CRD to watch
     app.kubernetes.io/processed-by-operator: victoriametrics-operator
     camel.apache.org/integration: {{integrationName}}
+    {{domainLabel}}: {{domainName}}
 spec:
   targetLabels:
   - domain

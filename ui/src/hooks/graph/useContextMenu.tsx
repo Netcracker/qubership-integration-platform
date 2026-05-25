@@ -43,7 +43,7 @@ export const useContextMenu = (
   const notificationService = useNotificationService();
   const { libraryElements } = useLibraryContext();
   const { attachToggle, setNestedUnitCounts } = useExpandCollapse(
-    nodes as ChainGraphNode[],
+    nodes,
     setNodes,
     edges,
     setEdges,

@@ -114,10 +114,10 @@ const FORM_CONTEXT_FIELD_CONFIG: Record<
 
   // Record fields
   integrationOperationPathParameters: {
-    transform: (val) => val as Record<string, string> | undefined,
+    transform: (val) => val,
   },
   integrationOperationQueryParameters: {
-    transform: (val) => val as Record<string, string> | undefined,
+    transform: (val) => val,
   },
 
   // Boolean fields
@@ -130,7 +130,8 @@ const FORM_CONTEXT_FIELD_CONFIG: Record<
       val !== undefined && val !== null ? Boolean(val) : undefined,
   },
   integrationOperationSkipEmptyQueryParameters: {
-    transform: (val) => val as boolean | undefined,
+    transform: (val) =>
+      val !== undefined && val !== null ? Boolean(val) : undefined,
   },
 
   // Complex fields

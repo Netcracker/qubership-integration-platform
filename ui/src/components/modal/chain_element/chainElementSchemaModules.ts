@@ -1,10 +1,7 @@
-/**
- * Schema modules loaded via import.meta.glob.
- * Extracted for testability — can be mocked in tests.
- */
-export function getSchemaModules(): Record<string, string> {
-  return import.meta.glob(
-    "/node_modules/@netcracker/qip-schemas/assets/*.schema.yaml",
-    { as: "raw", eager: true },
-  ) as Record<string, string>;
+import { schemasByType } from "@netcracker/qip-schemas";
+
+/** Wraps the schemas-package re-export so tests can `jest.mock` this file. */
+export function getSchemaModules(): Readonly<Record<string, string>> {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  return schemasByType;
 }

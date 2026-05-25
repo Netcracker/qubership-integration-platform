@@ -14,10 +14,12 @@ import { useNotificationService } from "../../../../src/hooks/useNotificationSer
 import { useBlocker } from "react-router-dom";
 import { ContextServiceParametersTab } from "../../../../src/components/services/context/ContextServiceParametersTab.tsx";
 
-const mockGetContextService = jest.fn();
-const mockUpdateContextService = jest.fn();
-const mockShowModal = jest.fn();
-const mockRequestFailed = jest.fn();
+const mockGetContextService =
+  jest.fn<(...args: unknown[]) => Promise<ContextSystem>>();
+const mockUpdateContextService =
+  jest.fn<(...args: unknown[]) => Promise<ContextSystem>>();
+const mockShowModal = jest.fn<(...args: unknown[]) => void>();
+const mockRequestFailed = jest.fn<(...args: unknown[]) => void>();
 let isVsCodeFlag = false;
 
 jest.mock("../../../../src/api/api", () => ({
@@ -98,7 +100,7 @@ function renderTab() {
     <ContextServiceParametersTab
       systemId="sys-1"
       activeTab="parameters"
-      formatTimestamp={(v) => v}
+      formatTimestamp={(v) => String(v ?? "")}
       sidePadding={8}
       styles={{ "variables-actions": "va" }}
     />,
@@ -112,17 +114,20 @@ describe("ContextServiceParametersTab", () => {
     isVsCodeFlag = false;
     mockGetContextService.mockResolvedValue(makeSystem());
     mockUpdateContextService.mockImplementation(
-      async (_id: string, s: ContextSystem) => s,
+      async (..._args: unknown[]) => _args[1] as ContextSystem,
     );
     jest.mocked(useNotificationService).mockReturnValue({
       requestFailed: mockRequestFailed,
       info: jest.fn(),
+      warning: jest.fn(),
+      errorWithDetails: jest.fn(),
     });
     jest.mocked(useBlocker).mockReturnValue({
-      state: "unblocked" as const,
+      state: "unblocked",
       proceed: jest.fn(),
       reset: jest.fn(),
-    });
+      location: undefined,
+    } as unknown as ReturnType<typeof useBlocker>);
   });
 
   it("loads from contextServiceCache without calling getContextService", async () => {
@@ -145,17 +150,19 @@ describe("ContextServiceParametersTab", () => {
   it("unsaved modal Yes saves and then calls blocker proceed", async () => {
     const proceed = jest.fn();
     jest.mocked(useBlocker).mockReturnValue({
-      state: "blocked" as const,
+      state: "blocked",
       proceed,
       reset: jest.fn(),
-    });
+      location: { pathname: "/" },
+    } as unknown as ReturnType<typeof useBlocker>);
     renderTab();
     await waitFor(() =>
       expect(screen.getByRole("textbox", { name: /name/i })).toHaveValue("Svc"),
     );
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
-    const modal = mockShowModal.mock.calls.at(-1)?.[0]
-      .component as React.ReactElement;
+    const modal = (
+      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement }
+    ).component;
     render(modal);
     fireEvent.click(screen.getByTestId("unsaved-yes"));
     await waitFor(() => expect(mockUpdateContextService).toHaveBeenCalled());
@@ -165,18 +172,20 @@ describe("ContextServiceParametersTab", () => {
   it("unsaved modal Yes does not open a second prompt when save updates system", async () => {
     const proceed = jest.fn();
     jest.mocked(useBlocker).mockReturnValue({
-      state: "blocked" as const,
+      state: "blocked",
       proceed,
       reset: jest.fn(),
-    });
+      location: { pathname: "/" },
+    } as unknown as ReturnType<typeof useBlocker>);
     renderTab();
     await waitFor(() =>
       expect(screen.getByRole("textbox", { name: /name/i })).toHaveValue("Svc"),
     );
     await waitFor(() => expect(mockShowModal).toHaveBeenCalledTimes(1));
     const showModalCallsAfterFirstPrompt = mockShowModal.mock.calls.length;
-    const modal = mockShowModal.mock.calls.at(-1)?.[0]
-      .component as React.ReactElement;
+    const modal = (
+      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement }
+    ).component;
     render(modal);
     fireEvent.click(screen.getByTestId("unsaved-yes"));
     await waitFor(() => expect(mockUpdateContextService).toHaveBeenCalled());
@@ -191,14 +200,16 @@ describe("ContextServiceParametersTab", () => {
   it("unsaved modal No calls blocker proceed without saving", async () => {
     const proceed = jest.fn();
     jest.mocked(useBlocker).mockReturnValue({
-      state: "blocked" as const,
+      state: "blocked",
       proceed,
       reset: jest.fn(),
-    });
+      location: { pathname: "/" },
+    } as unknown as ReturnType<typeof useBlocker>);
     renderTab();
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
-    const modal = mockShowModal.mock.calls.at(-1)?.[0]
-      .component as React.ReactElement;
+    const modal = (
+      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement }
+    ).component;
     render(modal);
     fireEvent.click(screen.getByTestId("unsaved-no"));
     expect(proceed).toHaveBeenCalled();
@@ -208,14 +219,16 @@ describe("ContextServiceParametersTab", () => {
   it("unsaved modal close keeps editing by resetting blocker", async () => {
     const reset = jest.fn();
     jest.mocked(useBlocker).mockReturnValue({
-      state: "blocked" as const,
+      state: "blocked",
       proceed: jest.fn(),
       reset,
-    });
+      location: { pathname: "/" },
+    } as unknown as ReturnType<typeof useBlocker>);
     renderTab();
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
-    const modal = mockShowModal.mock.calls.at(-1)?.[0]
-      .component as React.ReactElement;
+    const modal = (
+      mockShowModal.mock.calls.at(-1)?.[0] as { component: React.ReactElement }
+    ).component;
     render(modal);
     fireEvent.click(screen.getByTestId("unsaved-close"));
     expect(reset).toHaveBeenCalled();

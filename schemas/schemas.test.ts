@@ -74,7 +74,12 @@ describe("Test schemas over samples", () => {
     (schema: string, path: string, sample: any) => {
       const result = ajv.validate(schema, sample);
       const expected = !path.endsWith("__SHOULD_FAIL.yaml");
-      expect(result, ajv.errorsText() ?? "unknown error").toBe(expected);
+      if (result !== expected) {
+        throw new Error(
+          `Schema validation mismatch for ${path}: ${ajv.errorsText() || "unknown error"}`,
+        );
+      }
+      expect(result).toBe(expected);
     },
   );
 });

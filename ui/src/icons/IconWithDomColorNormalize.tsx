@@ -29,7 +29,7 @@ const analyze = (nodes: NodeListOf<Element>): IconAnalysis => {
   const paints = new Set<string>();
   const attrsByIndex: PaintAttr[][] = [];
   nodes.forEach((node, idx) => {
-    const cs = getComputedStyle(node as SVGElement);
+    const cs = getComputedStyle(node);
     const fill = cs.fill ? normalizePaintToken(cs.fill) : "";
     const stroke = cs.stroke ? normalizePaintToken(cs.stroke) : "";
     const attrs: PaintAttr[] = [];

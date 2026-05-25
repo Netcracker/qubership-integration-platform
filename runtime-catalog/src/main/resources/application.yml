@@ -149,6 +149,18 @@ qip:
     micro:
       enabled: ${MICRO_DEPLOY_ENABLED:true}
   cr:
+    labels:
+      domain: ${app.prefix}-domain
+    naming:
+      prefix: ${app.prefix}-engine-
+      chains-configuration:
+        suffix: -src-cfg
+      service-monitor:
+        suffix: ""
+      service:
+        suffix: ""
+      chain:
+        suffix-length: 7
     build:
       container:
         image: ${ENGINE_CONTAINER_IMAGE:}

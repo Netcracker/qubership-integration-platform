@@ -47,14 +47,14 @@ import { ChainDiffGraphView } from "../../../../src/components/chains/diff/Chain
 import { ChainDiffTableView } from "../../../../src/components/chains/diff/ChainDiffTableView";
 import { ChainDiffView } from "../../../../src/components/chains/diff/ChainDiffView";
 
-const MockFlex = Flex as jest.Mock;
+const MockFlex = Flex as unknown as jest.Mock;
 const MockViewControls = ChainDiffViewControls as jest.Mock;
 const MockGraphView = ChainDiffGraphView as jest.Mock;
 const MockTableView = ChainDiffTableView as jest.Mock;
 
 const chain1 = { id: "chain-1" } as unknown as Chain;
 const chain2 = { id: "chain-2" } as unknown as Chain;
-const changes: Change[] = [{ id: "change-1", kind: "element" } as Change];
+const changes: Change[] = [{ id: "change-1", kind: "element" }];
 const onSelectChange = jest.fn();
 
 describe("ChainDiffView", () => {

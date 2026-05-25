@@ -314,7 +314,7 @@ const CustomArrayField: FC<
     onChange(
       formData.map((item, i) =>
         i === selectedIndex ? { ...item, mappingDescription: next } : item,
-      ) as ArrayItem[],
+      ),
       fieldPathId.path,
     );
   }, [
@@ -439,7 +439,7 @@ const CustomArrayField: FC<
                         i === selectedIndex
                           ? { ...item, throwException: e.target.checked }
                           : item,
-                      ) as ArrayItem[],
+                      ),
                       fieldPathId.path,
                     );
                   }}

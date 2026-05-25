@@ -17,7 +17,8 @@
         <module>engine</module>
         <module>micro-engine</module>
         <module>runtime-catalog</module>
-        <module>sessions-management</module>    </modules>
+        <module>sessions-management</module>
+    </modules>
 
     <licenses>
         <license>

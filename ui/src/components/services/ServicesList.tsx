@@ -212,17 +212,15 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
     const specsMap: Record<string, Specification[]> = { ...specsByGroup };
     const allGroups = Object.values(groupsMap).flat();
 
-    await Promise.all(
-      allGroups.map((group) => {
-        if (!specsMap[group.id] && group.specifications) {
-          specsMap[group.id] = group.specifications;
-          setSpecsByGroup((prev) => ({
-            ...prev,
-            [group.id]: group.specifications,
-          }));
-        }
-      }),
-    );
+    allGroups.forEach((group) => {
+      if (!specsMap[group.id] && group.specifications) {
+        specsMap[group.id] = group.specifications;
+        setSpecsByGroup((prev) => ({
+          ...prev,
+          [group.id]: group.specifications,
+        }));
+      }
+    });
 
     const rootIds = roots.map((r) => r.id);
     const groupIds = allGroups.map((g) => g.id);
@@ -317,18 +315,18 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
         labels: labels.map((name) => ({ name, technical: false })),
       };
       if (isIntegrationSystem(record)) {
-        await api.updateService(record.id, updated as IntegrationSystem);
+        await api.updateService(record.id, updated);
         await loadServices();
       } else if (isSpecificationGroup(record)) {
         const res = await api.updateApiSpecificationGroup(
           record.id,
-          updated as SpecificationGroup,
+          updated,
         );
         setSpecGroupsByService((prev) => updateLabelsInMap(prev, res));
       } else if (isSpecification(record)) {
         const res = await api.updateSpecificationModel(
           record.id,
-          updated as Specification,
+          updated,
         );
         setSpecsByGroup((prev) => updateLabelsInMap(prev, res));
       }

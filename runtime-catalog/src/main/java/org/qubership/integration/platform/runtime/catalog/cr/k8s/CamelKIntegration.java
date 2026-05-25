@@ -70,6 +70,9 @@ public class CamelKIntegration implements KubernetesObject {
             @SerializedName("container")
             private ContainerTrait container;
 
+            @SerializedName("owner")
+            private OwnerTrait owner;
+
             @SerializedName("mount")
             private MountTrait mount;
 
@@ -88,6 +91,14 @@ public class CamelKIntegration implements KubernetesObject {
 
                 @SerializedName("imagePullPolicy")
                 private String imagePullPolicy;
+            }
+
+            @Data
+            @NoArgsConstructor
+            @AllArgsConstructor
+            public static class OwnerTrait {
+                @SerializedName("targetLabels")
+                private List<String> targetLabels;
             }
 
             @Data

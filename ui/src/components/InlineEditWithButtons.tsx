@@ -133,7 +133,7 @@ export function InlineEditWithButtons<Values>(
 
   const handleBlur = useCallback(
     (e: React.FocusEvent<HTMLDivElement>) => {
-      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+      if (!e.currentTarget.contains(e.relatedTarget)) {
         if (submitOnBlur) {
           form.submit();
         } else if (cancelOnBlur) {

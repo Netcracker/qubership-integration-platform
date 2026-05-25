@@ -1052,16 +1052,22 @@ export class VSCodeExtensionApi implements Api {
     throw new Error("Method getMaasRabbitMQDeclarativeFile not implemented.");
   }
 
-  loadHttpTriggerAccessControl = async (): Promise<AccessControlResponse> => {
-    throw new Error("Method loadHttpTriggerAccessControl not implemented.");
+  loadHttpTriggerAccessControl = (): Promise<AccessControlResponse> => {
+    return Promise.reject(
+      new Error("Method loadHttpTriggerAccessControl not implemented."),
+    );
   };
 
-  updateHttpTriggerAccessControl = async (): Promise<AccessControlResponse> => {
-    throw new Error("Method updateHttpTriggerAccessControl not implemented.");
+  updateHttpTriggerAccessControl = (): Promise<AccessControlResponse> => {
+    return Promise.reject(
+      new Error("Method updateHttpTriggerAccessControl not implemented."),
+    );
   };
 
-  bulkDeployChainsAccessControl = async (): Promise<AccessControlResponse> => {
-    throw new Error("Method bulkDeployChainsAccessControl not implemented.");
+  bulkDeployChainsAccessControl = (): Promise<AccessControlResponse> => {
+    return Promise.reject(
+      new Error("Method bulkDeployChainsAccessControl not implemented."),
+    );
   };
 
   getCommonVariables(): Promise<ApiResponse<Variable[]>> {

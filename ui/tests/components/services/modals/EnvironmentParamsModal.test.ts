@@ -67,7 +67,7 @@ function renderModal(
         React.createElement(EnvironmentParamsModal, {
           open: true,
           environment: {
-            id: "env-1",
+            id: "env-1", systemId: "svc-1",
             name: "Env 1",
             address: "localhost",
             labels: [],
@@ -94,7 +94,7 @@ describe("EnvironmentParamsModal", () => {
     const onSave = jest.fn().mockResolvedValue(undefined);
     const onClose = jest.fn();
     const environment = {
-      id: "env-1",
+      id: "env-1", systemId: "svc-1",
       name: "Env 1",
       address: "localhost",
       labels: [],
@@ -125,7 +125,7 @@ describe("EnvironmentParamsModal", () => {
     fireEvent.click(screen.getByRole("switch"));
 
     let panel = await screen.findByTestId("environment-properties-panel");
-    let textArea = within(panel).getByRole("textbox");
+    let textArea: HTMLElement | null = within(panel).getByRole("textbox");
 
     fireEvent.focus(textArea);
     fireEvent.change(textArea, {
@@ -270,7 +270,7 @@ describe("EnvironmentParamsModal", () => {
           React.createElement(EnvironmentParamsModal, {
             open: true,
             environment: {
-              id: "env-1",
+              id: "env-1", systemId: "svc-1",
               name: "Env 1",
               address: "localhost",
               labels: [],
@@ -301,7 +301,7 @@ describe("EnvironmentParamsModal", () => {
           React.createElement(EnvironmentParamsModal, {
             open: true,
             environment: {
-              id: "env-1",
+              id: "env-1", systemId: "svc-1",
               name: "Env 1",
               address: "localhost",
               labels: [],
@@ -338,7 +338,7 @@ describe("EnvironmentParamsModal", () => {
           React.createElement(EnvironmentParamsModal, {
             open: true,
             environment: {
-              id: "env-1",
+              id: "env-1", systemId: "svc-1",
               name: "Env 1",
               address: "localhost",
               labels: [],
@@ -384,7 +384,7 @@ describe("EnvironmentParamsModal", () => {
           React.createElement(EnvironmentParamsModal, {
             open: true,
             environment: {
-              id: "env-1",
+              id: "env-1", systemId: "svc-1",
               name: "Env 1",
               address: "localhost",
               labels: [],

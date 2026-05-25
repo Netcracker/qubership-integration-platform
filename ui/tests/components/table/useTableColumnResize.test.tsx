@@ -1,7 +1,6 @@
 /**
  * @jest-environment jsdom
  */
-import React from "react";
 import { renderHook, act } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import type { ResizeCallbackData } from "react-resizable";
@@ -81,7 +80,7 @@ describe("attachResizeToColumns", () => {
     );
     const col0 = out[0];
     expect(col0?.onHeaderCell).toBeDefined();
-    const cell = col0.onHeaderCell(columns[0]!);
+    const cell = col0.onHeaderCell!(columns[0] as never);
     expect(cell).toMatchObject({ width: 100 });
     expect((cell as { onResize?: unknown }).onResize).toBeUndefined();
     expect((cell as { onResizeStop?: unknown }).onResizeStop).toBeUndefined();
@@ -101,7 +100,7 @@ describe("attachResizeToColumns", () => {
       result.current.createResizeHandlers,
       { minWidth: 95 },
     );
-    const cell = out[0]!.onHeaderCell!(columns[0]!);
+    const cell = out[0].onHeaderCell!(columns[0] as never);
     expect((cell as { minResizeWidth?: number }).minResizeWidth).toBe(95);
   });
 
@@ -120,7 +119,7 @@ describe("attachResizeToColumns", () => {
     );
     const colA = out[0];
     expect(colA?.onHeaderCell).toBeDefined();
-    const cell = colA.onHeaderCell(columns[0]!);
+    const cell = colA.onHeaderCell!(columns[0] as never);
     expect(typeof (cell as { onResize: unknown }).onResize).toBe("function");
     expect(typeof (cell as { onResizeStop: unknown }).onResizeStop).toBe(
       "function",

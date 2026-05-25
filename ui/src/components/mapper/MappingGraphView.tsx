@@ -245,7 +245,7 @@ const SchemaTreeItemView: React.FC<SchemaTreeItemViewProps> = ({
               body,
               METADATA_DATA_FORMAT_KEY,
               value,
-            );
+            ) as DataType;
             onBodyFormatChange?.(type);
           }}
         />
@@ -1173,14 +1173,14 @@ export const MappingGraphView: React.FC<MappingGraphViewProps> = ({
                             onSubmit={(transformation, description) => {
                               updateActions((a) => {
                                 return a.id === action.id
-                                  ? MetadataUtil.setValue(
+                                  ? (MetadataUtil.setValue(
                                       {
                                         ...a,
                                         transformation,
                                       },
                                       DESCRIPTION_KEY,
                                       description,
-                                    )
+                                    ) as MappingAction)
                                   : a;
                               });
                             }}

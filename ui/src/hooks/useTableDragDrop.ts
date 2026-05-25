@@ -214,7 +214,7 @@ export function useTableDragDrop<T extends DragDropItem>({
           }
 
           const draggedParentId = findParentId(
-            tableItems as DragDropItem[],
+            tableItems,
             draggedId,
           );
 
@@ -259,7 +259,7 @@ export function useTableDragDrop<T extends DragDropItem>({
             return;
           }
           const draggedParentId = findParentId(
-            tableItems as DragDropItem[],
+            tableItems,
             draggedId,
           );
           // No-op if already in this folder (undefined means root)
@@ -292,7 +292,7 @@ export function useTableDragDrop<T extends DragDropItem>({
             return;
           }
           const draggedParentId = findParentId(
-            tableItems as DragDropItem[],
+            tableItems,
             draggedId,
           );
           if (draggedParentId === folderId) {

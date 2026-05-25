@@ -143,7 +143,7 @@ export const useChainGraph = () => {
   }, [nodes]);
 
   const { decorativeEdges, setDecorativeEdges } = useDecorativeEdges(
-    nodes as ChainGraphNode[],
+    nodes,
     edges,
   );
 
@@ -177,7 +177,7 @@ export const useChainGraph = () => {
     expandAllContainers,
     collapseAllContainers,
   } = useExpandCollapse(
-    nodes as ChainGraphNode[],
+    nodes,
     setNodes,
     edges,
     setEdges,
@@ -530,7 +530,7 @@ export const useChainGraph = () => {
     async (changes: OnDeleteEvent) => {
       if (!chainContext?.chain) return;
 
-      const nodesToDelete: ChainGraphNode[] = changes.nodes as ChainGraphNode[];
+      const nodesToDelete: ChainGraphNode[] = changes.nodes;
       const edgesToDelete: Edge[] = changes.edges;
 
       const normalizedEdges = edgesToDelete
@@ -551,8 +551,8 @@ export const useChainGraph = () => {
 
       const affectedParents = new Set<string>();
       for (const parentContainer of getContainerIdsForEdges(
-        normalizedEdges as unknown as Edge[],
-        nodes as ChainGraphNode[],
+        normalizedEdges,
+        nodes,
       )) {
         affectedParents.add(parentContainer);
       }
@@ -689,7 +689,7 @@ export const useChainGraph = () => {
       let newParentNode: Node | undefined = undefined;
       const possibleGraphIntersect: Node | undefined =
         getPossibleGraphIntersection(
-          getIntersectingNodes(draggedNode) as ChainGraphNode[],
+          getIntersectingNodes(draggedNode),
           collectChildren(draggedNode.id, allBefore),
         ) ?? undefined;
 
@@ -768,7 +768,7 @@ export const useChainGraph = () => {
       const affectedParentIds = computeAffectedParents(
         originalParentId,
         finalParentId,
-        nodesRef.current as ChainGraphNode[],
+        nodesRef.current,
       );
       structureChanged(
         affectedParentIds.length ? affectedParentIds : undefined,

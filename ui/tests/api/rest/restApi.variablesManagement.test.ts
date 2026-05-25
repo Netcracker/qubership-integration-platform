@@ -65,7 +65,7 @@ describe("RestApi variables-management", () => {
     let lastHeaders: Record<string, unknown> | undefined;
     const api = new RestApi();
     api.instance.defaults.adapter = (async (config: AxiosRequestConfig) => {
-      lastHeaders = config.headers as Record<string, unknown> | undefined;
+      lastHeaders = config.headers;
       return {
         data: {},
         status: 200,

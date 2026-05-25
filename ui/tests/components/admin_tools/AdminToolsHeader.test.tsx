@@ -3,7 +3,7 @@
  */
 
 import "@testing-library/jest-dom";
-import React, { type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { render, screen, within } from "@testing-library/react";
 import { AdminToolsHeader } from "../../../src/components/admin_tools/AdminToolsHeader.tsx";
 import { TableToolbar } from "../../../src/components/table/TableToolbar.tsx";

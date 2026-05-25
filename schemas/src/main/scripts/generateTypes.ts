@@ -125,41 +125,78 @@ async function compileSchemas(tempFiles: string[]) {
   }
 }
 
-function generateIndexFile() {
-  const exports: string[] = [];
+const EXPORTED_NAME_PATTERN =
+  /^export\s+(?:declare\s+)?(?:interface|type|const|enum|class|function)\s+([A-Za-z_][A-Za-z0-9_]*)/gm;
 
-  function walk(dir: string, baseDir = GENERATED_DIR) {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
+function extractExportedNames(content: string): string[] {
+  const names: string[] = [];
+  for (const match of content.matchAll(EXPORTED_NAME_PATTERN)) {
+    names.push(match[1]);
+  }
+  return names;
+}
 
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-
-      if (entry.isDirectory()) {
-        walk(fullPath, baseDir);
-      } else if (
-        entry.isFile() &&
-        entry.name.endsWith(".d.ts") &&
-        entry.name !== "index.d.ts"
-      ) {
-        // relative path from GENERATED_DIR
-        const relPath =
-          "./" + path.relative(baseDir, fullPath).replace(/\\/g, "/");
-        // strip `.d.ts` extension
-        const importPath = relPath.replace(/\.d\.ts$/, "");
-        exports.push(`export * from "${importPath}";`);
-      }
+function collectFiles(dir: string): string[] {
+  const result: string[] = [];
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      result.push(...collectFiles(fullPath));
+    } else if (
+      entry.isFile() &&
+      entry.name.endsWith(".d.ts") &&
+      entry.name !== "index.d.ts"
+    ) {
+      result.push(fullPath);
     }
   }
+  return result;
+}
 
-  walk(GENERATED_DIR);
+function generateIndexFile() {
+  // `common-properties/` defines canonical shared types (Name, Description,
+  // Label, …) that get inlined by json-schema-to-typescript into every schema
+  // that $refs them. Re-exporting via `export *` therefore yields conflicting
+  // declarations (TS2308). Resolve by emitting named re-exports and letting
+  // common-properties/ win for any name collision.
+  const files = collectFiles(GENERATED_DIR).sort((a, b) => {
+    const aCommon = a.includes(`${path.sep}common-properties${path.sep}`);
+    const bCommon = b.includes(`${path.sep}common-properties${path.sep}`);
+    if (aCommon !== bCommon) return aCommon ? -1 : 1;
+    return a.localeCompare(b);
+  });
+
+  const seen = new Set<string>();
+  const lines: string[] = [];
+
+  for (const file of files) {
+    const content = fs.readFileSync(file, "utf8");
+    const unique = extractExportedNames(content).filter((name) => {
+      if (seen.has(name)) return false;
+      seen.add(name);
+      return true;
+    });
+    if (unique.length === 0) continue;
+
+    const importPath =
+      "./" +
+      path
+        .relative(GENERATED_DIR, file)
+        .replace(/\\/g, "/")
+        .replace(/\.d\.ts$/, "");
+    lines.push(`export { ${unique.join(", ")} } from "${importPath}";`);
+  }
 
   fs.writeFileSync(
     path.join(GENERATED_DIR, "index.d.ts"),
-    exports.join("\n") + "\n",
+    lines.join("\n") + "\n",
     "utf8",
   );
 
-  console.log(`Generated index.d.ts with ${exports.length} exports.`);
+  console.log(
+    `Generated index.d.ts with ${lines.length} re-exports (${seen.size} unique names).`,
+  );
 }
 
 export async function generateTypes() {

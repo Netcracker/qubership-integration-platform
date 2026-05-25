@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Editor, Monaco } from "@monaco-editor/react";
+import { Editor } from "@monaco-editor/react";
+import type * as monacoNs from "monaco-editor";
 import { editor as editor_ } from "monaco-editor";
+type Monaco = typeof monacoNs;
 import {
   useMonacoTheme,
   applyVSCodeThemeToMonaco,
@@ -92,7 +94,7 @@ export const SessionElementBodyView: React.FC<SessionElementBodyViewProps> = ({
         fixedOverflowWidgets: true,
         automaticLayout: true,
       }}
-      onMount={(editor, monaco) => {
+      onMount={(editor, monaco: Monaco) => {
         monacoRef.current = monaco;
         setUpDocumentFormatting(editor, monaco);
       }}

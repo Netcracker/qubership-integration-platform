@@ -40,7 +40,7 @@ describe("mergeUpdatedChainInFolderItems", () => {
     containsDeprecatedContainers: false,
     containsDeprecatedElements: false,
     containsUnsupportedElements: false,
-  } as Chain;
+  };
 
   it("replaces matching chain row with merged chain and preserves itemType", () => {
     const result = mergeUpdatedChainInFolderItems(

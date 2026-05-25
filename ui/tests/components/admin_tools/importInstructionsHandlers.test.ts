@@ -187,7 +187,7 @@ describe("uploadImportInstructionsFile", () => {
     const onSuccess = jest.fn();
 
     await uploadImportInstructionsFile(
-      fileList,
+      fileList as Parameters<typeof uploadImportInstructionsFile>[0],
       api,
       notificationService,
       onSuccess,

@@ -1,7 +1,6 @@
 /**
  * @jest-environment jsdom
  */
-import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
@@ -96,6 +95,7 @@ describe("TimestampColumnFilterDropdown", () => {
           }),
         ]}
         confirm={jest.fn()}
+        close={jest.fn()}
       />,
     );
     expect(document.querySelector(".ant-picker-range")).toBeNull();
@@ -116,6 +116,7 @@ describe("TimestampColumnFilterDropdown", () => {
           }),
         ]}
         confirm={jest.fn()}
+        close={jest.fn()}
       />,
     );
     expect(document.querySelector(".ant-picker-range")).toBeTruthy();
@@ -131,6 +132,7 @@ describe("TimestampColumnFilterDropdown", () => {
         setSelectedKeys={jest.fn()}
         selectedKeys={[]}
         confirm={confirm}
+        close={jest.fn()}
         clearFilters={clearFilters}
       />,
     );

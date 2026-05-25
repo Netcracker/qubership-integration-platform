@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useModalContext } from "../../ModalContextProvider";
 import { XmlNamespace } from "../../mapper/model/metadata";
 import { Button, Flex, message, Modal, Table, TableProps } from "antd";
+import type { ColumnsType } from "antd/es/table";
 import { InlineEdit } from "../InlineEdit";
 import { TextValueEdit } from "../table/TextValueEdit";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
@@ -60,17 +61,13 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
     setTableData([]);
   }, []);
 
-  const namespaceColumns = useMemo(
+  const namespaceColumns = useMemo<ColumnsType<XmlNamespace>>(
     () => [
       {
         key: "alias",
         title: "Prefix",
         dataIndex: "alias",
-        sorter: (
-          a: XmlNamespace,
-          b: XmlNamespace,
-          sortOrder: string | undefined,
-        ) => {
+        sorter: (a, b, sortOrder) => {
           if (sortOrder === "ascend") {
             return a.alias.localeCompare(b.alias);
           } else if (sortOrder === "descend") {
@@ -100,11 +97,7 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
         key: "uri",
         title: "URI",
         dataIndex: "uri",
-        sorter: (
-          a: XmlNamespace,
-          b: XmlNamespace,
-          sortOrder: string | undefined,
-        ) => {
+        sorter: (a, b, sortOrder) => {
           if (sortOrder === "ascend") {
             return a.uri.localeCompare(b.uri);
           } else if (sortOrder === "descend") {

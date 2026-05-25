@@ -1,7 +1,10 @@
 /**
- * Jest setup for jsdom: mocks window.matchMedia (required by Ant Design).
- * Only runs when window exists (e.g. tests with @jest-environment jsdom).
+ * Jest setup for jsdom: registers @testing-library/jest-dom matchers
+ * (toBeInTheDocument, toHaveValue, …) and mocks window.matchMedia
+ * (required by Ant Design). Only runs when window exists
+ * (e.g. tests with @jest-environment jsdom).
  */
+import "@testing-library/jest-dom/jest-globals";
 import { jest } from "@jest/globals";
 
 if (typeof window !== "undefined") {

@@ -7,6 +7,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceBuild
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
+import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.IntegrationSourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.IntegrationSourceBuilderFactory;
@@ -15,6 +16,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
@@ -33,6 +35,10 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Snapshot> {
     private final IntegrationSourceBuilderFactory integrationSourceBuilderFactory;
     private final NamingStrategy<ResourceBuildContext<Snapshot>> configMapNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
+    private final K8sNameValidator k8sNameValidator;
+
+    @Value("${qip.cr.labels.domain}")
+    String domainLabel;
 
     @Autowired
     public SourceConfigMapBuilder(
@@ -44,12 +50,15 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Snapshot> {
             NamingStrategy<ResourceBuildContext<Snapshot>> configMapNamingStrategy,
 
             @Qualifier("integrationResourceNamingStrategy")
-            NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
+
+            K8sNameValidator k8sNameValidator
     ) {
         this.yamlMapper = yamlMapper;
         this.integrationSourceBuilderFactory = integrationSourceBuilderFactory;
         this.configMapNamingStrategy = configMapNamingStrategy;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
+        this.k8sNameValidator = k8sNameValidator;
     }
 
     @Override
@@ -77,8 +86,9 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Snapshot> {
             String integrationName = integrationResourceNamingStrategy.getName(context.updateTo(Collections.emptyList()));
             ObjectNode labelsNode = metadataNode.withObject("labels");
             labelsNode.set(CAMEL_K_INTEGRATION_LABEL, labelsNode.textNode(integrationName));
-            labelsNode.set(CHAIN_ID_LABEL, labelsNode.textNode(chain.getId()));
-            labelsNode.set(SNAPSHOT_ID_LABEL, labelsNode.textNode(snapshot.getId()));
+            labelsNode.set(CHAIN_ID_LABEL, labelsNode.textNode(k8sNameValidator.validate(chain.getId())));
+            labelsNode.set(SNAPSHOT_ID_LABEL, labelsNode.textNode(k8sNameValidator.validate(snapshot.getId())));
+            labelsNode.set(domainLabel, labelsNode.textNode(k8sNameValidator.validate(context.getBuildInfo().getOptions().getName())));
 
             configMapNode.withObjectProperty("data")
                     .set(CONTENT_KEY, configMapNode.textNode(sourceBuilder.build(snapshot, sourceBuilderContext)));

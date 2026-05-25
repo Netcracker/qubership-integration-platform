@@ -354,10 +354,7 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
       elements.push(node);
     }
     (
-      onContextMenuCall as (
-        event: MouseEvent,
-        elements: Node<ChainGraphNodeData>[],
-      ) => void
+      onContextMenuCall
     )(event, elements);
   };
 

@@ -81,8 +81,10 @@ function renderActionTitle(change: ChainModificationAction): string {
       return `Create connection ${change.connection.from} → ${change.connection.to}`;
     case "deleteConnections":
       return `Delete ${change.connectionIds.length} connection(s)`;
-    default:
-      return change.action;
+    default: {
+      const exhaustive: never = change;
+      return (exhaustive as { action: string }).action;
+    }
   }
 }
 
@@ -101,7 +103,7 @@ export const ChainModificationConfirmation: React.FC<Props> = ({
       onCancel={onCancel}
       onOk={() => {
         if (proposal) {
-          onApply(proposal);
+          void Promise.resolve(onApply(proposal));
         }
       }}
       okText="Apply changes"

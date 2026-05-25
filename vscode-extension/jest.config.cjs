@@ -3,6 +3,8 @@ module.exports = {
     testEnvironment: "node",
     clearMocks: true,
 
+    setupFiles: ["<rootDir>/jest.setup.cjs"],
+
     testMatch: [
         "<rootDir>/src/web/api-services/**/*.test.ts",
         "<rootDir>/src/web/api-services/**/*.test.tsx",

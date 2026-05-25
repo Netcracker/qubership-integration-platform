@@ -2,7 +2,7 @@
 ## Description
 
 ---
-**Swimlane** element provides ability to logically group chain parts into colored "blocks" that help visually distinguish different part of the chain. When **Swimlane** is added, it will automatically capture the whole chain. If **Reuse** elements are found - they will always be captured in a separate Swimlane.
+**Swimlane** element provides ability to logically group chain parts into colored "blocks" that help visually distinguish different part of the chain. When **Swimlane** is added firstly, it will automatically capture the whole chain and be marked with label "Default". If **Reuse** elements are found - they will always be captured in a separate Swimlane and this Swimlane will have label "Reuse".
 
 ## User Interface
 

@@ -4,7 +4,18 @@
 ## Description
 
 ---
-This tab provides consolidated access to the logging capabilities, that could be applied to the chain, when it is deployed.
+This tab provides consolidated access to the logging capabilities, that could be applied to the chain, when it is deployed.Next main capabilities are available:
+- Configure logging settings and apply them in run-time.
+- Apply logging masking for specific parameters in order to protect the data from unauthorized access.
+
+Please refer to the diagram below, that represents architecture on the high level:
+![](img/loggingSettings.svg)
+| #   | Description                                                                                                                                                                                                                                                                                     |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Consul data is being cached in the QIP to ensure fast and stable access to the logging settings for the given chain.                                                                                                                                                                            |
+| 2   | Either Consul's data or default (pre-configured set of logging settings in Qubership Integration Platform itself) will be used by the Engine while maintaining the chain. Selected way will depend on the availability of the settings data in the Consul (this data has the highest priority). |
+| 3   | Custom logging settings might be applied and pushed to the Consul via Qubership Integration Platform User Interface.                                                                                                                                                                            |
+
 ## User Interface
 
 ---

@@ -2,6 +2,8 @@ package org.qubership.integration.platform.runtime.catalog.cr.naming.strategies;
 
 import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
+import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
+import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameVerifier;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -9,18 +11,27 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
+import java.util.function.Supplier;
 
 @Component("sourceDslConfigMapNamingStrategy")
 public class SourceDslConfigMapNamingStrategy extends K8sResourceNamingStrategy<ResourceBuildContext<Snapshot>> {
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
+    private final Supplier<String> suffixGenerator;
 
     @Autowired
     public SourceDslConfigMapNamingStrategy(
-            @Qualifier("integrationResourceNamingStrategy")
-            NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy
+        K8sNameVerifier nameVerifier,
+        K8sNameValidator nameValidator,
+
+        @Qualifier("integrationResourceNamingStrategy")
+        NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
+
+        @Qualifier("suffixGenerator")
+        Supplier<String> suffixGenerator
     ) {
+        super(nameVerifier);
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
+        this.suffixGenerator = suffixGenerator;
     }
 
     @Override
@@ -37,7 +48,7 @@ public class SourceDslConfigMapNamingStrategy extends K8sResourceNamingStrategy<
 
     private String createUniqueName(ResourceBuildContext<Snapshot> context) {
         String prefix = integrationResourceNamingStrategy.getName(context.updateTo(Collections.emptyList()));
-        return String.format("%s-%s", prefix, UUID.randomUUID());
+        return String.format("%s-%s", prefix, suffixGenerator.get());
     }
 
     public void useName(ResourceBuildContext<Snapshot> context, String name) {

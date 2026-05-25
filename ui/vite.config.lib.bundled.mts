@@ -1,7 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import sassDts from "vite-plugin-sass-dts";
-import dts from "vite-plugin-dts";
 import monacoEditorEsmPlugin from "vite-plugin-monaco-editor-esm";
 import * as path from "node:path";
 
@@ -37,14 +36,7 @@ export default defineConfig({
       customDistPath: (root, buildOutDir) =>
         path.join(root, buildOutDir, "assets", "monaco-work"),
     }),
-    // Types are produced by build:lib:external (runs first in build:lib:all)
-    dts({
-      entryRoot: "src",
-      outDir: "dist-lib/types",
-      insertTypesEntry: true,
-      rollupTypes: true,
-      skipDiagnostics: true,
-    }),
+    // Types are emitted separately by `build:lib:types` (tsc) — see package.json.
   ],
   build: {
     outDir: "dist-lib",

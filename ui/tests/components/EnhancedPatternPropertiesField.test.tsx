@@ -138,7 +138,7 @@ function makeProps(
     onChange: jest.fn(),
     disabled: false,
     readonly: false,
-    schema: { type: "object" } as RJSFSchema,
+    schema: { type: "object" },
     uiSchema: {},
     registry: {
       formContext: {
@@ -150,7 +150,7 @@ function makeProps(
         updateContext: mockUpdateContext,
         reportMissingRequiredParams: jest.fn(),
         ...fcOverrides,
-      } as FormContext,
+      },
     } as EnhancedFieldProps["registry"],
     fieldPathId: {
       $id: "root_integrationOperationAsyncProperties",

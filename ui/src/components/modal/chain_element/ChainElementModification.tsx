@@ -310,14 +310,12 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     }
   }, [libraryElementIsLoading, moveFocusIntoModal]);
 
-  const schemaModules = useMemo(() => getSchemaModules(), []);
-
   useEffect(() => {
     isInitializingRef.current = true;
     hasUserEditedFormRef.current = false;
     hasUserInteractedRef.current = false;
-    const path = `/node_modules/@netcracker/qip-schemas/assets/${node.data.elementType}.schema.yaml`;
-    const raw = schemaModules[path];
+    const schemaModules = getSchemaModules();
+    const raw = schemaModules[node.data.elementType];
 
     if (!raw) {
       notificationService.errorWithDetails(
@@ -335,9 +333,8 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       if (parsed.description) {
         setElementDescription(parsed.description.trim());
       }
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { description: _, ...schemaWithoutDescription } = parsed;
-      setSchema(schemaWithoutDescription as JSONSchema7);
+      setSchema(schemaWithoutDescription);
 
       const initialFormData = {
         ...node.data,
@@ -436,7 +433,6 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     node.data,
     node.id,
     notificationService,
-    schemaModules,
     chainId,
     reportMissingRequiredParams,
   ]);

@@ -5,7 +5,7 @@ metadata:
   name: {{name}}
   labels:
     camel.apache.org/integration: {{integrationName}}
-    domain: {{integrationName}}
+    {{domainLabel}}: {{domainName}}
 spec:
   selector:
     camel.apache.org/integration: {{integrationName}}

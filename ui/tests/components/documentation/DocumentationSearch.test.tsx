@@ -364,8 +364,8 @@ describe("DocumentationSearch", () => {
 
     const input = screen.getByPlaceholderText(
       "Search documentation...",
-    ) as HTMLInputElement;
-    expect(input.value).toBe("transformation");
+    );
+    expect((input as HTMLInputElement).value).toBe("transformation");
   });
 
   it("does not show 'did you mean' for prefix searches", async () => {

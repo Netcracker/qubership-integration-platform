@@ -1,4 +1,6 @@
-import { Editor, OnMount } from "@monaco-editor/react";
+import { Editor } from "@monaco-editor/react";
+import type * as monacoNs from "monaco-editor";
+type Monaco = typeof monacoNs;
 import styles from "../../components/elements_library/ElementsLibrarySidebar.module.css";
 import { useElementsAsCode } from "../../hooks/useElementsAsCode";
 import React, { useCallback, useRef } from "react";
@@ -54,12 +56,15 @@ export const ChainTextViewPanel: React.FC<ChainTextViewPanelProps> = ({
 
   // useMonacoTheme re-applies the VS Code theme to every registered Monaco
   // instance on theme changes, so we only need to register on mount.
-  const handleMount = useCallback<OnMount>((editorInstance, monaco) => {
-    editorRef.current = editorInstance;
-    if (monaco) {
-      applyVSCodeThemeToMonaco(monaco);
-    }
-  }, []);
+  const handleMount = useCallback(
+    (editorInstance: editor.IStandaloneCodeEditor, monaco: Monaco) => {
+      editorRef.current = editorInstance;
+      if (monaco) {
+        applyVSCodeThemeToMonaco(monaco);
+      }
+    },
+    [],
+  );
 
   return (
     <div className={`${styles.rightPanelCodeBlock} qip-editor`}>

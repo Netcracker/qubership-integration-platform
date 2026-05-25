@@ -43,7 +43,7 @@ const mockChain2: ChainItem = {
   name: "Another Chain",
   description: "",
   itemType: CatalogItemType.CHAIN,
-  labels: [{ name: "env", value: "prod" }],
+  labels: [{ name: "env", technical: false }],
 };
 
 const mockNestedChain: ChainItem = {
