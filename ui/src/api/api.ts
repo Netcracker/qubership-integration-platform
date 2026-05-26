@@ -1,4 +1,4 @@
-import type { EntityFilterModel } from "../components/table/filter/filter.ts";
+import type { EntityFilterModel } from "../components/table/filter/filterTypes.ts";
 import type {
   Chain,
   ChainCreationRequest,
@@ -93,6 +93,7 @@ import type {
   MCPSystem,
   MCPSystemCreateRequest,
   MCPSystemUpdateRequest,
+  ChainSnapshot,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 import { isVsCode, VSCodeExtensionApi } from "./rest/vscodeExtensionApi.ts";
@@ -644,6 +645,10 @@ export interface Api {
     name: string,
     snapshotId: string,
   ): Promise<void>;
+
+  getChainSnapshot(snapshotId: string): Promise<ChainSnapshot>;
+
+  extractChain(archive: File, chainId: string): Promise<Chain>;
 }
 
 export const api: Api = isVsCode ? new VSCodeExtensionApi() : new RestApi();

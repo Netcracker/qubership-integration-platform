@@ -45,6 +45,8 @@ properties:
           $ref: "#/definitions/ResponseHandler"
       authorizationConfiguration:
         title: Authorization type
+        discriminator:
+          propertyName: type
         oneOf:
           - $ref: "#/definitions/AuthorizationInherit"
           - $ref: "#/definitions/AuthorizationNone"

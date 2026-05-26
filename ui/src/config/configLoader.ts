@@ -50,7 +50,7 @@ export async function loadConfig(): Promise<AppConfig> {
     );
   }
 
-  return config as AppConfig;
+  return config;
 }
 
 export async function initializeConfig(): Promise<void> {

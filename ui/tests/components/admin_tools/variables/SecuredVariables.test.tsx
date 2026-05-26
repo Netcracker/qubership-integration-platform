@@ -51,14 +51,14 @@ jest.mock(
     default: jest.fn(
       ({
         variables,
-        onSelectedChange,
+        onSelectedChange: _onSelectedChange,
         onAdd,
         onDelete,
         onStartEditing,
         onConfirmEdit,
         onCancelEditing,
         selectedKeys,
-        editingKey,
+        editingKey: _editingKey,
         editingValue,
         onChangeEditingValue,
         isAddingNew,
@@ -144,7 +144,7 @@ jest.mock("../../../../src/permissions/ProtectedButton", () => ({
 }));
 
 jest.mock("../../../../src/permissions/Require", () => ({
-  Require: ({ children, action, resource }: any) => <>{children}</>,
+  Require: ({ children }: any) => <>{children}</>,
 }));
 
 // Mock hooks
@@ -164,7 +164,7 @@ jest.mock("../../../../src/permissions/usePermissions", () => ({
 }));
 
 jest.mock("../../../../src/permissions/funcs", () => ({
-  hasPermissions: jest.fn((perms, required) => true),
+  hasPermissions: jest.fn(() => true),
 }));
 
 // Mock ResizeObserver for react-resizable
@@ -468,14 +468,14 @@ describe("SecuredVariables Component", () => {
   });
 });
 
-function getExpandButtonOnDefaultSecret() {
+function getExpandButtonOnDefaultSecret(): HTMLElement {
   const row = screen.getByText("default-secret").closest("tr");
   if (!row) {
     throw new Error("default-secret row not found");
   }
-  const fromAntCell = row.querySelector(
+  const fromAntCell = row.querySelector<HTMLElement>(
     ".ant-table-row-expand-icon-cell button",
-  ) as HTMLButtonElement | null;
+  );
   if (fromAntCell) {
     return fromAntCell;
   }
@@ -486,5 +486,5 @@ function getExpandButtonOnDefaultSecret() {
   if (!btn) {
     throw new Error("expand button not found for default-secret row");
   }
-  return btn as HTMLButtonElement;
+  return btn;
 }

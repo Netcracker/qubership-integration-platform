@@ -11,7 +11,6 @@ if (globalThis.PointerEvent === undefined) {
   } as unknown as typeof PointerEvent;
 }
 
-import React from "react";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { ResizableTitle } from "../../../src/components/table/ResizableTitle";
@@ -39,11 +38,7 @@ describe("ResizableTitle", () => {
   });
 
   afterAll(() => {
-    const p = HTMLElement.prototype as HTMLElement & {
-      setPointerCapture?: unknown;
-      releasePointerCapture?: unknown;
-      hasPointerCapture?: unknown;
-    };
+    const p = HTMLElement.prototype as unknown as Record<string, unknown>;
     if (pointerOriginals.setPointerCapture === undefined) {
       delete p.setPointerCapture;
     } else {
@@ -79,7 +74,7 @@ describe("ResizableTitle", () => {
         x: 0,
         y: 0,
         toJSON: () => ({}),
-      } as DOMRect);
+      });
   });
 
   afterEach(() => {
@@ -157,7 +152,7 @@ describe("ResizableTitle", () => {
       bubbles: true,
     });
     fireEvent(
-      globalThis,
+      globalThis as unknown as Window,
       new PointerEvent("pointermove", {
         bubbles: true,
         clientX: 120,
@@ -166,7 +161,7 @@ describe("ResizableTitle", () => {
     );
     expect(onResize).toHaveBeenCalled();
     fireEvent(
-      globalThis,
+      globalThis as unknown as Window,
       new PointerEvent("pointerup", {
         bubbles: true,
         pointerId: 42,
@@ -201,7 +196,7 @@ describe("ResizableTitle", () => {
       bubbles: true,
     });
     fireEvent(
-      globalThis,
+      globalThis as unknown as Window,
       new PointerEvent("pointerup", {
         bubbles: true,
         pointerId: 999,
@@ -209,7 +204,7 @@ describe("ResizableTitle", () => {
     );
     expect(onResizeStop).not.toHaveBeenCalled();
     fireEvent(
-      globalThis,
+      globalThis as unknown as Window,
       new PointerEvent("pointerup", {
         bubbles: true,
         pointerId: 7,
@@ -244,7 +239,7 @@ describe("ResizableTitle", () => {
       bubbles: true,
     });
     fireEvent(
-      globalThis,
+      globalThis as unknown as Window,
       new PointerEvent("pointermove", {
         bubbles: true,
         clientX: 200,
@@ -282,7 +277,7 @@ describe("ResizableTitle", () => {
       bubbles: true,
     });
     fireEvent(
-      globalThis,
+      globalThis as unknown as Window,
       new PointerEvent("pointermove", {
         bubbles: true,
         clientX: 500,

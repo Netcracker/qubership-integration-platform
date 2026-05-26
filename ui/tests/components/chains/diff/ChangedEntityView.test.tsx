@@ -8,7 +8,6 @@ import type { Chain, Element, EntityLabel } from "../../../../src/api/apiTypes";
 import type { JSONSchema7 } from "json-schema";
 
 jest.mock("antd", () => {
-  const React = require("react");
   return {
     Descriptions: ({ items }: any) => (
       <dl>
@@ -300,7 +299,7 @@ describe("ElementProperty", () => {
           properties: { timeout: { title: "Timeout (ms)" } },
         },
       },
-    } as JSONSchema7);
+    });
 
     render(
       <ElementSchemasContext.Provider value={{ getSchema: mockGetSchema }}>

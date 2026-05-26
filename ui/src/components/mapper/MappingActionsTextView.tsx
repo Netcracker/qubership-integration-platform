@@ -6,7 +6,9 @@ import {
   Transformation,
 } from "../../mapper/model/model.ts";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Editor, Monaco } from "@monaco-editor/react";
+import { Editor } from "@monaco-editor/react";
+import type * as monacoNs from "monaco-editor";
+type Monaco = typeof monacoNs;
 import {
   useMonacoTheme,
   applyVSCodeThemeToMonaco,
@@ -526,7 +528,7 @@ export const MappingActionsTextView: React.FC<MappingActionsTextViewProps> = ({
       value={value}
       language={MAPPER_ACTIONS_LANGUAGE_ID}
       theme={monacoTheme}
-      onMount={(editor, monaco) => onEditorMount(editor, monaco)}
+      onMount={(editor, monaco: Monaco) => onEditorMount(editor, monaco)}
       options={{ fixedOverflowWidgets: true, automaticLayout: true }}
     />
   );

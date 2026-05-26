@@ -22,7 +22,7 @@ jest.mock("../../src/icons/IconProvider", () => ({
 }));
 
 function makeProps(
-  overrides: Partial<NodeProps<ChainGraphNode>> & {
+  overrides: Omit<Partial<NodeProps<ChainGraphNode>>, "data"> & {
     data?: Partial<ChainGraphNode["data"]>;
   } = {},
 ): NodeProps<ChainGraphNode> {

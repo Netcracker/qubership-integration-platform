@@ -6,7 +6,6 @@ import { MarkdownRenderer } from "./AiMarkdownRenderer.tsx";
 import {
   collapseProgressLines,
   parseProgressLines,
-  type ProgressLineStatus,
   stripInlineProgressSummary,
   stripProgressBlocks,
 } from "./aiProgressParsing.ts";
@@ -89,7 +88,7 @@ export const AiChatMessageList: React.FC<AiChatMessageListProps> = ({
                 ...progressLines,
                 {
                   text: `Working${WORKING_DOTS[workingDots]}`,
-                  status: "pending" as ProgressLineStatus,
+                  status: "pending",
                 },
               ];
             }

@@ -417,7 +417,7 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
       value={currentSourceType}
       onChange={(val) => {
         setDirty(true);
-        setCurrentSourceType(val as EnvironmentSourceType);
+        setCurrentSourceType(val);
       }}
       style={{ minWidth: 120, width: "auto" }}
     />

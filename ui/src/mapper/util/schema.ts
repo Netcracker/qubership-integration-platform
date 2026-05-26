@@ -99,7 +99,7 @@ export class MessageSchemaUtil {
   }
 
   public static getMessageSchemaKey(
-    kind: AttributeKind,
+    kind: AttributeKind | null | undefined,
   ): keyof MessageSchema | null {
     switch (kind) {
       case "property":
@@ -129,7 +129,10 @@ export class MessageSchemaUtil {
     return Attributes.pathExists(Attributes.wrapType(scope), reference.path);
   }
 
-  public static getScope(schema: MessageSchema, kind: AttributeKind): DataType {
+  public static getScope(
+    schema: MessageSchema,
+    kind: AttributeKind | null | undefined,
+  ): DataType {
     const key = this.getMessageSchemaKey(kind);
     if (!key) {
       return DataTypes.nullType();

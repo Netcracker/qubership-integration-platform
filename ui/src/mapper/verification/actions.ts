@@ -216,7 +216,7 @@ const MAPPING_ACTION_VERIFIER = switchOf([
     ),
     verify: fail<MappingActionDetail>().withMessage(
       (context) =>
-        `Unknown transformation: ${context.entity.action.transformation.name}`,
+        `Unknown transformation: ${context.entity.action.transformation?.name ?? ""}`,
     ),
   },
 ]);

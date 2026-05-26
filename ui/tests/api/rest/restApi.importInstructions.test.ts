@@ -181,7 +181,7 @@ describe("RestApi import instructions", () => {
     const api = new RestApi();
     api.instance.defaults.adapter = (async (config: AxiosRequestConfig) => {
       lastUrl = config.url ?? "";
-      lastHeaders = config.headers as Record<string, unknown> | undefined;
+      lastHeaders = config.headers;
       return {
         data: [],
         status: 200,

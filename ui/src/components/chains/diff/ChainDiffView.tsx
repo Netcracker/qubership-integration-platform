@@ -1,39 +1,69 @@
-import { Flex, FlexProps } from "antd";
-import { Chain } from "../../../api/apiTypes.ts";
+import { Col, Flex, FlexProps, Row, Spin } from "antd";
 import React, { useState } from "react";
 import {
   ChainDiffViewControls,
   DiffViewType,
 } from "./ChainDiffViewControls.tsx";
-import { Change } from "./compare/types.ts";
 import { ChainDiffTableView } from "./ChainDiffTableView.tsx";
 import { ChainDiffGraphView } from "./ChainDiffGraphView.tsx";
 import { ElementSchemasProvider } from "./ElementSchemasProvider.tsx";
 import { ChainDiffTextView } from "./ChainDiffTextView.tsx";
+import { ComparedItemSelector } from "./ComparedItemSelector.tsx";
+import { ComparableItem, useChainDiff } from "./useChainDiff.tsx";
+import styles from "./ChainDiffView.module.css";
 
 export type ChainDiffViewProps = {
-  chain1?: Chain;
-  chain2?: Chain;
-  changes: Change[];
-  selectedChangeId?: string;
-  onSelectChange: (id: string) => void;
+  item1: ComparableItem;
+  item2: ComparableItem;
+  editable1?: boolean;
+  editable2?: boolean;
 } & FlexProps;
 
 export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
-  chain1,
-  chain2,
-  changes,
-  selectedChangeId,
-  onSelectChange,
+  item1,
+  item2,
+  editable1,
+  editable2,
   ...rest
 }): React.ReactNode => {
+  const [i1, setI1] = useState<ComparableItem>(item1);
+  const [i2, setI2] = useState<ComparableItem>(item2);
+  const {
+    isLoading,
+    chain1,
+    chain2,
+    changes,
+    selectedChangeId,
+    setSelectedChangeId,
+  } = useChainDiff(i1, i2);
+
   const [viewType, setViewType] = useState<DiffViewType>("graph");
-  return (
-    <Flex {...rest} vertical>
+
+  return isLoading ? (
+    <Spin className={styles.loader} size={"large"}></Spin>
+  ) : (
+    <Flex {...rest} vertical gap={8}>
+      <Row gutter={16} align="middle">
+        <Col span={12}>
+          <ComparedItemSelector
+            chain={chain1}
+            editable={editable1 ?? false}
+            onChange={(item) => setI1(item)}
+          />
+        </Col>
+        <Col span={12}>
+          <ComparedItemSelector
+            chain={chain2}
+            editable={editable2 ?? false}
+            onChange={(item) => setI2(item)}
+            imported={i2.kind === "archive"}
+          />
+        </Col>
+      </Row>
       <ChainDiffViewControls
         changes={changes}
         selectedChangeId={selectedChangeId}
-        onSelectChange={onSelectChange}
+        onSelectChange={setSelectedChangeId}
         onViewTypeChange={(viewType) => setViewType(viewType)}
       />
       <ElementSchemasProvider>
@@ -43,7 +73,7 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
             chain2={chain2}
             changes={changes}
             selectedChangeId={selectedChangeId}
-            onSelectChange={onSelectChange}
+            onSelectChange={setSelectedChangeId}
           />
         ) : viewType === "table" ? (
           <ChainDiffTableView
@@ -51,7 +81,7 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
             chain2={chain2}
             changes={changes}
             selectedChangeId={selectedChangeId}
-            onSelectChange={onSelectChange}
+            onSelectChange={setSelectedChangeId}
           />
         ) : (
           <ChainDiffTextView
@@ -59,7 +89,7 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
             chain2={chain2}
             changes={changes}
             selectedChangeId={selectedChangeId}
-            onSelectChange={onSelectChange}
+            onSelectChange={setSelectedChangeId}
           />
         )}
       </ElementSchemasProvider>

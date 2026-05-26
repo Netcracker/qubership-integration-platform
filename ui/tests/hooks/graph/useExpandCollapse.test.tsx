@@ -4,7 +4,7 @@
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
-  value: jest.fn().mockImplementation((query: string) => ({
+  value: jest.fn().mockImplementation(((query: string) => ({
     matches: false,
     media: query,
     onchange: null,
@@ -13,7 +13,7 @@ Object.defineProperty(window, "matchMedia", {
     addEventListener: jest.fn(),
     removeEventListener: jest.fn(),
     dispatchEvent: jest.fn(),
-  })),
+  })) as (...args: unknown[]) => unknown),
 });
 
 import { beforeEach, describe, expect, it, jest } from "@jest/globals";
@@ -34,9 +34,11 @@ const mockedComputeNestedUnitCounts =
   >;
 
 function createNode(
-  overrides: Partial<ChainGraphNode> & { data?: Record<string, unknown> } = {},
+  overrides: Omit<Partial<ChainGraphNode>, "data"> & {
+    data?: Record<string, unknown>;
+  } = {},
 ): ChainGraphNode {
-  const { data, ...rest } = overrides as any;
+  const { data, ...rest } = overrides;
 
   return {
     id: "node",
@@ -48,9 +50,11 @@ function createNode(
 }
 
 function createContainer(
-  overrides: Partial<ChainGraphNode> & { data?: Record<string, unknown> } = {},
+  overrides: Omit<Partial<ChainGraphNode>, "data"> & {
+    data?: Record<string, unknown>;
+  } = {},
 ): ChainGraphNode {
-  const { data, ...rest } = overrides as any;
+  const { data, ...rest } = overrides;
 
   return {
     id: "container",
@@ -488,8 +492,8 @@ describe("useExpandCollapse", () => {
         id: "edge-1",
         source: "outside",
         target: "child",
-        sourceHandle: null as any,
-        targetHandle: null as any,
+        sourceHandle: null,
+        targetHandle: null,
       }),
     ];
 

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Monaco } from "@monaco-editor/react";
+import type * as monacoNs from "monaco-editor";
 import { useVSCodeTheme } from "./useVSCodeTheme";
+
+type Monaco = typeof monacoNs;
 
 interface ThemeData {
   colors?: Record<string, string>;
@@ -396,7 +398,7 @@ export function applyVSCodeThemeToMonaco(
     );
 
     // Define custom theme based on VS Code colors
-    const customTheme = {
+    const customTheme: monacoNs.editor.IStandaloneThemeData = {
       base: isDark ? "vs-dark" : "vs",
       inherit: true,
       rules: tokenRules,
@@ -427,7 +429,6 @@ export function applyVSCodeThemeToMonaco(
     const themeName = isDark ? "vscode-dark-custom" : "vscode-light-custom";
 
     try {
-      // @ts-expect-error Monaco types expect literal 'vs' | 'vs-dark' but runtime accepts the string
       monaco.editor.defineTheme(themeName, customTheme);
       monaco.editor.setTheme(themeName);
     } catch (error) {

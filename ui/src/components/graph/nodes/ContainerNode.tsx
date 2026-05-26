@@ -4,7 +4,7 @@ import { Badge, Button, Flex, Tooltip } from "antd";
 import { useMemo } from "react";
 import { EllipsisLabel } from "./EllipsisLabel";
 import styles from "./ContainerNode.module.css";
-import { IconName, OverridableIcon } from "../../../icons/IconProvider.tsx";
+import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { ContainerNodeBase } from "./ContainerNodeBase.tsx";
 
 export function ContainerNode({ data, ...rest }: NodeProps<ChainGraphNode>) {
@@ -27,7 +27,7 @@ export function ContainerNode({ data, ...rest }: NodeProps<ChainGraphNode>) {
           style={{ padding: "4px" }}
         >
           <OverridableIcon
-            name={data.elementType as IconName}
+            name={data.elementType}
             style={{ fontSize: 16 }}
           />
           <EllipsisLabel

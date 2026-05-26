@@ -6,7 +6,7 @@ import { render } from "@testing-library/react";
 import { describe, it, expect, jest } from "@jest/globals";
 import { FieldProps } from "@rjsf/utils";
 
-const mockScript = jest.fn(({ value, mode, onChange }) => (
+const mockScript = jest.fn(({ value, mode }) => (
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   <div data-testid="mock-script" data-value={value} data-mode={mode} />
 ));
@@ -60,7 +60,7 @@ describe("JsonAsStringField", () => {
     );
 
     expect(mockScript).toHaveBeenCalledTimes(1);
-    const calledProps = mockScript.mock.calls[0][0] as {
+    const calledProps = mockScript.mock.calls[0][0] as unknown as {
       onChange: (value: string, path?: string[]) => void;
     };
 

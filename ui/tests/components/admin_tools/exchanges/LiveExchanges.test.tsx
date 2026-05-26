@@ -8,7 +8,7 @@ import { Modal } from "antd";
 import { LiveExchanges } from "../../../../src/components/admin_tools/exchanges/LiveExchanges";
 import { SessionsLoggingLevel } from "../../../../src/api/apiTypes";
 import { ProtectedButtonProps } from "../../../../src/permissions/ProtectedButton";
-import type { EntityFilterModel } from "../../../../src/components/table/filter/filter";
+import type { EntityFilterModel } from "../../../../src/components/table/filter/filterTypes";
 
 jest.mock("antd", () =>
   require("tests/helpers/antdMockWithLightweightTable").antdMockWithLightweightTable(),
@@ -196,7 +196,9 @@ describe("LiveExchanges", () => {
     const rows = document.querySelectorAll("[data-row-key]");
     expect(rows.length).toBeGreaterThanOrEqual(1);
     expect(
-      Array.from(rows).some((r) => r.dataset.rowKey?.startsWith("group-")),
+      Array.from(rows).some((r) =>
+        (r as HTMLElement).dataset.rowKey?.startsWith("group-"),
+      ),
     ).toBe(true);
   });
 

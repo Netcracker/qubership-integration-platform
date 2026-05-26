@@ -15,7 +15,7 @@ const integration: IntegrationSystem = {
   type: IntegrationSystemType.EXTERNAL,
   description: "",
   labels: [],
-} as IntegrationSystem;
+} as unknown as IntegrationSystem;
 
 const context: ContextSystem = {
   id: "c1",
@@ -23,7 +23,7 @@ const context: ContextSystem = {
   type: IntegrationSystemType.CONTEXT,
   description: "",
   labels: [],
-} as ContextSystem;
+};
 
 describe("getServiceActions", () => {
   const noop = () => {};

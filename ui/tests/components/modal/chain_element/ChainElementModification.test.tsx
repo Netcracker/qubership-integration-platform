@@ -38,7 +38,7 @@ jest.mock("monaco-editor", () => ({
 
 Object.defineProperty(globalThis, "matchMedia", {
   writable: true,
-  value: jest.fn().mockImplementation((query: string) => ({
+  value: jest.fn().mockImplementation(((query: string) => ({
     matches: false,
     media: query,
     onchange: null,
@@ -47,7 +47,7 @@ Object.defineProperty(globalThis, "matchMedia", {
     addEventListener: jest.fn(),
     removeEventListener: jest.fn(),
     dispatchEvent: jest.fn(),
-  })),
+  })) as (...args: unknown[]) => unknown),
 });
 
 const mockCloseContainingModal = jest.fn();
@@ -55,7 +55,8 @@ jest.mock("../../../../src/ModalContextProvider", () => ({
   useModalContext: () => ({ closeContainingModal: mockCloseContainingModal }),
 }));
 
-const mockUpdateElement = jest.fn().mockResolvedValue({
+const mockUpdateElement = jest.fn<(...args: unknown[]) => Promise<unknown>>();
+mockUpdateElement.mockResolvedValue({
   id: "el-1",
   name: "My Script",
   description: "",
@@ -66,7 +67,9 @@ jest.mock("../../../../src/hooks/useElement", () => ({
   useElement: () => ({ updateElement: mockUpdateElement }),
 }));
 
-const mockGetOperationInfo = jest.fn().mockResolvedValue({
+const mockGetOperationInfo =
+  jest.fn<(...args: unknown[]) => Promise<unknown>>();
+mockGetOperationInfo.mockResolvedValue({
   id: "op-any",
   specification: {},
   requestSchema: {},
@@ -74,8 +77,8 @@ const mockGetOperationInfo = jest.fn().mockResolvedValue({
 });
 jest.mock("../../../../src/api/api", () => ({
   api: {
-    getOperationInfo: (...args: unknown[]): unknown =>
-      mockGetOperationInfo(...args) as unknown,
+    getOperationInfo: (id: string): Promise<unknown> =>
+      mockGetOperationInfo(id),
   },
 }));
 
@@ -92,7 +95,8 @@ jest.mock("../../../../src/hooks/useDocumentation", () => ({
   useDocumentation: () => ({ openElementDoc: mockOpenElementDoc }),
 }));
 
-const mockShowModal = jest.fn<void, [{ component: React.ReactElement }]>();
+const mockShowModal =
+  jest.fn<(args: { component: React.ReactElement }) => void>();
 jest.mock("../../../../src/Modals", () => ({
   useModalsContext: () => ({ showModal: mockShowModal }),
 }));
@@ -108,8 +112,7 @@ const mockScriptSchema =
   "type: object\ntitle: Script\ndescription: Script element\nproperties:\n  type:\n    type: string\n  name:\n    type: string\n  description:\n    type: string\n  properties:\n    type: object\nrequired: [type]";
 
 const defaultSchemaModules = {
-  "/node_modules/@netcracker/qip-schemas/assets/script.schema.yaml":
-    mockScriptSchema,
+  script: mockScriptSchema,
 };
 
 let schemaModulesOverride: Record<string, string> | null = null;
@@ -545,7 +548,9 @@ describe("ChainElementModification", () => {
     fireEvent.click(screen.getByTestId("rjsf-user-change"));
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
-    const unsavedModal = mockShowModal.mock.calls[0][0].component;
+    const unsavedModal = (
+      mockShowModal.mock.calls[0][0]
+    ).component;
     render(unsavedModal);
 
     fireEvent.click(screen.getByRole("button", { name: "Yes" }));
@@ -564,7 +569,9 @@ describe("ChainElementModification", () => {
     fireEvent.click(screen.getByTestId("rjsf-user-change"));
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
-    const unsavedModal = mockShowModal.mock.calls[0][0].component;
+    const unsavedModal = (
+      mockShowModal.mock.calls[0][0]
+    ).component;
     render(unsavedModal);
 
     const dialogs = screen.getAllByRole("dialog");
@@ -717,8 +724,7 @@ describe("ChainElementModification", () => {
 
     it("calls errorWithDetails when schema YAML is invalid", async () => {
       schemaModulesOverride = {
-        "/node_modules/@netcracker/qip-schemas/assets/script.schema.yaml":
-          "invalid: {{",
+        script: "invalid: {{",
       };
       renderWithPermissions({ chain: ["update"] });
 
@@ -765,8 +771,7 @@ required: [type]`;
 
     beforeEach(() => {
       schemaModulesOverride = {
-        "/node_modules/@netcracker/qip-schemas/assets/service-call.schema.yaml":
-          mockServiceCallSchema,
+        "service-call": mockServiceCallSchema,
       };
       mockGetOperationInfo.mockResolvedValue({
         id: "op-42",

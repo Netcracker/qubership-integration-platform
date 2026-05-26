@@ -1,4 +1,5 @@
 import { Modal, Upload, Table, Button, message, Flex } from "antd";
+import type { ColumnsType } from "antd/es/table";
 import type { RcFile } from "antd/es/upload";
 import React, { useMemo, useState } from "react";
 
@@ -26,7 +27,7 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
   const [selectedNames, setSelectedNames] = useState<React.Key[]>([]);
   const notificationService = useNotificationService();
 
-  const previewColumns = useMemo(
+  const previewColumns = useMemo<ColumnsType<VariableImportPreview>>(
     () => [
       { title: "Name", dataIndex: "name", key: "name" },
       { title: "Value", dataIndex: "value", key: "value" },
@@ -155,7 +156,7 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
         </Upload.Dragger>
 
         {previewData.length > 0 && (
-          <Table
+          <Table<VariableImportPreview>
             rowKey="name"
             className="flex-table"
             style={{ height: "100%" }}

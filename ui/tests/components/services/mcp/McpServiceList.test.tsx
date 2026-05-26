@@ -144,7 +144,7 @@ jest.mock("../../../../src/permissions/ProtectedButton.tsx", () => ({
         data-testid={`action-${String(tooltipProps.title)
           .replace(/\s+/g, "-")
           .toLowerCase()}`}
-        {...(rest as React.ButtonHTMLAttributes<HTMLButtonElement>)}
+        {...(rest)}
       />
     );
   },
@@ -230,7 +230,6 @@ jest.mock("../../../../src/components/table/LabelsEdit.tsx", () => ({
 
 jest.mock("antd", () => {
   const { antdMockWithLightweightTable } = require("tests/helpers/antdMockWithLightweightTable");
-  const React = require("react");
   return antdMockWithLightweightTable({
     message: {
       info: (...args: unknown[]) => mockMessageInfo(...args),
@@ -289,6 +288,8 @@ describe("McpServiceList", () => {
     jest.mocked(useNotificationService).mockReturnValue({
       requestFailed: mockRequestFailed,
       info: jest.fn(),
+      warning: jest.fn(),
+      errorWithDetails: jest.fn(),
     });
   });
 
@@ -419,7 +420,7 @@ describe("McpServiceList", () => {
   it("should display the username when createdBy is set", async () => {
     mockGetMcpSystems.mockResolvedValue([
       makeMcpSystem({
-        createdBy: { id: "u1", username: "alice", name: "Alice" },
+        createdBy: { id: "u1", username: "alice" },
       }),
     ]);
     renderPage();
@@ -524,7 +525,9 @@ describe("McpServiceList", () => {
   // --- Bulk export ----------------------------------------------------------
 
   it("should show 'No services selected' message when the toolbar export button is clicked with no rows selected", async () => {
-    const messageInfoSpy = jest.spyOn(message, "info").mockImplementation(() => {});
+    const messageInfoSpy = jest
+      .spyOn(message, "info")
+      .mockImplementation((() => {}) as never);
     renderPage();
 
     await waitFor(() => expect(mockGetMcpSystems).toHaveBeenCalled());

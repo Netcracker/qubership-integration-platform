@@ -155,7 +155,7 @@ class VSCodeApiSingleton {
   }
 
   private getGlobalRecord(): GlobalRecord {
-    return globalThis as GlobalRecord;
+    return globalThis;
   }
 
   private assignApi(candidate: unknown, source: string): boolean {

@@ -46,6 +46,8 @@ import {
   sumScrollXForColumns,
   useTableColumnResize,
 } from "../table/useTableColumnResize.tsx";
+import { ChainDiffPopup } from "../chains/diff/ChainDiffPopup.tsx";
+import { useModalsContext } from "../../Modals.tsx";
 
 /** rc-table selection column when `rowSelection` is set; not in `columns`. */
 const IMPORT_PREVIEW_SELECTION_COLUMN_WIDTH = 48;
@@ -96,7 +98,7 @@ const RESULT_COMMON_VARIABLES_TABLE_COLUMNS: TableProps<ImportVariableResult>["c
       dataIndex: "status",
       key: "status",
       render: (_, item) => (
-        <ImportStatus status={item.status} message={item.error} />
+        <StatusTag status={item.status} message={item.error} />
       ),
     },
   ];
@@ -121,6 +123,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
 
   const notificationService = useNotificationService();
   const { closeContainingModal } = useModalContext();
+  const { showModal } = useModalsContext();
   const [step, setStep] = useState<number>(0);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -355,6 +358,22 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     }
   };
 
+  const onCompareBtnClick = useCallback(
+    (archive: File, chainId: string) => {
+      showModal({
+        component: (
+          <ChainDiffPopup
+            item1={{ kind: "chain", id: chainId }}
+            item2={{ kind: "archive", archive, id: chainId }}
+            editable1={true}
+            editable2={false}
+          />
+        ),
+      });
+    },
+    [showModal],
+  );
+
   const previewChainTableColumns: TableProps<PreviewImportChainTableItem>["columns"] =
     useMemo(
       () => [
@@ -362,6 +381,24 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
           title: "Name",
           dataIndex: "name",
           key: "name",
+          render: (_, item) => {
+            return (
+              <Space>
+                {item.name}
+                {item.exists ? (
+                  <Button
+                    type={"text"}
+                    icon={<OverridableIcon name={"compare"} />}
+                    onClick={() => {
+                      if (fileList?.[0]?.originFileObj) {
+                        onCompareBtnClick(fileList[0].originFileObj, item.id);
+                      }
+                    }}
+                  ></Button>
+                ) : null}
+              </Space>
+            );
+          },
         },
         {
           title: "ID",

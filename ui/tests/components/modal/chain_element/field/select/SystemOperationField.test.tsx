@@ -132,7 +132,7 @@ function makeProps(
         integrationOperationProtocolType: "http",
         updateContext,
         ...formContext,
-      } as FormContext,
+      },
     } as Props["registry"],
     fieldPathId: {
       $id: "root_properties_integrationOperationId",

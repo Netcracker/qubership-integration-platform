@@ -42,7 +42,7 @@ export abstract class Verifier<T> {
     })(this);
   }
 
-  public withMessage(messageOrSupplier: string | MessageSupplier<T>) {
+  public withMessage(messageOrSupplier: string | MessageSupplier<T>): Verifier<T> {
     const supplier: MessageSupplier<T> =
       typeof messageOrSupplier === "string"
         ? () => messageOrSupplier
@@ -191,7 +191,7 @@ export interface SwitchBranch<T> {
 class SwitchVerifier<T> extends Verifier<T> {
   constructor(
     private branches: SwitchBranch<T>[],
-    private defaultVerifier: Verifier<T> = null,
+    private defaultVerifier: Verifier<T> | null = null,
   ) {
     super();
   }
@@ -271,12 +271,12 @@ export function count<T>(verifier: Verifier<number>): Verifier<T[]> {
 }
 
 export function exists<T>(): Verifier<T> {
-  return not(equalTo<T>(null).or(equalTo<T>(undefined)));
+  return not(equalTo<T>(null as T).or(equalTo<T>(undefined as T)));
 }
 
 export function switchOf<T>(
   branches: SwitchBranch<T>[],
-  defaultVerifier: Verifier<T> = null,
+  defaultVerifier: Verifier<T> | null = null,
 ): Verifier<T> {
   return new SwitchVerifier(branches, defaultVerifier ?? pass());
 }

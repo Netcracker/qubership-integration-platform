@@ -88,7 +88,7 @@ public class CustomResourceBuildContextFactory {
 
     private void addAppendConfigurationToContext(ResourceBuildContext<List<Snapshot>> context) {
         customResourceService
-                .getIntegrationResources(integrationResourceNamingStrategy.getName(context))
+                .getIntegrationResources(context.getBuildInfo().getOptions().getName())
                 .ifPresent(resources -> {
                     updateIntegrationResources(context, resources.integration());
                     putIntegrationsConfigurationToBuildCache(context, resources.integrationsConfiguration());

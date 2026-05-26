@@ -824,15 +824,17 @@ async function getWebviewContent(context: ExtensionContext, webview: Webview) {
   let useBundled = false; // Will be set based on file existence
 
   try {
-    // Try bundled version first (includes React)
-    let jsFileUri = vscode.Uri.joinPath(
+    // qip-ui assets are copied here by webpack (copy-webpack-plugin) so that
+    // hoisted workspace symlinks in node_modules don't break webview loading.
+    const qipUiAssetsRoot = vscode.Uri.joinPath(
       context.extensionUri,
-      "node_modules",
-      "@netcracker",
+      "dist",
+      "web",
       "qip-ui",
-      "dist-lib",
-      "index.bundled.es.js",
     );
+
+    // Try bundled version first (includes React)
+    let jsFileUri = vscode.Uri.joinPath(qipUiAssetsRoot, "index.bundled.es.js");
 
     // Check if bundled version exists using VSCode API (works in web extensions)
     // Try to stat the bundled file - if it fails, use external version
@@ -841,25 +843,11 @@ async function getWebviewContent(context: ExtensionContext, webview: Webview) {
       await vscode.workspace.fs.stat(jsFileUri);
       bundledExists = true;
     } catch (error) {
-      jsFileUri = vscode.Uri.joinPath(
-        context.extensionUri,
-        "node_modules",
-        "@netcracker",
-        "qip-ui",
-        "dist-lib",
-        "index.es.js",
-      );
+      jsFileUri = vscode.Uri.joinPath(qipUiAssetsRoot, "index.es.js");
     }
 
     useBundled = bundledExists;
-    const cssFileUri = vscode.Uri.joinPath(
-      context.extensionUri,
-      "node_modules",
-      "@netcracker",
-      "qip-ui",
-      "dist-lib",
-      "qip-ui.css",
-    );
+    const cssFileUri = vscode.Uri.joinPath(qipUiAssetsRoot, "qip-ui.css");
 
     jsUri = webview.asWebviewUri(jsFileUri);
     cssUri = webview.asWebviewUri(cssFileUri);

@@ -1,4 +1,4 @@
-import { EntityFilterModel } from "../components/table/filter/filter";
+import { EntityFilterModel } from "../components/table/filter/filterTypes";
 
 export type BaseEntity = {
   id: string;
@@ -33,6 +33,16 @@ export type Chain = BaseEntity & {
   overridesChainId?: string;
   overridesChainName?: string;
 };
+
+export type ChainSnapshot = { chain: BaseEntity } & Pick<
+  Chain,
+  | keyof BaseEntity
+  | "elements"
+  | "dependencies"
+  | "defaultSwimlaneId"
+  | "reuseSwimlaneId"
+  | "labels"
+>;
 
 export type Dependency = {
   id: string;

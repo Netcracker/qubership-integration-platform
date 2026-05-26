@@ -95,12 +95,13 @@ import {
   type MCPSystem,
   type MCPSystemCreateRequest,
   type MCPSystemUpdateRequest,
+  ChainSnapshot,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getFileFromResponse } from "../../misc/download-utils.ts";
 import qs from "qs";
 import { getAppName, getConfig } from "../../appConfig.ts";
-import { EntityFilterModel } from "../../components/table/filter/filter.ts";
+import { EntityFilterModel } from "../../components/table/filter/filterTypes.ts";
 import { registerRestAxiosInstance } from "./requestHeadersInterceptor.ts";
 import type {
   ApiError,
@@ -110,7 +111,6 @@ import type {
   SecretWithVariables,
   Variable,
 } from "../apiTypes.ts";
-import { File } from "node:buffer";
 
 export class RestApi implements Api {
   instance: AxiosInstance;
@@ -2312,5 +2312,29 @@ export class RestApi implements Api {
       { responseType: "blob" },
     );
     return getFileFromResponse(response);
+  };
+
+  getChainSnapshot = async (snapshotId: string): Promise<ChainSnapshot> => {
+    const response = await this.instance.get<ChainSnapshot>(
+      `${this.v2()}/catalog/snapshots/${snapshotId}/full`,
+    );
+    return response.data;
+  };
+
+  extractChain = async (archive: File, chainId: string): Promise<Chain> => {
+    const formData: FormData = new FormData();
+    formData.append("file", archive, archive.name);
+    formData.append("chainId", chainId);
+    const response = await this.instance.post<Chain>(
+      `${this.v3()}/import/chains/extract`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          accept: "*/*",
+        },
+      },
+    );
+    return response.data;
   };
 }

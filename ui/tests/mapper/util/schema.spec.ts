@@ -1,12 +1,10 @@
 import { MessageSchemaUtil } from "../../../src/mapper/util/schema.ts";
 import {
   Attribute,
-  AttributeKind,
   AttributeReference,
-  DataType,
   MessageSchema,
   ObjectType,
-} from "../model/model.ts";
+} from "../../../src/mapper/model/model.ts";
 
 describe("Mapper", () => {
   describe("MessageSchemaUtil", () => {
@@ -65,7 +63,7 @@ describe("Mapper", () => {
       });
 
       it("should return null value if attribute kind is null or undefined", () => {
-        [undefined, null].forEach((kind: AttributeKind) => {
+        [undefined, null].forEach((kind) => {
           expect(MessageSchemaUtil.getMessageSchemaKey(kind)).toBeNull();
         });
       });
@@ -94,10 +92,10 @@ describe("Mapper", () => {
       });
 
       it('should return empty list when body is undefined or null and kind is "body"', () => {
-        [undefined, null].forEach((body: DataType) => {
+        [undefined, null].forEach((body) => {
           expect(
             MessageSchemaUtil.getMessageSchemaAttributes(
-              { ...messageSchema, body },
+              { ...messageSchema, body: body ?? null },
               "body",
             ),
           ).toEqual([]);
@@ -135,7 +133,7 @@ describe("Mapper", () => {
       });
 
       it("should return NullType when kind is null or undefined", () => {
-        [undefined, null].forEach((kind: AttributeKind) => {
+        [undefined, null].forEach((kind) => {
           expect(MessageSchemaUtil.getScope(messageSchema, kind)).toEqual(
             expect.objectContaining({ name: "null" }),
           );

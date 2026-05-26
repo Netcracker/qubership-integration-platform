@@ -66,7 +66,7 @@ export class GraphQLUtil {
           node.operation === OperationTypeNode.MUTATION
         ) {
           operations.push({
-            type: node.operation as GraphQLOperationType,
+            type: node.operation,
             name: node.name?.value,
             source: queryText.substring(
               node.loc?.start ?? 0,

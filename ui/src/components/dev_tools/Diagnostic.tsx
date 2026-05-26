@@ -377,7 +377,7 @@ export const Diagnostic: React.FC = () => {
         title: element.elementName,
         type: "chain_element",
         parentId: chain.id,
-        icon: element.elementType as IconName,
+        icon: element.elementType,
       });
     });
     for (const value of chainsMap.values()) {
@@ -444,7 +444,7 @@ export const Diagnostic: React.FC = () => {
           onChange={setSearchString}
           placeholder="Search validations..."
           allowClear
-          className={commonStyles["searchField"] as string}
+          className={commonStyles["searchField"]}
         />
         {columnSettingsButton}
         {filterButton}

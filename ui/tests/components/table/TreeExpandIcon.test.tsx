@@ -1,7 +1,6 @@
 /**
  * @jest-environment jsdom
  */
-import React from "react";
 import { describe, it, expect, jest } from "@jest/globals";
 import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
@@ -25,6 +24,7 @@ describe("treeExpandIcon", () => {
     render(
       <Icon
         expanded={false}
+        prefixCls=""
         onExpand={onExpand}
         record={{ id: "r1" }}
         expandable
@@ -38,7 +38,13 @@ describe("treeExpandIcon", () => {
   it("shows down icon when expanded", () => {
     const Icon = treeExpandIcon<{ id: string }>();
     render(
-      <Icon expanded onExpand={jest.fn()} record={{ id: "r1" }} expandable />,
+      <Icon
+        expanded
+        prefixCls=""
+        onExpand={jest.fn()}
+        record={{ id: "r1" }}
+        expandable
+      />,
     );
     expect(screen.getByTestId("icon-down")).toBeInTheDocument();
   });
@@ -48,6 +54,7 @@ describe("treeExpandIcon", () => {
     const { container } = render(
       <Icon
         expanded={false}
+        prefixCls=""
         onExpand={jest.fn()}
         record={{ id: "r1" }}
         expandable={false}

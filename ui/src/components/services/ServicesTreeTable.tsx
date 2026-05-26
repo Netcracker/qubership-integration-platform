@@ -614,6 +614,7 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
         allServicesTreeTableColumns.map((c) => [c.key, c.title]),
       )}
       onChange={handleColumnsChange}
+      orderLockedKeys={["name"]}
     />
   );
 
@@ -677,7 +678,7 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
 
   const mergedExpandable = useMemo(
     () => ({
-      expandIcon: treeExpandIcon(),
+      expandIcon: treeExpandIcon<T>(),
       ...expandable,
       indentSize: 24,
     }),

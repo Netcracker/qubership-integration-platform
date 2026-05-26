@@ -1,9 +1,11 @@
-import { Button, Divider, Dropdown, Flex, Typography } from "antd";
-import React, { useEffect, useState } from "react";
+import { Button, Divider, Dropdown, Flex, Popover, Typography } from "antd";
+import React, { useContext, useEffect, useState } from "react";
 import styles from "./UserMenu.module.css";
 import { getConfig, onConfigChange, UserInfo } from "../appConfig.ts";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
+import { ThemeContext } from "../theme/context.tsx";
+import { ThemeSwitcher } from "./ThemeSwitcher.tsx";
 
 const { Text } = Typography;
 
@@ -28,8 +30,10 @@ function isSameState(a: UserMenuState, b: UserMenuState): boolean {
 }
 
 export const UserMenu: React.FC = () => {
+  const themeContext = useContext(ThemeContext);
   const [state, setState] = useState<UserMenuState>(readState);
   const [open, setOpen] = useState(false);
+  const [themeSettingsOpen, setThemeSettingsOpen] = useState(false);
 
   useEffect(() => {
     return onConfigChange(() => {
@@ -47,6 +51,7 @@ export const UserMenu: React.FC = () => {
 
   const handleResetPreferences = () => {
     setOpen(false);
+    setThemeSettingsOpen(false);
     confirmAndRun({
       title: "Reset UI preferences?",
       content:
@@ -60,8 +65,34 @@ export const UserMenu: React.FC = () => {
 
   const handleLogout = () => {
     setOpen(false);
+    setThemeSettingsOpen(false);
     onLogout?.();
   };
+
+  const themeSettingsButton = themeContext ? (
+    <Popover
+      content={
+        <ThemeSwitcher
+          currentTheme={themeContext.theme}
+          onThemeChange={themeContext.onThemeChange}
+        />
+      }
+      trigger="click"
+      open={themeSettingsOpen}
+      onOpenChange={setThemeSettingsOpen}
+      placement="leftTop"
+    >
+      <Button
+        type="text"
+        block
+        className={styles.actionButton}
+        icon={<OverridableIcon name="settings" />}
+        onClick={(e) => e.stopPropagation()}
+      >
+        Theme settings
+      </Button>
+    </Popover>
+  ) : null;
 
   const card = (
     <Flex vertical className={styles.card} role="menu">
@@ -104,6 +135,7 @@ export const UserMenu: React.FC = () => {
 
       <Divider className={styles.divider} />
       <Flex vertical className={styles.actions}>
+        {themeSettingsButton}
         <Button
           type="text"
           block
@@ -133,7 +165,12 @@ export const UserMenu: React.FC = () => {
     <Dropdown
       trigger={["click"]}
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) {
+          setThemeSettingsOpen(false);
+        }
+      }}
       placement="bottomRight"
       popupRender={() => card}
     >

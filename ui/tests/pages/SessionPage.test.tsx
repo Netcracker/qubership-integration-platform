@@ -92,7 +92,7 @@ jest.mock("../../src/Modals.tsx", () => {
     closeModal: jest.fn(),
   };
   return {
-    Modals: ({ children }: { children: R.ReactNode }) => (
+    Modals: ({ children }: { children: React.ReactNode }) => (
       <R.Fragment>{children}</R.Fragment>
     ),
     useModalsContext: () => modalsApi,

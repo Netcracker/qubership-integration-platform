@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Modal, Upload, Table, Button, message, Typography, Tag } from "antd";
+import type { ColumnsType } from "antd/es/table";
 import type { RcFile } from "antd/es/upload";
 import { useModalContext } from "../../../ModalContextProvider";
 import { api } from "../../../api/api";
@@ -61,7 +62,7 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess, systemType }) => {
     }
   };
 
-  const importResultColumns = useMemo(
+  const importResultColumns = useMemo<ColumnsType<ImportSystemResult>>(
     () => [
       {
         title: "Name",
@@ -211,7 +212,7 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess, systemType }) => {
             <Typography.Title level={5} style={{ marginTop: 16 }}>
               Import result:
             </Typography.Title>
-            <Table
+            <Table<ImportSystemResult>
               rowKey="id"
               columns={columnsWithResize}
               dataSource={result}

@@ -132,7 +132,9 @@ describe("CreateDesignTemplateModal", () => {
   });
 
   it("onFinish without file shows warning and does not call API", async () => {
-    const warnSpy = jest.spyOn(message, "warning").mockImplementation(() => {});
+    const warnSpy = jest
+      .spyOn(message, "warning")
+      .mockImplementation((() => {}) as never);
 
     render(<CreateDesignTemplateModal onTemplateCreated={jest.fn()} />);
 

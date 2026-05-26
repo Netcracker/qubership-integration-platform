@@ -13,7 +13,6 @@ import {
 } from "../api/apiTypes.ts";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api/api.ts";
-import { TableProps } from "antd/lib/table";
 import { formatTimestamp } from "../misc/format-utils.ts";
 import { EntityLabels } from "../components/labels/EntityLabels.tsx";
 import { TableRowSelection } from "antd/lib/table/interface";
@@ -50,7 +49,10 @@ import {
   ProtectedMenuItem,
 } from "../permissions/ProtectedDropdown.tsx";
 import { MenuInfo } from "rc-menu/lib/interface";
-import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
+import {
+  ColumnsTypeWithSettings,
+  useColumnSettingsBasedOnColumnsType,
+} from "../components/table/useColumnSettingsButton.tsx";
 import { useTableDragDrop } from "../hooks/useTableDragDrop.ts";
 import { treeExpandIcon } from "../components/table/TreeExpandIcon.tsx";
 import {
@@ -765,8 +767,10 @@ const Chains = () => {
     showModal({
       component: (
         <ChainDiffPopup
-          chainId1={selectedChains[0].id}
-          chainId2={selectedChains[1].id}
+          item1={{ kind: "chain", id: selectedChains[0].id }}
+          item2={{ kind: "chain", id: selectedChains[1].id }}
+          editable1={true}
+          editable2={true}
         />
       ),
     });
@@ -958,11 +962,15 @@ const Chains = () => {
     { label: "Delete", key: "deleteChain", require: { chain: ["delete"] } },
   ];
 
-  const columns: TableProps<ChainTableItem>["columns"] = [
+  const columns: ColumnsTypeWithSettings<ChainTableItem> = [
     {
       title: "Name",
       key: "name",
       dataIndex: "name",
+      settings: {
+        visibilityLocked: true,
+        orderLocked: true,
+      },
       sorter: compareChainTableItemsByTypeAndName,
       render: (_, item) => (
         <Flex vertical={false} gap={4}>

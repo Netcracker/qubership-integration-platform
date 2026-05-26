@@ -1,5 +1,6 @@
 import type {
   ApiResponse,
+  ChainSnapshot,
   DeleteImportInstructionsRequest,
   DiscoveryResponse,
   GeneralImportInstructions,
@@ -1051,16 +1052,22 @@ export class VSCodeExtensionApi implements Api {
     throw new Error("Method getMaasRabbitMQDeclarativeFile not implemented.");
   }
 
-  loadHttpTriggerAccessControl = async (): Promise<AccessControlResponse> => {
-    throw new Error("Method loadHttpTriggerAccessControl not implemented.");
+  loadHttpTriggerAccessControl = (): Promise<AccessControlResponse> => {
+    return Promise.reject(
+      new Error("Method loadHttpTriggerAccessControl not implemented."),
+    );
   };
 
-  updateHttpTriggerAccessControl = async (): Promise<AccessControlResponse> => {
-    throw new Error("Method updateHttpTriggerAccessControl not implemented.");
+  updateHttpTriggerAccessControl = (): Promise<AccessControlResponse> => {
+    return Promise.reject(
+      new Error("Method updateHttpTriggerAccessControl not implemented."),
+    );
   };
 
-  bulkDeployChainsAccessControl = async (): Promise<AccessControlResponse> => {
-    throw new Error("Method bulkDeployChainsAccessControl not implemented.");
+  bulkDeployChainsAccessControl = (): Promise<AccessControlResponse> => {
+    return Promise.reject(
+      new Error("Method bulkDeployChainsAccessControl not implemented."),
+    );
   };
 
   getCommonVariables(): Promise<ApiResponse<Variable[]>> {
@@ -1225,6 +1232,14 @@ export class VSCodeExtensionApi implements Api {
 
   exportMcpSystems(): Promise<File> {
     throw new Error("Method exportMcpSystems not implemented.");
+  }
+
+  getChainSnapshot(): Promise<ChainSnapshot> {
+    throw new Error("Method getChainSnapshot not implemented.");
+  }
+
+  extractChain(): Promise<Chain> {
+    throw new Error("Method extractChain not implemented.");
   }
 }
 

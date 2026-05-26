@@ -39,10 +39,10 @@ export class MetadataUtil {
   }
 
   public static setValue<T extends MetadataAware, V>(
-    obj: T,
+    obj: T | null | undefined,
     key: string,
     value: V,
-  ): T {
+  ): T | null | undefined {
     return obj === undefined || obj === null
       ? obj
       : { ...obj, metadata: this.upsert(obj.metadata, key, value) };

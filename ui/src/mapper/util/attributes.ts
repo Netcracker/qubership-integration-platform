@@ -46,7 +46,7 @@ export class Attributes {
   }
 
   public static attributeSchemaPresentsInPath(
-    attribute: Attribute,
+    attribute: Attribute | null | undefined,
     path: Attribute[],
     typeDefinitions: TypeDefinition[],
   ): boolean {
@@ -70,17 +70,18 @@ export class Attributes {
   }
 
   public static resolveAttributeType(
-    attribute: Attribute,
+    attribute: Attribute | null | undefined,
     typeDefinitions: TypeDefinition[],
   ): DataType | undefined {
     const result = DataTypes.resolveType(attribute?.type, typeDefinitions);
-    return result.type && DataTypes.isArrayType(result.type)
-      ? DataTypes.resolveArrayItemType(result.type, result.definitions).type
-      : result.type;
+    const type = result.type ?? undefined;
+    return type && DataTypes.isArrayType(type)
+      ? (DataTypes.resolveArrayItemType(type, result.definitions).type ?? undefined)
+      : type;
   }
 
   public static resolveAttributeSchema(
-    attribute: Attribute,
+    attribute: Attribute | null | undefined,
     typeDefinitions: TypeDefinition[],
   ): ObjectSchema | null {
     const type = this.resolveAttributeType(attribute, typeDefinitions);
@@ -88,7 +89,7 @@ export class Attributes {
   }
 
   public static getChildAttributes(
-    attribute: Attribute,
+    attribute: Attribute | null | undefined,
     typeDefinitions: TypeDefinition[],
   ): Attribute[] {
     const type = this.resolveAttributeType(attribute, typeDefinitions);
@@ -107,9 +108,12 @@ export class Attributes {
   }
 
   public static restorePath(
-    attribute: Attribute,
+    attribute: Attribute | null | undefined,
     path: string[],
   ): Attribute[] | null {
+    if (!attribute) {
+      return null;
+    }
     const p: Attribute[] = [attribute];
     for (const id of path) {
       const typeDefinitions = this.extractTypeDefinitions(p);
@@ -124,7 +128,10 @@ export class Attributes {
     return p.slice(1);
   }
 
-  public static pathExists(attribute: Attribute, path: string[]): boolean {
+  public static pathExists(
+    attribute: Attribute | null | undefined,
+    path: string[],
+  ): boolean {
     return this.restorePath(attribute, path) !== null;
   }
 

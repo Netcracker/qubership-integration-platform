@@ -418,6 +418,7 @@ export const ImportInstructions: React.FC = () => {
         key: "id",
         settings: {
           visibilityLocked: true,
+          orderLocked: true,
         },
         width: 280,
         sorter: (a, b) =>

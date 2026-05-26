@@ -18,10 +18,14 @@ import { ServiceApiSpecsTab } from "../../../../src/components/services/detail/S
 
 jest.mock("../../../../src/api/api", () => ({
   api: {
-    getApiSpecifications: jest.fn().mockResolvedValue([]),
-    getSpecificationModel: jest.fn().mockResolvedValue([]),
-    exportServices: jest.fn().mockResolvedValue(new File([], "x")),
-    exportSpecifications: jest.fn().mockResolvedValue(new File([], "x")),
+    getApiSpecifications: jest.fn().mockResolvedValue([] as never),
+    getSpecificationModel: jest.fn().mockResolvedValue([] as never),
+    exportServices: jest
+      .fn()
+      .mockResolvedValue(new File([], "x") as never),
+    exportSpecifications: jest
+      .fn()
+      .mockResolvedValue(new File([], "x") as never),
     updateApiSpecificationGroup: jest.fn(),
     updateSpecificationModel: jest.fn(),
   },
@@ -44,7 +48,7 @@ jest.mock("../../../../src/misc/download-utils", () => ({
 }));
 
 jest.mock("../../../../src/components/services/utils.tsx", () => {
-  const actual = jest.requireActual(
+  const actual = jest.requireActual<Record<string, unknown>>(
     "../../../../src/components/services/utils.tsx",
   );
   return {
@@ -71,14 +75,14 @@ jest.mock("../../../../src/permissions/ProtectedButton.tsx", () => ({
         data-testid={testId}
         data-button-type={type === "primary" ? "primary" : "default"}
         onClick={onClick as () => void}
-        {...(rest as React.ButtonHTMLAttributes<HTMLButtonElement>)}
+        {...(rest)}
       />
     );
   },
 }));
 
 jest.mock("../../../../src/components/services/ServicesTreeTable", () => {
-  const actual = jest.requireActual(
+  const actual = jest.requireActual<Record<string, unknown>>(
     "../../../../src/components/services/ServicesTreeTable",
   );
   return {

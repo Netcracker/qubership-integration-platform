@@ -158,7 +158,7 @@ function sampleDeployment(): Deployment {
     snapshotId: "snap-1",
     name: "dep-a",
     domain: "dom",
-    domainType: DomainType.NATIVE,
+    domainType: DomainType.CLASSIC,
     createdWhen: 0,
     createdBy: { id: "u1", username: "user" },
     serviceName: "svc",

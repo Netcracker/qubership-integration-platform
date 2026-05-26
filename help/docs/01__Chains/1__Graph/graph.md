@@ -33,6 +33,7 @@ The next actions are available upper right corner:
 
 #### <ins>Web UI</ins>
 * ![](img/column-width.svg) - show sequence diagram based on the chain.
+* ![](img/file.svg) - generate DDS.
 * ![Download|20](img/cloud-download.svg) - export chain. During export, you can adjust the data to be downloaded using the following checkboxes in the dialog window. All checkboxes are unchecked by default:
   - **Export related sub-chains** - if selected, system will also export the whole tree of chains, that are connected via [Chain Call](1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) and [Chain Trigger](1__Elements_Library/6__Triggers/2__Chain_Trigger/chain_trigger.md) elements,
   sub-chains selected as failure handling option on "Failure Response Mapping" tab for [HTTP Trigger](1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) and sub-chains selected as the handler for duplicate idempotency keys on the "Idempotency" tab of the relevant trigger.
@@ -58,7 +59,7 @@ To edit a particular element, either double-click the element or choose "**Edit*
 
 >ℹ️ **In‑place element name editing**
 >
->To quickly change an element's name without switching tabs on the configuration window: hover over the name area (![](img/edit.svg) appears), click it, edit the name, and then click outside the input field."
+>To quickly change an element's name without switching tabs on the configuration window: hover over the name area (![](img/edit.svg) appears), click it, edit the name, and then click outside the input field.
 
 ### Copy Element
 To copy a particular element, right-click it and choose "**Copy**" option from context menu. Then click right mouse on the space area and choose "**Paste**".

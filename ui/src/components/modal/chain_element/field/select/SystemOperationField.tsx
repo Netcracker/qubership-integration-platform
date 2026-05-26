@@ -261,7 +261,7 @@ const SystemOperationField: React.FC<
 
   const onPopupScroll: SelectProps<string>["onPopupScroll"] = useCallback(
     (event: React.UIEvent<HTMLDivElement>) => {
-      const target = event.currentTarget as HTMLDivElement;
+      const target = event.currentTarget;
       const isScrolledToTheEnd =
         target.scrollTop + target.clientHeight + 1 >= target.scrollHeight;
 

@@ -20,58 +20,91 @@ This repository is a **monorepo** that consolidates the previously separate `qub
 | `help/` | Documentation consumed by UI and VS Code extension | Markdown |
 | `parent/` | Shared Maven parent POM for Spring Boot modules | Maven |
 
-## Branches
+## Getting started
 
-| Branch | Modules |
-|---|---|
-| `main` | All active modules |
-| `release/0.1..release/0.5` | Release branches with historical module sets |
-| `feature/#*-core-adaptation`, `feature/#33` | Feature branches with private `com.netcracker.cloud` dependencies (require GitHub Packages auth) |
+End-to-end recipe to go from a fresh clone to a running platform.
 
-## Building
-
-### Java modules (Maven)
+### Step 1 — Build the Java modules
 
 ```bash
-mvn clean install -Dgpg.skip=true
+mvn clean install -Dgpg.skip=true -DskipTests
 ```
 
-Per-module: `mvn -pl engine clean install -Dgpg.skip=true`
+- `-Dgpg.skip=true` is required locally (GPG signing is configured for release publishing).
+- `-DskipTests` is optional — it cuts ~2x off the build time. Drop it if you want the full test suite.
 
-Maven artifacts published from each module:
+Per-module rebuild: `mvn -pl engine -am clean install -Dgpg.skip=true -DskipTests`.
 
-| Module | Coordinates |
-|---|---|
-| engine | `org.qubership.integration-platform:qip-engine` |
-| runtime-catalog | `org.qubership.integration-platform:qip-runtime-catalog` |
-| sessions-management | `org.qubership.integration-platform:qip-sessions-management` |
-| micro-engine | `org.qubership.integration-platform:qip-micro-engine` |
-| checkstyle | `org.qubership.integration-platform:qip-checkstyle` |
-
-### Frontend modules (npm workspaces)
+### Step 2 — Install npm dependencies and build schemas
 
 ```bash
 npm install
+npm -w @netcracker/qip-schemas run build
+```
+
+- `npm install` populates the root `node_modules/` plus per-workspace symlinks for `schemas`, `ui`, and `vscode-extension`.
+- `npm -w @netcracker/qip-schemas run build` resolves `$ref` references, generates TypeScript types, and writes `schemas/dist/index.mjs` (runtime `schemasByType` map). Must run **before** building the UI or VS Code extension.
+
+### Step 3 — Build and run the UI
+
+```bash
 npm -w @netcracker/qip-ui run build
 ```
 
-NPM packages:
-- `@netcracker/qip-schemas`
-- `@netcracker/qip-ui`
-- `@netcracker/qip-vscode-extension`
+The `prebuild` step clones the [help repository](https://github.com/Netcracker/qubership-integration-help.git) into `ui/public/doc/`, so network access is required.
 
-### Local stack
+### Step 4 — Start the local backend stack
 
 ```bash
 docker compose -f infrastructure/docker-compose.yml up -d --build
 ```
 
-Services exposed:
-- Runtime Catalog: `http://localhost:8091`
-- Engine: `http://localhost:8092`
-- Sessions Management: `http://localhost:8093`
-- UI: `http://localhost:4200`
-- Nginx proxy: `http://localhost:8080`
+Builds three application images from the JARs produced in Step 1 and starts them alongside PostgreSQL, Consul, OpenSearch, and an Nginx proxy.
+
+If your integration chains use Kafka, RabbitMQ, Redis, or Google Pub/Sub, start the corresponding optional service alongside the main stack:
+
+```bash
+docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.kafka.yml up -d --build
+```
+
+Available overlays: `docker-compose.kafka.yml`, `docker-compose.rabbitmq.yml`, `docker-compose.redis.yml`, `docker-compose.pubsub.yml`.
+
+### Step 5 — Start the UI dev server
+
+```bash
+npm -w @netcracker/qip-ui run dev
+```
+
+- **http://localhost:4200** — direct Vite dev server with hot-reload. Recommended for UI development.
+- **http://localhost:8080** — Nginx proxy. Routes `/api/*` to backends and proxies `/` to the Vite dev server.
+
+### VS Code extension
+
+The extension provides offline visual editors for `.chain.qip.yaml` and `.service.qip.yaml` files. It does not require the backend stack.
+
+```bash
+npm install                                           # if not done already
+npm -w @netcracker/qip-vscode-extension run build     # builds schemas -> UI library -> extension
+```
+
+Then open the `vscode-extension/` directory in VS Code and press **F5** to launch the extension in debug mode.
+
+Alternatively, run in a browser:
+
+```bash
+npm -w @netcracker/qip-vscode-extension run run-in-browser
+```
+
+## Running tests
+
+```bash
+mvn test -Dgpg.skip=true                         # Java tests (all modules)
+mvn -pl engine test -Dgpg.skip=true              # Java tests (single module)
+npm test --workspaces --if-present                # Frontend tests (schemas, ui, vscode-extension)
+npm -w @netcracker/qip-schemas test               # Schema conformance tests (AJV)
+npm -w @netcracker/qip-ui test                    # UI unit tests (Jest)
+npm -w @netcracker/qip-vscode-extension test      # Extension unit tests (Jest)
+```
 
 ## License
 

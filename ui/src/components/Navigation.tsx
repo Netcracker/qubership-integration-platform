@@ -2,9 +2,7 @@ import { Button, Menu } from "antd";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import styles from "./Navigation.module.css";
 import { NotificationBar } from "./notifications/NotificationBar.tsx";
-import { SettingsPanel } from "./SettingsPanel.tsx";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
-import { isDev } from "../appConfig.ts";
 import { useDocumentation } from "../hooks/useDocumentation.ts";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import { usePermissions } from "../permissions/usePermissions.tsx";
@@ -14,28 +12,17 @@ import {
   protectMenuItems,
 } from "../permissions/ProtectedDropdown.tsx";
 import { AiAssistant } from "./ai/AiAssistant.tsx";
-import { getIsAiServiceAvailable } from "../ai/appConfig";
+import { useIsAiServiceAvailable } from "../ai/appConfig";
 import { UserMenu } from "./UserMenu.tsx";
 
-interface NavigationProps {
-  showThemeSwitcher?: boolean;
-  currentTheme?: "light" | "dark" | "high-contrast";
-  onThemeChange?: (theme: "light" | "dark" | "high-contrast") => void;
-}
-
-const Navigation = ({
-  showThemeSwitcher = false,
-  currentTheme,
-  onThemeChange,
-}: NavigationProps) => {
+const Navigation = () => {
   const navigate = useNavigate();
-  const shouldShowDevTools = isDev();
   const { openContextDoc } = useDocumentation();
   const { pathname } = useLocation();
   const selectedKey = pathname.split("/")[1] || "chains";
   const permissions = usePermissions();
 
-  const isAiServiceAvailable = getIsAiServiceAvailable();
+  const isAiServiceAvailable = useIsAiServiceAvailable();
 
   const items = useMemo(() => {
     const protectedItems: ProtectedMenuItem[] = [
@@ -98,12 +85,6 @@ const Navigation = ({
               title="Help"
             />
           </>
-        )}
-        {showThemeSwitcher && shouldShowDevTools && (
-          <SettingsPanel
-            currentTheme={currentTheme}
-            onThemeChange={onThemeChange}
-          />
         )}
         {isAiServiceAvailable && <AiAssistant />}
         <NotificationBar />

@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Flex, Table, Button, Space, Tag, Typography } from "antd";
-import type { ColumnsType } from "antd/es/table";
 import { EngineTable } from "./EngineTable";
 import { useEngines } from "./hooks/useEngines";
 import { treeExpandIcon } from "../../table/TreeExpandIcon";
@@ -8,7 +7,10 @@ import { DomainType, EngineDomain } from "../../../api/apiTypes.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { api } from "../../../api/api.ts";
-import { useColumnSettingsBasedOnColumnsType } from "../../table/useColumnSettingsButton.tsx";
+import {
+  ColumnsTypeWithSettings,
+  useColumnSettingsBasedOnColumnsType,
+} from "../../table/useColumnSettingsButton.tsx";
 import {
   attachResizeToColumns,
   sumScrollXForColumns,
@@ -91,12 +93,16 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
     [notificationsService],
   );
 
-  const columns: ColumnsType<EngineDomain> = useMemo(
+  const columns: ColumnsTypeWithSettings<EngineDomain> = useMemo(
     () => [
       {
         title: "Domain",
         dataIndex: "name",
         key: "name",
+        settings: {
+          visibilityLocked: true,
+          orderLocked: true,
+        },
         render: (_: unknown, domain: EngineDomain) => {
           return domain.type === DomainType.MICRO ? (
             <Space size={"small"}>

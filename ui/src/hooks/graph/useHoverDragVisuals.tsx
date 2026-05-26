@@ -63,7 +63,7 @@ export const useHoverDragVisuals = (
     (draggedNode: ChainGraphNode) => {
       const possibleGraphIntersect: ChainGraphNode | undefined =
         (getPossibleGraphIntersection(
-          getIntersectingNodes(draggedNode) as ChainGraphNode[],
+          getIntersectingNodes(draggedNode),
           collectChildren(draggedNode.id, nodes),
         ) as ChainGraphNode) ?? undefined;
 

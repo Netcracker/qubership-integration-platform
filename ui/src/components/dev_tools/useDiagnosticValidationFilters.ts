@@ -6,7 +6,7 @@ import {
   IdFilterConditions,
   ListFilterConditions,
   ListValue,
-} from "../table/filter/filter";
+} from "../table/filter/filterTypes";
 import { useFilter } from "../table/filter/useFilter";
 import { ValidationSeverity } from "../../api/apiTypes";
 import { useElementTypes } from "../../hooks/useElementTypes";

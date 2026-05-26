@@ -1,11 +1,44 @@
-import { Chain } from "../../../api/apiTypes.ts";
+import { Chain, ChainSnapshot } from "../../../api/apiTypes.ts";
 import { useCallback, useEffect, useState } from "react";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { api } from "../../../api/api.ts";
 import { Change } from "./compare/types.ts";
 import { compareChains as doCompareChains } from "./compare/compare.ts";
 
-export const useChainDiff = (chainId1: string, chainId2: string) => {
+export type ChainItem = {
+  kind: "chain";
+  id: string;
+};
+
+export type SnapshotItem = {
+  kind: "snapshot";
+  id: string;
+};
+
+export type ArchiveItem = {
+  kind: "archive";
+  id: string;
+  archive: File;
+};
+
+export type ComparableItem = ChainItem | SnapshotItem | ArchiveItem;
+
+export function asChain(snapshot: ChainSnapshot): Chain {
+  return {
+    ...snapshot,
+    navigationPath: [],
+    deployments: [],
+    unsavedChanges: false,
+    businessDescription: "",
+    assumptions: "",
+    outOfScope: "",
+    containsDeprecatedContainers: false,
+    containsDeprecatedElements: false,
+    containsUnsupportedElements: false,
+  };
+}
+
+export const useChainDiff = (item1: ComparableItem, item2: ComparableItem) => {
   const [chain1, setChain1] = useState<Chain | undefined>();
   const [chain2, setChain2] = useState<Chain | undefined>();
   const [changes, setChanges] = useState<Change[]>([]);
@@ -37,6 +70,55 @@ export const useChainDiff = (chainId1: string, chainId2: string) => {
     [notificationService],
   );
 
+  const loadSnapshot = useCallback(
+    async (
+      id: string,
+      setLoading: (state: boolean) => void,
+    ): Promise<Chain | undefined> => {
+      try {
+        setLoading(true);
+        const snapshot = await api.getChainSnapshot(id);
+        return asChain(snapshot);
+      } catch (e) {
+        notificationService.requestFailed("Failed to load chain snapshot", e);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [notificationService],
+  );
+
+  const loadChainFromArchive = useCallback(
+    async (archive: File, id: string, setLoading: (state: boolean) => void) => {
+      try {
+        setLoading(true);
+        return await api.extractChain(archive, id);
+      } catch (e) {
+        notificationService.requestFailed(
+          "Failed to load chain from archive",
+          e,
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [notificationService],
+  );
+
+  const loadItem = useCallback(
+    async (
+      item: ComparableItem,
+      setLoading: (state: boolean) => void,
+    ): Promise<Chain | undefined> => {
+      return item.kind === "chain"
+        ? loadChain(item.id, setLoading)
+        : item.kind === "snapshot"
+          ? loadSnapshot(item.id, setLoading)
+          : loadChainFromArchive(item.archive, item.id, setLoading);
+    },
+    [loadChain, loadSnapshot, loadChainFromArchive],
+  );
+
   const compareChains = useCallback(
     async (chain1: Chain, chain2: Chain): Promise<Change[]> => {
       try {
@@ -54,12 +136,12 @@ export const useChainDiff = (chainId1: string, chainId2: string) => {
   );
 
   useEffect(() => {
-    void loadChain(chainId1, setIsChain1Loading).then(setChain1);
-  }, [chainId1, loadChain]);
+    void loadItem(item1, setIsChain1Loading).then(setChain1);
+  }, [item1, loadItem]);
 
   useEffect(() => {
-    void loadChain(chainId2, setIsChain2Loading).then(setChain2);
-  }, [chainId2, loadChain]);
+    void loadItem(item2, setIsChain2Loading).then(setChain2);
+  }, [item2, loadItem]);
 
   useEffect(() => {
     if (!chain1 || !chain2) {

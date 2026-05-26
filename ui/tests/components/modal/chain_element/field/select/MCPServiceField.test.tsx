@@ -13,7 +13,7 @@ Object.defineProperty(window, "matchMedia", {
     addEventListener: jest.fn(),
     removeEventListener: jest.fn(),
     dispatchEvent: jest.fn(),
-  })),
+  }) as Record<string, unknown>),
 });
 
 globalThis.ResizeObserver = class ResizeObserver {
@@ -22,7 +22,6 @@ globalThis.ResizeObserver = class ResizeObserver {
   disconnect(): void {}
 };
 
-import React from "react";
 import { beforeEach, describe, expect, it } from "@jest/globals";
 import { act, render, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
@@ -59,8 +58,9 @@ let capturedSelectProps: CapturedSelectProps | null = null;
 // the useEffect and causes an infinite update loop that blocks act/waitFor.
 // ---------------------------------------------------------------------------
 
-const mockGetMcpSystems: jest.MockedFunction<() => Promise<MCPSystem[]>> =
-  jest.fn();
+const mockGetMcpSystems: jest.MockedFunction<
+  (onlyEnabled: boolean) => Promise<MCPSystem[]>
+> = jest.fn();
 const mockUpdateContext = jest.fn();
 const mockRequestFailed = jest.fn();
 const mockNotificationService = { requestFailed: mockRequestFailed };
@@ -104,7 +104,7 @@ const makeMcpSystem = (id: string, name: string): MCPSystem =>
     identifier: `identifier-${id}`,
     instructions: "",
     labels: [],
-  }) as MCPSystem;
+  });
 
 type RegistryProp = FieldProps<string[], JSONSchema7, FormContext>["registry"];
 

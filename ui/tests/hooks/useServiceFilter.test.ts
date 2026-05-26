@@ -21,8 +21,8 @@ import { renderHook } from "@testing-library/react";
 import {
   FilterCondition,
   FilterValueType,
-} from "../../src/components/table/filter/filter";
-import type { FilterConditions } from "../../src/components/table/filter/filter";
+} from "../../src/components/table/filter/filterTypes";
+import type { FilterConditions } from "../../src/components/table/filter/filterTypes";
 
 const mockShowModal = jest.fn();
 
