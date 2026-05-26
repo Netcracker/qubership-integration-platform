@@ -14,7 +14,7 @@ import {
   FilterColumn,
   FilterConditions,
   FilterValueType,
-} from "./filter";
+} from "./filterTypes";
 import { useCallback, useEffect, useState } from "react";
 import { FilterValue } from "./value/FilterValue";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";

@@ -8,7 +8,7 @@ import { Modal } from "antd";
 import { LiveExchanges } from "../../../../src/components/admin_tools/exchanges/LiveExchanges";
 import { SessionsLoggingLevel } from "../../../../src/api/apiTypes";
 import { ProtectedButtonProps } from "../../../../src/permissions/ProtectedButton";
-import type { EntityFilterModel } from "../../../../src/components/table/filter/filter";
+import type { EntityFilterModel } from "../../../../src/components/table/filter/filterTypes";
 
 jest.mock("antd", () =>
   require("tests/helpers/antdMockWithLightweightTable").antdMockWithLightweightTable(),

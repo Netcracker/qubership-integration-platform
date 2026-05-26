@@ -14,7 +14,7 @@ import {
   FilterColumn,
   EntityFilterModel,
   ExtendedStringFilterConditions,
-} from "../components/table/filter/filter";
+} from "../components/table/filter/filterTypes";
 import { useFilter } from "../components/table/filter/useFilter";
 import { capitalize } from "../misc/format-utils.ts";
 import { ReactNode, useMemo } from "react";

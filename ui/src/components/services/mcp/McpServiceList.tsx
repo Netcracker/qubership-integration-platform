@@ -36,7 +36,7 @@ import {
   DateFilterConditions,
   IdFilterConditions,
   StringFilterConditions,
-} from "../../table/filter/filter.ts";
+} from "../../table/filter/filterTypes.ts";
 import { LabelsStringTableFilter } from "../../../hooks/useChainFilter.ts";
 import { ChainColumn } from "../ui/ChainColumn.tsx";
 

@@ -1,7 +1,7 @@
 import { Select, SelectProps } from "antd";
 import { FilterValueProps } from "./FilterValue";
 import { useState } from "react";
-import { ListValue } from "../filter";
+import { ListValue } from "../filterTypes";
 
 const booleanValues: ListValue[] = [
   { value: "true", label: "True" },

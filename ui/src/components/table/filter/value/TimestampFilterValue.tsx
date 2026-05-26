@@ -1,6 +1,6 @@
 import { FilterValueProps } from "./FilterValue";
 import React from "react";
-import { FilterCondition } from "../filter";
+import { FilterCondition } from "../filterTypes";
 import { DatePicker } from "antd";
 import { useEffect, useState } from "react";
 import { toDayjs, toEpochMillis } from "../../../../misc/date-utils";
