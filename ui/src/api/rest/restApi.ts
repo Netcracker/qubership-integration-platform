@@ -2320,4 +2320,21 @@ export class RestApi implements Api {
     );
     return response.data;
   };
+
+  extractChain = async (archive: File, chainId: string): Promise<Chain> => {
+    const formData: FormData = new FormData();
+    formData.append("file", archive, archive.name);
+    formData.append("chainId", chainId);
+    const response = await this.instance.post<Chain>(
+      `${this.v3()}/import/chains/extract`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          accept: "*/*",
+        },
+      },
+    );
+    return response.data;
+  };
 }

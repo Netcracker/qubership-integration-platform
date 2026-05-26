@@ -7,7 +7,6 @@ import { ChainGraphPanel } from "./ChainGraphPanel.tsx";
 import styles from "./ChainDiffGraphView.module.css";
 import { ChainGraphChangeProvider } from "./ChainGraphChangeProvider.tsx";
 import { buildElementMap } from "./compare/compare.ts";
-import { ComparedItemTitle } from "./ComparedItemTitle.tsx";
 
 export function getElementId(
   change: Change | undefined,
@@ -59,14 +58,6 @@ export const ChainDiffGraphView: React.FC<ChainDiffGraphViewProps> = ({
       gap={16}
       style={{ minHeight: 0, flexGrow: 1, flexShrink: 1 }}
     >
-      <Row gutter={16}>
-        <Col span={12}>
-          <ComparedItemTitle chain={chain1} />
-        </Col>
-        <Col span={12}>
-          <ComparedItemTitle chain={chain2} />
-        </Col>
-      </Row>
       <Row gutter={16}>
         <Col span={12}>
           {selectedChange && chain1 ? (
