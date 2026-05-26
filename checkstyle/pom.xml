@@ -4,7 +4,7 @@
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-checkstyle</artifactId>
-    <version>0.5.4-SNAPSHOT</version>
+    <version>0.5.4</version>
     <packaging>jar</packaging>
 
     <name>${project.groupId}:${project.artifactId}</name>
@@ -29,7 +29,8 @@
         <connection>scm:git:git://github.com/MyBorislavrOrg/${repo-name}.git</connection>
         <developerConnection>scm:git:ssh://github.com:MyBorislavrOrg/${repo-name}.git</developerConnection>
         <url>https://github.com/MyBorislavrOrg/${repo-name}/tree/main</url>
-    </scm>
+      <tag>v0.5.4</tag>
+  </scm>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
