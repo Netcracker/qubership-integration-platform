@@ -9,7 +9,7 @@
 
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Checkstyle definition for QIP</description>
-    <url>https://github.com/Netcracker/${repo-name}</url>
+    <url>https://github.com/MyBorislavrOrg/${repo-name}</url>
 
     <licenses>
         <license>
@@ -26,9 +26,9 @@
         </developer>
     </developers>
     <scm>
-        <connection>scm:git:git://github.com/Netcracker/${repo-name}.git</connection>
-        <developerConnection>scm:git:ssh://github.com:Netcracker/${repo-name}.git</developerConnection>
-        <url>https://github.com/Netcracker/${repo-name}/tree/main</url>
+        <connection>scm:git:git://github.com/MyBorislavrOrg/${repo-name}.git</connection>
+        <developerConnection>scm:git:ssh://github.com:MyBorislavrOrg/${repo-name}.git</developerConnection>
+        <url>https://github.com/MyBorislavrOrg/${repo-name}/tree/main</url>
     </scm>
 
     <properties>
