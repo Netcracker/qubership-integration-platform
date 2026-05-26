@@ -8,11 +8,11 @@
   <description>Engine service orchestrates and runs integration chains, manages their endpoints, records executions,
         collects metrics, and publishes deployment state, using Apache Camel, Consul, and OpenSearch
     </description>
-  <url>https://github.com/Netcracker/qubership-integration-platform</url>
+  <url>https://github.com/MyBorislavrOrg/qubership-integration-platform</url>
   <scm>
-    <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
-    <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
-    <url>https://github.com/Netcracker/qubership-integration-platform</url>
+    <connection>scm:git:https://github.com/MyBorislavrOrg/qubership-integration-platform.git</connection>
+    <developerConnection>scm:git:https://github.com/MyBorislavrOrg/qubership-integration-platform.git</developerConnection>
+    <url>https://github.com/MyBorislavrOrg/qubership-integration-platform</url>
     <tag>HEAD</tag>
   </scm>
   <parent>

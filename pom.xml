@@ -29,9 +29,9 @@
     </licenses>
 
     <scm>
-        <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
-        <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
-        <url>https://github.com/Netcracker/qubership-integration-platform</url>
+        <connection>scm:git:https://github.com/MyBorislavrOrg/qubership-integration-platform.git</connection>
+        <developerConnection>scm:git:https://github.com/MyBorislavrOrg/qubership-integration-platform.git</developerConnection>
+        <url>https://github.com/MyBorislavrOrg/qubership-integration-platform</url>
         <tag>HEAD</tag>
     </scm>
 

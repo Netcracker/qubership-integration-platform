@@ -7,11 +7,11 @@
   <name>QIP Runtime Catalog</name>
   <description>Managing integration flows (so-called integration chains), services, snapshots and deployments.
     </description>
-  <url>https://github.com/Netcracker/qubership-integration-platform</url>
+  <url>https://github.com/MyBorislavrOrg/qubership-integration-platform</url>
   <scm>
-    <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
-    <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
-    <url>https://github.com/Netcracker/qubership-integration-platform</url>
+    <connection>scm:git:https://github.com/MyBorislavrOrg/qubership-integration-platform.git</connection>
+    <developerConnection>scm:git:https://github.com/MyBorislavrOrg/qubership-integration-platform.git</developerConnection>
+    <url>https://github.com/MyBorislavrOrg/qubership-integration-platform</url>
     <tag>HEAD</tag>
   </scm>
   <parent>

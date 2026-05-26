@@ -8,7 +8,7 @@
 
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Schemas definition for QIP</description>
-    <url>https://github.com/Netcracker/qubership-integration-platform</url>
+    <url>https://github.com/MyBorislavrOrg/qubership-integration-platform</url>
     <licenses>
         <license>
             <name>Apache License, Version 2.0</name>
@@ -24,9 +24,9 @@
         </developer>
     </developers>
     <scm>
-        <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
-        <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
-        <url>https://github.com/Netcracker/qubership-integration-platform</url>
+        <connection>scm:git:https://github.com/MyBorislavrOrg/qubership-integration-platform.git</connection>
+        <developerConnection>scm:git:https://github.com/MyBorislavrOrg/qubership-integration-platform.git</developerConnection>
+        <url>https://github.com/MyBorislavrOrg/qubership-integration-platform</url>
         <tag>v0.1.0</tag>
     </scm>
 
