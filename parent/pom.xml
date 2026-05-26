@@ -74,7 +74,7 @@
         </repository>
         <repository>
             <id>github</id>
-            <url>https://maven.pkg.github.com/myborislavrorg/*</url>
+            <url>https://maven.pkg.github.com/netcracker/*</url>
             <releases><enabled>true</enabled></releases>
             <snapshots><enabled>true</enabled></snapshots>
         </repository>
