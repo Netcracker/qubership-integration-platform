@@ -753,7 +753,7 @@
           <dependency>
             <groupId>org.qubership.integration.platform</groupId>
             <artifactId>qip-checkstyle</artifactId>
-            <version>${qip-checkstyle-revision}</version>
+            <version>0.5.4-SNAPSHOT</version>
           </dependency>
         </dependencies>
         <configuration>
