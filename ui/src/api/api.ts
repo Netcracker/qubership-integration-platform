@@ -93,6 +93,7 @@ import type {
   MCPSystem,
   MCPSystemCreateRequest,
   MCPSystemUpdateRequest,
+  ChainSnapshot,
 } from "./apiTypes.ts";
 import { RestApi } from "./rest/restApi.ts";
 import { isVsCode, VSCodeExtensionApi } from "./rest/vscodeExtensionApi.ts";
@@ -644,6 +645,8 @@ export interface Api {
     name: string,
     snapshotId: string,
   ): Promise<void>;
+
+  getChainSnapshot(snapshotId: string): Promise<ChainSnapshot>;
 }
 
 export const api: Api = isVsCode ? new VSCodeExtensionApi() : new RestApi();

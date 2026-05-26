@@ -1,5 +1,6 @@
 import type {
   ApiResponse,
+  ChainSnapshot,
   DeleteImportInstructionsRequest,
   DiscoveryResponse,
   GeneralImportInstructions,
@@ -1231,6 +1232,10 @@ export class VSCodeExtensionApi implements Api {
 
   exportMcpSystems(): Promise<File> {
     throw new Error("Method exportMcpSystems not implemented.");
+  }
+
+  getChainSnapshot(): Promise<ChainSnapshot> {
+    throw new Error("Method getChainSnapshot not implemented.");
   }
 }
 

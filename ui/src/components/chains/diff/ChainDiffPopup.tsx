@@ -3,17 +3,17 @@ import { Spin } from "antd";
 import { ModalWithFullscreenToggle } from "../../modal/ModalWithFullscreenToggle.tsx";
 import { useModalContext } from "../../../ModalContextProvider.tsx";
 import styles from "./ChainDiffPopup.module.css";
-import { useChainDiff } from "./useChainDiff.tsx";
+import { ComparableItem, useChainDiff } from "./useChainDiff.tsx";
 import { ChainDiffView } from "./ChainDiffView.tsx";
 
 export type ChainDiffProps = {
-  chainId1: string;
-  chainId2: string;
+  item1: ComparableItem;
+  item2: ComparableItem;
 };
 
 export const ChainDiffPopup: React.FC<ChainDiffProps> = ({
-  chainId1,
-  chainId2,
+  item1,
+  item2,
 }): React.ReactNode => {
   const { closeContainingModal } = useModalContext();
   const {
@@ -23,7 +23,7 @@ export const ChainDiffPopup: React.FC<ChainDiffProps> = ({
     changes,
     selectedChangeId,
     setSelectedChangeId,
-  } = useChainDiff(chainId1, chainId2);
+  } = useChainDiff(item1, item2);
 
   return (
     <ModalWithFullscreenToggle

@@ -26,7 +26,7 @@ export function getElement(
   return element;
 }
 
-export const LinkToChain: React.FC<{ chain?: Chain }> = ({
+export const LinkToChain: React.FC<{ chain?: Pick<Chain, "id" | "name"> }> = ({
   chain,
 }): React.ReactNode => {
   return chain ? (

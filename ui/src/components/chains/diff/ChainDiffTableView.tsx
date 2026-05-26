@@ -3,7 +3,8 @@ import { Chain } from "../../../api/apiTypes.ts";
 import { Change } from "./compare/types.ts";
 import { Table, TableProps } from "antd";
 import { TableRowSelection } from "antd/lib/table/interface";
-import { ChangedEntityView, LinkToChain } from "./ChangedEntityView.tsx";
+import { ChangedEntityView } from "./ChangedEntityView.tsx";
+import { ComparedItemTitle } from "./ComparedItemTitle.tsx";
 
 export type ChainDiffTableViewProps = {
   chain1?: Chain;
@@ -52,8 +53,8 @@ export const ChainDiffTableView: React.FC<ChainDiffTableViewProps> = ({
       },
       {
         key: "one",
-        title: <LinkToChain chain={chain1} />,
-        render: (_, change) => {
+        title: <ComparedItemTitle chain={chain1} />,
+        render: (_: unknown, change) => {
           return chain1 ? (
             <ChangedEntityView change={change} side={"one"} chain={chain1} />
           ) : (
@@ -63,8 +64,8 @@ export const ChainDiffTableView: React.FC<ChainDiffTableViewProps> = ({
       },
       {
         key: "another",
-        title: <LinkToChain chain={chain2} />,
-        render: (_, change) => {
+        title: <ComparedItemTitle chain={chain2} />,
+        render: (_: unknown, change) => {
           return chain2 ? (
             <ChangedEntityView
               change={change}

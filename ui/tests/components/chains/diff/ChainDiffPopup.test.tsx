@@ -71,7 +71,7 @@ describe("ChainDiffPopup", () => {
   });
 
   it("should render the modal with title 'Chain compare' when mounted", () => {
-    render(<ChainDiffPopup chainId1="c1" chainId2="c2" />);
+    render(<ChainDiffPopup item1={{ kind: "chain", id: "c1" }} item2={{ kind: "chain", id: "c2" }} />);
 
     expect(screen.getByTestId("modal-title")).toHaveTextContent(
       "Chain compare",
@@ -79,7 +79,7 @@ describe("ChainDiffPopup", () => {
   });
 
   it("should render the modal with no footer when mounted", () => {
-    render(<ChainDiffPopup chainId1="c1" chainId2="c2" />);
+    render(<ChainDiffPopup item1={{ kind: "chain", id: "c1" }} item2={{ kind: "chain", id: "c2" }} />);
 
     expect(MockModal.mock.calls[0][0].footer).toBeNull();
   });
@@ -87,14 +87,14 @@ describe("ChainDiffPopup", () => {
   it("should show a loading spinner and hide ChainDiffView when isLoading is true", () => {
     mockUseChainDiff.mockReturnValue({ ...defaultHookReturn, isLoading: true });
 
-    render(<ChainDiffPopup chainId1="c1" chainId2="c2" />);
+    render(<ChainDiffPopup item1={{ kind: "chain", id: "c1" }} item2={{ kind: "chain", id: "c2" }} />);
 
     expect(screen.getByTestId("loading-spinner")).toBeInTheDocument();
     expect(screen.queryByTestId("chain-diff-view")).not.toBeInTheDocument();
   });
 
   it("should show ChainDiffView and hide the spinner when isLoading is false", () => {
-    render(<ChainDiffPopup chainId1="c1" chainId2="c2" />);
+    render(<ChainDiffPopup item1={{ kind: "chain", id: "c1" }} item2={{ kind: "chain", id: "c2" }} />);
 
     expect(screen.getByTestId("chain-diff-view")).toBeInTheDocument();
     expect(screen.queryByTestId("loading-spinner")).not.toBeInTheDocument();
@@ -112,7 +112,7 @@ describe("ChainDiffPopup", () => {
       selectedChangeId: "change-1",
     });
 
-    render(<ChainDiffPopup chainId1="chain-1" chainId2="chain-2" />);
+    render(<ChainDiffPopup item1={{ kind: "chain", id: "chain-1" }} item2={{ kind: "chain", id: "chain-2" }} />);
 
     const props = MockChainDiffView.mock.calls[0][0];
     expect(props.chain1).toBe(chain1);
@@ -128,7 +128,7 @@ describe("ChainDiffPopup", () => {
       setSelectedChangeId: mockSetSelectedChangeId,
     });
 
-    render(<ChainDiffPopup chainId1="c1" chainId2="c2" />);
+    render(<ChainDiffPopup item1={{ kind: "chain", id: "c1" }} item2={{ kind: "chain", id: "c2" }} />);
 
     const { onSelectChange } = MockChainDiffView.mock.calls[0][0];
     onSelectChange("change-123");
@@ -137,7 +137,7 @@ describe("ChainDiffPopup", () => {
   });
 
   it("should call closeContainingModal when the modal is closed", () => {
-    render(<ChainDiffPopup chainId1="c1" chainId2="c2" />);
+    render(<ChainDiffPopup item1={{ kind: "chain", id: "c1" }} item2={{ kind: "chain", id: "c2" }} />);
 
     fireEvent.click(screen.getByTestId("modal-close"));
 

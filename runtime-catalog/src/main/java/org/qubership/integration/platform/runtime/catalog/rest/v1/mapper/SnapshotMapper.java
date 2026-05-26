@@ -17,12 +17,14 @@
 package org.qubership.integration.platform.runtime.catalog.rest.v1.mapper;
 
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.UserMapper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.SnapshotLabel;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot.SnapshotLabelDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot.SnapshotRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.snapshot.SnapshotResponse;
+import org.qubership.integration.platform.runtime.catalog.rest.v2.dto.SnapshotDTO;
 import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 
 import java.util.List;
@@ -31,9 +33,15 @@ import java.util.List;
         uses = {
                 MapperUtils.class,
                 UserMapper.class,
+                DependencyMapper.class,
+                ElementMapper.class,
         }
 )
 public interface SnapshotMapper {
+    @Mapping(source = "elements", target = "dependencies")
+    @Mapping(source = "defaultSwimlane.id", target = "defaultSwimlaneId")
+    @Mapping(source = "reuseSwimlane.id", target = "reuseSwimlaneId")
+    SnapshotDTO asDTO(Snapshot snapshot);
 
     SnapshotResponse asResponse(Snapshot snapshot);
 

@@ -194,8 +194,8 @@ jest.mock("../../src/components/modal/SnapshotXml.tsx", () => ({
   SnapshotXmlView: () => <div data-testid="snapshot-xml-stub" />,
 }));
 
-jest.mock("../../src/components/modal/SnapshotsCompare.tsx", () => ({
-  SnapshotsCompare: () => <div data-testid="snapshots-compare-stub" />,
+jest.mock("../../src/components/chains/diff/ChainDiffPopup.tsx", () => ({
+  ChainDiffPopup: () => <div data-testid="chain-diff-popup-stub" />,
 }));
 
 jest.mock("../../src/misc/confirm-utils.ts", () => ({

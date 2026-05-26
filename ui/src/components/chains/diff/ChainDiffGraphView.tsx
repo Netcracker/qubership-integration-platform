@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Chain } from "../../../api/apiTypes.ts";
 import { Change } from "./compare/types.ts";
 import { Col, Flex, Row, Tag } from "antd";
-import { ChangedEntityView, LinkToChain } from "./ChangedEntityView.tsx";
+import { ChangedEntityView } from "./ChangedEntityView.tsx";
 import { ChainGraphPanel } from "./ChainGraphPanel.tsx";
 import styles from "./ChainDiffGraphView.module.css";
 import { ChainGraphChangeProvider } from "./ChainGraphChangeProvider.tsx";
 import { buildElementMap } from "./compare/compare.ts";
+import { ComparedItemTitle } from "./ComparedItemTitle.tsx";
 
 export function getElementId(
   change: Change | undefined,
@@ -60,10 +61,10 @@ export const ChainDiffGraphView: React.FC<ChainDiffGraphViewProps> = ({
     >
       <Row gutter={16}>
         <Col span={12}>
-          <LinkToChain chain={chain1} />
+          <ComparedItemTitle chain={chain1} />
         </Col>
         <Col span={12}>
-          <LinkToChain chain={chain2} />
+          <ComparedItemTitle chain={chain2} />
         </Col>
       </Row>
       <Row gutter={16}>
