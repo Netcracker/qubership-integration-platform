@@ -4,7 +4,7 @@
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-checkstyle</artifactId>
-    <version>${revision}</version>
+    <version>0.0.3-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>${project.groupId}:${project.artifactId}</name>
@@ -34,18 +34,16 @@
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
-        
-        <revision>0.0.3</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <repo-name>qubership-integration-platform</repo-name>
     </properties>
 
-    <distributionManagement>
+    <!--distributionManagement>
         <repository>
-            <id>central</id>
-            <name>Central Maven Repository</name>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/myborislavrorg/qubership-integration-platform</url>
         </repository>
-    </distributionManagement>
+    </distributionManagement-->
 
     <build>
         <plugins>
