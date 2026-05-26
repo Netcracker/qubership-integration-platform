@@ -35,7 +35,7 @@
         <maven.compiler.target>21</maven.compiler.target>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
+        <qip-checkstyle-revision>0.5.4-SNAPSHOT</qip-checkstyle-revision>
     </properties>
 
     <profiles>

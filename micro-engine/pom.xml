@@ -35,7 +35,7 @@
 
 
     <properties>
-        <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
+        <qip-checkstyle-revision>0.5.4-SNAPSHOT</qip-checkstyle-revision>
 
         <generated-sources>target/generated-sources/java</generated-sources>
         <generated-resources>target/generated-sources/resources</generated-resources>

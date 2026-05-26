@@ -11,7 +11,7 @@
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-monorepo-parent</artifactId>
-    <version>0.5.1-SNAPSHOT</version>
+    <version>0.5.4-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <url>https://github.com/MyBorislavrOrg/qubership-integration-platform</url>
@@ -45,7 +45,7 @@
 
         <!-- Common plugin versions -->
         <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
-        <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
+        <qip-checkstyle-revision>0.5.4-SNAPSHOT</qip-checkstyle-revision>
         <jacoco.plugin.version>0.8.14</jacoco.plugin.version>
         <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
         <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
