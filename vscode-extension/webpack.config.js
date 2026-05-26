@@ -42,7 +42,7 @@ const qipSchemasDir = resolveWorkspacePackageDir('@netcracker/qip-schemas');
 // missing — otherwise copy-webpack-plugin emits a low-level "unable to locate"
 // error and the user has to dig through the stack to figure out the fix.
 const qipUiDistLib = path.join(qipUiDir, 'dist-lib');
-const qipUiEntryPoint = path.join(qipUiDistLib, 'index.es.js');
+const qipUiEntryPoint = path.join(qipUiDistLib, 'index.bundled.es.js');
 if (!fs.existsSync(qipUiEntryPoint)) {
     throw new Error(
         `qip-ui library bundle is missing (${qipUiEntryPoint} not found).\n` +
