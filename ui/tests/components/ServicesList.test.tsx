@@ -28,7 +28,7 @@ import { render, fireEvent, waitFor, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { IntegrationSystemType } from "../../src/api/apiTypes";
 import type { IntegrationSystem } from "../../src/api/apiTypes";
-import type { EntityFilterModel } from "../../src/components/table/filter/filter";
+import type { EntityFilterModel } from "../../src/components/table/filter/filterTypes";
 
 const mockGetServices = jest.fn<Promise<IntegrationSystem[]>, unknown[]>();
 const mockFilterSystems = jest.fn<Promise<IntegrationSystem[]>, unknown[]>();

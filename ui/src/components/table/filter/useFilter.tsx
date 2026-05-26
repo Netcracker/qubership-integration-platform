@@ -3,7 +3,7 @@ import { FilterItemState } from "./FilterItem";
 import { Filter } from "./Filter.tsx";
 import { useModalsContext } from "../../../Modals";
 import { FilterButton } from "./FilterButton";
-import { EntityFilterModel, FilterColumn } from "./filter";
+import { EntityFilterModel, FilterColumn } from "./filterTypes";
 
 export const useFilter = (
   filterColumns: FilterColumn[],

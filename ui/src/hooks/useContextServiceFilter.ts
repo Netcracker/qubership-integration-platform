@@ -5,7 +5,7 @@ import {
   FilterColumn,
   IdFilterConditions,
   StringFilterConditions,
-} from "../components/table/filter/filter";
+} from "../components/table/filter/filterTypes";
 import { useFilter } from "../components/table/filter/useFilter";
 import { LabelsStringTableFilter } from "./useChainFilter";
 

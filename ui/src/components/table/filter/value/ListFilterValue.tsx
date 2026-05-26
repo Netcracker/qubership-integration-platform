@@ -1,6 +1,6 @@
 import { Select, SelectProps } from "antd";
 import { FilterValueProps } from "./FilterValue";
-import { ListValue } from "../filter";
+import { ListValue } from "../filterTypes";
 import { useState } from "react";
 
 export const ListFilterValue = (props: FilterValueProps) => {

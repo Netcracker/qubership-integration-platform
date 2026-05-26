@@ -101,7 +101,7 @@ import { Api } from "../api.ts";
 import { getFileFromResponse } from "../../misc/download-utils.ts";
 import qs from "qs";
 import { getAppName, getConfig } from "../../appConfig.ts";
-import { EntityFilterModel } from "../../components/table/filter/filter.ts";
+import { EntityFilterModel } from "../../components/table/filter/filterTypes.ts";
 import { registerRestAxiosInstance } from "./requestHeadersInterceptor.ts";
 import type {
   ApiError,

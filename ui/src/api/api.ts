@@ -1,4 +1,4 @@
-import type { EntityFilterModel } from "../components/table/filter/filter.ts";
+import type { EntityFilterModel } from "../components/table/filter/filterTypes.ts";
 import type {
   Chain,
   ChainCreationRequest,

@@ -1,6 +1,6 @@
 import { ListFilterValue } from "./ListFilterValue";
 import { StringFilterValue } from "./StringFilterValue";
-import { FilterCondition, FilterValueType, ListValue } from "../filter";
+import { FilterCondition, FilterValueType, ListValue } from "../filterTypes";
 import { TimestampFilterValue } from "./TimestampFilterValue";
 import { NumberFilterValue } from "./NumberFilterValue";
 import { BooleanFilterValue } from "./BooleanFilterValue";

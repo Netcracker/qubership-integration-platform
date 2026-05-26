@@ -7,7 +7,7 @@ import {
   IdFilterConditions,
   NumberFilterConditions,
   StringFilterConditions,
-} from "../../table/filter/filter";
+} from "../../table/filter/filterTypes";
 import { useFilter } from "../../table/filter/useFilter";
 
 export const useLiveExchangeFilters = (): {
