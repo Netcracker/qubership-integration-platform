@@ -1,7 +1,7 @@
-import { Edge, Node, Position, useReactFlow } from "@xyflow/react";
-import { useCallback, useEffect, useRef } from "react";
-import ELK, { ElkNode, LayoutOptions } from "elkjs/lib/elk.bundled";
-import { ElkDirection, useElkDirection } from "./useElkDirection.tsx";
+import {Edge, Node, Position, useReactFlow} from "@xyflow/react";
+import {useCallback, useEffect, useRef} from "react";
+import ELK, {ElkNode, LayoutOptions} from "elkjs/lib/elk.bundled";
+import {ElkDirection, useElkDirection} from "./useElkDirection.tsx";
 
 const baseLayoutOptions: LayoutOptions = {
   "elk.algorithm": "layered",
@@ -294,9 +294,7 @@ function leftAlignDisconnectedSiblings<
       const box = getComponentsBounds(compNodes);
 
       const compMin = isHorizontal ? box.minX : box.minY;
-      const desiredDelta = globalMin - compMin;
-
-      let limitDelta = desiredDelta;
+      let limitDelta = globalMin - compMin;
 
       for (const prev of placedBounds) {
         const yOverlap = overlaps1D(box.minY, box.maxY, prev.minY, prev.maxY);
@@ -391,16 +389,12 @@ function autoLayout(
   reactFlow: ReturnType<typeof useReactFlow>,
   direction: ElkDirection,
 ): void {
-  const nodes = reactFlow.getNodes().map((node) => {
+  const nodes = reactFlow.getNodes().map((node: Node) => {
     const bounds = reactFlow.getNodesBounds([node]);
     return { ...node, width: bounds.width, height: bounds.height };
   });
-  const edges = reactFlow
-    .getEdges()
-    .filter(
-      (e) => !(e.data as { decorative?: boolean } | undefined)?.decorative,
-    )
-    .filter((e) => !String(e.id).startsWith("decorative:"));
+
+  const edges = reactFlow.getEdges();
 
   void arrangeNodes(nodes, edges, direction).then((newNodes) => {
     const nodeMap = new Map(newNodes.map((node) => [node.id, node]));
