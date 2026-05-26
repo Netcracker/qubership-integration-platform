@@ -33,8 +33,11 @@ import org.qubership.integration.platform.runtime.catalog.model.exportimport.Imp
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionStatus;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.EntityDiffResponseMapper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ImportSession;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportEntityStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.ImportSystemStatus;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.ChainMapper;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.*;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.mapper.ImportSessionMapper;
 import org.qubership.integration.platform.runtime.catalog.service.difference.ChainDifferenceRequest;
@@ -68,17 +71,20 @@ public class ImportControllerV3 {
     private final GeneralImportService importService;
     private final ImportSessionMapper importSessionMapper;
     private final EntityDiffResponseMapper entityDiffResponseMapper;
+    private final ChainMapper chainMapper;
 
     public ImportControllerV3(
-            @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
-            GeneralImportService importService,
-            ImportSessionMapper importSessionMapper,
-            EntityDiffResponseMapper entityDiffResponseMapper
+        @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
+        GeneralImportService importService,
+        ImportSessionMapper importSessionMapper,
+        EntityDiffResponseMapper entityDiffResponseMapper,
+        ChainMapper chainMapper
     ) {
         this.objectMapper = objectMapper;
         this.importService = importService;
         this.importSessionMapper = importSessionMapper;
         this.entityDiffResponseMapper = entityDiffResponseMapper;
+        this.chainMapper = chainMapper;
     }
 
     @PostMapping(value = "/preview")
@@ -92,16 +98,16 @@ public class ImportControllerV3 {
     }
 
     @Operation(extensions = @Extension(properties = {@ExtensionProperty(name = "x-api-kind", value = "bwc")}),
-            description = "Import chains and related to them services and variables from an archive file")
+        description = "Import chains and related to them services and variables from an archive file")
     @PostMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ImportCommitResponse> importFile(
-            @RequestParam("file") @Parameter(description = "Archive file") MultipartFile file,
-            @RequestParam(name = "importRequest", required = false) @Parameter(description = "Import request object") String importRequest,
-            @RequestParam(name = "validateByHash", required = false, defaultValue = "false") @Parameter(description = "Check chain hash during import") boolean validateByHash,
-            @RequestHeader(required = false, value = "chain-labels") @Parameter(description = "List of chain labels that should be added on importing chains") List<String> technicalLabels,
-            @RequestHeader(required = false, value = SR_PACKAGE_NAME_HEADER) @Parameter(description = "Package name samples repository header") String packageName,
-            @RequestHeader(required = false, value = SR_PACKAGE_VERSION_HEADER) @Parameter(description = "Package version samples repository header") String packageVersion,
-            @RequestHeader(required = false, value = SR_PACKAGE_PART_OF_HEADER) @Parameter(description = "Package part of samples repository header") String packagePartOf
+        @RequestParam("file") @Parameter(description = "Archive file") MultipartFile file,
+        @RequestParam(name = "importRequest", required = false) @Parameter(description = "Import request object") String importRequest,
+        @RequestParam(name = "validateByHash", required = false, defaultValue = "false") @Parameter(description = "Check chain hash during import") boolean validateByHash,
+        @RequestHeader(required = false, value = "chain-labels") @Parameter(description = "List of chain labels that should be added on importing chains") List<String> technicalLabels,
+        @RequestHeader(required = false, value = SR_PACKAGE_NAME_HEADER) @Parameter(description = "Package name samples repository header") String packageName,
+        @RequestHeader(required = false, value = SR_PACKAGE_VERSION_HEADER) @Parameter(description = "Package version samples repository header") String packageVersion,
+        @RequestHeader(required = false, value = SR_PACKAGE_PART_OF_HEADER) @Parameter(description = "Package part of samples repository header") String packagePartOf
     ) {
         log.info("Request to import file: {}", file.getOriginalFilename());
         technicalLabels = addSamplesRepoTechnicalLabels(technicalLabels, packagePartOf, packageName, packageVersion);
@@ -109,8 +115,8 @@ public class ImportControllerV3 {
         ImportRequest importRequestObject;
         try {
             importRequestObject = StringUtils.isNotBlank(importRequest)
-                    ? objectMapper.readValue(importRequest, ImportRequest.class)
-                    : new ImportRequest();
+                ? objectMapper.readValue(importRequest, ImportRequest.class)
+                : new ImportRequest();
         } catch (IOException e) {
             throw new RuntimeException("Unable to deserialize importRequest field value: " + importRequest);
         }
@@ -130,7 +136,7 @@ public class ImportControllerV3 {
     }
 
     @Operation(extensions = @Extension(properties = {@ExtensionProperty(name = "x-api-kind", value = "bwc")}),
-            description = "Get import status")
+        description = "Get import status")
     @GetMapping(value = "/{importId}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ImportSessionResponse> getImportStatus(@PathVariable @Parameter(description = "Import id") String importId) {
         ImportSession importSession = importService.getImportSession(importId);
@@ -145,11 +151,11 @@ public class ImportControllerV3 {
             ImportResult importResult = importSessionResponse.getResult();
 
             boolean responseHasErrors = importResult.getChains().stream().anyMatch(chainResult -> ImportEntityStatus.ERROR.equals(chainResult.getStatus()))
-                    || importResult.getSystems().stream().anyMatch(systemResult -> ImportSystemStatus.ERROR.equals(systemResult.getStatus()))
-                    || importResult.getContextService().stream().anyMatch(contextSystemResult -> ImportSystemStatus.ERROR.equals(contextSystemResult.getStatus()))
-                    || importResult.getVariables().stream().anyMatch(variableResult -> ImportEntityStatus.ERROR.equals(variableResult.getStatus()))
-                    || importResult.getInstructionsResult().stream().anyMatch(instructionResult -> ImportInstructionStatus.ERROR_ON_DELETE.equals(instructionResult.getStatus())
-                    || ImportInstructionStatus.ERROR_ON_OVERRIDE.equals(instructionResult.getStatus()));
+                || importResult.getSystems().stream().anyMatch(systemResult -> ImportSystemStatus.ERROR.equals(systemResult.getStatus()))
+                || importResult.getContextService().stream().anyMatch(contextSystemResult -> ImportSystemStatus.ERROR.equals(contextSystemResult.getStatus()))
+                || importResult.getVariables().stream().anyMatch(variableResult -> ImportEntityStatus.ERROR.equals(variableResult.getStatus()))
+                || importResult.getInstructionsResult().stream().anyMatch(instructionResult -> ImportInstructionStatus.ERROR_ON_DELETE.equals(instructionResult.getStatus())
+                || ImportInstructionStatus.ERROR_ON_OVERRIDE.equals(instructionResult.getStatus()));
             if (responseHasErrors) {
                 responseStatus = HttpStatus.MULTI_STATUS;
             }
@@ -159,27 +165,27 @@ public class ImportControllerV3 {
     }
 
     @Operation(description = "Find differences between the chain stored in the QIP database and the imported one",
-            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
-                    mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
-                    schemaProperties = {
-                            @SchemaProperty(name = "file", schema = @Schema(
-                                    description = "Archive file",
-                                    requiredMode = Schema.RequiredMode.REQUIRED,
-                                    examples = {"(binary)"}
-                            )),
-                            @SchemaProperty(name = "diffRequest", schema = @Schema(
-                                    type = "object",
-                                    description = "Chain difference request object",
-                                    requiredMode = Schema.RequiredMode.REQUIRED,
-                                    requiredProperties = {"leftChainId", "rightChainId"},
-                                    examples = { "{\"leftChainId\":\"string\",\"leftSnapshotId\":\"string\",\"rightChainId\":\"string\"}"}
-                            ))
-                    }
-            )))
+        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
+            mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+            schemaProperties = {
+                @SchemaProperty(name = "file", schema = @Schema(
+                    description = "Archive file",
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    examples = {"(binary)"}
+                )),
+                @SchemaProperty(name = "diffRequest", schema = @Schema(
+                    type = "object",
+                    description = "Chain difference request object",
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    requiredProperties = {"leftChainId", "rightChainId"},
+                    examples = {"{\"leftChainId\":\"string\",\"leftSnapshotId\":\"string\",\"rightChainId\":\"string\"}"}
+                ))
+            }
+        )))
     @PostMapping(value = "/chains/diff", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<EntityDifferenceResponse> difference(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam("diffRequest") @Parameter(hidden = true) String diffRequest
+        @RequestParam("file") MultipartFile file,
+        @RequestParam("diffRequest") @Parameter(hidden = true) String diffRequest
     ) {
         ChainDifferenceRequest chainDiffRequest;
         try {
@@ -201,6 +207,32 @@ public class ImportControllerV3 {
 
         EntityDifferenceResult diffResult = importService.compareImportEntities(file, chainDiffRequest);
         return ResponseEntity.ok(entityDiffResponseMapper.asResponse(diffResult));
+    }
+
+    @Operation(description = "Extracts end returns chain from the archive",
+        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
+            mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+            schemaProperties = {
+                @SchemaProperty(name = "file", schema = @Schema(
+                    description = "Archive file",
+                    requiredMode = Schema.RequiredMode.REQUIRED,
+                    examples = {"(binary)"}
+                )),
+                @SchemaProperty(name = "chainId", schema = @Schema(
+                    type = "string",
+                    description = "Chain ID",
+                    requiredMode = Schema.RequiredMode.REQUIRED
+                ))
+            }
+        )))
+    @PostMapping(value = "/chains/extract", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ChainDTO> extractChain(
+        @RequestParam("file") MultipartFile file,
+        @RequestParam("chainId") @Parameter(hidden = true) String chainId
+    ) {
+        Chain chain = importService.extractChain(file, chainId);
+        ChainDTO chainDTO = chainMapper.asDTO(chain);
+        return ResponseEntity.ok(chainDTO);
     }
 
     public static List<String> addSamplesRepoTechnicalLabels(List<String> technicalLabels, String... labels) {
