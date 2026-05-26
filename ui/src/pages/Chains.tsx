@@ -769,6 +769,8 @@ const Chains = () => {
         <ChainDiffPopup
           item1={{ kind: "chain", id: selectedChains[0].id }}
           item2={{ kind: "chain", id: selectedChains[1].id }}
+          editable1={true}
+          editable2={true}
         />
       ),
     });

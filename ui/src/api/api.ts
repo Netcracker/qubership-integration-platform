@@ -647,6 +647,8 @@ export interface Api {
   ): Promise<void>;
 
   getChainSnapshot(snapshotId: string): Promise<ChainSnapshot>;
+
+  extractChain(archive: File, chainId: string): Promise<Chain>;
 }
 
 export const api: Api = isVsCode ? new VSCodeExtensionApi() : new RestApi();

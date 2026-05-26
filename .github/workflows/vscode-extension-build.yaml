@@ -71,7 +71,6 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.ref }}
-          fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Node.js
@@ -92,6 +91,33 @@ jobs:
       - name: Test with coverage
         working-directory: vscode-extension
         run: npm run test:unit:coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: vscode-extension-coverage
+          path: vscode-extension/coverage/lcov.info
+          if-no-files-found: warn
+          retention-days: 1
+
+  sonar:
+    needs: npm-build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download coverage report
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: vscode-extension-coverage
+          path: vscode-extension/coverage
 
       - name: Sonar scan (SonarQube Cloud)
         uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
