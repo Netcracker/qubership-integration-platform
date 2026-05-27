@@ -1,0 +1,23 @@
+---
+$id: http://qubership.org/schemas/product/qip/specification-group.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/common-properties/top-level-entity-properties.schema.yaml"
+title: Specification Group
+properties:
+  content:
+    type: object
+    allOf:
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/description-property.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/labels-property.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/parent-property.schema.yaml"
+    properties:
+      url:
+        type: string
+        title: URL
+      synchronization:
+        type: boolean
+        default: false
+required:
+  - content

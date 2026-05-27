@@ -1,0 +1,53 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/specification.schema.yaml"
+id: "00fdc9ce-d3da-4b3d-90ec-8ad3b989d4ff-account-service-1.0.0"
+name: "1.0.0"
+content:
+  description: "Manages user accounts in the system.\n"
+  createdWhen: 1751978954962
+  modifiedWhen: 1751978955003
+  createdBy:
+    id: "0"
+    username: "developer"
+  modifiedBy:
+    id: "0"
+    username: "developer"
+  deprecated: false
+  version: "1.0.0"
+  source: "MANUAL"
+  operations:
+  - id: "00fdc9ce-d3da-4b3d-90ec-8ad3b989d4ff-account-service-1.0.0-emitUserSignUpEvent"
+    name: "emitUserSignUpEvent"
+    createdWhen: 1751978954976
+    modifiedWhen: 1751978955003
+    createdBy:
+      id: "0"
+      username: "developer"
+    modifiedBy:
+      id: "0"
+      username: "developer"
+    method: "subscribe"
+    path: "user/signedup"
+    specification:
+      topic: "user/signedup"
+    requestSchema: {}
+    responseSchemas:
+      UserSignedUp:
+        $id: "http://system.catalog/schemas/UserSignedUp"
+        $schema: "http://json-schema.org/draft-07/schema#"
+        definitions: {}
+  specificationSources:
+  - id: "e8eda29b-94fb-490a-ae15-75d4d702dcea"
+    name: "account-service.yaml"
+    createdWhen: 1751978954908
+    modifiedWhen: 1751978955003
+    createdBy:
+      id: "0"
+      username: "developer"
+    modifiedBy:
+      id: "0"
+      username: "developer"
+    sourceHash: "fb89cc423c18b9ef22aa9d7632e7d5f509d0186007210f5a9cbe58ce76e7788b"
+    fileName: "source-00fdc9ce-d3da-4b3d-90ec-8ad3b989d4ff-account-service-1.0.0/account-service.yaml"
+    mainSource: true
+  parentId: "00fdc9ce-d3da-4b3d-90ec-8ad3b989d4ff-account-service"

@@ -1,0 +1,21 @@
+# $schema: http://qubership.org/schemas/product/qip/element/http-trigger.schema.yaml
+id: "id"
+name: "HTTP Trigger"
+type: "http-trigger"
+properties:
+  abacParameters:
+    operation: "ALL"
+    resourceType: "CHAIN"
+    resourceString: "/cip-routes/xxx"
+    resourceDataType: "String"
+  accessControlType: "ABAC"
+  chunked: true
+  connectTimeout: 120000
+  contextPath: "xxx"
+  externalRoute: true
+  handleChainFailureAction: "default"
+  handleValidationAction: "default"
+  httpBinding: "handlingHttpBinding"
+  killSessionOnTimeout: false
+  privateRoute: false
+  rejectRequestIfNonNullBodyGetDelete: true

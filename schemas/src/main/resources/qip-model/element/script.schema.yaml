@@ -1,0 +1,16 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/script.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: Script
+description: Executes Groovy Script
+properties:
+  type:
+    type: string
+    const: script
+  properties:
+    $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-script.schema.yaml"
+required:
+  - type

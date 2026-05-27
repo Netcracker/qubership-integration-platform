@@ -1,0 +1,24 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "10f5b056-e94a-41d9-8544-f7e45da6eb7e"
+name: "Split Async"
+content:
+  modifiedWhen: 1752156869412
+  maskingEnabled: false
+  elements:
+  - id: "1dc07a1e-2b02-44c6-8654-e73de8b13143"
+    name: "Split Async"
+    type: "split-async-2"
+    children:
+    - id: "de4b4a20-71b6-4116-bfb0-4fd04d0c3f00"
+      name: "Async Split Element"
+      type: "async-split-element-2"
+      children:
+      - id: "baa73f43-b127-4b39-9439-beb5e47b6da5"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-baa73f43-b127-4b39-9439-beb5e47b6da5.groovy"
+          propertiesToExportInSeparateFile: "script"
+  migrations: "[100, 101]"

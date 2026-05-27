@@ -1,0 +1,16 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "d6219bc6-97e1-4bdb-976c-8add2d92bc25"
+name: "File Read"
+content:
+  modifiedWhen: 1752225621559
+  maskingEnabled: false
+  elements:
+  - id: "85408a40-a8ee-4179-a751-f5387eee5fc0"
+    name: "File Read"
+    type: "file-read"
+    properties:
+      antInclude: "*.foo.bar"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

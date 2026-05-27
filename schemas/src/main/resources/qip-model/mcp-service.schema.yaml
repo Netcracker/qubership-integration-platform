@@ -1,0 +1,34 @@
+---
+$id: http://qubership.org/schemas/product/qip/mcp-service.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/common-properties/top-level-entity-properties.schema.yaml"
+title: MCP Service
+properties:
+  content:
+    type: object
+    allOf:
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/description-property.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/labels-property.schema.yaml"
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/migrations-property.schema.yaml"
+      - $ref: "#/definitions/MCPServiceProperties"
+required:
+  - content
+definitions:
+  MCPServiceProperties:
+    type: object
+    properties:
+      identifier:
+        type: string
+        title: MCP server identifier
+        description: MCP server identifier
+      instructions:
+        type: string
+        title: Server instructions
+        description: |
+          Server instructions give the server a way to inject information
+          that the LLM should always read in order to understand how to use
+          the server—independent of individual prompts, tools, or messages.
+    required:
+      - identifier

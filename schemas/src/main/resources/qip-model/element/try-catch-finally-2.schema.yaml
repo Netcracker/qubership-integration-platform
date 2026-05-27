@@ -1,0 +1,23 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/try-catch-finally-2.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: Try-Catch-Finally
+properties:
+  type:
+    type: string
+    const: try-catch-finally-2
+  children:
+    type: array
+    items:
+      anyOf:
+        - $ref: "http://qubership.org/schemas/product/qip/element/try-2.schema.yaml"
+        - $ref: "http://qubership.org/schemas/product/qip/element/finally-2.schema.yaml"
+        - $ref: "http://qubership.org/schemas/product/qip/element/catch-2.schema.yaml"
+  properties:
+    type: object
+    additionalProperties: false
+required:
+  - type

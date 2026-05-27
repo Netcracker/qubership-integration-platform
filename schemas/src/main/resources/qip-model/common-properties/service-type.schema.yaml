@@ -1,0 +1,9 @@
+---
+$id: http://qubership.org/schemas/product/qip/common-properties/service-type.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: string
+title: Service Type
+enum:
+  - INTERNAL
+  - EXTERNAL
+  - IMPLEMENTED

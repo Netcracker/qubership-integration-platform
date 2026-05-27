@@ -1,0 +1,19 @@
+---
+$id: http://qubership.org/schemas/product/qip/common-properties/top-level-entity-properties.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: TopLevel Entity Properties
+properties:
+  $schema:
+    type: string
+  id:
+    type: string
+    title: Identifier
+  name:
+    type: string
+    title: Name
+required:
+  - $schema
+  - id
+  - name
+

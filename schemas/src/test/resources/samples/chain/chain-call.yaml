@@ -1,0 +1,19 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "4172ef01-238e-47ed-96d3-b01662c6787f"
+name: "Chain Call"
+content:
+  modifiedWhen: 1752159601579
+  maskingEnabled: false
+  elements:
+  - id: "138f8f9f-c988-46b9-b5d7-e394573a28de"
+    name: "Chain Call"
+    type: "chain-call-2"
+    properties:
+      block: true
+      elementId: "a5f76cd1-6d43-4538-9d78-c8f69f78714d"
+      failIfNoConsumers: false
+      timeout: 30000
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

@@ -1,0 +1,27 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "7a440405-cb08-49f7-b2b1-f7fe567c0f3b"
+name: "Reuse Reference"
+content:
+  modifiedWhen: 1752500575223
+  maskingEnabled: false
+  elements:
+  - id: "9173ccd1-481d-4436-adf3-99020d97fb20"
+    name: "Reuse"
+    type: "reuse"
+    children:
+    - id: "37fd2bb1-feed-4b6d-82bb-84dcfe883324"
+      name: "Script"
+      type: "script"
+      properties:
+        exportFileExtension: "groovy"
+        propertiesFilename: "script-37fd2bb1-feed-4b6d-82bb-84dcfe883324.groovy"
+        propertiesToExportInSeparateFile: "script"
+  - id: "ca381ce8-f421-4444-84ff-7287aeb81ad0"
+    name: "Reuse Reference"
+    type: "reuse-reference"
+    properties:
+      reuseElementId: "9173ccd1-481d-4436-adf3-99020d97fb20"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

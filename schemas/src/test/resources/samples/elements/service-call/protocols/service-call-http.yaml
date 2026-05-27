@@ -1,0 +1,25 @@
+# $schema: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
+id: "d5c98e17-7395-411c-b662-777e2238df1f"
+name: "Service Call HTTP"
+type: "service-call"
+properties:
+  after: []
+  afterValidation: []
+  bodyFormData: []
+  errorThrowing: true
+  handleValidationAction: "default"
+  integrationGqlQueryHeader: "CamelGraphQLQuery"
+  integrationGqlVariablesHeader: "CamelGraphQLVariables"
+  integrationOperationAsyncProperties: {}
+  integrationOperationId: "955909b0-c14a-4b2c-af87-87dd1c45ad8c-sample-api-inline-0.0.4-getUsers"
+  integrationOperationMethod: "GET"
+  integrationOperationPath: "/users"
+  integrationOperationProtocolType: "http"
+  integrationOperationSkipEmptyQueryParameters: false
+  integrationSpecificationGroupId: "955909b0-c14a-4b2c-af87-87dd1c45ad8c-sample-api-inline"
+  integrationSpecificationId: "955909b0-c14a-4b2c-af87-87dd1c45ad8c-sample-api-inline-0.0.4"
+  integrationSystemId: "955909b0-c14a-4b2c-af87-87dd1c45ad8c"
+  propagateContext: true
+  retryCount: 0
+  retryDelay: 5000
+  systemType: "INTERNAL"

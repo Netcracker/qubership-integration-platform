@@ -1,0 +1,24 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "b7ce2e4c-88ac-4b45-9409-50626f140baa"
+name: "SFTP Upload"
+content:
+  modifiedWhen: 1752503280183
+  maskingEnabled: false
+  elements:
+  - id: "2eeb52ee-8128-47ee-ab69-a884e4d69fb6"
+    name: "SFTP Upload"
+    type: "sftp-upload"
+    properties:
+      allowNullBody: true
+      autoCreate: true
+      binary: true
+      connectUrl: "localhost:22/foo/bar"
+      fileName: "foo.bar"
+      password: "D'oh!"
+      throwExceptionOnConnectFailed: true
+      useUserKnownHostsFile: false
+      username: "Homer"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

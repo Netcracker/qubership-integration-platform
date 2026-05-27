@@ -1,0 +1,107 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/async-api-trigger.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: AsyncAPI Trigger
+description: Receives a call from a service registered in API Repository
+properties:
+  type:
+    type: string
+    const: async-api-trigger
+  properties:
+    type: object
+    allOf:
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml"
+    properties:
+      after:
+        type: array
+        title: Request validation schemas
+        items:
+          $ref: "#/definitions/RequestValidation"
+      requestFilterHeaderAllowlist:
+        title: Filtered headers list
+        $ref: "http://qubership.org/schemas/product/qip/element/properties/headers.schema.yaml"
+      integrationOperationId:
+        type: string
+        title: Operation ID
+      integrationSpecificationGroupId:
+        type: string
+        title: Specification group ID
+      integrationSpecificationId:
+        type: string
+        title: Specification ID
+      integrationSystemId:
+        type: string
+        title: Service ID
+      systemType:
+        title: Service type
+        $ref: "http://qubership.org/schemas/product/qip/common-properties/service-type.schema.yaml"
+      integrationOperationProtocolType:
+        title: Operation protocol type
+        $ref: "#/definitions/Protocol"
+      integrationOperationMethod:
+        title: Operation method
+        $ref: "#/definitions/Method"
+      integrationOperationPath:
+        type: string
+        title: Operation name
+    if:
+      properties:
+        integrationOperationProtocolType:
+          const: kafka
+    then: # kafka
+      properties:
+        reconnectDelay:
+          allOf:
+            - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
+          title: Reconnection delay (ms)
+          default: 30000
+        integrationOperationAsyncProperties:
+          $ref: "#/definitions/KafkaProperties"
+    else: # amqp
+      properties:
+        integrationOperationAsyncProperties:
+          $ref: "#/definitions/AmqpProperties"
+definitions:
+  RequestValidation:
+    type: object
+    properties:
+      code:
+        type: string
+      label:
+        type: string
+      schema:
+        type: string
+    additionalProperties: false
+    required:
+      - code
+      - label
+      - schema
+  Protocol:
+    enum:
+      - kafka
+      - amqp
+  Method:
+    enum:
+      - subscribe
+      - publish
+      - send
+      - receive
+  KafkaProperties:
+    type: object
+    additionalProperties: true
+  AmqpProperties:
+    type: object
+    properties:
+      acknowledgeMode:
+        $ref: "#/definitions/AcknowledgeMode"
+    additionalProperties: true
+  AcknowledgeMode:
+    enum:
+      - NONE
+      - MANUAL
+      - AUTO
+required:
+  - type

@@ -1,0 +1,13 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/sync-split-element.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: Sync Split Element (deprecated)
+properties:
+  type:
+    type: string
+    const: sync-split-element
+required:
+  - type

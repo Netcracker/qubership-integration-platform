@@ -1,0 +1,14 @@
+# $schema: http://qubership.org/schemas/product/qip/element/choice.schema.yaml
+id: "269245dd-a42e-4751-b321-b135b6e192d5"
+name: "Choice (deprecated)"
+type: "choice"
+children:
+- id: "2f1a379c-64e4-4297-9c63-88e159aca25c"
+  name: "When"
+  type: "when"
+  properties:
+    condition: "true"
+    priorityNumber: 0
+- id: "ef5efc30-1066-4c94-9714-a8cdf07a0ea1"
+  name: "Otherwise"
+  type: "otherwise"

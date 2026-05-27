@@ -1,0 +1,13 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/otherwise.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: Otherwise (deprecated)
+properties:
+  type:
+    type: string
+    const: otherwise
+required:
+  - type

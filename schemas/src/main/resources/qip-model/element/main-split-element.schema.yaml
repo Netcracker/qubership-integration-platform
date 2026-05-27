@@ -1,0 +1,24 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/main-split-element.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: Main Split Element (deprecated)
+properties:
+  type:
+    type: string
+    const: main-split-element
+  properties:
+    type: object
+    properties:
+      splitName:
+        type: string
+        title: Split Name
+        description: Define identifier for subchain
+        pattern: "^[-!#-'*+.0-9A-Z^-z|~]+$"
+    required:
+      - splitName
+    additionalProperties: false
+required:
+  - type

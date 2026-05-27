@@ -1,0 +1,28 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/loop-expression.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: Loop Expression (deprecated)
+properties:
+  type:
+    type: string
+    const: loop-expression
+  properties:
+    type: object
+    properties:
+      expression:
+        type: string
+        title: Expression
+      doWhile:
+        type: boolean
+        title: Expression is used
+      copy:
+        type: boolean
+        title: Copy start context each iteration
+    required:
+      - expression
+    additionalProperties: false
+required:
+  - type

@@ -1,0 +1,63 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "a178f38f-9932-4bcc-84a3-315003c54f47"
+name: "Context Storage"
+content:
+  modifiedWhen: 1754910231218
+  maskingEnabled: false
+  elements:
+    - id: "098a1f68-e876-40a0-9dfd-d1f15c05ac5e"
+      name: "Context Storage Get To Prop"
+      type: "context-storage"
+      properties:
+        contextId: "123"
+        contextServiceId: "770d5315-98ed-4314-bb03-4211d236657a"
+        keys: "a"
+        operation: "GET"
+        target: "PROPERTY"
+        targetName: "PropA"
+        useCorrelationId: false
+    - id: "4dbe0626-aa98-4e11-8c31-fe7a342ceb1c"
+      name: "Context Storage Get To Body"
+      type: "context-storage"
+      properties:
+        contextId: "123"
+        contextServiceId: "770d5315-98ed-4314-bb03-4211d236657a"
+        keys: "a"
+        operation: "GET"
+        target: "BODY"
+        ttl: 21600
+        unwrap: true
+        useCorrelationId: false
+    - id: "76c674a8-4a95-4802-a7e9-0ef4ae81c5cb"
+      name: "Context Storage Create"
+      type: "context-storage"
+      properties:
+        contextId: "123"
+        contextServiceId: "770d5315-98ed-4314-bb03-4211d236657a"
+        key: "123"
+        operation: "SET"
+        ttl: 21600
+        useCorrelationId: false
+        value: "aaa"
+    - id: "9ddec856-4797-4602-b52b-67238a537814"
+      name: "Context Storage Get To Header"
+      type: "context-storage"
+      properties:
+        contextId: "123"
+        contextServiceId: "770d5315-98ed-4314-bb03-4211d236657a"
+        keys: "a"
+        operation: "GET"
+        target: "HEADER"
+        targetName: "headerA"
+        useCorrelationId: false
+    - id: "dd64987a-6f83-4390-b43e-79267e3092e1"
+      name: "Context Storage Delete"
+      type: "context-storage"
+      properties:
+        contextId: "123"
+        contextServiceId: "770d5315-98ed-4314-bb03-4211d236657a"
+        operation: "DELETE"
+        ttl: 21600
+        useCorrelationId: false
+  migrations: "[100, 101, 102, 103]"

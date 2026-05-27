@@ -1,0 +1,23 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/chain-trigger-2.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: Chain Trigger
+properties:
+  type:
+    type: string
+    const: chain-trigger-2
+  properties:
+    type: object
+    properties:
+      elementId:
+        type: string
+        title: Element Id
+        readOnly: true
+    required:
+      - elementId
+    additionalProperties: false
+required:
+  - type

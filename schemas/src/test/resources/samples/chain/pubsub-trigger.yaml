@@ -1,0 +1,29 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "28ff5127-f793-4965-8afe-b6724a004a70"
+name: "PubSub Trigger"
+content:
+  modifiedWhen: 1752496485268
+  maskingEnabled: false
+  elements:
+  - id: "4537e485-8422-47a2-a874-2e3be8d35069"
+    name: "PubSub Trigger"
+    type: "pubsub-trigger"
+    properties:
+      ackMode: "AUTO"
+      destinationName: "bar"
+      idempotency:
+        enabled: true
+        keyExpiry: 300
+        keyExpression: "${header.key}"
+        actionOnDuplicate: "throw-exception"
+        contextExpression: "${header.context}"
+      maxMessagesPerPoll: "3"
+      projectId: "foo"
+      serviceAccountKey: "baz"
+      synchronousPullRetryableCodes:
+      - "ABORTED"
+      - "CANCELLED"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

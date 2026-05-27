@@ -1,0 +1,47 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "dbe45436-ac94-442c-858f-467b7ebb6149"
+name: "Split"
+content:
+  modifiedWhen: 1752481376251
+  maskingEnabled: false
+  elements:
+  - id: "b60e0732-f948-4c26-9f22-90e014031002"
+    name: "Split"
+    type: "split-2"
+    children:
+    - id: "1ac90ad2-d5f3-4ba3-aac3-e0da4e75efdb"
+      name: "Main Split Element"
+      type: "main-split-element-2"
+      children:
+      - id: "180120d8-0f8b-43d3-9e87-6632557ac605"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-180120d8-0f8b-43d3-9e87-6632557ac605.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        splitName: "foo"
+    - id: "3e73a780-7c05-43bd-851a-48dd7d370345"
+      name: "Split Element"
+      type: "split-element-2"
+      children:
+      - id: "9340d6c7-801e-4a82-b7e6-9892026f2832"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-9340d6c7-801e-4a82-b7e6-9892026f2832.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        propagateHeaders: false
+        propagateProperties: false
+        splitName: "bar"
+    properties:
+      aggregationStrategy: "chainsAggregationStrategy"
+      stopOnException: true
+      timeout: 0
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

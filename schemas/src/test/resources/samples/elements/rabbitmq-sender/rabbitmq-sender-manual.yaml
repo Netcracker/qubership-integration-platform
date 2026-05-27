@@ -1,0 +1,15 @@
+# $schema: http://qubership.org/schemas/product/qip/element/rabbitmq-sender-2.schema.yaml
+id: "0c4b9885-312b-4cef-bd32-5c89e3e68d06"
+name: "RabbitMQ Sender"
+type: "rabbitmq-sender-2"
+properties:
+  addresses: "localhost"
+  connectionSourceType: "manual"
+  exchange: "bar"
+  exchangePattern: "InOnly"
+  overrideContextParams:
+    wer: "wer"
+  password: "bar"
+  propagateContext: true
+  routingKey: "baz"
+  username: "foo"

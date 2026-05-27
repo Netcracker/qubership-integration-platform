@@ -1,0 +1,40 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "5ef764fc-7510-442d-9917-6863a5b6f839"
+name: "Condition"
+content:
+  modifiedWhen: 1752221686595
+  maskingEnabled: false
+  elements:
+  - id: "c619d696-b7d7-44f7-b1e4-db9e6e7c9da2"
+    name: "Condition"
+    type: "condition"
+    children:
+    - id: "b5c954c4-f9b8-4cb5-9bc3-0770eb4314fa"
+      name: "Else"
+      type: "else"
+      children:
+      - id: "6240126f-2b8f-414e-ae9c-e932c7ca6e62"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-6240126f-2b8f-414e-ae9c-e932c7ca6e62.groovy"
+          propertiesToExportInSeparateFile: "script"
+    - id: "c00c1e08-07c5-40b7-810b-31f67f133005"
+      name: "If"
+      type: "if"
+      children:
+      - id: "21a59bed-59ca-4642-b748-8b1c26545bd9"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-21a59bed-59ca-4642-b748-8b1c26545bd9.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        condition: "true"
+        priority: 0
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

@@ -1,0 +1,17 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "d0dccb03-f194-42d2-8e69-68cfe7e55243"
+name: "Chain Trigger"
+content:
+  modifiedWhen: 1752159566712
+  maskingEnabled: false
+  elements:
+  - id: "a5f76cd1-6d43-4538-9d78-c8f69f78714d"
+    name: "Chain Trigger"
+    description: "Example of a chain trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "a5f76cd1-6d43-4538-9d78-c8f69f78714d"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

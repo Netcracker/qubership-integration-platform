@@ -1,0 +1,20 @@
+---
+$id: http://qubership.org/schemas/product/qip/element/try-catch-finally.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+title: Try-Catch-Finally (deprecated)
+properties:
+  type:
+    type: string
+    const: try-catch-finally
+  children:
+    type: array
+    items:
+      anyOf:
+        - $ref: "http://qubership.org/schemas/product/qip/element/try.schema.yaml"
+        - $ref: "http://qubership.org/schemas/product/qip/element/finally.schema.yaml"
+        - $ref: "http://qubership.org/schemas/product/qip/element/catch.schema.yaml"
+required:
+  - type

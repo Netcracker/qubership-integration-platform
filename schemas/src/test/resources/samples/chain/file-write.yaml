@@ -1,0 +1,17 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "26564f69-4e59-4d4e-a8ec-54bbdc857290"
+name: "File Write"
+content:
+  modifiedWhen: 1752225961468
+  maskingEnabled: false
+  elements:
+  - id: "6b362676-5a75-4492-a6d1-bad4e07361f8"
+    name: "File Write"
+    type: "file-write"
+    properties:
+      allowNullBody: true
+      fileName: "foo.bar"
+  folder:
+    name: "Test Chains"
+  migrations: "[100, 101]"

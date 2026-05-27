@@ -1,0 +1,10 @@
+# $schema: http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml
+idempotency:
+  enabled: true
+  keyExpiry: 300
+  contextExpression: "${header.context}"
+  keyExpression: "${header.key}"
+  actionOnDuplicate: execute-subchain
+  chainTriggerParameters:
+    triggerElementId: "foo"
+    chainCallTimeout: 60000
