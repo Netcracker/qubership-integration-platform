@@ -20,12 +20,12 @@ Create a `.documentation-config.json` file in your project root:
 
 ```json
 {
-  "documentation": {
-    "source": "git",
-    "repository": "https://github.com/Netcracker/qubership-integration-help.git",
-    "branch": "main",
-    "path": "docs"
-  }
+    "documentation": {
+        "source": "git",
+        "repository": "https://github.com/Netcracker/qubership-integration-help.git",
+        "branch": "main",
+        "path": "docs"
+    }
 }
 ```
 
@@ -33,12 +33,12 @@ Create a `.documentation-config.json` file in your project root:
 
 ```json
 {
-  "documentation": {
-    "source": "npm",
-    "package": "@netcracker/qip-help",
-    "version": "^1.0.0",
-    "path": "docs"
-  }
+    "documentation": {
+        "source": "npm",
+        "package": "@netcracker/qip-help",
+        "version": "^1.0.0",
+        "path": "docs"
+    }
 }
 ```
 
@@ -46,10 +46,10 @@ Create a `.documentation-config.json` file in your project root:
 
 ```json
 {
-  "documentation": {
-    "source": "local",
-    "path": "../my-docs/docs"
-  }
+    "documentation": {
+        "source": "local",
+        "path": "../my-docs/docs"
+    }
 }
 ```
 
@@ -57,9 +57,9 @@ Create a `.documentation-config.json` file in your project root:
 
 ```json
 {
-  "documentation": {
-    "source": "none"
-  }
+    "documentation": {
+        "source": "none"
+    }
 }
 ```
 
@@ -67,15 +67,15 @@ Use `"none"` to skip documentation fetching and index generation entirely (e.g.,
 
 ### Config fields
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `source` | Yes | `"git"`, `"npm"`, `"local"`, or `"none"` |
-| `repository` | For Git | Git repository URL |
-| `branch` | For Git | Branch name (default: `"master"`) |
-| `package` | For npm | npm package name |
-| `version` | For npm | npm version range |
-| `path` | Yes (except `"none"`) | Path to docs directory within the source |
-| `destination` | No | Output directory (default: `"public/doc"`) |
+| Field         | Required              | Description                                |
+| ------------- | --------------------- | ------------------------------------------ |
+| `source`      | Yes                   | `"git"`, `"npm"`, `"local"`, or `"none"`   |
+| `repository`  | For Git               | Git repository URL                         |
+| `branch`      | For Git               | Branch name (default: `"master"`)          |
+| `package`     | For npm               | npm package name                           |
+| `version`     | For npm               | npm version range                          |
+| `path`        | Yes (except `"none"`) | Path to docs directory within the source   |
+| `destination` | No                    | Output directory (default: `"public/doc"`) |
 
 ## Step 2: Add build scripts
 
@@ -83,14 +83,15 @@ Add the following scripts to your `package.json`:
 
 ```json
 {
-  "scripts": {
-    "fetch-docs": "node node_modules/@netcracker/qip-ui/scripts/fetch-documentation.mjs",
-    "prebuild": "npm run fetch-docs"
-  }
+    "scripts": {
+        "fetch-docs": "node node_modules/@netcracker/qip-ui/scripts/fetch-documentation.mjs",
+        "prebuild": "npm run fetch-docs"
+    }
 }
 ```
 
 This will:
+
 - Clone/download documentation from the configured source
 - Generate `paths.json`, `names.json`, `toc.json`, and `search-index.json` indices
 - Place everything in the `destination` directory (default: `public/doc`)
@@ -103,7 +104,7 @@ By default, the UI expects documentation assets at `/doc`. If your host applicat
 import { configure } from "@netcracker/qip-ui";
 
 configure({
-  documentationBaseUrl: "/my-custom-docs-path",
+    documentationBaseUrl: "/my-custom-docs-path",
 });
 ```
 
@@ -113,12 +114,12 @@ To replace the default documentation with your own, simply point the `.documenta
 
 ```json
 {
-  "documentation": {
-    "source": "git",
-    "repository": "https://gitlab.company.com/team/custom-docs.git",
-    "branch": "main",
-    "path": "docs"
-  }
+    "documentation": {
+        "source": "git",
+        "repository": "https://gitlab.company.com/team/custom-docs.git",
+        "branch": "main",
+        "path": "docs"
+    }
 }
 ```
 
@@ -130,17 +131,17 @@ The documentation source must follow a specific directory naming convention for 
 
 ```text
 docs/
-  00__Overview/
-    overview.md
-  01__Chains/
-    chains.md
-    1__Graph/
-      1__QIP_Elements_Library/
-        1__Routing/
-          1__HTTP_Trigger/
-            http_trigger.md
-          2__Condition/
-            condition.md
+    00__Overview/
+        overview.md
+    01__Chains/
+        chains.md
+        1__Graph/
+            1__QIP_Elements_Library/
+                1__Routing/
+                    1__HTTP_Trigger/
+                        http_trigger.md
+                    2__Condition/
+                        condition.md
 ```
 
 ### Naming rules
@@ -155,24 +156,24 @@ After running the fetch script, the destination directory will contain Markdown 
 
 ```text
 public/doc/
-  00__Overview/
-    overview.md
-  01__Chains/
-    chains.md
-    ...
-  paths.json
-  names.json
-  toc.json
-  search-index.json
+    00__Overview/
+        overview.md
+    01__Chains/
+        chains.md
+        ...
+    paths.json
+    names.json
+    toc.json
+    search-index.json
 ```
 
-| File | Description |
-|------|-------------|
-| `00__Overview/`, `01__Chains/`, ... | Markdown files and images |
-| `paths.json` | Ordered list of all document paths |
-| `names.json` | Hierarchical titles for each document |
-| `toc.json` | Table of contents tree structure |
-| `search-index.json` | Full-text search index (elasticlunr) |
+| File                                | Description                           |
+| ----------------------------------- | ------------------------------------- |
+| `00__Overview/`, `01__Chains/`, ... | Markdown files and images             |
+| `paths.json`                        | Ordered list of all document paths    |
+| `names.json`                        | Hierarchical titles for each document |
+| `toc.json`                          | Table of contents tree structure      |
+| `search-index.json`                 | Full-text search index (elasticlunr)  |
 
 ## Application configuration example
 
@@ -180,19 +181,19 @@ When using `@netcracker/qip-ui` as a library, you can configure the application 
 
 ```json
 {
-  "apiGateway": "http://localhost:8080",
-  "appName": "my-app",
-  "icons": {
-    "someIcon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z\"/></svg>"
-  },
-  "cssVariables": {
-    "--vscode-editor-background": "#ffffff",
-    "--vscode-primary-color": "#1890ff",
-    "--vscode-button-background": "#1890ff",
-    "--vscode-button-foreground": "#ffffff"
-  },
-  "additionalCss": ["./custom-theme.css"],
-  "documentationBaseUrl": "/doc"
+    "apiGateway": "http://localhost:8080",
+    "appName": "my-app",
+    "icons": {
+        "someIcon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z\"/></svg>"
+    },
+    "cssVariables": {
+        "--vscode-editor-background": "#ffffff",
+        "--vscode-primary-color": "#1890ff",
+        "--vscode-button-background": "#1890ff",
+        "--vscode-button-foreground": "#ffffff"
+    },
+    "additionalCss": ["./custom-theme.css"],
+    "documentationBaseUrl": "/doc"
 }
 ```
 
