@@ -1,0 +1,14 @@
+{
+  "name": "qubership-integration-platform",
+  "private": true,
+  "workspaces": [
+    "schemas"
+  ],
+  "scripts": {
+    "build:schemas": "npm run prepublishOnly -w schemas",
+    "test": "npm test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
