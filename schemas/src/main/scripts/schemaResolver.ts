@@ -56,12 +56,20 @@ export class SchemaResolver {
   );
   private outputDir = path.resolve(process.cwd(), "assets");
 
-  public async resolveAllSchemas(): Promise<void> {
+  /**
+   * Resolves every element schema and writes it to `assets/`. Returns the
+   * resolved YAML keyed by element type (filename without `.schema.yaml`)
+   * so the caller can reuse it without reading the same files back from disk.
+   */
+  public async resolveAllSchemas(): Promise<Map<string, string>> {
     const files = this.collectYamlFiles(this.inputDir);
+    const resolved = new Map<string, string>();
 
     for (const file of files) {
-      await this.resolveSchemaFile(file);
+      const dumped = await this.resolveSchemaFile(file);
+      resolved.set(file.replace(/\.(schema\.)?yaml$/, ""), dumped);
     }
+    return resolved;
   }
 
   private collectYamlFiles(dir: string): string[] {
@@ -107,7 +115,7 @@ export class SchemaResolver {
     }
   }
 
-  private async resolveSchemaFile(filename: string): Promise<void> {
+  private async resolveSchemaFile(filename: string): Promise<string> {
     const fullPath = path.join(this.inputDir, filename);
 
     const rawContent = fs.readFileSync(fullPath, "utf-8");
@@ -134,9 +142,11 @@ export class SchemaResolver {
 
     this.inlineNestedRefs(derefSchema);
     this.removeNestedIds(derefSchema);
+    const dumped = yaml.dump(derefSchema);
     const outputPath = path.join(this.outputDir, filename);
 
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-    fs.writeFileSync(outputPath, yaml.dump(derefSchema));
+    fs.writeFileSync(outputPath, dumped);
+    return dumped;
   }
 }

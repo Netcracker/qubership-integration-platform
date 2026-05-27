@@ -9,7 +9,7 @@ This tab allows to fill in the properties such name of the chain and choose the 
 ---
 Properties are the following:
 
-### Web UI
+### <ins>Web UI</ins>
 * **Name** - The user-defined identifier for the chain.
 * **Path** - defined URL.
 * **Labels** - Tags used for categorization or filtering.
@@ -18,7 +18,7 @@ Properties are the following:
 * **Assumptions** - Allowances that must be true for this chain to work.
 * **Out of Scope** - Statements not covered by the chain.
 
-### VS Code Extension
+### <ins>VS Code Extension</ins>
 * **Name** - The user-defined identifier for the chain.
 * **Labels** - Tags used for categorization or filtering.
 * **Description** - General description.

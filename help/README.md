@@ -29,7 +29,7 @@ Documents are written in Markdown. The naming convention uses numeric prefixes w
 
 ## Licensing
 
-This software is licensed under Apache License Version 2.0. License text is located in the [LICENSE](LICENSE) file.
+This software is licensed under Apache License Version 2.0. License text is located in the [LICENSE](../LICENSE) file.
 
 ## Related Repositories
 

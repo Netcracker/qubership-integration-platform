@@ -5,7 +5,7 @@ Notifications ![](img/bell.svg) are implemented to communicate interactively wit
 
 ![excl|20](img/exclamation-circle.svg) **Success** - some process or operation was ended without errors and exceptions (e.g. service discovery was completed or chain was deployed successfully).
 
-🟨 **Warning** - warning messages in some operations (e.g. chain has Draft deployment status).
+ ![](img/exclamation-circle-warn.svg) **Warning** - warning messages in some operations (e.g. chain has Draft deployment status).
 
 ![close|20](img/close-circle.svg) **Error** - error messages (e.g. chain was not deployed or some required parameter is not filled in chain element).
 
