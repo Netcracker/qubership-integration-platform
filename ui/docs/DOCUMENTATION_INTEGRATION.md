@@ -6,7 +6,7 @@ This guide explains how to integrate the built-in documentation system into host
 
 The documentation system works by:
 
-1. **Fetching** Markdown files from a source (Git repository, npm package, or local directory)
+1. **Fetching** Markdown files from a source (Git repository, npm package, local directory, or none)
 2. **Indexing** them to generate search indices, table of contents, and navigation metadata
 3. **Serving** the files as static assets that the UI loads at runtime
 
@@ -16,7 +16,7 @@ The fetch and index scripts are included in the `@netcracker/qip-ui` npm package
 
 Create a `.documentation-config.json` file in your project root:
 
-### Git source (recommended)
+### Git source
 
 ```json
 {
@@ -24,8 +24,7 @@ Create a `.documentation-config.json` file in your project root:
     "source": "git",
     "repository": "https://github.com/Netcracker/qubership-integration-help.git",
     "branch": "main",
-    "path": "docs",
-    "destination": "public/doc"
+    "path": "docs"
   }
 }
 ```
@@ -38,8 +37,7 @@ Create a `.documentation-config.json` file in your project root:
     "source": "npm",
     "package": "@netcracker/qip-help",
     "version": "^1.0.0",
-    "path": "docs",
-    "destination": "public/doc"
+    "path": "docs"
   }
 }
 ```
@@ -50,22 +48,33 @@ Create a `.documentation-config.json` file in your project root:
 {
   "documentation": {
     "source": "local",
-    "path": "../my-docs/docs",
-    "destination": "public/doc"
+    "path": "../my-docs/docs"
   }
 }
 ```
+
+### Disable documentation
+
+```json
+{
+  "documentation": {
+    "source": "none"
+  }
+}
+```
+
+Use `"none"` to skip documentation fetching and index generation entirely (e.g., for builds that don't need documentation).
 
 ### Config fields
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `source` | Yes | `"git"`, `"npm"`, or `"local"` |
+| `source` | Yes | `"git"`, `"npm"`, `"local"`, or `"none"` |
 | `repository` | For Git | Git repository URL |
 | `branch` | For Git | Branch name (default: `"master"`) |
 | `package` | For npm | npm package name |
 | `version` | For npm | npm version range |
-| `path` | Yes | Path to docs directory within the source |
+| `path` | Yes (except `"none"`) | Path to docs directory within the source |
 | `destination` | No | Output directory (default: `"public/doc"`) |
 
 ## Step 2: Add build scripts
@@ -108,8 +117,7 @@ To replace the default documentation with your own, simply point the `.documenta
     "source": "git",
     "repository": "https://gitlab.company.com/team/custom-docs.git",
     "branch": "main",
-    "path": "docs",
-    "destination": "public/doc"
+    "path": "docs"
   }
 }
 ```

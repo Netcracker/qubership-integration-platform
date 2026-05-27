@@ -27,7 +27,7 @@ End-to-end recipe to go from a fresh clone to a running platform.
 ### Step 1 — Build the Java modules
 
 ```bash
-mvn clean install -Dgpg.skip=true -DskipTests
+mvn clean install "-Dgpg.skip=true" "-DskipTests"
 ```
 
 - `-Dgpg.skip=true` is required locally (GPG signing is configured for release publishing).
