@@ -11,7 +11,7 @@
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-monorepo-parent</artifactId>
-    <version>0.5.1-SNAPSHOT</version>
+    <version>${revision}${changelist}</version>
     <packaging>pom</packaging>
 
     <url>https://github.com/Netcracker/qubership-integration-platform</url>
@@ -32,6 +32,9 @@
     </developers>
 
     <properties>
+        <revision>0.5.1</revision>
+        <changelist>-SNAPSHOT</changelist>
+
         <java.version>21</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -129,7 +132,7 @@
                     <version>${flatten-maven-plugin.version}</version>
                     <configuration>
                         <updatePomFile>true</updatePomFile>
-                        <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                        <flattenMode>ossrh</flattenMode>
                     </configuration>
                     <executions>
                         <execution>

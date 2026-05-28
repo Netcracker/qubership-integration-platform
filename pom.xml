@@ -7,9 +7,14 @@
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-monorepo</artifactId>
-    <version>0.5.1-SNAPSHOT</version>
+    <version>${revision}${changelist}</version>
     <packaging>pom</packaging>
     <name>Monorepo Aggregator</name>
+
+    <properties>
+        <revision>0.5.1</revision>
+        <changelist>-SNAPSHOT</changelist>
+    </properties>
 
     <modules>
         <module>parent</module>
