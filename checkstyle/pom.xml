@@ -9,7 +9,7 @@
 
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Checkstyle definition for QIP</description>
-    <url>https://github.com/MyBorislavrOrg/${repo-name}</url>
+    <url>https://github.com/netcracker/${repo-name}</url>
 
     <licenses>
         <license>
@@ -26,9 +26,9 @@
         </developer>
     </developers>
     <scm>
-        <connection>scm:git:git://github.com/MyBorislavrOrg/${repo-name}.git</connection>
-        <developerConnection>scm:git:ssh://github.com:MyBorislavrOrg/${repo-name}.git</developerConnection>
-        <url>https://github.com/MyBorislavrOrg/${repo-name}/tree/main</url>
+        <connection>scm:git:git://github.com/netcracker/${repo-name}.git</connection>
+        <developerConnection>scm:git:ssh://github.com:netcracker/${repo-name}.git</developerConnection>
+        <url>https://github.com/netcracker/${repo-name}/tree/main</url>
       <tag>HEAD</tag>
   </scm>
 
@@ -79,7 +79,7 @@
                 <repository>
                     <id>github</id>
                     <name>GitHub Packages</name>
-                    <url>https://maven.pkg.github.com/myborislavrorg/qubership-integration-platform</url>
+                    <url>https://maven.pkg.github.com/netcracker/qubership-integration-platform</url>
                 </repository>
             </distributionManagement>
         </profile>

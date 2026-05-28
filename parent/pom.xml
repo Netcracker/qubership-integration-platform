@@ -14,7 +14,7 @@
     <version>0.5.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <url>https://github.com/MyBorislavrOrg/qubership-integration-platform</url>
+    <url>https://github.com/netcracker/qubership-integration-platform</url>
 
     <licenses>
         <license>
@@ -53,9 +53,9 @@
     </properties>
 
     <scm>
-        <connection>scm:git:https://github.com/MyBorislavrOrg/qubership-integration-platform.git</connection>
-        <developerConnection>scm:git:https://github.com/MyBorislavrOrg/qubership-integration-platform.git</developerConnection>
-        <url>https://github.com/MyBorislavrOrg/qubership-integration-platform</url>
+        <connection>scm:git:https://github.com/netcracker/qubership-integration-platform.git</connection>
+        <developerConnection>scm:git:https://github.com/netcracker/qubership-integration-platform.git</developerConnection>
+        <url>https://github.com/netcracker/qubership-integration-platform</url>
         <tag>HEAD</tag>
     </scm>
 
@@ -83,7 +83,7 @@
     <distributionManagement>
         <repository>
             <id>github</id>
-            <url>https://maven.pkg.github.com/myborislavrorg/qubership-integration-platform</url>
+            <url>https://maven.pkg.github.com/netcracker/qubership-integration-platform</url>
         </repository>
     </distributionManagement>
 
@@ -346,7 +346,7 @@
                 <repository>
                     <id>github</id>
                     <name>GitHub Packages</name>
-                    <url>https://maven.pkg.github.com/myborislavrorg/qubership-integration-platform</url>
+                    <url>https://maven.pkg.github.com/netcracker/qubership-integration-platform</url>
                 </repository>
             </distributionManagement>
         </profile>
