@@ -14,7 +14,7 @@ let monacoWebviewCompatApplied = false;
  */
 function applyMonacoWebviewCompat(monacoApi: typeof monaco): void {
   if (typeof window === "undefined") return;
-  if (window.location.protocol !== "vscode-webview:") return;
+  if (window.location?.protocol !== "vscode-webview:") return;
   if (monacoWebviewCompatApplied) return;
   monacoWebviewCompatApplied = true;
 

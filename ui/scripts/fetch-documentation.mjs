@@ -187,6 +187,13 @@ function main() {
     return;
   }
 
+  if (config.source === "none") {
+    console.log(
+      "[Documentation] Source is 'none', skipping documentation fetch and indexing",
+    );
+    return;
+  }
+
   const dest = config.destination || "public/doc";
 
   try {
