@@ -1,13 +1,13 @@
 # General Functions
 
 ## Notifications
-Notifications ![](img/bell.svg) are implemented to communicate interactively with the user. It makes an ability to track the process of system changes. Notification are divided into 3 types:
+Notifications ![bell](img/bell.svg) are implemented to communicate interactively with the user. It makes an ability to track the process of system changes. Notification are divided into 3 types:
 
-![excl|20](img/exclamation-circle.svg) **Success** - some process or operation was ended without errors and exceptions (e.g. service discovery was completed or chain was deployed successfully).
+![exclamation-circle-blue](img/exclamation-circle-blue.svg) **Success** - some process or operation was ended without errors and exceptions (e.g. service discovery was completed or chain was deployed successfully).
 
- ![](img/exclamation-circle-warn.svg) **Warning** - warning messages in some operations (e.g. chain has Draft deployment status).
+![exclamation-circle-warn](img/exclamation-circle-warn.svg) **Warning** - warning messages in some operations (e.g. chain has Draft deployment status).
 
-![close|20](img/close-circle.svg) **Error** - error messages (e.g. chain was not deployed or some required parameter is not filled in chain element).
+![close-circle](img/close-circle.svg) **Error** - error messages (e.g. chain was not deployed or some required parameter is not filled in chain element).
 
 Notification has the next general structure:
 1. **Service name** (optional) - name of the QIP service where the change was occurred.
@@ -21,11 +21,11 @@ Qubership Integration Platform Help is embedded to QIP UI detailed guide about h
 To open QIP Help:
 
 1. Authorize in QIP UI.
-2. Navigate to some page or popup of some QIP element. Click icon ![Question|20](img/question-circle.svg) (for the page - top-right side, for the QIP element popup - top left side near the element type in curly brackets). There will be opened appropriate page in new browser tab.
-3. Use **pages navigation tree** on the left side of QIP Helper to go through the pages and **"Search Documentation... ![Search|20](img/search.svg)"** text field to find particular information by fulltext search.
+2. Navigate to some page or popup of some QIP element. Click icon ![question-circle](img/question-circle.svg) (for the page - top-right side, for the QIP element popup - top left side near the element type in curly brackets). There will be opened appropriate page in new browser tab.
+3. Use **pages navigation tree** on the left side of QIP Helper to go through the pages and **"Search Documentation... ![search](img/search.svg)"** text field to find particular information by fulltext search.
 
 ## Export/Import
-QIP provides an ability to export ![Download|20](img/cloud-download.svg) and import ![Upload|20](img/cloud-upload.svg) different entities.
+QIP provides an ability to export ![download](img/cloud-download.svg) and import ![upload](img/cloud-upload.svg) different entities.
 The export function supports both **legacy** and **new** formats for QIP artifacts.
 Switching between legacy and new format option for export is possible via configuration of specific environment parameter
 (for the correct parameter name, please, contact system administrator).
@@ -86,27 +86,27 @@ Project root (git/SVN root, not included in zip-archive)
 </details>
 
 ## Filters
-There is filtering functionality available for most of the column tables, utilized across different pages. Click button ![Filter|20](img/filter.svg) and enter next data on filter pop-up:
+There is filtering functionality available for most of the column tables, utilized across different pages. Click button ![filter](img/filter.svg) and enter next data on filter pop-up:
 - Column
 - Condition
 - Value
 
-It is possible to specify multiple filtering conditions via "**Add filter**" button. When filters are applied, button "**Filter**" will have a small counter indicator, showing quantity of active filters. It is also possible to remove particular filter via ![Delete|20](img/delete.svg) button or remove all filters via "**Clear All**" button.
+It is possible to specify multiple filtering conditions via "**Add filter**" button. When filters are applied, button "**Filter**" will have a small counter indicator, showing quantity of active filters. It is also possible to remove particular filter via ![delete](img/delete.svg) button or remove all filters via "**Clear All**" button.
 
 ## Table Sorting
 For some table columns the following functions can be available:
-- ![](img/caret-up.svg) Sort Ascending
-- ![](img/caret-down.svg) Sort Descending
+- ![caret-up](img/caret-up.svg) Sort Ascending
+- ![caret-down](img/caret-down.svg) Sort Descending
 
 ## Table Settings
-Most of the tables in the system can be adjusted not only by extending/shrinking column size, but also by controlling each column's visibility and sequence. To do so, click gear button ![Gear|20](img/setting.svg) on top of the table and adjust properties accordingly. Some of the columns can't be hidden or moved - this is explained for exact columns in respective design articles.
+Most of the tables in the system can be adjusted not only by extending/shrinking column size, but also by controlling each column's visibility and sequence. To do so, click gear button ![setting](img/setting.svg) on top of the table and adjust properties accordingly. Some of the columns can't be hidden or moved - this is explained for exact columns in respective design articles.
 
 ## View User Details
-Click user icon ![](img/user.svg) on top right of the screen to see user and tenant details:
+Click user icon ![user](img/user.svg) on top right of the screen to see user and tenant details:
 - username
 - user email
 - tenant name
-- tenant id
+- tenant ID
 
 Tenant is being defined during the login operation, exactly when user selects the domain.
 
@@ -132,4 +132,4 @@ System saves state of some UI elements while user is working with them. Such ele
 - **Table columns** - sorting results, visibility and sequence.
 - **Left panel** for sections "Services", "Admin Tools", "Dev Tools" - expanded or collapsed view.
 
-To reset saved configuration, click user icon ![](img/user.svg) on top right of the screen and then click ![](img/redo.svg) "Reset UI preferences" button.
+To reset saved configuration, click user icon ![user](img/user.svg) on top right of the screen and then click ![redo](img/redo.svg) "Reset UI preferences" button.
