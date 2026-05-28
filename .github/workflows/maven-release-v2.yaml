@@ -74,11 +74,11 @@ jobs:
       packages: write
     steps:
       - name: "Build and Publish current SNAPSHOT (dry run)"
-        uses: netcracker/qubership-workflow-hub/actions/maven-release@e64a1ee2fc2f68ab44a4ef416c27d83ce36ba8e1 #v2.2.1
+        uses: netcracker/qubership-workflow-hub/actions/maven-release@feature/764-feat-maven-release-action-should-be-able-to-create-releases-in-a-monorepo
         with:
           version-type: ${{ github.event.inputs.version-type }}
           ref: ${{ github.ref }}
-          module: ${{ github.event.repository.name }}
+          # module: ${{ github.event.repository.name }}
           maven-args: ${{ inputs.mvn-args }}
           profile: ${{ inputs.profile }}
           server-id: ${{ inputs.profile }}
@@ -109,11 +109,11 @@ jobs:
 
       - name: "Build and Publish"
         id: build-and-publish
-        uses: netcracker/qubership-workflow-hub/actions/maven-release@e64a1ee2fc2f68ab44a4ef416c27d83ce36ba8e1 #v2.2.1
+        uses: netcracker/qubership-workflow-hub/actions/maven-release@feature/764-feat-maven-release-action-should-be-able-to-create-releases-in-a-monorepo
         with:
           version-type: ${{ github.event.inputs.version-type }}
           ref: ${{ github.ref }}
-          module: ${{ github.event.repository.name }}
+          # module: ${{ github.event.repository.name }}
           maven-args: ${{ inputs.mvn-args }}
           profile: ${{ inputs.profile }}
           server-id: ${{ inputs.profile }}
