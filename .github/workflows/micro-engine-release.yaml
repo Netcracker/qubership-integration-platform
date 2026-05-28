@@ -9,11 +9,6 @@ on:
         required: true
         type: string
         description: 'Release version (e.g., 1.0.0)'
-      version-type:
-        description: 'Version type to release'
-        type: string
-        required: false
-        default: 'patch'
       profile:
         description: 'Maven profile to use'
         type: string
@@ -50,15 +45,6 @@ on:
         default: '1.0.0'
         type: string
         description: 'Release version (e.g., 1.0.0)'
-      version-type:
-        description: 'Version type to release'
-        type: choice
-        options:
-          - 'major'
-          - 'minor'
-          - 'patch'
-        required: true
-        default: 'patch'
       profile:
         description: 'Maven profile to use'
         type: choice
@@ -94,7 +80,6 @@ jobs:
     with:
       module: micro-engine
       version: ${{ inputs.version }}
-      version-type: ${{ inputs.version-type }}
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
       create-github-release: ${{ inputs.create-github-release }}

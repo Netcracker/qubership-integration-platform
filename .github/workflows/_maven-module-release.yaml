@@ -1,8 +1,15 @@
 ---
 
 # Reusable Maven module release workflow.
-# All per-module specifics (tag prefix, jar artifact name, release name) are
-# derived from the `module` input.
+#
+# Strategy: CI-friendly versions via Maven properties (${revision} and
+# ${changelist}). Each module's pom.xml carries a default <revision>X.Y.Z</revision>
+# and <changelist>-SNAPSHOT</changelist>; at release time the workflow overrides
+# both via -D and runs a plain `mvn deploy -pl <module>`. flatten-maven-plugin
+# (configured in ossrh mode upstream) resolves the placeholders in the published
+# POM and inlines the qip-monorepo-parent reference, so consumers never see a
+# SNAPSHOT parent. No maven-release-plugin, no release.properties, no
+# back-rewrites of pom.xml on main.
 
 name: Maven Module Release (reusable)
 
@@ -16,14 +23,9 @@ on:
       version:
         required: true
         type: string
-        description: 'Release version (e.g., 1.0.0)'
-      version-type:
-        description: 'Version type to release'
-        type: string
-        required: false
-        default: 'patch'
+        description: 'Release version (e.g., 0.5.4). Must be X.Y.Z.'
       profile:
-        description: 'Maven profile to use'
+        description: 'Maven profile to use (central | github)'
         type: string
         required: false
         default: 'central'
@@ -33,12 +35,12 @@ on:
         default: true
         type: boolean
       create-github-release:
-        description: 'Create release'
+        description: 'Create GitHub release'
         required: false
         default: true
         type: boolean
       mvn-args:
-        description: 'Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)'
+        description: 'Additional maven arguments (e.g. -DskipTests=true)'
         required: false
         default: ''
         type: string
@@ -62,29 +64,44 @@ concurrency:
 
 permissions: {}
 
+env:
+  RELEASE_VERSION: ${{ inputs.version }}
+  RELEASE_TAG: ${{ inputs.module }}-v${{ inputs.version }}
+
 jobs:
+  # ---------------------------------------------------------------------------
+  # Preflight: validate version format and ensure tag does not yet exist.
+  # ---------------------------------------------------------------------------
   check-tag:
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Check if tag exists
-        id: check_tag
-        uses: netcracker/qubership-workflow-hub/actions/tag-action@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
-        with:
-          ref: ${{ github.ref }}
-          tag-name: '${{ inputs.module }}-v${{ inputs.version }}'
-          create-tag: 'false'
-          check-tag: 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate version format
+        run: |
+          set -eu
+          if ! printf '%s\n' "$RELEASE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Version must be X.Y.Z, got: $RELEASE_VERSION"
+            exit 1
+          fi
 
+      - name: Check tag does not exist
+        run: |
+          set -eu
+          if git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $RELEASE_TAG already exists"
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Build, sign, and publish the module. Tag is pushed only after deploy.
+  # ---------------------------------------------------------------------------
   build-and-publish:
     needs: check-tag
     runs-on: ubuntu-latest
@@ -92,27 +109,91 @@ jobs:
       contents: write
       packages: write
     steps:
-      - name: "Build and Publish"
-        uses: netcracker/qubership-workflow-hub/actions/maven-release@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          version-type: ${{ inputs.version-type }}
-          ref: ${{ github.ref }}
-          module: ${{ inputs.module }}
-          maven-args: ${{ inputs.mvn-args }}
-          profile: ${{ inputs.profile }}
+          fetch-depth: 0
+          # We push the release tag at the end, so we need the default token left
+          # in the repo config. The tag push uses the runner's GITHUB_TOKEN.
+          persist-credentials: true
+
+      - name: Set up Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          java-version: '21'
+          distribution: 'temurin'
           server-id: ${{ inputs.profile }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          maven-user: ${{ inputs.profile == 'github' && github.actor || secrets.MAVEN_USER }}
-          maven-password: ${{ inputs.profile == 'github' && secrets.GITHUB_TOKEN || secrets.MAVEN_PASSWORD }}
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-          dry-run: 'false'
-      - name: Upload JAR
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+          cache: 'maven'
+
+      # Modules depend on qip-monorepo-parent. With `mvn deploy -pl <module>`
+      # (no -am) Maven resolves the parent via relativePath, but the local
+      # ~/.m2 repository must also contain it for some plugins. Install the
+      # parent at its declared SNAPSHOT version (no -D overrides) so the parent
+      # stays consistent across modules.
+      - name: Install qip-monorepo-parent locally
+        run: mvn --batch-mode install -pl parent -N -DskipTests
+
+      - name: Configure Maven module version
+        env:
+          MODULE: ${{ inputs.module }}
+        run: |
+          set -eu
+          # Sanity check — module directory must exist with a pom.xml.
+          if [ ! -f "$MODULE/pom.xml" ]; then
+            echo "::error::No pom.xml at $MODULE/"
+            exit 1
+          fi
+          echo "Releasing $MODULE as version $RELEASE_VERSION"
+
+      - name: Build and deploy module
+        env:
+          MAVEN_USERNAME: ${{ inputs.profile == 'github' && github.actor || secrets.MAVEN_USER }}
+          MAVEN_PASSWORD: ${{ inputs.profile == 'github' && secrets.GITHUB_TOKEN || secrets.MAVEN_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+          MVN_PROFILE: ${{ inputs.profile }}
+          MODULE: ${{ inputs.module }}
+          EXTRA_ARGS: ${{ inputs.mvn-args }}
+          SKIP_GPG: ${{ inputs.profile == 'github' && '-Dgpg.skip=true' || '' }}
+        run: |
+          set -eu
+          # -pl <module> without -am keeps the -Drevision override scoped to
+          # this single module; the parent and aggregator (built into the
+          # reactor by -am) would otherwise inherit the same revision.
+          # shellcheck disable=SC2086
+          mvn --batch-mode deploy \
+            -pl "$MODULE" \
+            -P "$MVN_PROFILE" \
+            -Drevision="$RELEASE_VERSION" \
+            -Dchangelist= \
+            $SKIP_GPG \
+            $EXTRA_ARGS
+
+      - name: Create and push release tag
+        run: |
+          set -eu
+          git tag "$RELEASE_TAG"
+          git push origin "$RELEASE_TAG"
+
+      - name: Upload build output
+        if: ${{ inputs.build-docker == true }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ${{ inputs.module }}-jar
-          path: ${{ inputs.module }}/**/target/*-exec.jar
+          # Spring Boot modules emit `<artifact>-<version>-exec.jar`; Quarkus
+          # (micro-engine) emits a layered `target/quarkus-app/` tree that
+          # its Dockerfile copies wholesale.
+          path: |
+            ${{ inputs.module }}/target/*-exec.jar
+            ${{ inputs.module }}/target/quarkus-app/**
+          if-no-files-found: error
 
+  # ---------------------------------------------------------------------------
+  # Docker image build (delegated to the workflow-hub action — unchanged).
+  # ---------------------------------------------------------------------------
   publish-image:
     if: ${{ inputs.build-docker == true }}
     needs: build-and-publish
@@ -130,6 +211,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # ---------------------------------------------------------------------------
+  # GitHub Release notes.
+  # ---------------------------------------------------------------------------
   create-release:
     if: ${{ inputs.create-github-release == true }}
     needs: build-and-publish
@@ -137,7 +221,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
