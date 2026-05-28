@@ -1,16 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-micro-engine</artifactId>
-    <version>0.2.5-SNAPSHOT</version>
+    <version>0.5.1-SNAPSHOT</version>
     <name>QIP Micro Engine</name>
     <description>Engine service orchestrates and runs integration chains, manages their endpoints, records executions,
         collects metrics, and publishes deployment state, using Apache Camel, Consul, and OpenSearch
     </description>
-    <url>https://github.com/Netcracker/qubership-integration-platform</url>
+    <url>https://github.com/netcracker/qubership-integration-platform</url>
     <licenses>
         <license>
             <name>Apache License, Version 2.0</name>
@@ -26,16 +25,16 @@
         </developer>
     </developers>
     <scm>
-        <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
-        <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git
+        <connection>scm:git:https://github.com/netcracker/qubership-integration-platform.git</connection>
+        <developerConnection>scm:git:https://github.com/netcracker/qubership-integration-platform.git
         </developerConnection>
-        <url>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</url>
+        <url>scm:git:https://github.com/netcracker/qubership-integration-platform.git</url>
         <tag>HEAD</tag>
     </scm>
 
 
     <properties>
-        <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
+        <qip-checkstyle-revision>0.5.4-SNAPSHOT</qip-checkstyle-revision>
 
         <generated-sources>target/generated-sources/java</generated-sources>
         <generated-resources>target/generated-sources/resources</generated-resources>
@@ -951,7 +950,7 @@
                     <dependency>
                         <groupId>org.qubership.integration.platform</groupId>
                         <artifactId>qip-checkstyle</artifactId>
-                        <version>${qip-checkstyle-revision}</version>
+                        <version>0.5.1-SNAPSHOT</version>
                     </dependency>
                 </dependencies>
                 <configuration>
@@ -1050,7 +1049,7 @@
                     <id>github</id>
                     <name>GitHub Packages</name>
                     <url>
-                        https://maven.pkg.github.com/Netcracker/qubership-integration-platform
+                        https://maven.pkg.github.com/netcracker/qubership-integration-platform
                     </url>
                 </repository>
             </distributionManagement>
