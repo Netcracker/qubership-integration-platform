@@ -33,6 +33,11 @@ on:
         required: false
         default: true
         type: boolean
+      cascade-vscode-extension:
+        required: false
+        type: boolean
+        default: false
+        description: 'After publish, trigger vscode-extension-release with auto patch-bump'
   workflow_dispatch:
     inputs:
       version:
@@ -62,6 +67,11 @@ on:
         required: false
         default: true
         type: boolean
+      cascade-vscode-extension:
+        description: 'After publish, trigger vscode-extension-release with auto patch-bump'
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -157,3 +167,51 @@ jobs:
           version: 'ui-v${{ inputs.version }}'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # Cascade: compute next vscode-extension version
+  # ---------------------------------------------------------------------------
+  compute-vscode-version:
+    if: ${{ inputs.cascade-vscode-extension }}
+    needs: create-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Compute next vscode-extension patch version
+        id: compute
+        run: |
+          set -eu
+          LAST=$(git tag --list 'vscode-extension-v*' --sort=-version:refname | head -1 | sed 's/^vscode-extension-v//')
+          if [ -z "$LAST" ]; then
+            NEW="0.0.1"
+          else
+            if ! printf '%s\n' "$LAST" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::Last vscode-extension tag has unexpected format: $LAST"
+              exit 1
+            fi
+            NEW=$(awk -F. -v OFS=. '{$NF=$NF+1; print}' <<<"$LAST")
+          fi
+          echo "Computed next vscode-extension version: $NEW (from last tag: ${LAST:-<none>})"
+          echo "version=$NEW" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # Cascade: trigger vscode-extension-release with computed version
+  # ---------------------------------------------------------------------------
+  cascade-vscode-extension:
+    needs: compute-vscode-version
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/vscode-extension-release.yaml
+    with:
+      version: ${{ needs.compute-vscode-version.outputs.version }}
+      create-github-release: ${{ inputs.create-github-release }}

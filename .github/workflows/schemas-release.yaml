@@ -31,6 +31,16 @@ on:
         required: false
         type: boolean
         default: true
+      cascade-ui:
+        required: false
+        type: boolean
+        default: false
+        description: 'After publish, trigger ui-release with auto patch-bump'
+      cascade-vscode-extension:
+        required: false
+        type: boolean
+        default: false
+        description: 'Forwarded to ui-release when cascade-ui=true'
     secrets:
       MAVEN_USER:
         required: false
@@ -74,6 +84,16 @@ on:
         required: false
         type: boolean
         default: true
+      cascade-ui:
+        description: 'After publish, trigger ui-release with auto patch-bump'
+        required: false
+        type: boolean
+        default: false
+      cascade-vscode-extension:
+        description: 'Forwarded to ui-release when cascade-ui=true'
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -207,3 +227,52 @@ jobs:
           version: schemas-v${{ inputs.version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # Cascade: compute next ui version (patch bump from last ui-v* tag)
+  # ---------------------------------------------------------------------------
+  compute-ui-version:
+    if: ${{ inputs.cascade-ui }}
+    needs: create-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Compute next ui patch version
+        id: compute
+        run: |
+          set -eu
+          LAST=$(git tag --list 'ui-v*' --sort=-version:refname | head -1 | sed 's/^ui-v//')
+          if [ -z "$LAST" ]; then
+            NEW="0.0.1"
+          else
+            if ! printf '%s\n' "$LAST" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::Last ui tag has unexpected format: $LAST"
+              exit 1
+            fi
+            NEW=$(awk -F. -v OFS=. '{$NF=$NF+1; print}' <<<"$LAST")
+          fi
+          echo "Computed next ui version: $NEW (from last tag: ${LAST:-<none>})"
+          echo "version=$NEW" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # Cascade: trigger ui-release with computed version
+  # ---------------------------------------------------------------------------
+  cascade-ui:
+    needs: compute-ui-version
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/ui-release.yaml
+    with:
+      version: ${{ needs.compute-ui-version.outputs.version }}
+      cascade-vscode-extension: ${{ inputs.cascade-vscode-extension }}
+      create-github-release: ${{ inputs.create-github-release }}
