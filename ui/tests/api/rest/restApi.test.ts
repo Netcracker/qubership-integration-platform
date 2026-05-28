@@ -37,7 +37,7 @@ jest.mock("../../../src/appConfig", () => ({
 }));
 
 import { RestApi } from "../../../src/api/rest/restApi";
-import type { EntityFilterModel } from "../../../src/components/table/filter/filter";
+import type { EntityFilterModel } from "../../../src/components/table/filter/filterTypes";
 
 describe("RestApi - filterServices and searchServices", () => {
   let restApi: RestApi;

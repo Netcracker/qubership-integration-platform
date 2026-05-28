@@ -7,7 +7,7 @@ export type ComparedItemTitleProps = {
   chain: Chain | undefined;
 };
 
-function isChainSnapshot(chain: object): chain is ChainSnapshot {
+export function isChainSnapshot(chain: object): chain is ChainSnapshot {
   return "chain" in chain;
 }
 

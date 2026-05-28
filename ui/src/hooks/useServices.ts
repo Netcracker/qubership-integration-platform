@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/api";
 import { IntegrationSystem } from "../api/apiTypes";
-import { ListValue } from "../components/table/filter/filter";
+import { ListValue } from "../components/table/filter/filterTypes";
 import { useNotificationService } from "./useNotificationService";
 
 export const useServiceFilterValues = () => {

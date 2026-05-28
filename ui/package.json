@@ -30,9 +30,8 @@
     ".documentation-config.json.example"
   ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "prebuild": "npm run fetch-docs",
+    "dev": "npm run fetch-docs && vite",
+    "build": "npm run fetch-docs && vite build",
     "build:lib": "vite build --config vite.config.lib.ts",
     "build:lib:external": "vite build --config vite.config.lib.ts",
     "build:lib:bundled": "vite build --config vite.config.lib.bundled.mts",

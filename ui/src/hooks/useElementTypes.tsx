@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ElementFilter } from "../api/apiTypes";
 import { api } from "../api/api";
 import { useNotificationService } from "./useNotificationService";
-import { ListValue } from "../components/table/filter/filter";
+import { ListValue } from "../components/table/filter/filterTypes";
 
 export const useElementTypes = () => {
   const [elementTypes, setElementTypes] = useState<ElementFilter[]>([]);

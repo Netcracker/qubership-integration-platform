@@ -1,4 +1,4 @@
-import type { EntityFilterModel } from "../components/table/filter/filter.ts";
+import type { EntityFilterModel } from "../components/table/filter/filterTypes.ts";
 import type {
   Chain,
   ChainCreationRequest,
@@ -647,6 +647,8 @@ export interface Api {
   ): Promise<void>;
 
   getChainSnapshot(snapshotId: string): Promise<ChainSnapshot>;
+
+  extractChain(archive: File, chainId: string): Promise<Chain>;
 }
 
 export const api: Api = isVsCode ? new VSCodeExtensionApi() : new RestApi();

@@ -160,6 +160,8 @@ export const Snapshots: React.FC = () => {
         <ChainDiffPopup
           item1={{ kind: "snapshot", id: oneId }}
           item2={{ kind: "snapshot", id: otherId }}
+          editable1={false}
+          editable2={false}
         />
       ),
     });

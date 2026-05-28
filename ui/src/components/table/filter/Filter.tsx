@@ -2,7 +2,7 @@ import { Button, Form, Modal } from "antd";
 import { useModalContext } from "../../../ModalContextProvider";
 import { FilterItem, FilterItemState } from "./FilterItem";
 import { useState } from "react";
-import { FilterColumn, FilterCondition } from "./filter";
+import { FilterColumn, FilterCondition } from "./filterTypes";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 
 export type FilterProps = {

@@ -5,12 +5,23 @@ import { api } from "../../../api/api.ts";
 import { Change } from "./compare/types.ts";
 import { compareChains as doCompareChains } from "./compare/compare.ts";
 
-export type ComparableItemKind = "chain" | "snapshot";
-
-export type ComparableItem = {
-  kind: ComparableItemKind;
+export type ChainItem = {
+  kind: "chain";
   id: string;
 };
+
+export type SnapshotItem = {
+  kind: "snapshot";
+  id: string;
+};
+
+export type ArchiveItem = {
+  kind: "archive";
+  id: string;
+  archive: File;
+};
+
+export type ComparableItem = ChainItem | SnapshotItem | ArchiveItem;
 
 export function asChain(snapshot: ChainSnapshot): Chain {
   return {
@@ -77,15 +88,35 @@ export const useChainDiff = (item1: ComparableItem, item2: ComparableItem) => {
     [notificationService],
   );
 
+  const loadChainFromArchive = useCallback(
+    async (archive: File, id: string, setLoading: (state: boolean) => void) => {
+      try {
+        setLoading(true);
+        return await api.extractChain(archive, id);
+      } catch (e) {
+        notificationService.requestFailed(
+          "Failed to load chain from archive",
+          e,
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [notificationService],
+  );
+
   const loadItem = useCallback(
     async (
       item: ComparableItem,
       setLoading: (state: boolean) => void,
     ): Promise<Chain | undefined> => {
-      const loadFn = item.kind === "chain" ? loadChain : loadSnapshot;
-      return loadFn(item.id, setLoading);
+      return item.kind === "chain"
+        ? loadChain(item.id, setLoading)
+        : item.kind === "snapshot"
+          ? loadSnapshot(item.id, setLoading)
+          : loadChainFromArchive(item.archive, item.id, setLoading);
     },
-    [loadChain, loadSnapshot],
+    [loadChain, loadSnapshot, loadChainFromArchive],
   );
 
   const compareChains = useCallback(

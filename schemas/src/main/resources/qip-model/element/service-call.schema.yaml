@@ -80,6 +80,8 @@ definitions:
     properties:
       type:
         const: inherit
+    required:
+      - type
   AuthorizationNone:
     title: None
     type: object
@@ -87,6 +89,8 @@ definitions:
     properties:
       type:
         const: none
+    required:
+      - type
   AuthorizationBasic:
     title: Basic Auth
     type: object
@@ -105,6 +109,8 @@ definitions:
         required:
           - username
           - password
+    required:
+      - type
   AuthorizationBearerToken:
     title: Bearer Token
     type: object
@@ -119,6 +125,8 @@ definitions:
             type: string
         required:
           - token
+    required:
+      - type
   AuthorizationM2MToken:
     title: M2M Token
     type: object
@@ -126,6 +134,8 @@ definitions:
     properties:
       type:
         const: m2m
+    required:
+      - type
   ResponseValidation:
     type: object
     properties:
