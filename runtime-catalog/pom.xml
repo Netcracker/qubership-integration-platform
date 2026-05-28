@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.qubership.integration.platform</groupId>
   <artifactId>qip-runtime-catalog</artifactId>
-  <version>0.5.8-SNAPSHOT</version>
+  <version>0.5.9-SNAPSHOT</version>
   <name>QIP Runtime Catalog</name>
   <description>Managing integration flows (so-called integration chains), services, snapshots and deployments.
     </description>
@@ -17,7 +17,7 @@
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-monorepo-parent</artifactId>
-    <version>0.5.8-SNAPSHOT</version>
+    <version>0.5.9-SNAPSHOT</version>
     <relativePath>../parent</relativePath>
   </parent>
   <properties>
@@ -746,7 +746,7 @@
           <dependency>
             <groupId>org.qubership.integration.platform</groupId>
             <artifactId>qip-checkstyle</artifactId>
-            <version>0.5.8-SNAPSHOT</version>
+            <version>0.5.9-SNAPSHOT</version>
           </dependency>
         </dependencies>
         <configuration>
