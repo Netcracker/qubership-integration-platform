@@ -3,15 +3,15 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.qubership.integration.platform</groupId>
   <artifactId>qip-runtime-catalog</artifactId>
-  <version>0.5.1-SNAPSHOT</version>
+  <version>0.5.5-SNAPSHOT</version>
   <name>QIP Runtime Catalog</name>
   <description>Managing integration flows (so-called integration chains), services, snapshots and deployments.
     </description>
-  <url>https://github.com/netcracker/qubership-integration-platform</url>
+  <url>https://github.com/Netcracker/qubership-integration-platform</url>
   <scm>
-    <connection>scm:git:https://github.com/netcracker/qubership-integration-platform.git</connection>
-    <developerConnection>scm:git:https://github.com/netcracker/qubership-integration-platform.git</developerConnection>
-    <url>https://github.com/netcracker/qubership-integration-platform</url>
+    <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
+    <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
+    <url>https://github.com/Netcracker/qubership-integration-platform</url>
     <tag>HEAD</tag>
   </scm>
   <parent>
@@ -746,7 +746,7 @@
           <dependency>
             <groupId>org.qubership.integration.platform</groupId>
             <artifactId>qip-checkstyle</artifactId>
-            <version>0.5.1-SNAPSHOT</version>
+            <version>${qip-checkstyle-revision}</version>
           </dependency>
         </dependencies>
         <configuration>

@@ -93,12 +93,11 @@ jobs:
       packages: write
     steps:
       - name: "Build and Publish"
-        uses: netcracker/qubership-workflow-hub/actions/maven-release@feature/764-feat-maven-release-action-should-be-able-to-create-releases-in-a-monorepo
+        uses: netcracker/qubership-workflow-hub/actions/maven-release@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
         with:
           version-type: ${{ inputs.version-type }}
           ref: ${{ github.ref }}
           module: ${{ inputs.module }}
-          monorepo: 'true'
           maven-args: ${{ inputs.mvn-args }}
           profile: ${{ inputs.profile }}
           server-id: ${{ inputs.profile }}

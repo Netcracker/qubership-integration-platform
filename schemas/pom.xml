@@ -8,7 +8,7 @@
 
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Schemas definition for QIP</description>
-    <url>https://github.com/netcracker/qubership-integration-platform</url>
+    <url>https://github.com/Netcracker/qubership-integration-platform</url>
     <licenses>
         <license>
             <name>Apache License, Version 2.0</name>
@@ -24,9 +24,9 @@
         </developer>
     </developers>
     <scm>
-        <connection>scm:git:https://github.com/netcracker/qubership-integration-platform.git</connection>
-        <developerConnection>scm:git:https://github.com/netcracker/qubership-integration-platform.git</developerConnection>
-        <url>https://github.com/netcracker/qubership-integration-platform</url>
+        <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
+        <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
+        <url>https://github.com/Netcracker/qubership-integration-platform</url>
         <tag>v0.1.0</tag>
     </scm>
 
@@ -35,7 +35,7 @@
         <maven.compiler.target>21</maven.compiler.target>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <qip-checkstyle-revision>0.5.4-SNAPSHOT</qip-checkstyle-revision>
+        <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
     </properties>
 
     <profiles>
@@ -122,7 +122,7 @@
                 <repository>
                     <id>github</id>
                     <name>GitHub Packages</name>
-                    <url>https://maven.pkg.github.com/netcracker/qubership-integration-platform</url>
+                    <url>https://maven.pkg.github.com/Netcracker/qubership-integration-platform</url>
                 </repository>
             </distributionManagement>
         </profile>
@@ -184,7 +184,7 @@
                     <dependency>
                         <groupId>org.qubership.integration.platform</groupId>
                         <artifactId>qip-checkstyle</artifactId>
-                        <version>0.5.4-SNAPSHOT</version>
+                        <version>${qip-checkstyle-revision}</version>
                     </dependency>
                 </dependencies>
                 <configuration>
@@ -237,7 +237,7 @@
         <!-- GitHub packages repository for both release and SNAPSHOT versions -->
         <repository>
             <id>github</id>
-            <url>https://maven.pkg.github.com/netcracker/qubership-integration-platform</url>
+            <url>https://maven.pkg.github.com/Netcracker/qubership-integration-platform</url>
             <releases>
                 <enabled>true</enabled>
             </releases>

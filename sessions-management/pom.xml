@@ -3,14 +3,14 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.qubership.integration.platform</groupId>
   <artifactId>qip-sessions-management</artifactId>
-  <version>0.5.1-SNAPSHOT</version>
+  <version>0.5.4-SNAPSHOT</version>
   <name>QIP Sessions Management</name>
   <description>Managing recorded sessions of integration flows execution stored in OpenSearch index</description>
-  <url>https://github.com/netcracker/qubership-integration-platform</url>
+  <url>https://github.com/Netcracker/qubership-integration-platform</url>
   <scm>
-    <connection>scm:git:https://github.com/netcracker/qubership-integration-platform.git</connection>
-    <developerConnection>scm:git:https://github.com/netcracker/qubership-integration-platform.git</developerConnection>
-    <url>https://github.com/netcracker/qubership-integration-platform</url>
+    <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
+    <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
+    <url>https://github.com/Netcracker/qubership-integration-platform</url>
     <tag>HEAD</tag>
   </scm>
   <parent>
@@ -296,7 +296,7 @@
           <dependency>
             <groupId>org.qubership.integration.platform</groupId>
             <artifactId>qip-checkstyle</artifactId>
-            <version>0.5.1-SNAPSHOT</version>
+            <version>${qip-checkstyle-revision}</version>
           </dependency>
         </dependencies>
         <configuration>

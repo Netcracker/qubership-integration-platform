@@ -4,12 +4,12 @@
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-checkstyle</artifactId>
-    <version>0.5.1-SNAPSHOT</version>
+    <version>${revision}</version>
     <packaging>jar</packaging>
 
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Checkstyle definition for QIP</description>
-    <url>https://github.com/netcracker/${repo-name}</url>
+    <url>https://github.com/Netcracker/${repo-name}</url>
 
     <licenses>
         <license>
@@ -26,67 +26,40 @@
         </developer>
     </developers>
     <scm>
-        <connection>scm:git:git://github.com/netcracker/${repo-name}.git</connection>
-        <developerConnection>scm:git:ssh://github.com:netcracker/${repo-name}.git</developerConnection>
-        <url>https://github.com/netcracker/${repo-name}/tree/main</url>
-      <tag>HEAD</tag>
-  </scm>
+        <connection>scm:git:git://github.com/Netcracker/${repo-name}.git</connection>
+        <developerConnection>scm:git:ssh://github.com:Netcracker/${repo-name}.git</developerConnection>
+        <url>https://github.com/Netcracker/${repo-name}/tree/main</url>
+    </scm>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
+        
+        <revision>0.0.3</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <repo-name>qubership-integration-platform</repo-name>
     </properties>
 
-    <profiles>
-        <profile>
+    <distributionManagement>
+        <repository>
             <id>central</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.sonatype.central</groupId>
-                        <artifactId>central-publishing-maven-plugin</artifactId>
-                        <version>0.7.0</version>
-                        <extensions>true</extensions>
-                        <configuration>
-                            <publishingServerId>central</publishingServerId>
-                            <autoPublish>true</autoPublish>
-                            <waitUntil>published</waitUntil>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-            <distributionManagement>
-                <repository>
-                    <id>central</id>
-                    <name>Central Maven Repository</name>
-                    <snapshots>
-                        <enabled>true</enabled>
-                    </snapshots>
-                </repository>
-            </distributionManagement>
-        </profile>
-        <profile>
-            <id>github</id>
-            <activation>
-                <activeByDefault>false</activeByDefault>
-            </activation>
-            <distributionManagement>
-                <repository>
-                    <id>github</id>
-                    <name>GitHub Packages</name>
-                    <url>https://maven.pkg.github.com/netcracker/qubership-integration-platform</url>
-                </repository>
-            </distributionManagement>
-        </profile>
-    </profiles>
+            <name>Central Maven Repository</name>
+        </repository>
+    </distributionManagement>
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <version>0.7.0</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <publishingServerId>central</publishingServerId>
+                    <autoPublish>true</autoPublish>
+                    <waitUntil>published</waitUntil>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-gpg-plugin</artifactId>

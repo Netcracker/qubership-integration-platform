@@ -5,8 +5,8 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.11</version>
-        <relativePath />
+        <version>3.5.12</version>
+        <relativePath/>
     </parent>
 
     <groupId>org.qubership.integration.platform</groupId>
@@ -14,7 +14,7 @@
     <version>0.5.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <url>https://github.com/netcracker/qubership-integration-platform</url>
+    <url>https://github.com/Netcracker/qubership-integration-platform</url>
 
     <licenses>
         <license>
@@ -46,7 +46,7 @@
 
         <!-- Common plugin versions -->
         <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
-        <qip-checkstyle-revision>0.5.4-SNAPSHOT</qip-checkstyle-revision>
+        <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
         <jacoco.plugin.version>0.8.14</jacoco.plugin.version>
         <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
         <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
@@ -54,9 +54,9 @@
     </properties>
 
     <scm>
-        <connection>scm:git:https://github.com/netcracker/qubership-integration-platform.git</connection>
-        <developerConnection>scm:git:https://github.com/netcracker/qubership-integration-platform.git</developerConnection>
-        <url>https://github.com/netcracker/qubership-integration-platform</url>
+        <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
+        <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
+        <url>https://github.com/Netcracker/qubership-integration-platform</url>
         <tag>HEAD</tag>
     </scm>
 
@@ -75,7 +75,7 @@
         </repository>
         <repository>
             <id>github</id>
-            <url>https://maven.pkg.github.com/netcracker/*</url>
+            <url>https://maven.pkg.github.com/Netcracker/*</url>
             <releases><enabled>true</enabled></releases>
             <snapshots><enabled>true</enabled></snapshots>
         </repository>
@@ -84,7 +84,7 @@
     <distributionManagement>
         <repository>
             <id>github</id>
-            <url>https://maven.pkg.github.com/netcracker/qubership-integration-platform</url>
+            <url>https://maven.pkg.github.com/Netcracker/qubership-integration-platform</url>
         </repository>
     </distributionManagement>
 
@@ -283,7 +283,7 @@
                         <dependency>
                             <groupId>org.qubership.integration.platform</groupId>
                             <artifactId>qip-checkstyle</artifactId>
-                            <version>0.5.1-SNAPSHOT</version>
+                            <version>${qip-checkstyle-revision}</version>
                         </dependency>
                     </dependencies>
                     <configuration>
@@ -347,7 +347,7 @@
                 <repository>
                     <id>github</id>
                     <name>GitHub Packages</name>
-                    <url>https://maven.pkg.github.com/netcracker/qubership-integration-platform</url>
+                    <url>https://maven.pkg.github.com/Netcracker/qubership-integration-platform</url>
                 </repository>
             </distributionManagement>
         </profile>

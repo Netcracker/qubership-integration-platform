@@ -3,16 +3,16 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.qubership.integration.platform</groupId>
   <artifactId>qip-engine</artifactId>
-  <version>0.5.1-SNAPSHOT</version>
+  <version>0.5.4-SNAPSHOT</version>
   <name>QIP Engine</name>
   <description>Engine service orchestrates and runs integration chains, manages their endpoints, records executions,
         collects metrics, and publishes deployment state, using Apache Camel, Consul, and OpenSearch
     </description>
-  <url>https://github.com/netcracker/qubership-integration-platform</url>
+  <url>https://github.com/Netcracker/qubership-integration-platform</url>
   <scm>
-    <connection>scm:git:https://github.com/netcracker/qubership-integration-platform.git</connection>
-    <developerConnection>scm:git:https://github.com/netcracker/qubership-integration-platform.git</developerConnection>
-    <url>https://github.com/netcracker/qubership-integration-platform</url>
+    <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
+    <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
+    <url>https://github.com/Netcracker/qubership-integration-platform</url>
     <tag>HEAD</tag>
   </scm>
   <parent>
@@ -753,7 +753,7 @@
           <dependency>
             <groupId>org.qubership.integration.platform</groupId>
             <artifactId>qip-checkstyle</artifactId>
-            <version>0.5.1-SNAPSHOT</version>
+            <version>${qip-checkstyle-revision}</version>
           </dependency>
         </dependencies>
         <configuration>
