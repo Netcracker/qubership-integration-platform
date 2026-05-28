@@ -63,6 +63,8 @@ on:
 permissions:
   contents: read
 
+env:
+  CONFIG_FILE: .qubership/docker-build-config.cfg
 jobs:
   dry-run-build:
     name: "Dry Run Maven Build and Publish"
@@ -127,40 +129,34 @@ jobs:
         with:
           name: ${{ github.event.repository.name }}
           path: "${{ github.event.repository.name }}/**/target" # Upload all target directories in the repository
-  check-dockerfile:
-    name: "Check Dockerfile Existence"
+
+  resolve-config:
+    name: "Load Docker Build Components Configuration"
     needs: [deploy]
-    if: ${{ github.event.inputs.build-docker == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
-      dockerfile_exists: ${{ steps.check_dockerfile.outputs.df_exists }}
+      config: ${{ steps.resolve.outputs.config }}
     steps:
-      - name: "Checkout code"
+      - name: Checkout repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
 
-      - name: "Check Dockerfile existence"
-        id: check_dockerfile
-        shell: bash
-        run: |
-          if [[ -f Dockerfile ]]; then
-            echo "df_exists=exists" >> "$GITHUB_OUTPUT"
-          else
-            echo "Dockerfile does not exist. Docker build stage will be skipped"
-            echo "df_exists=notexists" >> "$GITHUB_OUTPUT"
-          fi
-          echo "GITHUB_OUTPUT:"
-          cat "$GITHUB_OUTPUT"
+      - name: "Resolve docker config"
+        id: resolve
+        uses: netcracker/qubership-workflow-hub/actions/docker-config-resolver@e64a1ee2fc2f68ab44a4ef416c27d83ce36ba8e1 # v2.2.1
+        with:
+          file-path: ${{ env.CONFIG_FILE }}
 
   docker-build:
     name: "Docker Build and Publish"
-    if: ${{ github.event.inputs.build-docker == 'true' && needs.check-dockerfile.outputs.dockerfile_exists == 'exists' }}
     permissions:
       contents: read
       packages: write
     runs-on: ubuntu-latest
-    needs: [check-dockerfile, deploy]
+    needs: [deploy,resolve-config]
     steps:
       - name: "Prepare Docker tags"
         if: ${{ github.event.inputs.mark-as-latest != 'true' }}
@@ -187,7 +183,7 @@ jobs:
 
   github-release:
     name: "Create GitHub Release"
-    needs: [deploy]
+    needs: [deploy,docker-build]
     permissions:
       contents: write
     if: ${{ needs.deploy.result == 'success' }}
