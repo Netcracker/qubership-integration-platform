@@ -138,10 +138,13 @@ jobs:
       contents: read
     outputs:
       config: ${{ steps.resolve.outputs.config }}
+    env:
+      RELEASE_VERSION: ${{ needs.deploy.outputs.release-version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
+          ref: v${{ env.RELEASE_VERSION }}
           persist-credentials: false
 
       - name: "Resolve docker config"
@@ -157,6 +160,8 @@ jobs:
       packages: write
     runs-on: ubuntu-latest
     needs: [deploy,resolve-config]
+    env:
+      RELEASE_VERSION: ${{ needs.deploy.outputs.release-version }}
     steps:
       - name: "Prepare Docker tags"
         if: ${{ github.event.inputs.mark-as-latest != 'true' }}
@@ -164,8 +169,8 @@ jobs:
         uses: netcracker/qubership-workflow-hub/actions/metadata-action@e64a1ee2fc2f68ab44a4ef416c27d83ce36ba8e1 # v2.2.1
         with:
           default-template: "{{major}}.{{minor}}.{{patch}},{{major}}.{{minor}},{{major}}"
-          ref: ${{ needs.deploy.outputs.release-version }}
-          default-tag: ${{ needs.deploy.outputs.release-version }}
+          ref: v${{ env.RELEASE_VERSION }}
+          default-tag: ${{ env.RELEASE_VERSION }}
       - name: Set env
         if: ${{ github.event.inputs.mark-as-latest != 'true' }}
         run: |
@@ -175,7 +180,7 @@ jobs:
         id: docker_build
         uses: netcracker/qubership-workflow-hub/actions/docker-action@e64a1ee2fc2f68ab44a4ef416c27d83ce36ba8e1 # v2.2.1
         with:
-          ref: v${{ needs.deploy.outputs.release-version }}
+          ref: v${{ env.RELEASE_VERSION }}
           download-artifact: true
           tags: ${{ env.TAGS }}
         env:
