@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.qubership.integration.platform</groupId>
   <artifactId>qip-sessions-management</artifactId>
-  <version>0.5.7-SNAPSHOT</version>
+  <version>0.5.8-SNAPSHOT</version>
   <name>QIP Sessions Management</name>
   <description>Managing recorded sessions of integration flows execution stored in OpenSearch index</description>
   <url>https://github.com/MyBorislavrOrg/qubership-integration-platform</url>
@@ -16,7 +16,7 @@
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-monorepo-parent</artifactId>
-    <version>0.5.7-SNAPSHOT</version>
+    <version>0.5.8-SNAPSHOT</version>
     <relativePath>../parent</relativePath>
   </parent>
   <properties>
@@ -296,7 +296,7 @@
           <dependency>
             <groupId>org.qubership.integration.platform</groupId>
             <artifactId>qip-checkstyle</artifactId>
-            <version>0.5.7-SNAPSHOT</version>
+            <version>0.5.8-SNAPSHOT</version>
           </dependency>
         </dependencies>
         <configuration>
