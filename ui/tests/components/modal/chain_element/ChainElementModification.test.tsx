@@ -15,7 +15,8 @@ import type { ChainGraphNode } from "../../../../src/components/graph/nodes/Chai
 import type { UserPermissions } from "../../../../src/permissions/types";
 import { UserPermissionsContext } from "../../../../src/permissions/UserPermissionsContext";
 import { ChainElementModification } from "../../../../src/components/modal/chain_element/ChainElementModification";
-import { jest } from "@jest/globals";
+
+type ShowModalOptions = { component: React.ReactElement };
 
 jest.mock("@monaco-editor/react", () => ({
   __esModule: true,
@@ -92,7 +93,8 @@ jest.mock("../../../../src/hooks/useDocumentation", () => ({
   useDocumentation: () => ({ openElementDoc: mockOpenElementDoc }),
 }));
 
-const mockShowModal = jest.fn<void, [{ component: React.ReactElement }]>();
+const mockShowModal =
+  jest.fn() as jest.MockedFunction<(options: ShowModalOptions) => void>;
 jest.mock("../../../../src/Modals", () => ({
   useModalsContext: () => ({ showModal: mockShowModal }),
 }));
@@ -107,12 +109,7 @@ jest.mock("../../../../src/hooks/useLibraryElement", () => ({
 const mockScriptSchema =
   "type: object\ntitle: Script\ndescription: Script element\nproperties:\n  type:\n    type: string\n  name:\n    type: string\n  description:\n    type: string\n  properties:\n    type: object\nrequired: [type]";
 
-const defaultSchemaModules = {
-  "/node_modules/@netcracker/qip-schemas/assets/script.schema.yaml":
-    mockScriptSchema,
-};
-
-let schemaModulesOverride: Record<string, string> | null = null;
+let schemaRawOverride: Record<string, string> = {};
 let formContextShouldAutoUpdateOnMount = false;
 
 jest.mock(
@@ -156,7 +153,9 @@ jest.mock(
 jest.mock(
   "../../../../src/components/modal/chain_element/chainElementSchemaModules",
   () => ({
-    getSchemaModules: () => schemaModulesOverride ?? defaultSchemaModules,
+    getSchemaRawByElementType: (type: string) =>
+      schemaRawOverride[type] ??
+      (type === "script" ? mockScriptSchema : undefined),
   }),
 );
 
@@ -366,7 +365,7 @@ describe("ChainElementModification", () => {
     jest.clearAllMocks();
     formMockOnMountChangeMode = "none";
     formContextShouldAutoUpdateOnMount = false;
-    schemaModulesOverride = null;
+    schemaRawOverride = {};
     mockUpdateElement.mockResolvedValue({
       id: "el-1",
       name: "My Script",
@@ -696,7 +695,7 @@ describe("ChainElementModification", () => {
     };
 
     it("calls errorWithDetails when schema is not found", async () => {
-      schemaModulesOverride = {};
+      schemaRawOverride = {};
       render(
         <UserPermissionsContext.Provider value={{ chain: ["update"] }}>
           <ChainElementModification
@@ -716,10 +715,7 @@ describe("ChainElementModification", () => {
     });
 
     it("calls errorWithDetails when schema YAML is invalid", async () => {
-      schemaModulesOverride = {
-        "/node_modules/@netcracker/qip-schemas/assets/script.schema.yaml":
-          "invalid: {{",
-      };
+      schemaRawOverride = { script: "invalid: {{" };
       renderWithPermissions({ chain: ["update"] });
 
       await waitFor(() => {
@@ -764,10 +760,7 @@ required: [type]`;
     };
 
     beforeEach(() => {
-      schemaModulesOverride = {
-        "/node_modules/@netcracker/qip-schemas/assets/service-call.schema.yaml":
-          mockServiceCallSchema,
-      };
+      schemaRawOverride = { "service-call": mockServiceCallSchema };
       mockGetOperationInfo.mockResolvedValue({
         id: "op-42",
         specification: {

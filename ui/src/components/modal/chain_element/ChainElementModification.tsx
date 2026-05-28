@@ -78,7 +78,7 @@ import BasePathField from "./field/BasePathField.tsx";
 import ExternalRouteCheckbox from "./field/ExternalRouteCheckbox.tsx";
 import ContextPathWithPrefixField from "./field/ContextPathWithPrefixField.tsx";
 import DescriptionTooltipFieldTemplate from "./DescriptionTooltipFieldTemplate.tsx";
-import { getSchemaModules } from "./chainElementSchemaModules.ts";
+import { getSchemaRawByElementType } from "./chainElementSchemaModules.ts";
 import {
   ElementNameInlineEdit,
   type ElementNameInlineEditRef,
@@ -310,14 +310,11 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     }
   }, [libraryElementIsLoading, moveFocusIntoModal]);
 
-  const schemaModules = useMemo(() => getSchemaModules(), []);
-
   useEffect(() => {
     isInitializingRef.current = true;
     hasUserEditedFormRef.current = false;
     hasUserInteractedRef.current = false;
-    const path = `/node_modules/@netcracker/qip-schemas/assets/${node.data.elementType}.schema.yaml`;
-    const raw = schemaModules[path];
+    const raw = getSchemaRawByElementType(node.data.elementType);
 
     if (!raw) {
       notificationService.errorWithDetails(
@@ -436,7 +433,6 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     node.data,
     node.id,
     notificationService,
-    schemaModules,
     chainId,
     reportMissingRequiredParams,
   ]);

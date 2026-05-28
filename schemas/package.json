@@ -13,6 +13,12 @@
     "types"
   ],
   "types": "types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts"
+    },
+    "./assets/*": "./assets/*"
+  },
   "devDependencies": {
     "@nodelib/fs.walk": "^3.0.1",
     "@types/jest": "^30.0.0",

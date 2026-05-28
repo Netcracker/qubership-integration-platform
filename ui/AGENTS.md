@@ -121,12 +121,8 @@ Integration chain elements' parameters forms are generated from JSON schemas usi
 schemas are dynamically loaded at runtime:
 
 ```typescript
-// Schemas from npm package @netcracker/qip-schemas
-const schemaModules = import.meta.glob(
-  "/node_modules/@netcracker/qip-schemas/assets/*.schema.yaml",
-  { as: "raw", eager: true },
-);
-// Loaded by element type: e.g., "http-trigger" → "http-trigger.schema.yaml"
+// Schemas from workspace package @netcracker/qip-schemas
+import { getSchemaRawByElementType } from ".../chainElementSchemaModules";
 ```
 
 AJV JSON Schema validator (`@rjsf/validator-ajv8`) is used for validation.

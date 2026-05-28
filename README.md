@@ -51,7 +51,8 @@ Maven artifacts published from each module:
 ### Frontend modules (npm workspaces)
 
 ```bash
-npm install
+npm ci --legacy-peer-deps
+npm run build:schemas
 npm -w @netcracker/qip-ui run build
 ```
 

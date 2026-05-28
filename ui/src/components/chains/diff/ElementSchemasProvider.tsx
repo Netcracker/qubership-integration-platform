@@ -2,10 +2,8 @@ import React, {
   createContext,
   PropsWithChildren,
   useCallback,
-  useEffect,
-  useState,
 } from "react";
-import { getSchemaModules } from "../../modal/chain_element/chainElementSchemaModules.ts";
+import { getSchemaRawByElementType } from "../../modal/chain_element/chainElementSchemaModules.ts";
 import { JSONSchema7 } from "json-schema";
 import yaml from "js-yaml";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
@@ -23,20 +21,15 @@ export const ElementSchemasContext = createContext<ElementSchemasContextProps>({
 export const ElementSchemasProvider: React.FC<PropsWithChildren> = ({
   children,
 }) => {
-  const [schemaModules, setSchemaModules] = useState<Record<string, string>>(
-    {},
-  );
   const notificationService = useNotificationService();
-
-  useEffect(() => {
-    setSchemaModules(getSchemaModules());
-  }, []);
 
   const loadSchema = useCallback(
     (type: string) => {
       try {
-        const path = `/node_modules/@netcracker/qip-schemas/assets/${type}.schema.yaml`;
-        const raw = schemaModules[path];
+        const raw = getSchemaRawByElementType(type);
+        if (!raw) {
+          return undefined;
+        }
         return yaml.load(raw) as JSONSchema7;
       } catch (error) {
         notificationService.errorWithDetails(
@@ -47,7 +40,7 @@ export const ElementSchemasProvider: React.FC<PropsWithChildren> = ({
         return;
       }
     },
-    [schemaModules, notificationService],
+    [notificationService],
   );
 
   const getSchema = useCallback(
