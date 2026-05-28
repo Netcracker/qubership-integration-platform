@@ -6,12 +6,12 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>3.5.11</version>
-        <relativePath/>
+        <relativePath />
     </parent>
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-monorepo-parent</artifactId>
-    <version>0.5.4-SNAPSHOT</version>
+    <version>0.5.6-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <url>https://github.com/MyBorislavrOrg/qubership-integration-platform</url>
@@ -282,7 +282,7 @@
                         <dependency>
                             <groupId>org.qubership.integration.platform</groupId>
                             <artifactId>qip-checkstyle</artifactId>
-                            <version>0.5.4-SNAPSHOT</version>
+                            <version>0.5.6-SNAPSHOT</version>
                         </dependency>
                     </dependencies>
                     <configuration>
