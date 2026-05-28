@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.qubership.integration.platform</groupId>
   <artifactId>qip-engine</artifactId>
-  <version>0.5.5</version>
+  <version>0.5.6-SNAPSHOT</version>
   <name>QIP Engine</name>
   <description>Engine service orchestrates and runs integration chains, manages their endpoints, records executions,
         collects metrics, and publishes deployment state, using Apache Camel, Consul, and OpenSearch
@@ -13,12 +13,12 @@
     <connection>scm:git:https://github.com/MyBorislavrOrg/qubership-integration-platform.git</connection>
     <developerConnection>scm:git:https://github.com/MyBorislavrOrg/qubership-integration-platform.git</developerConnection>
     <url>https://github.com/MyBorislavrOrg/qubership-integration-platform</url>
-    <tag>v0.5.5</tag>
+    <tag>HEAD</tag>
   </scm>
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-monorepo-parent</artifactId>
-    <version>0.5.5</version>
+    <version>0.5.6-SNAPSHOT</version>
     <relativePath>../parent</relativePath>
   </parent>
   <properties>
@@ -753,7 +753,7 @@
           <dependency>
             <groupId>org.qubership.integration.platform</groupId>
             <artifactId>qip-checkstyle</artifactId>
-            <version>0.5.5</version>
+            <version>0.5.6-SNAPSHOT</version>
           </dependency>
         </dependencies>
         <configuration>
