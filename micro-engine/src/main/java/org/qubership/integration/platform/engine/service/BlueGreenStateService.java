@@ -43,6 +43,10 @@ public class BlueGreenStateService {
         return blueGreenStatePublisher.getBlueGreenState().getCurrent().getVersion().value();
     }
 
+    public State getBlueGreenStateValue() {
+        return blueGreenStatePublisher.getBlueGreenState().getCurrent().getState();
+    }
+
     private synchronized void updateState(BlueGreenState newState) {
         boolean firstUpdate = lastState == null;
         log.info("BG state changed: {}, is initial: {}", newState, firstUpdate);
