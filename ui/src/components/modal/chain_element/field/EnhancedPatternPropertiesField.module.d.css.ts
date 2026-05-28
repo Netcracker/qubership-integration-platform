@@ -1,0 +1,22 @@
+declare const classNames: {
+  readonly header: "header";
+  readonly leftHeader: "leftHeader";
+  readonly iconWrapper: "iconWrapper";
+  readonly badge: "badge";
+  readonly noEntries: "noEntries";
+  readonly table: "table";
+  readonly th: "th";
+  readonly td: "td";
+  readonly requiredRow: "requiredRow";
+  readonly nameCell: "nameCell";
+  readonly paramName: "paramName";
+  readonly labels: "labels";
+  readonly overriddenTag: "overriddenTag";
+  readonly deprecatedTag: "deprecatedTag";
+  readonly lockedTag: "lockedTag";
+  readonly actions: "actions";
+  readonly deleteBtn: "deleteBtn";
+  readonly restoreBtn: "restoreBtn";
+  readonly checkboxRow: "checkboxRow";
+};
+export = classNames;

@@ -1,0 +1,20 @@
+declare const classNames: {
+  readonly "modal-title": "modal-title";
+  readonly modalFocusRoot: "modalFocusRoot";
+  readonly "parameters-form": "parameters-form";
+  readonly "field-label": "field-label";
+  readonly "description-tooltip-block": "description-tooltip-block";
+  readonly anticon: "anticon";
+  readonly "ant-input-affix-wrapper": "ant-input-affix-wrapper";
+  readonly "ant-input": "ant-input";
+  readonly "ant-select": "ant-select";
+  readonly "field-required": "field-required";
+  readonly "ant-form-item-control-input": "ant-form-item-control-input";
+  readonly "ant-form-item-control-input-content": "ant-form-item-control-input-content";
+  readonly "ant-form-item": "ant-form-item";
+  readonly "description-tooltip": "description-tooltip";
+  readonly "ant-tooltip": "ant-tooltip";
+  readonly "ant-tooltip-inner": "ant-tooltip-inner";
+  readonly "form-wrapper": "form-wrapper";
+};
+export = classNames;

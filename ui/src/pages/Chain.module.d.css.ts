@@ -1,0 +1,25 @@
+declare const classNames: {
+  readonly stretched: "stretched";
+  readonly pageContainer: "pageContainer";
+  readonly "ant-form-item-label": "ant-form-item-label";
+  readonly "ant-checkbox-wrapper": "ant-checkbox-wrapper";
+  readonly formContent: "formContent";
+  readonly chainPageHeader: "chainPageHeader";
+  readonly chainPageHeaderRow: "chainPageHeaderRow";
+  readonly breadcrumb: "breadcrumb";
+  readonly "ant-breadcrumb-separator": "ant-breadcrumb-separator";
+  readonly breadcrumbItem: "breadcrumbItem";
+  readonly breadcrumbHome: "breadcrumbHome";
+  readonly unsavedChangesTag: "unsavedChangesTag";
+  readonly chainTabBarExtra: "chainTabBarExtra";
+  readonly chainTabToolbarRow: "chainTabToolbarRow";
+  readonly chainPageTabs: "chainPageTabs";
+  readonly "ant-tabs-nav": "ant-tabs-nav";
+  readonly "ant-tabs-extra-content": "ant-tabs-extra-content";
+  readonly chainTabs: "chainTabs";
+  readonly "ant-tabs-content": "ant-tabs-content";
+  readonly "ant-tabs-content-holder": "ant-tabs-content-holder";
+  readonly "ant-tabs-tabpane": "ant-tabs-tabpane";
+  readonly "ant-tabs-tabpane-active": "ant-tabs-tabpane-active";
+};
+export = classNames;

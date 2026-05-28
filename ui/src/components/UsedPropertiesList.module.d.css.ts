@@ -1,0 +1,22 @@
+declare const classNames: {
+  readonly usedPropertiesTree: "usedPropertiesTree";
+  readonly propertyItem: "propertyItem";
+  readonly menuItemContainer: "menuItemContainer";
+  readonly propertyRow: "propertyRow";
+  readonly leftContent: "leftContent";
+  readonly rightContent: "rightContent";
+  readonly propertySource: "propertySource";
+  readonly propertyName: "propertyName";
+  readonly propertyType: "propertyType";
+  readonly propertyChildrenCount: "propertyChildrenCount";
+  readonly expandIcon: "expandIcon";
+  readonly elementsContainer: "elementsContainer";
+  readonly elementRow: "elementRow";
+  readonly elementInfo: "elementInfo";
+  readonly elementName: "elementName";
+  readonly elementType: "elementType";
+  readonly operationChip: "operationChip";
+  readonly operationGreen: "operationGreen";
+  readonly operationBlue: "operationBlue";
+};
+export = classNames;

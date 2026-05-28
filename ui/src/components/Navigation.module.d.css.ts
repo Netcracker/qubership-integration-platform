@@ -1,0 +1,20 @@
+declare const classNames: {
+  readonly navigation: "navigation";
+  readonly "nav-main": "nav-main";
+  readonly "home-button": "home-button";
+  readonly "ant-btn-icon-only": "ant-btn-icon-only";
+  readonly anticon: "anticon";
+  readonly menu: "menu";
+  readonly "ant-menu": "ant-menu";
+  readonly "ant-menu-horizontal": "ant-menu-horizontal";
+  readonly "ant-menu-item": "ant-menu-item";
+  readonly "ant-menu-submenu": "ant-menu-submenu";
+  readonly utilities: "utilities";
+  readonly "ant-menu-item-icon": "ant-menu-item-icon";
+  readonly "ant-menu-title-content": "ant-menu-title-content";
+  readonly "ant-menu-item-selected": "ant-menu-item-selected";
+  readonly "ant-menu-item-active": "ant-menu-item-active";
+  readonly "ant-btn": "ant-btn";
+  readonly "ant-btn-primary": "ant-btn-primary";
+};
+export = classNames;
