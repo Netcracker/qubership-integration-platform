@@ -154,37 +154,29 @@ jobs:
           file-path: ${{ env.CONFIG_FILE }}
 
   docker-build:
-    name: "Docker Build and Publish"
+    name: "${{ matrix.component.name }}"
+    needs: [resolve-config, deploy]
     permissions:
       contents: read
       packages: write
-    runs-on: ubuntu-latest
-    needs: [deploy,resolve-config]
     env:
       RELEASE_VERSION: ${{ needs.deploy.outputs.release-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        component: ${{ fromJson(needs.resolve-config.outputs.config) }}
     steps:
-      - name: "Prepare Docker tags"
-        if: ${{ github.event.inputs.mark-as-latest != 'true' }}
-        id: meta
-        uses: netcracker/qubership-workflow-hub/actions/metadata-action@e64a1ee2fc2f68ab44a4ef416c27d83ce36ba8e1 # v2.2.1
+      - name: "Docker build and publish"
+        uses: netcracker/qubership-workflow-hub/actions/docker-action@e64a1ee2fc2f68ab44a4ef416c27d83ce36ba8e1  # v2.2.1
         with:
-          default-template: "{{major}}.{{minor}}.{{patch}},{{major}}.{{minor}},{{major}}"
-          ref: v${{ env.RELEASE_VERSION }}
-          default-tag: ${{ env.RELEASE_VERSION }}
-      - name: Set env
-        if: ${{ github.event.inputs.mark-as-latest != 'true' }}
-        run: |
-          echo "TAGS=${{ steps.meta.outputs.result }}" >> $GITHUB_ENV
-
-      - name: "Docker Build"
-        id: docker_build
-        uses: netcracker/qubership-workflow-hub/actions/docker-action@e64a1ee2fc2f68ab44a4ef416c27d83ce36ba8e1 # v2.2.1
-        with:
-          ref: v${{ env.RELEASE_VERSION }}
+          ref: 'v${{ env.RELEASE_VERSION }}'
           download-artifact: true
-          tags: ${{ env.TAGS }}
+          dry-run: false
+          component: ${{ toJson(matrix.component) }}
+          platforms: ${{ matrix.component.platforms }}
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   github-release:
     name: "Create GitHub Release"
