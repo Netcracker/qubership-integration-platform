@@ -11,4 +11,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class SdsTriggerInfo {
     private String jobId;
+    private boolean prohibitParallelRun;
+    private long parallelRunTimeout;
+    private String cron;
 }
