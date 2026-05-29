@@ -57,16 +57,16 @@ jobs:
           cache: "maven"
 
       - name: Build and verify (no publish)
+        working-directory: ${{ inputs.module }}
         env:
           MAVEN_USERNAME: ${{ github.actor }}
           MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          MODULE: ${{ inputs.module }}
         run: |
           set -eu
-          # -am builds qip-monorepo-parent (and any module deps) from source, so
-          # the PR build is self-contained — it neither needs a published
-          # SNAPSHOT nor produces one.
-          mvn --batch-mode -pl "$MODULE" -am verify -Dgpg.skip=true
+          # Run from the module dir so Maven reads only this module + parent (via
+          # relativePath), never siblings — micro-engine pulls private
+          # com.netcracker.cloud artifacts this token can't read. Publishes nothing.
+          mvn --batch-mode verify -Dgpg.skip=true
 
       - name: Upload Sonar inputs
         if: ${{ inputs.sonar-project-key != '' }}

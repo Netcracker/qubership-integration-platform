@@ -130,9 +130,8 @@ jobs:
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
           cache: "maven"
 
-      # Pre-install qip-monorepo-parent to ~/.m2 for `mvn deploy -pl <module>`.
-      # NB: `-pl parent -N` is broken (Maven can't find it in a non-recursive
-      # reactor); build the parent pom directly instead.
+      # Pre-install the parent pom so the module deploy below resolves it.
+      # (`-pl parent -N` is broken; build the parent pom directly.)
       - name: Install qip-monorepo-parent locally
         run: mvn --batch-mode -f parent/pom.xml install -N -DskipTests
 
@@ -150,22 +149,21 @@ jobs:
           echo "Releasing $MODULE as version $RELEASE_VERSION"
 
       - name: Build and deploy module
+        working-directory: ${{ inputs.module }}
         env:
           MAVEN_USERNAME: ${{ inputs.profile == 'github' && github.actor || secrets.MAVEN_USER }}
           MAVEN_PASSWORD: ${{ inputs.profile == 'github' && secrets.GITHUB_TOKEN || secrets.MAVEN_PASSWORD }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
           MVN_PROFILE: ${{ inputs.profile }}
-          MODULE: ${{ inputs.module }}
           EXTRA_ARGS: ${{ inputs.mvn-args }}
           SKIP_GPG: ${{ inputs.profile == 'github' && '-Dgpg.skip=true' || '' }}
         run: |
           set -eu
-          # -pl <module> without -am keeps the -Drevision override scoped to
-          # this single module; the parent and aggregator (built into the
-          # reactor by -am) would otherwise inherit the same revision.
+          # Run from the module dir (not `-pl` from root) so Maven reads only
+          # this module + parent, never siblings — micro-engine pulls private
+          # com.netcracker.cloud artifacts this token can't read.
           # shellcheck disable=SC2086
           mvn --batch-mode deploy \
-            -pl "$MODULE" \
             -P "$MVN_PROFILE" \
             -Drevision="$RELEASE_VERSION" \
             -Dchangelist= \
