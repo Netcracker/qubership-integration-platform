@@ -65,6 +65,7 @@ jobs:
       version: ${{ inputs.version }}
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
       create-github-release: ${{ inputs.create-github-release }}
+      build-schemas: true
 
   # ---------------------------------------------------------------------------
   # Cascade: compute next vscode-extension version (gated on the publish, NOT on

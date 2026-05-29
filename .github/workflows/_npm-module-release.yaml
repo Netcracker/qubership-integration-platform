@@ -44,6 +44,11 @@ on:
         required: false
         type: boolean
         default: true
+      build-schemas:
+        required: false
+        type: boolean
+        default: false
+        description: "Build @netcracker/qip-schemas (workspace dep) before the module build. Needed by ui."
 
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.module }}-${{ github.ref }}
@@ -118,6 +123,13 @@ jobs:
 
       - name: Install dependencies (root workspaces)
         run: npm ci --legacy-peer-deps
+
+      # ui's vite build resolves @netcracker/qip-schemas to its built dist/, so
+      # the schemas workspace must be built first. (vscode self-builds it via
+      # prepare-deps; schemas itself doesn't need this.)
+      - name: Build schemas (workspace dependency)
+        if: ${{ inputs.build-schemas }}
+        run: npm -w @netcracker/qip-schemas run build
 
       - name: Set package version
         working-directory: ${{ inputs.module }}
