@@ -4,29 +4,29 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., 1.0.0)'
+        description: "Release version (e.g., 1.0.0)"
         required: true
         type: string
       modules:
         description: 'Modules to release (comma-separated, or "all" for everything)'
         required: false
-        default: 'all'
+        default: "all"
         type: string
       profile:
-        description: 'Maven profile'
+        description: "Maven profile"
         type: choice
         options:
-          - 'central'
-          - 'github'
+          - "central"
+          - "github"
         required: false
-        default: 'central'
+        default: "central"
       build-docker:
-        description: 'Build Docker images for applicable modules'
+        description: "Build Docker images for applicable modules"
         required: false
         default: true
         type: boolean
       create-github-release:
-        description: 'Create GitHub release'
+        description: "Create GitHub release"
         required: false
         default: true
         type: boolean
@@ -45,23 +45,40 @@ jobs:
       release-micro-engine: ${{ steps.check.outputs.micro-engine }}
       release-runtime-catalog: ${{ steps.check.outputs.runtime-catalog }}
       release-sessions-management: ${{ steps.check.outputs.sessions-management }}
-      release-schemas: ${{ steps.check.outputs.schemas }}
       release-ui: ${{ steps.check.outputs.ui }}
       release-vscode-extension: ${{ steps.check.outputs.vscode-extension }}
-      release-checkstyle: ${{ steps.check.outputs.checkstyle }}
     steps:
       - name: Determine modules to release
         id: check
+        env:
+          MODULES: ${{ inputs.modules }}
         run: |
-          MODULES="${{ inputs.modules }}"
-          ALL_MODULES="engine micro-engine runtime-catalog sessions-management schemas ui vscode-extension checkstyle"
+          set -eu
+          # schemas and checkstyle are released manually (rare cadence) — not part of release-all.
+          ALL_MODULES="engine micro-engine runtime-catalog sessions-management ui vscode-extension"
+
+          # Normalise input: strip spaces, wrap with commas so we can match whole tokens.
+          requested=",${MODULES// /},"
+
+          # Reject unknown tokens so a typo (or a manually-released module like
+          # schemas/checkstyle) fails loudly instead of being silently dropped.
+          if [[ "$MODULES" != "all" ]]; then
+            known=",${ALL_MODULES// /},"
+            IFS=',' read -ra tokens <<< "${MODULES// /}"
+            for tok in "${tokens[@]}"; do
+              [ -z "$tok" ] && continue
+              if [[ "$known" != *",${tok},"* ]]; then
+                echo "::error::Unknown module '$tok'. Valid: $ALL_MODULES (or 'all'). schemas and checkstyle have their own release workflows."
+                exit 1
+              fi
+            done
+          fi
 
           for mod in $ALL_MODULES; do
-            mod_safe=$(echo "$mod" | tr '-' '_')
-            if [[ "$MODULES" == "all" ]] || echo "$MODULES" | tr ',' '\n' | grep -qw "$mod"; then
-              echo "${mod_safe}=true" >> "$GITHUB_OUTPUT"
+            if [[ "$MODULES" == "all" ]] || [[ "$requested" == *",${mod},"* ]]; then
+              echo "${mod}=true" >> "$GITHUB_OUTPUT"
             else
-              echo "${mod_safe}=false" >> "$GITHUB_OUTPUT"
+              echo "${mod}=false" >> "$GITHUB_OUTPUT"
             fi
           done
 
@@ -137,26 +154,9 @@ jobs:
       MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
       MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
-  release-schemas:
-    needs: prepare
-    if: needs.prepare.outputs.release-schemas == 'true'
-    permissions:
-      contents: write
-      packages: write
-    uses: ./.github/workflows/schemas-release.yaml
-    with:
-      version: ${{ inputs.version }}
-      profile: ${{ inputs.profile }}
-      create-github-release: ${{ inputs.create-github-release }}
-    secrets:
-      MAVEN_USER: ${{ secrets.MAVEN_USER }}
-      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
-      MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-
   release-ui:
-    needs: [prepare, release-schemas]
-    if: always() && needs.prepare.outputs.release-ui == 'true' && (needs.release-schemas.result == 'success' || needs.release-schemas.result == 'skipped')
+    needs: prepare
+    if: needs.prepare.outputs.release-ui == 'true'
     permissions:
       contents: write
       packages: write
@@ -176,19 +176,37 @@ jobs:
       version: ${{ inputs.version }}
       create-github-release: ${{ inputs.create-github-release }}
 
-  release-checkstyle:
-    needs: prepare
-    if: needs.prepare.outputs.release-checkstyle == 'true'
+  # ---------------------------------------------------------------------------
+  # Bill of Materials: snapshot the released version of every module (derived
+  # from the git tags the release jobs just pushed) and attach it as an artifact.
+  # ---------------------------------------------------------------------------
+  publish-bom:
+    needs:
+      - prepare
+      - release-engine
+      - release-micro-engine
+      - release-runtime-catalog
+      - release-sessions-management
+      - release-ui
+      - release-vscode-extension
+    # Run after every release attempt, regardless of which were skipped/failed,
+    # so the BOM reflects whatever was actually tagged. Skip only if the module
+    # selection itself failed validation.
+    if: ${{ always() && !cancelled() && needs.prepare.result == 'success' }}
+    runs-on: ubuntu-latest
     permissions:
-      contents: write
-      packages: write
-    uses: ./.github/workflows/checkstyle-release.yaml
-    with:
-      version: ${{ inputs.version }}
-      profile: ${{ inputs.profile }}
-      create-github-release: ${{ inputs.create-github-release }}
-    secrets:
-      MAVEN_USER: ${{ secrets.MAVEN_USER }}
-      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
-      MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Generate release BOM from git tags
+        run: bash scripts/build-bom.sh | tee release-manifest.json
+      - name: Upload release manifest
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: release-manifest
+          path: release-manifest.json
+          if-no-files-found: error

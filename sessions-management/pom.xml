@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.qubership.integration.platform</groupId>
   <artifactId>qip-sessions-management</artifactId>
-  <version>0.5.4-SNAPSHOT</version>
+  <version>${revision}${changelist}</version>
   <name>QIP Sessions Management</name>
   <description>Managing recorded sessions of integration flows execution stored in OpenSearch index</description>
   <url>https://github.com/Netcracker/qubership-integration-platform</url>
@@ -20,6 +20,9 @@
     <relativePath>../parent</relativePath>
   </parent>
   <properties>
+    <revision>0.5.4</revision>
+    <changelist>-SNAPSHOT</changelist>
+
     <!-- BOMs -->
     <!-- 3rd party dependencies -->
     <opensearch.version>2.14.0</opensearch.version>
@@ -200,7 +203,7 @@
         <version>${flatten-maven-plugin.version}</version>
         <configuration>
           <updatePomFile>true</updatePomFile>
-          <flattenMode>resolveCiFriendliesOnly</flattenMode>
+          <flattenMode>ossrh</flattenMode>
         </configuration>
         <executions>
           <execution>
