@@ -1,5 +1,4 @@
 ---
-
 # Reusable npm module release workflow (mirror of _maven-module-release.yaml).
 #
 # Publishes a workspace package (@<scope>/qip-<module>) to the npm registry,
@@ -20,27 +19,27 @@ on:
       module:
         required: true
         type: string
-        description: 'Workspace dir and tag prefix (e.g. ui, vscode-extension). Package is <scope>/qip-<module>.'
+        description: "Workspace dir and tag prefix (e.g. ui, vscode-extension). Package is <scope>/qip-<module>."
       version:
         required: true
         type: string
-        description: 'Release version (e.g., 0.0.57). Must be X.Y.Z.'
+        description: "Release version (e.g., 0.0.57). Must be X.Y.Z."
       scope:
         required: false
         type: string
-        default: '@netcracker'
+        default: "@netcracker"
       node-version:
         required: false
         type: string
-        default: '22.x'
+        default: "22.x"
       registry-url:
         required: false
         type: string
-        default: 'https://npm.pkg.github.com'
+        default: "https://npm.pkg.github.com"
       npm-dist-tag:
         required: false
         type: string
-        default: 'latest'
+        default: "latest"
       create-github-release:
         required: false
         type: boolean
@@ -115,7 +114,7 @@ jobs:
           node-version: ${{ inputs.node-version }}
           registry-url: ${{ inputs.registry-url }}
           scope: ${{ inputs.scope }}
-          cache: 'npm'
+          cache: "npm"
 
       - name: Install dependencies (root workspaces)
         run: npm ci --legacy-peer-deps
@@ -165,8 +164,8 @@ jobs:
           config-name: "release-drafter-config.yml"
           publish: true
           prerelease: ${{ github.ref_name != 'main' }}
-          name: '${{ inputs.module }}-${{ inputs.version }}'
-          tag: '${{ inputs.module }}-v${{ inputs.version }}'
-          version: '${{ inputs.module }}-v${{ inputs.version }}'
+          name: "${{ inputs.module }}-${{ inputs.version }}"
+          tag: "${{ inputs.module }}-v${{ inputs.version }}"
+          version: "${{ inputs.module }}-v${{ inputs.version }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

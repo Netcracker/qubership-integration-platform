@@ -1,5 +1,4 @@
 ---
-
 # Reusable Maven module release workflow.
 #
 # Strategy: CI-friendly versions via Maven properties (${revision} and
@@ -19,44 +18,44 @@ on:
       module:
         required: true
         type: string
-        description: 'Module directory name (e.g. engine, runtime-catalog)'
+        description: "Module directory name (e.g. engine, runtime-catalog)"
       version:
         required: true
         type: string
-        description: 'Release version (e.g., 0.5.4). Must be X.Y.Z.'
+        description: "Release version (e.g., 0.5.4). Must be X.Y.Z."
       profile:
-        description: 'Maven profile to use (central | github)'
+        description: "Maven profile to use (central | github)"
         type: string
         required: false
-        default: 'central'
+        default: "central"
       build-docker:
-        description: 'Build Docker image'
+        description: "Build Docker image"
         required: false
         default: true
         type: boolean
       create-github-release:
-        description: 'Create GitHub release'
+        description: "Create GitHub release"
         required: false
         default: true
         type: boolean
       mvn-args:
-        description: 'Additional maven arguments (e.g. -DskipTests=true)'
+        description: "Additional maven arguments (e.g. -DskipTests=true)"
         required: false
-        default: ''
+        default: ""
         type: string
     secrets:
       MAVEN_USER:
         required: false
-        description: 'Username for the non-github Maven repository (e.g. Central). Unused when profile=github.'
+        description: "Username for the non-github Maven repository (e.g. Central). Unused when profile=github."
       MAVEN_PASSWORD:
         required: false
-        description: 'Password/token for the non-github Maven repository. Unused when profile=github.'
+        description: "Password/token for the non-github Maven repository. Unused when profile=github."
       MAVEN_GPG_PRIVATE_KEY:
         required: false
-        description: 'GPG private key used to sign release artifacts.'
+        description: "GPG private key used to sign release artifacts."
       MAVEN_GPG_PASSPHRASE:
         required: false
-        description: 'Passphrase for MAVEN_GPG_PRIVATE_KEY.'
+        description: "Passphrase for MAVEN_GPG_PRIVATE_KEY."
 
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.module }}-${{ github.ref }}
@@ -122,22 +121,20 @@ jobs:
       - name: Set up Java
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
-          java-version: '21'
-          distribution: 'temurin'
+          java-version: "21"
+          distribution: "temurin"
           server-id: ${{ inputs.profile }}
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
-          cache: 'maven'
+          cache: "maven"
 
-      # Modules depend on qip-monorepo-parent. With `mvn deploy -pl <module>`
-      # (no -am) Maven resolves the parent via relativePath, but the local
-      # ~/.m2 repository must also contain it for some plugins. Install the
-      # parent at its declared SNAPSHOT version (no -D overrides) so the parent
-      # stays consistent across modules.
+      # Pre-install qip-monorepo-parent to ~/.m2 for `mvn deploy -pl <module>`.
+      # NB: `-pl parent -N` is broken (Maven can't find it in a non-recursive
+      # reactor); build the parent pom directly instead.
       - name: Install qip-monorepo-parent locally
-        run: mvn --batch-mode install -pl parent -N -DskipTests
+        run: mvn --batch-mode -f parent/pom.xml install -N -DskipTests
 
       - name: Verify module directory exists
         env:
@@ -236,8 +233,8 @@ jobs:
           config-name: "release-drafter-config.yml"
           publish: true
           prerelease: ${{ github.ref_name != 'main' }}
-          name: '${{ inputs.module }}-${{ inputs.version }}'
-          tag: '${{ inputs.module }}-v${{ inputs.version }}'
-          version: '${{ inputs.module }}-v${{ inputs.version }}'
+          name: "${{ inputs.module }}-${{ inputs.version }}"
+          tag: "${{ inputs.module }}-v${{ inputs.version }}"
+          version: "${{ inputs.module }}-v${{ inputs.version }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

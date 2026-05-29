@@ -1,5 +1,4 @@
 ---
-
 # On-demand SNAPSHOT publishing to GitHub Packages.
 #
 # PR builds (see _maven-module-build.yaml) only verify and publish nothing.
@@ -14,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       module:
-        description: 'Module to publish a SNAPSHOT for (X.Y.Z-SNAPSHOT to GitHub Packages)'
+        description: "Module to publish a SNAPSHOT for (X.Y.Z-SNAPSHOT to GitHub Packages)"
         type: choice
         options:
           - all
@@ -45,8 +44,8 @@ jobs:
       - name: Publish SNAPSHOT to GitHub Packages
         uses: netcracker/qubership-workflow-hub/actions/maven-snapshot-deploy@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
         with:
-          target-store: 'github'
-          java-version: '21'
+          target-store: "github"
+          java-version: "21"
           maven-username: ${{ github.actor }}
           maven-token: ${{ github.token }}
           # No -Drevision override → the version stays X.Y.Z-SNAPSHOT. "all"

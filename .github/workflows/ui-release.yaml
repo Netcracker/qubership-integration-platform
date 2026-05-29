@@ -1,5 +1,4 @@
 ---
-
 # Release the ui module as an npm package (@netcracker/qip-ui) via the shared
 # _npm-module-release workflow, then optionally cascade to vscode-extension with
 # an auto patch-bump. Tag prefix is ui-vX.Y.Z.
@@ -12,11 +11,11 @@ on:
       version:
         required: true
         type: string
-        description: 'Release version (e.g., 1.0.0)'
+        description: "Release version (e.g., 1.0.0)"
       npm-dist-tag:
         required: false
         type: string
-        default: 'latest'
+        default: "latest"
       create-github-release:
         required: false
         default: true
@@ -25,26 +24,26 @@ on:
         required: false
         type: boolean
         default: false
-        description: 'After publish, trigger vscode-extension-release with auto patch-bump'
+        description: "After publish, trigger vscode-extension-release with auto patch-bump"
   workflow_dispatch:
     inputs:
       version:
         required: true
-        default: '0.0.0'
+        default: "0.0.0"
         type: string
-        description: 'Release version (e.g., 1.0.0)'
+        description: "Release version (e.g., 1.0.0)"
       npm-dist-tag:
-        description: 'NPM distribution tag'
+        description: "NPM distribution tag"
         required: false
         type: string
-        default: 'latest'
+        default: "latest"
       create-github-release:
-        description: 'Create release'
+        description: "Create release"
         required: false
         default: true
         type: boolean
       cascade-vscode-extension:
-        description: 'After publish, trigger vscode-extension-release with auto patch-bump'
+        description: "After publish, trigger vscode-extension-release with auto patch-bump"
         required: false
         type: boolean
         default: false

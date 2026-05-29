@@ -1,5 +1,4 @@
 ---
-
 # Reusable PR build workflow for a Maven module.
 #
 # To block PR merge on red Sonar Quality Gate, mark the `sonar` job
@@ -13,16 +12,16 @@ on:
       module:
         required: true
         type: string
-        description: 'Module directory name (e.g. engine, runtime-catalog)'
+        description: "Module directory name (e.g. engine, runtime-catalog)"
       sonar-project-key:
         required: false
         type: string
-        default: ''
-        description: 'Sonar project key for this module. Leave empty to skip the Sonar scan.'
+        default: ""
+        description: "Sonar project key for this module. Leave empty to skip the Sonar scan."
     secrets:
       SONAR_TOKEN:
         required: false
-        description: 'SonarCloud token. Required when sonar-project-key is set.'
+        description: "SonarCloud token. Required when sonar-project-key is set."
 
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.module }}-${{ github.ref }}
@@ -49,13 +48,13 @@ jobs:
       - name: Set up Java
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
-          java-version: '21'
-          distribution: 'temurin'
+          java-version: "21"
+          distribution: "temurin"
           # Authenticated GitHub Packages reads (e.g. qip-checkstyle).
           server-id: github
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
-          cache: 'maven'
+          cache: "maven"
 
       - name: Build and verify (no publish)
         env:
@@ -104,9 +103,9 @@ jobs:
       - name: Set up Java
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: 'maven'
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
 
       - name: Download Sonar inputs
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0

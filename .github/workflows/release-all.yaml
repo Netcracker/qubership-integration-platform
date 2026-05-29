@@ -4,29 +4,29 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., 1.0.0)'
+        description: "Release version (e.g., 1.0.0)"
         required: true
         type: string
       modules:
         description: 'Modules to release (comma-separated, or "all" for everything)'
         required: false
-        default: 'all'
+        default: "all"
         type: string
       profile:
-        description: 'Maven profile'
+        description: "Maven profile"
         type: choice
         options:
-          - 'central'
-          - 'github'
+          - "central"
+          - "github"
         required: false
-        default: 'central'
+        default: "central"
       build-docker:
-        description: 'Build Docker images for applicable modules'
+        description: "Build Docker images for applicable modules"
         required: false
         default: true
         type: boolean
       create-github-release:
-        description: 'Create GitHub release'
+        description: "Create GitHub release"
         required: false
         default: true
         type: boolean

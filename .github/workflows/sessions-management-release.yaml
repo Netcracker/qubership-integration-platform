@@ -1,5 +1,4 @@
 ---
-
 name: Sessions Management Release
 
 on:
@@ -8,26 +7,26 @@ on:
       version:
         required: true
         type: string
-        description: 'Release version (e.g., 1.0.0)'
+        description: "Release version (e.g., 1.0.0)"
       profile:
-        description: 'Maven profile to use'
+        description: "Maven profile to use"
         type: string
         required: false
-        default: 'central'
+        default: "central"
       build-docker:
-        description: 'Build Docker image'
+        description: "Build Docker image"
         required: false
         default: true
         type: boolean
       create-github-release:
-        description: 'Create release'
+        description: "Create release"
         required: false
         default: true
         type: boolean
       mvn-args:
-        description: 'Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)'
+        description: "Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)"
         required: false
-        default: ''
+        default: ""
         type: string
     secrets:
       MAVEN_USER:
@@ -42,31 +41,31 @@ on:
     inputs:
       version:
         required: true
-        default: '1.0.0'
+        default: "1.0.0"
         type: string
-        description: 'Release version (e.g., 1.0.0)'
+        description: "Release version (e.g., 1.0.0)"
       profile:
-        description: 'Maven profile to use'
+        description: "Maven profile to use"
         type: choice
         options:
-          - 'github'
-          - 'central'
+          - "github"
+          - "central"
         required: false
-        default: 'central'
+        default: "central"
       build-docker:
-        description: 'Build Docker image'
+        description: "Build Docker image"
         required: false
         default: true
         type: boolean
       create-github-release:
-        description: 'Create release'
+        description: "Create release"
         required: false
         default: true
         type: boolean
       mvn-args:
-        description: 'Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)'
+        description: "Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)"
         required: false
-        default: ''
+        default: ""
         type: string
 
 permissions: {}

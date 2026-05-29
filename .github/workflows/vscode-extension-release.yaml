@@ -1,5 +1,4 @@
 ---
-
 # Release the vscode-extension module as an npm package
 # (@netcracker/qip-vscode-extension). Thin wrapper over the shared
 # _npm-module-release workflow; tag prefix is vscode-extension-vX.Y.Z.
@@ -12,11 +11,11 @@ on:
       version:
         required: true
         type: string
-        description: 'Release version (e.g., 1.0.0)'
+        description: "Release version (e.g., 1.0.0)"
       npm-dist-tag:
         required: false
         type: string
-        default: 'latest'
+        default: "latest"
       create-github-release:
         required: false
         default: true
@@ -25,16 +24,16 @@ on:
     inputs:
       version:
         required: true
-        default: '0.0.0'
+        default: "0.0.0"
         type: string
-        description: 'Release version (e.g., 1.0.0)'
+        description: "Release version (e.g., 1.0.0)"
       npm-dist-tag:
-        description: 'NPM distribution tag'
+        description: "NPM distribution tag"
         required: false
         type: string
-        default: 'latest'
+        default: "latest"
       create-github-release:
-        description: 'Create release'
+        description: "Create release"
         required: false
         default: true
         type: boolean

@@ -1,5 +1,4 @@
 ---
-
 # Release the schemas module as an npm package (@netcracker/qip-schemas) via the
 # shared _npm-module-release workflow, then optionally cascade to ui (and on to
 # vscode-extension).
@@ -17,11 +16,11 @@ on:
       version:
         required: true
         type: string
-        description: 'Release version (e.g., 0.3.0)'
+        description: "Release version (e.g., 0.3.0)"
       npm-dist-tag:
         required: false
         type: string
-        default: 'latest'
+        default: "latest"
       create-github-release:
         required: false
         type: boolean
@@ -30,35 +29,35 @@ on:
         required: false
         type: boolean
         default: false
-        description: 'After publish, trigger ui-release with auto patch-bump'
+        description: "After publish, trigger ui-release with auto patch-bump"
       cascade-vscode-extension:
         required: false
         type: boolean
         default: false
-        description: 'Forwarded to ui-release when cascade-ui=true'
+        description: "Forwarded to ui-release when cascade-ui=true"
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., 0.3.0)'
+        description: "Release version (e.g., 0.3.0)"
         required: true
         type: string
       npm-dist-tag:
-        description: 'npm distribution tag'
+        description: "npm distribution tag"
         required: false
         type: string
-        default: 'latest'
+        default: "latest"
       create-github-release:
-        description: 'Create GitHub release'
+        description: "Create GitHub release"
         required: false
         type: boolean
         default: true
       cascade-ui:
-        description: 'After publish, trigger ui-release with auto patch-bump'
+        description: "After publish, trigger ui-release with auto patch-bump"
         required: false
         type: boolean
         default: false
       cascade-vscode-extension:
-        description: 'Forwarded to ui-release when cascade-ui=true'
+        description: "Forwarded to ui-release when cascade-ui=true"
         required: false
         type: boolean
         default: false

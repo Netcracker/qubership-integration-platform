@@ -38,10 +38,10 @@ pkg_version=$(node -p "require('${REPO_ROOT}/${PKG_JSON}').version" 2>/dev/null 
 # Highest valid X.Y.Z across both sources becomes the baseline. `sort -V` is a
 # version sort (so 0.0.56 > 0.0.9, unlike a lexical sort); `|| true` keeps the
 # pipeline from tripping `set -o pipefail` when grep matches nothing.
-current=$(printf '%s\n%s\n' "$tag_version" "$pkg_version" \
-    | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
-    | sort -V \
-    | tail -1 || true)
+current=$(printf '%s\n%s\n' "$tag_version" "$pkg_version" |
+    grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' |
+    sort -V |
+    tail -1 || true)
 
 if [ -z "$current" ]; then
     echo "::error::Cannot determine current ${PREFIX} version (git tag: '${tag_version:-<none>}', ${PKG_JSON}: '${pkg_version:-<none>}')" >&2

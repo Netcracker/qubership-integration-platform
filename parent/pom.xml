@@ -11,7 +11,8 @@
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-monorepo-parent</artifactId>
-    <version>${revision}${changelist}</version>
+    <!-- Literal, not ${revision}: children pin this version; ${revision} breaks parent resolution on a clean repo. -->
+    <version>0.5.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <url>https://github.com/Netcracker/qubership-integration-platform</url>
