@@ -232,8 +232,3 @@ services:
         - "8600:8600/tcp"
         - "8600:8600/udp"
         command: "agent -bootstrap-expect=1"
-
-#    fake-otel-collector:
-#      image: alpine/socat
-#      command: [ "TCP-LISTEN:4318,fork,reuseaddr", "OPEN:/dev/null" ]
-#      networks: [ default ]

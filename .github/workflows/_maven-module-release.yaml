@@ -80,7 +80,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          fetch-depth: 0
+          # Shallow: the tag check below queries the remote via ls-remote, so we
+          # don't need full history here.
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Validate version format
@@ -94,7 +96,7 @@ jobs:
       - name: Check tag does not exist
         run: |
           set -eu
-          if git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
             echo "::error::Tag $RELEASE_TAG already exists"
             exit 1
           fi
@@ -137,12 +139,13 @@ jobs:
       - name: Install qip-monorepo-parent locally
         run: mvn --batch-mode install -pl parent -N -DskipTests
 
-      - name: Configure Maven module version
+      - name: Verify module directory exists
         env:
           MODULE: ${{ inputs.module }}
         run: |
           set -eu
-          # Sanity check — module directory must exist with a pom.xml.
+          # Fail fast with a clear message if the module path is wrong; the
+          # release version itself is applied later via -Drevision on deploy.
           if [ ! -f "$MODULE/pom.xml" ]; then
             echo "::error::No pom.xml at $MODULE/"
             exit 1

@@ -53,11 +53,26 @@ jobs:
         env:
           MODULES: ${{ inputs.modules }}
         run: |
+          set -eu
           # schemas and checkstyle are released manually (rare cadence) — not part of release-all.
           ALL_MODULES="engine micro-engine runtime-catalog sessions-management ui vscode-extension"
 
           # Normalise input: strip spaces, wrap with commas so we can match whole tokens.
           requested=",${MODULES// /},"
+
+          # Reject unknown tokens so a typo (or a manually-released module like
+          # schemas/checkstyle) fails loudly instead of being silently dropped.
+          if [[ "$MODULES" != "all" ]]; then
+            known=",${ALL_MODULES// /},"
+            IFS=',' read -ra tokens <<< "${MODULES// /}"
+            for tok in "${tokens[@]}"; do
+              [ -z "$tok" ] && continue
+              if [[ "$known" != *",${tok},"* ]]; then
+                echo "::error::Unknown module '$tok'. Valid: $ALL_MODULES (or 'all'). schemas and checkstyle have their own release workflows."
+                exit 1
+              fi
+            done
+          fi
 
           for mod in $ALL_MODULES; do
             if [[ "$MODULES" == "all" ]] || [[ "$requested" == *",${mod},"* ]]; then
@@ -160,3 +175,38 @@ jobs:
     with:
       version: ${{ inputs.version }}
       create-github-release: ${{ inputs.create-github-release }}
+
+  # ---------------------------------------------------------------------------
+  # Bill of Materials: snapshot the released version of every module (derived
+  # from the git tags the release jobs just pushed) and attach it as an artifact.
+  # ---------------------------------------------------------------------------
+  publish-bom:
+    needs:
+      - prepare
+      - release-engine
+      - release-micro-engine
+      - release-runtime-catalog
+      - release-sessions-management
+      - release-ui
+      - release-vscode-extension
+    # Run after every release attempt, regardless of which were skipped/failed,
+    # so the BOM reflects whatever was actually tagged. Skip only if the module
+    # selection itself failed validation.
+    if: ${{ always() && !cancelled() && needs.prepare.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Generate release BOM from git tags
+        run: bash scripts/build-bom.sh | tee release-manifest.json
+      - name: Upload release manifest
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: release-manifest
+          path: release-manifest.json
+          if-no-files-found: error

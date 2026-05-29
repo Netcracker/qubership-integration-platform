@@ -18,3 +18,12 @@ release.properties
 pom.xml.releaseBackup
 pom.xml.tag
 pom.xml.next
+/engine/CLAUDE.md
+/infrastructure/CLAUDE.md
+/micro-engine/CLAUDE.md
+/runtime-catalog/CLAUDE.md
+/sessions-management/CLAUDE.md
+/ui/CLAUDE.md
+/vscode-extension/CLAUDE.md
+/CLAUDE.md
+/ui/.claude/settings.json

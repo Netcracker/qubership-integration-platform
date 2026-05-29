@@ -1,8 +1,8 @@
 ---
 
-# Release the ui module as an npm package (@netcracker/qip-ui).
-# Tag prefix is module-specific (ui-vX.Y.Z) so concurrent module releases via
-# release-all.yaml don't collide.
+# Release the ui module as an npm package (@netcracker/qip-ui) via the shared
+# _npm-module-release workflow, then optionally cascade to vscode-extension with
+# an auto patch-bump. Tag prefix is ui-vX.Y.Z.
 
 name: Ui Release
 
@@ -13,18 +13,6 @@ on:
         required: true
         type: string
         description: 'Release version (e.g., 1.0.0)'
-      scope:
-        required: false
-        type: string
-        default: '@netcracker'
-      node-version:
-        required: false
-        type: string
-        default: '22.x'
-      registry-url:
-        required: false
-        type: string
-        default: 'https://npm.pkg.github.com'
       npm-dist-tag:
         required: false
         type: string
@@ -45,18 +33,6 @@ on:
         default: '0.0.0'
         type: string
         description: 'Release version (e.g., 1.0.0)'
-      scope:
-        required: false
-        type: string
-        default: '@netcracker'
-      node-version:
-        required: false
-        type: string
-        default: '22.x'
-      registry-url:
-        required: false
-        type: string
-        default: 'https://npm.pkg.github.com'
       npm-dist-tag:
         description: 'NPM distribution tag'
         required: false
@@ -80,100 +56,24 @@ concurrency:
 permissions: {}
 
 jobs:
-  check-tag:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Check if tag exists
-        id: check_tag
-        uses: netcracker/qubership-workflow-hub/actions/tag-action@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
-        with:
-          ref: ${{ github.ref }}
-          tag-name: 'ui-v${{ inputs.version }}'
-          create-tag: 'false'
-          check-tag: 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  npm-publish:
-    needs: check-tag
-    runs-on: ubuntu-latest
+  release:
     permissions:
       contents: write
       packages: write
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      VERSION: ${{ inputs.version }}
-      DIST_TAG: ${{ inputs.npm-dist-tag }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ github.ref }}
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-        with:
-          node-version: ${{ inputs.node-version }}
-          registry-url: ${{ inputs.registry-url }}
-          scope: ${{ inputs.scope }}
-          cache: 'npm'
-
-      - name: Install dependencies (root workspaces)
-        run: npm ci --legacy-peer-deps
-
-      - name: Set package version
-        working-directory: ui
-        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
-
-      - name: Build library
-        working-directory: ui
-        run: npm run prepublishOnly
-
-      - name: Publish to npm registry
-        working-directory: ui
-        run: npm publish --tag "$DIST_TAG"
-
-  create-release:
-    if: ${{ inputs.create-github-release == true }}
-    needs: npm-publish
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-          ref: ${{ github.ref }}
-      - name: Run Release Drafter
-        uses: netcracker/release-drafter@86f4276a3894b5af70480e826c32fe3648ac6a70 # v1.0.0
-        with:
-          config-name: "release-drafter-config.yml"
-          publish: true
-          prerelease: ${{ github.ref_name != 'main' }}
-          name: 'ui-${{ inputs.version }}'
-          tag: 'ui-v${{ inputs.version }}'
-          version: 'ui-v${{ inputs.version }}'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    uses: ./.github/workflows/_npm-module-release.yaml
+    with:
+      module: ui
+      version: ${{ inputs.version }}
+      npm-dist-tag: ${{ inputs.npm-dist-tag }}
+      create-github-release: ${{ inputs.create-github-release }}
 
   # ---------------------------------------------------------------------------
-  # Cascade: compute next vscode-extension version
+  # Cascade: compute next vscode-extension version (gated on the publish, NOT on
+  # the GitHub release, so create-github-release=false doesn't break the chain).
   # ---------------------------------------------------------------------------
   compute-vscode-version:
-    if: ${{ inputs.cascade-vscode-extension }}
-    needs: create-release
+    if: ${{ inputs.cascade-vscode-extension && always() && !failure() && !cancelled() }}
+    needs: release
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -189,29 +89,23 @@ jobs:
       - name: Compute next vscode-extension patch version
         id: compute
         run: |
-          set -eu
-          LAST=$(git tag --list 'vscode-extension-v*' --sort=-version:refname | head -1 | sed 's/^vscode-extension-v//')
-          if [ -z "$LAST" ]; then
-            NEW="0.0.1"
-          else
-            if ! printf '%s\n' "$LAST" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-              echo "::error::Last vscode-extension tag has unexpected format: $LAST"
-              exit 1
-            fi
-            NEW=$(awk -F. -v OFS=. '{$NF=$NF+1; print}' <<<"$LAST")
-          fi
-          echo "Computed next vscode-extension version: $NEW (from last tag: ${LAST:-<none>})"
-          echo "version=$NEW" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          version=$(bash scripts/next-cascade-version.sh vscode-extension vscode-extension/package.json)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------------
-  # Cascade: trigger vscode-extension-release with computed version
+  # Cascade: release vscode-extension. It is a leaf (no further cascade), so we
+  # call the reusable directly rather than the vscode-extension-release wrapper —
+  # that keeps the schemas → ui → vscode chain within GitHub's 4-level
+  # reusable-workflow nesting limit.
   # ---------------------------------------------------------------------------
   cascade-vscode-extension:
     needs: compute-vscode-version
     permissions:
       contents: write
       packages: write
-    uses: ./.github/workflows/vscode-extension-release.yaml
+    uses: ./.github/workflows/_npm-module-release.yaml
     with:
+      module: vscode-extension
       version: ${{ needs.compute-vscode-version.outputs.version }}
       create-github-release: ${{ inputs.create-github-release }}
