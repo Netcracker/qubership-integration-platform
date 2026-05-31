@@ -54,4 +54,5 @@ jobs:
           maven-command: >
             --batch-mode deploy
             -Dgpg.skip=true
-            ${{ inputs.module == 'all' && '' || format('-pl {0} -am', inputs.module) }}
+            -Pgithub,!central
+            ${{ inputs.module == 'all' && "-pl '!checkstyle'" || format('-pl parent,{0}', inputs.module) }}
