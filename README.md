@@ -2,23 +2,23 @@
 
 Open-source integration and orchestration platform built on Apache Camel. Lets you build integration flows (chains) with data transformation, process orchestration, and mapping between system formats. Deployed on Kubernetes; Docker Compose is used for local development.
 
-This repository is a **monorepo** that consolidates the previously separate `qubership-integration-*` repositories with full git history preserved.
+This repository is a **monorepo** that consolidates the previously separate `qubership-integration-*` repositories with full Git history preserved.
 
 ## Repository layout
 
-| Directory | Role | Stack |
-|---|---|---|
-| `infrastructure/` | Docker Compose, Helm charts, Nginx routing for local development | Docker, Helm, Nginx, Consul |
-| `engine/` | Execution engine (Spring Boot variant) | Java 21, Spring Boot 3.5, Apache Camel 4.14, PostgreSQL, OpenSearch, Consul |
-| `micro-engine/` | Execution engine (Quarkus variant) — faster startup, lower memory | Java 21, Quarkus 3.27, Apache Camel 4.14 |
-| `runtime-catalog/` | Central catalog: chains, elements, deployments, snapshots, specifications, systems, variables | Java 21, Spring Boot 3.5, PostgreSQL, Consul, Flyway |
-| `sessions-management/` | Recorded sessions of integration flow executions | Java 21, Spring Boot 3.5, OpenSearch, Consul |
-| `ui/` | Web UI — visual flow editor, chain/service management, session monitoring | React 18, TypeScript, Vite, Ant Design 5 |
-| `vscode-extension/` | VS Code extension for offline chain/service editing | TypeScript, VS Code Extension API |
-| `schemas/` | JSON Schema definitions for chains, services, elements | TypeScript, JSON Schema, Gulp |
-| `checkstyle/` | Shared Checkstyle rules (`qip-checkstyle` artifact) | XML, Maven |
-| `help/` | Documentation consumed by UI and VS Code extension | Markdown |
-| `parent/` | Shared Maven parent POM for Spring Boot modules | Maven |
+| Directory              | Role                                                                                          | Stack                                                                       |
+| ---------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `infrastructure/`      | Docker Compose, Helm charts, Nginx routing for local development                              | Docker, Helm, Nginx, Consul                                                 |
+| `engine/`              | Execution engine (Spring Boot variant)                                                        | Java 21, Spring Boot 3.5, Apache Camel 4.14, PostgreSQL, OpenSearch, Consul |
+| `micro-engine/`        | Execution engine (Quarkus variant) — faster startup, lower memory                             | Java 21, Quarkus 3.27, Apache Camel 4.14                                    |
+| `runtime-catalog/`     | Central catalog: chains, elements, deployments, snapshots, specifications, systems, variables | Java 21, Spring Boot 3.5, PostgreSQL, Consul, Flyway                        |
+| `sessions-management/` | Recorded sessions of integration flow executions                                              | Java 21, Spring Boot 3.5, OpenSearch, Consul                                |
+| `ui/`                  | Web UI — visual flow editor, chain/service management, session monitoring                     | React 18, TypeScript, Vite, Ant Design 5                                    |
+| `vscode-extension/`    | VS Code extension for offline chain/service editing                                           | TypeScript, VS Code Extension API                                           |
+| `schemas/`             | JSON Schema definitions for chains, services, elements                                        | TypeScript, JSON Schema, Gulp                                               |
+| `checkstyle/`          | Shared Checkstyle rules (`qip-checkstyle` artifact)                                           | XML, Maven                                                                  |
+| `help/`                | Documentation consumed by UI and VS Code extension                                            | Markdown                                                                    |
+| `parent/`              | Shared Maven parent POM for Spring Boot modules                                               | Maven                                                                       |
 
 ## Getting started
 
@@ -27,7 +27,7 @@ End-to-end recipe to go from a fresh clone to a running platform.
 ### Step 1 — Build the Java modules
 
 ```bash
-mvn clean install -Dgpg.skip=true -DskipTests
+mvn clean install "-Dgpg.skip=true" "-DskipTests"
 ```
 
 - `-Dgpg.skip=true` is required locally (GPG signing is configured for release publishing).
@@ -75,8 +75,8 @@ Available overlays: `docker-compose.kafka.yml`, `docker-compose.rabbitmq.yml`, `
 npm -w @netcracker/qip-ui run dev
 ```
 
-- **http://localhost:4200** — direct Vite dev server with hot-reload. Recommended for UI development.
-- **http://localhost:8080** — Nginx proxy. Routes `/api/*` to backends and proxies `/` to the Vite dev server.
+- **<http://localhost:4200>** — direct Vite dev server with hot-reload. Recommended for UI development.
+- **<http://localhost:8080>** — Nginx proxy. Routes `/api/*` to backends and proxies `/` to the Vite dev server.
 
 ### VS Code extension
 

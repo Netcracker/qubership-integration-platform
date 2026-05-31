@@ -1,239 +1,253 @@
 services:
-
-    ###### QIP
-    qip-runtime-catalog:
-        build:
-          context: ../runtime-catalog
-          dockerfile: Dockerfile
-        container_name: qip-runtime-catalog
-        read_only: true
-        ports:
-        - "8091:8080"
-        - "5006:5005"
-        env_file: "qip-dev.env"
-        command: [
-            "/opt/java/openjdk/bin/java",
-            "-Xmx642m",
-            "-XX:MetaspaceSize=192m",
-            "-XX:MaxMetaspaceSize=192m",
-            "-XX:MaxDirectMemorySize=64m",
-            "-XX:+ExitOnOutOfMemoryError",
-            "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
-            "-Djava.security.egd=file:/dev/./urandom",
-            "-Dfile.encoding=UTF-8",
-            "-Dspring.profiles.active=development",
-            "-jar",
-            "/app/qip-runtime-catalog.jar"
+  ###### QIP
+  qip-runtime-catalog:
+    build:
+      context: ../runtime-catalog
+      dockerfile: Dockerfile
+    container_name: qip-runtime-catalog
+    read_only: true
+    ports:
+      - "8091:8080"
+      - "5006:5005"
+    env_file: "qip-dev.env"
+    command:
+      [
+        "/opt/java/openjdk/bin/java",
+        "-Xmx642m",
+        "-XX:MetaspaceSize=192m",
+        "-XX:MaxMetaspaceSize=192m",
+        "-XX:MaxDirectMemorySize=64m",
+        "-XX:+ExitOnOutOfMemoryError",
+        "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
+        "-Djava.security.egd=file:/dev/./urandom",
+        "-Dfile.encoding=UTF-8",
+        "-Dspring.profiles.active=development",
+        "-jar",
+        "/app/qip-runtime-catalog.jar",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --silent --fail localhost:8080/actuator/health || exit 1",
         ]
-        healthcheck:
-            test: [ "CMD-SHELL", "curl --silent --fail localhost:8080/actuator/health || exit 1" ]
-            interval: 10s
-            timeout: 15s
-            retries: 15
-            start_period: 30s
-        networks:
-            default:
-                aliases:
-                - runtime-catalog
-        depends_on:
-            postgres:
-                condition: service_healthy
+      interval: 10s
+      timeout: 15s
+      retries: 15
+      start_period: 30s
+    networks:
+      default:
+        aliases:
+          - runtime-catalog
+    depends_on:
+      postgres:
+        condition: service_healthy
 
-    qip-engine:
-        build:
-          context: ../engine
-          dockerfile: Dockerfile
-        container_name: qip-engine
-        read_only: true
-        ports:
-        - "8092:8080"
-        - "5007:5005"
-        env_file:
-        - "qip-dev.env"
-        - "engine-dev.env"
-        command: [
-            "/opt/java/openjdk/bin/java",
-            "-Xmx832m",
-            "-XX:MetaspaceSize=512m",
-            "-XX:MaxMetaspaceSize=224m",
-            "-XX:MaxDirectMemorySize=224m",
-            "-XX:+ExitOnOutOfMemoryError",
-            "-XX:+HeapDumpOnOutOfMemoryError",
-            "-XX:HeapDumpPath=/tmp/leak.hprof",
-            "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
-            "-Djava.security.egd=file:/dev/./urandom",
-            "--add-opens=java.base/java.lang=ALL-UNNAMED",
-            "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
-            "--add-opens=java.base/java.util=ALL-UNNAMED",
-            "--add-opens=java.base/java.io=ALL-UNNAMED",
-            "-Dfile.encoding=UTF-8",
-            "-Dspring.profiles.active=development",
-            "-jar",
-            "/app/qip-engine.jar" ]
-        healthcheck:
-            test: [ "CMD-SHELL", "curl --silent --fail localhost:8080/actuator/health || exit 1" ]
-            interval: 10s
-            timeout: 15s
-            retries: 15
-            start_period: 30s
-        volumes:
-        - ./kafka-ssl/client:/app/cert/defaultsslcertificate
-        networks:
-            default:
-                aliases:
-                - engine
-        depends_on:
-            opensearch:
-                condition: service_healthy
-            postgres:
-                condition: service_healthy
-
-    qip-sessions-management:
-        build:
-          context: ../sessions-management
-          dockerfile: Dockerfile
-        container_name: qip-sessions-management
-        read_only: true
-        ports:
-        - "8093:8080"
-        - "5008:5005"
-        env_file: "qip-dev.env"
-        command: [
-            "/opt/java/openjdk/bin/java",
-            "-Xmx416m",
-            "-XX:MetaspaceSize=192m",
-            "-XX:MaxMetaspaceSize=192m",
-            "-XX:MaxDirectMemorySize=64m",
-            "-XX:+ExitOnOutOfMemoryError",
-            "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
-            "-Djava.security.egd=file:/dev/./urandom",
-            "--add-opens=java.base/java.lang=ALL-UNNAMED",
-            "--add-opens=java.base/java.util=ALL-UNNAMED",
-            "-Dfile.encoding=UTF-8",
-            "-Dspring.profiles.active=development",
-            "-jar",
-            "/app/qip-sessions-management.jar"
+  qip-engine:
+    build:
+      context: ../engine
+      dockerfile: Dockerfile
+    container_name: qip-engine
+    read_only: true
+    ports:
+      - "8092:8080"
+      - "5007:5005"
+    env_file:
+      - "qip-dev.env"
+      - "engine-dev.env"
+    command:
+      [
+        "/opt/java/openjdk/bin/java",
+        "-Xmx832m",
+        "-XX:MetaspaceSize=512m",
+        "-XX:MaxMetaspaceSize=224m",
+        "-XX:MaxDirectMemorySize=224m",
+        "-XX:+ExitOnOutOfMemoryError",
+        "-XX:+HeapDumpOnOutOfMemoryError",
+        "-XX:HeapDumpPath=/tmp/leak.hprof",
+        "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
+        "-Djava.security.egd=file:/dev/./urandom",
+        "--add-opens=java.base/java.lang=ALL-UNNAMED",
+        "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
+        "--add-opens=java.base/java.util=ALL-UNNAMED",
+        "--add-opens=java.base/java.io=ALL-UNNAMED",
+        "-Dfile.encoding=UTF-8",
+        "-Dspring.profiles.active=development",
+        "-jar",
+        "/app/qip-engine.jar",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --silent --fail localhost:8080/actuator/health || exit 1",
         ]
-        healthcheck:
-            test: [ "CMD-SHELL", "curl --silent --fail localhost:8080/actuator/health || exit 1" ]
-            interval: 10s
-            timeout: 15s
-            retries: 15
-            start_period: 30s
-        networks:
-            default:
-                aliases:
-                - sessions-management
-        depends_on:
-            opensearch:
-                condition: service_healthy
+      interval: 10s
+      timeout: 15s
+      retries: 15
+      start_period: 30s
+    volumes:
+      - ./kafka-ssl/client:/app/cert/defaultsslcertificate
+    networks:
+      default:
+        aliases:
+          - engine
+    depends_on:
+      opensearch:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
 
-    ui-proxy:
-      image: nginx:latest
-      container_name: ui-proxy
-      ports:
-        - 8080:8080
-      volumes:
-        - ./nginx:/etc/nginx/
-      depends_on:
-        qip-runtime-catalog:
-          condition: service_started
-        qip-sessions-management:
-          condition: service_started
-        qip-engine:
-          condition: service_started
+  qip-sessions-management:
+    build:
+      context: ../sessions-management
+      dockerfile: Dockerfile
+    container_name: qip-sessions-management
+    read_only: true
+    ports:
+      - "8093:8080"
+      - "5008:5005"
+    env_file: "qip-dev.env"
+    command:
+      [
+        "/opt/java/openjdk/bin/java",
+        "-Xmx416m",
+        "-XX:MetaspaceSize=192m",
+        "-XX:MaxMetaspaceSize=192m",
+        "-XX:MaxDirectMemorySize=64m",
+        "-XX:+ExitOnOutOfMemoryError",
+        "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005",
+        "-Djava.security.egd=file:/dev/./urandom",
+        "--add-opens=java.base/java.lang=ALL-UNNAMED",
+        "--add-opens=java.base/java.util=ALL-UNNAMED",
+        "-Dfile.encoding=UTF-8",
+        "-Dspring.profiles.active=development",
+        "-jar",
+        "/app/qip-sessions-management.jar",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --silent --fail localhost:8080/actuator/health || exit 1",
+        ]
+      interval: 10s
+      timeout: 15s
+      retries: 15
+      start_period: 30s
+    networks:
+      default:
+        aliases:
+          - sessions-management
+    depends_on:
+      opensearch:
+        condition: service_healthy
 
-#    ###### AI Assistant (optional, activated by `--profile ai`)
-#    qip-ai-assistant:
-#        build:
-#          context: ../ai-assistant
-#          dockerfile: Dockerfile
-#        container_name: qip-ai-assistant
-#        profiles: [ai]
-#        ports:
-#        - "8094:8094"
-#        environment:
-#          QIP_AI_SERVICE_PORT: "8094"
-#          QIP_AI_LOG_LEVEL: "INFO"
-#          QIP_AI_LOG_FORMAT: "json"
-#          QIP_AI_LLM_PROVIDER: "${QIP_AI_LLM_PROVIDER:-gemini}"
-#          QIP_AI_GEMINI_API_KEY: "${QIP_AI_GEMINI_API_KEY:-}"
-#          QIP_AI_GEMINI_MODEL: "${QIP_AI_GEMINI_MODEL:-gemini-2.5-flash}"
-#          QIP_AI_OPENROUTER_API_KEY: "${QIP_AI_OPENROUTER_API_KEY:-}"
-#          QIP_AI_OPENROUTER_MODEL: "${QIP_AI_OPENROUTER_MODEL:-google/gemini-2.5-flash}"
-#          QIP_AI_POSTGRES_DSN: "postgresql+asyncpg://postgres:postgres@postgres:5432/postgres"
-#          QIP_AI_CATALOG_BASE_URL: "http://runtime-catalog:8080"
-#        command:
-#        - "/bin/sh"
-#        - "-c"
-#        - "alembic upgrade head && exec qip-ai"
-#        healthcheck:
-#            test: ["CMD-SHELL", "curl --silent --fail localhost:8094/health || exit 1"]
-#            interval: 15s
-#            timeout: 10s
-#            retries: 10
-#            start_period: 30s
-#        networks:
-#            default:
-#                aliases:
-#                - ai-assistant
-#        depends_on:
-#            postgres:
-#                condition: service_healthy
-#            qip-runtime-catalog:
-#                condition: service_started
+  ui-proxy:
+    image: nginx:latest
+    container_name: ui-proxy
+    ports:
+      - 8080:8080
+    volumes:
+      - ./nginx:/etc/nginx/
+    depends_on:
+      qip-runtime-catalog:
+        condition: service_started
+      qip-sessions-management:
+        condition: service_started
+      qip-engine:
+        condition: service_started
 
-    ###### 3rd party services
+  #    ###### AI Assistant (optional, activated by `--profile ai`)
+  #    qip-ai-assistant:
+  #        build:
+  #          context: ../ai-assistant
+  #          dockerfile: Dockerfile
+  #        container_name: qip-ai-assistant
+  #        profiles: [ai]
+  #        ports:
+  #        - "8094:8094"
+  #        environment:
+  #          QIP_AI_SERVICE_PORT: "8094"
+  #          QIP_AI_LOG_LEVEL: "INFO"
+  #          QIP_AI_LOG_FORMAT: "json"
+  #          QIP_AI_LLM_PROVIDER: "${QIP_AI_LLM_PROVIDER:-gemini}"
+  #          QIP_AI_GEMINI_API_KEY: "${QIP_AI_GEMINI_API_KEY:-}"
+  #          QIP_AI_GEMINI_MODEL: "${QIP_AI_GEMINI_MODEL:-gemini-2.5-flash}"
+  #          QIP_AI_OPENROUTER_API_KEY: "${QIP_AI_OPENROUTER_API_KEY:-}"
+  #          QIP_AI_OPENROUTER_MODEL: "${QIP_AI_OPENROUTER_MODEL:-google/gemini-2.5-flash}"
+  #          QIP_AI_POSTGRES_DSN: "postgresql+asyncpg://postgres:postgres@postgres:5432/postgres"
+  #          QIP_AI_CATALOG_BASE_URL: "http://runtime-catalog:8080"
+  #        command:
+  #        - "/bin/sh"
+  #        - "-c"
+  #        - "alembic upgrade head && exec qip-ai"
+  #        healthcheck:
+  #            test: ["CMD-SHELL", "curl --silent --fail localhost:8094/health || exit 1"]
+  #            interval: 15s
+  #            timeout: 10s
+  #            retries: 10
+  #            start_period: 30s
+  #        networks:
+  #            default:
+  #                aliases:
+  #                - ai-assistant
+  #        depends_on:
+  #            postgres:
+  #                condition: service_healthy
+  #            qip-runtime-catalog:
+  #                condition: service_started
 
-    postgres:
-        image: postgres
-        container_name: postgreSQL
-        environment:
-        - POSTGRES_USER=postgres
-        - POSTGRES_PASSWORD=postgres
-        - POSTGRES_DB=postgres
-        ports:
-        - 5432:5432
-        healthcheck:
-            test: [ "CMD-SHELL", "pg_isready -U postgres" ]
-            interval: 10s
-            timeout: 15s
-            retries: 15
-            start_period: 15s
-        volumes:
-        - ./init-db:/docker-entrypoint-initdb.d
+  ###### 3rd party services
 
-    opensearch:
-        image: opensearchproject/opensearch:2.18.0
-        container_name: opensearch
-        ports:
-        - 9200:9200
-        - 9300:9300
-        environment:
-        - ES_JAVA_OPTS=-Xms512m -Xmx512m
-        - discovery.type=single-node
-        healthcheck:
-            test: [ "CMD-SHELL", "curl --silent --fail localhost:9200/_cluster/health || exit 1" ]
-            interval: 10s
-            timeout: 15s
-            retries: 15
-            start_period: 15s
-        volumes:
-        - ./opensearch/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
+  postgres:
+    image: postgres
+    container_name: postgreSQL
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 15s
+      retries: 15
+      start_period: 15s
+    volumes:
+      - ./init-db:/docker-entrypoint-initdb.d
 
-    consul:
-        image: hashicorp/consul:1.15.4
-        container_name: consul
-        volumes:
-        - ./consul/server.json:/consul/config/server.json:ro
-        - ./consul/consul-acl.json:/consul/config/consul-acl.json
-        ports:
-        - "8500:8500"
-        - "8600:8600/tcp"
-        - "8600:8600/udp"
-        command: "agent -bootstrap-expect=1"
+  opensearch:
+    image: opensearchproject/opensearch:2.18.0
+    container_name: opensearch
+    ports:
+      - 9200:9200
+      - 9300:9300
+    environment:
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - discovery.type=single-node
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --silent --fail localhost:9200/_cluster/health || exit 1",
+        ]
+      interval: 10s
+      timeout: 15s
+      retries: 15
+      start_period: 15s
+    volumes:
+      - ./opensearch/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
 
-#    fake-otel-collector:
-#      image: alpine/socat
-#      command: [ "TCP-LISTEN:4318,fork,reuseaddr", "OPEN:/dev/null" ]
-#      networks: [ default ]
+  consul:
+    image: hashicorp/consul:1.15.4
+    container_name: consul
+    volumes:
+      - ./consul/server.json:/consul/config/server.json:ro
+      - ./consul/consul-acl.json:/consul/config/consul-acl.json
+    ports:
+      - "8500:8500"
+      - "8600:8600/tcp"
+      - "8600:8600/udp"
+    command: "agent -bootstrap-expect=1"

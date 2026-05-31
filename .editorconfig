@@ -11,11 +11,15 @@ indent_size = 4
 [*.{yml,yaml}]
 indent_size = 2
 
-[*.{js,jsx,ts,tsx,json,css,scss}]
+[*.xml]
+indent_size = 2
+
+[*.{js,jsx,mjs,ts,tsx,mts,json,css,scss}]
 indent_size = 2
 
 [*.md]
 trim_trailing_whitespace = false
+indent_size = 2
 
 [Makefile]
 indent_style = tab

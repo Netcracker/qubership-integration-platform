@@ -37,6 +37,7 @@ test("Test schemas conformance", () => {
   const ajv = new Ajv({
     verbose: true,
     allErrors: true,
+    discriminator: true,
   });
   const draft7Schema = ajv.getSchema("http://json-schema.org/draft-07/schema");
   expect(draft7Schema).toBeDefined();
@@ -56,6 +57,7 @@ describe("Test schemas over samples", () => {
     ajv = new Ajv({
       verbose: true,
       allErrors: true,
+      discriminator: true,
     });
     getSchemas()
       .map((document) => document.content)

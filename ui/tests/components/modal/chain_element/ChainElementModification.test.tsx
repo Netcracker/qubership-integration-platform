@@ -645,7 +645,7 @@ describe("ChainElementModification", () => {
     fireEvent.blur(input);
 
     await waitFor(() => {
-      expect(screen.getByText("Updated Script Name")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("Updated Script Name")).toBeInTheDocument();
     });
 
     expect(mockUpdateElement).not.toHaveBeenCalled();

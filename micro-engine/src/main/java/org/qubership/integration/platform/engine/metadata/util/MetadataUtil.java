@@ -57,6 +57,10 @@ public class MetadataUtil {
 
     public static <T> Optional<T> lookupBeanForElement(Route route, String elementId, Class<T> cls) {
         CamelContext context = route.getCamelContext();
+        return lookupBeanForElement(context, elementId, cls);
+    }
+
+    public static <T> Optional<T> lookupBeanForElement(CamelContext context, String elementId, Class<T> cls) {
         String beanName = getBeanName(cls, elementId);
         T bean = context.getRegistry().lookupByNameAndType(beanName, cls);
         return Optional.ofNullable(bean);
