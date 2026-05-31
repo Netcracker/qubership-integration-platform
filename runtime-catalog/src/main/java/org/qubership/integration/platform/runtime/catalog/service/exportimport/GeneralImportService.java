@@ -51,6 +51,7 @@ import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -65,6 +66,8 @@ public class GeneralImportService {
     private final ActionsLogService actionsLogService;
     private final ImportInstructionsService importInstructionsService;
     private final GeneralInstructionsMapper generalInstructionsMapper;
+
+    private final ConcurrentHashMap<String, CompletableFuture<ImportResult>> importFutures = new ConcurrentHashMap<>();
 
     @Autowired
     public GeneralImportService(
@@ -148,23 +151,32 @@ public class GeneralImportService {
     }
 
     public String importFileAsync(MultipartFile file, ImportRequest importRequest, Set<String> technicalLabels, boolean validateByHash) {
+        File unpackedDirectory = unpackDirectory(file);
+        logImportAction(file.getOriginalFilename());
+        return importDirectoryAsync(unpackedDirectory, importRequest, technicalLabels, validateByHash);
+    }
+
+    public String importDirectoryAsync(
+            File importDirectory,
+            ImportRequest importRequest,
+            Set<String> technicalLabels,
+            boolean validateByHash
+    ) {
         String importId = UUID.randomUUID().toString();
 
         importSessionService.deleteObsoleteImportSessionStatuses();
         importSessionService.setImportProgressPercentage(importId, 0);
 
-        File unpackedDirectory = unpackDirectory(file);
-        logImportAction(file.getOriginalFilename());
 
         String requestId = RequestIdContext.get();
-        CompletableFuture.supplyAsync(() -> {
+        CompletableFuture<ImportResult> future = CompletableFuture.supplyAsync(() -> {
             RequestIdContext.set(requestId);
 
             log.info("Import session {} started", importId);
 
             ArrayList<ImportInstructionResult> importInstructionResults = new ArrayList<>();
 
-            File importInstructionsConfigFile = new File(unpackedDirectory, importInstructionsService.getInstructionsFileName());
+            File importInstructionsConfigFile = new File(importDirectory, importInstructionsService.getInstructionsFileName());
             if (importInstructionsConfigFile.exists()) {
                 log.info("Start uploading import instructions");
 
@@ -174,13 +186,15 @@ public class GeneralImportService {
             }
 
             ImportVariablesResult variablesResult = commonVariablesService
-                    .importVariables(unpackedDirectory,  importRequest.getVariablesCommitRequest());
+                    .importVariables(importDirectory, importRequest.getVariablesCommitRequest());
             ImportSystemsAndInstructionsResult importSystemsAndInstructionsResult = systemExportImportService
-                    .importSystems(unpackedDirectory, importRequest.getSystemsCommitRequest(), importId, technicalLabels);
-            ImportContextServiceAndInstructionsResult importChainsAndContextInstructionsResult = contextExportImportService.importContextService(unpackedDirectory, importRequest.getSystemsCommitRequest(), importId);
-            ImportSystemsAndInstructionsResult importMcpSystemsAndInstructionsResult = mcpSystemImportExportService.importSystems(unpackedDirectory, importRequest.getSystemsCommitRequest(), importId);
+                    .importSystems(importDirectory, importRequest.getSystemsCommitRequest(), importId, technicalLabels);
+            ImportContextServiceAndInstructionsResult importChainsAndContextInstructionsResult = contextExportImportService
+                    .importContextService(importDirectory, importRequest.getSystemsCommitRequest(), importId);
+            ImportSystemsAndInstructionsResult importMcpSystemsAndInstructionsResult = mcpSystemImportExportService
+                    .importSystems(importDirectory, importRequest.getSystemsCommitRequest(), importId);
             ImportChainsAndInstructionsResult importChainsAndInstructionsResult = chainImportService
-                    .importChains(unpackedDirectory, importRequest.getChainCommitRequests(), importId, technicalLabels, validateByHash);
+                    .importChains(importDirectory, importRequest.getChainCommitRequests(), importId, technicalLabels, validateByHash);
 
             importInstructionResults.addAll(importChainsAndInstructionsResult.instructionResults());
             importInstructionResults.addAll(importSystemsAndInstructionsResult.instructionResults());
@@ -193,12 +207,28 @@ public class GeneralImportService {
                     .variables(variablesResult.getVariables())
                     .instructionsResult(importInstructionResults)
                     .build();
-        }).whenCompleteAsync((response, throwable) -> {
+        });
+        importFutures.put(importId, future);
+        future.whenCompleteAsync((response, throwable) -> {
             RequestIdContext.set(requestId);
 
-            completeAsyncImport(importId, response, unpackedDirectory, throwable);
+            completeAsyncImport(importId, response, importDirectory, throwable);
+            importFutures.remove(importId);
         });
         return importId;
+    }
+
+    public void awaitImportCompletion(String importId) {
+        CompletableFuture<ImportResult> future = importFutures.get(importId);
+        if (future != null) {
+            future.join();
+            return;
+        }
+        ImportSession session = getImportSession(importId);
+        if (session != null && session.isDone()) {
+            return;
+        }
+        throw new IllegalStateException("Import not found or not finished: " + importId);
     }
 
     private void completeAsyncImport(String importId, ImportResult importResult, File unpackedDirectory, Throwable throwable) {
