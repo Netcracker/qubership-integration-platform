@@ -1,6 +1,6 @@
 {
   "name": "@netcracker/qip-schemas",
-  "version": "0.2.28",
+  "version": "0.2.29",
   "license": "Apache-2.0",
   "description": "Schemas definition for QIP",
   "scripts": {

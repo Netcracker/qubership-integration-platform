@@ -1,15 +1,24 @@
 ---
-# Reusable npm module release workflow (mirror of _maven-module-release.yaml).
+# Reusable npm module release workflow.
 #
-# Publishes a workspace package (@<scope>/qip-<module>) to the npm registry,
-# pushes a module-scoped git tag (<module>-vX.Y.Z) only AFTER a successful
-# publish, and optionally drafts a GitHub release. Tagging is decoupled from
-# create-github-release (just like the Maven side) so the tag always advances —
-# that keeps the cascade patch-bump baseline correct and re-runs idempotent.
+# Model (idiomatic `npm version`): the package.json `version` is the last
+# released version. On release we bump it by `release-type` (or use an explicit
+# `version` override), publish that version, push the module-scoped git tag
+# (<module>-vX.Y.Z), and commit the bumped package.json + the root lockfile back
+# to the branch. You never type the version — pick patch/minor/major.
 #
-# Cascade logic (auto patch-bump of the next package in the schemas → ui →
-# vscode-extension chain) lives in the CALLER, not here: a wrapper adds a
-# compute-version + cascade job that runs after this workflow.
+# Recovery: if the tag already exists, a previous run published+tagged the
+# version but its bump commit never landed. check-version flags recover=true and
+# npm-publish skips install/build/publish, re-applying the package.json bump
+# only, so a partial failure is self-healing instead of wedging the package.
+#
+# Cascade (auto patch-bump of the next package in schemas → ui → vscode) lives
+# in the CALLER: the wrapper adds a job that calls the next module's release
+# workflow with release-type=patch.
+#
+# PREREQUISITE: the runner's GITHUB_TOKEN must be allowed to push to the target
+# branch (bypass branch protection). Without it the version-bump push fails;
+# recovery then re-applies it on the next run once the bypass is in place.
 
 name: NPM Module Release (reusable)
 
@@ -19,11 +28,17 @@ on:
       module:
         required: true
         type: string
-        description: "Workspace dir and tag prefix (e.g. ui, vscode-extension). Package is <scope>/qip-<module>."
-      version:
-        required: true
+        description: "Workspace dir and tag prefix (e.g. ui). Package is <scope>/qip-<module>."
+      release-type:
+        description: "patch | minor | major"
+        required: false
         type: string
-        description: "Release version (e.g., 0.0.57). Must be X.Y.Z."
+        default: "patch"
+      version:
+        description: "Explicit release version (X.Y.Z) override. Empty = bump the current package.json version by release-type."
+        required: false
+        type: string
+        default: ""
       scope:
         required: false
         type: string
@@ -51,23 +66,29 @@ on:
         description: "Build @netcracker/qip-schemas (workspace dep) before the module build. Needed by ui."
 
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.module }}-${{ github.ref }}
+  # Literal prefix (NOT github.workflow): inside a reusable, github.workflow is
+  # the TOP-LEVEL caller's name, so manual-vs-cascade or wrapper-vs-release-all
+  # runs of the same module would land in different groups and race the
+  # publish/tag/back-commit. Keying on the module serialises every release path.
+  group: qip-release-${{ inputs.module }}-${{ github.ref }}
   cancel-in-progress: false
 
 permissions: {}
 
-env:
-  RELEASE_VERSION: ${{ inputs.version }}
-  RELEASE_TAG: ${{ inputs.module }}-v${{ inputs.version }}
-
 jobs:
   # ---------------------------------------------------------------------------
-  # Preflight: validate version format and ensure the tag does not yet exist.
+  # Preflight: derive the release version from the current package.json (or the
+  # override). If the tag already exists, enter recovery mode (re-apply the bump
+  # only) instead of failing.
   # ---------------------------------------------------------------------------
-  check-tag:
+  check-version:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      release-version: ${{ steps.compute.outputs.release-version }}
+      release-tag: ${{ steps.compute.outputs.release-tag }}
+      recover: ${{ steps.compute.outputs.recover }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -75,27 +96,22 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Validate version format
-        run: |
-          set -eu
-          if ! printf '%s\n' "$RELEASE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::Version must be X.Y.Z, got: $RELEASE_VERSION"
-            exit 1
-          fi
-
-      - name: Check tag does not exist
-        run: |
-          set -eu
-          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "::error::Tag $RELEASE_TAG already exists"
-            exit 1
-          fi
+      - name: Compute release version
+        id: compute
+        env:
+          ECOSYSTEM: npm
+          MODULE: ${{ inputs.module }}
+          RELEASE_TYPE: ${{ inputs.release-type }}
+          VERSION_OVERRIDE: ${{ inputs.version }}
+        run: bash scripts/compute-release-version.sh
 
   # ---------------------------------------------------------------------------
-  # Build, publish, then push the release tag. Tag push is last and idempotent.
+  # Build, publish (idempotent), tag, then commit the bumped package.json +
+  # lockfile back. In recovery mode (tag exists) install/build/publish are
+  # skipped and only the bump is re-applied.
   # ---------------------------------------------------------------------------
   npm-publish:
-    needs: check-tag
+    needs: check-version
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -103,14 +119,17 @@ jobs:
     env:
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       MODULE: ${{ inputs.module }}
+      SCOPE: ${{ inputs.scope }}
       DIST_TAG: ${{ inputs.npm-dist-tag }}
+      RELEASE_VERSION: ${{ needs.check-version.outputs.release-version }}
+      RELEASE_TAG: ${{ needs.check-version.outputs.release-tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
-          # Tag is pushed at the end via the runner's GITHUB_TOKEN.
+          # Tag and the version-bump commit are pushed at the end via GITHUB_TOKEN.
           persist-credentials: true
 
       - name: Setup Node.js
@@ -122,13 +141,15 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies (root workspaces)
+        # Always (even in recovery): npm version + the lockfile sync below need a
+        # consistent install; npm ci is cached and cheap.
         run: npm ci --legacy-peer-deps
 
       # ui's vite build resolves @netcracker/qip-schemas to its built dist/, so
       # the schemas workspace must be built first. (vscode self-builds it via
       # prepare-deps; schemas itself doesn't need this.)
       - name: Build schemas (workspace dependency)
-        if: ${{ inputs.build-schemas }}
+        if: ${{ inputs.build-schemas && needs.check-version.outputs.recover != 'true' }}
         run: npm -w @netcracker/qip-schemas run build
 
       - name: Set package version
@@ -136,30 +157,51 @@ jobs:
         run: npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
 
       - name: Build
+        if: ${{ needs.check-version.outputs.recover != 'true' }}
         working-directory: ${{ inputs.module }}
         run: npm run prepublishOnly
 
-      - name: Publish to npm registry
+      - name: Publish to npm registry (idempotent)
+        if: ${{ needs.check-version.outputs.recover != 'true' }}
         working-directory: ${{ inputs.module }}
-        run: npm publish --tag "$DIST_TAG"
-
-      - name: Create and push release tag
         run: |
           set -eu
-          # Idempotent on re-run: a previous attempt may have already pushed it.
+          pkg="$SCOPE/qip-$MODULE"
+          if npm view "$pkg@$RELEASE_VERSION" version >/dev/null 2>&1; then
+            echo "$pkg@$RELEASE_VERSION already published — skipping."
+          else
+            npm publish --tag "$DIST_TAG"
+          fi
+
+      - name: Push release tag
+        run: |
+          set -eu
           if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "Tag $RELEASE_TAG already exists on remote — skipping"
+            echo "Tag $RELEASE_TAG already exists — skipping."
           else
             git tag "$RELEASE_TAG"
             git push origin "$RELEASE_TAG"
           fi
+
+      - name: Sync lockfile and commit version bump
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -eu
+          # Keep the single root lockfile in sync with the bumped workspace
+          # version so the next `npm ci` doesn't fail on a mismatch. Always runs
+          # (incl. recovery) — commit-and-push.sh no-ops if nothing changed.
+          npm install --package-lock-only --legacy-peer-deps
+          bash scripts/commit-and-push.sh \
+            "chore(release): $MODULE $RELEASE_VERSION [skip ci]" \
+            "$MODULE/package.json" package-lock.json
 
   # ---------------------------------------------------------------------------
   # GitHub Release notes (after a successful publish + tag).
   # ---------------------------------------------------------------------------
   create-release:
     if: ${{ inputs.create-github-release == true }}
-    needs: npm-publish
+    needs: [check-version, npm-publish]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -176,8 +218,8 @@ jobs:
           config-name: "release-drafter-config.yml"
           publish: true
           prerelease: ${{ github.ref_name != 'main' }}
-          name: "${{ inputs.module }}-${{ inputs.version }}"
-          tag: "${{ inputs.module }}-v${{ inputs.version }}"
-          version: "${{ inputs.module }}-v${{ inputs.version }}"
+          name: "${{ inputs.module }}-${{ needs.check-version.outputs.release-version }}"
+          tag: "${{ needs.check-version.outputs.release-tag }}"
+          version: "${{ needs.check-version.outputs.release-tag }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
