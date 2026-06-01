@@ -9,7 +9,7 @@
 
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Checkstyle definition for QIP</description>
-    <url>https://github.com/Netcracker/${repo-name}</url>
+    <url>https://github.com/Netcracker/qubership-integration-platform</url>
 
     <licenses>
         <license>
@@ -26,18 +26,18 @@
         </developer>
     </developers>
     <scm>
-        <connection>scm:git:git://github.com/Netcracker/${repo-name}.git</connection>
-        <developerConnection>scm:git:ssh://github.com:Netcracker/${repo-name}.git</developerConnection>
-        <url>https://github.com/Netcracker/${repo-name}/tree/main</url>
+        <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
+        <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
+        <url>https://github.com/Netcracker/qubership-integration-platform</url>
+        <tag>HEAD</tag>
     </scm>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
-        
+
         <revision>0.0.3</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <repo-name>qubership-integration-platform</repo-name>
     </properties>
 
     <distributionManagement>

@@ -1,0 +1,183 @@
+---
+# Reusable npm module release workflow (mirror of _maven-module-release.yaml).
+#
+# Publishes a workspace package (@<scope>/qip-<module>) to the npm registry,
+# pushes a module-scoped git tag (<module>-vX.Y.Z) only AFTER a successful
+# publish, and optionally drafts a GitHub release. Tagging is decoupled from
+# create-github-release (just like the Maven side) so the tag always advances —
+# that keeps the cascade patch-bump baseline correct and re-runs idempotent.
+#
+# Cascade logic (auto patch-bump of the next package in the schemas → ui →
+# vscode-extension chain) lives in the CALLER, not here: a wrapper adds a
+# compute-version + cascade job that runs after this workflow.
+
+name: NPM Module Release (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      module:
+        required: true
+        type: string
+        description: "Workspace dir and tag prefix (e.g. ui, vscode-extension). Package is <scope>/qip-<module>."
+      version:
+        required: true
+        type: string
+        description: "Release version (e.g., 0.0.57). Must be X.Y.Z."
+      scope:
+        required: false
+        type: string
+        default: "@netcracker"
+      node-version:
+        required: false
+        type: string
+        default: "22.x"
+      registry-url:
+        required: false
+        type: string
+        default: "https://npm.pkg.github.com"
+      npm-dist-tag:
+        required: false
+        type: string
+        default: "latest"
+      create-github-release:
+        required: false
+        type: boolean
+        default: true
+      build-schemas:
+        required: false
+        type: boolean
+        default: false
+        description: "Build @netcracker/qip-schemas (workspace dep) before the module build. Needed by ui."
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.module }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  RELEASE_VERSION: ${{ inputs.version }}
+  RELEASE_TAG: ${{ inputs.module }}-v${{ inputs.version }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Preflight: validate version format and ensure the tag does not yet exist.
+  # ---------------------------------------------------------------------------
+  check-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate version format
+        run: |
+          set -eu
+          if ! printf '%s\n' "$RELEASE_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Version must be X.Y.Z, got: $RELEASE_VERSION"
+            exit 1
+          fi
+
+      - name: Check tag does not exist
+        run: |
+          set -eu
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $RELEASE_TAG already exists"
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Build, publish, then push the release tag. Tag push is last and idempotent.
+  # ---------------------------------------------------------------------------
+  npm-publish:
+    needs: check-tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MODULE: ${{ inputs.module }}
+      DIST_TAG: ${{ inputs.npm-dist-tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          # Tag is pushed at the end via the runner's GITHUB_TOKEN.
+          persist-credentials: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          registry-url: ${{ inputs.registry-url }}
+          scope: ${{ inputs.scope }}
+          cache: "npm"
+
+      - name: Install dependencies (root workspaces)
+        run: npm ci --legacy-peer-deps
+
+      # ui's vite build resolves @netcracker/qip-schemas to its built dist/, so
+      # the schemas workspace must be built first. (vscode self-builds it via
+      # prepare-deps; schemas itself doesn't need this.)
+      - name: Build schemas (workspace dependency)
+        if: ${{ inputs.build-schemas }}
+        run: npm -w @netcracker/qip-schemas run build
+
+      - name: Set package version
+        working-directory: ${{ inputs.module }}
+        run: npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Build
+        working-directory: ${{ inputs.module }}
+        run: npm run prepublishOnly
+
+      - name: Publish to npm registry
+        working-directory: ${{ inputs.module }}
+        run: npm publish --tag "$DIST_TAG"
+
+      - name: Create and push release tag
+        run: |
+          set -eu
+          # Idempotent on re-run: a previous attempt may have already pushed it.
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Tag $RELEASE_TAG already exists on remote — skipping"
+          else
+            git tag "$RELEASE_TAG"
+            git push origin "$RELEASE_TAG"
+          fi
+
+  # ---------------------------------------------------------------------------
+  # GitHub Release notes (after a successful publish + tag).
+  # ---------------------------------------------------------------------------
+  create-release:
+    if: ${{ inputs.create-github-release == true }}
+    needs: npm-publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+      - name: Run Release Drafter
+        uses: netcracker/release-drafter@86f4276a3894b5af70480e826c32fe3648ac6a70 # v1.0.0
+        with:
+          config-name: "release-drafter-config.yml"
+          publish: true
+          prerelease: ${{ github.ref_name != 'main' }}
+          name: "${{ inputs.module }}-${{ inputs.version }}"
+          tag: "${{ inputs.module }}-v${{ inputs.version }}"
+          version: "${{ inputs.module }}-v${{ inputs.version }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

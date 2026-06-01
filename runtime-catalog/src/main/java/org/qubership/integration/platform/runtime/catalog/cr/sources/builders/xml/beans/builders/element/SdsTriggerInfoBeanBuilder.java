@@ -11,6 +11,10 @@ import static org.qubership.integration.platform.runtime.catalog.util.TriggerUti
 
 @Component
 public class SdsTriggerInfoBeanBuilder implements ElementBeansBuilder {
+    private static final String PROHIBIT_PARALLEL_RUN_PROP = "prohibitParallelRun";
+    private static final String PARALLEL_RUN_TIMEOUT_PROP = "parallelRunTimeout";
+    private static final String CRON_PROP = "cron";
+
     @Override
     public boolean applicableTo(ChainElement element) {
         return CamelNames.SDS_TRIGGER_COMPONENT.equals(element.getType());
@@ -22,11 +26,23 @@ public class SdsTriggerInfoBeanBuilder implements ElementBeansBuilder {
         streamWriter.writeAttribute("name", "SdsTriggerInfo-" + element.getId());
         streamWriter.writeAttribute("type", "org.qubership.integration.platform.engine.metadata.SdsTriggerInfo");
 
-        streamWriter.writeStartElement("constructors");
+        streamWriter.writeStartElement("properties");
 
-        streamWriter.writeEmptyElement("constructor");
-        streamWriter.writeAttribute("index", "0");
+        streamWriter.writeEmptyElement("property");
+        streamWriter.writeAttribute("key", "jobId");
         streamWriter.writeAttribute("value", getSdsTriggerJobId(element));
+
+        streamWriter.writeEmptyElement("property");
+        streamWriter.writeAttribute("key", "prohibitParallelRun");
+        streamWriter.writeAttribute("value", element.getPropertyAsString(PROHIBIT_PARALLEL_RUN_PROP));
+
+        streamWriter.writeEmptyElement("property");
+        streamWriter.writeAttribute("key", "parallelRunTimeout");
+        streamWriter.writeAttribute("value", element.getPropertyAsString(PARALLEL_RUN_TIMEOUT_PROP));
+
+        streamWriter.writeEmptyElement("property");
+        streamWriter.writeAttribute("key", "cron");
+        streamWriter.writeEmptyElement("value", element.getPropertyAsString(CRON_PROP));
 
         streamWriter.writeEndElement();
         streamWriter.writeEndElement();
