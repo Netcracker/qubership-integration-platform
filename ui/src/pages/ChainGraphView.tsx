@@ -236,7 +236,42 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
     onChange: handleSelectionChange,
   });
 
-  const onNodeDoubleClick = (
+  const handleNodeDragStop = useCallback(
+    (...args: Parameters<typeof onNodeDragStop>) => {
+      void onNodeDragStop(...args);
+    },
+    [onNodeDragStop],
+  );
+
+  const handleEdgesChange = useCallback(
+    (...args: Parameters<typeof onEdgesChange>) => {
+      onEdgesChange(...args);
+    },
+    [onEdgesChange],
+  );
+
+  const handleConnect = useCallback(
+    (...args: Parameters<typeof onConnect>) => {
+      void onConnect(...args);
+    },
+    [onConnect],
+  );
+
+  const handleOnDelete = useCallback(
+    (changes: OnDeleteEvent) => {
+      void handleDelete(changes);
+    },
+    [handleDelete],
+  );
+
+  const handleDrop = useCallback(
+    (...args: Parameters<typeof onDrop>) => {
+      void onDrop(...args);
+    },
+    [onDrop],
+  );
+
+  const handleNodeDoubleClick = (
     _event: MouseEvent,
     node: Node<ChainGraphNodeData>,
   ) => {
@@ -255,10 +290,23 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
     [],
   );
 
+
+
+  const libraryElementColorByName = useMemo(() => {
+    const colorByName = new Map<string, string>();
+
+    libraryElements?.forEach((libraryElement) => {
+      colorByName.set(libraryElement.name, getElementColor(libraryElement));
+    });
+
+    return colorByName;
+  }, [libraryElements]);
+
   const getMinimapNodeColor = useCallback(
     (node: Node<ChainGraphNodeData>) => {
       if (changeContext) {
-        const state = changeContext?.nodeState?.get(node.id);
+        const state = changeContext.nodeState?.get(node.id);
+
         switch (state) {
           case NodeState.NOT_CHANGED:
             return getCssVariableValue("--node-not-changed-color", "#727272");
@@ -270,6 +318,7 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
             return getCssVariableValue("--node-created-color", "#4ec9b0");
         }
       }
+
       if (node.type === "swimlane") {
         return getSwimlaneBorderColor(
           (node.data.properties as Record<string, unknown>)["color"] as string,
@@ -284,16 +333,13 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
         return node.style.backgroundColor;
       }
 
-      if (node.data?.elementType && libraryElements) {
-        const libraryElement = libraryElements.find(
-          (el) => el.name === node.data.elementType,
-        );
-        return getElementColor(libraryElement);
+      if (node.data?.elementType) {
+        return libraryElementColorByName.get(node.data.elementType) ?? "#fdf39d";
       }
 
       return "#fdf39d";
     },
-    [libraryElements, getCssVariableValue],
+    [changeContext, getCssVariableValue, libraryElementColorByName],
   );
 
   const getMinimapNodeStrokeColor = useCallback(
@@ -328,35 +374,50 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
     onContextMenuCall(event, elements);
   };
 
-  const onNodeContextMenu = (
-    event: MouseEvent,
-    node: Node<ChainGraphNodeData>,
-  ) => {
-    event.stopPropagation();
-    const elements: Node<ChainGraphNodeData>[] = [];
+  const onNodeContextMenu = useCallback(
+    (event: MouseEvent, node: Node<ChainGraphNodeData>) => {
+      event.stopPropagation();
 
-    const selectedBeforeRightClick = nodes.filter((n) => n.selected);
+      const selectedBeforeRightClick = nodes.filter((n) => n.selected);
+      const elements: Node<ChainGraphNodeData>[] = [];
 
-    if (
-      selectedBeforeRightClick.some(
-        (selectedNode) => selectedNode.id === node.id,
-      )
-    ) {
-      elements.push(...selectedBeforeRightClick);
-    } else {
-      setSelectedByRightClick(true);
-      setNodes((prev) =>
-        prev.map((prevNode) => ({
-          ...prevNode,
-          selected: prevNode.id === node.id,
-        })),
-      );
-      elements.push(node);
-    }
-    (
-      onContextMenuCall
-    )(event, elements);
-  };
+      if (
+        selectedBeforeRightClick.some(
+          (selectedNode) => selectedNode.id === node.id,
+        )
+      ) {
+        elements.push(...selectedBeforeRightClick);
+      } else {
+        setSelectedByRightClick(true);
+
+        setNodes((prev) => {
+          let changed = false;
+
+          const next = prev.map((prevNode) => {
+            const selected = prevNode.id === node.id;
+
+            if (prevNode.selected === selected) {
+              return prevNode;
+            }
+
+            changed = true;
+
+            return {
+              ...prevNode,
+              selected,
+            };
+          });
+
+          return changed ? next : prev;
+        });
+
+        elements.push(node);
+      }
+
+      onContextMenuCall(event, elements);
+    },
+    [nodes, onContextMenuCall, setNodes],
+  );
 
   useEffect(() => {
     setIsPageLoaded((state) => {
@@ -380,6 +441,46 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
     updateNodeData,
   ]);
 
+  const defaultEdgeOptions = useMemo(
+    () => ({
+      zIndex: 1001,
+    }),
+    [],
+  );
+
+  const proOptions = useMemo(
+    () => ({
+      hideAttribution: true,
+    }),
+    [],
+  );
+
+  const elkDirectionControl = useMemo(
+    () => ({
+      direction,
+      toggleDirection,
+    }),
+    [direction, toggleDirection],
+  );
+
+  const flowNodes = useMemo(
+    () =>
+      readOnly
+        ? nodes.map((node) => {
+          if (node.draggable === false && node.connectable === false) {
+            return node;
+          }
+
+          return {
+            ...node,
+            draggable: false,
+            connectable: false,
+          };
+        })
+        : nodes,
+    [nodes, readOnly],
+  );
+
   return (
     <div
       className={["react-flow-container", className]
@@ -389,52 +490,27 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
       {...rest}
     >
       <ElkDirectionContextProvider
-        elkDirectionControl={{
-          direction,
-          toggleDirection,
-        }}
+        elkDirectionControl={elkDirectionControl}
       >
         <ReactFlow
-          nodes={
-            readOnly
-              ? nodes.map((node) => ({
-                  ...node,
-                  draggable: false,
-                  connectable: false,
-                }))
-              : nodes
-          }
+          nodes={flowNodes}
           nodeTypes={nodeTypes}
-          defaultEdgeOptions={{ zIndex: 1001 }}
+          defaultEdgeOptions={defaultEdgeOptions}
           edges={renderEdges}
           onNodeDragStart={readOnly ? undefined : onNodeDragStart}
           onNodeDrag={readOnly ? undefined : onNodeDrag}
-          onNodeDragStop={
-            readOnly
-              ? undefined
-              : (event, draggedNode) => void onNodeDragStop(event, draggedNode)
-          }
+          onNodeDragStop={readOnly ? undefined : handleNodeDragStop}
           onNodesChange={readOnly ? undefined : onNodesChange}
-          onEdgesChange={
-            readOnly ? undefined : (changes) => onEdgesChange(changes)
-          }
-          onConnect={
-            readOnly ? undefined : (connection) => void onConnect(connection)
-          }
-          onDelete={
-            readOnly
-              ? undefined
-              : (changes) => {
-                  void handleDelete(changes);
-                }
-          }
+          onEdgesChange={readOnly ? undefined : handleEdgesChange}
+          onConnect={readOnly ? undefined : handleConnect}
+          onDelete={readOnly ? undefined : handleOnDelete}
           onBeforeDelete={readOnly ? undefined : onBeforeDelete}
-          onDrop={readOnly ? undefined : (event) => void onDrop(event)}
+          onDrop={readOnly ? undefined : handleDrop}
           onDragOver={readOnly ? undefined : onDragOver}
-          onNodeDoubleClick={readOnly ? undefined : onNodeDoubleClick}
+          onNodeDoubleClick={readOnly ? undefined : handleNodeDoubleClick}
           zoomOnDoubleClick={false}
           deleteKeyCode={deleteKeyCode}
-          proOptions={{ hideAttribution: true }}
+          proOptions={proOptions}
           onContextMenu={readOnly ? undefined : onContextMenu}
           onNodeContextMenu={readOnly ? undefined : onNodeContextMenu}
           onPaneClick={closeMenu}

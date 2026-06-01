@@ -1,5 +1,5 @@
 import { NodeProps } from "@xyflow/react";
-import React, { ReactNode, useContext, useMemo } from "react";
+import { ReactNode, memo, useContext, useMemo } from "react";
 import { ChainGraphNode } from "./ChainGraphNodeTypes.ts";
 import { EllipsisLabel } from "./EllipsisLabel.tsx";
 import { Flex } from "antd";
@@ -12,11 +12,11 @@ export function getSwimlaneBorderColor(color: string): string {
   return SWIMLANE_COLORS[color] ?? SWIMLANE_COLORS.blue;
 }
 
-export const SwimlaneNode: React.FC<NodeProps<ChainGraphNode>> = ({
-  id,
-  data,
-  ...rest
-}): ReactNode => {
+export const SwimlaneNode = memo(function SwimlaneNode({
+                                                         id,
+                                                         data,
+                                                         ...rest
+                                                       }: NodeProps<ChainGraphNode>): ReactNode {
   const chainContext = useContext(ChainContext);
   const isDefault = id === chainContext?.chain?.defaultSwimlaneId;
   const isReuse = id === chainContext?.chain?.reuseSwimlaneId;
@@ -51,6 +51,7 @@ export const SwimlaneNode: React.FC<NodeProps<ChainGraphNode>> = ({
               {isDefault ? "Default" : "Reuse"}
             </span>
           )}
+
           <EllipsisLabel
             text={trimmedLabel}
             style={{
@@ -67,4 +68,4 @@ export const SwimlaneNode: React.FC<NodeProps<ChainGraphNode>> = ({
       {...{ id, data, ...rest }}
     />
   );
-};
+});
