@@ -1,80 +1,106 @@
 ---
-
 name: Catalog Library Release
-description: 'Release Maven artifact and publish to GitHub Packages or Maven Central'
-run-name: ${{ github.event.inputs.version-type }} release for catalog-library
 
 on:
+  workflow_call:
+    inputs:
+      release-type:
+        description: "patch | minor | major"
+        required: false
+        type: string
+        default: "patch"
+      version:
+        description: "Explicit release version (X.Y.Z) override. Empty = bump current <revision> by release-type."
+        required: false
+        type: string
+        default: ""
+      profile:
+        description: "Maven profile to use"
+        type: string
+        required: false
+        default: "central"
+      build-docker:
+        description: "Build Docker image"
+        required: false
+        default: false
+        type: boolean
+      create-github-release:
+        description: "Create release"
+        required: false
+        default: true
+        type: boolean
+      mvn-args:
+        description: "Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)"
+        required: false
+        default: ""
+        type: string
+    secrets:
+      MAVEN_USER:
+        required: false
+      MAVEN_PASSWORD:
+        required: false
+      MAVEN_GPG_PRIVATE_KEY:
+        required: false
+      MAVEN_GPG_PASSPHRASE:
+        required: false
   workflow_dispatch:
     inputs:
-      version-type:
-        description: 'Version type to release'
+      release-type:
+        description: "Release type (ignored if a version override is given)"
         type: choice
         options:
-          - 'major'
-          - 'minor'
-          - 'patch'
-        required: true
-        default: 'patch'
+          - "patch"
+          - "minor"
+          - "major"
+        required: false
+        default: "patch"
+      version:
+        description: "Explicit release version (X.Y.Z) override. Empty = bump current <revision> by release-type."
+        required: false
+        default: ""
+        type: string
       profile:
-        description: 'Maven profile to use'
+        description: "Maven profile to use"
         type: choice
         options:
-          - 'github'
-          - 'central'
+          - "github"
+          - "central"
         required: false
-        default: 'github'
+        default: "central"
+      build-docker:
+        description: "Build Docker image"
+        required: false
+        default: false
+        type: boolean
+      create-github-release:
+        description: "Create release"
+        required: false
+        default: true
+        type: boolean
       mvn-args:
-        description: 'Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)'
+        description: "Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)"
         required: false
-        default: ''
+        default: ""
         type: string
 
-permissions:
-  contents: write
-  packages: write
+permissions: {}
 
 jobs:
-  dry-run-build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: "Build and Publish"
-        uses: netcracker/qubership-workflow-hub/actions/maven-release@feature/maven-release-plugin
-        with:
-          version-type: ${{ github.event.inputs.version-type }}
-          module: catalog-library
-          ref: ${{ github.ref }}
-          maven-args: ${{ inputs.mvn-args }}
-          profile: ${{ inputs.profile }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
-          gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
-          dry-run: 'true'
-#   deploy:
-#     needs: dry-run-build
-#     if: ${{ needs.dry-run-build.result == 'success' }}
-#     outputs:
-#       release-version: ${{ steps.build-and-publish.outputs.release-version }}
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: "Build and Publish"
-#         id: build-and-publish
-#         uses: netcracker/qubership-workflow-hub/actions/maven-release@feature/maven-release-plugin
-#         with:
-#           version-type: ${{ github.event.inputs.version-type }}
-#           module: catalog-library
-#           maven-args: ${{ inputs.mvn-args }}
-#           token: ${{ secrets.GITHUB_TOKEN }}
-#           server-id: ${{ inputs.profile }}
-#           profile: ${{ inputs.profile }}
-#           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
-#           gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
-#           dry-run: 'false'
-
-#   github-release:
-#     needs: deploy
-#     if: ${{ needs.deploy.result == 'success' }}
-#     uses: netcracker/qubership-workflow-hub/.github/workflows/release-drafter.yml@main
-#     with:
-#       version: ${{ needs.deploy.outputs.release-version }}
-#       publish: true
+  release:
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/_maven-module-release.yaml
+    with:
+      module: catalog-library
+      release-type: ${{ inputs.release-type }}
+      version: ${{ inputs.version }}
+      profile: ${{ inputs.profile }}
+      build-docker: ${{ inputs.build-docker }}
+      create-github-release: ${{ inputs.create-github-release }}
+      mvn-args: ${{ inputs.mvn-args }}
+    secrets:
+      MAVEN_USER: ${{ secrets.MAVEN_USER }}
+      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+      MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
