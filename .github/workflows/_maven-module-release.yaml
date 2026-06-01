@@ -1,0 +1,260 @@
+---
+# Reusable Maven module release workflow.
+#
+# Model (hand-rolled on top of ${revision}): the module pom carries
+# <revision>X.Y.Z</revision> and <version>${revision}</version>. On release we
+# publish the CURRENT <revision>, tag it, then bump <revision> to the next dev
+# version per `release-type` and commit that back to the branch. You never type
+# the version — pick patch/minor/major. An optional `version` input overrides
+# the release version for edge cases (first release, explicit jump).
+# flatten-maven-plugin (resolveCiFriendliesOnly) resolves ${revision} in the
+# published POM; the parent is the external spring-boot-starter-parent.
+#
+# Recovery: if the tag already exists, a previous run published+tagged the
+# version but its bump commit never landed. check-version flags recover=true and
+# build-and-publish skips deploy/tag/docker and only re-applies the bump, so a
+# partial failure is self-healing on the next run instead of wedging the module.
+#
+# PREREQUISITE: the runner's GITHUB_TOKEN must be allowed to push to the target
+# branch (bypass branch protection). Without it the version-bump push fails;
+# recovery then re-applies it on the next run once the bypass is in place.
+
+name: Maven Module Release (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      module:
+        required: true
+        type: string
+        description: "Module directory name (e.g. engine, runtime-catalog)"
+      release-type:
+        description: "patch | minor | major — how to bump <revision> for the NEXT dev version after release"
+        required: false
+        type: string
+        default: "patch"
+      version:
+        description: "Explicit release version (X.Y.Z) override. Empty = release the module's current <revision>."
+        required: false
+        type: string
+        default: ""
+      profile:
+        description: "Maven profile to use (central | github)"
+        type: string
+        required: false
+        default: "central"
+      build-docker:
+        description: "Build Docker image"
+        required: false
+        default: true
+        type: boolean
+      create-github-release:
+        description: "Create GitHub release"
+        required: false
+        default: true
+        type: boolean
+      mvn-args:
+        description: "Additional maven arguments (e.g. -DskipTests=true)"
+        required: false
+        default: ""
+        type: string
+    secrets:
+      MAVEN_USER:
+        required: false
+        description: "Username for the non-github Maven repository (e.g. Central). Unused when profile=github."
+      MAVEN_PASSWORD:
+        required: false
+        description: "Password/token for the non-github Maven repository. Unused when profile=github."
+      MAVEN_GPG_PRIVATE_KEY:
+        required: false
+        description: "GPG private key used to sign release artifacts."
+      MAVEN_GPG_PASSPHRASE:
+        required: false
+        description: "Passphrase for MAVEN_GPG_PRIVATE_KEY."
+
+concurrency:
+  # Literal prefix (NOT github.workflow): inside a reusable, github.workflow is
+  # the TOP-LEVEL caller's name, so manual-vs-cascade or wrapper-vs-release-all
+  # runs of the same module would land in different groups and race the
+  # publish/tag/back-commit. Keying on the module serialises every release path.
+  group: qip-release-${{ inputs.module }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Preflight: derive the release version from the module's <revision> (or the
+  # override), compute the next dev version per release-type. If the tag already
+  # exists, enter recovery mode (re-apply the bump only) instead of failing.
+  # ---------------------------------------------------------------------------
+  check-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      release-version: ${{ steps.compute.outputs.release-version }}
+      next-dev: ${{ steps.compute.outputs.next-dev }}
+      release-tag: ${{ steps.compute.outputs.release-tag }}
+      recover: ${{ steps.compute.outputs.recover }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # The tag check queries the remote via ls-remote, so shallow is fine.
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Compute release and next-dev versions
+        id: compute
+        env:
+          ECOSYSTEM: maven
+          MODULE: ${{ inputs.module }}
+          RELEASE_TYPE: ${{ inputs.release-type }}
+          VERSION_OVERRIDE: ${{ inputs.version }}
+        run: bash scripts/compute-release-version.sh
+
+  # ---------------------------------------------------------------------------
+  # Build, sign, publish, tag, then bump <revision> and commit it back. In
+  # recovery mode (tag exists) the deploy/tag/upload steps are skipped and only
+  # the bump is re-applied.
+  # ---------------------------------------------------------------------------
+  build-and-publish:
+    needs: check-version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    env:
+      MODULE: ${{ inputs.module }}
+      RELEASE_VERSION: ${{ needs.check-version.outputs.release-version }}
+      NEXT_DEV: ${{ needs.check-version.outputs.next-dev }}
+      RELEASE_TAG: ${{ needs.check-version.outputs.release-tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          # We push the tag and the version-bump commit at the end via the
+          # runner's GITHUB_TOKEN, so the credentials must persist.
+          persist-credentials: true
+
+      - name: Set up Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          server-id: ${{ inputs.profile }}
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+          cache: "maven"
+
+      - name: Build and deploy module
+        if: ${{ needs.check-version.outputs.recover != 'true' }}
+        working-directory: ${{ inputs.module }}
+        env:
+          MAVEN_USERNAME: ${{ inputs.profile == 'github' && github.actor || secrets.MAVEN_USER }}
+          MAVEN_PASSWORD: ${{ inputs.profile == 'github' && secrets.GITHUB_TOKEN || secrets.MAVEN_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+          MVN_PROFILE: ${{ inputs.profile }}
+          EXTRA_ARGS: ${{ inputs.mvn-args }}
+          SKIP_GPG: ${{ inputs.profile == 'github' && '-Dgpg.skip=true' || '' }}
+        run: |
+          set -eu
+          # Run from the module dir (not `-pl` from root) so Maven builds only
+          # this module, never siblings. Release the CURRENT <revision>
+          # (-Dchangelist= strips a changelist if the pom defines one).
+          # shellcheck disable=SC2086
+          mvn --batch-mode deploy \
+            -P "$MVN_PROFILE" \
+            -Drevision="$RELEASE_VERSION" \
+            -Dchangelist= \
+            $SKIP_GPG \
+            $EXTRA_ARGS
+
+      - name: Push release tag
+        run: |
+          set -eu
+          # Idempotent: in recovery (or a re-run) the tag may already exist.
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Tag $RELEASE_TAG already exists — skipping."
+          else
+            git tag "$RELEASE_TAG"
+            git push origin "$RELEASE_TAG"
+          fi
+
+      - name: Bump revision to next dev version and commit
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -eu
+          POM="$MODULE/pom.xml"
+          # Bump only <revision>; <changelist> (if any) stays untouched. Always
+          # runs (incl. recovery) — commit-and-push.sh no-ops if nothing changed.
+          sed -i -E "s#<revision>[0-9]+\.[0-9]+\.[0-9]+</revision>#<revision>${NEXT_DEV}</revision>#" "$POM"
+          grep -q "<revision>${NEXT_DEV}</revision>" "$POM" || { echo "::error::Failed to bump <revision> in $POM"; exit 1; }
+          bash scripts/commit-and-push.sh "chore(release): $MODULE $RELEASE_VERSION, next dev $NEXT_DEV [skip ci]" "$POM"
+
+      - name: Upload build output
+        if: ${{ inputs.build-docker == true && needs.check-version.outputs.recover != 'true' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ inputs.module }}-jar
+          # Spring Boot modules emit `<artifact>-<version>-exec.jar`; Quarkus
+          # (micro-engine) emits a layered `target/quarkus-app/` tree that
+          # its Dockerfile copies wholesale.
+          path: |
+            ${{ inputs.module }}/target/*-exec.jar
+            ${{ inputs.module }}/target/quarkus-app/**
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Docker image build (delegated to the workflow-hub action — unchanged).
+  # Skipped in recovery: no jar artifact was produced.
+  # ---------------------------------------------------------------------------
+  publish-image:
+    if: ${{ inputs.build-docker == true && needs.check-version.outputs.recover != 'true' }}
+    needs: [check-version, build-and-publish]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: "Docker Build"
+        id: docker_build
+        uses: netcracker/qubership-workflow-hub/actions/docker-action@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+        with:
+          ref: ${{ github.ref }}
+          download-artifact: true
+          download-artifact-name: ${{ inputs.module }}-jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # GitHub Release notes.
+  # ---------------------------------------------------------------------------
+  create-release:
+    if: ${{ inputs.create-github-release == true }}
+    needs: [check-version, build-and-publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+      - name: Run Release Drafter
+        uses: netcracker/release-drafter@86f4276a3894b5af70480e826c32fe3648ac6a70 # v1.0.0
+        with:
+          config-name: "release-drafter-config.yml"
+          publish: true
+          prerelease: ${{ github.ref_name != 'main' }}
+          name: "${{ inputs.module }}-${{ needs.check-version.outputs.release-version }}"
+          tag: "${{ needs.check-version.outputs.release-tag }}"
+          version: "${{ needs.check-version.outputs.release-tag }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
