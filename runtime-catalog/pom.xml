@@ -4,7 +4,7 @@
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-runtime-catalog</artifactId>
-    <version>0.4.5-SNAPSHOT</version>
+    <version>${revision}</version>
     <name>QIP Runtime Catalog</name>
     <description>Managing integration flows (so-called integration chains), services, snapshots and deployments.
     </description>
@@ -38,6 +38,7 @@
     </parent>
 
     <properties>
+        <revision>0.4.5</revision>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
 
