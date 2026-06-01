@@ -380,6 +380,10 @@ function getExtensionConfiguration(): AppExtensionProps {
 
 export async function getNavigateUri(fileUri: vscode.Uri): Promise<string> {
   try {
+    if (fileUri.path === CHAIN_DIFF_PATH) {
+      return CHAIN_DIFF_PATH;
+    }
+
     const fileType = await fileApi.getFileType(fileUri);
 
     switch (fileType) {
@@ -419,6 +423,8 @@ export const MCP_SERVICE_ROUTES: RegExp[] = [
 ];
 
 export const CHAIN_ROUTES: RegExp[] = [/^\/chains\/[^/]+(?:\/.*)?$/];
+
+export const CHAIN_DIFF_PATH = "/chains/diff";
 
 export const ROUTES: RegExp[] = [...SERVICE_ROUTES, ...CHAIN_ROUTES];
 

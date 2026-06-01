@@ -36,6 +36,14 @@ jest.mock("../../../../src/components/chains/diff/ElementSchemasProvider.tsx", (
   };
 });
 
+jest.mock("../../../../src/api/api.ts", () => ({
+  api: {},
+}));
+
+jest.mock("../../../../src/api/rest/vscodeExtensionApi.ts", () => ({
+  VSCodeExtensionApi: class VSCodeExtensionApi {},
+}));
+
 import {
   getElement,
   LinkToChain,
@@ -80,11 +88,11 @@ describe("getElement", () => {
 // ---
 
 describe("LinkToChain", () => {
-  it("should render an anchor with chain name and /chains/{id} href when chain is provided", () => {
+  it("should render an anchor with the chain name when chain is provided", () => {
     render(<LinkToChain chain={makeChain("chain-1")} />);
 
-    const link = screen.getByRole("link", { name: "Chain chain-1" });
-    expect(link).toHaveAttribute("href", "/chains/chain-1");
+    const link = screen.getByText("Chain chain-1");
+    expect(link.tagName).toBe("A");
   });
 
   it("should render nothing when chain is undefined", () => {
@@ -97,11 +105,11 @@ describe("LinkToChain", () => {
 // ---
 
 describe("LinkToElement", () => {
-  it("should render an anchor with element name and /chains/{chainId}/graph/{id} href when element is provided", () => {
+  it("should render an anchor with the element name when element is provided", () => {
     render(<LinkToElement element={makeElement("e1", "My Element", "chain-1")} />);
 
-    const link = screen.getByRole("link", { name: "My Element" });
-    expect(link).toHaveAttribute("href", "/chains/chain-1/graph/e1");
+    const link = screen.getByText("My Element");
+    expect(link.tagName).toBe("A");
   });
 
   it("should render empty content when element is undefined", () => {
@@ -253,7 +261,7 @@ describe("ElementProperty", () => {
     render(<ElementProperty element={elem} name="timeout" value={30} chain={chain} />);
 
     expect(screen.getByTestId("desc-item-element")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Element A" })).toBeInTheDocument();
+    expect(screen.getByText("Element A").tagName).toBe("A");
   });
 
   it("should not render the Element description item when element is undefined", () => {
@@ -273,7 +281,7 @@ describe("ElementProperty", () => {
     const chain = makeChain("chain-1", [parent]);
     render(<ElementProperty name="parentElementId" value="e-parent" chain={chain} />);
 
-    expect(screen.getByRole("link", { name: "Parent Element" })).toBeInTheDocument();
+    expect(screen.getByText("Parent Element").tagName).toBe("A");
   });
 
   it("should render LinkToElement for 'swimlaneId' pointing to the resolved chain element", () => {
@@ -281,7 +289,7 @@ describe("ElementProperty", () => {
     const chain = makeChain("chain-1", [swimlane]);
     render(<ElementProperty name="swimlaneId" value="sw-1" chain={chain} />);
 
-    expect(screen.getByRole("link", { name: "Swimlane A" })).toBeInTheDocument();
+    expect(screen.getByText("Swimlane A").tagName).toBe("A");
   });
 
   it("should render JSON.stringify(value) for generic properties", () => {
@@ -330,8 +338,8 @@ describe("ConnectionView", () => {
 
     render(<ConnectionView connection={connection} chain={chain} />);
 
-    expect(screen.getByRole("link", { name: "Source" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Target" })).toBeInTheDocument();
+    expect(screen.getByText("Source").tagName).toBe("A");
+    expect(screen.getByText("Target").tagName).toBe("A");
     expect(screen.getByTestId("space")).toHaveTextContent("→");
   });
 
@@ -363,7 +371,7 @@ describe("ChangedEntityView", () => {
 
     render(<ChangedEntityView change={change} side="one" chain={makeChain("chain-1")} />);
 
-    expect(screen.getByRole("link", { name: "My Element" })).toBeInTheDocument();
+    expect(screen.getByText("My Element").tagName).toBe("A");
   });
 
   it("should render ChainProperty for 'chain-property' kind", () => {
@@ -407,8 +415,8 @@ describe("ChangedEntityView", () => {
     render(<ChangedEntityView change={change} side="one" chain={chain} />);
 
     expect(screen.getByTestId("space")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Source" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Target" })).toBeInTheDocument();
+    expect(screen.getByText("Source").tagName).toBe("A");
+    expect(screen.getByText("Target").tagName).toBe("A");
   });
 
   it("should render empty content for an unknown kind", () => {

@@ -2,6 +2,7 @@ import { FileApi } from "./fileApi";
 import { ExtensionContext, Uri } from "vscode";
 import * as vscode from "vscode";
 import * as yaml from "yaml";
+import * as path from "path";
 import { LibraryData } from "@netcracker/qip-ui";
 import { QipFileType } from "../serviceApiUtils";
 import { FileFilter } from "../fileFilteringUtils";
@@ -83,22 +84,53 @@ export class VSCodeFileApi implements FileApi {
     return await this.findFileById(entityId, extension);
   }
 
+  private isWindowsPath(p: string): boolean {
+    return /^[a-zA-Z]:\\/.test(p) || p.includes("\\");
+  }
+
+  private resolveParentDirectory(uri: Uri): Uri {
+    const p = path.dirname(uri.path);
+    if (uri.scheme === "git" && uri.query) {
+      const query = JSON.parse(uri.query);
+      if (query?.path) {
+        const dir = this.isWindowsPath(query.path)
+          ? path.win32.dirname(query.path)
+          : path.dirname(query.path);
+        return uri.with({
+          path: p,
+          query: JSON.stringify({ ...query, path: dir }),
+        });
+      }
+    }
+    return uri.with({ path: p });
+  }
+
+  private addToPath(uri: Uri, siffux: string): Uri {
+    const p = path.join(uri.path, siffux);
+    if (uri.scheme === "git" && uri.query) {
+      const query = JSON.parse(uri.query);
+      if (query?.path) {
+        const pth = this.isWindowsPath(query.path)
+          ? path.win32.join(query.path, siffux)
+          : path.join(query.path, siffux);
+        return uri.with({
+          path: p,
+          query: JSON.stringify({ ...query, path: pth }),
+        });
+      }
+    }
+    return uri.with({ path: p });
+  }
+
   private async getParentDirectoryUri(uri: Uri): Promise<Uri> {
     try {
       const stat = await vscode.workspace.fs.stat(uri);
       if (stat.type === vscode.FileType.File) {
-        const lastSlashIndex = uri.path.lastIndexOf("/");
-        const parentPath =
-          lastSlashIndex > 0 ? uri.path.substring(0, lastSlashIndex) : uri.path;
-        return uri.with({ path: parentPath });
+        return this.resolveParentDirectory(uri);
       }
       return uri;
     } catch (_e) {
-      // If stat fails (e.g., file doesn't exist yet), treat uri as a file path and return its parent
-      const lastSlashIndex = uri.path.lastIndexOf("/");
-      const parentPath =
-        lastSlashIndex > 0 ? uri.path.substring(0, lastSlashIndex) : uri.path;
-      return uri.with({ path: parentPath });
+      return this.resolveParentDirectory(uri);
     }
   }
 
@@ -310,14 +342,14 @@ export class VSCodeFileApi implements FileApi {
   async readFile(parameters: any, propertiesFilename: string): Promise<string> {
     const baseUri = parameters as Uri;
     const baseFolder = await this.getParentDirectoryUri(baseUri);
-    const fileUri = vscode.Uri.joinPath(baseFolder, propertiesFilename);
+    const fileUri = this.addToPath(baseFolder, propertiesFilename);
     let fileContent;
     try {
       fileContent = await this.readFileContent(fileUri);
     } catch (error) {
       if (!propertiesFilename.includes(RESOURCES_FOLDER)) {
         return await this.readFile(
-          baseFolder,
+          baseUri,
           RESOURCES_FOLDER + "/" + propertiesFilename,
         );
       }
