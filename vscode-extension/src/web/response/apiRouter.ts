@@ -383,7 +383,7 @@ export async function getNavigateUri(fileUri: vscode.Uri): Promise<string> {
     if (fileUri.path === CHAIN_DIFF_PATH) {
       return CHAIN_DIFF_PATH;
     }
-    
+
     const fileType = await fileApi.getFileType(fileUri);
 
     switch (fileType) {
