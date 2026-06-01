@@ -7,6 +7,7 @@ import { ChainGraphPanel } from "./ChainGraphPanel.tsx";
 import styles from "./ChainDiffGraphView.module.css";
 import { ChainGraphChangeProvider } from "./ChainGraphChangeProvider.tsx";
 import { buildElementMap } from "./compare/compare.ts";
+import { DiffDocumentContextProvider } from "./DiffDocumentContext.tsx";
 
 export function getElementId(
   change: Change | undefined,
@@ -61,54 +62,62 @@ export const ChainDiffGraphView: React.FC<ChainDiffGraphViewProps> = ({
       <Row gutter={16}>
         <Col span={12}>
           {selectedChange && chain1 ? (
-            <ChangedEntityView
-              side="one"
-              change={selectedChange}
-              chain={chain1}
-            />
+            <DiffDocumentContextProvider type={"left"}>
+              <ChangedEntityView
+                side="one"
+                change={selectedChange}
+                chain={chain1}
+              />
+            </DiffDocumentContextProvider>
           ) : null}
         </Col>
         <Col span={12}>
           {selectedChange && chain2 ? (
-            <ChangedEntityView
-              side="another"
-              change={selectedChange}
-              chain={chain2}
-            />
+            <DiffDocumentContextProvider type={"right"}>
+              <ChangedEntityView
+                side="another"
+                change={selectedChange}
+                chain={chain2}
+              />
+            </DiffDocumentContextProvider>
           ) : null}
         </Col>
       </Row>
       <Row gutter={16} style={{ minHeight: 0, flexGrow: 1, flexShrink: 0 }}>
         <Col span={12}>
           {chain1 ? (
-            <ChainGraphChangeProvider
-              chain={chain1}
-              changes={changes}
-              elementMap={elementMap}
-              side={"one"}
-            >
-              <ChainGraphPanel
+            <DiffDocumentContextProvider type={"left"}>
+              <ChainGraphChangeProvider
                 chain={chain1}
-                className={styles["left-view"]}
-                selectedElementId={getElementId(selectedChange, "one")}
-              />
-            </ChainGraphChangeProvider>
+                changes={changes}
+                elementMap={elementMap}
+                side={"one"}
+              >
+                <ChainGraphPanel
+                  chain={chain1}
+                  className={styles["left-view"]}
+                  selectedElementId={getElementId(selectedChange, "one")}
+                />
+              </ChainGraphChangeProvider>
+            </DiffDocumentContextProvider>
           ) : null}
         </Col>
         <Col span={12}>
           {chain2 ? (
-            <ChainGraphChangeProvider
-              chain={chain2}
-              changes={changes}
-              elementMap={elementMap}
-              side={"another"}
-            >
-              <ChainGraphPanel
+            <DiffDocumentContextProvider type={"right"}>
+              <ChainGraphChangeProvider
                 chain={chain2}
-                className={styles["right-view"]}
-                selectedElementId={getElementId(selectedChange, "another")}
-              />
-            </ChainGraphChangeProvider>
+                changes={changes}
+                elementMap={elementMap}
+                side={"another"}
+              >
+                <ChainGraphPanel
+                  chain={chain2}
+                  className={styles["right-view"]}
+                  selectedElementId={getElementId(selectedChange, "another")}
+                />
+              </ChainGraphChangeProvider>
+            </DiffDocumentContextProvider>
           ) : null}
         </Col>
       </Row>

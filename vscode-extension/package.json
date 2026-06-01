@@ -11,10 +11,11 @@
     "configs"
   ],
   "engines": {
-    "vscode": "^1.100.0"
+    "vscode": "^1.120.0"
   },
   "enabledApiProposals": [
-    "tunnels"
+    "tunnels",
+    "customEditorDiffs"
   ],
   "categories": [
     "Other"
@@ -84,7 +85,8 @@
           {
             "filenamePattern": "*.chain.qip.yaml"
           }
-        ]
+        ],
+        "diffEditorPriority": "option"
       },
       {
         "viewType": "qip.serviceFile.editor",
@@ -208,6 +210,7 @@
     "@asyncapi/parser": "^3.4.0",
     "@netcracker/qip-ui": "*",
     "@types/js-yaml": "^4.0.9",
+    "@vscode/dts": "^0.4.1",
     "@xmldom/xmldom": "^0.8.11",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
