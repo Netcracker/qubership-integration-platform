@@ -193,7 +193,7 @@ jobs:
           # (incl. recovery) — commit-and-push.sh no-ops if nothing changed.
           npm install --package-lock-only --legacy-peer-deps
           bash scripts/commit-and-push.sh \
-            "chore(release): $MODULE $RELEASE_VERSION [skip ci]" \
+            "chore: $MODULE $RELEASE_VERSION [skip ci]" \
             "$MODULE/package.json" package-lock.json
 
   # ---------------------------------------------------------------------------

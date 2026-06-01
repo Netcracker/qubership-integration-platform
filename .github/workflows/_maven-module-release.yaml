@@ -203,7 +203,7 @@ jobs:
           # runs (incl. recovery) — commit-and-push.sh no-ops if nothing changed.
           sed -i -E "s#<revision>[0-9]+\.[0-9]+\.[0-9]+</revision>#<revision>${NEXT_DEV}</revision>#" "$POM"
           grep -q "<revision>${NEXT_DEV}</revision>" "$POM" || { echo "::error::Failed to bump <revision> in $POM"; exit 1; }
-          bash scripts/commit-and-push.sh "chore(release): $MODULE $RELEASE_VERSION, next dev $NEXT_DEV [skip ci]" "$POM"
+          bash scripts/commit-and-push.sh "chore: $MODULE $RELEASE_VERSION, next dev $NEXT_DEV [skip ci]" "$POM"
 
       - name: Upload build output
         if: ${{ inputs.build-docker == true && needs.check-version.outputs.recover != 'true' }}
