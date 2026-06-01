@@ -4,7 +4,7 @@
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-engine</artifactId>
-    <version>0.3.8-SNAPSHOT</version>
+    <version>${revision}</version>
     <name>QIP Engine</name>
     <description>Engine service orchestrates and runs integration chains, manages their endpoints, records executions,
         collects metrics, and publishes deployment state, using Apache Camel, Consul, and OpenSearch
@@ -39,6 +39,7 @@
     </parent>
 
     <properties>
+        <revision>0.3.8</revision>
         <generated-sources>target/generated-sources/java</generated-sources>
         <generated-resources>target/generated-sources/resources</generated-resources>
         <java.version>21</java.version>
