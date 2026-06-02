@@ -425,8 +425,8 @@
     </loop>
 
     {{#if-property 'integrationOperationProtocolType' equals='graphql'}}
-      <removeHeader name="CamelGraphQLQuery"/>
-      <removeHeader name="CamelGraphQLVariables"/>
+        <removeHeader name="CamelGraphQLQuery"/>
+        <removeHeader name="CamelGraphQLVariables"/>
     {{/if-property}}
 
     {{#if-property 'afterValidation' not-empty=''}}
