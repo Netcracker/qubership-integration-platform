@@ -47,7 +47,7 @@ jobs:
           target-store: "github"
           java-version: "21"
           maven-username: ${{ github.actor }}
-          maven-token: ${{ github.token }}
+          maven-token: ${{ secrets.GITHUB_TOKEN }}
           # No -Drevision override → the version stays X.Y.Z-SNAPSHOT. "all"
           # builds every module; a single module adds -am so qip-monorepo-parent
           # resolves from source (PR builds no longer publish a parent SNAPSHOT).
