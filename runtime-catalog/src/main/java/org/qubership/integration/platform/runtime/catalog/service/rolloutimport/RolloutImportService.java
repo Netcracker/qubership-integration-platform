@@ -81,7 +81,7 @@ public class RolloutImportService {
             rolloutImportCallbackClient.sendCallback(snapshotId, callbackUrl, buildClientResponse(STATUS_ROLLOUT_SUCCESS, null));
         } catch (Exception exception) {
             log.error(
-                    "rollout import FAILED for snapshotId={}:",
+                    "Rollout import FAILED for snapshotId={}:",
                     snapshotId,
                     exception
             );
