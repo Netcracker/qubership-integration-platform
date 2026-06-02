@@ -127,6 +127,11 @@
     {{/if-property}}
 
     <removeHeader name="CamelHttpQuery"/>
+
+    {{#if-property 'integrationOperationProtocolType' equals='http'}}
+        <process ref="httpProducerCharsetProcessor"/>
+    {{/if-property}}
+
     {{#if-property 'before' presented=''}}
         <step id="Prepare request--{{identifier}}">
             {{#with-property 'before'}}
@@ -250,7 +255,6 @@
 
                 {{#if-property 'integrationOperationProtocolType' equals='http'}}
                     <process ref="httpSenderProcessor"/>
-                    <process ref="httpProducerCharsetProcessor"/>
                     <toD uri="http:stub{{escape (manualQuery
                                                         jsonQueryParameters=(environmentPropertiesJson)
                                                         httpClientConfigurer=(identifier prefix='#'))}}&amp;followRedirects=true" allowOptimisedComponents="false"/>
