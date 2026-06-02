@@ -72,6 +72,13 @@ public class SpecificationGroup extends AbstractSystemEntity {
     @Transient
     private List<Chain> chains;
 
+    public List<SystemModel> getSystemModels() {
+        if (systemModels == null) {
+            systemModels = new ArrayList<>();
+        }
+        return systemModels;
+    }
+
     public void addSystemModel(SystemModel systemModel) {
         if (systemModels == null) {
             systemModels = new ArrayList<>();
