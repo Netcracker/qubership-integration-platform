@@ -1,8 +1,8 @@
 package org.qubership.integration.platform.runtime.catalog.model;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationItem;
 
 import java.util.Map;
 
@@ -10,13 +10,13 @@ import java.util.Map;
 @AllArgsConstructor
 public class ImportConfig {
 
-    private final Map<String, JsonNode> chains;
-    private final Map<String, JsonNode> services;
-    private final Map<String, JsonNode> specificationGroups;
-    private final Map<String, JsonNode> specifications;
-    private final Map<String, JsonNode> commonVariables;
-    private final Map<String, JsonNode> contextServices;
-    private final Map<String, byte[]> resources;
+    private final Map<String, RolloutImportConfigurationItem> chains;
+    private final Map<String, RolloutImportConfigurationItem> services;
+    private final Map<String, RolloutImportConfigurationItem> specificationGroups;
+    private final Map<String, RolloutImportConfigurationItem> specifications;
+    private final Map<String, RolloutImportConfigurationItem> commonVariables;
+    private final Map<String, RolloutImportConfigurationItem> contextServices;
+    private final Map<String, String> resources;
 
     public boolean isEmpty() {
         return chains.isEmpty()

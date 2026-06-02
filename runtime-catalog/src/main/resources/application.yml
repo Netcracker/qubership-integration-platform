@@ -188,10 +188,6 @@ qip:
     remove-unused-specifications: ${QIP_EXPORT_REMOVE_UNUSED_SPECS:true}
   import:
     session-lifetime-minutes: 300
-  qcp:
-    name: qcp
-    client-id: ${MICROSERVICE_NAME:qip-runtime-catalog}
-    namespace: ${NAMESPACE:default}
   internal-services:
     engine: ${ENGINE_SERVICE_NAME:qip-engine}
   domain:

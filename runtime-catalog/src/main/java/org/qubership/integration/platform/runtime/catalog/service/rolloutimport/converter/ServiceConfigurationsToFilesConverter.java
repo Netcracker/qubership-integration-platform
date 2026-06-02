@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.runtime.catalog.service.qcp.converter;
+package org.qubership.integration.platform.runtime.catalog.service.rolloutimport.converter;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationItem;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -18,7 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTENT;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SPECIFICATION_FILE_POSTFIX;
@@ -47,11 +47,11 @@ public class ServiceConfigurationsToFilesConverter {
     }
 
     public Map<Path, byte[]> convert(
-            Map<String, JsonNode> serviceConfigs,
-            Map<String, JsonNode> specificationConfigs,
-            Map<String, JsonNode> specGroupConfigs,
-            Map<String, JsonNode> contextServiceConfigs,
-            Map<String, byte[]> resources
+            Map<String, RolloutImportConfigurationItem> serviceConfigs,
+            Map<String, RolloutImportConfigurationItem> specificationConfigs,
+            Map<String, RolloutImportConfigurationItem> specGroupConfigs,
+            Map<String, RolloutImportConfigurationItem> contextServiceConfigs,
+            Map<String, String> resources
     ) throws JsonProcessingException {
         Map<Path, byte[]> files = new HashMap<>();
         convertServices(files, serviceConfigs, SERVICE_YAML_NAME_POSTFIX);
@@ -63,12 +63,11 @@ public class ServiceConfigurationsToFilesConverter {
 
     private void convertServices(
             Map<Path, byte[]> files,
-            Map<String, JsonNode> serviceConfigs,
+            Map<String, RolloutImportConfigurationItem> serviceConfigs,
             String serviceTypePostfix
     ) throws JsonProcessingException {
-        for (Map.Entry<String, JsonNode> serviceConfig : serviceConfigs.entrySet()) {
-            ObjectNode serviceNode = (ObjectNode) serviceConfig.getValue();
-            JsonNode contentNode = serviceNode.get(CONTENT);
+        for (Map.Entry<String, RolloutImportConfigurationItem> serviceConfig : serviceConfigs.entrySet()) {
+            JsonNode contentNode = serviceConfig.getValue().getContent();
             if (contentNode instanceof ObjectNode serviceContent) {
                 serviceContent.putIfAbsent(
                         IMPORT_MIGRATIONS_FIELD,
@@ -79,19 +78,18 @@ public class ServiceConfigurationsToFilesConverter {
             String serviceId = serviceConfig.getKey();
             Path serviceDirectory = Path.of(serviceId);
             String serviceFileName = serviceId + serviceTypePostfix + appPrefix + YAML_FILE_NAME_POSTFIX;
-            putYaml(files, serviceDirectory.resolve(serviceFileName), serviceNode);
+            putYaml(files, serviceDirectory.resolve(serviceFileName), serviceConfig.getValue());
         }
     }
 
     private void convertSpecGroups(
             Map<Path, byte[]> files,
-            Map<String, JsonNode> serviceConfigs,
-            Map<String, JsonNode> specGroupConfigs
+            Map<String, RolloutImportConfigurationItem> serviceConfigs,
+            Map<String, RolloutImportConfigurationItem> specGroupConfigs
     ) throws JsonProcessingException {
-        for (Map.Entry<String, JsonNode> specGroupConfig : specGroupConfigs.entrySet()) {
+        for (Map.Entry<String, RolloutImportConfigurationItem> specGroupConfig : specGroupConfigs.entrySet()) {
             String specGroupId = specGroupConfig.getKey();
-            JsonNode specGroupNode = specGroupConfig.getValue();
-            String serviceId = getParentId(specGroupNode);
+            String serviceId = getParentId(specGroupConfig.getValue().getContent());
 
             if (serviceId == null) {
                 log.error("SpecGroup {} is missing /content/parentId", specGroupId);
@@ -104,34 +102,33 @@ public class ServiceConfigurationsToFilesConverter {
 
             Path serviceDirectory = Path.of(serviceId);
             String specGroupFileName = specGroupId + SPECIFICATION_GROUP_FILE_POSTFIX + appPrefix + YAML_FILE_NAME_POSTFIX;
-            putYaml(files, serviceDirectory.resolve(specGroupFileName), specGroupNode);
+            putYaml(files, serviceDirectory.resolve(specGroupFileName), specGroupConfig.getValue());
         }
     }
 
     private void convertSpecifications(
             Map<Path, byte[]> files,
-            Map<String, JsonNode> serviceConfigs,
-            Map<String, JsonNode> specGroupConfigs,
-            Map<String, JsonNode> specificationConfigs,
-            Map<String, byte[]> resources
+            Map<String, RolloutImportConfigurationItem> serviceConfigs,
+            Map<String, RolloutImportConfigurationItem> specGroupConfigs,
+            Map<String, RolloutImportConfigurationItem> specificationConfigs,
+            Map<String, String> resources
     ) throws JsonProcessingException {
-        for (Map.Entry<String, JsonNode> specificationConfig : specificationConfigs.entrySet()) {
+        for (Map.Entry<String, RolloutImportConfigurationItem> specificationConfig : specificationConfigs.entrySet()) {
             String specificationId = specificationConfig.getKey();
-            JsonNode specificationNode = specificationConfig.getValue();
-            String specGroupId = getParentId(specificationNode);
+            String specGroupId = getParentId(specificationConfig.getValue().getContent());
 
             if (specGroupId == null) {
                 log.error("Specification {} is missing /content/parentId", specificationId);
                 continue;
             }
 
-            JsonNode specGroupNode = specGroupConfigs.get(specGroupId);
+            RolloutImportConfigurationItem specGroupNode = specGroupConfigs.get(specGroupId);
             if (specGroupNode == null) {
                 log.error("Specification {} refers to non-existing specGroup {}", specificationId, specGroupId);
                 continue;
             }
 
-            String serviceId = getParentId(specGroupNode);
+            String serviceId = getParentId(specGroupNode.getContent());
             if (serviceId == null) {
                 log.error("SpecGroup {} (from specification {}) is missing /content/parentId", specGroupId, specificationId);
                 continue;
@@ -144,16 +141,16 @@ public class ServiceConfigurationsToFilesConverter {
 
             Path serviceDirectory = Path.of(serviceId);
             String specificationFileName = specificationId + SPECIFICATION_FILE_POSTFIX + appPrefix + YAML_FILE_NAME_POSTFIX;
-            putYaml(files, serviceDirectory.resolve(specificationFileName), specificationNode);
+            putYaml(files, serviceDirectory.resolve(specificationFileName), specificationConfig.getValue());
 
-            List<Path> specPaths = specificationNode.findValuesAsText(SPECIFICATION_FILE_NAME_FIELD_KEY)
+            List<Path> specPaths = specificationConfig.getValue().getContent().findValuesAsText(SPECIFICATION_FILE_NAME_FIELD_KEY)
                     .stream()
                     .map(Paths::get)
                     .toList();
             for (Path specPath : specPaths) {
                 String specFileName = specPath.getFileName().toString();
                 if (resources.containsKey(specFileName)) {
-                    files.put(serviceDirectory.resolve(specPath), resources.get(specFileName));
+                    files.put(serviceDirectory.resolve(specPath), resources.get(specFileName).getBytes());
                 } else {
                     log.error("Specification file name {} does not exist in package resources", specFileName);
                 }
@@ -162,11 +159,11 @@ public class ServiceConfigurationsToFilesConverter {
     }
 
     private static String getParentId(JsonNode node) {
-        JsonNode parentIdNode = node.at("/content/parentId");
+        JsonNode parentIdNode = node.at("/parentId");
         return (parentIdNode.isMissingNode() || parentIdNode.isNull()) ? null : parentIdNode.asText();
     }
 
-    private void putYaml(Map<Path, byte[]> files, Path path, JsonNode node) throws JsonProcessingException {
-        files.put(path, objectMapper.writeValueAsBytes(node));
+    private void putYaml(Map<Path, byte[]> files, Path path, RolloutImportConfigurationItem configurationItem) throws JsonProcessingException {
+        files.put(path, objectMapper.writeValueAsBytes(configurationItem));
     }
 }

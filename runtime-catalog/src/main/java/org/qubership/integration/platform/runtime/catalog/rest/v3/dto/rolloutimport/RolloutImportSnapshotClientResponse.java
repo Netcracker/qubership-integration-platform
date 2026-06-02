@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.runtime.catalog.rest.v3.dto.qcp;
+package org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
@@ -11,10 +11,10 @@ import java.util.List;
 @Setter
 @Builder
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class QcpSnapshotClientResponse {
+public class RolloutImportSnapshotClientResponse {
 
     private String clientId;
     private String namespace;
     private String status;
-    private List<QcpClientError> errors;
+    private List<RolloutImportClientError> errors;
 }

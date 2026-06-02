@@ -1,7 +1,7 @@
-package org.qubership.integration.platform.runtime.catalog.service.qcp;
+package org.qubership.integration.platform.runtime.catalog.service.rolloutimport;
 
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.qcp.QcpSnapshotClientResponse;
+import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportSnapshotClientResponse;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -14,18 +14,18 @@ import org.springframework.web.client.RestTemplate;
 
 @Slf4j
 @Service
-public class QcpCallbackClient {
+public class RolloutImportCallbackClient {
 
     private static final int MAX_ATTEMPTS = 3;
     private static final long RETRY_BACKOFF_MS = 5000L;
 
     private final RestTemplate restTemplate;
 
-    public QcpCallbackClient(@Qualifier("restTemplateMS") RestTemplate restTemplate) {
+    public RolloutImportCallbackClient(@Qualifier("restTemplateMS") RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }
 
-    public void sendCallback(String snapshotId, String callbackUrl, QcpSnapshotClientResponse response) {
+    public void sendCallback(String snapshotId, String callbackUrl, RolloutImportSnapshotClientResponse response) {
         if (callbackUrl == null || callbackUrl.isBlank()) {
             log.warn("No callback URL provided for snapshotId={} — skipping PATCH (status={})", snapshotId, response.getStatus());
             return;
@@ -41,7 +41,7 @@ public class QcpCallbackClient {
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<QcpSnapshotClientResponse> entity = new HttpEntity<>(response, headers);
+        HttpEntity<RolloutImportSnapshotClientResponse> entity = new HttpEntity<>(response, headers);
 
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             try {

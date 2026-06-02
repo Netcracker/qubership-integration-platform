@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.runtime.catalog.rest.v3.dto.qcp;
+package org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -13,12 +13,12 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class QcpPackageContent {
+public class RolloutImportPackageContent {
 
     private String name;
     private String version;
-    private List<com.fasterxml.jackson.databind.JsonNode> configurations = new ArrayList<>();
-    private List<QcpResourceItem> resources = new ArrayList<>();
+    private List<RolloutImportConfigurationItem> configurations = new ArrayList<>();
+    private List<RolloutImportResourceItem> resources = new ArrayList<>();
     private List<JsonNode> confSchemas = new ArrayList<>();
     private List<JsonNode> infoSchemas = new ArrayList<>();
 }

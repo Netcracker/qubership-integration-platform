@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.runtime.catalog.rest.v3.dto.qcp;
+package org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -11,7 +11,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class QcpConfigurationItem {
+public class RolloutImportConfigurationItem {
 
     private String id;
     @JsonProperty("$schema")

@@ -51,7 +51,6 @@ import java.io.InputStream;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -66,8 +65,6 @@ public class GeneralImportService {
     private final ActionsLogService actionsLogService;
     private final ImportInstructionsService importInstructionsService;
     private final GeneralInstructionsMapper generalInstructionsMapper;
-
-    private final ConcurrentHashMap<String, CompletableFuture<ImportResult>> importFutures = new ConcurrentHashMap<>();
 
     @Autowired
     public GeneralImportService(
@@ -169,7 +166,7 @@ public class GeneralImportService {
 
 
         String requestId = RequestIdContext.get();
-        CompletableFuture<ImportResult> future = CompletableFuture.supplyAsync(() -> {
+        CompletableFuture.supplyAsync(() -> {
             RequestIdContext.set(requestId);
 
             log.info("Import session {} started", importId);
@@ -207,28 +204,12 @@ public class GeneralImportService {
                     .variables(variablesResult.getVariables())
                     .instructionsResult(importInstructionResults)
                     .build();
-        });
-        importFutures.put(importId, future);
-        future.whenCompleteAsync((response, throwable) -> {
+        }).whenCompleteAsync((response, throwable) -> {
             RequestIdContext.set(requestId);
 
             completeAsyncImport(importId, response, importDirectory, throwable);
-            importFutures.remove(importId);
         });
         return importId;
-    }
-
-    public void awaitImportCompletion(String importId) {
-        CompletableFuture<ImportResult> future = importFutures.get(importId);
-        if (future != null) {
-            future.join();
-            return;
-        }
-        ImportSession session = getImportSession(importId);
-        if (session != null && session.isDone()) {
-            return;
-        }
-        throw new IllegalStateException("Import not found or not finished: " + importId);
     }
 
     private void completeAsyncImport(String importId, ImportResult importResult, File unpackedDirectory, Throwable throwable) {

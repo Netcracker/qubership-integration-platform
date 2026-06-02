@@ -1,13 +1,13 @@
-package org.qubership.integration.platform.runtime.catalog.service.qcp;
+package org.qubership.integration.platform.runtime.catalog.service.rolloutimport;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.model.ImportConfig;
-import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.qcp.QcpImportConfigurationRequest;
-import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.qcp.QcpPackageContent;
-import org.qubership.integration.platform.runtime.catalog.service.qcp.converter.ChainConfigurationsToFilesConverter;
-import org.qubership.integration.platform.runtime.catalog.service.qcp.converter.ServiceConfigurationsToFilesConverter;
-import org.qubership.integration.platform.runtime.catalog.service.qcp.converter.VariableConfigurationsToFilesConverter;
+import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationRequest;
+import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportPackageContent;
+import org.qubership.integration.platform.runtime.catalog.service.rolloutimport.converter.ChainConfigurationsToFilesConverter;
+import org.qubership.integration.platform.runtime.catalog.service.rolloutimport.converter.ServiceConfigurationsToFilesConverter;
+import org.qubership.integration.platform.runtime.catalog.service.rolloutimport.converter.VariableConfigurationsToFilesConverter;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.stereotype.Service;
 
@@ -17,20 +17,19 @@ import java.nio.file.Path;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.qubership.integration.platform.runtime.catalog.model.constant.QcpConstants.CHAINS_DIR_NAME;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.QcpConstants.SERVICES_DIR_NAME;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.QcpConstants.VARIABLES_DIR_NAME;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.RolloutImportConstants.CHAINS_DIR_NAME;
+import static org.qubership.integration.platform.runtime.catalog.model.constant.RolloutImportConstants.SERVICES_DIR_NAME;
 
 @Slf4j
 @Service
-public class QcpSnapshotToImportDirectoryService {
+public class RolloutImportSnapshotToImportDirectoryService {
 
     private final ImportConfigFactory importConfigFactory;
     private final ChainConfigurationsToFilesConverter chainsToFilesConverter;
     private final ServiceConfigurationsToFilesConverter servicesToFilesConverter;
     private final VariableConfigurationsToFilesConverter variablesToFileConverter;
 
-    public QcpSnapshotToImportDirectoryService(
+    public RolloutImportSnapshotToImportDirectoryService(
             ImportConfigFactory importConfigFactory,
             ChainConfigurationsToFilesConverter chainsToFilesConverter,
             ServiceConfigurationsToFilesConverter servicesToFilesConverter,
@@ -42,7 +41,7 @@ public class QcpSnapshotToImportDirectoryService {
         this.variablesToFileConverter = variablesToFileConverter;
     }
 
-    public ImportConfig toImportConfig(QcpImportConfigurationRequest request, String snapshotId) {
+    public ImportConfig toImportConfig(RolloutImportConfigurationRequest request, String snapshotId) {
         if (request == null) {
             log.warn("Request body is null for snapshotId={}", snapshotId);
             return importConfigFactory.empty();
@@ -52,12 +51,12 @@ public class QcpSnapshotToImportDirectoryService {
             return importConfigFactory.empty();
         }
 
-        QcpPackageContent packageContent = request.getPackageContent();
+        RolloutImportPackageContent packageContent = request.getPackageContent();
         return importConfigFactory.fromPackageContent(packageContent);
     }
 
     public java.io.File writeImportDirectory(ImportConfig importConfig) throws IOException {
-        java.io.File rootDir = Files.createTempDirectory("qcp-import-" + UUID.randomUUID()).toFile();
+        java.io.File rootDir = Files.createTempDirectory("rollout-import-" + UUID.randomUUID()).toFile();
 
         try {
             Map<Path, byte[]> chainFiles = chainsToFilesConverter.convert(importConfig.getChains(), importConfig.getResources());
@@ -72,8 +71,6 @@ public class QcpSnapshotToImportDirectoryService {
             );
             writeSection(rootDir, SERVICES_DIR_NAME, serviceFiles);
 
-            Map<Path, byte[]> variableFiles = variablesToFileConverter.convert(importConfig.getCommonVariables());
-            writeSection(rootDir, VARIABLES_DIR_NAME, variableFiles);
             return rootDir;
         } catch (JsonProcessingException e) {
             log.error("JSON conversion failed for import directory {}", rootDir.getAbsolutePath(), e);

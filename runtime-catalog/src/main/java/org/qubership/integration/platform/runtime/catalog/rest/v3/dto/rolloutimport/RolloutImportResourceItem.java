@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.runtime.catalog.rest.v3.dto.qcp;
+package org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -10,12 +10,12 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class QcpResourceItem {
+public class RolloutImportResourceItem {
 
     private String id;
     private String name;
     @JsonProperty("resourceName")
     private String legacyResourceName;
-    private String content;
-    private Boolean encoded = Boolean.TRUE;
+    private String resourceContent;
+    private Boolean encoded;
 }

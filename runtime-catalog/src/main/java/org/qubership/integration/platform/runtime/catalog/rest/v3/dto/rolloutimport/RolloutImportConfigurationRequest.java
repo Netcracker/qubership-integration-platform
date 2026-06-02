@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.runtime.catalog.rest.v3.dto.qcp;
+package org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Getter;
@@ -9,8 +9,8 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class QcpImportConfigurationRequest {
+public class RolloutImportConfigurationRequest {
 
     private String id;
-    private QcpPackageContent packageContent;
+    private RolloutImportPackageContent packageContent;
 }
