@@ -4,4 +4,3 @@ org.qubership.integration.platform.sessions.configuration.RestTemplateAutoConfig
 org.qubership.integration.platform.sessions.configuration.SwaggerAutoConfiguration
 org.qubership.integration.platform.sessions.configuration.WebAutoConfiguration
 org.qubership.integration.platform.sessions.configuration.ApplicationAutoConfiguration
-org.qubership.integration.platform.sessions.configuration.actuator.InfoContributorsConfiguration

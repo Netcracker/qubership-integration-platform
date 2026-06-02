@@ -128,6 +128,10 @@ management:
       exposure:
         exclude: shutdown
         include: info, health, ready, env, loggers, metrics, prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
   opentelemetry:
     resource-attributes:
       "service.name": ${spring.application.name}-${NAMESPACE:local}

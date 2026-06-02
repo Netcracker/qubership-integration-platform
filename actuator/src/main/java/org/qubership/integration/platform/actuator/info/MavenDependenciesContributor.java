@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.sessions.actuator.info;
+package org.qubership.integration.platform.actuator.info;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.actuate.info.Info;

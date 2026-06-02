@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.configuration.actuator;
+package org.qubership.integration.platform.actuator.configuration;
 
-import org.qubership.integration.platform.runtime.catalog.actuator.info.MavenDependenciesContributor;
-import org.qubership.integration.platform.runtime.catalog.actuator.info.RuntimeInfoContributor;
+import org.qubership.integration.platform.actuator.info.MavenDependenciesContributor;
+import org.qubership.integration.platform.actuator.info.RuntimeInfoContributor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.core.io.Resource;
 
-@AutoConfiguration
+@Configuration
 public class InfoContributorsConfiguration {
 
     @Bean

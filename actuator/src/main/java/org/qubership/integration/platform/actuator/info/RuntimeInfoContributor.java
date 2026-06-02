@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.sessions.actuator.info;
+package org.qubership.integration.platform.actuator.info;
 
 import org.springframework.boot.actuate.info.Info;
 import org.springframework.boot.actuate.info.InfoContributor;
