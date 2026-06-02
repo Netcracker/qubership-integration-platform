@@ -1,0 +1,139 @@
+---
+# On-demand dev (pre-release) publishing of an npm module to GitHub Packages.
+#
+# The release workflow (_npm-module-release.yaml) is the WRONG tool for a quick
+# dev build: it tags, commits the version bump back to the branch, and cuts a
+# GitHub Release. This workflow publishes a throwaway pre-release so consumer
+# apps can test unreleased branch code, WITHOUT touching the branch or tags.
+#
+# Version: <next-X.Y.Z>-dev.<UTC-timestamp> (e.g. 0.0.58-dev.20260602143000),
+# published under the `dev` dist-tag — consumers run `npm i <pkg>@dev`. The
+# timestamp keeps every run unique (GitHub Packages versions are immutable). The
+# next-X.Y.Z base is computed by the same compute-release-version.sh the release
+# workflow uses, bumped per `release-type`.
+#
+# npm modules publish ONLY to GitHub Packages already (registry-url below), so
+# "GitHub only" needs nothing extra. The package.json version edit is ephemeral:
+# persist-credentials is off and the job has no contents:write, so it can never
+# reach the branch. Safe to run from any (feature) branch.
+
+name: Publish dev version (npm, on demand)
+
+run-name: Publish dev ${{ inputs.module }} (npm)
+
+on:
+  workflow_dispatch:
+    inputs:
+      module:
+        description: "npm module to publish a dev build for"
+        type: choice
+        options:
+          - ui
+          - vscode-extension
+        default: ui
+      release-type:
+        description: "Base version bump for the dev pre-release (patch | minor | major)"
+        type: choice
+        options:
+          - "patch"
+          - "minor"
+          - "major"
+        required: false
+        default: "patch"
+      dist-tag:
+        description: "npm dist-tag for the dev build (consumers: npm i <pkg>@<dist-tag>)"
+        required: false
+        type: string
+        default: "dev"
+
+concurrency:
+  group: snapshot-publish-npm-${{ inputs.module }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      # read only: we never commit or tag — the version bump stays on the runner.
+      contents: read
+      packages: write
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      MODULE: ${{ inputs.module }}
+      SCOPE: "@netcracker"
+      DIST_TAG: ${{ inputs.dist-tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.ref }}
+          # ls-remote in compute-release-version.sh only needs the remote, not history.
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: "22.x"
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@netcracker"
+          cache: "npm"
+
+      - name: Install dependencies (root workspaces)
+        run: npm ci --legacy-peer-deps
+
+      # ui's vite build resolves @netcracker/qip-schemas to its built dist/, so
+      # schemas must be built first. (vscode-extension self-builds schemas + ui
+      # in its `prepare-deps`; schemas dev itself is out of scope.)
+      - name: Build schemas (workspace dependency)
+        if: ${{ inputs.module == 'ui' }}
+        run: npm -w @netcracker/qip-schemas run build
+
+      # Reuse the release path's bump to get the next X.Y.Z base (per release-type).
+      - name: Compute base version
+        id: compute
+        env:
+          ECOSYSTEM: npm
+          MODULE: ${{ inputs.module }}
+          RELEASE_TYPE: ${{ inputs.release-type }}
+          VERSION_OVERRIDE: ""
+        run: bash scripts/compute-release-version.sh
+
+      - name: Build dev version string
+        id: devver
+        env:
+          BASE: ${{ steps.compute.outputs.release-version }}
+        run: |
+          set -eu
+          ts=$(date -u +%Y%m%d%H%M%S)
+          echo "dev-version=${BASE}-dev.${ts}" >> "$GITHUB_OUTPUT"
+          echo "Dev version: ${BASE}-dev.${ts}"
+
+      # `npm pkg set` (not `npm version`) edits only the version field — no
+      # workspace lockfile reconcile, so it never reaches the registry for a
+      # sibling's range (e.g. vscode-extension's qip-ui dep). We don't commit
+      # the lockfile, so reconciling it would be pointless anyway.
+      - name: Set package version (ephemeral)
+        working-directory: ${{ inputs.module }}
+        env:
+          DEV_VERSION: ${{ steps.devver.outputs.dev-version }}
+        run: npm pkg set version="$DEV_VERSION"
+
+      - name: Build
+        working-directory: ${{ inputs.module }}
+        run: npm run prepublishOnly
+
+      - name: Publish dev build to GitHub Packages (idempotent)
+        working-directory: ${{ inputs.module }}
+        env:
+          DEV_VERSION: ${{ steps.devver.outputs.dev-version }}
+        run: |
+          set -eu
+          pkg="$SCOPE/qip-$MODULE"
+          if npm view "$pkg@$DEV_VERSION" version >/dev/null 2>&1; then
+            echo "$pkg@$DEV_VERSION already published — skipping."
+          else
+            npm publish --tag "$DIST_TAG"
+          fi
