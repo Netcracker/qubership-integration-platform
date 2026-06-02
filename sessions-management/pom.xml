@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.qubership.integration.platform</groupId>
   <artifactId>qip-sessions-management</artifactId>
-  <version>0.5.4-1-os-core-SNAPSHOT</version>
+  <version>${revision}${changelist}</version>
   <name>QIP Sessions Management</name>
   <description>Managing recorded sessions of integration flows execution stored in OpenSearch index</description>
   <url>https://github.com/Netcracker/qubership-integration-platform</url>
@@ -22,6 +22,9 @@
     </parent>
 
     <properties>
+        <revision>0.5.4</revision>
+        <changelist>-SNAPSHOT</changelist>
+
         <qip-actuator.version>0.0.1</qip-actuator.version>
 
         <!-- 3rd party dependencies -->

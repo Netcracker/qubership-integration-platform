@@ -80,9 +80,11 @@ import {
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getAppName } from "../../appConfig.ts";
+import { DiffDocumentType } from "../../components/chains/diff/DiffDocumentContext.tsx";
 
 export const NAVIGATE_EVENT = "navigate";
 export const STARTUP_EVENT = "startup";
+export const COMPARED_DOCUMENTS_REQUEST_EVENT = "comparedDocumentsRequest";
 export const isVsCode = window.location.protocol === "vscode-webview:";
 
 export class VSCodeExtensionApi implements Api {
@@ -652,6 +654,16 @@ export class VSCodeExtensionApi implements Api {
 
   navigateInNewTab = async (path: string): Promise<void> => {
     await this.sendMessageToExtension("navigateInNewTab", path);
+  };
+
+  navigateComparedDocumentInNewTab = async (
+    type: DiffDocumentType,
+    path: string,
+  ): Promise<void> => {
+    await this.sendMessageToExtension("navigateComparedDocumentInNewTab", {
+      type,
+      path,
+    });
   };
 
   navigateToSpecifications = async (groupId: string): Promise<string> => {

@@ -1,8 +1,7 @@
 ---
-
 # Release the vscode-extension module as an npm package
-# (@netcracker/qip-vscode-extension). Tag prefix is module-specific
-# (vscode-extension-vX.Y.Z) so concurrent module releases don't collide.
+# (@netcracker/qip-vscode-extension). Thin wrapper over the shared
+# _npm-module-release workflow; tag prefix is vscode-extension-vX.Y.Z.
 
 name: Vscode Extension Release
 
@@ -12,23 +11,11 @@ on:
       version:
         required: true
         type: string
-        description: 'Release version (e.g., 1.0.0)'
-      scope:
-        required: false
-        type: string
-        default: '@netcracker'
-      node-version:
-        required: false
-        type: string
-        default: '22.x'
-      registry-url:
-        required: false
-        type: string
-        default: 'https://npm.pkg.github.com'
+        description: "Release version (e.g., 1.0.0)"
       npm-dist-tag:
         required: false
         type: string
-        default: 'latest'
+        default: "latest"
       create-github-release:
         required: false
         default: true
@@ -37,123 +24,30 @@ on:
     inputs:
       version:
         required: true
-        default: '0.0.0'
+        default: "0.0.0"
         type: string
-        description: 'Release version (e.g., 1.0.0)'
-      scope:
-        required: false
-        type: string
-        default: '@netcracker'
-      node-version:
-        required: false
-        type: string
-        default: '22.x'
-      registry-url:
-        required: false
-        type: string
-        default: 'https://npm.pkg.github.com'
+        description: "Release version (e.g., 1.0.0)"
       npm-dist-tag:
-        description: 'NPM distribution tag'
+        description: "NPM distribution tag"
         required: false
         type: string
-        default: 'latest'
+        default: "latest"
       create-github-release:
-        description: 'Create release'
+        description: "Create release"
         required: false
         default: true
         type: boolean
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
-
 permissions: {}
 
 jobs:
-  check-tag:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Check if tag exists
-        id: check_tag
-        uses: netcracker/qubership-workflow-hub/actions/tag-action@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
-        with:
-          ref: ${{ github.ref }}
-          tag-name: 'vscode-extension-v${{ inputs.version }}'
-          create-tag: 'false'
-          check-tag: 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  npm-publish:
-    needs: check-tag
-    runs-on: ubuntu-latest
+  release:
     permissions:
       contents: write
       packages: write
-    env:
-      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      VERSION: ${{ inputs.version }}
-      DIST_TAG: ${{ inputs.npm-dist-tag }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ github.ref }}
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-        with:
-          node-version: ${{ inputs.node-version }}
-          registry-url: ${{ inputs.registry-url }}
-          scope: ${{ inputs.scope }}
-          cache: 'npm'
-
-      - name: Install dependencies (root workspaces)
-        run: npm ci --legacy-peer-deps
-
-      - name: Set package version
-        working-directory: vscode-extension
-        run: npm version "$VERSION" --no-git-tag-version --allow-same-version
-
-      - name: Build extension
-        working-directory: vscode-extension
-        run: npm run prepublishOnly
-
-      - name: Publish to npm registry
-        working-directory: vscode-extension
-        run: npm publish --tag "$DIST_TAG"
-
-  create-release:
-    if: ${{ inputs.create-github-release == true }}
-    needs: npm-publish
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-          ref: ${{ github.ref }}
-      - name: Run Release Drafter
-        uses: netcracker/release-drafter@86f4276a3894b5af70480e826c32fe3648ac6a70 # v1.0.0
-        with:
-          config-name: "release-drafter-config.yml"
-          publish: true
-          prerelease: ${{ github.ref_name != 'main' }}
-          name: 'vscode-extension-${{ inputs.version }}'
-          tag: 'vscode-extension-v${{ inputs.version }}'
-          version: 'vscode-extension-v${{ inputs.version }}'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    uses: ./.github/workflows/_npm-module-release.yaml
+    with:
+      module: vscode-extension
+      version: ${{ inputs.version }}
+      npm-dist-tag: ${{ inputs.npm-dist-tag }}
+      create-github-release: ${{ inputs.create-github-release }}

@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.qubership.integration.platform</groupId>
   <artifactId>qip-runtime-catalog</artifactId>
-  <version>0.5.5-1-os-core-SNAPSHOT</version>
+  <version>${revision}${changelist}</version>
   <name>QIP Runtime Catalog</name>
   <description>Managing integration flows (so-called integration chains), services, snapshots and deployments.
     </description>
@@ -22,6 +22,9 @@
     </parent>
 
     <properties>
+        <revision>0.5.5</revision>
+        <changelist>-SNAPSHOT</changelist>
+
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
@@ -731,7 +734,7 @@
                 <version>${flatten-maven-plugin.version}</version>
                 <configuration>
                     <updatePomFile>true</updatePomFile>
-                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                    <flattenMode>ossrh</flattenMode>
                 </configuration>
                 <executions>
                     <execution>

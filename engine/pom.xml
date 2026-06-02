@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.qubership.integration.platform</groupId>
   <artifactId>qip-engine</artifactId>
-  <version>0.5.4-1-os-core-SNAPSHOT</version>
+  <version>${revision}${changelist}</version>
   <name>QIP Engine</name>
   <description>Engine service orchestrates and runs integration chains, manages their endpoints, records executions,
         collects metrics, and publishes deployment state, using Apache Camel, Consul, and OpenSearch
@@ -22,6 +22,9 @@
     <relativePath>../parent</relativePath>
   </parent>
   <properties>
+    <revision>0.5.4</revision>
+    <changelist>-SNAPSHOT</changelist>
+
     <generated-sources>target/generated-sources/java</generated-sources>
     <generated-resources>target/generated-sources/resources</generated-resources>
 
@@ -618,7 +621,7 @@
         <version>${flatten-maven-plugin.version}</version>
         <configuration>
           <updatePomFile>true</updatePomFile>
-          <flattenMode>resolveCiFriendliesOnly</flattenMode>
+          <flattenMode>ossrh</flattenMode>
         </configuration>
         <executions>
           <execution>

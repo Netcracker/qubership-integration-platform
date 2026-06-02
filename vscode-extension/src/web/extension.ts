@@ -1,3 +1,5 @@
+/// <reference types="vscode" />
+/// <reference path="./../../vscode.proposed.customEditorDiffs.d.ts" />
 import * as vscode from "vscode";
 import {
   CancellationToken,
@@ -8,13 +10,11 @@ import {
   Webview,
   WebviewPanel,
 } from "vscode";
-import { getApiResponse } from "./response";
+import { CHAIN_DIFF_PATH, getApiResponse, schemaToChain } from "./response";
 import { setFileApi } from "./response/file";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
 import {
   getExtensionsForUri,
-  setCurrentFileContext,
-  extractFilename,
   initializeContextFromFile,
 } from "./response/file/fileExtensions";
 import { QipExplorerProvider } from "./qipExplorer";
@@ -28,10 +28,16 @@ import {
 import { ConfigApiProvider } from "./services/ConfigApiProvider";
 import {
   getAndClearNavigationStateValue,
-  getNavigationStateValue,
   initNavigationState,
   updateNavigationStateValue,
 } from "./response/navigationUtils";
+import { ContentParser } from "./api-services";
+import { Chain } from "@netcracker/qip-ui";
+
+type VSCodeMessageWrapper = {
+  command: string;
+  data: VSCodeMessage<any>;
+};
 
 export interface QipExtensionAPI {
   loadConfigFromPath(configUri: Uri): Promise<void>;
@@ -224,8 +230,8 @@ export function refreshQipExplorer() {
   }
 }
 
-class ChainFileEditorProvider implements CustomTextEditorProvider {
-  constructor(private readonly context: ExtensionContext) {}
+class BaseFileEditorProvider implements CustomTextEditorProvider {
+  constructor(protected readonly context: ExtensionContext) {}
 
   async resolveCustomTextEditor(
     document: TextDocument,
@@ -285,6 +291,88 @@ class ChainFileEditorProvider implements CustomTextEditorProvider {
   }
 }
 
+class ChainFileEditorProvider extends BaseFileEditorProvider {
+  constructor(context: ExtensionContext) {
+    super(context);
+  }
+
+  async resolveCustomTextEditorInlineDiff(
+    documents: vscode.CustomEditorDiffDocuments<vscode.TextDocument>,
+    panel: WebviewPanel,
+    _token: CancellationToken,
+  ): Promise<void> {
+    if (!panel || !this.context?.extensionUri) {
+      throw new Error("Invalid parameters for resolveCustomEditorInlineDiff");
+    }
+
+    try {
+      const webview = panel.webview;
+      if (!webview) {
+        throw new Error("Panel.webview is required but was null or undefined");
+      }
+
+      webview.options = {
+        localResourceRoots: [this.context.extensionUri],
+        enableScripts: true,
+        enableCommandUris: true,
+      };
+
+      panel.webview.onDidReceiveMessage(
+        async (message: VSCodeMessageWrapper) => {
+          if (message.data.type === "comparedDocumentsRequest") {
+            const getDocument = async (d: vscode.TextDocument) => {
+              return schemaToChain(
+                d.uri,
+                ContentParser.parseContent(d.getText()),
+              );
+            };
+            const response: VSCodeResponse<{
+              original: Chain;
+              modified: Chain;
+            }> = {
+              requestId: message.data.requestId,
+              type: "comparedDocumentsResponse",
+              payload: {
+                original: await getDocument(documents.original),
+                modified: await getDocument(documents.modified),
+              },
+            };
+            panel.webview.postMessage(response);
+          } else if (message.data.type === "navigateComparedDocumentInNewTab") {
+            const { type, path } = message.data.payload;
+            const uri =
+              type === "left" ? documents.original.uri : documents.modified.uri;
+
+            try {
+              const documentUri =
+                uri.scheme === "git"
+                  ? uri
+                  : await getApiResponse(
+                      {
+                        type: "navigateInNewTab",
+                        requestId: crypto.randomUUID(),
+                        payload: path,
+                      },
+                      uri,
+                      this.context,
+                    );
+              await updateNavigationStateValue(this.context, documentUri, path);
+              await openDocumentInEditor(documentUri);
+              return;
+            } catch (e) {
+              console.error("Failed to fetch data for QIP Extension API", e);
+            }
+          }
+        },
+      );
+
+      await enrichWebview(panel, this.context, Uri.parse(CHAIN_DIFF_PATH));
+    } catch (error) {
+      throw error;
+    }
+  }
+}
+
 function openWebviewForElement(
   context: ExtensionContext,
   fileUri: Uri,
@@ -314,14 +402,9 @@ async function enrichWebview(
     throw new Error("Invalid parameters for enrichWebview");
   }
 
-  type VSCodeMessageWrapper = {
-    command: string;
-    data: VSCodeMessage<any>;
-  };
-
   if (fileUri) {
     try {
-      initializeContextFromFile(fileUri);
+      await initializeContextFromFile(fileUri);
     } catch (error) {
       console.error("Failed to initialize context from file:", error);
     }
@@ -363,31 +446,11 @@ async function enrichWebview(
       } else if (message.data.type === "navigateInNewTab") {
         const documentUri: Uri = response.payload;
         const path: string = message.data.payload;
-
         await updateNavigationStateValue(context, documentUri, path);
-
-        const fileExtensions = getExtensionsForUri();
-        let editor = undefined;
-        if (documentUri.path.endsWith(fileExtensions.chain)) {
-          editor = "qip.chainFile.editor";
-        } else if (documentUri.path.endsWith(fileExtensions.service)) {
-          editor = "qip.serviceFile.editor";
-        } else if (documentUri.path.endsWith(fileExtensions.contextService)) {
-          editor = "qip.contextServiceFile.editor";
-        } else if (documentUri.path.endsWith(fileExtensions.mcpService)) {
-          editor = "qip.mcpServiceFile.editor";
-        }
-
-        if (!editor) {
-          throw new Error(
-            `Unable to find an editor for document: ${documentUri}`,
-          );
-        }
-        await vscode.commands.executeCommand(
-          "vscode.openWith",
-          documentUri,
-          editor,
-        );
+        await openDocumentInEditor(documentUri);
+        return;
+      }
+      if (message.data.type === "comparedDocumentsRequest") {
         return;
       }
     } catch (e) {
@@ -398,6 +461,30 @@ async function enrichWebview(
     }
     panel.webview.postMessage(response);
   });
+}
+
+function getEditorByExtension(uri: Uri): string {
+  const fileExtensions = getExtensionsForUri();
+  let editor = undefined;
+  if (uri.path.endsWith(fileExtensions.chain)) {
+    editor = "qip.chainFile.editor";
+  } else if (uri.path.endsWith(fileExtensions.service)) {
+    editor = "qip.serviceFile.editor";
+  } else if (uri.path.endsWith(fileExtensions.contextService)) {
+    editor = "qip.contextServiceFile.editor";
+  } else if (uri.path.endsWith(fileExtensions.mcpService)) {
+    editor = "qip.mcpServiceFile.editor";
+  }
+
+  if (!editor) {
+    throw new Error(`Unable to find an editor for document: ${uri}`);
+  }
+  return editor;
+}
+
+async function openDocumentInEditor(uri: Uri) {
+  const editor = getEditorByExtension(uri);
+  await vscode.commands.executeCommand("vscode.openWith", uri, editor);
 }
 
 async function deleteServiceWithRelatedFiles(
@@ -561,6 +648,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
       retainContextWhenHidden: true,
     },
     supportsMultipleEditorsPerDocument: false,
+    supportsDiffEditor: true,
   };
 
   context.subscriptions.push(
@@ -574,7 +662,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(
       "qip.serviceFile.editor",
-      new ChainFileEditorProvider(context),
+      new BaseFileEditorProvider(context),
       editorParams,
     ),
   );
@@ -582,7 +670,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(
       "qip.contextServiceFile.editor",
-      new ChainFileEditorProvider(context),
+      new BaseFileEditorProvider(context),
       editorParams,
     ),
   );
@@ -590,7 +678,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(
       "qip.mcpServiceFile.editor",
-      new ChainFileEditorProvider(context),
+      new BaseFileEditorProvider(context),
       editorParams,
     ),
   );

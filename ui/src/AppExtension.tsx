@@ -31,11 +31,13 @@ import { getConfig } from "./appConfig.ts";
 import { reapplyCssVariables } from "./config/initConfig.ts";
 import { UserPermissionsProvider } from "./permissions/UserPermissionsProvider.tsx";
 import { McpServiceParametersPage } from "./components/services/mcp/McpServiceParametersPage.tsx";
+import { ChainDiffViewWebview } from "./components/chains/diff/ChainDiffViewWebview.tsx";
 
 const router = createMemoryRouter(
   createRoutesFromElements(
     <>
       <Route path="/" element={<DefaultExtensionPage />} />
+      <Route path="/chains/diff" element={<ChainDiffViewWebview />} />
       <Route path="/chains/:chainId" element={<ChainPage />}>
         <Route index element={<ChainGraph />} />
         <Route index path="graph" element={<ChainGraph />} />

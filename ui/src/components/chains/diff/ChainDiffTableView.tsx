@@ -5,6 +5,7 @@ import { Table, TableProps } from "antd";
 import { TableRowSelection } from "antd/lib/table/interface";
 import { ChangedEntityView } from "./ChangedEntityView.tsx";
 import { ComparedItemTitle } from "./ComparedItemTitle.tsx";
+import { DiffDocumentContextProvider } from "./DiffDocumentContext.tsx";
 
 export type ChainDiffTableViewProps = {
   chain1?: Chain;
@@ -53,10 +54,16 @@ export const ChainDiffTableView: React.FC<ChainDiffTableViewProps> = ({
       },
       {
         key: "one",
-        title: <ComparedItemTitle chain={chain1} />,
+        title: (
+          <DiffDocumentContextProvider type={"left"}>
+            <ComparedItemTitle chain={chain1} />
+          </DiffDocumentContextProvider>
+        ),
         render: (_: unknown, change) => {
           return chain1 ? (
-            <ChangedEntityView change={change} side={"one"} chain={chain1} />
+            <DiffDocumentContextProvider type={"left"}>
+              <ChangedEntityView change={change} side={"one"} chain={chain1} />
+            </DiffDocumentContextProvider>
           ) : (
             <></>
           );
@@ -64,14 +71,20 @@ export const ChainDiffTableView: React.FC<ChainDiffTableViewProps> = ({
       },
       {
         key: "another",
-        title: <ComparedItemTitle chain={chain2} />,
+        title: (
+          <DiffDocumentContextProvider type={"right"}>
+            <ComparedItemTitle chain={chain2} />
+          </DiffDocumentContextProvider>
+        ),
         render: (_: unknown, change) => {
           return chain2 ? (
-            <ChangedEntityView
-              change={change}
-              side={"another"}
-              chain={chain2}
-            />
+            <DiffDocumentContextProvider type={"right"}>
+              <ChangedEntityView
+                change={change}
+                side={"another"}
+                chain={chain2}
+              />
+            </DiffDocumentContextProvider>
           ) : (
             <></>
           );
