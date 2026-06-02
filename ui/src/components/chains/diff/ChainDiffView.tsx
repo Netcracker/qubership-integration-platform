@@ -11,6 +11,7 @@ import { ChainDiffTextView } from "./ChainDiffTextView.tsx";
 import { ComparedItemSelector } from "./ComparedItemSelector.tsx";
 import { ComparableItem, useChainDiff } from "./useChainDiff.tsx";
 import styles from "./ChainDiffView.module.css";
+import { DiffDocumentContextProvider } from "./DiffDocumentContext.tsx";
 
 export type ChainDiffViewProps = {
   item1: ComparableItem;
@@ -45,19 +46,23 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
     <Flex {...rest} vertical gap={8}>
       <Row gutter={16} align="middle">
         <Col span={12}>
-          <ComparedItemSelector
-            chain={chain1}
-            editable={editable1 ?? false}
-            onChange={(item) => setI1(item)}
-          />
+          <DiffDocumentContextProvider type={"left"}>
+            <ComparedItemSelector
+              chain={chain1}
+              editable={editable1 ?? false}
+              onChange={(item) => setI1(item)}
+            />
+          </DiffDocumentContextProvider>
         </Col>
         <Col span={12}>
-          <ComparedItemSelector
-            chain={chain2}
-            editable={editable2 ?? false}
-            onChange={(item) => setI2(item)}
-            imported={i2.kind === "archive"}
-          />
+          <DiffDocumentContextProvider type={"right"}>
+            <ComparedItemSelector
+              chain={chain2}
+              editable={editable2 ?? false}
+              onChange={(item) => setI2(item)}
+              imported={i2.kind === "archive"}
+            />
+          </DiffDocumentContextProvider>
         </Col>
       </Row>
       <ChainDiffViewControls

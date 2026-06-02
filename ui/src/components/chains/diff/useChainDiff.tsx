@@ -21,7 +21,12 @@ export type ArchiveItem = {
   archive: File;
 };
 
-export type ComparableItem = ChainItem | SnapshotItem | ArchiveItem;
+export type DocumentItem = {
+  kind: "document";
+  content: Chain;
+}
+
+export type ComparableItem = ChainItem | SnapshotItem | ArchiveItem | DocumentItem;
 
 export function asChain(snapshot: ChainSnapshot): Chain {
   return {
@@ -114,7 +119,9 @@ export const useChainDiff = (item1: ComparableItem, item2: ComparableItem) => {
         ? loadChain(item.id, setLoading)
         : item.kind === "snapshot"
           ? loadSnapshot(item.id, setLoading)
-          : loadChainFromArchive(item.archive, item.id, setLoading);
+          : item.kind === "archive"
+          ? loadChainFromArchive(item.archive, item.id, setLoading)
+          : item.content;
     },
     [loadChain, loadSnapshot, loadChainFromArchive],
   );

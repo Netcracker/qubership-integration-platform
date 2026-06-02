@@ -2,16 +2,26 @@
 # Release the ui module as an npm package (@netcracker/qip-ui) via the shared
 # _npm-module-release workflow, then optionally cascade to vscode-extension with
 # an auto patch-bump. Tag prefix is ui-vX.Y.Z.
+#
+# No workflow-level concurrency here: the reusable serialises per module
+# (group includes inputs.module). A wrapper-level group keyed on github.workflow
+# would collide with the nested vscode call and deadlock.
 
 name: Ui Release
 
 on:
   workflow_call:
     inputs:
-      version:
-        required: true
+      release-type:
+        required: false
         type: string
-        description: "Release version (e.g., 1.0.0)"
+        default: "patch"
+        description: "patch | minor | major"
+      version:
+        required: false
+        type: string
+        default: ""
+        description: "Explicit release version (X.Y.Z) override. Empty = bump current by release-type."
       npm-dist-tag:
         required: false
         type: string
@@ -24,14 +34,23 @@ on:
         required: false
         type: boolean
         default: false
-        description: "After publish, trigger vscode-extension-release with auto patch-bump"
+        description: "After publish, trigger vscode-extension release with an auto patch-bump"
   workflow_dispatch:
     inputs:
+      release-type:
+        description: "Release type (ignored if a version override is given)"
+        type: choice
+        options:
+          - "patch"
+          - "minor"
+          - "major"
+        required: false
+        default: "patch"
       version:
-        required: true
-        default: "0.0.0"
+        required: false
+        default: ""
         type: string
-        description: "Release version (e.g., 1.0.0)"
+        description: "Explicit release version (X.Y.Z) override. Empty = bump current by release-type."
       npm-dist-tag:
         description: "NPM distribution tag"
         required: false
@@ -43,14 +62,10 @@ on:
         default: true
         type: boolean
       cascade-vscode-extension:
-        description: "After publish, trigger vscode-extension-release with auto patch-bump"
+        description: "After publish, trigger vscode-extension release with an auto patch-bump"
         required: false
         type: boolean
         default: false
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
 
 permissions: {}
 
@@ -62,50 +77,26 @@ jobs:
     uses: ./.github/workflows/_npm-module-release.yaml
     with:
       module: ui
+      release-type: ${{ inputs.release-type }}
       version: ${{ inputs.version }}
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
       create-github-release: ${{ inputs.create-github-release }}
       build-schemas: true
 
-  # ---------------------------------------------------------------------------
-  # Cascade: compute next vscode-extension version (gated on the publish, NOT on
-  # the GitHub release, so create-github-release=false doesn't break the chain).
-  # ---------------------------------------------------------------------------
-  compute-vscode-version:
-    if: ${{ inputs.cascade-vscode-extension && always() && !failure() && !cancelled() }}
-    needs: release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      version: ${{ steps.compute.outputs.version }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Compute next vscode-extension patch version
-        id: compute
-        run: |
-          set -euo pipefail
-          version=$(bash scripts/next-cascade-version.sh vscode-extension vscode-extension/package.json)
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-  # ---------------------------------------------------------------------------
-  # Cascade: release vscode-extension. It is a leaf (no further cascade), so we
-  # call the reusable directly rather than the vscode-extension-release wrapper —
-  # that keeps the schemas → ui → vscode chain within GitHub's 4-level
-  # reusable-workflow nesting limit.
-  # ---------------------------------------------------------------------------
+  # Cascade: release vscode-extension with an auto patch-bump (its package.json
+  # is the source of truth). Gated on the ui publish, not on the GitHub release,
+  # so create-github-release=false doesn't break the chain. Calls the reusable
+  # directly (not the vscode-extension-release wrapper) to keep the
+  # schemas → ui → vscode chain within GitHub's 4-level nesting limit.
   cascade-vscode-extension:
-    needs: compute-vscode-version
+    needs: release
+    if: ${{ inputs.cascade-vscode-extension && always() && !failure() && !cancelled() }}
     permissions:
       contents: write
       packages: write
     uses: ./.github/workflows/_npm-module-release.yaml
     with:
       module: vscode-extension
-      version: ${{ needs.compute-vscode-version.outputs.version }}
+      release-type: patch
+      npm-dist-tag: ${{ inputs.npm-dist-tag }}
       create-github-release: ${{ inputs.create-github-release }}

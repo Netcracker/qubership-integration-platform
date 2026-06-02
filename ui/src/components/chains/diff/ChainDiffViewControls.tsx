@@ -2,6 +2,7 @@ import { Button, Flex, Radio, Tooltip } from "antd";
 import React, { useCallback, useEffect, useState } from "react";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { Change } from "./compare/types.ts";
+import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 
 export type DiffViewType = "graph" | "table" | "text";
 
@@ -78,7 +79,7 @@ export const ChainDiffViewControls: React.FC<ChainDiffViewControlsProps> = ({
         options={[
           { label: "Graph", value: "graph" },
           { label: "Table", value: "table" },
-          { label: "Text", value: "text" },
+          ...(isVsCode ? [] : [{ label: "Text", value: "text" }]),
         ]}
         defaultValue="graph"
         optionType="button"

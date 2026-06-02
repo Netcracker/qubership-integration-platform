@@ -12,6 +12,9 @@ import { ElementSchemasContext } from "./ElementSchemasProvider.tsx";
 import { JSONSchema7 } from "json-schema";
 import styles from "./ChangedEntityView.module.css";
 import { traverseElementsDepthFirst } from "../../../misc/tree-utils.ts";
+import { api } from "../../../api/api.ts";
+import { VSCodeExtensionApi } from "../../../api/rest/vscodeExtensionApi.ts";
+import { DiffDocumentContext, DiffDocumentType } from "./DiffDocumentContext.tsx";
 
 export function getElement(
   elementId: string,
@@ -26,24 +29,32 @@ export function getElement(
   return element;
 }
 
+export function navigateTo(type: DiffDocumentType, navigationPath: string) {
+  if (api instanceof VSCodeExtensionApi) {
+    void api.navigateComparedDocumentInNewTab(type, navigationPath);
+  } else {
+    window.open(navigationPath, "_blank", "noreferrer");
+  }
+}
+
 export const LinkToChain: React.FC<{ chain?: Pick<Chain, "id" | "name"> }> = ({
   chain,
 }): React.ReactNode => {
+  const { type } = useContext(DiffDocumentContext);
   return chain ? (
-    <a href={`/chains/${chain.id}`} target="_blank" rel="noreferrer">
-      {chain.name}
-    </a>
+    <a onClick={() => navigateTo(type, `/chains/${chain.id}`)}>{chain.name}</a>
   ) : null;
 };
 
 export const LinkToElement: React.FC<{ element?: Element }> = ({
   element,
 }): React.ReactNode => {
+  const { type } = useContext(DiffDocumentContext);
   return element ? (
     <a
-      href={`/chains/${element.chainId}/graph/${element.id}`}
-      target="_blank"
-      rel="noreferrer"
+      onClick={() =>
+        navigateTo(type, `/chains/${element.chainId}/graph/${element.id}`)
+      }
     >
       {element.name}
     </a>

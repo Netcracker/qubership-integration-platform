@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { api } from "../../../api/api.ts";
 import { ComparableItem } from "./useChainDiff.tsx";
+import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 
 export type ComparedItemSelectorProps = {
   chain?: Chain;
@@ -48,12 +49,14 @@ export const ComparedItemSelector: React.FC<ComparedItemSelectorProps> = ({
   }, [chain, notificationService]);
 
   useEffect(() => {
-    void updateOptions();
+    if (!isVsCode) {
+      void updateOptions();
+    }
   }, [updateOptions]);
   return (
     <Flex gap={8} vertical={false} align={"center"} justify={"space-between"}>
       <LinkToChain chain={chain} />
-      {chain ? (
+      {chain && !isVsCode ? (
         <Select
           style={{ width: 100 }}
           loading={loading}

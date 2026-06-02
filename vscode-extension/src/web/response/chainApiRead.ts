@@ -393,7 +393,7 @@ export async function getChain(fileUri: Uri, chainId: string): Promise<Chain> {
   return schemaToChain(fileUri, chain);
 }
 
-async function schemaToChain(
+export async function schemaToChain(
   fileUri: Uri,
   chain: ChainSchema,
   withElements: boolean = true,
