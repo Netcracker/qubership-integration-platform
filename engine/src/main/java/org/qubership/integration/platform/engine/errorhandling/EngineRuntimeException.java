@@ -23,8 +23,6 @@ import lombok.Setter;
 @Setter
 public class EngineRuntimeException extends RuntimeException {
 
-    private Exception originalException;
-
     public EngineRuntimeException() {
         super();
     }
@@ -34,8 +32,7 @@ public class EngineRuntimeException extends RuntimeException {
     }
 
     public EngineRuntimeException(String errorMessage, Exception originalException) {
-        super(errorMessage);
-        this.originalException = originalException;
+        super(errorMessage, originalException);
     }
 
 }
