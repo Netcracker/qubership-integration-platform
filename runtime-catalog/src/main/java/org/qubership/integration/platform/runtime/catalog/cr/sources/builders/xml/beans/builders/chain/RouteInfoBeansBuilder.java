@@ -36,9 +36,6 @@ public class RouteInfoBeansBuilder implements SnapshotBeanBuilder {
         streamWriter.writeStartElement("bean");
         streamWriter.writeAttribute("name", "RouteRegistrationInfo-" + route.getId());
         streamWriter.writeAttribute("type", "org.qubership.integration.platform.engine.metadata.RouteRegistrationInfo");
-        streamWriter.writeAttribute("builderClass", "org.qubership.integration.platform.engine.metadata.builders.RouteRegistrationInfoBuilder");
-        streamWriter.writeAttribute("builderMethod", "build");
-
 
         streamWriter.writeStartElement("properties");
 

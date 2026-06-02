@@ -49,14 +49,14 @@
 
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.27.3</quarkus.platform.version>
-        <camel.version>4.14.6</camel.version>
+        <quarkus.platform.version>3.33.2</quarkus.platform.version>
+        <camel.version>4.18.2</camel.version>
 
         <quarkus-mcp-server.version>1.8.0</quarkus-mcp-server.version>
-        <cloud-core.version>9.1.0</cloud-core.version>
-        <maas-client.version>11.2.6</maas-client.version>
-        <maas-client-quarkus.version>9.0.3</maas-client-quarkus.version>
-        <blue-green-state-monitor.version>2.0.3</blue-green-state-monitor.version>
+        <cloud-core.version>10.0.1</cloud-core.version>
+        <maas-client.version>12.0.7</maas-client.version>
+        <maas-client-quarkus.version>10.0.7</maas-client-quarkus.version>
+        <blue-green-state-monitor.version>4.0.1</blue-green-state-monitor.version>
 
         <lombok.version>1.18.42</lombok.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
@@ -631,13 +631,13 @@
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-junit5</artifactId>
+            <artifactId>quarkus-junit</artifactId>
             <scope>test</scope>
         </dependency>
         <!-- Tests -->
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-junit5-mockito</artifactId>
+            <artifactId>quarkus-junit-mockito</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -662,7 +662,7 @@
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-junit5-component</artifactId>
+            <artifactId>quarkus-junit-component</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
