@@ -22,7 +22,7 @@
   </parent>
   <properties>
     <revision>0.5.5</revision>
-    <changelist>-qcp-import-SNAPSHOT</changelist>
+    <changelist>-rollout-import-SNAPSHOT</changelist>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>

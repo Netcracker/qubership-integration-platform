@@ -81,7 +81,7 @@ public class RolloutImportService {
             rolloutImportCallbackClient.sendCallback(snapshotId, callbackUrl, buildClientResponse(STATUS_ROLLOUT_SUCCESS, null));
         } catch (Exception exception) {
             log.error(
-                    "QCP rollout FAILED for snapshotId={}:",
+                    "rollout import FAILED for snapshotId={}:",
                     snapshotId,
                     exception
             );

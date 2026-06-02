@@ -74,7 +74,7 @@ public class RolloutImportSnapshotToImportDirectoryService {
             return rootDir;
         } catch (JsonProcessingException e) {
             log.error("JSON conversion failed for import directory {}", rootDir.getAbsolutePath(), e);
-            throw new IOException("Failed to convert QCP package to import directory", e);
+            throw new IOException("Failed to convert rollout import snapshot package to import directory", e);
         } catch (RuntimeException | IOException e) {
             log.error("Failed to write import directory {}, cleaning up", rootDir.getAbsolutePath(), e);
             deleteQuietly(rootDir);
@@ -103,7 +103,7 @@ public class RolloutImportSnapshotToImportDirectoryService {
             ExportImportUtils.deleteFile(directory);
             log.info("Deleted temp directory {}", directory.getAbsolutePath());
         } catch (Exception ex) {
-            log.warn("Failed to delete temporary QCP import directory {}", directory, ex);
+            log.warn("Failed to delete temporary rollout import directory {}", directory, ex);
         }
     }
 }
