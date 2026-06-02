@@ -23,7 +23,7 @@
 
     <properties>
         <revision>0.5.4</revision>
-        <changelist>-SNAPSHOT</changelist>
+        <changelist>-1-core-deps-SNAPSHOT</changelist>
 
         <qip-actuator.version>0.0.1</qip-actuator.version>
 

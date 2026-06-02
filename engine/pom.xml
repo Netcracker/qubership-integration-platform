@@ -23,7 +23,7 @@
   </parent>
   <properties>
     <revision>0.5.4</revision>
-    <changelist>-SNAPSHOT</changelist>
+    <changelist>-1-core-deps-SNAPSHOT</changelist>
 
     <generated-sources>target/generated-sources/java</generated-sources>
     <generated-resources>target/generated-sources/resources</generated-resources>
