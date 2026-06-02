@@ -52,7 +52,6 @@ jobs:
           # builds every module; a single module adds -am so qip-monorepo-parent
           # resolves from source (PR builds no longer publish a parent SNAPSHOT).
           maven-command: >
-            --batch-mode deploy
+            --batch-mode verify
             -Dgpg.skip=true
-            -Pgithub,!central
-            ${{ inputs.module == 'all' && format('-pl !{0}', 'checkstyle') || format('-pl parent,{0}', inputs.module) }}
+            ${{ inputs.module == 'all' && ' ' || format('-pl {0} -am', inputs.module) }}
