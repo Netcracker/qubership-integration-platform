@@ -53,6 +53,6 @@ jobs:
           # resolves from source (PR builds no longer publish a parent SNAPSHOT).
           maven-command: >
             -P github
-            --batch-mode verify
+            --batch-mode deploy
             -Dgpg.skip=true
             ${{ inputs.module == 'all' && ' ' || format('-pl {0} -am', inputs.module) }}
