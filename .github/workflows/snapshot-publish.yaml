@@ -1,13 +1,32 @@
 ---
-# On-demand SNAPSHOT publishing to GitHub Packages.
+# On-demand SNAPSHOT publishing of a single Maven module to GitHub Packages.
 #
-# PR builds (see _maven-module-build.yaml) only verify and publish nothing.
-# When someone needs a fresh SNAPSHOT of a module in GitHub Packages, they run
-# this workflow manually and pick the module. It reuses the same proven
-# maven-snapshot-deploy mechanism the PR build used to run on every push — only
-# the trigger changed (push → manual).
+# Why not the maven-snapshot-deploy hub action (used before): its SNAPSHOT
+# auto-detection inspects <version>/<revision> for "-SNAPSHOT", but the monorepo
+# splits the version as ${revision}${changelist} with the suffix living in
+# <changelist>. The action mis-detects "not a snapshot" and runs `install` (or,
+# when handed a full command line as it was, plain `verify`) — so it never
+# deployed anything.
+#
+# Instead we deploy directly, mirroring the release reusable's build-and-publish
+# step (_maven-module-release.yaml) but WITHOUT tag/bump/commit/GitHub Release/
+# docker, and WITHOUT stripping <changelist> — the current X.Y.Z-SNAPSHOT is
+# published as-is. Snapshots are always pointwise: one module per run, no "all".
+#
+# GitHub-only: the `github` profile targets maven.pkg.github.com and skips GPG.
+# Nothing is committed or tagged (contents: read), so it's safe from any branch.
+# Re-running republishes the same X.Y.Z-SNAPSHOT coordinates (no <snapshotRepository>
+# is declared, so it deploys to the release <repository>) — bump <revision> on the
+# branch if you need a distinct build.
+#
+# micro-engine note: it reads private com.netcracker.cloud.* from
+# maven.pkg.github.com/netcracker/*, which needs the same GITHUB_TOKEN access its
+# release requires. If the token can't read those packages, micro-engine's
+# snapshot fails exactly as its release would.
 
 name: Publish SNAPSHOT (on demand)
+
+run-name: Publish SNAPSHOT ${{ inputs.module }}
 
 on:
   workflow_dispatch:
@@ -16,12 +35,11 @@ on:
         description: "Module to publish a SNAPSHOT for (X.Y.Z-SNAPSHOT to GitHub Packages)"
         type: choice
         options:
-          - all
           - engine
           - micro-engine
           - runtime-catalog
           - sessions-management
-        default: all
+        default: engine
 
 concurrency:
   group: snapshot-publish-${{ inputs.module }}-${{ github.ref }}
@@ -33,25 +51,40 @@ jobs:
   publish-snapshot:
     runs-on: ubuntu-latest
     permissions:
+      # read only: we never commit or tag — just publish the current SNAPSHOT.
       contents: read
       packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          fetch-depth: 1
           persist-credentials: false
 
-      - name: Publish SNAPSHOT to GitHub Packages
-        uses: netcracker/qubership-workflow-hub/actions/maven-snapshot-deploy@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+      - name: Set up Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
-          target-store: "github"
           java-version: "21"
-          maven-username: ${{ github.actor }}
-          maven-token: ${{ github.token }}
-          # No -Drevision override → the version stays X.Y.Z-SNAPSHOT. "all"
-          # builds every module; a single module adds -am so qip-monorepo-parent
-          # resolves from source (PR builds no longer publish a parent SNAPSHOT).
-          maven-command: >
-            --batch-mode verify
-            -Dgpg.skip=true
-            ${{ inputs.module == 'all' && ' ' || format('-pl {0} -am', inputs.module) }}
+          distribution: "temurin"
+          server-id: github
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          cache: "maven"
+
+      # Pre-install the parent pom so the single-module deploy below resolves it.
+      - name: Install qip-monorepo-parent locally
+        run: mvn --batch-mode -f parent/pom.xml install -N -DskipTests
+
+      - name: Deploy SNAPSHOT to GitHub Packages
+        working-directory: ${{ inputs.module }}
+        env:
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          # Run from the module dir so Maven reads only this module + parent (via
+          # relativePath), never siblings. Keep ${revision}${changelist} intact
+          # (no -Drevision / -Dchangelist=) → publishes the current X.Y.Z-SNAPSHOT.
+          # -Pgithub deactivates the activeByDefault `central` profile and targets
+          # maven.pkg.github.com; GPG is skipped for GitHub Packages.
+          mvn --batch-mode deploy -Pgithub -Dgpg.skip=true
