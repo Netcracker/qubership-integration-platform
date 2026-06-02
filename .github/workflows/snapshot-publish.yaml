@@ -55,4 +55,4 @@ jobs:
             -P github
             --batch-mode deploy
             -Dgpg.skip=true
-            ${{ inputs.module == 'all' && ' ' || format('-pl {0} -am', inputs.module) }}
+            ${{ inputs.module == 'all' && ' ' || format('-pl {0},!checkstyle -am', inputs.module) }}
