@@ -49,8 +49,8 @@
 
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.27.3</quarkus.platform.version>
-        <camel.version>4.14.6</camel.version>
+        <quarkus.platform.version>3.33.2</quarkus.platform.version>
+        <camel.version>4.18.2</camel.version>
 
         <quarkus-mcp-server.version>1.8.0</quarkus-mcp-server.version>
         <cloud-core.version>9.1.0</cloud-core.version>
