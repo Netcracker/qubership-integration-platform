@@ -18,7 +18,6 @@ package org.qubership.integration.platform.engine.camel.components.graphql;
 
 import org.apache.camel.Category;
 import org.apache.camel.Component;
-import org.apache.camel.Producer;
 import org.apache.camel.component.graphql.GraphqlEndpoint;
 import org.apache.camel.component.http.HttpClientConfigurer;
 import org.apache.camel.spi.UriEndpoint;
@@ -26,6 +25,7 @@ import org.apache.camel.spi.UriParam;
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.CredentialsStore;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
+import org.apache.hc.client5.http.classic.HttpClient;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
@@ -56,13 +56,8 @@ public class GraphqlCustomEndpoint extends GraphqlEndpoint {
     }
 
     @Override
-    public Producer createProducer() throws Exception {
-        return new GraphqlCustomProducer(this);
-    }
-
-    @Override
-    public CloseableHttpClient getHttpclient() {
-        CloseableHttpClient httpClient = getHttpClient();
+    public HttpClient getHttpClient() {
+        HttpClient httpClient = super.getHttpClient();
         if (httpClient == null) {
             httpClient = createHttpClient();
             setHttpClient(httpClient);
@@ -103,6 +98,7 @@ public class GraphqlCustomEndpoint extends GraphqlEndpoint {
         if (configurer != null) {
             configurer.configureHttpClient(httpClientBuilder);
         }
+
         return httpClientBuilder.build();
     }
 }
