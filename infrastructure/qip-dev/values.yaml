@@ -13,4 +13,4 @@ global:
         enabled: true
       micro:
         enabled: true
-        image: ghcr.io/netcracker/qubership-integration-engine-quarkus:main
+        image: ghcr.io/netcracker/qubership-integration-micro-engine:main

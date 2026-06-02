@@ -39,12 +39,12 @@ on:
         required: false
         type: boolean
         default: false
-        description: "After publish, trigger ui release with an auto patch-bump"
+        description: "After releasing schemas, also release ui (auto patch-bump)"
       cascade-vscode-extension:
         required: false
         type: boolean
         default: false
-        description: "Forwarded to ui release when cascade-ui=true"
+        description: "Also release vscode-extension after ui (only when cascade-ui is enabled)"
   workflow_dispatch:
     inputs:
       release-type:
@@ -72,12 +72,12 @@ on:
         type: boolean
         default: true
       cascade-ui:
-        description: "After publish, trigger ui release with an auto patch-bump"
+        description: "After releasing schemas, also release ui (auto patch-bump)"
         required: false
         type: boolean
         default: false
       cascade-vscode-extension:
-        description: "Forwarded to ui release when cascade-ui=true"
+        description: "Also release vscode-extension after ui (only when cascade-ui is enabled)"
         required: false
         type: boolean
         default: false
