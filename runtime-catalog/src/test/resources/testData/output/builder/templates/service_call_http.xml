@@ -23,6 +23,7 @@
             <simple>false</simple>
         </setProperty>
         <removeHeader name="CamelHttpQuery"/>
+        <process ref="httpProducerCharsetProcessor"/>
         <step id="Prepare request--8ff3584f-3666-4c75-ba40-a3c8955c44e8">
             <setProperty name="internalProperty_mappingConfig">
                 <constant><![CDATA[{"name":"UI.52e2590335614b15bf37bd838a08fa97","jsonType":"io.atlasmap.v2.AtlasMapping","mappings":{"mapping":[{"id":"mapping.896a1113ac094c26b67943cb90d59b0a","jsonType":"io.atlasmap.v2.Mapping","inputField":[{"name":"testInputRequestBody","path":"/testInputRequestBody","docId":"source","index":0,"jsonType":"io.atlasmap.json.v2.JsonField","fieldType":"STRING","userCreated":false}],"mappingType":"MAP","outputField":[{"name":"testOutputRequestBody","path":"/testOutputRequestBody","docId":"target","index":0,"jsonType":"io.atlasmap.json.v2.JsonField","fieldType":"STRING","userCreated":false}]}]},"constants":{"constant":[]},"dataSource":[{"id":"source","uri":"atlas:json:source","jsonType":"io.atlasmap.json.v2.JsonDataSource","dataSourceType":"SOURCE"},{"id":"target","uri":"atlas:json:target","jsonType":"io.atlasmap.json.v2.JsonDataSource","dataSourceType":"TARGET"}],"properties":{"property":[]},"lookupTables":{"lookupTable":[]}}]]></constant>
@@ -65,7 +66,6 @@
                 <doTry id="Request--8ff3584f-3666-4c75-ba40-a3c8955c44e8">
                     <process ref="queryParameterFilterProcessor"/>
                     <process ref="httpSenderProcessor"/>
-                    <process ref="httpProducerCharsetProcessor"/>
                     <toD allowOptimisedComponents="false" uri="http:stub?httpClientConfigurer=#8ff3584f-3666-4c75-ba40-a3c8955c44e8&amp;followRedirects=true"/>
                     <removeProperty name ="internalProperty_enableAuthRestore"/>
                     <process ref="correlationIdReceiverProcessor"/>
