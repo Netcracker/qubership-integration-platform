@@ -64,60 +64,55 @@ and [HTTP Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/4__HT
 ### View Common Variables
 After navigation to "Variables" tab, the table with common variables will be initially showed, where next information and control elements are presented:
 
-- **Key** - non-editable name of the variable. When column is clicked, there is a menu with next options available:
-  - **Sort by Ascending** (Default);
-  - **Sort by Descending**;
-  - **Sort by Default**;
-  - **Add Filter**.
+- **Key** - non-editable name of the variable.
 - **Value** - editable variable's value. When column is clicked, the same options are available.
 - **Control panel** - panel, placed on the right top. Provides next capabilities:
-  - ![Delete|20](img/delete.svg) - deletes the variable(s), selected via checkbox.
-  - ![Download|20](img/cloud-download.svg) - exports variables, selected via checkbox. If no specific variables were selected before clicking, then system will export all of them at once.
-  - ![Upload|20](img/cloud-upload.svg) - opens pop-up, that allows to import variables.
-  - ![Plus|20](img/plus.svg) - allows to add a new variable to the table.
+  - **Search variables** - search box, provides ability to find respective data in the table.
+  - ![delete](img/delete.svg) - deletes the variable(s), selected via checkbox.
+  - ![cloud-download](img/cloud-download.svg) - exports variables, selected via checkbox. If no specific variables were selected before clicking, then system will export all of them at once.
+  - ![cloud-upload](img/cloud-upload.svg) - opens pop-up, that allows to import variables.
+  - ![plus](img/plus.svg) - allows to add a new variable to the table.
 
 ### View Secured Variables
 Click "**Secured**" sub-tab in the menu on the right to open secured variables table, where next information and control elements are presented:
 
 * **Secret** - name of the secret. Under each secret secured variables can be created.
-  - **Key** - non-editable name of the variable or secret. Default secret will also be marked with (Default) identifier. When column is clicked, there is a menu with next options available:
-    - **Sort by Ascending** (Default)
-    - **Sort by Descending**
-    - **Add Filter**
+  - **Key** - non-editable name of the variable or secret. Default secret will also be marked with (Default) identifier.
   - **Value** - editable variable's value, masked with dots.
 - **Control panel** - panel, placed on the right top of the table. Provides next capabilities:
-  - ![Delete|20](img/delete.svg) - deletes the variable(s), selected via checkbox.
-  - ![Plus|20](img/plus.svg) - allows to create a new secret.
+  - **Search secrets** - search box, provides ability to find respective data in the table.
+  - ![delete](img/delete.svg) - deletes the variable(s), selected via checkbox.
+  - ![plus](img/plus.svg) - allows to create a new secret.
 
 Under each secret the following actions can be applied:
-* ![Download|20](img/cloud-download.svg) - Export secret as Helm Chart.
-* ![Plus|20](img/plus.svg) - Add variable.
+* ![cloud-download](img/cloud-download.svg) - Export secret as Helm Chart.
+* ![plus](img/plus.svg) - Add variable.
 
 ### Create Secret
-To create a secret, which represents a **secured storage object in Kubernetes**, click "**Add Secret**" button marked with ![Plus|20](img/plus.svg), specify the name and confirm operation with "**Create**" button.
+To create a secret, which represents a **secured storage object in Kubernetes**, click "**Add Secret**" button marked with ![plus](img/plus.svg), specify the name and confirm operation with "**Create**" button.
 As the result of this operation, there will be new Secret created with a given name in Kubernetes. Secret's name must be specified in lower case, start with a letter and contain no special symbols besides "-", which could be used as a delimiter.
 
 > ⚠️ **Warning:** Never **ever** attempt to override or re-create secret with the name "*qip-secured-variables-v2*", as it is reserved for **default** secret name. Any improper actions with default secret may lead to data corruption or system malfunction.
 
 ### Create Variable
-To add new variable, click actions menu icon ![Plus|20](img/plus.svg) for respective secret, specify variable name and value in the respective fields. Finally, press button **"Add"** on the widget.
+To add new variable, click actions menu icon ![plus](img/plus.svg) for respective secret, specify variable name and value in the respective fields. Finally, press button **"Add"** on the widget.
 
 ### Edit Variable Value
-To edit variable value, hover the mouse over the value field, and click it, when you see icon ![Edit|20](img/edit.svg). Type new value and press **```Enter```**.
+To edit variable value, hover the mouse over the value field, and click it, when you see icon ![edit](img/edit.svg). Type new value and press **```Enter```**.
 
 ### Delete Variable
-To delete variable(s), select the suitable variables by checkbox near variable key (name) and press ![Delete|20](img/delete.svg). To delete every variable from the secret, mark the secret with checkbox, click ![Delete|20](img/delete.svg) and confirm operation (secret itself won't be removed).
+To delete variable(s), select the suitable variables by checkbox near variable key (name) and press ![delete](img/delete.svg). To delete every variable from the secret, mark the secret with checkbox, click ![delete](img/delete.svg) and confirm operation (secret itself won't be removed).
 
 ### Export Variables
-To export common variables, select the suitable variable by checkboxes near respective keys and click ![Download|20](img/cloud-download.svg).
+To export common variables, select the suitable variable by checkboxes near respective keys and click ![cloud-download](img/cloud-download.svg).
 
 > ℹ️ **Note:** If no specific records are checked for export, all existing variables are going to be exported by pressing the export button.
 
 ### Download Secrets
-To download a secret from "**Secured Variables**" tab, click on ![Download|20](img/cloud-download.svg) for respective secret record. Resulted file will have **.yaml** format.
+To download a secret from "**Secured Variables**" tab, click on ![cloud-download](img/cloud-download.svg) for respective secret record. Resulted file will have **.yaml** format.
 
 ### Import Variables
-To import variables via UI capabilities, press ![Upload|20](img/cloud-upload.svg) button on respective tab for common variables, upload single file in **.yaml** or **.yml** format and press "**Import**". Archive resulted in export chain operation may also be a subject for import if it contains variables in it.
+To import variables via UI capabilities, press ![cloud-upload](img/cloud-upload.svg) button on respective tab for common variables, upload single file in **.yaml** or **.yml** format and press "**Import**". Archive resulted in export chain operation may also be a subject for import if it contains variables in it.
 
 YAML file sample:
 

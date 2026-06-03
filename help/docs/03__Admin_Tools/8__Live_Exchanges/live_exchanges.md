@@ -14,27 +14,26 @@ Live Exchanges provides real-time monitoring and management of active (unfinishe
 ---
 ### Live Exchanges Table View
 The table displays a list of active exchanges, aggregated by session identifier. The following columns and elements are available in the table:
-- **Session Id** - generated session UUID. If session logs are enabled in the UI, the value will be clickable, allowing users to view detailed information about the session.
+- **Session ID** - generated session UUID. If session logs are enabled in the UI, the value will be clickable, allowing users to view detailed information about the session.
 - **Chain** - reference to the related chain currently being processed.
 - **Session Duration** - total session duration in milliseconds. The table can be sorted by this parameter.
 - **Exchange Duration** - duration of the specific exchange (sync/async thread) within the session in milliseconds.
 - **Session Started** - start datetime of the session.
 - **Main Thread** - a checkbox indicating whether the exchange is running on the main thread (checked) or asynchronous thread (unchecked)
 - **Pod IP** - the IP address of the engine pod hosting the session, displayed in parentheses (e.g., 10.131.170.120)
-- ![20](img/stop.svg) - button (located at the extreme right of each row) allows users to terminate live exchange, halting its execution immediately.
+- ![stop](img/stop.svg) - button (located at the extreme right of each row) allows users to terminate live exchange, halting its execution immediately.
 
-At the right top there are available the following actions:
-* ![20](img/filter.svg) - open filter pop-up.
-* ![20](img/setting.svg) - column settings.
-* ![Redo|20](img/redo.svg) - refresh the table.
 
 ### Control panel
 The control panel is positioned at the top right of the table and provides the following capabilities:
 - Placeholder **"exchanges per engine"** - allows user to adjust the number of exchanges displayed per engine instance.
-- ![Settings|20](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Session Id**.
+- ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Session Id**.
+- ![filter](img/filter.svg) - open filter pop-up.
+- ![setting](img/setting.svg) - column settings.
+- ![redo](img/redo.svg) - refresh the table.
 
 
 ### Terminate Exchange
-To terminate a live exchange, locate the relevant row in the Live Exchanges table, click  ![Stop|20](img/stop.svg) ("Terminate" button) at the far right, and then click the "Yes" button to confirm your choice.
+To terminate a live exchange, locate the relevant row in the Live Exchanges table, click  ![stop](img/stop.svg) ("Terminate" button) at the far right, and then click the "Yes" button to confirm your choice.
 
 > ℹ️ **Note:** Once the "Terminate" button is clicked, termination of exchange will occur only after ongoing chain element will be executed (not starting execution of next element). Ensure the exchange is no longer required before initiating termination.

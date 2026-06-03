@@ -9,7 +9,9 @@ This tab provides consolidated access to the logging capabilities, that could be
 - Apply logging masking for specific parameters in order to protect the data from unauthorized access.
 
 Please refer to the diagram below, that represents architecture on the high level:
-![](img/loggingSettings.svg)
+
+![loggingSettings](img/loggingSettings.svg)
+
 | #   | Description                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | Consul data is being cached in the QIP to ensure fast and stable access to the logging settings for the given chain.                                                                                                                                                                            |
