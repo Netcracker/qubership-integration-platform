@@ -32,7 +32,7 @@ public class RolloutImportControllerV3 {
 
     @PutMapping(value = "/{snapshotId}", produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Rollout package to catalog")
-    public ResponseEntity<RolloutImportSnapshotClientResponse> receiveQcpSnapshot(
+    public ResponseEntity<RolloutImportSnapshotClientResponse> rolloutImportSnapshot(
             @RequestBody RolloutImportConfigurationRequest request,
             @PathVariable @Parameter(description = "Rollout snapshot") String snapshotId,
             @RequestHeader(value = RolloutImportConstants.CALLBACK_URL_HEADER, required = false) String callbackUrl

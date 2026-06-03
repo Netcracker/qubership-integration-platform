@@ -1,5 +1,6 @@
-package org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport;
+package org.qubership.integration.platform.runtime.catalog.model;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -7,7 +8,8 @@ import lombok.Setter;
 @Getter
 @Setter
 @Builder
-public class RolloutImportClientError {
+@AllArgsConstructor
+public class ErrorCodePayload {
 
     private String code;
     private String reason;

@@ -2,11 +2,15 @@ package org.qubership.integration.platform.runtime.catalog.service.rolloutimport
 
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.RolloutImportException;
+import org.qubership.integration.platform.runtime.catalog.model.ErrorCodePayload;
 import org.qubership.integration.platform.runtime.catalog.model.ImportConfig;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ImportSystemResult;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ImportSession;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportEntityStatus;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.ImportSystemStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportRequest;
-import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportClientError;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportSnapshotClientResponse;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.GeneralImportService;
@@ -16,10 +20,11 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.qubership.integration.platform.runtime.catalog.exception.ErrorCode.*;
 import static org.qubership.integration.platform.runtime.catalog.model.constant.RolloutImportConstants.STATUS_ROLLOUT_FAILED;
 import static org.qubership.integration.platform.runtime.catalog.model.constant.RolloutImportConstants.STATUS_ROLLOUT_SUCCESS;
 
@@ -60,10 +65,7 @@ public class RolloutImportService {
 
             if (importConfig.isEmpty()) {
                 log.warn("Package is empty after parsing — no importable configurations for snapshotId={}", snapshotId);
-                throw new RolloutImportException(
-                        clientError("QIP-0000", "Empty configuration package"),
-                        "Rollout package does not contain importable configurations"
-                );
+                throw new RolloutImportException(INVALID_ROLLOUT_SNAPSHOT_ERROR);
             }
 
             importDirectory = snapshotToImportDirectoryService.writeImportDirectory(importConfig);
@@ -85,13 +87,13 @@ public class RolloutImportService {
                     snapshotId,
                     exception
             );
-            RolloutImportClientError error = resolveError(exception);
+            List<ErrorCodePayload> errors = resolveErrors(exception);
             log.info(
                     "Sending FAILED callback: code={} message={}",
-                    error.getCode(),
-                    error.getMessage()
+                    errors.getFirst().getCode(),
+                    errors.getFirst().getMessage()
             );
-            rolloutImportCallbackClient.sendCallback(snapshotId, callbackUrl, buildClientResponse(STATUS_ROLLOUT_FAILED, error));
+            rolloutImportCallbackClient.sendCallback(snapshotId, callbackUrl, buildClientResponse(STATUS_ROLLOUT_FAILED, errors));
         } finally {
             if (!importStarted) {
                 log.info("Import was not started — cleaning temp directory {}", importDirectory);
@@ -114,10 +116,40 @@ public class RolloutImportService {
                 snapshotId,
                 importId
         );
-        throw new RolloutImportException(
-                clientError("QIP-0000", "Import failed"),
-                "Import failed"
-        );
+        List<ErrorCodePayload> errors = mapImportResultErrors(importResult);
+        throw new RolloutImportException(errors);
+    }
+
+    private List<ErrorCodePayload> mapImportResultErrors(ImportResult importResult) {
+        List<ErrorCodePayload> errors = new ArrayList<>();
+        for (ImportChainResult importChainResult : importResult.getChains()) {
+            if (ImportEntityStatus.ERROR.equals(importChainResult.getStatus())) {
+                errors.add(IMPORT_FAILED_ERROR.toPayload("Error occurred in chain with id=" + importChainResult.getId()
+                    + ", name=" + importChainResult.getName()
+                    + ", error=" + importChainResult.getErrorMessage()
+                ));
+            }
+        }
+        for (ImportSystemResult importSystemResult : importResult.getSystems()) {
+            if (ImportSystemStatus.ERROR.equals(importSystemResult.getStatus())) {
+                errors.add(IMPORT_FAILED_ERROR.toPayload("Error occurred in service with id=" + importSystemResult.getId()
+                    + ", name=" + importSystemResult.getName()
+                    + ", error=" + importSystemResult.getMessage()
+                ));
+            }
+        }
+        for (ImportSystemResult importSystemResult : importResult.getContextService()) {
+            if (ImportSystemStatus.ERROR.equals(importSystemResult.getStatus())) {
+                errors.add(IMPORT_FAILED_ERROR.toPayload("Error occurred in context service with id=" + importSystemResult.getId()
+                    + ", name=" + importSystemResult.getName()
+                    + ", error=" + importSystemResult.getMessage()
+                ));
+            }
+        }
+        if (errors.isEmpty()) {
+            errors.add(IMPORT_FAILED_ERROR.toPayload());
+        }
+        return errors;
     }
 
     private ImportSession awaitImportSessionWithResult(String importId) {
@@ -127,55 +159,34 @@ public class RolloutImportService {
                 throw new IllegalStateException("Import session not found: " + importId);
             }
 
-            if (importSession.isDone() && importSession.getResult() != null) {
+            if (importSession.isDone()) {
                 return importSession;
-            }
-
-            if (importSession.isDone() && importSession.getError() != null) {
-                throw new RolloutImportException(
-                        clientError("QIP-0000", importSession.getError()),
-                        "Import failed"
-                );
             }
 
             try {
                 Thread.sleep(IMPORT_SESSION_POLL_INTERVAL_MS);
             } catch (InterruptedException interruptedException) {
                 Thread.currentThread().interrupt();
-                throw new RolloutImportException(
-                        clientError("QIP-0000", "Import session wait interrupted"),
-                        "Import session wait interrupted"
-                );
+                throw new RolloutImportException(IMPORT_FAILED_ERROR);
             }
         }
     }
 
-    private RolloutImportSnapshotClientResponse buildClientResponse(String status, RolloutImportClientError error) {
+    private RolloutImportSnapshotClientResponse buildClientResponse(String status, List<ErrorCodePayload> errors) {
         RolloutImportSnapshotClientResponse.RolloutImportSnapshotClientResponseBuilder builder = RolloutImportSnapshotClientResponse.builder()
                 .clientId(clientId)
                 .namespace(namespace)
                 .status(status);
-        if (STATUS_ROLLOUT_FAILED.equals(status) && error != null) {
-            builder.errors(List.of(error));
+        if (STATUS_ROLLOUT_FAILED.equals(status) && errors != null) {
+            builder.errors(errors);
         }
         return builder.build();
     }
 
-    private RolloutImportClientError resolveError(Exception exception) {
-        if (exception instanceof RolloutImportException rolloutException && rolloutException.getError() != null) {
-            return rolloutException.getError();
+    private List<ErrorCodePayload> resolveErrors(Exception exception) {
+        if (exception instanceof RolloutImportException rolloutException) {
+            return List.copyOf(rolloutException.getErrors());
         }
-        if (exception instanceof IOException) {
-            return clientError("QIP-0000", "Failed to prepare import directory: " + exception.getMessage());
-        }
-        return clientError("QIP-0000", exception.getMessage());
-    }
-
-    private static RolloutImportClientError clientError(String code, String message) {
-        return RolloutImportClientError.builder()
-                .code(code)
-                .reason(code)
-                .message(message)
-                .build();
+        return List.of(UNEXPECTED_ROLLOUT_IMPORT_ERROR.toPayload(exception.getMessage()));
     }
 }

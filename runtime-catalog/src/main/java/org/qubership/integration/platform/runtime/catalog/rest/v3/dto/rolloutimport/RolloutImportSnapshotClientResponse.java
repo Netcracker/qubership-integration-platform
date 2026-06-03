@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
+import org.qubership.integration.platform.runtime.catalog.model.ErrorCodePayload;
 
 import java.util.List;
 
@@ -16,5 +17,5 @@ public class RolloutImportSnapshotClientResponse {
     private String clientId;
     private String namespace;
     private String status;
-    private List<RolloutImportClientError> errors;
+    private List<ErrorCodePayload> errors;
 }
