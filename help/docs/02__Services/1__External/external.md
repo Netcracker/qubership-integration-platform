@@ -20,7 +20,7 @@ Services, located outside of environment are called **External Services**. To in
 Table with External services is accessible by navigating to **Services** → **External** tab. Next columns and elements are available for the table:
 
 - **Name** - clickable name of the service or specification group. When clicked, system navigates to respective entity.
-- **Protocol** - service's integration protocol. Possible values: **_http, soap, kafka, amqp, graphQL, gRPC_**. Value for this parameter will be propagated from the firstly imported API specification. There is no ability to upload API specifications with another protocol after that.
+- **Protocol** - service's integration protocol. Possible values: **_http, soap, kafka, amqp, GraphQL, gRPC_**. Value for this parameter will be propagated from the firstly imported API specification. There is no ability to upload API specifications with another protocol after that.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
   - 🟢 _**In Use**_ - status indicates that API Specification is utilized within at least one chain.
@@ -197,12 +197,12 @@ There are several environments might be created for single service, but **only o
 4. Only for **kafka** or **amqp** protocol, choose **Source type:** **MaaS** or **Manual**.
 5. Specify environment **Address**, which defines the URL for the current environment. This field is disabled, when Source type is "MaaS" or route registration on **Egress** is disabled in global environment settings.
 6. Add **properties**:
-   - To add new property, click the icon ![right](img/right.svg) near the section **"Properties"**, press button ![plus](img/plus.svg), enter suitable data and click **`Enter`**.
-   - To bulk create/update of environment properties, turn on the slider **"Show as Key Value"**, put pairs of property name and value and click **`Enter`**. See the format below:
-   ```text
-   property1_name=property1_value;
-   property2_name=property2_value;
-   ```
+  - To add new property, click the icon ![right](img/right.svg) near the section **"Properties"**, press button ![plus](img/plus.svg), enter suitable data and click **`Enter`**.
+  - To bulk create/update of environment properties, turn on the slider **"Show as Key Value"**, put pairs of property name and value and click **`Enter`**. See the format below:
+  ```text
+  property1_name=property1_value;
+  property2_name=property2_value;
+  ```
 7. When everything is done, click **"Save"** button.
 8. Click **radio button** near the desired environment name to switch it.
 
@@ -257,7 +257,7 @@ Default properties are unique for different protocols and described below:
 | routingKey | String    | The routing key to use when binding a consumer queue to the exchange. For producer routing keys, you set the header rabbitmq.ROUTING_KEY. | rkey1  |
 | acknowledgeMode | String  | Flag controlling the behaviour of the container with respect to message acknowledgement. Possible values: NONE, MANUAL, AUTO | AUTO|
 
-Additionally, if it is required to use same connection for multiple requests of **http** and **graphQL** services, it is possible to specify **reuseEstablishedConnection** property with values: true/false.
+Additionally, if it is required to use same connection for multiple requests of **http** and **GraphQL** services, it is possible to specify **reuseEstablishedConnection** property with values: true/false.
 
 ### Switch Environment
 To switch the environment, click the radio button near appropriate environment card and then confirm your choice in dialog window.
