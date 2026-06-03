@@ -63,9 +63,9 @@ Specify the required fields and click **"Save"**. Notification about successful 
 
 To import the service(s), click the icon ![cloud-upload](img/cloud-upload.svg), drag and drop **.zip** file into import area or click **"browse"** link and select **single** file with respective format from the explorer menu. When appropriate file is added to the window, click **"Import"** button to start the import process. During the import, system follows next logic:
 - Verify Import Instructions, saved in the system. Proceed with the step below only if they exist:
-  - Fetch the list of service ids with **ignore** action and skip import process for them. Find more details about Import Instructions in the respective article: [Import Instructions](../../03__Admin_Tools/4__Import_Instructions/import_instructions.md).
-- Find existing services by ids from import archive:
-  - If system already has entities with ids, specified in import archive:
+  - Fetch the list of service IDs with **ignore** action and skip import process for them. Find more details about Import Instructions in the respective article: [Import Instructions](../../03__Admin_Tools/4__Import_Instructions/import_instructions.md).
+- Find existing services by IDs from import archive:
+  - If system already has entities with IDs, specified in import archive:
     - Merge data from archive, including **custom labels**, into existing entities.
     - **Technical labels** are going to be removed from existing entities if they are updated as a part of import process.
 > ℹ️ **Note:** If import is done as a part of deployment process or it is initiated directly via API with **corresponding headers**, the current set of technical labels is **always overridden** by the values, received from import archive. This might lead to technical labels to be removed from existing entities if imported file has no corresponding technical labels for them.

@@ -24,8 +24,8 @@ Please refer to the syntax sample below for design time variables:
 #{secret_name:variable_name} //only for secured variables, stored in non-default secrets.
 ```
 
-### Run Time Variables
-There is possibility to configure **run time variables**, so the chain will always pick up actual variable's value during the processing. It won't require to re-deploy the chain when variable is configured in the chain following syntaxis, described below:
+### Runtime Variables
+There is possibility to configure **runtime variables**, so the chain will always pick up actual variable's value during the processing. It won't require to re-deploy the chain when variable is configured in the chain following syntaxis, described below:
 
 - For **QIP fields** (where Apache Simple language is being utilized):
 

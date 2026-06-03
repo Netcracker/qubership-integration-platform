@@ -14,7 +14,7 @@
 Navigate to **Admin Tools** -> **Diagnostic** to see the table with last diagnostic run's results. Table consist of next columns and elements:
 
 - **Name** - clickable validation name. When clicked, system opens pop-up with detailed explanation of the validation.
-  - **Id** - unique identifier of validation.
+  - **ID** - unique identifier of validation.
   - **Name** - exact validation name, as presented in the table.
   - **Description** - short validation description.
   - **Hint** - contains basic instructions to resolve the issues, found as a result of particular validation.

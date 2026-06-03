@@ -86,11 +86,11 @@ Accessed via **Admin Tools → Audit**, the interface features a customizable ta
 - **Action Time** - datetime of the action. Time is being sorted the way that the last records are always on top by default.
 - **Initiator** - name of the user who performed operation.
 - **Operation** - type of the operation (Create, Update, Delete, etc.) with color bar additionally applied.
-- **Entity Id** - unique identifier of recorded entity. Column is hidden by default.
+- **Entity ID** - unique identifier of recorded entity. Column is hidden by default.
 - **Entity Type** - type of the entity with respective icon.
 - **Entity Name** - reference to the entity that has been captured within the current operation. Reference won't operate if entity has been removed.
-- **Request Id** - unique identifier, that helps to identify if multiple operations were executed as a group. Column is hidden by default.
-- **Parent Id** - unique identifier of parent entity. Column is hidden by default.
+- **Request ID** - unique identifier, that helps to identify if multiple operations were executed as a group. Column is hidden by default.
+- **Parent ID** - unique identifier of parent entity. Column is hidden by default.
 - **Parent Name** - reference to parent entity.
 
 The following actions are available:

@@ -27,7 +27,7 @@ The table displays a list of active exchanges, aggregated by session identifier.
 ### Control panel
 The control panel is positioned at the top right of the table and provides the following capabilities:
 - Placeholder **"exchanges per engine"** - allows user to adjust the number of exchanges displayed per engine instance.
-- ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Session Id**.
+- ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Session ID**.
 - ![filter](img/filter.svg) - open filter pop-up.
 - ![setting](img/setting.svg) - column settings.
 - ![redo](img/redo.svg) - refresh the table.

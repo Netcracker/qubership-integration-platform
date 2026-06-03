@@ -20,7 +20,7 @@ Services, located outside of environment are called **External Services**. To in
 Table with External services is accessible by navigating to **Services** → **External** tab. Next columns and elements are available for the table:
 
 - **Name** - clickable name of the service or specification group. When clicked, system navigates to respective entity.
-- **Protocol** - service's integration protocol. Possible values: **_http, soap, kafka, amqp, graphql, grpc_**. Value for this parameter will be propagated from the firstly imported API specification. There is no ability to upload API specifications with another protocol after that.
+- **Protocol** - service's integration protocol. Possible values: **_http, soap, kafka, amqp, graphQL, gRPC_**. Value for this parameter will be propagated from the firstly imported API specification. There is no ability to upload API specifications with another protocol after that.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
   - 🟢 _**In Use**_ - status indicates that API Specification is utilized within at least one chain.
@@ -197,14 +197,14 @@ There are several environments might be created for single service, but **only o
 4. Only for **kafka** or **amqp** protocol, choose **Source type:** **MaaS** or **Manual**.
 5. Specify environment **Address**, which defines the URL for the current environment. This field is disabled, when Source type is "MaaS" or route registration on **Egress** is disabled in global environment settings.
 6. Add **properties**:
-  - To add new property, click the icon ![right](img/right.svg) near the section **"Properties"**, press button ![plus](img/plus.svg), enter suitable data and click **`Enter`**.
-  - To bulk create/update of environment properties, turn on the slider **"Show as Key Value"**, put pairs of property name and value and click **`Enter`**. See the format below:
-     ```text
-     property1_name=property1_value;
-     property2_name=property2_value;
-     ```
-1. When everything is done, click **"Save"** button.
-2. Click **radio button** near the desired environment name to switch it.
+   - To add new property, click the icon ![right](img/right.svg) near the section **"Properties"**, press button ![plus](img/plus.svg), enter suitable data and click **`Enter`**.
+   - To bulk create/update of environment properties, turn on the slider **"Show as Key Value"**, put pairs of property name and value and click **`Enter`**. See the format below:
+   ```text
+   property1_name=property1_value;
+   property2_name=property2_value;
+   ```
+7. When everything is done, click **"Save"** button.
+8. Click **radio button** near the desired environment name to switch it.
 
 When environment is saved, its card will be available under the environment tab. The card will have next information and elements:
 - **Address** - exact environment address.
@@ -255,9 +255,9 @@ Default properties are unique for different protocols and described below:
 | username   | String    | Username in case of authenticated access.                                                                                                 | N/A    |
 | password   | String    | Password for authenticated access.                                                                                                        | N/A    |
 | routingKey | String    | The routing key to use when binding a consumer queue to the exchange. For producer routing keys, you set the header rabbitmq.ROUTING_KEY. | rkey1  |
-| acknowledgeMode | String  | Flag controlling the behaviour of the container with respect to message acknowledgement. Possible values: NONE, MANUAL, AUTO | AUTO
+| acknowledgeMode | String  | Flag controlling the behaviour of the container with respect to message acknowledgement. Possible values: NONE, MANUAL, AUTO | AUTO|
 
-Additionally, if it is required to use same connection for multiple requests of **http** and **graphql** services, it is possible to specify **reuseEstablishedConnection** property with values: true/false.
+Additionally, if it is required to use same connection for multiple requests of **http** and **graphQL** services, it is possible to specify **reuseEstablishedConnection** property with values: true/false.
 
 ### Switch Environment
 To switch the environment, click the radio button near appropriate environment card and then confirm your choice in dialog window.
@@ -274,10 +274,10 @@ When appropriate file is added to the window, click **"Import"** button to start
 API Specification version in archive **must be unique** for each API Specification.
 During the import, system follows next logic:
 - Verify Import Instructions, saved in the system. Proceed with the step below only if they exist:
-  - Fetch the list of service ids with **ignore** action and skip import process for them.
-- Find existing services, specification groups and specification by ids from import archive:
-  - If there are specifications with ids already exist in the system, regardless of their parent specification groups and services, system **ignores** them.
-  - If system already has entities with ids, specified in import archive:
+  - Fetch the list of service IDs with **ignore** action and skip import process for them.
+- Find existing services, specification groups and specification by IDs from import archive:
+  - If there are specifications with IDs already exist in the system, regardless of their parent specification groups and services, system **ignores** them.
+  - If system already has entities with IDs, specified in import archive:
     - Merge data from archive, including **custom labels**, into existing entities.
     - **Technical labels** are going to be removed from existing entities if they are updated as a part of import process.
 
@@ -316,5 +316,5 @@ System allows to export service with all its API specifications, environments an
 ---
 
 Please consider next constraints:
-- When entering environment's **address** or **properties** on respective window, _avoid using run time variables_, as they won't work due to technical limitations. Instead, use design time variables if it suits the requirements.
+- When entering environment's **address** or **properties** on respective window, _avoid using runtime variables_, as they won't work due to technical limitations. Instead, use design time variables if it suits the requirements.
 - **Technical** labels cannot be imported via UI or exported.
