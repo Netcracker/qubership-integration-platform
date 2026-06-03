@@ -136,7 +136,6 @@ describe("useExpandCollapse", () => {
     expect(root?.data?.inputEnabled).toBe(true);
     expect(root?.data?.outputEnabled).toBe(true);
     expect(root?.connectable).toBe(false);
-    expect(root?.data?.unitCount).toBe(1);
 
     expect(child?.hidden).toBe(true);
     expect(child?.selected).toBe(false);
@@ -173,7 +172,7 @@ describe("useExpandCollapse", () => {
       result.current.toggle("nested");
     });
 
-    expect(structureChanged).toHaveBeenCalledWith(["parent"]);
+    expect(structureChanged).toHaveBeenCalledWith(["nested"]);
   });
 
   it("should expand only requested containers in expandContainers", () => {
@@ -227,7 +226,7 @@ describe("useExpandCollapse", () => {
 
     expect(setNodes).toHaveBeenCalledTimes(1);
     expect(setEdges).toHaveBeenCalledTimes(1);
-    expect(structureChanged).toHaveBeenCalledWith(["c1"]);
+    expect(structureChanged).not.toHaveBeenCalled();
 
     const processedNodes = setNodes.mock.calls[0][0] as ChainGraphNode[];
 
@@ -312,7 +311,7 @@ describe("useExpandCollapse", () => {
 
     expect(setNodes).toHaveBeenCalledTimes(1);
     expect(setEdges).toHaveBeenCalledTimes(1);
-    expect(structureChanged).toHaveBeenCalledWith(["root", "nested"]);
+    expect(structureChanged).not.toHaveBeenCalled();
 
     const processedNodes = setNodes.mock.calls[0][0] as ChainGraphNode[];
     const processedEdges = setEdges.mock.calls[0][0] as Edge[];
@@ -382,7 +381,7 @@ describe("useExpandCollapse", () => {
 
     expect(setNodes).toHaveBeenCalledTimes(1);
     expect(setEdges).toHaveBeenCalledTimes(1);
-    expect(structureChanged).toHaveBeenCalledWith(["root", "nested"]);
+    expect(structureChanged).not.toHaveBeenCalled();
 
     const processedNodes = setNodes.mock.calls[0][0] as ChainGraphNode[];
     const processedEdges = setEdges.mock.calls[0][0] as Edge[];

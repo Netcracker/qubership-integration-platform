@@ -1,11 +1,11 @@
-import { NodeProps } from "@xyflow/react";
-import { ChainGraphNode } from "./ChainGraphNodeTypes.ts";
-import { Badge, Button, Flex, Tooltip } from "antd";
-import { memo, useMemo } from "react";
-import { EllipsisLabel } from "./EllipsisLabel";
+import {NodeProps} from "@xyflow/react";
+import {ChainGraphNode} from "./ChainGraphNodeTypes.ts";
+import {Badge, Button, Flex, Tooltip} from "antd";
+import {memo, useMemo} from "react";
+import {EllipsisLabel} from "./EllipsisLabel";
 import styles from "./ContainerNode.module.css";
-import { OverridableIcon } from "../../../icons/IconProvider.tsx";
-import { ContainerNodeBase } from "./ContainerNodeBase.tsx";
+import {OverridableIcon} from "../../../icons/IconProvider.tsx";
+import {ContainerNodeBase} from "./ContainerNodeBase.tsx";
 
 export const ContainerNode = memo(function ContainerNode({
                                                            data,
@@ -27,12 +27,12 @@ export const ContainerNode = memo(function ContainerNode({
           justify="space-between"
           wrap={false}
           gap="small"
-          style={{ padding: "4px" }}
+          style={{padding: "4px"}}
         >
-          <OverridableIcon name={data.elementType} style={{ fontSize: 16 }} />
+          <OverridableIcon name={data.elementType} style={{fontSize: 16}}/>
           <EllipsisLabel
             text={trimmedLabel}
-            style={{ flexGrow: 1, minWidth: 0, display: "block" }}
+            style={{flexGrow: 1, minWidth: 0, display: "block"}}
           />
 
           {!!data.unitCount && data.unitCount > 0 && (
@@ -51,9 +51,9 @@ export const ContainerNode = memo(function ContainerNode({
                 type="text"
                 icon={
                   isCollapsed ? (
-                    <OverridableIcon name="caretRightFilled" />
+                    <OverridableIcon name="caretRightFilled"/>
                   ) : (
-                    <OverridableIcon name="caretDownFilled" />
+                    <OverridableIcon name="caretDownFilled"/>
                   )
                 }
                 onClick={() => data.onToggleCollapse?.()}
@@ -68,7 +68,7 @@ export const ContainerNode = memo(function ContainerNode({
         opacity: 1,
         backgroundColor: "var(--vscode-editor-background, #fff)",
       }}
-      {...{ data, ...rest }}
+      {...{data, ...rest}}
     />
   );
 });
