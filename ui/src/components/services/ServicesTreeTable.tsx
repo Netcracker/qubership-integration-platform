@@ -611,7 +611,10 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
       defaultColumns={initialKeys}
       storageKey={storageKey}
       labelsByKey={Object.fromEntries(
-        allServicesTreeTableColumns.map((c) => [c.key, c.title]),
+        allServicesTreeTableColumns.map((c) => [
+          c.key,
+          c.key === "url" ? (urlColumnTitle ?? c.title) : c.title,
+        ]),
       )}
       onChange={handleColumnsChange}
       orderLockedKeys={["name"]}
