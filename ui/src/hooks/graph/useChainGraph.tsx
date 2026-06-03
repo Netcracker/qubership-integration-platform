@@ -108,6 +108,30 @@ const cancelHoverVisualsFrame = (frameId: number): void => {
 
 type ChainGraphNodeMap = Map<string, ChainGraphNode>;
 
+const getRelayoutRootIdsForContentChanges = (
+  changedContainerIds: string[],
+  sourceNodes: ChainGraphNode[],
+): string[] | undefined => {
+  const nodeMap = buildNodeMap(sourceNodes);
+  const relayoutRootIds = new Set<string>();
+
+  for (const changedContainerId of changedContainerIds) {
+    const changedContainer = nodeMap.get(changedContainerId);
+
+    if (!changedContainer) {
+      continue;
+    }
+
+    if (changedContainer.parentId) {
+      relayoutRootIds.add(changedContainer.parentId);
+    } else {
+      return undefined;
+    }
+  }
+
+  return relayoutRootIds.size ? Array.from(relayoutRootIds) : undefined;
+};
+
 const buildNodeMap = (nodes: ChainGraphNode[]): ChainGraphNodeMap =>
   new Map(nodes.map((node) => [node.id, node]));
 
@@ -493,18 +517,23 @@ export const useChainGraph = () => {
 
       let arrangedNodes: ChainGraphNode[];
 
+      const layoutSourceNodes = reapplyNodesVisibility(nodes);
+      const layoutSourceEdges = reapplyEdgesVisibility(layoutSourceNodes, edges);
+
       if (parentIds && parentIds.length) {
         const nodeMap = new Map(
-          nodes.map((node) => [node.id, node]),
+          layoutSourceNodes.map((node) => [node.id, node]),
         );
+
         const sorted = [...new Set(parentIds)].sort(
           (left, right) => depthOf(right, nodeMap) - depthOf(left, nodeMap),
         );
 
-        let current = nodes;
+        let current = layoutSourceNodes;
+
         for (const parentId of sorted) {
           const subNodes = collectSubgraphByParents([parentId], current);
-          const subEdges = edgesForSubgraph(edges, subNodes);
+          const subEdges = edgesForSubgraph(layoutSourceEdges, subNodes);
           const laidSubset = await arrangeNodes(subNodes, subEdges);
 
           const pinned = new Set(expandWithParent([parentId], current));
@@ -513,7 +542,7 @@ export const useChainGraph = () => {
 
         arrangedNodes = current;
       } else {
-        arrangedNodes = await arrangeNodes(nodes, edges);
+        arrangedNodes = await arrangeNodes(layoutSourceNodes, layoutSourceEdges);
       }
 
       const overlapResolvedNodes =
@@ -529,7 +558,7 @@ export const useChainGraph = () => {
       const visibleNodes = reapplyNodesVisibility(withToggle);
       const withCounts = setNestedUnitCounts(visibleNodes);
       const orderedVisibleNodes = sortParentsBeforeChildren(withCounts);
-      const visibleEdges = reapplyEdgesVisibility(withToggle, edges);
+      const visibleEdges = reapplyEdgesVisibility(visibleNodes, layoutSourceEdges);
 
       setNodes(orderedVisibleNodes);
       setEdges(visibleEdges);
@@ -833,14 +862,6 @@ export const useChainGraph = () => {
 
             if (!node) return undefined;
 
-            /**
-             * Важный фикс:
-             * если drop был внутрь контейнера/swimlane, явно проставляем
-             * parentId для корневой созданной ноды.
-             *
-             * Иначе, если API не вернул parent в createdElement,
-             * React Flow будет считать ноду top-level и покажет ее на канве.
-             */
             if (element.id === createdElement.id && targetParentId) {
               return {
                 ...node,
@@ -886,13 +907,17 @@ export const useChainGraph = () => {
           (node) => node.id !== newNode.id,
         );
 
-        const parentIdForLayout =
-          targetParentId ??
-          newNode.parentId ??
-          (hasCreatedSubtree ? newNode.id : undefined);
+        const changedContainerId = targetParentId ?? newNode.parentId;
 
-        if (parentIdForLayout) {
-          await layoutAndCommit(draftNodes, currentEdges, [parentIdForLayout]);
+        if (changedContainerId) {
+          const relayoutRootIds = getRelayoutRootIdsForContentChanges(
+            [changedContainerId],
+            draftNodes,
+          );
+
+          await layoutAndCommit(draftNodes, currentEdges, relayoutRootIds);
+        } else if (hasCreatedSubtree) {
+          await layoutAndCommit(draftNodes, currentEdges, [newNode.id]);
         } else {
           layoutRequestIdRef.current += 1;
 
@@ -1103,8 +1128,15 @@ export const useChainGraph = () => {
         const affectedParentIds = Array.from(affectedParents);
 
         if (affectedParentIds.length) {
-          await layoutAndCommit(draftNodes, draftEdges, affectedParentIds);
+          const relayoutRootIds = getRelayoutRootIdsForContentChanges(
+            affectedParentIds,
+            draftNodes,
+          );
+
+          await layoutAndCommit(draftNodes, draftEdges, relayoutRootIds);
         } else {
+          layoutRequestIdRef.current += 1;
+
           const withToggle = attachToggle(draftNodes);
           const visibleNodes = reapplyNodesVisibility(withToggle);
           const withCounts = setNestedUnitCounts(visibleNodes);
@@ -1149,6 +1181,30 @@ export const useChainGraph = () => {
     [scheduleHoverVisuals],
   );
 
+  const isNodeInsideForbiddenSubtree = (
+    nodeId: string | undefined,
+    forbiddenRootIds: Set<string>,
+    nodeMap: ChainGraphNodeMap,
+  ): boolean => {
+    if (!nodeId) {
+      return false;
+    }
+
+    let currentId: string | undefined = nodeId;
+    const seen = new Set<string>();
+
+    while (currentId && !seen.has(currentId)) {
+      if (forbiddenRootIds.has(currentId)) {
+        return true;
+      }
+
+      seen.add(currentId);
+      currentId = nodeMap.get(currentId)?.parentId;
+    }
+
+    return false;
+  };
+
   const onNodeDragStop = useCallback(
     async (_event: React.MouseEvent, draggedNode: ChainGraphNode) => {
       if (!chainContext?.chain) return;
@@ -1174,12 +1230,20 @@ export const useChainGraph = () => {
 
       const originalParentId = originalNode.parentId;
 
+      const draggedChildren = collectChildren(draggedNode.id, allBefore);
+      const draggedSubtreeIds = new Set<string>([
+        draggedNode.id,
+        ...draggedChildren.map((node) => node.id),
+      ]);
+
       let newParentNode: Node | undefined = undefined;
 
       const possibleGraphIntersect: Node | undefined =
         getPossibleGraphIntersection(
-          getIntersectingNodes(draggedNode),
-          collectChildren(draggedNode.id, allBefore),
+          getIntersectingNodes(draggedNode).filter(
+            (node) => !draggedSubtreeIds.has(node.id),
+          ),
+          draggedChildren,
         ) ?? undefined;
 
       if (possibleGraphIntersect !== undefined) {
@@ -1191,6 +1255,18 @@ export const useChainGraph = () => {
       }
 
       const parentNodeId = newParentNode?.id ?? undefined;
+
+      const isInvalidParentTarget = isNodeInsideForbiddenSubtree(
+        parentNodeId,
+        selectedIdSet,
+        nodeMap,
+      );
+
+      if (isInvalidParentTarget) {
+        setNodes(allBefore);
+        return;
+      }
+
       const isParentChanged = parentNodeId !== originalParentId;
 
       if (!isParentChanged) {
@@ -1204,11 +1280,11 @@ export const useChainGraph = () => {
         const request: TransferElementRequest = {
           parentId:
             newParentNode?.type === "container"
-              ? (newParentNode.id ?? null)
+              ? (newParentNode?.id ?? null)
               : null,
           swimlaneId:
             newParentNode?.type === "swimlane"
-              ? (newParentNode.id ?? null)
+              ? (newParentNode?.id ?? null)
               : null,
           elements: selectedIds,
         };

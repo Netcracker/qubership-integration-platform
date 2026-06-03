@@ -492,7 +492,7 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
       <ElkDirectionContextProvider
         elkDirectionControl={elkDirectionControl}
       >
-        <ReactFlow
+        <ReactFlow onlyRenderVisibleElements
           nodes={flowNodes}
           nodeTypes={nodeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
