@@ -242,6 +242,11 @@ public class DelegatingScheduler implements Scheduler {
     }
 
     @Override
+    public List<JobDetail> getJobDetails(GroupMatcher<JobKey> matcher) throws SchedulerException {
+        return delegate.getJobDetails(matcher);
+    }
+
+    @Override
     public Trigger getTrigger(TriggerKey triggerKey) throws SchedulerException {
         return delegate.getTrigger(triggerKey);
     }

@@ -5,18 +5,28 @@
 #
 # This is the COMMON case — schemas ships to npm frequently. The rare Maven
 # Central publish (~twice a year, manual) lives in schemas-maven-release.yaml.
+#
+# No workflow-level concurrency: the reusable serialises per module (group
+# includes inputs.module). A wrapper-level group keyed on github.workflow would
+# collide with the nested ui/vscode calls and deadlock.
 
 name: Schemas Release
 
-run-name: Schemas Release ${{ inputs.version }}
+run-name: Schemas Release (${{ inputs.release-type }})
 
 on:
   workflow_call:
     inputs:
-      version:
-        required: true
+      release-type:
+        required: false
         type: string
-        description: "Release version (e.g., 0.3.0)"
+        default: "patch"
+        description: "patch | minor | major"
+      version:
+        required: false
+        type: string
+        default: ""
+        description: "Explicit release version (X.Y.Z) override. Empty = bump current by release-type."
       npm-dist-tag:
         required: false
         type: string
@@ -29,18 +39,28 @@ on:
         required: false
         type: boolean
         default: false
-        description: "After publish, trigger ui-release with auto patch-bump"
+        description: "After releasing schemas, also release ui (auto patch-bump)"
       cascade-vscode-extension:
         required: false
         type: boolean
         default: false
-        description: "Forwarded to ui-release when cascade-ui=true"
+        description: "Also release vscode-extension after ui (only when cascade-ui is enabled)"
   workflow_dispatch:
     inputs:
+      release-type:
+        description: "Release type (ignored if a version override is given)"
+        type: choice
+        options:
+          - "patch"
+          - "minor"
+          - "major"
+        required: false
+        default: "patch"
       version:
-        description: "Release version (e.g., 0.3.0)"
-        required: true
+        required: false
+        default: ""
         type: string
+        description: "Explicit release version (X.Y.Z) override. Empty = bump current by release-type."
       npm-dist-tag:
         description: "npm distribution tag"
         required: false
@@ -52,19 +72,15 @@ on:
         type: boolean
         default: true
       cascade-ui:
-        description: "After publish, trigger ui-release with auto patch-bump"
+        description: "After releasing schemas, also release ui (auto patch-bump)"
         required: false
         type: boolean
         default: false
       cascade-vscode-extension:
-        description: "Forwarded to ui-release when cascade-ui=true"
+        description: "Also release vscode-extension after ui (only when cascade-ui is enabled)"
         required: false
         type: boolean
         default: false
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
 
 permissions: {}
 
@@ -76,46 +92,22 @@ jobs:
     uses: ./.github/workflows/_npm-module-release.yaml
     with:
       module: schemas
+      release-type: ${{ inputs.release-type }}
       version: ${{ inputs.version }}
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
       create-github-release: ${{ inputs.create-github-release }}
 
-  # ---------------------------------------------------------------------------
-  # Cascade: compute next ui version (gated on the publish, NOT on the GitHub
-  # release, so create-github-release=false doesn't break the chain).
-  # ---------------------------------------------------------------------------
-  compute-ui-version:
-    if: ${{ inputs.cascade-ui && always() && !failure() && !cancelled() }}
-    needs: release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      version: ${{ steps.compute.outputs.version }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Compute next ui patch version
-        id: compute
-        run: |
-          set -euo pipefail
-          version=$(bash scripts/next-cascade-version.sh ui ui/package.json)
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-  # ---------------------------------------------------------------------------
-  # Cascade: release ui (which itself may cascade on to vscode-extension).
-  # ---------------------------------------------------------------------------
+  # Cascade: release ui (which itself may cascade on to vscode-extension) with an
+  # auto patch-bump. Gated on the schemas publish, not on the GitHub release.
   cascade-ui:
-    needs: compute-ui-version
+    needs: release
+    if: ${{ inputs.cascade-ui && always() && !failure() && !cancelled() }}
     permissions:
       contents: write
       packages: write
     uses: ./.github/workflows/ui-release.yaml
     with:
-      version: ${{ needs.compute-ui-version.outputs.version }}
+      release-type: patch
+      npm-dist-tag: ${{ inputs.npm-dist-tag }}
       cascade-vscode-extension: ${{ inputs.cascade-vscode-extension }}
       create-github-release: ${{ inputs.create-github-release }}

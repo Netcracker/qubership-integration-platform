@@ -8,10 +8,16 @@ name: Vscode Extension Release
 on:
   workflow_call:
     inputs:
-      version:
-        required: true
+      release-type:
+        required: false
         type: string
-        description: "Release version (e.g., 1.0.0)"
+        default: "patch"
+        description: "patch | minor | major"
+      version:
+        required: false
+        type: string
+        default: ""
+        description: "Explicit release version (X.Y.Z) override. Empty = bump current by release-type."
       npm-dist-tag:
         required: false
         type: string
@@ -22,11 +28,20 @@ on:
         type: boolean
   workflow_dispatch:
     inputs:
+      release-type:
+        description: "Release type (ignored if a version override is given)"
+        type: choice
+        options:
+          - "patch"
+          - "minor"
+          - "major"
+        required: false
+        default: "patch"
       version:
-        required: true
-        default: "0.0.0"
+        required: false
+        default: ""
         type: string
-        description: "Release version (e.g., 1.0.0)"
+        description: "Explicit release version (X.Y.Z) override. Empty = bump current by release-type."
       npm-dist-tag:
         description: "NPM distribution tag"
         required: false
@@ -48,6 +63,7 @@ jobs:
     uses: ./.github/workflows/_npm-module-release.yaml
     with:
       module: vscode-extension
+      release-type: ${{ inputs.release-type }}
       version: ${{ inputs.version }}
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
       create-github-release: ${{ inputs.create-github-release }}

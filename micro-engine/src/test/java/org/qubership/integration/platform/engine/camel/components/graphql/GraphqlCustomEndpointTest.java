@@ -1,11 +1,11 @@
 package org.qubership.integration.platform.engine.camel.components.graphql;
 
 import org.apache.camel.Component;
-import org.apache.camel.Producer;
 import org.apache.camel.component.http.HttpClientConfigurer;
 import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.CredentialsProvider;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
+import org.apache.hc.client5.http.classic.HttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.core5.http.Header;
@@ -43,21 +43,13 @@ class GraphqlCustomEndpointTest {
     }
 
     @Test
-    void shouldCreateGraphqlCustomProducerWhenCreateProducer() throws Exception {
-        Producer producer = endpoint.createProducer();
-
-        assertNotNull(producer);
-        assertInstanceOf(GraphqlCustomProducer.class, producer);
-    }
-
-    @Test
     void shouldReturnExistingHttpClientWhenHttpClientAlreadySet() {
         CloseableHttpClient existing = mock(CloseableHttpClient.class);
         endpoint.setHttpClient(existing);
 
         endpoint.setHttpClientConfigurer(httpClientConfigurer);
 
-        CloseableHttpClient out = endpoint.getHttpclient();
+        HttpClient out = endpoint.getHttpClient();
 
         assertSame(existing, out);
         verifyNoInteractions(httpClientConfigurer);
@@ -75,8 +67,8 @@ class GraphqlCustomEndpointTest {
         endpoint.setUsername("user");
         endpoint.setPassword("pass");
 
-        CloseableHttpClient c1 = endpoint.getHttpclient();
-        CloseableHttpClient c2 = endpoint.getHttpclient();
+        HttpClient c1 = endpoint.getHttpClient();
+        HttpClient c2 = endpoint.getHttpClient();
 
         assertNotNull(c1);
         assertSame(c1, c2);
@@ -128,7 +120,7 @@ class GraphqlCustomEndpointTest {
         endpoint.setAccessToken("tkn");
         endpoint.setJwtAuthorizationType(null);
 
-        endpoint.getHttpclient();
+        endpoint.getHttpClient();
 
         ArgumentCaptor<HttpClientBuilder> builderCaptor = ArgumentCaptor.forClass(HttpClientBuilder.class);
         verify(httpClientConfigurer).configureHttpClient(builderCaptor.capture());
