@@ -34,7 +34,7 @@
 
 
     <properties>
-        <revision>0.2.5</revision>
+        <revision>0.2.6</revision>
         <changelist>-SNAPSHOT</changelist>
 
         <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
