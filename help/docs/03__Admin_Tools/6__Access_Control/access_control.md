@@ -38,9 +38,9 @@ Next capabilities are available above the table in the right top:
 ### View Details
 Click the specific table line, that corresponds to the endpoint in order to open additional "Endpoint Details" window. Besides the info, available in the table, this window additionally shows:
 - **Unsaved Changes label** - label that indicates unsaved changes available for chain.
-- **Entity Id** – element id that holds the endpoint (basically, element id of the HTTP Trigger).
+- **Entity ID** – element ID that holds the endpoint (basically, element ID of the HTTP Trigger).
 - **Entity Name** – element name that holds the endpoint (basically, it is a name of the HTTP Trigger).
-- **Chain Id** – identifier of the chain, that contains the http trigger.
+- **Chain ID** – identifier of the chain, that contains the http trigger.
 - **Entity Update Date** – last update date of the endpoint (it is change date of HTTP Trigger).
 
 ### Add Roles

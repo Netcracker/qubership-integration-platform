@@ -14,7 +14,7 @@ Qubership Integration Platform is able to integrate with Inner Cloud Services, t
 Table with Inner Cloud services is accessible by navigating to **Services** → **Inner Cloud** tab. Next columns and elements are available for the table:
 
 - **Name** - clickable name of the service or specification group. When clicked, system navigates to respective entity.
-- **Protocol** - service's integration protocol. Possible values: **_http, soap, kafka, amqp, graphql, grpc_**. Value for this parameter will be propagated from the firstly imported API specification. There is no ability to upload API specifications with another protocol after that.
+- **Protocol** - service's integration protocol. Possible values: **_http, soap, kafka, amqp, graphQL, gRPC_**. Value for this parameter will be propagated from the firstly imported API specification. There is no ability to upload API specifications with another protocol after that.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
   - 🟢 _**In Use**_ - status indicates that API Specification is utilized within at least one chain.
@@ -216,10 +216,10 @@ To update the environment for Inner Cloud Service, follow the steps specified be
     4. **Properties** - section to manage properties for the environment:
         - To add new property, click the icon ![right](img/right.svg) near the section **"Properties"**, press button ![plus](img/plus.svg), enter suitable data and click **`Enter`**.
         - To bulk create/update of environment properties, turn on the slider **"Show as Key Value"**, put pairs of property name and value and click **`Enter`**. See the format below:
-       ```text
-       property1_name=property1_value;
-       property2_name=property2_value;
-       ```
+        ```text
+        property1_name=property1_value;
+        property2_name=property2_value;
+        ```
 6. Click **"Save"** or shortcut combination of **`Ctrl+Enter`**.
 
 Default properties are unique for different protocols and described below:
@@ -240,7 +240,7 @@ Default properties are unique for different protocols and described below:
 | ----------------------- | :-------- |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| --------------------------------------------------------------------------------------------------- |
 | key                     | String    | The record key (or null if no key is specified). If this option has been configured, then it takes precedence over header KafkaConstants#KEY.                                                                                                                                                                                                                                                                           | key_sample                                                                                          |
 | sslProtocol             | String    | The SSL protocol used to generate the SSLContext. Default setting is TLS, which is used for most of the cases. Allowed values in recent JVMs are TLS, TLSv1.1 and TLSv1.2. SSL, SSLv2 and SSLv3 may be supported in older JVMs, but their usage is discouraged due to known security vulnerabilities.                                                                                                                   | TLSv1.2                                                                                             |
-| saslMechanism           | String    | The Simple Authentication and Security Layer (SASL) Mechanism used. For the valid values see http://www.iana.org/assignments/sasl-mechanisms/sasl-mechanisms.xhtml.                                                                                                                                                                                                                                                     | GSSAPI                                                                                              |
+| saslMechanism           | String    | The Simple Authentication and Security Layer (SASL) Mechanism used. For the valid values see [valid SASL mechanism values](http://www.iana.org/assignments/sasl-mechanisms/sasl-mechanisms.xhtml).                                                                                                                                                                                                                                                     | GSSAPI                                                                                              |
 | saslJaasConfig          | String    | Expose Kafka sasl.jaas.config parameter.                                                                                                                                                                                                                                                                                                                                                                                | org.apache.kafka.common.security.plain.PlainLoginModule required username=example password=example; |
 | securityProtocol        | String    | Protocol used to communicate with brokers. Possible values: SASL_PLAINTEXT, PLAINTEXT, SASL_SSL, SSL                                                                                                                                                                                                                                                                                                                    | PLAINTEXT                                                                                           |
 | consumerConsistencyMode | String    | Blue-green specific parameter. Possible values: EVENTUAL – Default option when blue-green is supported. Consumers offset for candidate during promotion stays the same; GUARANTEE_CONSUMPTION - consumers offset for candidate during promotion is copied from lowest offset for this group of consumers. <br>ℹ️ **Note:** This parameter and its value should be entered manually if required.                             | EVENTUAL                                                                                            |
@@ -261,9 +261,9 @@ Default properties are unique for different protocols and described below:
 | username   | String    | Username in case of authenticated access.                                                                                                 | N/A    |
 | password   | String    | Password for authenticated access.                                                                                                        | N/A    |
 | routingKey | String    | The routing key to use when binding a consumer queue to the exchange. For producer routing keys, you set the header rabbitmq.ROUTING_KEY. | rkey1  |
-| acknowledgeMode | String  | Flag controlling the behaviour of the container with respect to message acknowledgement. Possible values: NONE, MANUAL, AUTO | AUTO
+| acknowledgeMode | String  | Flag controlling the behaviour of the container with respect to message acknowledgement. Possible values: NONE, MANUAL, AUTO | AUTO |
 
-Additionally, if it is required to use same connection for multiple requests of **http** and **graphql** services, it is possible to specify **reuseEstablishedConnection** property with values: true/false.
+Additionally, if it is required to use same connection for multiple requests of **http** and **graphQL** services, it is possible to specify **reuseEstablishedConnection** property with values: true/false.
 When environment is saved, its updated card will be available under the environment tab. The card will have next information and elements:
 
 - **Name** - name of the environment, specified during configuration.
@@ -282,10 +282,10 @@ When appropriate file is added to the window, click **"Import"** button to start
 API Specification version in archive **must be unique** for each API Specification.
 During the import, system follows next logic:
 - Verify Import Instructions, saved in the system. Proceed with the step below only if they exist:
-  - Fetch the list of service ids with **ignore** action and skip import process for them.
-- Find existing services, specification groups and specification by ids from import archive:
-  - If there are specifications with ids already exist in the system, regardless of their parent specification groups and services, system **ignores** them.
-  - If system already has entities with ids, specified in import archive:
+  - Fetch the list of service IDs with **ignore** action and skip import process for them.
+- Find existing services, specification groups and specification by IDs from import archive:
+  - If there are specifications with IDs already exist in the system, regardless of their parent specification groups and services, system **ignores** them.
+  - If system already has entities with IDs, specified in import archive:
     - Merge data from archive, including **custom labels**, into existing entities.
     - **Technical labels** are going to be removed from existing entities if they are updated as a part of import process.
 > ℹ️ **Note:** If import is done as a part of deployment process or it is initiated directly via API with **corresponding headers**, the current set of technical labels is **always overridden** by the values, received from import archive. This might lead to technical labels to be removed from existing entities if imported file has no corresponding technical labels for them.

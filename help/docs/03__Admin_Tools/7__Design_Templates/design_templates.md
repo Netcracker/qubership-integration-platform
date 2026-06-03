@@ -23,7 +23,7 @@ To view all templates, available in the system, navigate to "**Admin Tools**" an
   - **Search templates** - search box, provides ability to find respective data in the table.
   - ![delete](img/delete.svg)- deletes selected templates.
   - ![setting](img/setting.svg)- opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
-  - ![cloud-download](img/cloud-download.svg) - exports selected templates in markdown.
+  - ![cloud-download](img/cloud-download.svg) - exports selected templates in Markdown.
   - ![plus](img/plus.svg) - initiates new template uploading.
 
 ### Add Template

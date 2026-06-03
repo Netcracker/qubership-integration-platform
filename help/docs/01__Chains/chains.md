@@ -76,13 +76,13 @@ Each **chain** contains the following parameters on table view:
 
 > ℹ️ **Notes:**
 >
-> - You can **move chain/folder** to the folder via drag&drop operation (instead of Cut and Paste). To **move it to the root directory**, drop chain/folder to the ![](img/home.svg) at the right top above the table.
+> - You can **move chain/folder** to the folder via drag&drop operation (instead of Cut and Paste). To **move it to the root directory**, drop chain/folder to the ![home](img/home.svg) at the right top above the table.
 > - Mentioned "Chains" window **does not validate** the uniqueness of the names, neither folders nor the chains. Hence, it is possible that multiple chains (or folders) might have the same names.
 
 ### Chain Details Side Panel
 More chain details are available via **right side panel**. To open it, click on any place in the chain row (except chain name, which leads to [graph](1__Graph/graph.md)). The following information about chain will be available (in read-only mode):
 
-- **Id** - chain identifier.
+- **ID** - chain identifier.
 - **Name** - chain name (same as in the table).
 - **Description** - detailed description of the chain, if entered during creation.
 - **Labels** - list of chain labels (same as in the table).
@@ -131,7 +131,7 @@ The first element is a switcher "Validate By Hash". This option may enhance the 
 
 Under this option there is a table of chains with the following parameters:
 * Name - name of the imported chain;
-* ID - id of the imported chain;
+* ID - ID of the imported chain;
 * Domain - the selected domain for deployment;
 * Instruction Action - shows the exact instruction for the particular chain. Available only on preview before import process is completed. Possible values:
   - **Ignore** - means that specified entity is going to be ignored during import process.
@@ -150,7 +150,7 @@ This tab contains all services that are going to be imported.
 
 On this tab there is a table with the following data:
 * Name - name of the service;
-* ID - id of the service;
+* ID - ID of the service;
 * Status -this field is available only after finishing import process and shows the status of imported services. Available status:
   * **Created** - new service is successfully imported.
   - **Updated** - imported data from archive is successfully merged with existing one for particular service with matched ID.
@@ -173,9 +173,9 @@ The following information are available:
 #### Import Instructions Tab
 The tab contains the full list of entities, that are going to be managed via Import Instructions.
 There is a table with the following columns:
-* ID - id of the instruction;
+* ID - ID of the instruction;
 * Action - describes the exact instruction given to the specific entity;
-* Overridden By - contains Id of the chain that overrides the current one;
+* Overridden By - contains ID of the chain that overrides the current one;
 * Labels - list of colored technical labels;
 * Status - this field is available only after finishing import process and shows the status of imported entities. Available status:
   * **Ignored** - entity is ignored during the import.
@@ -213,7 +213,7 @@ In both cases, system shows pop-up and requests additional data:
 
 Confirm selected options and click "**Deploy**" button. System will attempt to deploy selected chains and show result window and the end of operation. Window consists of next columns:
 
-- **Chain Id** - contains the unique identifiers of the chains, requested to be deployed.
+- **Chain ID** - contains the unique identifiers of the chains, requested to be deployed.
 - **Chain Name** - contains the names of the chains, requested to be deployed.
 - **Status** - contains operation status:
   - **Snapshot error** - operation failed while operating with snapshot.

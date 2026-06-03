@@ -20,7 +20,7 @@ There are 2 options to configure the Implemented Service:
 Table with Implemented services is accessible by navigating to **Services** → **Implemented** tab. Next columns and elements are available for the table:
 
 - **Name** - clickable name of the service or specification group. When clicked, system navigates to respective entity.
-- **Protocol** - service's integration protocol. Possible values: **_http, soap, kafka, amqp, graphql, grpc_**. Value for this parameter will be propagated from the firstly imported API specification. There is no ability to upload API specifications with another protocol after that.
+- **Protocol** - service's integration protocol. Possible values: **_http, soap, kafka, amqp, graphQL, gRPC_**. Value for this parameter will be propagated from the firstly imported API specification. There is no ability to upload API specifications with another protocol after that.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
   - 🟢 _**In Use**_ - status indicates that API Specification is utilized within at least one chain.
@@ -34,12 +34,12 @@ Table with Implemented services is accessible by navigating to **Services** → 
 - **Modified At** - datetime of entity modifying (hidden by default).
 - **Modified By** - shows the user, who modified an entity (hidden by default).
 - **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu under each service. Contains next operations:
-  - **Edit** ![edit](img/edit.svg) - opens pop-up to change service name, description or set of **custom** labels.
-  - **Delete** ![delete](img/delete.svg) - deletes entity.
+   - **Edit** ![edit](img/edit.svg) - opens pop-up to change service name, description or set of **custom** labels.
+   - **Delete** ![delete](img/delete.svg) - deletes entity.
    - **Add Specification Group** ![plus](img/plus.svg) - allows to add a specification group.
-  - **Expand All** ![column-height](img/column-height.svg) - fully expands the entity.
-  - **Collapse All** ![vertical-align-middle](img/vertical-align-middle.svg) - fully collapses the entity.
-  - **Export** ![cloud-upload](img/cloud-upload.svg) - allows to export the entity.
+   - **Expand All** ![column-height](img/column-height.svg) - fully expands the entity.
+   - **Collapse All** ![vertical-align-middle](img/vertical-align-middle.svg) - fully collapses the entity.
+   - **Export** ![cloud-upload](img/cloud-upload.svg) - allows to export the entity.
 - **Control panel** - panel, placed on top of the table. Provides next capabilities:
   - **Search field** - search box, provides ability to find respective data in the table.
   - ![filter](img/filter.svg) - opens filter pop-up.
@@ -247,10 +247,10 @@ When appropriate file is added to the window, click **"Import"** button to start
 API Specification version in archive **must be unique** for each API Specification.
 During the import, system follows next logic:
 - Verify Import Instructions, saved in the system. Proceed with the step below only if they exist:
-  - Fetch the list of service ids with **ignore** action and skip import process for them.
-- Find existing services, specification groups and specification by ids from import archive:
-  - If there are specifications with ids already exist in the system, regardless of their parent specification groups and services, system **ignores** them.
-  - If system already has entities with ids, specified in import archive:
+  - Fetch the list of service IDs with **ignore** action and skip import process for them.
+- Find existing services, specification groups and specification by IDs from import archive:
+  - If there are specifications with IDs already exist in the system, regardless of their parent specification groups and services, system **ignores** them.
+  - If system already has entities with IDs, specified in import archive:
     - Merge data from archive, including **custom labels**, into existing entities.
     - Technical labels are going to be removed from existing entities if they are updated as a part of import process.
 > ℹ️ **Note:** If import is done as a part of deployment process or it is initiated directly via API with **corresponding headers**, the current set of technical labels is **always overridden** by the values, received from import archive. This might lead to technical labels to be removed from existing entities if imported file has no corresponding technical labels for them.
