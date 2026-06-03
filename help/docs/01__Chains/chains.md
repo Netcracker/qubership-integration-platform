@@ -76,7 +76,7 @@ Each **chain** contains the following parameters on table view:
 
 > ℹ️ **Notes:**
 >
-> - You can **move chain/folder** to the folder via drag&drop operation (instead of Cut and Paste). To **move it to the root directory**, drop chain/folder to the ![](img/home.svg) at the right top above the table.
+> - You can **move chain/folder** to the folder via drag&drop operation (instead of Cut and Paste). To **move it to the root directory**, drop chain/folder to the ![home](img/home.svg) at the right top above the table.
 > - Mentioned "Chains" window **does not validate** the uniqueness of the names, neither folders nor the chains. Hence, it is possible that multiple chains (or folders) might have the same names.
 
 ### Chain Details Side Panel

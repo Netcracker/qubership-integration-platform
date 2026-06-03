@@ -223,7 +223,7 @@ To update the environment for Inner Cloud Service, follow the steps specified be
 6. Click **"Save"** or shortcut combination of **`Ctrl+Enter`**.
 
 Default properties are unique for different protocols and described below:
-**http**
+#### http
 
 | Parameter                | Data Type | Description                                                                                                                                                                            | Sample |
 | ------------------------ | :-------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
@@ -234,13 +234,13 @@ Default properties are unique for different protocols and described below:
 | deleteWithBody           | Boolean   | Indicates that DELETE request contains body.<br>**Default value:** false                                                                                                               | false  |
 | getWithBody              | Boolean   | Indicates that GET request contains body.<br>**Default value:** false                                                                                                                  | false  |
 
-**kafka**
+#### kafka
 
 | Parameter               | Data Type | Description                                                                                                                                                                                                                                                                                                                                                                                                             | Sample                                                                                              |
 | ----------------------- | :-------- |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| --------------------------------------------------------------------------------------------------- |
 | key                     | String    | The record key (or null if no key is specified). If this option has been configured, then it takes precedence over header KafkaConstants#KEY.                                                                                                                                                                                                                                                                           | key_sample                                                                                          |
 | sslProtocol             | String    | The SSL protocol used to generate the SSLContext. Default setting is TLS, which is used for most of the cases. Allowed values in recent JVMs are TLS, TLSv1.1 and TLSv1.2. SSL, SSLv2 and SSLv3 may be supported in older JVMs, but their usage is discouraged due to known security vulnerabilities.                                                                                                                   | TLSv1.2                                                                                             |
-| saslMechanism           | String    | The Simple Authentication and Security Layer (SASL) Mechanism used. For the valid values see http://www.iana.org/assignments/sasl-mechanisms/sasl-mechanisms.xhtml.                                                                                                                                                                                                                                                     | GSSAPI                                                                                              |
+| saslMechanism           | String    | The Simple Authentication and Security Layer (SASL) Mechanism used. For the valid values see <http://www.iana.org/assignments/sasl-mechanisms/sasl-mechanisms.xhtml>.                                                                                                                                                                                                                                                     | GSSAPI                                                                                              |
 | saslJaasConfig          | String    | Expose Kafka sasl.jaas.config parameter.                                                                                                                                                                                                                                                                                                                                                                                | org.apache.kafka.common.security.plain.PlainLoginModule required username=example password=example; |
 | securityProtocol        | String    | Protocol used to communicate with brokers. Possible values: SASL_PLAINTEXT, PLAINTEXT, SASL_SSL, SSL                                                                                                                                                                                                                                                                                                                    | PLAINTEXT                                                                                           |
 | consumerConsistencyMode | String    | Blue-green specific parameter. Possible values: EVENTUAL – Default option when blue-green is supported. Consumers offset for candidate during promotion stays the same; GUARANTEE_CONSUMPTION - consumers offset for candidate during promotion is copied from lowest offset for this group of consumers. <br>ℹ️ **Note:** This parameter and its value should be entered manually if required.                             | EVENTUAL                                                                                            |
@@ -254,14 +254,14 @@ Default properties are unique for different protocols and described below:
 > (The maximum number of records returned in a single call to poll) with value **lower**, than defaulted **500**.
 > This will allow to process the messages smoothly, with lower risk of timeout.
 
-**amqp**
+#### amqp
 
 | Parameter  | Data Type | Description                                                                                                                               | Sample |
 | ---------- | :-------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | username   | String    | Username in case of authenticated access.                                                                                                 | N/A    |
 | password   | String    | Password for authenticated access.                                                                                                        | N/A    |
 | routingKey | String    | The routing key to use when binding a consumer queue to the exchange. For producer routing keys, you set the header rabbitmq.ROUTING_KEY. | rkey1  |
-| acknowledgeMode | String  | Flag controlling the behaviour of the container with respect to message acknowledgement. Possible values: NONE, MANUAL, AUTO | AUTO
+| acknowledgeMode | String  | Flag controlling the behaviour of the container with respect to message acknowledgement. Possible values: NONE, MANUAL, AUTO | AUTO |
 
 Additionally, if it is required to use same connection for multiple requests of **http** and **graphql** services, it is possible to specify **reuseEstablishedConnection** property with values: true/false.
 When environment is saved, its updated card will be available under the environment tab. The card will have next information and elements:

@@ -31,19 +31,22 @@ Table with Implemented services is accessible by navigating to **Services** → 
 - **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
 - **Created When** - datetime of entity creation.
 - **Created By** - shows the user, who created an entity.
-- **Actions menu** - list of operations, accessed via ![More|20](img/more.svg) menu under each service. Contains next operations:
-  - **Edit** ![Edit|20](img/edit.svg) - opens pop-up to change service name, description or set of **custom** labels.
-  - **Delete** ![Delete|20](img/delete.svg) - deletes entity.
-  - **Expand All** ![Column height|20](img/column-height.svg) - fully expands the entity.
-  - **Collapse All** ![Vertical align middle|20](img/vertical-align-middle.svg) - fully collapses the entity.
-  - **Export** ![Upload|20](img/cloud-upload.svg) - allows to export the entity.
+- **Modified At** - datetime of entity modifying (hidden by default).
+- **Modified By** - shows the user, who modified an entity (hidden by default).
+- **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu under each service. Contains next operations:
+  - **Edit** ![edit](img/edit.svg) - opens pop-up to change service name, description or set of **custom** labels.
+  - **Delete** ![delete](img/delete.svg) - deletes entity.
+  - **Add Specification Group** ![plus](img/plus.svg) - allows to add a specification group.
+  - **Expand All** ![column-height](img/column-height.svg) - fully expands the entity.
+  - **Collapse All** ![vertical-align-middle](img/vertical-align-middle.svg) - fully collapses the entity.
+  - **Export** ![cloud-upload](img/cloud-upload.svg) - allows to export the entity.
 - **Control panel** - panel, placed on top of the table. Provides next capabilities:
   - **Search field** - search box, provides ability to find respective data in the table.
-  - ![20](img/filter.svg) - opens filter pop-up.
-  - ![20](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
-  - ![20](img/cloud-download.svg) - exports the service.
-  - ![20](img/cloud-upload.svg) - opens pop-up for service import.
-  - ![20](img/plus.svg) - provides ability to add new service.
+  - ![filter](img/filter.svg) - opens filter pop-up.
+  - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
+  - ![cloud-download](img/cloud-download.svg) - exports the service.
+  - ![cloud-upload](img/cloud-upload.svg) - opens pop-up for service import.
+  - ![plus](img/plus.svg) - provides ability to add new service.
 
 ### View Parameters
 When service is clicked, system shows Parameters tab with the following information:
@@ -281,7 +284,7 @@ When import is completed, system displays import result table with the following
 
 **`⛔ Not available via VS Code extension`**
 
-System allows to export service with all its API specifications, environments and sources. From **"External Services"** page - mark specific services with checkboxes and click ![Download|20](img/cloud-download.svg) **Export**. Or simply click this button to export all services at once after confirmation.
+System allows to export service with all its API specifications, environments and sources. From **"External Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) **Export**. Or simply click this button to export all services at once after confirmation.
 
 ### Constraints
 

@@ -35,7 +35,7 @@ MODULES=(
 latest_version() {
     local module="$1"
     local tag
-    tag=$(git tag --list "${module}-v*" --sort=-version:refname 2>/dev/null | head -1)
+    tag=$(git tag --list "${module}-v*" --sort=-version:refname 2> /dev/null | head -1)
     if [ -n "$tag" ]; then
         printf '%s' "${tag#"${module}-v"}"
     fi

@@ -217,7 +217,7 @@ When environment is saved, its card will be available under the environment tab.
 The environment could be easily modified by clicking the name of the environment, updating the parameters and confirming (saving) the changes via **"Save"** button.
 Default properties are unique for different protocols and described below:
 
-**http**
+#### http
 
 | Parameter                | Data Type | Description                                                                                                                                                                            | Sample |
 | ------------------------ | :-------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
@@ -228,7 +228,7 @@ Default properties are unique for different protocols and described below:
 | deleteWithBody           | Boolean   | Indicates that DELETE request contains body.<br>**Default value:** false                                                                                                               | false  |
 | getWithBody              | Boolean   | Indicates that GET request contains body.<br>**Default value:** false                                                                                                                  | false  |
 
-**kafka**
+#### kafka
 
 | Parameter | Data Type | Description | Sample |
 | --- | :--- | --- | --- |
@@ -248,14 +248,14 @@ Default properties are unique for different protocols and described below:
 > (The maximum number of records returned in a single call to poll) with value **lower**, than defaulted **500**.
 > This will allow to process the messages smoothly, with lower risk of timeout.
 
-**amqp**
+#### amqp
 
 | Parameter  | Data Type | Description                                                                                                                               | Sample |
 | ---------- | :-------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | username   | String    | Username in case of authenticated access.                                                                                                 | N/A    |
 | password   | String    | Password for authenticated access.                                                                                                        | N/A    |
 | routingKey | String    | The routing key to use when binding a consumer queue to the exchange. For producer routing keys, you set the header rabbitmq.ROUTING_KEY. | rkey1  |
-| acknowledgeMode | String  | Flag controlling the behaviour of the container with respect to message acknowledgement. Possible values: NONE, MANUAL, AUTO | AUTO
+| acknowledgeMode | String  | Flag controlling the behaviour of the container with respect to message acknowledgement. Possible values: NONE, MANUAL, AUTO | AUTO |
 
 Additionally, if it is required to use same connection for multiple requests of **http** and **graphql** services, it is possible to specify **reuseEstablishedConnection** property with values: true/false.
 
