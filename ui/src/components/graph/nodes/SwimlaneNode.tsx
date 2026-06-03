@@ -12,11 +12,7 @@ export function getSwimlaneBorderColor(color: string): string {
   return SWIMLANE_COLORS[color] ?? SWIMLANE_COLORS.blue;
 }
 
-export const SwimlaneNode = memo(function SwimlaneNode({
-                                                         id,
-                                                         data,
-                                                         ...rest
-                                                       }: NodeProps<ChainGraphNode>): ReactNode {
+export const SwimlaneNode = memo(function SwimlaneNode({id, data, ...rest}: NodeProps<ChainGraphNode>): ReactNode {
   const chainContext = useContext(ChainContext);
   const isDefault = id === chainContext?.chain?.defaultSwimlaneId;
   const isReuse = id === chainContext?.chain?.reuseSwimlaneId;
@@ -51,7 +47,6 @@ export const SwimlaneNode = memo(function SwimlaneNode({
               {isDefault ? "Default" : "Reuse"}
             </span>
           )}
-
           <EllipsisLabel
             text={trimmedLabel}
             style={{

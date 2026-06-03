@@ -7,10 +7,7 @@ import styles from "./ContainerNode.module.css";
 import {OverridableIcon} from "../../../icons/IconProvider.tsx";
 import {ContainerNodeBase} from "./ContainerNodeBase.tsx";
 
-export const ContainerNode = memo(function ContainerNode({
-                                                           data,
-                                                           ...rest
-                                                         }: NodeProps<ChainGraphNode>) {
+export const ContainerNode = memo(function ContainerNode({data, ...rest}: NodeProps<ChainGraphNode>) {
   const isCollapsed = !!data.collapsed;
 
   const trimmedLabel = useMemo(

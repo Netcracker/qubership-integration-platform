@@ -5,11 +5,7 @@ import {OverridableIcon} from "../../../icons/IconProvider.tsx";
 import {Flex, Typography} from "antd";
 import {NodeContentWrapper} from "./NodeContentWrapper.tsx";
 
-export const UnitNode = memo(function UnitNode({
-                                                 data,
-                                                 dragging,
-                                                 ...rest
-                                               }: NodeProps<ChainGraphNode>) {
+export const UnitNode = memo(function UnitNode({data, dragging, ...rest}: NodeProps<ChainGraphNode>) {
   const trimmedLabel = useMemo(
     () => (data.label?.split("\n")[0] ?? "Node").trim(),
     [data.label],
