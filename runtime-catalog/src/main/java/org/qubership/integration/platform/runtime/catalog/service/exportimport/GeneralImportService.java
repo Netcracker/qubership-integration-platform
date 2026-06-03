@@ -148,13 +148,22 @@ public class GeneralImportService {
     }
 
     public String importFileAsync(MultipartFile file, ImportRequest importRequest, Set<String> technicalLabels, boolean validateByHash) {
+        File unpackedDirectory = unpackDirectory(file);
+        logImportAction(file.getOriginalFilename());
+        return importDirectoryAsync(unpackedDirectory, importRequest, technicalLabels, validateByHash);
+    }
+
+    public String importDirectoryAsync(
+            File importDirectory,
+            ImportRequest importRequest,
+            Set<String> technicalLabels,
+            boolean validateByHash
+    ) {
         String importId = UUID.randomUUID().toString();
 
         importSessionService.deleteObsoleteImportSessionStatuses();
         importSessionService.setImportProgressPercentage(importId, 0);
 
-        File unpackedDirectory = unpackDirectory(file);
-        logImportAction(file.getOriginalFilename());
 
         String requestId = RequestIdContext.get();
         CompletableFuture.supplyAsync(() -> {
@@ -164,7 +173,7 @@ public class GeneralImportService {
 
             ArrayList<ImportInstructionResult> importInstructionResults = new ArrayList<>();
 
-            File importInstructionsConfigFile = new File(unpackedDirectory, importInstructionsService.getInstructionsFileName());
+            File importInstructionsConfigFile = new File(importDirectory, importInstructionsService.getInstructionsFileName());
             if (importInstructionsConfigFile.exists()) {
                 log.info("Start uploading import instructions");
 
@@ -174,13 +183,15 @@ public class GeneralImportService {
             }
 
             ImportVariablesResult variablesResult = commonVariablesService
-                    .importVariables(unpackedDirectory,  importRequest.getVariablesCommitRequest());
+                    .importVariables(importDirectory, importRequest.getVariablesCommitRequest());
             ImportSystemsAndInstructionsResult importSystemsAndInstructionsResult = systemExportImportService
-                    .importSystems(unpackedDirectory, importRequest.getSystemsCommitRequest(), importId, technicalLabels);
-            ImportContextServiceAndInstructionsResult importChainsAndContextInstructionsResult = contextExportImportService.importContextService(unpackedDirectory, importRequest.getSystemsCommitRequest(), importId);
-            ImportSystemsAndInstructionsResult importMcpSystemsAndInstructionsResult = mcpSystemImportExportService.importSystems(unpackedDirectory, importRequest.getSystemsCommitRequest(), importId);
+                    .importSystems(importDirectory, importRequest.getSystemsCommitRequest(), importId, technicalLabels);
+            ImportContextServiceAndInstructionsResult importChainsAndContextInstructionsResult = contextExportImportService
+                    .importContextService(importDirectory, importRequest.getSystemsCommitRequest(), importId);
+            ImportSystemsAndInstructionsResult importMcpSystemsAndInstructionsResult = mcpSystemImportExportService
+                    .importSystems(importDirectory, importRequest.getSystemsCommitRequest(), importId);
             ImportChainsAndInstructionsResult importChainsAndInstructionsResult = chainImportService
-                    .importChains(unpackedDirectory, importRequest.getChainCommitRequests(), importId, technicalLabels, validateByHash);
+                    .importChains(importDirectory, importRequest.getChainCommitRequests(), importId, technicalLabels, validateByHash);
 
             importInstructionResults.addAll(importChainsAndInstructionsResult.instructionResults());
             importInstructionResults.addAll(importSystemsAndInstructionsResult.instructionResults());
@@ -196,7 +207,7 @@ public class GeneralImportService {
         }).whenCompleteAsync((response, throwable) -> {
             RequestIdContext.set(requestId);
 
-            completeAsyncImport(importId, response, unpackedDirectory, throwable);
+            completeAsyncImport(importId, response, importDirectory, throwable);
         });
         return importId;
     }

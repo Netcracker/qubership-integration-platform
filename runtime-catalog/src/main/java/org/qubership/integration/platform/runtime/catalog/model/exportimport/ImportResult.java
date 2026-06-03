@@ -25,8 +25,11 @@ import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionStatus;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ImportSystemResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.variable.ImportVariableResult;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportEntityStatus;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.ImportSystemStatus;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,4 +57,31 @@ public class ImportResult {
     @Builder.Default
     @Schema(description = "List of results by each instruction")
     private List<ImportInstructionResult> instructionsResult = new ArrayList<>();
+
+    public boolean hasErrors() {
+        return hasChainErrors() || hasSystemErrors() || hasContextServiceErrors()
+                || hasVariableErrors() || hasInstructionErrors();
+    }
+
+    public boolean hasChainErrors() {
+        return chains.stream().anyMatch(chain -> ImportEntityStatus.ERROR.equals(chain.getStatus()));
+    }
+
+    public boolean hasSystemErrors() {
+        return systems.stream().anyMatch(system -> ImportSystemStatus.ERROR.equals(system.getStatus()));
+    }
+
+    public boolean hasContextServiceErrors() {
+        return contextService.stream().anyMatch(system -> ImportSystemStatus.ERROR.equals(system.getStatus()));
+    }
+
+    private boolean hasVariableErrors() {
+        return variables.stream().anyMatch(variable -> ImportEntityStatus.ERROR.equals(variable.getStatus()));
+    }
+
+    private boolean hasInstructionErrors() {
+        return instructionsResult.stream().anyMatch(instruction ->
+                ImportInstructionStatus.ERROR_ON_DELETE.equals(instruction.getStatus())
+                        || ImportInstructionStatus.ERROR_ON_OVERRIDE.equals(instruction.getStatus()));
+    }
 }

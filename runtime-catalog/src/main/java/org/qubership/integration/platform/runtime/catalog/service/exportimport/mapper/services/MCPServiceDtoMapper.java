@@ -5,7 +5,7 @@ import org.qubership.integration.platform.runtime.catalog.model.exportimport.sys
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystemLabel;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.mcp.MCPServiceImportFileMigration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -62,12 +62,7 @@ public class MCPServiceDtoMapper implements ExternalEntityMapper<MCPSystem, MCPS
                         .identifier(system.getIdentifier())
                         .instructions(system.getInstructions())
                         .labels(system.getLabels().stream().map(MCPSystemLabel::getName).toList())
-                        .migrations(migrations
-                                .stream()
-                                .map(ImportFileMigration::getVersion)
-                                .sorted()
-                                .toList()
-                                .toString())
+                        .migrations(MigrationUtil.formatVersions(migrations))
                         .build())
                 .build();
     }
