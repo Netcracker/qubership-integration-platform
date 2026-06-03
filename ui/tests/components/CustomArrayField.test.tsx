@@ -427,11 +427,11 @@ describe("CustomArrayField", () => {
       expect(onChange).toHaveBeenCalledWith(
         [
           expect.objectContaining({
-            code: "2xx",
+            code: "200..299",
             label: "2xx",
-            id: "2xx",
+            id: "200..299",
             type: "none",
-            wildcard: false,
+            wildcard: true,
           }),
         ],
         "root_after",
