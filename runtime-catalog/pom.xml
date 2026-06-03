@@ -21,7 +21,7 @@
     <relativePath>../parent</relativePath>
   </parent>
   <properties>
-    <revision>0.5.6</revision>
+    <revision>0.5.7</revision>
     <changelist>-SNAPSHOT</changelist>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
