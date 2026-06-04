@@ -548,6 +548,12 @@
       <groupId>com.graphql-java-generator</groupId>
       <artifactId>graphql-maven-plugin-logic</artifactId>
     </dependency>
+
+    <dependency>
+      <groupId>${project.parent.groupId}</groupId>
+      <artifactId>qip-camel-dsl-gen</artifactId>
+      <version>${project.parent.version}</version>
+    </dependency>
   </dependencies>
   <build>
     <plugins>
