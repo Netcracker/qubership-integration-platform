@@ -3,7 +3,7 @@
 ## Notifications
 Notifications ![bell](img/bell.svg) are implemented to communicate interactively with the user. It makes an ability to track the process of system changes. Notification are divided into 3 types:
 
-![exclamation-circle-blue](img/exclamation-circle-blue.svg) **Success** - some process or operation was ended without errors and exceptions (e.g. service discovery was completed or chain was deployed successfully).
+![exclamation-circle-blue](img/info-circle.svg) **Success** - some process or operation was ended without errors and exceptions (e.g. service discovery was completed or chain was deployed successfully).
 
 ![exclamation-circle-warn](img/exclamation-circle-warn.svg) **Warning** - warning messages in some operations (e.g. chain has Draft deployment status).
 
@@ -133,3 +133,15 @@ System saves state of some UI elements while user is working with them. Such ele
 - **Left panel** for sections "Services", "Admin Tools", "Dev Tools" - expanded or collapsed view.
 
 To reset saved configuration, click user icon ![user](img/user.svg) on top right of the screen and then click ![redo](img/redo.svg) "Reset UI preferences" button.
+
+## Theme Settings
+<ins>Web UI</ins>
+
+To change the interface theme, click the user icon ![user](img/user.svg) at the top right of the screen, then click "Theme settings" and select one of the following options:
+- System (default) – automatically follows the theme of your operating system (light or dark mode).
+- Light – applies a bright background with dark text.
+- Dark – applies a dark background with light text.
+- HC – maximizes color contrast for better readability.
+
+<ins>VS Code Extension</ins>
+In the VS Code Extension, the interface theme cannot be changed separately. It automatically follows the theme currently selected in the operation system.

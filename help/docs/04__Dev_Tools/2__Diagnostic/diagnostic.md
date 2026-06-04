@@ -14,11 +14,11 @@
 Navigate to **Admin Tools** -> **Diagnostic** to see the table with last diagnostic run's results. Table consist of next columns and elements:
 
 - **Name** - clickable validation name. When clicked, system opens pop-up with detailed explanation of the validation.
-  - **Id** - unique identifier of validation.
+  - **ID** - unique identifier of validation.
   - **Name** - exact validation name, as presented in the table.
   - **Description** - short validation description.
   - **Hint** - contains basic instructions to resolve the issues, found as a result of particular validation.
-  - **Validation Source** - specifies source of validations. Native validations are marked as "Built-in", others have "Custom" source.
+  - **Source** - specifies source of validations. Native validations are marked as "Built-in", others have "Custom" source.
   - **Severity** - shows if found issues shall be considered as Errors or Warnings.
   - **Alerts** - shows current number of alerts.
   - **Parameters** - section, that optionally contains additional parameters, available for validation.
@@ -32,12 +32,12 @@ Navigate to **Admin Tools** -> **Diagnostic** to see the table with last diagnos
 - **Start Time** - timestamp of last validation run.
 - **Control panel** - panel, placed on top of the table. Provides next capabilities:
   - **Search** field - allows to find validation or validated entity by its name.
-  - ![20](img/filter.svg) - opens filter pop-up.
-  - ![20](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except Name.
+  - ![filter](img/filter.svg) - opens filter pop-up.
+  - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except Name.
   - **Run Diagnostic** button - initiates validation process.
 
 ### View Diagnostic Results
-When diagnostic results are available and issues found, each executed validation, that has counter, may be expanded with ![20](img/right.svg) icon near its name. After its expanded, system shows chains and elements, that contain found issues and require attention.
+When diagnostic results are available and issues found, each executed validation, that has counter, may be expanded with ![right](img/right.svg) icon near its name. After its expanded, system shows chains and elements, that contain found issues and require attention.
 
 ### Run Validations
 Navigate to Admin Tools and then "Diagnostic page" tab. Select required validations from the table via checkboxes and click "Run Validation" button. Next validations are available for execution:
@@ -48,10 +48,10 @@ Navigate to Admin Tools and then "Diagnostic page" tab. Select required validati
 - **Deprecated elements found in the chain** - rule allows to find chains with deprecated elements.
 - **Large number of snapshots** - rule allows to check the number of snapshots that older than configured value.
 - **Multiple async consumers found in the chain** - rule allows to detect chains with identical asynchronous consumers (2 or more). Duplication check is performing by following parameters of Kafka/RabbitMQ/AsyncAPI Trigger according to chosen protocol and connection source type:
-  - Kafka (manual) - combination of **Topic** & **Group ID** is equal in the chains.
-  - RabbitMQ (manual) - **Queue(s) Name** is equal in the chains.
-  - Kafka (MaaS) - combination of **Topic Classifier Name**, **Classifier Namespace** and **Group ID** is equal in the chains.
-  - RabbitMQ (MaaS) - combination of **Vhost Maas Classifier Name**, **Classifier Namespace** and **Queue(s) Name** is equal in the chains.
+  - Kafka (manual) - combination of *Topic* & *Group ID* is equal in the chains.
+  - RabbitMQ (manual) - *Queue(s) Name* is equal in the chains.
+  - Kafka (MaaS) - combination of *Topic Classifier Name*, *Classifier Namespace* and *Group ID* is equal in the chains.
+  - RabbitMQ (MaaS) - combination of *Vhost Maas Classifier Name*, *Classifier Namespace* and *Queue(s) Name* is equal in the chains.
 - **Scripting found in the chain** - rule allows to find chains and chain elements which contain scripting.
 - **Sub-chain is used by single chain or not used at all** - rule allows to find chains which were not used in other chains, or they were used only once.
 - **Timeout is empty** - rule allows to find chain elements with empty timeout value.
