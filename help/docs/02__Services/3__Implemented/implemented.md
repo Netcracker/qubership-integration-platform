@@ -210,7 +210,7 @@ Below you can find the detailed information of all available parameters for the 
 - **Address** - defines the first part of the path for given chain. Base path and operation under the related HTTP Trigger form the finalized endpoint.
 - **Properties** - section to manage properties for the environment:
   - To add new property, click the icon ![right](img/right.svg) near the section **"Properties"**, press button ![plus](img/plus.svg), enter suitable data and click **Save** button.
-  - To bulk create/update of environment properties, turn on the slider **"Show as Key Value"**, put pairs of property name and value and click **`Enter`**. See the format below:
+  - To bulk create/update of environment properties, turn on the slider **"Show as key-value"**, put pairs of property name and value and click **`Enter`**. See the format below:
     ```text
     property1_name=property1_value;
     property2_name=property2_value;

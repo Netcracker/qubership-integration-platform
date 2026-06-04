@@ -198,7 +198,7 @@ There are several environments might be created for single service, but **only o
 5. Specify environment **Address**, which defines the URL for the current environment. This field is disabled, when Source type is "MaaS" or route registration on **Egress** is disabled in global environment settings.
 6. Add **properties**:
   - To add new property, click the icon ![right](img/right.svg) near the section **"Properties"**, press button ![plus](img/plus.svg), enter suitable data and click **`Enter`**.
-  - To bulk create/update of environment properties, turn on the slider **"Show as Key Value"**, put pairs of property name and value and click **`Enter`**. See the format below:
+  - To bulk create/update of environment properties, turn on the slider **"Show as key-value"**, put pairs of property name and value and click **`Enter`**. See the format below:
   ```text
   property1_name=property1_value;
   property2_name=property2_value;

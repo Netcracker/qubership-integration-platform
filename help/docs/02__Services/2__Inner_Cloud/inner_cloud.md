@@ -215,7 +215,7 @@ To update the environment for Inner Cloud Service, follow the steps specified be
     3. **Address** - defines the URL for the current environment. Field is editable if Manual source type has been selected.
     4. **Properties** - section to manage properties for the environment:
         - To add new property, click the icon ![right](img/right.svg) near the section **"Properties"**, press button ![plus](img/plus.svg), enter suitable data and click **`Enter`**.
-        - To bulk create/update of environment properties, turn on the slider **"Show as Key Value"**, put pairs of property name and value and click **`Enter`**. See the format below:
+        - To bulk create/update of environment properties, turn on the slider **"Show as key-value"**, put pairs of property name and value and click **`Enter`**. See the format below:
         ```text
         property1_name=property1_value;
         property2_name=property2_value;

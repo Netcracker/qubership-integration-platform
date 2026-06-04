@@ -6,7 +6,7 @@ It is used to ensure code style consistency among Qubership Integration Platform
 ## Usage
 
 ### Maven-built Java project
-Configuration contains rules for java files. It is designed to be used by [Maven Checkstyle Plugin](https://maven.apache.org/plugins/maven-checkstyle-plugin/) and is being built as an ordinary Maven package.
+Configuration contains rules for Java files. It is designed to be used by [Maven Checkstyle Plugin](https://maven.apache.org/plugins/maven-checkstyle-plugin/) and is being built as an ordinary Maven package.
 To enable rule checking, one needs to add the corresponding dependency to Checkstyle plugin configuration like is shown below:
 
 ```xml
