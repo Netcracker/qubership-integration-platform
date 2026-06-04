@@ -1,0 +1,95 @@
+name: Main Build
+
+# Post-merge build of all modules on main.
+#
+# PR builds are path-filtered per module, so two PRs that are each green in
+# isolation can still break main together (a "semantic merge conflict" via the
+# shared parent/pom.xml or the schemas -> ui -> vscode-extension workspace
+# chain). This consolidated build re-runs the same checks on the merged main,
+# giving a single "is main green right now" signal. Sonar is intentionally
+# skipped here — it already runs on every PR.
+#
+# micro-engine needs read access to the private com.netcracker.cloud artifacts
+# on GitHub Packages (server-id: github); until that access is granted to this
+# repo's token, its matrix leg is red exactly like its PR build.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'checkstyle/**'
+      - 'engine/**'
+      - 'micro-engine/**'
+      - 'runtime-catalog/**'
+      - 'sessions-management/**'
+      - 'parent/**'
+      - 'pom.xml'
+      - 'schemas/**'
+      - 'ui/**'
+      - 'vscode-extension/**'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch: null
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - checkstyle
+          - engine
+          - micro-engine
+          - runtime-catalog
+          - sessions-management
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/_maven-module-build.yaml
+    with:
+      module: ${{ matrix.module }}
+
+  # Consolidated npm workspace build. Mirrors the three PR builds in one job:
+  # the schemas -> ui -> vscode-extension chain is where cross-workspace
+  # semantic merge conflicts hide (e.g. a schema type change that breaks the
+  # ui:lib bundle the extension embeds). `build -w vscode-extension` also runs
+  # compile-web (webpack) — the extension bundle that no PR build exercises.
+  npm:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '22.x'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@netcracker'
+          cache: 'npm'
+
+      - name: Install dependencies (root workspaces)
+        run: npm ci --legacy-peer-deps
+
+      - name: Build workspace chain
+        run: |
+          npm run build -w schemas              # schemas/dist — consumed by the ui build
+          npm run build -w ui                   # standalone web UI (vite app build)
+          npm run build -w vscode-extension     # prepare-deps (schemas + ui:lib) + compile-web
+
+      - name: Test
+        run: npm test --workspaces --if-present

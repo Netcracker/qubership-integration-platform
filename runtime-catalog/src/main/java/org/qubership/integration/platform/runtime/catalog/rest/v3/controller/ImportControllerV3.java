@@ -30,13 +30,10 @@ import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainDifferenceClientException;
 import org.qubership.integration.platform.runtime.catalog.model.dto.chain.EntityDifferenceResponse;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionStatus;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.EntityDiffResponseMapper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.ImportSession;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainDTO;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportEntityStatus;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.ImportSystemStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.ChainMapper;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.*;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.mapper.ImportSessionMapper;
@@ -150,13 +147,7 @@ public class ImportControllerV3 {
         if (importSessionResponse.getResult() != null) {
             ImportResult importResult = importSessionResponse.getResult();
 
-            boolean responseHasErrors = importResult.getChains().stream().anyMatch(chainResult -> ImportEntityStatus.ERROR.equals(chainResult.getStatus()))
-                || importResult.getSystems().stream().anyMatch(systemResult -> ImportSystemStatus.ERROR.equals(systemResult.getStatus()))
-                || importResult.getContextService().stream().anyMatch(contextSystemResult -> ImportSystemStatus.ERROR.equals(contextSystemResult.getStatus()))
-                || importResult.getVariables().stream().anyMatch(variableResult -> ImportEntityStatus.ERROR.equals(variableResult.getStatus()))
-                || importResult.getInstructionsResult().stream().anyMatch(instructionResult -> ImportInstructionStatus.ERROR_ON_DELETE.equals(instructionResult.getStatus())
-                || ImportInstructionStatus.ERROR_ON_OVERRIDE.equals(instructionResult.getStatus()));
-            if (responseHasErrors) {
+            if (importResult.hasErrors()) {
                 responseStatus = HttpStatus.MULTI_STATUS;
             }
         }

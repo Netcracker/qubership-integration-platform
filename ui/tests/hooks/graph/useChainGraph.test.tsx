@@ -1189,11 +1189,13 @@ describe("useChainGraph", () => {
         result.current.onNodeDrag({} as React.MouseEvent, draggedNode);
       });
 
-      expect(getPossibleGraphIntersection).toHaveBeenCalled();
+      await waitFor(() => {
+        expect(getPossibleGraphIntersection).toHaveBeenCalled();
+      });
     });
   });
 
-  describe("onDragOver", () => {
+  describe("onDragOver",  () => {
     it("prevents default and sets dropEffect", async () => {
       const { result } = await withInitialNodes();
       const preventDefault = jest.fn();
@@ -1211,7 +1213,9 @@ describe("useChainGraph", () => {
 
       expect(preventDefault).toHaveBeenCalled();
       expect(dataTransfer.dropEffect).toBe("move");
-      expect(mockScreenToFlowPosition).toHaveBeenCalled();
+      await waitFor(() => {
+        expect(mockScreenToFlowPosition).toHaveBeenCalled();
+      });
     });
   });
 

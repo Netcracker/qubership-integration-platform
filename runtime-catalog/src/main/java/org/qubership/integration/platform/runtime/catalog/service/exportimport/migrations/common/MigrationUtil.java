@@ -19,8 +19,10 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.stream.Collectors;
 
 public class MigrationUtil {
@@ -59,6 +61,14 @@ public class MigrationUtil {
         }
 
         return result;
+    }
+
+    public static String formatVersions(Collection<? extends ImportFileMigration> migrations) {
+        return migrations.stream()
+            .map(ImportFileMigration::getVersion)
+            .sorted()
+            .toList()
+            .toString();
     }
 
     public static void removeMigrationVersion(ObjectNode root, String version) {

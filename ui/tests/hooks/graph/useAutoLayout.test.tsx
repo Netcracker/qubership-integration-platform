@@ -16,10 +16,9 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { Position, useReactFlow } from "@xyflow/react";
 import type { Edge, Node } from "@xyflow/react";
-import ELK from "elkjs/lib/elk.bundled";
 import type { ElkNode } from "elkjs/lib/elk.bundled";
 import { arrangeNodes, useAutoLayout } from "../../../src/hooks/graph/useAutoLayout.tsx";
 import { useElkDirection } from "../../../src/hooks/graph/useElkDirection.tsx";
@@ -34,13 +33,17 @@ jest.mock("@xyflow/react", () => ({
   useReactFlow: jest.fn(),
 }));
 
+const mockElkLayout = jest.fn();
+
 jest.mock("../../../src/hooks/graph/useElkDirection.tsx", () => ({
   useElkDirection: jest.fn(),
 }));
 
 jest.mock("elkjs/lib/elk.bundled", () => ({
   __esModule: true,
-  default: jest.fn(),
+  default: jest.fn().mockImplementation(() => ({
+    layout: (...args: unknown[]) => mockElkLayout(...args),
+  })),
 }));
 
 type TestNodeData = Record<string, unknown>;
@@ -74,7 +77,7 @@ const makeEdge = (id: string, source: string, target: string): Edge => ({
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 
 describe("useAutoLayout", () => {
-  const layoutMock = jest.fn();
+  const layoutMock = mockElkLayout;
   const toggleDirection = jest.fn();
 
   const getNodes = jest.fn();
@@ -96,10 +99,6 @@ describe("useAutoLayout", () => {
         return 1;
       },
     );
-
-    (ELK as unknown as jest.Mock).mockImplementation(() => ({
-      layout: layoutMock,
-    }));
 
     (useElkDirection as jest.Mock).mockReturnValue({
       direction: "RIGHT",
@@ -330,7 +329,7 @@ describe("useAutoLayout", () => {
   it("shouldReturnDirectionToggleDirectionAndArrangeNodesSortedTopologically", async () => {
     const { result } = renderHook(() => useAutoLayout());
 
-    await waitFor(() => expect(layoutMock).toHaveBeenCalled());
+    expect(layoutMock).not.toHaveBeenCalled();
 
     layoutMock.mockClear();
 
@@ -361,7 +360,7 @@ describe("useAutoLayout", () => {
     expect(arranged.map((node) => node.id)).toEqual(["parent", "child"]);
   });
 
-  it("shouldRunAutoLayoutOnMountMeasureNodesUpdateReactFlowNodesAndFitView", async () => {
+  it("shouldNotRunAutoLayoutOnMount", () => {
     layoutById.set("node-1", { x: 10, y: 20, width: 111, height: 55 });
     layoutById.set("node-2", { x: 200, y: 20, width: 222, height: 66 });
 
@@ -387,45 +386,8 @@ describe("useAutoLayout", () => {
 
     renderHook(() => useAutoLayout());
 
-    await waitFor(() => expect(updateNode).toHaveBeenCalledTimes(2));
-
-    const elkGraph = layoutMock.mock.calls[0][0] as ElkNode;
-
-    expect(elkGraph.children).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "node-1",
-          width: 111,
-          height: 55,
-        }),
-        expect.objectContaining({
-          id: "node-2",
-          width: 222,
-          height: 66,
-        }),
-      ]),
-    );
-
-    const [firstNodeId, firstUpdater] = updateNode.mock.calls[0];
-    const [secondNodeId, secondUpdater] = updateNode.mock.calls[1];
-
-    expect(firstNodeId).toBe("node-1");
-    expect(firstUpdater()).toMatchObject({
-      id: "node-1",
-      position: { x: 10, y: 20 },
-      width: 111,
-      height: 55,
-    });
-
-    expect(secondNodeId).toBe("node-2");
-    expect(secondUpdater()).toMatchObject({
-      id: "node-2",
-      position: { x: 200, y: 20 },
-      width: 222,
-      height: 66,
-    });
-
-    expect(fitView).toHaveBeenCalledTimes(1);
-    expect(ELK).toHaveBeenCalled();
+    expect(layoutMock).not.toHaveBeenCalled();
+    expect(updateNode).not.toHaveBeenCalled();
+    expect(fitView).not.toHaveBeenCalled();
   });
 });

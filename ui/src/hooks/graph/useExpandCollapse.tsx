@@ -6,6 +6,35 @@ import { computeNestedUnitCounts } from "../../misc/chain-graph-utils.ts";
 type SetNodesFn = React.Dispatch<React.SetStateAction<ChainGraphNode[]>>;
 type SetEdgesFn = React.Dispatch<React.SetStateAction<Edge[]>>;
 
+function collectDescendantIds(
+  nodes: ChainGraphNode[],
+  containerId: string,
+): Set<string> {
+  const childrenByParentId = new Map<string, ChainGraphNode[]>();
+
+  for (const node of nodes) {
+    if (!node.parentId) continue;
+
+    const children = childrenByParentId.get(node.parentId) ?? [];
+    children.push(node);
+    childrenByParentId.set(node.parentId, children);
+  }
+
+  const result = new Set<string>();
+  const stack = [...(childrenByParentId.get(containerId) ?? [])];
+
+  while (stack.length) {
+    const node = stack.pop()!;
+
+    if (result.has(node.id)) continue;
+
+    result.add(node.id);
+    stack.push(...(childrenByParentId.get(node.id) ?? []));
+  }
+
+  return result;
+}
+
 function computeHiddenNodeIds(nodes: ChainGraphNode[]): Set<string> {
   const nodeMap = new Map(nodes.map((node) => [node.id, node]));
   const collapsedNodeIds = new Set(
@@ -80,10 +109,11 @@ function reapplyNodeFlags(
 function reapplyEdgeFlags(
   nodesList: ChainGraphNode[],
   edgesList: Edge[],
+  hiddenIds: Set<string> = computeHiddenNodeIds(nodesList),
 ): Edge[] {
-  const hiddenIds = computeHiddenNodeIds(nodesList);
   return edgesList.map((edge) => {
     const normalized = normalizeEdgeHandles(edge);
+
     return {
       ...normalized,
       hidden:
@@ -200,35 +230,112 @@ export function useExpandCollapse(
     [],
   );
 
+  const applyVisibility = useCallback(
+    (
+      nodesList: ChainGraphNode[],
+      edgesList: Edge[],
+    ): {
+      processedNodes: ChainGraphNode[];
+      processedEdges: Edge[];
+    } => {
+      const hiddenIds = computeHiddenNodeIds(nodesList);
+      const processedNodes = reapplyNodeFlags(nodesList, hiddenIds);
+      const processedEdges = reapplyEdgeFlags(
+        processedNodes,
+        edgesList,
+        hiddenIds,
+      );
+
+      return {
+        processedNodes,
+        processedEdges,
+      };
+    },
+    [],
+  );
+
+  const structureChangedFrameRef = useRef<number | null>(null);
+  const pendingStructureChangedTargetsRef = useRef<Set<string>>(new Set());
+
+  const scheduleStructureChanged = useCallback(
+    (targetIds: string[]) => {
+      targetIds.filter(Boolean).forEach((id) => {
+        pendingStructureChangedTargetsRef.current.add(id);
+      });
+
+      if (structureChangedFrameRef.current !== null) {
+        return;
+      }
+
+      structureChangedFrameRef.current = window.requestAnimationFrame(() => {
+        structureChangedFrameRef.current = null;
+
+        const targets = Array.from(pendingStructureChangedTargetsRef.current);
+        pendingStructureChangedTargetsRef.current.clear();
+
+        structureChanged(targets.length ? targets : undefined);
+      });
+    },
+    [structureChanged],
+  );
+
   const processToggle = useCallback(
     (toggledContainerId: string) => {
-      const isCollapsed =
-        nodes.find((node) => node.id === toggledContainerId)?.data?.collapsed ??
-        false;
+      const toggled = nodes.find((node) => node.id === toggledContainerId);
+
+      if (!toggled || toggled.type !== "container") {
+        return;
+      }
+
+      const isCollapsed = !!toggled.data?.collapsed;
+      const nextCollapsed = !isCollapsed;
 
       const toggledNodes = nodes.map((node) =>
         node.id === toggledContainerId
-          ? { ...node, data: { ...node.data, collapsed: !isCollapsed } }
+          ? {
+            ...node,
+            data: {
+              ...node.data,
+              collapsed: nextCollapsed,
+            },
+          }
           : node,
       );
 
       const hiddenIds = computeHiddenNodeIds(toggledNodes);
-      const processedNodes = setNestedUnitCounts(
-        reapplyNodeFlags(toggledNodes, hiddenIds),
-      );
 
-      const processedEdges = reapplyEdgeFlags(processedNodes, edges);
+      if (!nextCollapsed) {
+        const descendantIds = collectDescendantIds(
+          toggledNodes,
+          toggledContainerId,
+        );
+
+        descendantIds.forEach((id) => {
+          hiddenIds.add(id);
+        });
+      }
+
+      const processedNodes = reapplyNodeFlags(toggledNodes, hiddenIds);
+      const processedEdges = reapplyEdgeFlags(processedNodes, edges, hiddenIds);
+
+      structureChanged([toggledContainerId]);
 
       setNodes(processedNodes);
       setEdges(processedEdges);
-
-      const toggled = nodes.find((n) => n.id === toggledContainerId);
-      const parentId = toggled?.parentId;
-      const targets = parentId ? [parentId] : [toggledContainerId];
-
-      structureChanged(targets);
     },
-    [nodes, edges, setNodes, setEdges, setNestedUnitCounts, structureChanged],
+    [nodes, edges, setNodes, setEdges, structureChanged],
+  );
+
+  useEffect(
+    () => () => {
+      if (structureChangedFrameRef.current !== null) {
+        window.cancelAnimationFrame(structureChangedFrameRef.current);
+        structureChangedFrameRef.current = null;
+      }
+
+      pendingStructureChangedTargetsRef.current.clear();
+    },
+    [],
   );
 
   const toggleRef = useRef(processToggle);
@@ -278,53 +385,95 @@ export function useExpandCollapse(
       const ids = Array.from(new Set(containerIds)).filter(Boolean);
       if (!ids.length) return;
 
-      const nextNodes = nodes.map((n) => {
-        if (!ids.includes(n.id)) return n;
-        if (n.type !== "container") return n;
-        if (!n.data?.collapsed) return n;
-        return { ...n, data: { ...n.data, collapsed: false } };
+      const idSet = new Set(ids);
+      const changedIds: string[] = [];
+
+      const nextNodes = nodes.map((node) => {
+        if (!idSet.has(node.id)) return node;
+        if (node.type !== "container") return node;
+        if (!node.data?.collapsed) return node;
+
+        changedIds.push(node.id);
+
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            collapsed: false,
+          },
+        };
       });
 
-      const hiddenIds = computeHiddenNodeIds(nextNodes);
-      const processedNodes = setNestedUnitCounts(
-        reapplyNodeFlags(nextNodes, hiddenIds),
+      if (!changedIds.length) {
+        return;
+      }
+
+      const { processedNodes, processedEdges } = applyVisibility(
+        nextNodes,
+        edges,
       );
-      const processedEdges = reapplyEdgeFlags(processedNodes, edges);
 
       setNodes(processedNodes);
       setEdges(processedEdges);
 
-      structureChanged(ids);
+      scheduleStructureChanged(changedIds);
     },
-    [nodes, edges, setNodes, setEdges, setNestedUnitCounts, structureChanged],
+    [
+      nodes,
+      edges,
+      setNodes,
+      setEdges,
+      applyVisibility,
+      scheduleStructureChanged,
+    ],
   );
 
   const setAllContainersCollapsed = useCallback(
     (collapsed: boolean) => {
-      const allContainerIds = nodes
-        .filter((node) => node.type === "container")
-        .map((node) => node.id);
+      const changedIds: string[] = [];
 
-      if (!allContainerIds.length) return;
+      const nextNodes = nodes.map((node) => {
+        if (node.type !== "container") {
+          return node;
+        }
 
-      const nextNodes = nodes.map((node) =>
-        node.type === "container"
-          ? { ...node, data: { ...node.data, collapsed } }
-          : node,
+        if (!!node.data?.collapsed === collapsed) {
+          return node;
+        }
+
+        changedIds.push(node.id);
+
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            collapsed,
+          },
+        };
+      });
+
+      if (!changedIds.length) {
+        return;
+      }
+
+      const { processedNodes, processedEdges } = applyVisibility(
+        nextNodes,
+        edges,
       );
-
-      const hiddenIds = computeHiddenNodeIds(nextNodes);
-      const processedNodes = setNestedUnitCounts(
-        reapplyNodeFlags(nextNodes, hiddenIds),
-      );
-      const processedEdges = reapplyEdgeFlags(processedNodes, edges);
 
       setNodes(processedNodes);
       setEdges(processedEdges);
 
-      structureChanged(allContainerIds);
+      scheduleStructureChanged(changedIds);
     },
-    [nodes, edges, setNodes, setEdges, setNestedUnitCounts, structureChanged],
+    [
+      nodes,
+      edges,
+      setNodes,
+      setEdges,
+      applyVisibility,
+      scheduleStructureChanged,
+    ],
   );
 
   const expandAllContainers = useCallback(() => {
