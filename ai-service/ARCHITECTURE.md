@@ -48,7 +48,7 @@ flowchart LR
 | `integration.catalog` | Catalog integration (subpackages below); root has `package-info` only |
 | `catalog.descriptor` | **Local** element descriptor YAML (not the HTTP catalog API) |
 | `schema` | QIP element schema load/validate for deterministic patches (`legacy` or `networknt` via `qip.ai.schema.validation.engine`); see [QIP schemas](#qip-schemas-build-time) |
-| `integration.apihub` | API Hub MCP tools |
+| `integration.apihub` | API Hub MCP tools (`searchApiOperations`, `getApiOperationSpecification`, `listApiHubPackages`, `getApiHubDocument`) |
 | `rag` | Document retrieval for prompt augmentation |
 | `storage` | S3 attachments |
 

@@ -28,6 +28,8 @@ Classify the user's message into EXACTLY ONE of the following scenario types:
 
 - CREATE_CHAIN_PLAN: User wants to **draft or revise** the structured `ChainImplementationPlan` JSON (elements, parents, connections policy) **without** catalog mutations. Triggers: "plan the chain", "draft chain plan", "chain implementation plan", "prepare chain implementation plan", "structure chain plan", or any "build/implement/create chain" request **before** the active plan is approved for execution.
 
+- IMPORT_SPECIFICATION: User wants to **import a full ApiHub specification into runtime-catalog** before planning can bind real catalog ids. Triggers: "import the specification", "import this API to catalog", UI action after ApiHub-only discovery, or `scenarioHint=IMPORT_SPECIFICATION`. **Not** IMPLEMENT_CHAIN — import happens before the approved plan is built with catalog ids.
+
 - COMPARE_AND_PATCH: User wants to compare a new design with an **existing deployed catalog chain** and apply structural changes, or update that chain from a change request. Triggers: "compare with deployed chain", "update existing chain", "apply design changes to the chain in catalog", "change request against live chain". **Not** for drafting a new plan from IDS ("take operations from IDS", "create chain plan from design") → **CREATE_CHAIN_PLAN**. Short clarifications that **operations are already listed in the current chain implementation plan** (e.g. "already in the plan") → **CREATE_CHAIN_PLAN**, not this scenario.
 
 - CHAIN_TO_DESIGN: User has an existing chain and wants to generate a design document from it (reverse engineering). Triggers: "generate design from chain", "reverse engineer", "chain to design", "document this chain".

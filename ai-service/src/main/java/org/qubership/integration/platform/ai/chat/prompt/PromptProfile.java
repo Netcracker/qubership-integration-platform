@@ -3,6 +3,8 @@ package org.qubership.integration.platform.ai.chat.prompt;
 /** Prompt assembly profile for scenario handlers (RAG source, block order, user header). */
 public enum PromptProfile {
   PLANNING("schema", null, 4, "Element Schema Reference", true, true, true, true, true),
+  IMPORT_SPECIFICATION(
+      "schema", null, 4, "Element Schema Reference", true, true, false, true, true),
   IMPLEMENT("schema", null, 4, "Element Schema Reference", true, true, true, true, false),
   DESIGN("docs", null, 4, "Relevant QIP Knowledge", true, false, false, false, true),
   ASK_DESIGN(null, null, 5, "QIP Knowledge Context", true, true, false, false, true),

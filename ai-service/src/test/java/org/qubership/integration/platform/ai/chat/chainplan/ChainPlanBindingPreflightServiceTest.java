@@ -84,4 +84,50 @@ class ChainPlanBindingPreflightServiceTest {
     assertEquals(PlanOpenItemKind.SERVICE_BINDING_UNRESOLVED, result.openItems().get(0).kind());
     assertTrue(result.openItems().get(0).message().contains("not found"));
   }
+
+  @Test
+  void enrichOperationBindingsSkipsCatalogEnrichForMisplacedApiHubOperationId() {
+    CatalogOperationBindingResolver resolver = mock(CatalogOperationBindingResolver.class);
+    ChainPlanBindingPreflightService preflight = new ChainPlanBindingPreflightService(resolver);
+
+    ElementPlan node = new ElementPlan();
+    node.setClientId("service-call-import");
+    node.setType("service-call");
+    node.setExpectedProperties(
+        Map.of(
+            "integrationOperationId",
+            "serviceCatalogManagement-v4-serviceCatalogManagement-v4-serviceSpecification-_id_-get"));
+
+    ChainImplementationPlan plan = new ChainImplementationPlan();
+    plan.setElements(List.of(node));
+
+    ChainPlanBindingPreflightService.PreflightResult result =
+        preflight.enrichOperationBindings(plan);
+
+    assertTrue(result.openItems().isEmpty());
+  }
+
+  @Test
+  void enrichOperationBindingsSkipsCatalogEnrichForCompleteApiHubImportRow() {
+    CatalogOperationBindingResolver resolver = mock(CatalogOperationBindingResolver.class);
+    ChainPlanBindingPreflightService preflight = new ChainPlanBindingPreflightService(resolver);
+
+    ElementPlan node = new ElementPlan();
+    node.setClientId("service-call-import");
+    node.setType("service-call");
+    node.setImportRequired(true);
+    node.setApiHubPackageId("S.ActProv.SvcCat");
+    node.setApiHubVersion("2026.1@1");
+    node.setApiHubOperationId("op-get");
+    node.setCatalogSystemName("Service Catalog");
+    node.setCatalogSystemType("EXTERNAL");
+
+    ChainImplementationPlan plan = new ChainImplementationPlan();
+    plan.setElements(List.of(node));
+
+    ChainPlanBindingPreflightService.PreflightResult result =
+        preflight.enrichOperationBindings(plan);
+
+    assertTrue(result.openItems().isEmpty());
+  }
 }

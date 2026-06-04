@@ -93,6 +93,45 @@ public class ChainImplementationPlan {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Boolean importRequired;
 
+    /**
+     * Planner-only API Hub import metadata (CREATE_CHAIN_PLAN). Required on the same element row
+     * when {@link #importRequired} is true. Not written to catalog element PATCH.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String apiHubPackageId;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String apiHubVersion;
+
+    /**
+     * API Hub operation id from {@code searchApiOperations} or IDS {@code **APIHub:**} line — not
+     * catalog {@code integrationOperationId}.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String apiHubOperationId;
+
+    /**
+     * API Hub source document slug ({@code documentId} from search, usually {@code api}). Used for
+     * full-package catalog import via {@code get_document}, not per-operation specs.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String apiHubDocumentId;
+
+    /**
+     * Specification group name for catalog import ({@code name} query on {@code
+     * POST /v1/specificationGroups/import}). From API Hub search {@code packageName} or IDS.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String apiHubSpecificationName;
+
+    /** Target QIP catalog system name for {@code createSystem} when {@link #importRequired}. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String catalogSystemName;
+
+    /** {@code INTERNAL} or {@code EXTERNAL} for {@code createSystem} when {@link #importRequired}. */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String catalogSystemType;
+
     /** Nested elements that live as catalog tree children of this node. */
     private List<ElementPlan> children;
 

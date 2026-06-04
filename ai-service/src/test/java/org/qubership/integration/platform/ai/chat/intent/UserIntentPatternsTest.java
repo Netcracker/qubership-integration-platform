@@ -30,4 +30,16 @@ class UserIntentPatternsTest {
     assertTrue(UserIntentPatterns.matchesImplementGateModifyAnswer("Modify plan"));
     assertFalse(UserIntentPatterns.matchesImplementGateModifyAnswer("change plan"));
   }
+
+  @Test
+  void shortPlanContinuationAndExplicitImport() {
+    assertTrue(UserIntentPatterns.matchesShortPlanContinuation("Agree"));
+    assertTrue(UserIntentPatterns.matchesShortPlanContinuation("i confirm"));
+    assertTrue(UserIntentPatterns.matchesShortPlanContinuation("start implementation"));
+    assertFalse(UserIntentPatterns.matchesShortPlanContinuation("create a chain by design"));
+    assertTrue(
+        UserIntentPatterns.matchesExplicitImportRequest(
+            "You should import this Service Catalog Management API"));
+    assertFalse(UserIntentPatterns.matchesExplicitImportRequest("i confirm"));
+  }
 }

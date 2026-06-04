@@ -36,6 +36,8 @@ class CatalogElementsCreatorServiceTest {
     chainPlanValidator = mock(ChainPlanValidator.class);
     chainSkeletonCreator = mock(ChainSkeletonCreator.class);
     bindingPreflightService = mock(ChainPlanBindingPreflightService.class);
+    when(bindingPreflightService.enrichOperationBindings(any()))
+        .thenReturn(new ChainPlanBindingPreflightService.PreflightResult(List.of()));
     when(chainPlanValidator.validate(anyString(), any())).thenReturn(Optional.empty());
     when(chainPlanLoader.load(anyString(), any()))
         .thenAnswer(
@@ -81,6 +83,7 @@ class CatalogElementsCreatorServiceTest {
 
     assertTrue(result.contains("\"ok\":false"));
     assertTrue(result.contains("Unresolved operation binding"));
+    assertTrue(result.contains("IMPORT_SPECIFICATION"));
     verify(chainSkeletonCreator, never()).createElements(any(), any(), any(), any());
   }
 }

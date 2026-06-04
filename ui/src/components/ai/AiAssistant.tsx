@@ -62,6 +62,11 @@ import {
   fetchChainPlanDetail,
   fetchChainPlanStatus,
 } from "../../api/ai/chainPlanClient.ts";
+import {
+  API_HUB_IMPORT_FOLLOW_UP_MESSAGE,
+  IMPORT_SPECIFICATION_SCENARIO_HINT,
+  shouldAutoFollowUpImportSpecification,
+} from "./apiHubImportHitl.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -105,6 +110,7 @@ export const AiAssistant: React.FC = () => {
   const inputRef = React.useRef<TextAreaRef | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const sendInProgressRef = useRef(false);
+  const pendingImportFollowUpSessionIdRef = useRef<string | null>(null);
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
@@ -705,6 +711,47 @@ export const AiAssistant: React.FC = () => {
     ],
   );
 
+  const runImportSpecificationFollowUp = useCallback(
+    async (sessionId: string) => {
+      if (sendInProgressRef.current) return;
+      const session = sessionStore.getSession(sessionId);
+      if (!session) return;
+
+      const importMessage: ChatMessage = {
+        role: "user",
+        content: API_HUB_IMPORT_FOLLOW_UP_MESSAGE,
+      };
+      const next = [...session.messages, importMessage];
+      sessionStore.updateSessionMessages(sessionId, next);
+      refreshSessions();
+
+      const latestSession = sessionStore.getSession(sessionId);
+      await sendToProvider(
+        sessionId,
+        next,
+        latestSession?.lastAttachmentUrls ?? session.lastAttachmentUrls,
+        [importMessage],
+        latestSession?.lastAttachmentObjectKeys ?? session.lastAttachmentObjectKeys,
+        IMPORT_SPECIFICATION_SCENARIO_HINT,
+      );
+    },
+    [sessionStore, refreshSessions, sendToProvider],
+  );
+
+  useEffect(() => {
+    const sessionId = pendingImportFollowUpSessionIdRef.current;
+    if (!sessionId) return;
+    if (isLoading || isStreaming || sendInProgressRef.current || hitlSubmitting) return;
+
+    pendingImportFollowUpSessionIdRef.current = null;
+    void runImportSpecificationFollowUp(sessionId);
+  }, [
+    isLoading,
+    isStreaming,
+    hitlSubmitting,
+    runImportSpecificationFollowUp,
+  ]);
+
   // ---------------------------------------------------------------------------
   // Session UI handlers
   // ---------------------------------------------------------------------------
@@ -773,7 +820,8 @@ export const AiAssistant: React.FC = () => {
     async (answer: string) => {
       const trimmed = answer.trim();
       if (!hitlPending || !trimmed) return;
-      const { checkpointId, conversationId } = hitlPending;
+      const { checkpointId, conversationId, options } = hitlPending;
+      const scheduleImportFollowUp = shouldAutoFollowUpImportSpecification(trimmed, options);
       const serviceUrl = getAiServiceUrl();
       if (!serviceUrl) return;
       const base = serviceUrl.replace(/\/$/, "");
@@ -798,6 +846,17 @@ export const AiAssistant: React.FC = () => {
           console.error("[AiAssistant] HITL answer POST failed", res.status, text);
           return;
         }
+        if (scheduleImportFollowUp) {
+          const sessionId =
+            currentSessionId ??
+            sessionStore
+              .getAllSessions()
+              .find((s) => s.conversationId === conversationId)?.id ??
+            null;
+          if (sessionId) {
+            pendingImportFollowUpSessionIdRef.current = sessionId;
+          }
+        }
         setHitlPending(null);
         setHitlCustomAnswer("");
         setHitlCustomOpen(false);
@@ -808,7 +867,7 @@ export const AiAssistant: React.FC = () => {
         setHitlSubmitting(false);
       }
     },
-    [hitlPending, refreshChainPlanStatus],
+    [hitlPending, refreshChainPlanStatus, currentSessionId, sessionStore],
   );
 
   // ---------------------------------------------------------------------------

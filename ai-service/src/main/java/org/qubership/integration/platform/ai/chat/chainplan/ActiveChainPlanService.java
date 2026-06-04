@@ -13,6 +13,7 @@ import org.qubership.integration.platform.ai.integration.catalog.model.ChainImpl
 import org.qubership.integration.platform.ai.integration.catalog.model.CreateElementsByJsonReport;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -160,11 +161,17 @@ public class ActiveChainPlanService {
     if (validationFailure.isPresent()) {
       return PreparedPlanPublication.invalid(validationFailure.get());
     }
+    Optional<PlanPublicationOutcome> importPendingFailure =
+        validateApiHubImportPendingGate(conversationId, plan);
+    if (importPendingFailure.isPresent()) {
+      return PreparedPlanPublication.invalid(importPendingFailure.get());
+    }
     enrichSourceIdsFromPlanningDiary(conversationId, plan);
+    ChainPlanImportPathNormalizer.normalize(plan);
     ChainPlanBindingPreflightService.PreflightResult bindingPreflight = bindingPreflightService
         .enrichOperationBindings(plan);
     String chainName = plan.getChain().getName();
-    List<PlanOpenItem> mergedOpen = mergePlanOpenDebt(plan, bindingPreflight);
+    List<PlanOpenItem> mergedOpen = mergePlanOpenDebt(plan, bindingPreflight, List.of());
     ActiveChainPlanSnapshot snapshot = new ActiveChainPlanSnapshot(
         UUID.randomUUID().toString(),
         chainName,
@@ -204,17 +211,47 @@ public class ActiveChainPlanService {
     return Optional.empty();
   }
 
+  /**
+   * Rejects capture when ApiHub import is pending in the planning diary and the plan still needs
+   * catalog operation binding (placeholders, ApiHub slugs, or missing ids).
+   */
+  private Optional<PlanPublicationOutcome> validateApiHubImportPendingGate(
+      String conversationId, ChainImplementationPlan plan) {
+    if (!planningDiaryService.hasPendingApiHubImport(conversationId)) {
+      return Optional.empty();
+    }
+    List<PlanOpenItem> unresolved = new ArrayList<>();
+    PlanServiceBindingRules.walkForUnresolvedBinding(plan.getElements(), unresolved);
+    if (unresolved.isEmpty()) {
+      return Optional.empty();
+    }
+    LOG.infof(
+        "Plan capture rejected: pending ApiHub import conversationId=%s unresolvedBindings=%d",
+        conversationId,
+        unresolved.size());
+    return Optional.of(
+        PlanPublicationOutcome.failure(
+            "PLAN_VALIDATION_ERROR",
+            "ApiHub specification import is required before capturing a bound"
+                + " ChainImplementationPlan. Run IMPORT_SPECIFICATION first, then rerun"
+                + " CREATE_CHAIN_PLAN with catalog ids. Alternatively set bindingStatus to"
+                + " user_accepted_unbound on affected rows."));
+  }
+
   private List<PlanOpenItem> mergePlanOpenDebt(
       ChainImplementationPlan plan,
-      ChainPlanBindingPreflightService.PreflightResult bindingPreflight) {
+      ChainPlanBindingPreflightService.PreflightResult bindingPreflight,
+      List<PlanOpenItem> extraOpenItems) {
     List<PlanOpenItem> openFromSanitize = chainPlanPropertyKeysValidator.sanitizeAndCollectUnknownKeys(plan);
     return ChainPlanOpenDebtMerge.mergeDistinctOpenItems(
         openFromSanitize,
         ChainPlanOpenDebtMerge.mergeDistinctOpenItems(
             ChainPlanOpenDebtMerge.mergeDistinctOpenItems(
-                ChainPlanOpenDebtMerge.collectServiceBindingUnresolvedItems(plan),
-                bindingPreflight.openItems()),
-            ChainPlanOpenDebtMerge.collectMissingRuntimeConnectionsItems(plan)));
+                ChainPlanOpenDebtMerge.mergeDistinctOpenItems(
+                    ChainPlanOpenDebtMerge.collectServiceBindingUnresolvedItems(plan),
+                    bindingPreflight.openItems()),
+                ChainPlanOpenDebtMerge.collectMissingRuntimeConnectionsItems(plan)),
+            extraOpenItems));
   }
 
   private PlanPublicationOutcome storePreparedPlan(
@@ -340,7 +377,7 @@ public class ActiveChainPlanService {
     }
     PlanPublicationOutcome outcome = publishFromJson(conversationId, json.get());
     if (!outcome.captured()) {
-      LOG.debugf(
+      LOG.infof(
           "Markdown plan capture skipped for conversationId=%s: %s",
           conversationId, outcome.failureMessage());
     }

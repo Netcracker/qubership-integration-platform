@@ -29,6 +29,21 @@ More text
   }
 
   @Test
+  void findLatestPlanJsonAcceptsChainPlanJsonLanguageTag() {
+    String assistant =
+        """
+Visible plan
+1. Create a chain Example
+```chain-plan-json
+{"chain":{"name":"Example"},"elements":[{"clientId":"a","type":"http-trigger"}],"connections":[]}
+```
+""";
+    Optional<String> json = ChainImplementationPlanCapture.findLatestPlanJson(assistant);
+    assertTrue(json.isPresent());
+    assertTrue(json.get().contains("\"Example\""), json.get());
+  }
+
+  @Test
   void findLatestPlanJsonAcceptsFenceWithoutJsonLanguageTag() {
     String assistant =
         """

@@ -47,6 +47,15 @@ public class ChainPlanBindingPreflightService {
     if (isUserAcceptedUnbound(node.getBindingStatus())) {
       return;
     }
+    if (Boolean.TRUE.equals(node.getImportRequired())) {
+      return;
+    }
+    if (ChainPlanImportPathNormalizer.misplacedApiHubOperationId(node) != null) {
+      return;
+    }
+    if (PlanServiceBindingRules.hasCompleteApiHubImportMetadata(node)) {
+      return;
+    }
     CatalogOperationBindingEnrichResult result = operationBindingResolver.enrichForProperties(node);
     String unresolvedReason = result.unresolvedReason().orElse(null);
     if (unresolvedReason != null) {

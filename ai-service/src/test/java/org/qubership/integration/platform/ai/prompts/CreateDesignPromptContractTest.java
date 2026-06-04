@@ -15,6 +15,13 @@ class CreateDesignPromptContractTest {
     String text = Files.readString(path);
     assertTrue(text.contains("APIHub vs custom inbound HTTP"), text);
     assertTrue(text.contains("custom/internal HTTP endpoint"), text);
-    assertTrue(text.contains("documented external REST APIs"), text);
+    assertTrue(text.contains("documented external REST APIs")
+        || text.contains("documented external APIs"), text);
+    assertTrue(text.contains("searchApiOperations"), text);
+    assertTrue(text.contains("getApiOperationSpecification"), text);
+    assertTrue(text.contains("listApiHubPackages"), text);
+    assertTrue(text.contains("getApiHubDocument"), text);
+    assertTrue(text.contains("lexical"), text);
+    assertTrue(text.contains("omit") && text.contains("release"), text);
   }
 }

@@ -91,6 +91,9 @@ public class CatalogOperationBindingResolver {
     if (operationId == null) {
       return CatalogOperationBindingEnrichResult.unchanged(node.getExpectedProperties());
     }
+    if (PlanServiceBindingRules.looksLikeApiHubOperationId(operationId)) {
+      return CatalogOperationBindingEnrichResult.unchanged(node.getExpectedProperties());
+    }
 
     String conversationId = conversationIdFromMdc();
     String specId =

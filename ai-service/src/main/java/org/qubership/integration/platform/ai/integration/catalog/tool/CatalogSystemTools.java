@@ -11,8 +11,10 @@ import org.jboss.logging.Logger;
 import org.jboss.logmanager.MDC;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.chat.planning.ConversationPlanningDiaryService;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubDocumentPayload;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
-import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogSpecificationImporter;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateSystemRequest;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 import org.qubership.integration.platform.ai.integration.catalog.validation.CatalogImportApiHubArgsValidator;
@@ -42,24 +44,32 @@ public class CatalogSystemTools {
 
   private final ObjectMapper objectMapper;
 
+  private final CatalogSpecificationImporter catalogSpecificationImporter;
+
+  private final ApiHubMcpTools apiHubMcpTools;
+
   @Inject
   public CatalogSystemTools(
       @RestClient CatalogRestClient catalogRestClient,
       CatalogToolSupport support,
       CatalogSystemReadTool readSupport,
       ConversationPlanningDiaryService planningDiaryService,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      CatalogSpecificationImporter catalogSpecificationImporter,
+      ApiHubMcpTools apiHubMcpTools) {
     this.catalogRestClient = catalogRestClient;
     this.support = support;
     this.readSupport = readSupport;
     this.planningDiaryService = planningDiaryService;
     this.objectMapper = objectMapper;
+    this.catalogSpecificationImporter = catalogSpecificationImporter;
+    this.apiHubMcpTools = apiHubMcpTools;
   }
 
   @Tool("Search QIP catalog services (API Repository systems) by name substring. Call FIRST when"
       + " binding service-call from design: if a match exists, use systemId with"
       + " getApiSpecifications then listCatalogOperations. Only use APIHub"
-      + " (searchRestApiOperations) when no suitable catalog service is found and APIHub is"
+      + " (searchApiOperations) when no suitable catalog service is found and APIHub is"
       + " available. Returns JSON: { ok, tool, data: SystemDto[] }.")
   public String searchCatalogSystems(
       @P("Substring to match service name (catalog searchCondition)") String searchCondition) {
@@ -131,6 +141,8 @@ public class CatalogSystemTools {
 
   @Tool("Create a QIP system (external or internal service). "
       + "serviceType: INTERNAL for Netcracker/TMF APIs, EXTERNAL for third-party APIs. "
+      + "When importRequired is true on the approved plan, read catalogSystemName and "
+      + "catalogSystemType from that element row. "
       + "Returns JSON: { ok, tool, message, data: { systemId, name } }. Prefer"
       + " searchCatalogSystems first; skip createSystem when an existing catalog service already"
       + " fits the design.")
@@ -155,39 +167,41 @@ public class CatalogSystemTools {
     }
   }
 
-  @Tool("Import an API specification from APIHUB into a QIP system. Call this after createSystem when"
-      + " no matching service was found in the catalog (searchCatalogSystems). Use packageId,"
-      + " version, operationId from searchRestApiOperations. Not for fixing placeholder"
-      + " integrationOperationId on an existing IMPLEMENTED catalog service. Returns JSON:"
-      + " { ok, tool, message, data: { specId } }.")
+  @Tool("Import an API specification from APIHUB into a QIP system. Deprecated in IMPLEMENT_CHAIN;"
+      + " use scenario IMPORT_SPECIFICATION instead. When allowed, fetches the full source document"
+      + " from APIHUB and uploads via POST /v1/specificationGroups/import.")
   public String importApiHubSpecToSystem(
       @P("System ID from createSystem") String systemId,
       @P("Package ID from APIHUB search") String packageId,
       @P("Version from APIHUB search") String version,
-      @P("Operation ID from APIHUB search") String operationId,
-      @P("Specification name") String name) {
+      @P("Operation ID from APIHUB search (for binding after import)") String operationId,
+      @P("Specification group name for catalog import (from API Hub packageName or IDS)") String name,
+      @P("APIHUB document slug from search documentId (usually api)") String documentSlug) {
     String blocked = CatalogMutationGuard.rejectOrNull(CatalogSystemToolNames.IMPORT_APIHUB);
     if (blocked != null) {
       return blocked;
     }
+    String importScenarioBlocked = ImportSpecificationTools.rejectUnlessImportScenario();
+    if (importScenarioBlocked != null) {
+      return importScenarioBlocked;
+    }
     LOG.infof(
         "Catalog tool importApiHubSpecToSystem: systemId=%s, packageId=%s, version=%s,"
-            + " operationId=%s, name=%s",
-        systemId, packageId, version, operationId, name);
+            + " operationId=%s, name=%s, documentSlug=%s",
+        systemId, packageId, version, operationId, name, documentSlug);
     String validationError = validateImportApiHubArgs(packageId, version, operationId);
     if (validationError != null) {
       return validationError;
     }
     try {
-      Map<String, Object> body = new LinkedHashMap<>();
-      body.put("packageId", packageId.trim());
-      body.put("version", version.trim());
-      body.put("operationId", operationId.trim());
-      if (name != null && !name.isBlank()) {
-        body.put("name", name.trim());
-      }
-      CatalogRestClient.SpecificationDto result = catalogRestClient.importApiHubSpec(systemId, body);
-      Map<String, Object> data = Map.of("specId", result.id());
+      String slug =
+          documentSlug == null || documentSlug.isBlank() ? "api" : documentSlug.trim();
+      ApiHubDocumentPayload document =
+          apiHubMcpTools.fetchApiHubDocument(packageId, version, slug, "rest");
+      CatalogSpecificationImporter.ImportOutcome imported =
+          catalogSpecificationImporter.importOpenApiDocument(
+              systemId, name, null, document.content(), document.fileName());
+      Map<String, Object> data = Map.of("specId", imported.specificationId());
       String out = support.catalogToolSuccess(CatalogSystemToolNames.IMPORT_APIHUB, "Spec imported.", data);
       support.logCatalogToolDone(CatalogSystemToolNames.IMPORT_APIHUB, out);
       return out;

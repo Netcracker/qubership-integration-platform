@@ -61,6 +61,30 @@ export function getRoleLabel(
   return "System";
 }
 
+export function looksLikeChainImplementationPlanJson(code: string): boolean {
+  const trimmed = code.trim();
+  if (!trimmed.startsWith("{") || !trimmed.includes('"elements"')) {
+    return false;
+  }
+  return trimmed.includes('"chain"') || trimmed.includes('"name"');
+}
+
+/** Fenced blocks that should render collapsed in chat (expandable by the user). */
+export function isCollapsibleChainPlanJsonBlock(
+  language: string | undefined,
+  code: string,
+): boolean {
+  if (language === "chain-plan-json") {
+    return true;
+  }
+  return language === "json" && looksLikeChainImplementationPlanJson(code);
+}
+
+/** @deprecated use isCollapsibleChainPlanJsonBlock */
+export function isHiddenChainPlanJsonLanguage(language: string | undefined): boolean {
+  return language === "chain-plan-json";
+}
+
 export function extractMarkdownText(children: unknown): string {
   if (typeof children === "string") return children;
   if (Array.isArray(children)) {

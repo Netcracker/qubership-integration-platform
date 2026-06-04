@@ -154,7 +154,9 @@ public class CatalogElementsCreatorService {
           objectMapper,
           TOOL,
           CatalogToolResult.CODE_PLAN_VALIDATION_ERROR,
-          "Unresolved operation binding must be fixed before materialization: " + reason);
+          "Unresolved operation binding must be fixed before materialization (import specs via"
+              + " IMPORT_SPECIFICATION in planning, then rebuild the plan with catalog ids): "
+              + reason);
     }
 
     CreateElementsByJsonReport report = new CreateElementsByJsonReport();

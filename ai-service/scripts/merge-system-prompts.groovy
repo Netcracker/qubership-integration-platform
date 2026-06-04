@@ -31,7 +31,7 @@ rolesDir.eachFile { role ->
     }
     def name = role.name.replaceFirst(/\.md$/, '-system.md')
     def out = new File(outDir, name)
-    def roleText = role.getText(StandardCharsets.UTF_8.name())
+    def roleText = escapeForQuteSystemPrompt(role.getText(StandardCharsets.UTF_8.name()))
     if ((role.name == 'implement-chain.md' || role.name == 'create-chain-plan.md')
             && implementChainBranching.exists()) {
         String branchingText = implementChainBranching.getText(StandardCharsets.UTF_8.name())

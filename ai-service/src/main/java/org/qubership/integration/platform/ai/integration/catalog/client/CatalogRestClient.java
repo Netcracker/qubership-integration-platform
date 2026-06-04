@@ -8,6 +8,7 @@ import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateChainRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateDependencyRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateElementRequest;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateEnvironmentRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateSystemRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogDependencyDto;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
@@ -104,6 +105,15 @@ public interface CatalogRestClient {
   SystemDto getSystem(@PathParam("systemId") String systemId);
 
   @GET
+  @Path("/v1/systems/{systemId}/environments")
+  List<EnvironmentDto> getEnvironments(@PathParam("systemId") String systemId);
+
+  @POST
+  @Path("/v1/systems/{systemId}/environments")
+  EnvironmentDto createEnvironment(
+      @PathParam("systemId") String systemId, CatalogCreateEnvironmentRequest body);
+
+  @GET
   @Path("/v1/models")
   List<SpecificationDto> getApiSpecifications(@QueryParam("systemId") String systemId);
 
@@ -122,13 +132,6 @@ public interface CatalogRestClient {
       @QueryParam("offset") int offset,
       @QueryParam("count") int count,
       @QueryParam("searchFilter") String searchFilter);
-
-  // ── APIHub import (legacy path — may not exist on all deployments) ─────────
-
-  @POST
-  @Path("/v1/systems/{systemId}/specifications/import")
-  SpecificationDto importApiHubSpec(
-      @PathParam("systemId") String systemId, Map<String, Object> body);
 
   // ── DTOs ─────────────────────────────────────────────────────────────────
 
@@ -149,6 +152,9 @@ public interface CatalogRestClient {
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record SystemDto(String id, String name, String type, String protocol) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  record EnvironmentDto(String id, String name, String address) {}
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record SpecificationDto(

@@ -30,6 +30,22 @@ class RouterHeuristicsTest {
   }
 
   @Test
+  void importSpecificationFastRoute() {
+    Optional<ScenarioType> r =
+        RouterHeuristics.tryFastResolve(
+            "import the specification to catalog", "(no history)", Optional.empty(), false);
+    assertEquals(Optional.of(ScenarioType.IMPORT_SPECIFICATION), r);
+  }
+
+  @Test
+  void importSpecificationHitlAnswerFastRoute() {
+    Optional<ScenarioType> r =
+        RouterHeuristics.tryFastResolve(
+            "Import specification and continue planning", "(no history)", Optional.empty(), false);
+    assertEquals(Optional.of(ScenarioType.IMPORT_SPECIFICATION), r);
+  }
+
+  @Test
   void bareAgreeDoesNotFastResolve() {
     Optional<ScenarioType> r =
         RouterHeuristics.tryFastResolve(

@@ -10,6 +10,7 @@ import org.qubership.integration.platform.ai.chat.hitl.HitlTool;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemTools;
 import org.qubership.integration.platform.ai.integration.catalog.tool.ElementSchemaTools;
+import org.qubership.integration.platform.ai.integration.catalog.tool.ImportCandidateTool;
 
 /**
  * AI agent for CREATE_CHAIN_PLAN — produces a {@code ChainImplementationPlan} JSON and HITL
@@ -21,7 +22,8 @@ import org.qubership.integration.platform.ai.integration.catalog.tool.ElementSch
       ApiHubMcpTools.class,
       ElementSchemaTools.class,
       HitlTool.class,
-      CatalogSystemTools.class
+      CatalogSystemTools.class,
+      ImportCandidateTool.class
     })
 @ApplicationScoped
 public interface CreateChainPlanAgent {

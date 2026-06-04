@@ -12,23 +12,21 @@ import java.lang.reflect.Method;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Static guard: {@link CatalogRestClient} paths must use runtime-catalog native {@code /v1/...}
- * prefix. {@code importApiHubSpec} is out of scope (ApiHub / separate flows).
+ * prefix.
  */
 class CatalogRestClientPathTest {
 
-  private static final Set<String> EXCLUDED_METHODS = Set.of("importApiHubSpec");
-
   @Test
-  void restClientPathsUseV1PrefixAndExcludeImportApiHub() throws Exception {
+  void restClientPathsUseV1Prefix() throws Exception {
     for (Method method : CatalogRestClient.class.getDeclaredMethods()) {
       if (method.isSynthetic()) {
-        continue;
-      }
-      if (EXCLUDED_METHODS.contains(method.getName())) {
         continue;
       }
       Path path = method.getAnnotation(Path.class);

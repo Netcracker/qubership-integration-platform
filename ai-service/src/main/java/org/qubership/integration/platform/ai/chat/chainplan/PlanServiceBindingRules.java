@@ -68,7 +68,7 @@ public final class PlanServiceBindingRules {
                 cid,
                 null,
                 et,
-                bindingDebtMessage(et),
+                bindingDebtMessage(node, et),
                 List.of(),
                 false));
       }
@@ -76,12 +76,53 @@ public final class PlanServiceBindingRules {
     }
   }
 
-  private static String bindingDebtMessage(String elementType) {
+  private static String bindingDebtMessage(ElementPlan node, String elementType) {
+    if (node != null && Boolean.TRUE.equals(node.getImportRequired())) {
+      if (hasCompleteApiHubImportMetadata(node)) {
+        return elementType
+            + " requires ApiHub specification import before planning can bind catalog ids."
+            + " Save an import candidate and run IMPORT_SPECIFICATION (scenarioHint or user"
+            + " confirms import), then return to CREATE_CHAIN_PLAN with catalog tools only.";
+      }
+      return elementType
+          + " has importRequired=true but incomplete API Hub import metadata. Set"
+          + " apiHubPackageId, apiHubVersion, apiHubOperationId, apiHubSpecificationName,"
+          + " catalogSystemName, and catalogSystemType (INTERNAL or EXTERNAL) on the element row,"
+          + " or set bindingStatus to user_accepted_unbound.";
+    }
     return elementType
         + " is missing required operation binding in expectedProperties (integrationOperationId"
         + " and/or integrationGqlQuery per element schema). Resolve in CREATE_CHAIN_PLAN (catalog,"
         + " then APIHub if needed), or set bindingStatus to user_accepted_unbound where applicable"
         + " and omit operation fields.";
+  }
+
+  /** True when {@code importRequired} is set and all planner import fields are present. */
+  public static boolean hasCompleteApiHubImportMetadata(ElementPlan node) {
+    if (node == null || !Boolean.TRUE.equals(node.getImportRequired())) {
+      return false;
+    }
+    if (!hasNonBlankStringValue(node.getApiHubPackageId())
+        || !hasNonBlankStringValue(node.getApiHubVersion())
+        || !hasNonBlankStringValue(node.getApiHubOperationId())
+        || !hasNonBlankStringValue(node.getApiHubSpecificationName())
+        || !hasNonBlankStringValue(node.getCatalogSystemName())
+        || !isValidCatalogSystemType(node.getCatalogSystemType())) {
+      return false;
+    }
+    return !looksLikePlaceholderOperationId(node.getApiHubOperationId());
+  }
+
+  public static boolean isValidCatalogSystemType(String catalogSystemType) {
+    if (catalogSystemType == null || catalogSystemType.isBlank()) {
+      return false;
+    }
+    String normalized = catalogSystemType.trim().toUpperCase();
+    return "INTERNAL".equals(normalized) || "EXTERNAL".equals(normalized);
+  }
+
+  private static boolean hasNonBlankStringValue(String value) {
+    return value != null && !value.isBlank();
   }
 
   private static String trimType(String type) {
@@ -126,7 +167,9 @@ public final class PlanServiceBindingRules {
       return false;
     }
     String s = String.valueOf(v).trim();
-    return !s.isEmpty() && !looksLikePlaceholderOperationId(s);
+    return !s.isEmpty()
+        && !looksLikePlaceholderOperationId(s)
+        && !looksLikeApiHubOperationId(s);
   }
 
   /** Catalog operation ids are stable strings; model placeholders must not count as bound. */
@@ -142,6 +185,36 @@ public final class PlanServiceBindingRules {
         || lower.contains("actual operation")
         || "operation-id".equals(lower)
         || "operation-id-placeholder".equals(lower);
+  }
+
+  /**
+   * API Hub search {@code operationId} values (long kebab slugs) must not be treated as catalog
+   * {@code integrationOperationId}.
+   */
+  public static boolean looksLikeApiHubOperationId(String operationId) {
+    if (operationId == null || operationId.isBlank()) {
+      return false;
+    }
+    if (looksLikePlaceholderOperationId(operationId)) {
+      return false;
+    }
+    String trimmed = operationId.trim();
+    if (looksLikeUuid(trimmed)) {
+      return false;
+    }
+    if (trimmed.length() >= 40
+        && trimmed.chars().filter(ch -> ch == '-').count() >= 4
+        && trimmed.matches("(?i).+-(get|post|put|patch|delete)$")) {
+      return true;
+    }
+    return trimmed.contains("-v")
+        && trimmed.split("-", -1).length >= 6
+        && trimmed.matches("(?i).+-(get|post|put|patch|delete)$");
+  }
+
+  private static boolean looksLikeUuid(String value) {
+    return value.matches(
+        "(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}.*");
   }
 
   private static boolean hasNonBlankIntegrationGqlQuery(Map<String, Object> props) {

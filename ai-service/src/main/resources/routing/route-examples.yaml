@@ -39,6 +39,15 @@ routes:
       - "use this design for the chain implementation plan"
       - "create a chain plan using the IDS"
 
+  - scenario: IMPORT_SPECIFICATION
+    phases: ["COLD", "PLAN_DRAFT", "DISCOVERY", "*"]
+    utterances:
+      - "import the specification to catalog"
+      - "import this ApiHub specification"
+      - "import the API specification and continue planning"
+      - "upload the openapi spec to runtime catalog"
+      - "import specification and continue planning"
+
   - scenario: IMPLEMENT_CHAIN
     phases: ["PLAN_APPROVED"]
     utterances:

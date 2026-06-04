@@ -30,6 +30,7 @@ public class ConversationPlanningDiaryService {
   private static final int MAX_IDS_OR_KEYS = 12;
   private static final int MAX_DIARY_EVENTS = 24;
   private static final int MAX_DECISION_RECORDS = 8;
+  private static final int MAX_IMPORT_CANDIDATES = 6;
   private static final int MAX_CATALOG_SYSTEMS = 8;
   private static final int MAX_SPECS_PER_SYSTEM = 4;
   private static final int MAX_LINE_CHARS = 600;
@@ -219,6 +220,38 @@ public class ConversationPlanningDiaryService {
   }
 
   /**
+   * Returns a blocking hint when CREATE_CHAIN_PLAN has already found a catalog system candidate but
+   * has not yet finished the catalog-first binding path for that candidate.
+   */
+  public Optional<String> apiHubBlockedByIncompleteCatalogPath(String conversationId) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return Optional.empty();
+    }
+    Diary d = byConversation.get(conversationId);
+    if (d == null) {
+      return Optional.empty();
+    }
+    synchronized (d) {
+      if (d.catalogSystemsById.isEmpty()) {
+        return Optional.empty();
+      }
+      boolean hasSpecs =
+          d.catalogSystemsById.values().stream().anyMatch(r -> !r.specifications.isEmpty());
+      boolean hasOperations =
+          d.catalogSystemsById.values().stream().anyMatch(r -> r.operationCount > 0);
+      if (!hasSpecs && !hasCatalogToolEvent(d, "getApiSpecifications")) {
+        return Optional.of(
+            "Catalog system candidate exists. Call getApiSpecifications(systemId) before APIHub.");
+      }
+      if (hasSpecs && !hasOperations && !hasCatalogToolEvent(d, "listCatalogOperations")) {
+        return Optional.of(
+            "Catalog specifications exist. Call listCatalogOperations(specificationId) before APIHub.");
+      }
+      return Optional.empty();
+    }
+  }
+
+  /**
    * Records a read-only catalog tool outcome without a HITL checkpoint (empty list or
    * transport/catalog error).
    *
@@ -272,6 +305,300 @@ public class ConversationPlanningDiaryService {
     }
     synchronized (d) {
       return d.attachmentObjectKeys.stream().findFirst();
+    }
+  }
+
+  /** Saves an ApiHub import candidate for IMPORT_SPECIFICATION (latest wins for empty candidateId). */
+  public ApiHubImportCandidate recordImportCandidate(
+      String conversationId,
+      String catalogSystemName,
+      String catalogSystemType,
+      String apiHubPackageId,
+      String apiHubVersion,
+      String apiHubDocumentId,
+      String apiHubSpecificationName,
+      String sourceNote) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return null;
+    }
+    return storeImportCandidate(
+        conversationId,
+        java.util.UUID.randomUUID().toString(),
+        catalogSystemName,
+        catalogSystemType,
+        apiHubPackageId,
+        apiHubVersion,
+        apiHubDocumentId,
+        apiHubSpecificationName,
+        sourceNote,
+        true);
+  }
+
+  /**
+   * Idempotent save keyed by {@code apiHubPackageId}. Search hits refresh version/document; packages
+   * list does not overwrite an existing candidate for the same package.
+   */
+  public ApiHubImportCandidate upsertImportCandidateFromApiHubSearch(
+      String conversationId,
+      String catalogSystemName,
+      String catalogSystemType,
+      String apiHubPackageId,
+      String apiHubVersion,
+      String apiHubDocumentId,
+      String apiHubSpecificationName,
+      String sourceNote) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return null;
+    }
+    String packageKey = trimOrEmpty(apiHubPackageId);
+    Diary d = byConversation.computeIfAbsent(conversationId, k -> new Diary());
+    synchronized (d) {
+      for (ApiHubImportCandidate existing : d.importCandidates.values()) {
+        if (!packageKey.equals(trimOrEmpty(existing.apiHubPackageId()))) {
+          continue;
+        }
+        if (!shouldUpdateImportCandidate(existing, apiHubVersion, sourceNote)) {
+          return existing;
+        }
+        ApiHubImportCandidate updated =
+            new ApiHubImportCandidate(
+                existing.candidateId(),
+                Instant.now(),
+                trimOrEmpty(catalogSystemName),
+                trimOrEmpty(catalogSystemType),
+                packageKey,
+                trimOrEmpty(apiHubVersion),
+                trimOrEmpty(apiHubDocumentId),
+                trimOrEmpty(apiHubSpecificationName),
+                trimOrEmpty(sourceNote));
+        if (!updated.hasRequiredFields()) {
+          return existing;
+        }
+        d.importCandidates.put(existing.candidateId(), updated);
+        d.events.addLast(
+            new DiaryEvent(
+                Instant.now(),
+                "import_candidate",
+                existing.candidateId(),
+                truncate(apiHubSpecificationName),
+                truncate(apiHubPackageId + "@" + apiHubVersion)));
+        trimEvents(d);
+        return updated;
+      }
+    }
+    return storeImportCandidate(
+        conversationId,
+        java.util.UUID.randomUUID().toString(),
+        catalogSystemName,
+        catalogSystemType,
+        apiHubPackageId,
+        apiHubVersion,
+        apiHubDocumentId,
+        apiHubSpecificationName,
+        sourceNote,
+        true);
+  }
+
+  /** True when an import candidate exists but catalog import has not completed yet. */
+  public boolean hasPendingApiHubImport(String conversationId) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return false;
+    }
+    Diary d = byConversation.get(conversationId);
+    if (d == null) {
+      return false;
+    }
+    synchronized (d) {
+      return !d.importCandidates.isEmpty() && d.lastImportResult == null;
+    }
+  }
+
+  private static boolean shouldUpdateImportCandidate(
+      ApiHubImportCandidate existing, String newVersion, String sourceNote) {
+    String note = sourceNote == null ? "" : sourceNote.trim();
+    if ("auto from api-packages-list".equals(note)) {
+      return false;
+    }
+    if ("auto from search_api_operations".equals(note)) {
+      return true;
+    }
+    return !trimOrEmpty(existing.apiHubVersion()).equals(trimOrEmpty(newVersion));
+  }
+
+  /** Last catalog system name searched before an empty result (for ApiHub import candidate naming). */
+  public Optional<String> lastCatalogEmptySearchCondition(String conversationId) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return Optional.empty();
+    }
+    Diary d = byConversation.get(conversationId);
+    if (d == null) {
+      return Optional.empty();
+    }
+    synchronized (d) {
+      java.util.Iterator<DiaryEvent> it = d.events.descendingIterator();
+      while (it.hasNext()) {
+        DiaryEvent e = it.next();
+        if (!"catalog_empty".equals(e.kind())) {
+          continue;
+        }
+        if (!"searchCatalogSystems".equals(e.ref())) {
+          continue;
+        }
+        String condition = ApiHubImportCandidateRecorder.parseSearchConditionFromDiaryDetail(e.detail());
+        if (condition != null && !condition.isBlank()) {
+          return Optional.of(condition);
+        }
+      }
+    }
+    return Optional.empty();
+  }
+
+  private ApiHubImportCandidate storeImportCandidate(
+      String conversationId,
+      String candidateId,
+      String catalogSystemName,
+      String catalogSystemType,
+      String apiHubPackageId,
+      String apiHubVersion,
+      String apiHubDocumentId,
+      String apiHubSpecificationName,
+      String sourceNote,
+      boolean logEvent) {
+    ApiHubImportCandidate candidate =
+        new ApiHubImportCandidate(
+            candidateId,
+            Instant.now(),
+            trimOrEmpty(catalogSystemName),
+            trimOrEmpty(catalogSystemType),
+            trimOrEmpty(apiHubPackageId),
+            trimOrEmpty(apiHubVersion),
+            trimOrEmpty(apiHubDocumentId),
+            trimOrEmpty(apiHubSpecificationName),
+            trimOrEmpty(sourceNote));
+    if (!candidate.hasRequiredFields()) {
+      return null;
+    }
+    Diary d = byConversation.computeIfAbsent(conversationId, k -> new Diary());
+    synchronized (d) {
+      d.importCandidates.put(candidateId, candidate);
+      while (d.importCandidates.size() > MAX_IMPORT_CANDIDATES) {
+        String oldest = d.importCandidates.keySet().iterator().next();
+        d.importCandidates.remove(oldest);
+      }
+      if (logEvent) {
+        d.events.addLast(
+            new DiaryEvent(
+                Instant.now(),
+                "import_candidate",
+                candidateId,
+                truncate(apiHubSpecificationName),
+                truncate(apiHubPackageId + "@" + apiHubVersion)));
+        trimEvents(d);
+      }
+    }
+    return candidate;
+  }
+
+  public Optional<ApiHubImportCandidate> resolveImportCandidate(
+      String conversationId, String candidateId) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return Optional.empty();
+    }
+    Diary d = byConversation.get(conversationId);
+    if (d == null) {
+      return Optional.empty();
+    }
+    synchronized (d) {
+      if (candidateId != null && !candidateId.isBlank()) {
+        return Optional.ofNullable(d.importCandidates.get(candidateId.trim()));
+      }
+      if (d.importCandidates.isEmpty()) {
+        return Optional.empty();
+      }
+      String lastKey = null;
+      for (String key : d.importCandidates.keySet()) {
+        lastKey = key;
+      }
+      return lastKey != null
+          ? Optional.ofNullable(d.importCandidates.get(lastKey))
+          : Optional.empty();
+    }
+  }
+
+  public void recordImportResult(String conversationId, ApiHubImportResult result) {
+    if (conversationId == null
+        || conversationId.isBlank()
+        || result == null
+        || result.systemId() == null
+        || result.systemId().isBlank()) {
+      return;
+    }
+    Diary d = byConversation.computeIfAbsent(conversationId, k -> new Diary());
+    synchronized (d) {
+      d.lastImportResult = result;
+      d.events.addLast(
+          new DiaryEvent(
+              Instant.now(),
+              "import_done",
+              result.candidateId() != null ? result.candidateId() : result.systemId(),
+              truncate(result.apiHubSpecificationName()),
+              truncate(
+                  "systemId="
+                      + result.systemId()
+                      + " specId="
+                      + result.specificationId())));
+      trimEvents(d);
+      d.importHandoffPending = false;
+    }
+  }
+
+  /** User chose import in CREATE_CHAIN_PLAN HITL; next chat turn should run IMPORT_SPECIFICATION. */
+  public void markImportHandoffPending(String conversationId) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return;
+    }
+    Diary d = byConversation.computeIfAbsent(conversationId, k -> new Diary());
+    synchronized (d) {
+      d.importHandoffPending = true;
+    }
+  }
+
+  public void clearImportHandoffPending(String conversationId) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return;
+    }
+    Diary d = byConversation.get(conversationId);
+    if (d == null) {
+      return;
+    }
+    synchronized (d) {
+      d.importHandoffPending = false;
+    }
+  }
+
+  public boolean isImportHandoffPending(String conversationId) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return false;
+    }
+    Diary d = byConversation.get(conversationId);
+    if (d == null) {
+      return false;
+    }
+    synchronized (d) {
+      return d.importHandoffPending;
+    }
+  }
+
+  public Optional<ApiHubImportResult> lastImportResult(String conversationId) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return Optional.empty();
+    }
+    Diary d = byConversation.get(conversationId);
+    if (d == null) {
+      return Optional.empty();
+    }
+    synchronized (d) {
+      return Optional.ofNullable(d.lastImportResult);
     }
   }
 
@@ -335,6 +662,8 @@ public class ConversationPlanningDiaryService {
       if (d.idsDocumentIds.isEmpty()
           && d.attachmentObjectKeys.isEmpty()
           && d.catalogSystemsById.isEmpty()
+          && d.importCandidates.isEmpty()
+          && d.lastImportResult == null
           && d.events.isEmpty()
           && d.decisions.isEmpty()) {
         return "";
@@ -364,6 +693,48 @@ public class ConversationPlanningDiaryService {
       }
       if (!d.catalogSystemsById.isEmpty()) {
         appendCatalogResolutionsSection(sb, d.catalogSystemsById);
+      }
+      if (!d.importCandidates.isEmpty()) {
+        sb.append("### ApiHub import candidates (use IMPORT_SPECIFICATION)\n");
+        for (ApiHubImportCandidate c : d.importCandidates.values()) {
+          sb.append("- candidateId=`")
+              .append(c.candidateId())
+              .append("` **")
+              .append(c.apiHubSpecificationName())
+              .append("** package=")
+              .append(c.apiHubPackageId())
+              .append("@")
+              .append(c.apiHubVersion())
+              .append(" documentId=")
+              .append(c.apiHubDocumentId())
+              .append(" → catalog system `")
+              .append(c.catalogSystemName())
+              .append("` (")
+              .append(c.catalogSystemType())
+              .append(")\n");
+        }
+        if (d.lastImportResult == null) {
+          sb.append(
+              "\n**BLOCKING (CREATE_CHAIN_PLAN):** Catalog import is not completed. Offer HITL import"
+                  + " and run **IMPORT_SPECIFICATION** before emitting `chain-plan-json`. Do not"
+                  + " publish placeholder catalog ids.\n");
+        }
+        if (d.importHandoffPending && d.lastImportResult == null) {
+          sb.append(
+              "\n**IMPORT handoff pending:** User confirmed import in HITL. The next chat turn"
+                  + " routes to **IMPORT_SPECIFICATION** automatically.\n");
+        }
+        sb.append("\n");
+      }
+      if (d.lastImportResult != null) {
+        ApiHubImportResult r = d.lastImportResult;
+        sb.append("### Last ApiHub import result\n");
+        sb.append("- systemId=`").append(r.systemId()).append("`\n");
+        sb.append("- specificationId=`").append(r.specificationId()).append("`\n");
+        if (r.specificationGroupId() != null && !r.specificationGroupId().isBlank()) {
+          sb.append("- specificationGroupId=`").append(r.specificationGroupId()).append("`\n");
+        }
+        sb.append("- name=`").append(r.apiHubSpecificationName()).append("`\n\n");
       }
       if (!d.decisions.isEmpty()) {
         sb.append("### Decision log (summarized)\n");
@@ -460,8 +831,21 @@ public class ConversationPlanningDiaryService {
     }
   }
 
+  private static boolean hasCatalogToolEvent(Diary d, String toolName) {
+    for (DiaryEvent e : d.events) {
+      if (toolName.equals(e.ref())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private static String nullToEmpty(String s) {
     return s != null ? s : "";
+  }
+
+  private static String trimOrEmpty(String s) {
+    return s != null ? s.trim() : "";
   }
 
   private static String truncate(String s) {
@@ -476,6 +860,9 @@ public class ConversationPlanningDiaryService {
     final Set<String> idsDocumentIds = new LinkedHashSet<>();
     final Set<String> attachmentObjectKeys = new LinkedHashSet<>();
     final LinkedHashMap<String, CatalogSystemResolution> catalogSystemsById = new LinkedHashMap<>();
+    final LinkedHashMap<String, ApiHubImportCandidate> importCandidates = new LinkedHashMap<>();
+    ApiHubImportResult lastImportResult;
+    boolean importHandoffPending;
     final ArrayDeque<DiaryEvent> events = new ArrayDeque<>();
     final ArrayDeque<DecisionRecord> decisions = new ArrayDeque<>();
   }

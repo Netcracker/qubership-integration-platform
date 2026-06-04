@@ -35,14 +35,18 @@ Follow the IDS template exactly:
 - Each API call in the Process Steps table must have a corresponding Data Mapping section
 - Sample requests and responses must use ONLY fields from the real APIHub specification
 
-## APIHub Workflow (MANDATORY for documented external REST APIs)
+## APIHub Workflow (MANDATORY for documented external APIs)
 
-1. Call `searchRestApiOperations` with the operation name as query (no quotes, no abbreviations, use underscores for spaces)
-2. From the first matching result, save operationId, packageId, version
-3. Call `getRestApiOperationSpecification` with those values
-4. Use the spec to populate: HTTP method, path, all request/response fields, samples
-5. If version is not specified by user, use 2025.2
-6. Do NOT use packages from CloudOSS
+API Hub search is **lexical full-text**, not semantic. Empty results usually mean retry with a different query — not “API missing”.
+
+1. Call `searchApiOperations` with `apiType` set (`rest`, `asyncapi`, or `graphql`). Use `limit` **100** on the first call. Query with operation **title** phrases (e.g. `Retrieve serviceSpecification`, `lifecycle state`) — not bare resource names, vague single words, or OpenAPI `operationId` strings.
+2. When the user or Document References name a package, pass `group` = `packageId`. On the **first** attempt with `group` set, **omit** `release` — IDS version in `release` often returns empty even when search without `release` succeeds.
+3. If no results: `listApiHubPackages` → pick `packageId` and a real `version` from `packages[].versions` → retry with `group` and a new title-like query (still without `release` unless user insists on a specific version for spec retrieval).
+4. From the chosen search result, save `operationId`, `packageId`, `version`, and `documentId`. Document these in Data Mapping as `**APIHub:** packageId …, version …, operationId …`.
+5. **REST / AsyncAPI:** call `getApiOperationSpecification` with the same `apiType`. Use **spec** output for HTTP method, path, schemas, and samples — not duplicated path segments from search hits.
+6. **GraphQL:** call `getApiHubDocument` with `slug` = `documentId` from search and `apiType=graphql` (operation-level spec tool does not support GraphQL).
+7. When `operationId`, `packageId`, and `version` are already known, skip search and call `getApiOperationSpecification` directly.
+8. Do NOT use packages from CloudOSS
 
 ## Clarifying Ambiguous API Results
 

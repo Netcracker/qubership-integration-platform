@@ -16,6 +16,7 @@ class RouterPromptContractTest {
     assertTrue(text.contains("Recent conversation"), text);
     assertTrue(text.contains("Current conversation phase"), text);
     assertTrue(text.contains("IMPLEMENT_CHAIN"), text);
+    assertTrue(text.contains("IMPORT_SPECIFICATION"), text);
     assertTrue(text.contains("CREATE_CHAIN_PLAN"), text);
     assertTrue(text.contains("Current active chain implementation plan"), text);
     assertTrue(text.contains("Two-step plan lifecycle"), text);

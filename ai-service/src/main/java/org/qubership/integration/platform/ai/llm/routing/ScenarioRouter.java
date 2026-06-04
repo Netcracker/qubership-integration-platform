@@ -13,6 +13,7 @@ import org.qubership.integration.platform.ai.chat.context.ConversationContextBui
 import org.qubership.integration.platform.ai.chat.context.ConversationContextBuilder.ContextAppendices;
 import org.qubership.integration.platform.ai.chat.conversation.TranscriptBalancing;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
+import org.qubership.integration.platform.ai.chat.planning.ConversationPlanningDiaryService;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.configuration.TranscriptLimits;
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
@@ -41,6 +42,7 @@ public class ScenarioRouter {
   private final EmbeddingScenarioRouter embeddingScenarioRouter;
   private final Instance<ScenarioHandler> handlers;
   private final ConversationContextBuilder conversationContextBuilder;
+  private final ConversationPlanningDiaryService planningDiaryService;
 
   public ScenarioRouter(
       RouterAgent routerAgent,
@@ -49,7 +51,8 @@ public class ScenarioRouter {
       ConversationPhaseResolver conversationPhaseResolver,
       EmbeddingScenarioRouter embeddingScenarioRouter,
       @Any Instance<ScenarioHandler> handlers,
-      ConversationContextBuilder conversationContextBuilder) {
+      ConversationContextBuilder conversationContextBuilder,
+      ConversationPlanningDiaryService planningDiaryService) {
     this.routerAgent = routerAgent;
     this.activeChainPlanService = activeChainPlanService;
     this.appConfig = appConfig;
@@ -57,6 +60,7 @@ public class ScenarioRouter {
     this.embeddingScenarioRouter = embeddingScenarioRouter;
     this.handlers = handlers;
     this.conversationContextBuilder = conversationContextBuilder;
+    this.planningDiaryService = planningDiaryService;
   }
 
   /**
@@ -112,7 +116,32 @@ public class ScenarioRouter {
         resolved = ScenarioType.UNKNOWN;
       }
     }
-    return coerceImplementChainWhenPlanNotApproved(resolved, conversationId);
+    return coerceImplementChainWhenPlanNotApproved(
+        coerceImportSpecificationWhenPending(resolved, request, conversationId), conversationId);
+  }
+
+  private ScenarioType coerceImportSpecificationWhenPending(
+      ScenarioType type, ChatRequest request, String conversationId) {
+    boolean hasActivePlan = activeChainPlanService.getActive(conversationId).isPresent();
+    ScenarioType coerced =
+        ImportSpecificationRoutingPolicy.effectiveScenario(
+            type, conversationId, request.getMessage(), planningDiaryService, hasActivePlan);
+    if (coerced != type) {
+      if (coerced == ScenarioType.IMPORT_SPECIFICATION) {
+        LOG.infof(
+            "Re-routing %s -> IMPORT_SPECIFICATION (pending ApiHub import handoff):"
+                + " conversationId=%s",
+            type,
+            conversationId);
+      } else if (type == ScenarioType.IMPORT_SPECIFICATION) {
+        LOG.infof(
+            "Re-routing IMPORT_SPECIFICATION -> %s (import already done or plan confirmation):"
+                + " conversationId=%s",
+            coerced,
+            conversationId);
+      }
+    }
+    return coerced;
   }
 
   private String buildRouterTranscript(String conversationId) {

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ConversationPlanningDiaryServiceTest {
@@ -57,5 +58,30 @@ class ConversationPlanningDiaryServiceTest {
     assertTrue(out.contains("Pet store"));
     assertTrue(out.contains("364ea2f4-8918-4e47-9fc3-17652f1706d3-swagger-1.0.7"));
     assertTrue(out.contains("20 operations"));
+  }
+
+  @Test
+  void blocksApiHubUntilCatalogCandidateIsProbed() {
+    ConversationPlanningDiaryService svc = new ConversationPlanningDiaryService();
+    String conv = "c-catalog-first";
+    svc.recordCatalogSystemsFound(
+        conv,
+        "Service Catalog Management",
+        java.util.List.of(
+            new org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient
+                .SystemDto(
+                "1dcba94b-9cec-477e-9e5b-4e24363d6a25",
+                "Service Catalog Management",
+                "INTERNAL",
+                "http")));
+
+    var beforeSpecs = svc.apiHubBlockedByIncompleteCatalogPath(conv);
+    assertTrue(beforeSpecs.isPresent());
+    assertTrue(beforeSpecs.get().contains("getApiSpecifications"));
+
+    svc.recordCatalogLookupNote(
+        conv, "getApiSpecifications", "systemId=1dcba94b-9cec-477e-9e5b-4e24363d6a25", "empty", "[]");
+
+    assertFalse(svc.apiHubBlockedByIncompleteCatalogPath(conv).isPresent());
   }
 }

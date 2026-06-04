@@ -9,6 +9,7 @@ import org.jboss.logmanager.MDC;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.chat.chainplan.ActiveChainPlanService;
 import org.qubership.integration.platform.ai.chat.chainplan.ImplementGateCoordinator;
+import org.qubership.integration.platform.ai.chat.planning.ApiHubImportHandoffSupport;
 import org.qubership.integration.platform.ai.chat.planning.ConversationPlanningDiaryService;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 
@@ -173,6 +174,16 @@ public class HitlTool {
       String answerText = answer.getAnswer();
       planningDiaryService.recordHitlCheckpointResolved(
           conversationId, checkpoint.getCheckpointId(), answerText);
+      if (ApiHubImportHandoffSupport.optionsSuggestApiHubImport(optionList)) {
+        if (ApiHubImportHandoffSupport.isImportSpecificationAnswer(answerText)) {
+          planningDiaryService.markImportHandoffPending(conversationId);
+          return ApiHubImportHandoffSupport.IMPORT_HANDOFF_STOP_RESULT;
+        }
+        if (ApiHubImportHandoffSupport.isContinueWithoutBindingAnswer(answerText)
+            || ApiHubImportHandoffSupport.isCancelAnswer(answerText)) {
+          planningDiaryService.clearImportHandoffPending(conversationId);
+        }
+      }
       if (optionsSuggestPlanApproval(optionList) && isAffirmativeAnswer(answerText)) {
         activeChainPlanService.applyHitlAgreeOptionChosen(conversationId);
       }

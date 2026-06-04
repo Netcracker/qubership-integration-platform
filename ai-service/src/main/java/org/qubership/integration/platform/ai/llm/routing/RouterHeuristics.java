@@ -20,6 +20,15 @@ public final class RouterHeuristics {
       Pattern.compile(
           "(?ius)\\b(find|search|look(?:\\s+up)?|locate|lookup)\\b.{0,220}\\b(operation|operations|endpoint|endpoints)\\b");
 
+  /** User wants to import an ApiHub specification saved during planning. */
+  private static final Pattern IMPORT_SPECIFICATION =
+      Pattern.compile(
+          "(?ius)\\b(import|upload)\\b.{0,120}\\b(specification|spec|api|openapi|swagger)\\b");
+
+  /** HITL or UI answer confirming import before planning continues. */
+  private static final Pattern IMPORT_SPECIFICATION_CONFIRM =
+      Pattern.compile("(?ius)^\\s*import\\s+specification\\b");
+
   private static final Pattern CONFIRM_SHORT =
       Pattern.compile(
           "(?ius)^\\s*(yes|yep|yeah|ok|agree|confirm|confirmed|proceed|\\+)\\b[!.]?\\s*$");
@@ -52,6 +61,14 @@ public final class RouterHeuristics {
 
     if (CATALOG_OPERATION_LOOKUP.matcher(msg).find()) {
       return Optional.of(ScenarioType.CREATE_CHAIN_PLAN);
+    }
+
+    if (IMPORT_SPECIFICATION.matcher(msg).find()) {
+      return Optional.of(ScenarioType.IMPORT_SPECIFICATION);
+    }
+
+    if (IMPORT_SPECIFICATION_CONFIRM.matcher(msg).find()) {
+      return Optional.of(ScenarioType.IMPORT_SPECIFICATION);
     }
 
     return Optional.empty();

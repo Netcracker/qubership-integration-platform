@@ -11,6 +11,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ImplementChainPromptContractTest {
 
   @Test
+  void implementChainPromptDocumentsMaterializeOnlyWithoutImport() throws Exception {
+    Path path = Path.of("src/main/resources/prompts/roles/implement-chain.md");
+    String text = Files.readString(path);
+    assertTrue(text.contains("never imports ApiHub"), text);
+    assertTrue(text.contains("createElementsByJson"), text);
+    assertTrue(text.contains("IMPORT_SPECIFICATION"), text);
+    assertTrue(text.contains("do not") && text.contains("importApiHubSpecToSystem"), text);
+  }
+
+  @Test
+  void implementChainPromptDocumentsCatalogSetupPlaybook() throws Exception {
+    Path path = Path.of("src/main/resources/prompts/roles/implement-chain.md");
+    String text = Files.readString(path);
+    assertTrue(text.contains("real catalog binding ids"), text);
+    assertTrue(text.contains("createElementsByJson"), text);
+    assertTrue(text.contains("re-run APIHub search"), text);
+  }
+
+  @Test
   void implementChainPromptDocumentsSchemaToolsAndPatchJsonShape() throws Exception {
     Path path = Path.of("src/main/resources/prompts/roles/implement-chain.md");
     String text = Files.readString(path);
@@ -39,12 +58,9 @@ class ImplementChainPromptContractTest {
   void implementChainPromptDocumentsPropertyFailureRepairWithoutImport() throws Exception {
     Path path = Path.of("src/main/resources/prompts/roles/implement-chain.md");
     String text = Files.readString(path);
-    assertTrue(text.contains("6. **Repair only explicit failures**"), text);
-    assertTrue(text.contains("do not") && text.contains("importApiHubSpecToSystem"), text);
-    assertTrue(text.contains("fix binding") || text.contains("repairing binding"), text);
-    assertTrue(text.contains("importRequired: true"), text);
-    assertTrue(text.contains("no element") && text.contains("importRequired: true"), text);
-    assertTrue(text.contains("already catalog-bound"), text);
+    assertTrue(text.contains("5. **Repair"), text);
+    assertTrue(text.contains("fix binding") || text.contains("Repair only"), text);
+    assertTrue(text.contains("IMPORT_SPECIFICATION"), text);
   }
 
   @Test
@@ -53,20 +69,16 @@ class ImplementChainPromptContractTest {
     String text = Files.readString(path);
     assertTrue(text.contains("Execution process"), text);
     assertTrue(text.contains("Implementation summary"), text);
-    assertTrue(text.contains("2025.2"), text);
-    assertTrue(text.contains("TMF648"), text);
     assertTrue(text.contains("createChain"), text);
     assertTrue(text.contains("importApiHubSpecToSystem"), text);
     assertTrue(text.contains("createElementsByJson"), text);
     assertTrue(text.contains("bindingStatus"), text);
-    assertTrue(text.contains("importRequired"), text);
+    assertTrue(text.contains("IMPORT_SPECIFICATION"), text);
     assertTrue(text.contains("CREATE_CHAIN_PLAN"), text);
-    assertTrue(text.contains("7. **Report status**"), text);
-    assertTrue(text.contains("5. **Verify**"), text);
-    assertTrue(text.contains("6. **Repair only explicit failures**"), text);
+    assertTrue(text.contains("4. **Verify**"), text);
+    assertTrue(text.contains("5. **Repair"), text);
+    assertTrue(text.contains("6. **Report status**"), text);
     assertTrue(text.contains("getDependencies"), text);
-    assertTrue(text.contains("Import rule"), text);
-    assertTrue(text.contains("Import only when the approved plan requires it"), text);
   }
 
   @Test
@@ -78,8 +90,8 @@ class ImplementChainPromptContractTest {
             .getResource("prompts/implement-chain-system.md");
     assertNotNull(
         url,
-        "Run Maven so merge-system-prompts writes"
-            + " target/classes/prompts/implement-chain-system.md");
+        "Merged implement-chain system prompt must be on classpath after Maven merge-system-prompts"
+            + " writes target/classes/prompts/implement-chain-system.md");
     String text = Files.readString(Path.of(url.toURI()));
     assertTrue(text.contains("describeElementProperty"), text);
     assertTrue(text.contains("describeElementPatchSchema"), text);
@@ -120,8 +132,8 @@ class ImplementChainPromptContractTest {
             .getResource("prompts/implement-chain-system.md");
     assertNotNull(
         url,
-        "Run Maven so merge-system-prompts writes"
-            + " target/classes/prompts/implement-chain-system.md");
+        "Merged implement-chain system prompt must be on classpath after Maven merge-system-prompts"
+            + " writes target/classes/prompts/implement-chain-system.md");
     String text = Files.readString(Path.of(url.toURI()));
     assertTrue(text.contains("describeElementProperty"), text);
     assertTrue(text.contains("describeElementPatchSchema"), text);
