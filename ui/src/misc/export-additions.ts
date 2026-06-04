@@ -28,7 +28,6 @@ export async function exportAdditionsForChains(params: {
         const contextServicesData = await api.exportContextServices(serviceIds);
         data.push(contextServicesData);
       } catch (e: unknown) {
-        // VSCodeExtensionApi может не поддерживать этот метод — не ломаем экспорт.
         const msg = e instanceof Error ? e.message : String(e);
         if (!msg.toLowerCase().includes("not implemented")) {
           throw e;
