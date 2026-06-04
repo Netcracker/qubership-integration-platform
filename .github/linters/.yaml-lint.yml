@@ -62,4 +62,4 @@ rules:
   truthy: disable
 
 ignore: |
-  infrastructure/qip-dev/charts/*/templates/*.yaml
+  **/qip-dev/charts/*/templates/*.yaml

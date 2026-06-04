@@ -14,4 +14,7 @@ The UI available on [http://localhost:30080/](http://localhost:30080/) via NodeP
 You still need to serve the UI locally, since this Helm chart only installs an nginx-based proxy pointing back to your host.
 
 ## Remove namespace data
+
+```bash
 kubectl delete all,secrets,configmaps,pvc -n <NAMESPACE> --all
+```
