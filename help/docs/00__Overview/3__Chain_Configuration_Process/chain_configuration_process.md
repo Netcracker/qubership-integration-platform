@@ -3,11 +3,11 @@
 ## Description
 
 ---
-Qubership Integration Platform follows chain-concept, where integration task is being configured or build with the different elements and integration platform capabilities. 
+Qubership Integration Platform follows chain-concept, where integration task is being configured or build with the different elements and integration platform capabilities.
 
 The high-level diagram below shows the process of chain configuration.
 
-![](img/Chain_Configuration_Proc.svg)
+![Chain configuration process diagram](img/Chain_Configuration_Proc.svg)
 
 **Diagram details**
 

@@ -53,7 +53,7 @@ export {
   ResourceTypes,
   Operations,
 } from "./permissions/types"
-export type { 
+export type {
   ResourceType,
   Operation,
   UserPermissions,

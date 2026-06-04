@@ -51,7 +51,7 @@ Table contains current chain's sessions, aggregated by correlation identifier, i
   - ![20](img/delete.svg) - deletes selected session(s).
   - ![20](img/cloud-download.svg) - exports the session.
   - ![20](img/redo.svg) - refreshes session table.
-  - ![](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns.
+  - ![Table settings icon](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns.
 
 ### Session view
 Click **Session ID value** in the respective row of sessions table to see the list of logged chain's elements, that are related to the same session. To expand or collapse compound element simply click the element itself or use ![Plus|20](img/plus.svg)/ ![Minus|20](img/minus.svg) button to expand/collapse all elements at once. Next columns and elements are available for the table:

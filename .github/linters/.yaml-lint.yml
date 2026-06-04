@@ -1,0 +1,65 @@
+---
+#### Config file for yamllint
+# Rules: https://yamllint.readthedocs.io/en/stable/rules.html
+#
+# Based on the common config from netcracker/.github (config/linters/.yaml-lint.yml),
+# with two local overrides:
+#   - empty-values: disabled. `key:` with a null value is valid YAML and meaningful
+#     for optional fields (element descriptions, mapper test fixtures). yamllint
+#     disables this rule by default; the common config turned it on.
+#   - ignore: Helm chart templates are Go templates ({{ .Values.x }}), not YAML —
+#     yamllint cannot parse them. Chart.yaml/values.yaml stay linted.
+
+rules:
+  braces:
+    min-spaces-inside: 1
+    max-spaces-inside: 1
+    min-spaces-inside-empty: 0
+    max-spaces-inside-empty: 0
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+    min-spaces-inside-empty: -1
+    max-spaces-inside-empty: -1
+  colons:
+    max-spaces-before: 0
+    max-spaces-after: -1
+  commas:
+    max-spaces-before: 0
+    min-spaces-after: 1
+    max-spaces-after: 1
+  comments:
+    level: warning
+    require-starting-space: true
+    min-spaces-from-content: 1
+  comments-indentation:
+    level: warning
+  document-end: disable
+  document-start: disable
+  empty-lines:
+    level: warning
+    max: 2
+    max-start: 0
+    max-end: 2
+  empty-values: disable
+  hyphens:
+    max-spaces-after: 1
+  indentation:
+    level: warning
+    spaces: 2
+    indent-sequences: consistent
+    check-multi-line-strings: false
+  key-duplicates: enable
+  key-ordering: disable
+  line-length: disable
+  new-line-at-end-of-file: disable
+  new-lines:
+    type: unix
+  octal-values:
+    forbid-implicit-octal: false
+    forbid-explicit-octal: false
+  trailing-spaces: enable
+  truthy: disable
+
+ignore: |
+  infrastructure/qip-dev/charts/*/templates/*.yaml

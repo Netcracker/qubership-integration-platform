@@ -35,7 +35,7 @@ Qubership Integration Platform provides view-only window where domain's informat
 - ![20](img/down.svg) - expands/collapses the domain.
 - **Control panel** - panel, placed on top of the table. Provides next capabilities:
   - **Search domains** - search box, provides ability to find particular domain(s).
-  - ![](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns.
+  - ![Table settings icon](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns.
 
 ### View Engines
 To expand the domain tree and **see child engines**, click ![20](img/down.svg) icon, available for specific domain card.

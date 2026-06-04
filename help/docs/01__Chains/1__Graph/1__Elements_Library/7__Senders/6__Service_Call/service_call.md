@@ -143,26 +143,26 @@ The tab is responsible for choosing an action on receiving the request. Possible
     > | **HTTP** | serviceCallUrl | Constructed URL for HTTP call<br><br>ℹ️ **Note:** If **"Skip empty query parameters"** option is checked, any query parameters specified will be excluded from the constructed URL.<br> In case above option is unchecked, all specified query parameters *(including parameters having null/empty values)* will be included in the constructed URL. |
     > | **HTTP** | serviceCallAddress | Address part of an URL, resolved from service environment |
     > | **HTTP** | serviceCallPath | Path for operation with path parameters placeholders |
-    > | **HTTP** | serviceCallQueryParameter_<parameter> | Property for each query parameter, where <parameter> substring is a pure query param name (e.g. *serviceCallQueryParameter_limit*) |
-    > | **HTTP** | serviceCallPathParameter_<parameter> | Property for each path parameter, where <parameter> substring is a pure path param name (e.g. *serviceCallQueryParameter_orders*) |
-    > | **HTTP** | serviceCallParameter_<parameter> | Property for each additional service call parameter, where <parameter> substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
+    > | **HTTP** | `serviceCallQueryParameter_<parameter>` | Property for each query parameter, where `<parameter>` substring is a pure query param name (e.g. *serviceCallQueryParameter_limit*) |
+    > | **HTTP** | `serviceCallPathParameter_<parameter>` | Property for each path parameter, where `<parameter>` substring is a pure path param name (e.g. *serviceCallQueryParameter_orders*) |
+    > | **HTTP** | `serviceCallParameter_<parameter>` | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
     > | **Kafka** | serviceCallMethod | AsyncAPI operation method |
     > | **Kafka** | serviceCallTopic | Kafka topic name |
     > | **Kafka** | serviceCallBrokers | Kafka brokers |
-    > | **Kafka** | serviceCallParameter_<parameter> | Property for each additional service call parameter, where <parameter> substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
+    > | **Kafka** | `serviceCallParameter_<parameter>` | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
     > | **AMQP** | serviceCallMethod | AsyncAPI operation method |
     > | **AMQP** | serviceCallExchange | RabbitMQ exchange name |
     > | **AMQP** | serviceCallAddress | Server addresses |
-    > | **AMQP** | serviceCallParameter_<parameter> | Property for each additional service call parameter, where <parameter> substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
+    > | **AMQP** | `serviceCallParameter_<parameter>` | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
     > | **gRPC** | serviceCallMethod | Service method to call |
     > | **gRPC** | serviceCallService | Service name |
     > | **gRPC** | serviceCallAddress | Server address |
-    > | **gRPC** | serviceCallParameter_<parameter> | Property for each additional service call parameter, where <parameter> substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
+    > | **gRPC** | `serviceCallParameter_<parameter>` | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
     > | **GraphQL** | serviceCallAddress | Server address |
     > | **GraphQL** | serviceCallMethod | HTTP method |
     > | **GraphQL** | serviceCallPath | Operation path |
-    > | **GraphQL** | serviceCallQueryParameter_<parameter> | Property for each query parameter, where <parameter> substring is a pure query param name (e.g. *serviceCallQueryParameter_operationName*) |
-    > | **GraphQL** | serviceCallParameter_<parameter> | Property for each additional service call parameter, where <parameter> substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
+    > | **GraphQL** | `serviceCallQueryParameter_<parameter>` | Property for each query parameter, where `<parameter>` substring is a pure query param name (e.g. *serviceCallQueryParameter_operationName*) |
+    > | **GraphQL** | `serviceCallParameter_<parameter>` | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
     >
     > </details>
 

@@ -25,15 +25,15 @@ Please find the description for all available tools below:
 - ![20](img/arrows-alt.svg) - expand all existing containers in graph.
 - ![20](img/shrink.svg) - collapse all existing containers in graph.
 - ![20](img/insert-row-right.svg) - expand/hide right panel. The panel is indented to edit chain graph by its text representation.
-- ![](img/insert-row-left.svg) - expand/hide left panel.
-- ![](img/fullscreen.svg) ![](img/fullscreen-exit.svg) - switch between full screen and collapsed process view.
+- ![Expand/hide left panel icon](img/insert-row-left.svg) - expand/hide left panel.
+- ![Full screen icon](img/fullscreen.svg) ![Exit full screen icon](img/fullscreen-exit.svg) - switch between full screen and collapsed process view.
 
 ### General Actions
 The next actions are available upper right corner:
 
 #### <ins>Web UI</ins>
-* ![](img/column-width.svg) - show sequence diagram based on the chain.
-* ![](img/file.svg) - generate DDS.
+* ![Sequence diagram icon](img/column-width.svg) - show sequence diagram based on the chain.
+* ![Generate DDS icon](img/file.svg) - generate DDS.
 * ![Download|20](img/cloud-download.svg) - export chain. During export, you can adjust the data to be downloaded using the following checkboxes in the dialog window. All checkboxes are unchecked by default:
   - **Export related sub-chains** - if selected, system will also export the whole tree of chains, that are connected via [Chain Call](1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) and [Chain Trigger](1__Elements_Library/6__Triggers/2__Chain_Trigger/chain_trigger.md) elements,
   sub-chains selected as failure handling option on "Failure Response Mapping" tab for [HTTP Trigger](1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) and sub-chains selected as the handler for duplicate idempotency keys on the "Idempotency" tab of the relevant trigger.
@@ -43,7 +43,7 @@ The next actions are available upper right corner:
 
 
 #### <ins>VS Code Extension</ins>
-* ![](img/column-width.svg) - show sequence diagram based on the chain.
+* ![Sequence diagram icon](img/column-width.svg) - show sequence diagram based on the chain.
 
 ### Add Element to the Graph
 To add a new element, find the suitable one from the left library panel and then drag it to the graph space.
@@ -59,7 +59,7 @@ To edit a particular element, either double-click the element or choose "**Edit*
 
 >ℹ️ **In‑place element name editing**
 >
->To quickly change an element's name without switching tabs on the configuration window: hover over the name area (![](img/edit.svg) appears), click it, edit the name, and then click outside the input field.
+>To quickly change an element's name without switching tabs on the configuration window: hover over the name area (![Edit icon](img/edit.svg) appears), click it, edit the name, and then click outside the input field.
 
 ### Copy Element
 To copy a particular element, right-click it and choose "**Copy**" option from context menu. Then click right mouse on the space area and choose "**Paste**".
@@ -85,4 +85,4 @@ When property record is expanded, it shows related element's information as well
 Chain is also available in a text view, that could be used to compare one chain with another, find specific data or debugging. To open text view, simply click ![20](img/right-square.svg) to open right panel and then select respective tab with ![20](img/file.svg) icon.
 
 ### Generate Document by Template
-To initiate document generation, click ![](img/file.svg) **"Generate DDS"** on control panel, select desired template from the list, specify document name and click "**Generate**". System will show preview screen, where it is possible to get familiar with the finalized view of the document. Click "**Download**" to get the archive, that contains design document in .md format and other supplementary files, like pictures, etc. Data from the archive can be further processed by Markdown editors or processors to build proper human-readable document, presented on preview step.
+To initiate document generation, click ![Generate DDS icon](img/file.svg) **"Generate DDS"** on control panel, select desired template from the list, specify document name and click "**Generate**". System will show preview screen, where it is possible to get familiar with the finalized view of the document. Click "**Download**" to get the archive, that contains design document in .md format and other supplementary files, like pictures, etc. Data from the archive can be further processed by Markdown editors or processors to build proper human-readable document, presented on preview step.
