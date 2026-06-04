@@ -18,22 +18,24 @@ There is a **"Snapshots"** tab, available for each particular chain. By navigati
 - **Created At** - the datetime of snapshot creation.
 - **Modified By** - username of snapshot modification.
 - **Modified At** - the datetime of snapshot modification.
-- **Actions menu** - list of operations, accessed via ![20](img/more.svg) menu. Contains next operations:
-  - ![Delete|20](img/delete.svg) **Delete** - deletes snapshot(s).
-  - ![Rollback|20](img/rollback.svg)**Revert Snapshot** - reverts to the selected snapshot version.
-  - ![File text|20](img/file-text.svg)**Show XML** - opens pop-up with XML definition for the snapshot.
-  - ![](img/column-width.svg) **Show Diagram** - opens snapshot sequence diagram.
+- **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu. Contains next operations:
+  - ![delete](img/delete.svg) **Delete** - deletes snapshot(s).
+  - ![rollback](img/rollback.svg)**Revert to** - reverts to the selected snapshot version.
+  - ![file-text](img/file-text.svg)**Show XML** - opens pop-up with XML definition for the snapshot.
+  - ![column-width](img/column-width.svg) **Show Diagram** - opens snapshot sequence diagram.
 - **Control panel** - panel, placed on the top of the table. Provides next capabilities:
-  - ![20](img/plus.svg) - allows to create new snapshot.
-  - ![20](img/delete.svg) - deletes the snapshot(s), selected via checkbox.
-  - ![](img/diff.svg) - compares selected snapshots.
+  - **Search snapshots** - search box, provides ability to find respective data in the table. To find a particular snapshot use search field at the top of the screen and a lens icon ![search](img/search.svg).
+  - ![plus](img/plus.svg) - allows to create new snapshot.
+  - ![delete](img/delete.svg) - deletes the snapshot(s), selected via checkbox.
+  - ![diff](img/diff.svg) - compares selected snapshots.
+  - ![setting](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns.
 
 
 ### Create Snapshot
-To create snapshot, click button ![20](img/plus.svg). If chain graph is valid, snapshot will be created.
+To create snapshot, click button ![plus](img/plus.svg). If chain graph is valid, snapshot will be created.
 
 ### Delete Snapshot
-To delete snapshot(s), mark all suitable rows with ticks in the snapshot table view and click ![Delete|20](img/delete.svg) on control panel or select "**Delete**" option in actions menu for each row.
+To delete snapshot(s), mark all suitable rows with ticks in the snapshot table view and click ![delete](img/delete.svg) on control panel or select "**Delete**" option in actions menu for each row.
 
 > ℹ️ **Note**: Besides the UI option for manual deletion, a scheduled task automatically deletes snapshots older that the configured interval *(default is set to 14 days)*. Once deleted, these snapshots cannot be restored.
 

@@ -86,25 +86,26 @@ Accessed via **Admin Tools → Audit**, the interface features a customizable ta
 - **Action Time** - datetime of the action. Time is being sorted the way that the last records are always on top by default.
 - **Initiator** - name of the user who performed operation.
 - **Operation** - type of the operation (Create, Update, Delete, etc.) with color bar additionally applied.
-- **Entity Id** - unique identifier of recorded entity. Column is hidden by default.
+- **Entity ID** - unique identifier of recorded entity. Column is hidden by default.
 - **Entity Type** - type of the entity with respective icon.
 - **Entity Name** - reference to the entity that has been captured within the current operation. Reference won't operate if entity has been removed.
-- **Request Id** - unique identifier, that helps to identify if multiple operations were executed as a group. Column is hidden by default.
-- **Parent Id** - unique identifier of parent entity. Column is hidden by default.
+- **Request ID** - unique identifier, that helps to identify if multiple operations were executed as a group. Column is hidden by default.
+- **Parent ID** - unique identifier of parent entity. Column is hidden by default.
 - **Parent Name** - reference to parent entity.
 
 The following actions are available:
-* ![20](img/setting.svg) - Column setting.
-* ![Redo|20](img/redo.svg) - Refresh.
-* ![Download|20](img/cloud-download.svg) - Export Actions Logs.
+- **Search audit log** - search box, provides ability to find respective data in the table.
+- ![setting](img/setting.svg) - Column settings.
+- ![redo](img/redo.svg) - Refresh.
+- ![cloud-download](img/cloud-download.svg) - Export Action Logs.
 
 
 Similar information is presented on "**Action details**" right panel, available by clicking respective table's record.
 
 ### Export to Excel
-To export audit table to Excel file, find and click export ![Download|20](img/cloud-download.svg) button, select the required date range and confirm operation.
+To export audit table to Excel file, find and click export ![cloud-download](img/cloud-download.svg) button, select the required date range and confirm operation.
 
 > ℹ️ **Note:** Resulted file will always have "Action date" values converted to **GMT** time zone.
 
 ### Refresh Logs
-To refresh Audit table, simply click button ![Redo|20](img/redo.svg), presented in the menu or refresh the page itself.
+To refresh Audit table, simply click button ![redo](img/redo.svg), presented in the menu or refresh the page itself.
