@@ -786,11 +786,17 @@ async function deleteDependenciesForElement(
   dependencies: Dependency[],
 ) {
   // TODO change to dependency schema
-  dependencies?.forEach((dependency, index) => {
-    if (dependency.from === elementId || dependency.to === elementId) {
-      dependencies.splice(index, 1);
+  if (!dependencies) {
+    return;
+  }
+  for (let i = dependencies.length - 1; i >= 0; i--) {
+    if (
+      dependencies[i].from === elementId ||
+      dependencies[i].to === elementId
+    ) {
+      dependencies.splice(i, 1);
     }
-  });
+  }
 }
 
 export async function createConnection(
