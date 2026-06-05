@@ -8,7 +8,7 @@ There is an ability to alter input data from each available Mapper View:
 - **Text View**  - manually enter transformation setting with custom syntax, described in [main Mapper article](../mapper.md).
 
 For **Graph** and **Table** views when transformation window is opened, it allows to:
-- Select transformation option from the pre-defined list.
+- Select transformation option from the predefined list.
 - Enter the transformation rules manually via Expression.
 - Specify transformation description.
 
@@ -35,14 +35,14 @@ Scenarios, mapping structure, transformation settings and input/output samples a
 | [`list`](#list) | Array / Collection | Build list from values |
 | [`getKeys`](#getkeys) | Object | Get field names from object |
 | [`getValues`](#getvalues) | Object | Get field values from object |
-| [`makeObject`](#makeobject) | Object | Build key/value map |
+| [`makeObject`](#makeobject) | Object | Build key-value map |
 | [`mergeObjects`](#mergeobjects) | Object | Merge multiple objects into one |
 | [`formatDateTime`](#formatdatetime) | Date / Time | Build formatted date/time string |
 | [Dictionary](#dictionary) | UI Transformation | Match and replace with dictionary |
 | [Format date/time](#format-datetime) | UI Transformation | Convert between date formats |
 | [Conditional Transformation](#conditional-transformation) | UI Transformation | Condition with true/false values |
 | [Default value](#default-value) | UI Transformation | Fallback for missing values |
-| [Replace all](#replace-all) | UI Transformation | Replace via regex |
+| [Replace all](#replace-all) | UI Transformation | Replace via regular expression |
 | [Trim](#trim-1) | UI Transformation | Strip spaces |
 
 ### Expressions
@@ -732,7 +732,7 @@ getValues(body.contactNumbers)
 ```
 
 ##### makeObject
-Build key/value map from primitives and objects.
+Build key-value map from primitives and objects.
 
 **Mapper structure sample:**
 

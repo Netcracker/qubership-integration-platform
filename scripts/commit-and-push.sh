@@ -31,7 +31,7 @@ for attempt in $(seq 1 5); do
     if git rebase FETCH_HEAD && git push origin "HEAD:$branch"; then
         exit 0
     fi
-    git rebase --abort 2>/dev/null || true
+    git rebase --abort 2> /dev/null || true
     echo "push attempt $attempt failed; retrying in 5s..." >&2
     sleep 5
 done

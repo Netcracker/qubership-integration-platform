@@ -17,7 +17,7 @@
 | Do not download files with same filekey | M         | Boolean   | Checkbox, that disables sequential downloading of the same files. Unchecked by default.                                                                                                                                                                                                                                                                                              | N/A                                        |
 | Filekey string                          | O         | String    | Combination of file properties that uniquely identifies the exact file. If properties value of this combination has been changed - element will consider this as appearance of a new file, hence it will start processing. When left empty, then  the absolute path of the file will be considered as a file key.<br> **Default Values:** ${file:name}-${file:size}-${file:modified} | ${file:name}-${file:size}-${file:modified} |
 | Name        | M         | String    | Name of the element.                                       | SFTP download                                 |
-| Description | O         | String    | Free text field, that contains description of the element. | SFTP to load temp data from remote ftp server |
+| Description | O         | String    | Free text field, that contains description of the element. | SFTP to load temp data from remote FTP server |
 
 ## Constraints
 

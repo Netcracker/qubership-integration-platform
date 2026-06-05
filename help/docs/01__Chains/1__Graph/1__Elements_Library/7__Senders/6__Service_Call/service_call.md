@@ -117,7 +117,7 @@ query getVehicle {
 | Parameter | Mandatory | Data Type | Description                                                                                                                       | Sample             |
 | --------- | :-------- | :-------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
 | Name      | M         | String    | Name of a section/part in the multipart message.                                                                                  | exchangeId         |
-| MIME type | M         | List      | Customizable list with possible options of MIME types. This fields also allows entering the types, that do not exist in the list. | "application/json" |
+| MIME type | M         | List      | Customizable list with possible options of MIME types. This fields also allows entering the types, that do not exist in the list. | `application/json` |
 | File name | O         | String    | When section contains a file, its name must be specified in this field.                                                           | ${exchangeId}.json |
 | Value>    | M         | String    | Value of the section, depending on selected MIME type. When file is being sent, its content must be entered in bytes.             | ${bodyAs(byte[])}  |
 
@@ -126,7 +126,7 @@ query getVehicle {
 | Parameter | Mandatory | Data Type | Description                                                                                                                                                                     | Sample   |
 | --------- | :-------- | :-------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | Name      | M         | String    | Specifies key name. Non-alphanumeric characters will be URL encoded.                                                                                                            | FieldOne |
-| Value     | M         | String    | Specifies key value. Non-alphanumeric characters will be URL encoded.<br><br>ℹ️ **Note:** Large values must not be entered due to technical limitations of the encoding method. | ValueOne |
+| Value     | M         | String    | Specifies key-value. Non-alphanumeric characters will be URL encoded.<br><br>ℹ️ **Note:** Large values must not be entered due to technical limitations of the encoding method. | ValueOne |
 
 ### "Prepare request" Tab
 The tab is responsible for choosing an action on receiving the request. Possible actions:
@@ -143,26 +143,26 @@ The tab is responsible for choosing an action on receiving the request. Possible
     > | **HTTP** | serviceCallUrl | Constructed URL for HTTP call<br><br>ℹ️ **Note:** If **"Skip empty query parameters"** option is checked, any query parameters specified will be excluded from the constructed URL.<br> In case above option is unchecked, all specified query parameters *(including parameters having null/empty values)* will be included in the constructed URL. |
     > | **HTTP** | serviceCallAddress | Address part of an URL, resolved from service environment |
     > | **HTTP** | serviceCallPath | Path for operation with path parameters placeholders |
-    > | **HTTP** | serviceCallQueryParameter_<parameter> | Property for each query parameter, where <parameter> substring is a pure query param name (e.g. *serviceCallQueryParameter_limit*) |
-    > | **HTTP** | serviceCallPathParameter_<parameter> | Property for each path parameter, where <parameter> substring is a pure path param name (e.g. *serviceCallQueryParameter_orders*) |
-    > | **HTTP** | serviceCallParameter_<parameter> | Property for each additional service call parameter, where <parameter> substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
+    > | **HTTP** | `serviceCallQueryParameter_<parameter>` | Property for each query parameter, where `<parameter>` substring is a pure query param name (e.g. *serviceCallQueryParameter_limit*) |
+    > | **HTTP** | `serviceCallPathParameter_<parameter>` | Property for each path parameter, where `<parameter>` substring is a pure path param name (e.g. *serviceCallQueryParameter_orders*) |
+    > | **HTTP** | `serviceCallParameter_<parameter>` | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
     > | **Kafka** | serviceCallMethod | AsyncAPI operation method |
     > | **Kafka** | serviceCallTopic | Kafka topic name |
     > | **Kafka** | serviceCallBrokers | Kafka brokers |
-    > | **Kafka** | serviceCallParameter_<parameter> | Property for each additional service call parameter, where <parameter> substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
+    > | **Kafka** | `serviceCallParameter_<parameter>` | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
     > | **AMQP** | serviceCallMethod | AsyncAPI operation method |
     > | **AMQP** | serviceCallExchange | RabbitMQ exchange name |
     > | **AMQP** | serviceCallAddress | Server addresses |
-    > | **AMQP** | serviceCallParameter_<parameter> | Property for each additional service call parameter, where <parameter> substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
+    > | **AMQP** | `serviceCallParameter_<parameter>` | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
     > | **gRPC** | serviceCallMethod | Service method to call |
     > | **gRPC** | serviceCallService | Service name |
     > | **gRPC** | serviceCallAddress | Server address |
-    > | **gRPC** | serviceCallParameter_<parameter> | Property for each additional service call parameter, where <parameter> substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
+    > | **gRPC** | `serviceCallParameter_<parameter>` | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
     > | **GraphQL** | serviceCallAddress | Server address |
     > | **GraphQL** | serviceCallMethod | HTTP method |
     > | **GraphQL** | serviceCallPath | Operation path |
-    > | **GraphQL** | serviceCallQueryParameter_<parameter> | Property for each query parameter, where <parameter> substring is a pure query param name (e.g. *serviceCallQueryParameter_operationName*) |
-    > | **GraphQL** | serviceCallParameter_<parameter> | Property for each additional service call parameter, where <parameter> substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
+    > | **GraphQL** | `serviceCallQueryParameter_<parameter>` | Property for each query parameter, where `<parameter>` substring is a pure query param name (e.g. *serviceCallQueryParameter_operationName*) |
+    > | **GraphQL** | `serviceCallParameter_<parameter>` | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
     >
     > </details>
 
@@ -189,14 +189,14 @@ Possible selectable options:
 ### "Validations" Tab
 This tab allows to set up scheme validation(s) for service's response in order to instantly fail the chain without its further processing in case of receiving invalid response.
 Validation(s) must be added for specific pair of code and content type, accessed by clicking "**Add**" button.
-Only codes from range 200-299, which are **properly and fully described** in the response scheme and have **Json** - based content type are available for applying validations against.
+Only codes from range 200-299, which are **properly and fully described** in the response scheme and have **JSON** - based content type are available for applying validations against.
 Validation will only happen for service's response when a pair of HTTP code and content type in response fully matches with the settings, added under Validation tab, otherwise validation will be skipped.
 
 ### "Handle Validation Failure" Tab
 This tab is specifically designed to control validation message format, that will be returned in case of validation failure. There are three options of handling, presented as values for "**Actions**" list:
 
 - **Default** - default message will be presented in the response, when validation fails.
-- **Mapper** - system shows mapper interface with default message structure in the source section. Customized message could be built in the target section if required.
+- **Mapper** - system shows mapper interface with default message structure in the source section. Customized message could be built within the target section if required.
 - **Scripting** - system presents script box for custom message building.
 
 ### "Handle Response" Tab

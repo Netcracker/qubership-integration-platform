@@ -18,5 +18,9 @@ jobs:
     with:
       module: micro-engine
       sonar-project-key: ${{ vars.SONAR_MICRO_ENGINE_PROJECT_KEY }}
+      # micro-engine's private com.netcracker.cloud deps resolve via the flaky
+      # GitHub Packages OWNER/* wildcard; -U stops a transient miss from being
+      # negative-cached and stuck across runs.
+      force-update: true
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
