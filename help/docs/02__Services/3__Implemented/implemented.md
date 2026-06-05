@@ -29,7 +29,7 @@ Table with Implemented services is accessible by navigating to **Services** → 
   - **Manual** - uploaded manually.
   - **Discovered** - added as the result of service discovery. This is only applicable to Inner Cloud Services.
 - **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
-- **Created When** - datetime of entity creation.
+- **Created At** - datetime of entity creation.
 - **Created By** - shows the user, who created an entity.
 - **Modified At** - datetime of entity modifying (hidden by default).
 - **Modified By** - shows the user, who modified an entity (hidden by default).
@@ -49,7 +49,7 @@ Table with Implemented services is accessible by navigating to **Services** → 
   - ![plus](img/plus.svg) - provides ability to add new service.
 
 ### View Parameters
-When service is clicked, system shows Parameters tab with the following information:
+Parameters tab contains the following information:
 - Name - mandatory service name.
 - Description - description of service.
 - Protocol - service's integration protocol.
@@ -122,9 +122,9 @@ To add new information, click on the button ![setting](img/setting.svg) located 
 - **Extended Protocol** - shows special rules for the service protocol.
 - **Specification** - the service's instruction.
 - **Internal Service Name** - shows internal service name.
-- **Created When** - datetime of entity creation.
+- **Created At** - datetime of entity creation.
 - **Created By** - shows the user, who created an entity.
-- **Modified When** - datetime of entity modification.
+- **Modified At** - datetime of entity modification.
 - **Modified By** - shows the user, who modified an entity.
 
 **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu. Contains the following operations:
