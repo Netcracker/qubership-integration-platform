@@ -36,7 +36,7 @@ Table with **Context** services is accessible by navigating to **Services** → 
   - ![plus](img/plus.svg) - provides ability to add new service.
 
 ### View Parameters
-When service is clicked, system shows Parameters tab with the following information:
+Parameters tab contains the following information:
 - **Name** - mandatory service name.
 - **Description** - description of service.
 - **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
