@@ -786,7 +786,7 @@ async function deleteDependenciesForElement(
   dependencies: Dependency[],
 ) {
   // TODO change to dependency schema
-  if (!dependencies) {
+  if (!dependencies?.length) {
     return;
   }
   for (let i = dependencies.length - 1; i >= 0; i--) {
