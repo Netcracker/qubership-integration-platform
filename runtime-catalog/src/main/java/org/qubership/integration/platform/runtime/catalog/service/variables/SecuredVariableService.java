@@ -56,6 +56,7 @@ public class SecuredVariableService {
     public static final String EMPTY_SECURED_VARIABLE_NAME_ERROR_MESSAGE = "Secured variable's name is empty";
 
     private final SecretService secretService;
+    private final DefaultSecretPolicyService defaultSecretPolicyService;
     private final ActionsLogService actionLogger;
     private final YAMLMapper yamlMapper;
     private final CommonVariablesService commonVariablesService;
@@ -64,11 +65,13 @@ public class SecuredVariableService {
     @Autowired
     public SecuredVariableService(
             SecretService secretService,
+            DefaultSecretPolicyService defaultSecretPolicyService,
             ActionsLogService actionLogger,
             @Lazy CommonVariablesService commonVariablesService,
             @Qualifier("yamlMapper") YAMLMapper yamlMapper
     ) {
         this.secretService = secretService;
+        this.defaultSecretPolicyService = defaultSecretPolicyService;
         this.actionLogger = actionLogger;
         this.commonVariablesService = commonVariablesService;
         this.yamlMapper = yamlMapper;
@@ -78,7 +81,9 @@ public class SecuredVariableService {
     public Map<String, Set<String>> getAllSecretsVariablesNames() {
         lock.lock();
         try {
-            return secretService.getAllSecretsData().entrySet().stream()
+            Map<String, ? extends Map<String, String>> secrets = defaultSecretPolicyService
+                    .filterSecretsForList(secretService.getAllSecretsData());
+            return secrets.entrySet().stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().keySet()));
         } finally {
             lock.unlock();

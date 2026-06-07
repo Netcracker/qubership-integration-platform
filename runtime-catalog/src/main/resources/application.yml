@@ -143,6 +143,9 @@ kubernetes:
     label: ${app.prefix}-variable-type
 
 qip:
+  variables:
+    default-secret:
+      enabled: ${DEFAULT_SECRET_ENABLED:false}
   deploy:
     classic:
       enabled: ${CLASSIC_DEPLOY_ENABLED:true}
