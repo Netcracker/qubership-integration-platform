@@ -164,7 +164,7 @@ public class SecuredVariablesServiceTest {
 
         assertThrows(DefaultSecretGoneException.class,
                 () -> securedVariableService.getVariablesForSecret(DEFAULT_SECRET_NAME, true));
-        verify(secretService, never()).getSecretData(DEFAULT_SECRET_NAME, anyBoolean());
+        verify(secretService, never()).getSecretData(eq(DEFAULT_SECRET_NAME), anyBoolean());
     }
 
     @DisplayName("getVariablesForDefaultSecret should throw an exception when default secret does not exists and fail flag is set")
