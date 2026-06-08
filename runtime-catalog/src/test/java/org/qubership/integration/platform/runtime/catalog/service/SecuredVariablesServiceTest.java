@@ -117,30 +117,30 @@ public class SecuredVariablesServiceTest {
 
         assertThat(securedVariableService.getAllSecretsVariablesNames(),
                 equalTo(Map.of(DEFAULT_SECRET_NAME, Set.of("foo", "baz"), "fiz", Set.of("quux"))));
-        verify(defaultSecretPolicyService).filterSecretsForList(eq(allSecrets));
+        verify(defaultSecretPolicyService).filterSecretsForList(allSecrets);
     }
 
     @DisplayName("getAllSecretsVariablesNames should return filtered secrets from policy service")
     @Test
-    public void getAllSecretsVariablesNamesShouldReturnFilteredSecrets() {
+    void getAllSecretsVariablesNamesShouldReturnFilteredSecrets() {
         Map<String, Map<String, String>> allSecrets = Map.of(
                 DEFAULT_SECRET_NAME, Map.of("foo", "bar"),
                 "fiz", Map.of("quux", "gee")
         );
         Map<String, Map<String, String>> filteredSecrets = Map.of("fiz", Map.of("quux", "gee"));
         doReturn(allSecrets).when(secretService).getAllSecretsData();
-        doReturn(filteredSecrets).when(defaultSecretPolicyService).filterSecretsForList(eq(allSecrets));
+        doReturn(filteredSecrets).when(defaultSecretPolicyService).filterSecretsForList(allSecrets);
 
         assertThat(securedVariableService.getAllSecretsVariablesNames(),
                 equalTo(Map.of("fiz", Set.of("quux"))));
-        verify(defaultSecretPolicyService).filterSecretsForList(eq(allSecrets));
+        verify(defaultSecretPolicyService).filterSecretsForList(allSecrets);
     }
 
     @DisplayName("getDefaultSecretVariableNamesForUniquenessCheck should return default secret variable names")
     @Test
-    public void getDefaultSecretVariableNamesForUniquenessCheckShouldReturnDefaultSecretKeys() {
+    void getDefaultSecretVariableNamesForUniquenessCheckShouldReturnDefaultSecretKeys() {
         doReturn(Map.of("foo", "bar", "baz", "qux"))
-                .when(secretService).getSecretData(eq(DEFAULT_SECRET_NAME), eq(false));
+                .when(secretService).getSecretData(DEFAULT_SECRET_NAME, false);
 
         assertThat(securedVariableService.getDefaultSecretVariableNamesForUniquenessCheck(),
                 equalTo(Set.of("foo", "baz")));
@@ -150,7 +150,7 @@ public class SecuredVariablesServiceTest {
 
     @DisplayName("getVariablesForSecret should enforce default secret policy before reading secret")
     @Test
-    public void getVariablesForSecretShouldEnforceDefaultSecretPolicy() {
+    void getVariablesForSecretShouldEnforceDefaultSecretPolicy() {
         securedVariableService.getVariablesForSecret("fiz", true);
 
         verify(defaultSecretPolicyService).assertDefaultSecretAccessible("fiz");
@@ -158,13 +158,13 @@ public class SecuredVariablesServiceTest {
 
     @DisplayName("getVariablesForSecret should propagate DefaultSecretGoneException from policy")
     @Test
-    public void getVariablesForSecretShouldPropagateDefaultSecretGoneException() {
+    void getVariablesForSecretShouldPropagateDefaultSecretGoneException() {
         doThrow(DefaultSecretGoneException.disabled())
                 .when(defaultSecretPolicyService).assertDefaultSecretAccessible(DEFAULT_SECRET_NAME);
 
         assertThrows(DefaultSecretGoneException.class,
                 () -> securedVariableService.getVariablesForSecret(DEFAULT_SECRET_NAME, true));
-        verify(secretService, never()).getSecretData(eq(DEFAULT_SECRET_NAME), anyBoolean());
+        verify(secretService, never()).getSecretData(DEFAULT_SECRET_NAME, anyBoolean());
     }
 
     @DisplayName("getVariablesForDefaultSecret should throw an exception when default secret does not exists and fail flag is set")

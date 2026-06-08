@@ -132,12 +132,11 @@ class DefaultSecretPolicyServiceTest {
         when(secretService.isDefaultSecret(DEFAULT_SECRET)).thenReturn(true);
 
         DefaultSecretPolicyService service = serviceWithFlag(false);
+        Map<String, String> newVariables = Map.of("newKey", "1");
+        Map<String, String> existingVariables = Map.of("existing", "old");
 
         assertThrows(
                 DefaultSecretGoneException.class,
-                () -> service.assertCanAddVariables(
-                        DEFAULT_SECRET,
-                        Map.of("newKey", "1"),
-                        Map.of("existing", "old")));
+                () -> service.assertCanAddVariables(DEFAULT_SECRET, newVariables, existingVariables));
     }
 }

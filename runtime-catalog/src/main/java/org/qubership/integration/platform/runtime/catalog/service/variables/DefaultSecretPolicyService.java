@@ -38,8 +38,7 @@ public class DefaultSecretPolicyService {
         this.defaultSecretEnabled = defaultSecretEnabled;
     }
 
-    public Map<String, ? extends Map<String, String>> filterSecretsForList(
-            Map<String, ? extends Map<String, String>> secrets) {
+    public <M extends Map<String, String>> Map<String, M> filterSecretsForList(Map<String, M> secrets) {
         if (defaultSecretEnabled) {
             return secrets;
         }
