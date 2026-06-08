@@ -63,6 +63,19 @@ export const SecuredVariables: React.FC = () => {
   const permissions = usePermissions();
   const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
 
+  const canAddVariableToSecret = useCallback(
+    (secret: string) => secret !== defaultSecret,
+    [defaultSecret],
+  );
+
+  const getAddVariableTooltipTitle = useCallback(
+    (secret: string) =>
+      canAddVariableToSecret(secret)
+        ? "Add variable"
+        : "Adding new variables to default secret is not allowed",
+    [canAddVariableToSecret],
+  );
+
   const refreshSecretVariables = useCallback(
     async (secret: string): Promise<boolean> => {
       const response = await api.getSecuredVariablesForSecret(secret);
@@ -157,6 +170,9 @@ export const SecuredVariables: React.FC = () => {
   const handleAddVariable = useCallback(
     async (secret: string, key: string, value: string) => {
       if (!key) return;
+      if (!canAddVariableToSecret(secret)) {
+        return;
+      }
       const response = await api.createSecuredVariables(secret, [
         { key, value },
       ]);
@@ -170,11 +186,11 @@ export const SecuredVariables: React.FC = () => {
         notificationService.requestFailed(
           response.error?.responseBody.errorMessage ||
             "Failed to add variable.",
-          null,
+          response.error,
         );
       }
     },
-    [refreshSecretVariables, notificationService],
+    [canAddVariableToSecret, refreshSecretVariables, notificationService],
   );
 
   const handleUpdateVariable = useCallback(
@@ -348,12 +364,16 @@ export const SecuredVariables: React.FC = () => {
     [notificationService],
   );
 
-  const openNewVariableEditor = useCallback((secret: string) => {
-    setNewVariableKeys((prev) => ({
-      ...prev,
-      [secret]: true,
-    }));
-  }, []);
+  const openNewVariableEditor = useCallback(
+    (secret: string) => {
+      if (!canAddVariableToSecret(secret)) return;
+      setNewVariableKeys((prev) => ({
+        ...prev,
+        [secret]: true,
+      }));
+    },
+    [canAddVariableToSecret],
+  );
 
   const secretListColumnResize = useTableColumnResize({
     secret: 520,
@@ -400,12 +420,13 @@ export const SecuredVariables: React.FC = () => {
                 require={{ securedVariable: ["create"] }}
                 tooltipProps={{
                   placement: "topRight",
-                  title: "Add variable",
+                  title: getAddVariableTooltipTitle(secret),
                 }}
                 buttonProps={{
                   iconName: "plus",
                   size: "small",
                   type: "text",
+                  disabled: !canAddVariableToSecret(secret),
                   onClick: () => openNewVariableEditor(secret),
                 }}
               />
@@ -414,7 +435,13 @@ export const SecuredVariables: React.FC = () => {
         ),
       },
     ],
-    [defaultSecret, exportHelmChart, openNewVariableEditor],
+    [
+      defaultSecret,
+      exportHelmChart,
+      openNewVariableEditor,
+      getAddVariableTooltipTitle,
+      canAddVariableToSecret,
+    ],
   );
 
   const secretListColumnsResized = useMemo(

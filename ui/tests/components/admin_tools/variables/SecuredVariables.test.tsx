@@ -277,9 +277,17 @@ describe("SecuredVariables Component", () => {
     it("enables adding new variable when Add variable is clicked on secret row", async () => {
       render(<SecuredVariables />);
       await screen.findByText("default-secret");
-      fireEvent.click(getExpandButtonOnDefaultSecret());
+      const defaultRow = screen.getByText("default-secret").closest("tr");
+      expect(
+        within(defaultRow!).getByTestId(
+          "Adding new variables to default secret is not allowed",
+        ),
+      ).toBeDisabled();
+
+      await screen.findByText("app-secret");
+      fireEvent.click(getExpandButtonOnDefaultSecret("app-secret"));
       await screen.findByTestId("variables-table");
-      const row = screen.getByText("default-secret").closest("tr");
+      const row = screen.getByText("app-secret").closest("tr");
       fireEvent.click(within(row!).getByTestId("Add variable"));
       await waitFor(() => {
         expect(screen.getByTestId("is-adding-new")).toHaveTextContent("true");
@@ -405,12 +413,14 @@ describe("SecuredVariables Component", () => {
     });
 
     it("adds a new variable to a secret", async () => {
-      const addButton = screen.getByTestId("mock-add-variable");
+      fireEvent.click(getExpandButtonOnDefaultSecret("app-secret"));
+      const tables = await screen.findAllByTestId("variables-table");
+      const addButton = within(tables[1]).getByTestId("mock-add-variable");
       fireEvent.click(addButton);
 
       await waitFor(() => {
         expect(mockApi.createSecuredVariables).toHaveBeenCalledWith(
-          "default-secret",
+          "app-secret",
           [{ key: "mock-key", value: "mock-value" }],
         );
       });
@@ -455,23 +465,27 @@ describe("SecuredVariables Component", () => {
         error: { responseBody: { errorMessage: "Validation failed" } },
       });
 
-      const addButton = screen.getByTestId("mock-add-variable");
+      fireEvent.click(getExpandButtonOnDefaultSecret("app-secret"));
+      const tables = await screen.findAllByTestId("variables-table");
+      const addButton = within(tables[1]).getByTestId("mock-add-variable");
       fireEvent.click(addButton);
 
       await waitFor(() => {
         expect(mockNotificationService.requestFailed).toHaveBeenCalledWith(
           "Validation failed",
-          null,
+          expect.anything(),
         );
       });
     });
   });
 });
 
-function getExpandButtonOnDefaultSecret(): HTMLElement {
-  const row = screen.getByText("default-secret").closest("tr");
+function getExpandButtonOnDefaultSecret(
+  secretName = "default-secret",
+): HTMLElement {
+  const row = screen.getByText(secretName).closest("tr");
   if (!row) {
-    throw new Error("default-secret row not found");
+    throw new Error(`${secretName} row not found`);
   }
   const fromAntCell = row.querySelector<HTMLElement>(
     ".ant-table-row-expand-icon-cell button",
@@ -484,7 +498,7 @@ function getExpandButtonOnDefaultSecret(): HTMLElement {
     within(row).queryByTestId("icon-down");
   const btn = icon?.closest("button");
   if (!btn) {
-    throw new Error("expand button not found for default-secret row");
+    throw new Error(`expand button not found for ${secretName} row`);
   }
   return btn;
 }
