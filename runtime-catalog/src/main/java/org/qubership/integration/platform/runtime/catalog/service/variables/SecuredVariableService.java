@@ -94,6 +94,15 @@ public class SecuredVariableService {
         return getVariablesForSecret(secretService.getDefaultSecretName(), failIfSecretNotExist);
     }
 
+    public Set<String> getDefaultSecretVariableNamesForUniquenessCheck() {
+        lock.lock();
+        try {
+            return secretService.getSecretData(secretService.getDefaultSecretName(), false).keySet();
+        } finally {
+            lock.unlock();
+        }
+    }
+
     public Set<String> getVariablesForSecret(String secretName, boolean failIfSecretNotExist) {
         defaultSecretPolicyService.assertDefaultSecretAccessible(secretName);
         lock.lock();

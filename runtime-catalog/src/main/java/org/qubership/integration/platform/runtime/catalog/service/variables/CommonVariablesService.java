@@ -111,7 +111,7 @@ public class CommonVariablesService {
             throw new MalformedVariableNameException(key);
         }
 
-        Set<String> securedVariablesNames = securedVariableService.getVariablesForDefaultSecret(false);
+        Set<String> securedVariablesNames = securedVariableService.getDefaultSecretVariableNamesForUniquenessCheck();
         ImportVariableResult commonVariable = checkAndMapVariable(key, value, securedVariablesNames, false);
         consulService.updateCommonVariable(key, value);
         return commonVariable.getName();
@@ -120,7 +120,7 @@ public class CommonVariablesService {
     public List<ImportVariableResult> addVariables(Map<String, String> variables, boolean importMode) {
         List<ImportVariableResult> importResults = Collections.emptyList();
         if (!variables.isEmpty()) {
-            Set<String> securedVariablesNames = securedVariableService.getVariablesForDefaultSecret(false);
+            Set<String> securedVariablesNames = securedVariableService.getDefaultSecretVariableNamesForUniquenessCheck();
 
             importResults = variables.entrySet().stream()
                     .map(entry -> checkAndMapVariable(entry.getKey(), entry.getValue(), securedVariablesNames, importMode))

@@ -34,6 +34,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.runtime.catalog.service.variables.CommonVariablesService;
+import org.qubership.integration.platform.runtime.catalog.service.variables.DefaultSecretPolicyService;
 import org.qubership.integration.platform.runtime.catalog.service.variables.SecuredVariableService;
 import org.qubership.integration.platform.runtime.catalog.service.variables.secrets.KubeSecretSerializer;
 import org.qubership.integration.platform.runtime.catalog.service.variables.secrets.SecretService;
@@ -76,6 +77,9 @@ public class SecuredVariablesServiceTest {
     @MockitoBean
     CommonVariablesService commonVariablesService;
 
+    @MockitoBean
+    DefaultSecretPolicyService defaultSecretPolicyService;
+
     @Captor
     private ArgumentCaptor<ActionLog> actionLogCaptor;
 
@@ -95,6 +99,11 @@ public class SecuredVariablesServiceTest {
                 .when(secretService).getSecretData(eq(DEFAULT_SECRET_NAME), anyBoolean());
         doReturn(data.get("fiz"))
                 .when(secretService).getSecretData(eq("fiz"), anyBoolean());
+
+        doAnswer(invocation -> invocation.getArgument(0))
+                .when(defaultSecretPolicyService).filterSecretsForList(any());
+        doNothing().when(defaultSecretPolicyService).assertDefaultSecretAccessible(anyString());
+        doNothing().when(defaultSecretPolicyService).assertCanAddVariables(anyString(), anyMap(), anyMap());
     }
 
     @DisplayName("getAllSecretsVariablesNames should return all variable names by secrets")

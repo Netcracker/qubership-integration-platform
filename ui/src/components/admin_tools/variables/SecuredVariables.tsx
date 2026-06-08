@@ -170,7 +170,7 @@ export const SecuredVariables: React.FC = () => {
         notificationService.requestFailed(
           response.error?.responseBody.errorMessage ||
             "Failed to add variable.",
-          null,
+          response.error,
         );
       }
     },
