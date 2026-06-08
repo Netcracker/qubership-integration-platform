@@ -283,6 +283,11 @@ describe("SecuredVariables Component", () => {
           "Adding new variables to default secret is not allowed",
         ),
       ).toBeDisabled();
+      fireEvent.click(
+        within(defaultRow!).getByTestId(
+          "Adding new variables to default secret is not allowed",
+        ),
+      );
 
       await screen.findByText("app-secret");
       fireEvent.click(getExpandButtonOnDefaultSecret("app-secret"));
@@ -413,6 +418,9 @@ describe("SecuredVariables Component", () => {
     });
 
     it("adds a new variable to a secret", async () => {
+      fireEvent.click(screen.getByTestId("mock-add-variable"));
+      expect(mockApi.createSecuredVariables).not.toHaveBeenCalled();
+
       fireEvent.click(getExpandButtonOnDefaultSecret("app-secret"));
       const tables = await screen.findAllByTestId("variables-table");
       const addButton = within(tables[1]).getByTestId("mock-add-variable");
