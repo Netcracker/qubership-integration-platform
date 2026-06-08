@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.variables;
 
+import lombok.Getter;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DefaultSecretGoneException;
 import org.qubership.integration.platform.runtime.catalog.service.variables.secrets.SecretService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,7 @@ import java.util.Map;
 public class DefaultSecretPolicyService {
 
     private final SecretService secretService;
+    @Getter
     private final boolean defaultSecretEnabled;
 
     public DefaultSecretPolicyService(
@@ -46,8 +49,10 @@ public class DefaultSecretPolicyService {
                 .collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    public boolean isDefaultSecretEnabled() {
-        return this.defaultSecretEnabled;
+    public void assertDefaultSecretAccessible(String secretName) {
+        if (!defaultSecretEnabled && secretService.isDefaultSecret(secretName)) {
+            throw DefaultSecretGoneException.disabled();
+        }
     }
 
 }

@@ -64,11 +64,11 @@ public class SecuredVariableService {
 
     @Autowired
     public SecuredVariableService(
-            SecretService secretService,
-            DefaultSecretPolicyService defaultSecretPolicyService,
-            ActionsLogService actionLogger,
-            @Lazy CommonVariablesService commonVariablesService,
-            @Qualifier("yamlMapper") YAMLMapper yamlMapper
+        SecretService secretService,
+        DefaultSecretPolicyService defaultSecretPolicyService,
+        ActionsLogService actionLogger,
+        @Lazy CommonVariablesService commonVariablesService,
+        @Qualifier("yamlMapper") YAMLMapper yamlMapper
     ) {
         this.secretService = secretService;
         this.defaultSecretPolicyService = defaultSecretPolicyService;
@@ -82,9 +82,9 @@ public class SecuredVariableService {
         lock.lock();
         try {
             Map<String, ? extends Map<String, String>> secrets = defaultSecretPolicyService
-                    .filterSecretsForList(secretService.getAllSecretsData());
+                .filterSecretsForList(secretService.getAllSecretsData());
             return secrets.entrySet().stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().keySet()));
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().keySet()));
         } finally {
             lock.unlock();
         }
@@ -95,6 +95,7 @@ public class SecuredVariableService {
     }
 
     public Set<String> getVariablesForSecret(String secretName, boolean failIfSecretNotExist) {
+        defaultSecretPolicyService.assertDefaultSecretAccessible(secretName);
         lock.lock();
         try {
             return secretService.getSecretData(secretName, failIfSecretNotExist).keySet();
@@ -113,6 +114,7 @@ public class SecuredVariableService {
     }
 
     public Map<String, Set<String>> addVariables(String secretName, Map<String, String> newVariables, boolean importMode) {
+        defaultSecretPolicyService.assertDefaultSecretAccessible(secretName);
         if (newVariables.isEmpty()) {
             return Collections.singletonMap(secretName, Collections.emptySet());
         }
@@ -136,9 +138,9 @@ public class SecuredVariableService {
 
         newVariables.keySet().forEach(name -> {
             LogOperation operation = importMode
-                    ? LogOperation.IMPORT
-                    : variables.containsKey(name)
-                    ? LogOperation.UPDATE : LogOperation.CREATE;
+                ? LogOperation.IMPORT
+                : variables.containsKey(name)
+                ? LogOperation.UPDATE : LogOperation.CREATE;
             logSecuredVariableAction(name, secretName, operation);
         });
 
@@ -157,13 +159,13 @@ public class SecuredVariableService {
         if (CollectionUtils.isEmpty(variablesNames)) {
             return;
         }
-
+        defaultSecretPolicyService.assertDefaultSecretAccessible(secretName);
         lock.lock();
         try {
             Set<String> existedVariables = secretService.getSecretData(secretName, true).keySet();
             variablesNames = variablesNames.stream()
-                    .filter(existedVariables::contains)
-                    .collect(Collectors.toSet());
+                .filter(existedVariables::contains)
+                .collect(Collectors.toSet());
             if (variablesNames.isEmpty()) {
                 return;
             }
@@ -181,7 +183,7 @@ public class SecuredVariableService {
     public List<SecretErrorResponse> deleteVariablesForMultipleSecrets(Map<String, Set<String>> variablesPerSecret) {
         List<CompletableFuture<Map<String, String>>> secretUpdateFutures = new ArrayList<>();
         Map<String, Throwable> secretUpdateExceptions = new HashMap<>();
-
+        variablesPerSecret.keySet().forEach(defaultSecretPolicyService::assertDefaultSecretAccessible);
         lock.lock();
         Map<String, ? extends Map<String, String>> variablesBySecret;
         try {
@@ -193,25 +195,25 @@ public class SecuredVariableService {
                     return;
                 }
                 variablesToRemove = variablesToRemove.stream()
-                        .filter(secretVariables::containsKey)
-                        .collect(Collectors.toSet());
+                    .filter(secretVariables::containsKey)
+                    .collect(Collectors.toSet());
                 if (variablesToRemove.isEmpty()) {
                     return;
                 }
 
                 try {
                     CompletableFuture<Map<String, String>> future = new CompletableFuture<Map<String, String>>()
-                            .whenComplete((secretData, throwable) -> {
-                                if (throwable != null) {
-                                    secretUpdateExceptions.put(secretName, throwable);
-                                }
-                            });
+                        .whenComplete((secretData, throwable) -> {
+                            if (throwable != null) {
+                                secretUpdateExceptions.put(secretName, throwable);
+                            }
+                        });
                     secretUpdateFutures.add(future);
                     secretService.removeEntriesAsync(secretName, variablesToRemove, new SecretUpdateCallback(future));
                 } catch (Exception e) {
                     secretUpdateExceptions.putIfAbsent(
-                            secretName,
-                            new SecuredVariablesException("Failed to delete variables from secret: " + secretName, e)
+                        secretName,
+                        new SecuredVariablesException("Failed to delete variables from secret: " + secretName, e)
                     );
                 }
             });
@@ -224,10 +226,10 @@ public class SecuredVariableService {
         }
 
         variablesPerSecret.entrySet().stream()
-                .filter(entry -> !secretUpdateExceptions.containsKey(entry.getKey()))
-                .forEach(entry -> entry.getValue().stream()
-                        .filter(variable -> variablesBySecret.get(entry.getKey()).containsKey(variable))
-                        .forEach(variable -> logSecuredVariableAction(variable, entry.getKey(), LogOperation.DELETE)));
+            .filter(entry -> !secretUpdateExceptions.containsKey(entry.getKey()))
+            .forEach(entry -> entry.getValue().stream()
+                .filter(variable -> variablesBySecret.get(entry.getKey()).containsKey(variable))
+                .forEach(variable -> logSecuredVariableAction(variable, entry.getKey(), LogOperation.DELETE)));
         if (!secretUpdateExceptions.isEmpty()) {
             List<SecretErrorResponse> errorResponses = new ArrayList<>();
             for (Map.Entry<String, Throwable> entry : secretUpdateExceptions.entrySet()) {
@@ -249,6 +251,7 @@ public class SecuredVariableService {
     }
 
     public Pair<String, Set<String>> updateVariables(String secretName, Map<String, String> variablesToUpdate) {
+        defaultSecretPolicyService.assertDefaultSecretAccessible(secretName);
         lock.lock();
         try {
             Map<String, String> variables = new HashMap<>(secretService.getSecretData(secretName, true));
@@ -277,7 +280,8 @@ public class SecuredVariableService {
     public Set<String> importVariablesRequest(MultipartFile file) {
         Map<String, String> importedVariables;
         try {
-            importedVariables = yamlMapper.readValue(new String(file.getBytes()), new TypeReference<>() {});
+            importedVariables = yamlMapper.readValue(new String(file.getBytes()), new TypeReference<>() {
+            });
         } catch (IOException e) {
             log.error("Unable to convert file to variables {}", e.getMessage());
             throw new RuntimeException("Unable to convert file to variables");
@@ -304,12 +308,12 @@ public class SecuredVariableService {
 
     private void logSecuredVariableAction(String name, String secretName, LogOperation operation) {
         ActionLog action = ActionLog.builder()
-                .entityType(EntityType.SECURED_VARIABLE)
-                .entityName(name)
-                .parentType(EntityType.SECRET)
-                .parentName(secretName)
-                .operation(operation)
-                .build();
+            .entityType(EntityType.SECURED_VARIABLE)
+            .entityName(name)
+            .parentType(EntityType.SECRET)
+            .parentName(secretName)
+            .operation(operation)
+            .build();
         actionLogger.logAction(action);
     }
 }
