@@ -8,6 +8,9 @@ global:
   qip:
     ui:
       port: 30080
+    variables:
+      defaultSecret:
+        enabled: false
     deploy:
       classic:
         enabled: true
