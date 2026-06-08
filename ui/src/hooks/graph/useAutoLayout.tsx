@@ -131,6 +131,34 @@ function buildLayoutEdges<
   return layoutEdges;
 }
 
+function buildNodeLayoutOptions(
+  nodeType: string | undefined,
+  direction: ElkDirection,
+): LayoutOptions | undefined {
+  const isSwimlane = nodeType === "swimlane";
+  const isContainer = nodeType === "container";
+
+  if (isSwimlane) {
+    return {
+      "elk.padding":
+        direction === "RIGHT"
+          ? "[top=20,left=55,right=20,bottom=20]"
+          : "[top=55,left=20,right=20,bottom=20]",
+      "elk.alignment": direction === "RIGHT" ? "LEFT" : "TOP",
+      "elk.nodeSize.constraints": "MINIMUM_SIZE",
+      "elk.nodeSize.minimum": direction === "RIGHT" ? "(50, 150)" : "(150, 50)",
+    };
+  }
+
+  if (isContainer) {
+    return {
+      "elk.padding": "[top=55,left=20,right=20,bottom=20]",
+    };
+  }
+
+  return undefined;
+}
+
 function buildElkGraph<
   T extends ElkNode,
   NodeData extends Record<string, unknown> = never,
@@ -174,25 +202,13 @@ function buildElkGraph<
     parentMap.set(node.id, node.parentId);
 
     const hasChildren = (visibleChildrenCountByParentId.get(node.id) ?? 0) > 0;
-    const isSwimlane = node.type === "swimlane";
 
     nodeMap.set(node.id, {
       id: node.id,
       ...(hasChildren || node.type === "unit"
         ? { width: node.width ?? 150, height: node.height ?? 50 }
         : { width: 150, height: 50 }),
-      layoutOptions: isSwimlane
-        ? {
-          "elk.padding":
-            direction === "RIGHT"
-              ? "[top=20,left=55,right=20,bottom=20]"
-              : "[top=55,left=20,right=20,bottom=20]",
-          "elk.alignment": direction === "RIGHT" ? "LEFT" : "TOP",
-          "elk.nodeSize.constraints": "MINIMUM_SIZE",
-          "elk.nodeSize.minimum":
-            direction === "RIGHT" ? "(50, 150)" : "(150, 50)",
-        }
-        : undefined,
+      layoutOptions: buildNodeLayoutOptions(node.type, direction),
     });
   }
 

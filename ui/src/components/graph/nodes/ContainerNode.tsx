@@ -6,6 +6,7 @@ import {EllipsisLabel} from "./EllipsisLabel";
 import styles from "./ContainerNode.module.css";
 import {OverridableIcon} from "../../../icons/IconProvider.tsx";
 import {ContainerNodeBase} from "./ContainerNodeBase.tsx";
+import { DescriptionFormatter } from "./description_formatter/DescriptionFormatter.tsx";
 
 export const ContainerNode = memo(function ContainerNode({data, ...rest}: NodeProps<ChainGraphNode>) {
   const isCollapsed = !!data.collapsed;
@@ -18,6 +19,7 @@ export const ContainerNode = memo(function ContainerNode({data, ...rest}: NodePr
   return (
     <ContainerNodeBase
       header={
+        <>
         <Flex
           vertical={false}
           align="center"
@@ -59,6 +61,8 @@ export const ContainerNode = memo(function ContainerNode({data, ...rest}: NodePr
             </Tooltip>
           </div>
         </Flex>
+        <DescriptionFormatter {...data} />
+        </>
       }
       color="var(--container-border-color, #dedacd)"
       contentStyle={{

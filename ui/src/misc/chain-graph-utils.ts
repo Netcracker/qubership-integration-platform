@@ -1,12 +1,12 @@
-import {Element, ElementColorType, LibraryElement} from "../api/apiTypes.ts";
-import {Edge, Node, Position, XYPosition} from "@xyflow/react";
-import {ElkDirection} from "../hooks/graph/useElkDirection.tsx";
+import { Element, ElementColorType, LibraryElement } from "../api/apiTypes.ts";
+import { Edge, Node, Position, XYPosition } from "@xyflow/react";
+import { ElkDirection } from "../hooks/graph/useElkDirection.tsx";
 import {
   ChainGraphNode,
   ChainGraphNodeData,
   ChainGraphNodeWithChildren,
 } from "../components/graph/nodes/ChainGraphNodeTypes.ts";
-import {api} from "../api/api.ts";
+import { api } from "../api/api.ts";
 
 export function getDataFromElement(
   element: Element,
@@ -32,13 +32,18 @@ export function getDataFromElement(
   return node;
 }
 
+export function findLibraryElement(
+  type: string,
+  libraryElements: LibraryElement[] | null,
+): LibraryElement | undefined {
+  return libraryElements?.find((descriptor) => descriptor.name === type);
+}
+
 export function getLibraryElement(
   element: Element,
   libraryElements: LibraryElement[] | null,
 ): LibraryElement {
-  const libraryElement = libraryElements?.find(
-    (descriptor) => descriptor.name === element.type,
-  );
+  const libraryElement = findLibraryElement(element.type, libraryElements);
   return (
     libraryElement ??
     ({
@@ -381,7 +386,7 @@ function buildTree(
   return result;
 }
 
-async function getLibraryElementByType(
+export async function getLibraryElementByType(
   elementType: string,
 ): Promise<LibraryElement | undefined> {
   if (elementType === "container") return;

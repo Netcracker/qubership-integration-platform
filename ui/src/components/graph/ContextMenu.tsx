@@ -1,4 +1,5 @@
 import { Dropdown } from "antd";
+import { ItemType } from "antd/es/menu/interface";
 
 export type ContextMenuData = {
   x: number;
@@ -11,6 +12,7 @@ export type ContextMenuItem = {
   text: string;
   handler: () => Promise<void> | void;
   disabled?: boolean;
+  children?: ContextMenuItem[];
 };
 
 export type ContextMenuProps = {
@@ -19,30 +21,31 @@ export type ContextMenuProps = {
 };
 
 export default function ContextMenu({ menu, closeMenu }: ContextMenuProps) {
-  const dropdownItems = menu.items.map((item) => {
-    return {
-      key: item.id,
-      label: (
-        <a
-          onClick={() => {
-            void item.handler();
-          }}
-          style={{
-            ...(item.disabled && { pointerEvents: "none", opacity: 0.6 }),
-          }}
-        >
-          {item.text}
-        </a>
-      ),
-    };
-  });
+  const buildItems = (items: ContextMenuItem[]): ItemType[] => {
+    return items.map((item) => {
+      return {
+        key: item.id,
+        label: (
+          <a
+            onClick={() => {
+              void item.handler();
+            }}
+          >
+            {item.text}
+          </a>
+        ),
+        disabled: item.disabled,
+        ...(item.children && { children: buildItems(item.children) }),
+      };
+    });
+  };
 
   return (
     <Dropdown
       open
       key={`${menu.x}-${menu.y}`}
       trigger={["contextMenu"]}
-      menu={{ items: dropdownItems, onClick: closeMenu }}
+      menu={{ items: buildItems(menu.items), onClick: closeMenu }}
     >
       <div
         style={{
