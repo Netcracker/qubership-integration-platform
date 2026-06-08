@@ -124,6 +124,7 @@ public class SecuredVariableService {
         lock.lock();
         try {
             variables = secretService.getSecretData(secretName, true);
+            defaultSecretPolicyService.assertCanAddVariables(secretName, newVariables, variables);
 
             if (secretService.isDefaultSecret(secretName)) {
                 validateSecuredVariablesUniqueness(variables, newVariables);

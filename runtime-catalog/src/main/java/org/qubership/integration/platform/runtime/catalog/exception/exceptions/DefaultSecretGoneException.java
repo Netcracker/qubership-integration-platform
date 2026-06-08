@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.exception.exceptions;
 public class DefaultSecretGoneException extends RuntimeException {
 
     private static final String DISABLED_MESSAGE = "Default secret functionality is disabled";
+    private static final String ADD_NOT_ALLOWED_MESSAGE = "Adding new variables to default secret is not allowed";
 
     public DefaultSecretGoneException(String message) {
         super(message);
@@ -26,5 +27,9 @@ public class DefaultSecretGoneException extends RuntimeException {
 
     public static DefaultSecretGoneException disabled() {
         return new DefaultSecretGoneException(DISABLED_MESSAGE);
+    }
+
+    public static DefaultSecretGoneException addNotAllowed() {
+        return new DefaultSecretGoneException(ADD_NOT_ALLOWED_MESSAGE);
     }
 }

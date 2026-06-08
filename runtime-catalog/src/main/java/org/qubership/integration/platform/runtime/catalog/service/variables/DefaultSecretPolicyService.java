@@ -55,4 +55,18 @@ public class DefaultSecretPolicyService {
         }
     }
 
+    public void assertCanAddVariables(
+            String secretName,
+            Map<String, String> newVariables,
+            Map<String, String> existingVariables) {
+        if (!secretService.isDefaultSecret(secretName)) {
+            return;
+        }
+        boolean hasNewVariable = newVariables.keySet().stream()
+                .anyMatch(name -> !existingVariables.containsKey(name));
+        if (hasNewVariable) {
+            throw DefaultSecretGoneException.addNotAllowed();
+        }
+    }
+
 }
