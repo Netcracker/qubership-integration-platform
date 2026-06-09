@@ -17,9 +17,9 @@
 package org.qubership.integration.platform.runtime.catalog.service.designgenerator;
 
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType;
 import org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramLangType;
 import org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramOperation;
-import org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramOperationType;
 
 import java.util.HashMap;
 import java.util.Map;

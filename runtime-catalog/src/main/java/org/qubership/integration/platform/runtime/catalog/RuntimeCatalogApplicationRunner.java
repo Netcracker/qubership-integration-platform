@@ -20,7 +20,10 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {
+    "org.qubership.integration.platform.runtime.catalog",
+    "org.qubership.integration.platform.serdes"
+})
 public class RuntimeCatalogApplicationRunner {
 
     public static void main(String[] args) {

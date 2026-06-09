@@ -19,11 +19,11 @@ package org.qubership.integration.platform.runtime.catalog.builder.templates.hel
 import com.github.jknack.handlebars.Helper;
 import com.github.jknack.handlebars.Options;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.model.ElementDescriptor;
+import org.qubership.integration.platform.library.model.ElementProperty;
 import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplatesHelper;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementProperty;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.runtime.catalog.util.MaasUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -51,7 +51,8 @@ public class QueryParamsHelper extends BaseHelper implements Helper<ChainElement
 
     @Override
     public Object apply(ChainElement element, Options options) throws IOException {
-        ElementDescriptor descriptor = libraryElementsService.getElementDescriptor(element);
+        ElementDescriptor descriptor = Optional.ofNullable(libraryElementsService.getElementDescriptor(element.getType()))
+            .orElseGet(ElementDescriptor::new);
         StringBuilder str = new StringBuilder();
         List<ElementProperty> queryProperties = descriptor.getQueryProperties();
         ArrayList<String> maasEnabledParams = MaasUtils.getMaasParams(element);

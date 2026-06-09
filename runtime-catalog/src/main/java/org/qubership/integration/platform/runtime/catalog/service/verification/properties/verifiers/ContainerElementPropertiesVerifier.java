@@ -17,9 +17,9 @@
 package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
 
 import org.apache.commons.collections4.CollectionUtils;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.ElementPropertiesVerifier;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
 import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
