@@ -25,10 +25,11 @@ import com.github.jknack.handlebars.helper.StringHelpers;
 import com.github.jknack.handlebars.io.ClassPathTemplateLoader;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.model.ElementDescriptor;
+import org.qubership.integration.platform.library.model.ElementType;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SnapshotCreationException;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -36,6 +37,7 @@ import org.springframework.stereotype.Component;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @Component
@@ -114,7 +116,8 @@ public final class TemplateService {
     }
 
     public Template getTemplate(ChainElement element) {
-        return libraryService.getElementDescriptor(element).getType() == ElementType.COMPOSITE_TRIGGER
+        return Optional.ofNullable(libraryService.getElementDescriptor(element.getType()))
+                    .orElseGet(ElementDescriptor::new).getType() == ElementType.COMPOSITE_TRIGGER
                 ? getTemplate(element.getType() + (element.getInputDependencies().isEmpty() && element.getParent() == null
                         ? COMPOSITE_TRIGGER_DIR_SUFFIX
                         : COMPOSITE_TRIGGER_MODULE_DIR_SUFFIX))

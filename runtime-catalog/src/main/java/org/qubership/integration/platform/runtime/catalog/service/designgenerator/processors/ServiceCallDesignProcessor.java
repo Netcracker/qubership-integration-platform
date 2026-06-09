@@ -35,10 +35,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.*;
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.*;
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.*;
 import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramConstants.*;
-import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramOperationType.*;
 
 @Component
 public class ServiceCallDesignProcessor implements DesignProcessor {

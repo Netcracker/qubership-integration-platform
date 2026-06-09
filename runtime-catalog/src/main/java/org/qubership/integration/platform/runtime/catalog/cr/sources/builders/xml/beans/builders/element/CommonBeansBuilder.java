@@ -1,13 +1,13 @@
 package org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.builders.element;
 
 import org.codehaus.stax2.XMLStreamWriter2;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.model.ElementType;
 import org.qubership.integration.platform.runtime.catalog.builder.BuilderConstants;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.SourceBuilderContext;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.ElementBeansBuilder;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.ElementService;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

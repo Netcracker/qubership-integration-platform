@@ -20,6 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.model.*;
 import org.qubership.integration.platform.runtime.catalog.configuration.aspect.ChainModification;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementCreationException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementValidationException;
@@ -27,7 +29,6 @@ import org.qubership.integration.platform.runtime.catalog.model.ChainDiff;
 import org.qubership.integration.platform.runtime.catalog.model.ElementsWithSystemUsage;
 import org.qubership.integration.platform.runtime.catalog.model.dto.system.UsedSystem;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemUsageResponse;
-import org.qubership.integration.platform.runtime.catalog.model.library.*;
 import org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
@@ -40,7 +41,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.re
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.CreateElementRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemType;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.auditing.AuditingHandler;
@@ -319,7 +319,7 @@ public class ElementService extends ElementBaseService {
                                 .filter(element -> StringUtils.equals(parentId, element.getId()))
                                 .findFirst())
                         .map(this::findRootParent)
-                        .map(libraryService::getElementDescriptor)
+                        .map(elementUtils::getElementDescriptor)
                         .map(elementDescriptor -> ElementType.REUSE == elementDescriptor.getType())
                         .orElse(false);
                 if (swimlane.isReuseSwimlane() && !rootParentReuse) {
@@ -593,7 +593,7 @@ public class ElementService extends ElementBaseService {
                 chainDiff.addUpdatedElement(parentElement);
             }
             chainDiff.addRemovedElements(elements);
-            Optional.ofNullable(libraryService.getElementDescriptor(element))
+            Optional.ofNullable(elementUtils.getElementDescriptor(element))
                     .filter(ElementDescriptor::isReferencedByAnotherElement)
                     .ifPresent(descriptor -> deleteElementReferences(chainDiff, element));
 
@@ -792,19 +792,19 @@ public class ElementService extends ElementBaseService {
     }
 
     public boolean isElementDeprecated(ChainElement chainElement) {
-        return Optional.ofNullable(libraryService.getElementDescriptor(chainElement))
+        return Optional.ofNullable(elementUtils.getElementDescriptor(chainElement))
                 .map(ElementDescriptor::isDeprecated)
                 .orElse(false);
     }
 
     public boolean isElementUnsupported(ChainElement chainElement) {
-        return Optional.ofNullable(libraryService.getElementDescriptor(chainElement))
+        return Optional.ofNullable(elementUtils.getElementDescriptor(chainElement))
                 .map(ElementDescriptor::isUnsupported)
                 .orElse(false);
     }
 
     public void validateElementProperties(ChainElement element) {
-        ElementDescriptor descriptor = libraryService.getElementDescriptor(element);
+        ElementDescriptor descriptor = elementUtils.getElementDescriptor(element);
         if (descriptor == null) {
             return;
         }

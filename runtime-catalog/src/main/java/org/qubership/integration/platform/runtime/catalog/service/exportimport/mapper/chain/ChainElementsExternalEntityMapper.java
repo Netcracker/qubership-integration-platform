@@ -17,15 +17,15 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain;
 
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.model.ElementDescriptor;
+import org.qubership.integration.platform.library.model.ElementType;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainElementExternalEntity;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainElementsExternalMapperEntity;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 
