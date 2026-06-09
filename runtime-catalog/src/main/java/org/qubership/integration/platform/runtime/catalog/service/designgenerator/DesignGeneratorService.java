@@ -18,15 +18,16 @@ package org.qubership.integration.platform.runtime.catalog.service.designgenerat
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.model.ElementDescriptor;
+import org.qubership.integration.platform.library.model.ElementType;
+import org.qubership.integration.platform.library.model.chaindesign.ContainerChildrenParameters;
+import org.qubership.integration.platform.library.model.chaindesign.ElementContainerDesignParameters;
+import org.qubership.integration.platform.library.model.chaindesign.ElementDesignParameters;
+import org.qubership.integration.platform.library.model.chaindesign.ElementDiagramOperation;
 import org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramLangType;
 import org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramMode;
 import org.qubership.integration.platform.runtime.catalog.model.designgenerator.ElementsSequenceDiagram;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementType;
-import org.qubership.integration.platform.runtime.catalog.model.library.chaindesign.ContainerChildrenParameters;
-import org.qubership.integration.platform.runtime.catalog.model.library.chaindesign.ElementContainerDesignParameters;
-import org.qubership.integration.platform.runtime.catalog.model.library.chaindesign.ElementDesignParameters;
-import org.qubership.integration.platform.runtime.catalog.model.library.chaindesign.ElementDiagramOperation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractEntity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -36,7 +37,6 @@ import org.qubership.integration.platform.runtime.catalog.service.ElementService
 import org.qubership.integration.platform.runtime.catalog.service.designgenerator.processors.interfaces.ContainerDesignProcessor;
 import org.qubership.integration.platform.runtime.catalog.service.designgenerator.processors.interfaces.DesignProcessor;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.runtime.catalog.util.DiagramBuilderEscapeUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -45,9 +45,9 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.*;
 import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramConstants.DEFAULT_RESPONSE_TITLE;
 import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramConstants.GROUP_BG_RGB;
-import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramOperationType.*;
 
 @Slf4j
 @Service
@@ -131,8 +131,8 @@ public class DesignGeneratorService {
 
         List<ChainElement> triggers = elements.stream()
                 .filter(chainElement ->
-                        libraryService.getElementDescriptor(chainElement) != null
-                                && libraryService.getElementDescriptor(chainElement).getType() == ElementType.TRIGGER)
+                        libraryService.getElementDescriptor(chainElement.getType()) != null
+                                && libraryService.getElementDescriptor(chainElement.getType()).getType() == ElementType.TRIGGER)
                 .sorted(Comparator.comparing(AbstractEntity::getName))
                 .collect(Collectors.toList());
 
@@ -225,7 +225,9 @@ public class DesignGeneratorService {
     }
 
     private void addParticipant(String chainId, Map<String, String> participants, ChainElement element) {
-        ElementDesignParameters designParameters = libraryService.getElementDescriptor(element).getDesignParameters();
+        ElementDesignParameters designParameters = Optional.ofNullable(libraryService.getElementDescriptor(element.getType()))
+            .map(ElementDescriptor::getDesignParameters)
+            .orElse(null);
         DesignProcessor designProcessor = designProcessors.get(element.getType());
         String participantName, participantId;
 
@@ -236,8 +238,8 @@ public class DesignGeneratorService {
             participantName = designProcessor.getExternalParticipantName(element);
             participantId = designProcessor.getExternalParticipantId(element);
         } else {
-            participantName = designParameters.getExternalParticipantName(chainId, element);
-            participantId = designParameters.getExternalParticipantId(chainId, element);
+            participantName = getExternalParticipantName(designParameters, chainId, element);
+            participantId = getExternalParticipantId(designParameters, chainId, element);
         }
 
         if (participantName != null) {
@@ -256,7 +258,8 @@ public class DesignGeneratorService {
         }
 
         List<ChainElement> elementsTo = fromElementMap.getOrDefault(currentElement.getId(), Collections.emptyList());
-        ElementDescriptor elementDescriptor = libraryService.getElementDescriptor(currentElement);
+        ElementDescriptor elementDescriptor = Optional.ofNullable(libraryService.getElementDescriptor(currentElement.getType()))
+            .orElseGet(ElementDescriptor::new);
         DesignProcessor designProcessor = designProcessors.get(currentElement.getType());
 
         if (elementsToProcessIds.contains(currentElement.getId())) {
@@ -444,13 +447,13 @@ public class DesignGeneratorService {
                                                 Map<String, List<ChainElement>> fromElementMap, Set<String> elementsToProcessIds,
                                                 DiagramMode mode, List<ChainElement> elementsTo,
                                                 ElementDesignParameters designParameters, boolean shouldWriteElement) {
-        String fromId, toId, title = designParameters.getRequestLineTitle(refChainId, currentElement);
+        String fromId, toId, title = getRequestLineTitle(designParameters, refChainId, currentElement);
         if (designParameters.isDirectionToChain()) {
-            fromId = designParameters.getExternalParticipantId(refChainId, currentElement);
+            fromId = getExternalParticipantId(designParameters, refChainId, currentElement);
             toId = refChainId;
         } else {
             fromId = refChainId;
-            toId = designParameters.getExternalParticipantId(refChainId, currentElement);
+            toId = getExternalParticipantId(designParameters, refChainId, currentElement);
         }
 
         if (shouldWriteElement) {
@@ -499,7 +502,8 @@ public class DesignGeneratorService {
                         Function.identity())
                 );
         for (ChainElement element : elements) {
-            ElementDescriptor descriptor = libraryService.getElementDescriptor(element);
+            ElementDescriptor descriptor = Optional.ofNullable(libraryService.getElementDescriptor(element.getType()))
+                .orElseGet(ElementDescriptor::new);
             if (ElementType.REUSE_REFERENCE != descriptor.getType()) {
                 continue;
             }
@@ -531,5 +535,18 @@ public class DesignGeneratorService {
     private static boolean shouldWriteElement(ChainElement currentElement, DiagramMode mode) {
         return !(mode == DiagramMode.SIMPLE
                 && SIMPLE_DIAGRAM_ELEMENT_EXCLUDE_SET.contains(currentElement.getType()));
+    }
+
+    public String getExternalParticipantId(ElementDesignParameters designParameters, String chainId, ChainElement currentElement) {
+        String result = DiagramBuilderEscapeUtil.substituteProperties(chainId, currentElement, designParameters.getExternalParticipantId());
+        return DiagramBuilderEscapeUtil.removeOrReplaceUnsupportedCharacters(result);
+    }
+
+    public String getExternalParticipantName(ElementDesignParameters designParameters, String chainId, ChainElement currentElement) {
+        return DiagramBuilderEscapeUtil.substituteProperties(chainId, currentElement, designParameters.getExternalParticipantName());
+    }
+
+    public String getRequestLineTitle(ElementDesignParameters designParameters, String chainId, ChainElement currentElement) {
+        return DiagramBuilderEscapeUtil.substituteProperties(chainId, currentElement, designParameters.getRequestLineTitle());
     }
 }

@@ -25,9 +25,9 @@ import org.springframework.stereotype.Component;
 
 import java.util.Set;
 
+import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.*;
 import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramConstants.DEFAULT_RESPONSE_TITLE;
 import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramConstants.EMPTY_PROPERTY_STUB;
-import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramOperationType.*;
 
 
 @Component

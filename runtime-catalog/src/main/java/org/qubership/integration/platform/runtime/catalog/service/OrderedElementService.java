@@ -16,11 +16,12 @@
 
 package org.qubership.integration.platform.runtime.catalog.service;
 
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.runtime.catalog.model.ChainDiff;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
+import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
 import org.qubership.integration.platform.runtime.catalog.util.OrderedElementUtils;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
@@ -34,17 +35,20 @@ import java.util.stream.IntStream;
 @Service
 @Transactional
 public class OrderedElementService {
-
     private final LibraryElementsService libraryService;
+    private final ElementUtils elementUtils;
 
-
-    public OrderedElementService(LibraryElementsService libraryService) {
+    public OrderedElementService(
+        LibraryElementsService libraryService,
+        ElementUtils elementUtils
+    ) {
         this.libraryService = libraryService;
+        this.elementUtils = elementUtils;
     }
 
 
     public void calculatePriority(@NonNull ContainerChainElement parentElement, ChainElement element) {
-        OrderedElementUtils orderedElementUtils = new OrderedElementUtils(libraryService.getElementDescriptor(element), element);
+        OrderedElementUtils orderedElementUtils = new OrderedElementUtils(elementUtils.getElementDescriptor(element), element);
         final List<ChainElement> orderedElements = orderedElementUtils.extractOrderedElements(parentElement, true);
         Integer orderNumber = (int) orderedElements.stream()
                 .filter(it -> {
@@ -62,7 +66,7 @@ public class OrderedElementService {
 
         final ChainDiff chainDiff = new ChainDiff();
 
-        OrderedElementUtils orderedElementUtils = new OrderedElementUtils(libraryService.getElementDescriptor(element), element);
+        OrderedElementUtils orderedElementUtils = new OrderedElementUtils(elementUtils.getElementDescriptor(element), element);
         Integer currentPriority = orderedElementUtils.getPriorityAsInt(element);
 
         if (!currentPriority.equals(newPriority)) {
@@ -105,7 +109,7 @@ public class OrderedElementService {
     public ChainDiff removeOrderedElement(@NonNull ContainerChainElement parentElement, ChainElement element) {
         final ChainDiff chainDiff = new ChainDiff();
 
-        OrderedElementUtils orderedElementUtils = new OrderedElementUtils(libraryService.getElementDescriptor(element), element);
+        OrderedElementUtils orderedElementUtils = new OrderedElementUtils(elementUtils.getElementDescriptor(element), element);
         int currentPriority = orderedElementUtils.getPriorityAsInt(element);
         if (currentPriority < parentElement.getElements().size()) {
             List<ChainElement> sortedElements = orderedElementUtils.getSortedChildren(parentElement);
@@ -125,7 +129,7 @@ public class OrderedElementService {
     }
 
     public boolean isOrdered(@NonNull ChainElement element) {
-        ElementDescriptor descriptor = libraryService.getElementDescriptor(element);
+        ElementDescriptor descriptor = elementUtils.getElementDescriptor(element);
         return descriptor != null && descriptor.isOrdered() && element.getParent() != null;
     }
 

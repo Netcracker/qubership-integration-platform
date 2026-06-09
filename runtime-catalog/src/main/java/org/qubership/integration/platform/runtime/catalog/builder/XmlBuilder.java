@@ -20,15 +20,15 @@ import com.ctc.wstx.stax.WstxOutputFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.codehaus.stax2.XMLStreamWriter2;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.model.ElementDescriptor;
+import org.qubership.integration.platform.library.model.ElementType;
 import org.qubership.integration.platform.runtime.catalog.builder.templates.TemplateService;
 import org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants;
 import org.qubership.integration.platform.runtime.catalog.model.ChainRoute;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -93,7 +93,8 @@ public class XmlBuilder {
                 streamWriter.writeAttribute(BuilderConstants.URI, BuilderConstants.DIRECT + chainRoute.getId());
             }
             for (ChainElement chainElement : chainRoute.getElements()) {
-                ElementDescriptor elementDescriptor = libraryService.getElementDescriptor(chainElement);
+                ElementDescriptor elementDescriptor = Optional.ofNullable(libraryService.getElementDescriptor(chainElement.getType()))
+                    .orElseGet(ElementDescriptor::new);
                 ElementType type = elementDescriptor.getType();
                 if (type == ElementType.TRIGGER && !BuilderConstants.ON_COMPLETION_EXCLUDE_TRIGGERS.contains(elementDescriptor.getName())) {
                     addOnCompletion(streamWriter);
@@ -122,12 +123,14 @@ public class XmlBuilder {
 
     private void addWiretapBridgeRoute(ChainRoute chainRoute, XMLStreamWriter2 streamWriter) throws XMLStreamException {
         for (ChainElement element : chainRoute.getElements()) {
-            ElementDescriptor elementDescriptor = libraryService.getElementDescriptor(element);
+            ElementDescriptor elementDescriptor = Optional.ofNullable(libraryService.getElementDescriptor(element.getType()))
+                .orElseGet(ElementDescriptor::new);
             String elementName = elementDescriptor.getName();
             if (CamelNames.SPLIT_ASYNC_2_COMPONENT.equals(elementName) || CamelNames.SPLIT_ASYNC_COMPONENT.equals(elementName)) {
                 ContainerChainElement splitContainer = (ContainerChainElement) element;
                 for (ChainElement splitElement : splitContainer.getElements()) {
-                    String splitElementName = libraryService.getElementDescriptor(splitElement).getName();
+                    String splitElementName = Optional.ofNullable(libraryService.getElementDescriptor(splitElement.getType()))
+                        .orElseGet(ElementDescriptor::new).getName();
                     if (ConfigurationPropertiesConstants.ASYNC_SPLIT_ELEMENT.equals(splitElementName)
                             || ConfigurationPropertiesConstants.ASYNC_SPLIT_ELEMENT_2.equals(splitElementName)
                     ) {
