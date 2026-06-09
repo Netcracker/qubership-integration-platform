@@ -20,8 +20,15 @@ The table of masking fields consists of the following columns and elements:
 #### <ins>VS Code Extension</ins>
 - **Field** - masking field's name, that is going to be masked. For editing, hover the cursor over the name and click on it.
 
+
+At the top of the table the following options are available:
+- **Search masked field** - search box, provides ability to find respective data in the table.
+- ![setting](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns
+- ![delete](img/delete.svg) - deletes selected masked fields.
+- ![plus](img/plus.svg) - allows to add masked  field.
+
 ### Add Field for Masking
-To secure sensitive data use the **action menu** to  **Add New Masked Field** ![Plus|20](img/plus.svg). Enter a name. The field will be masked at every level of JSON, XML, etc., during chain execution. Masked fields affect logs and sessions by hiding the original data.
+To secure sensitive data use the **action menu** to  **Add New Masked Field** ![plus](img/plus.svg). Enter a name. The field will be masked at every level of JSON, XML, etc., during chain execution. Masked fields affect logs and sessions by hiding the original data.
 
 > ℹ️ **Notes:**
 > - Masked fields can be configured to include parameters from the exchange object, including headers, exchange properties and body.
@@ -35,4 +42,4 @@ To secure sensitive data use the **action menu** to  **Add New Masked Field** ![
 > - When using sub-chains (via [Chain Call](../1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) element), the masked fields list is determined by combining the fields defined in the parent chain with those specified in the sub-chain. This essentially means the **sub-chain inherits the masked fields from its parent chain**.
 
 ### Delete Field(s)
-To delete masking field(s) select the items by checkbox and click ![Delete|20](img/delete.svg).
+To delete masking field(s) select the items by checkbox and click ![delete](img/delete.svg).

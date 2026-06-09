@@ -6,13 +6,19 @@ Context Services are being used as a temporary storage of chain contexts. Chain 
 
 > ⚠️ **Warning:** Context services **shall NOT be used** to store/manage sensitive data.
 
+## Process Initialization
+
+---
+
+- In <ins>Web UI</ins>: to reach the Context Services management window, please click "Services" on the top of the Qubership Integration Platform screen and then go to "Context" tab.
+- In <ins>VS Code Extension</ins>: to create and configure a service instance, navigate to "Services" section under the "QIP" folder in the left bottom within VS Code Extension.
+
 ## User Interface
 
 ---
 
 ### View Context Services
-
-**`⛔ Not available via VS Code extension`**
+<ins>Web UI</ins>
 
 Table with **Context** services is accessible by navigating to **Services** → **Context** tab. Next columns and elements are available for the table:
 
@@ -35,6 +41,10 @@ Table with **Context** services is accessible by navigating to **Services** → 
   - ![cloud-upload](img/cloud-upload.svg) - opens pop-up for service import.
   - ![plus](img/plus.svg) - provides ability to add new service.
 
+<ins>VS Code Extension</ins>
+
+All services created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
+
 ### View Parameters
 Parameters tab contains the following information:
 - **Name** - mandatory service name.
@@ -47,15 +57,18 @@ For <ins>Web UI</ins> there are some additional information:
 - **Modified** - datetime of entity modifying.
 
 ### Add Context Service
+<ins>Web UI</ins>
 
-**`⛔ Not available via VS Code extension`**
+To add new context service, click **"Create"** button marked with ![plus](img/plus.svg). Specify service name and description on a newly opened pop-up and then click **"Save"**.
 
-To add new context service, click **"Create"** button marked with ![plus](img/plus.svg).  Specify service name, description and labels on a newly opened pop-up and then click **"Save"**. System opens new window with the **"Parameters"** tab:
-- **Name** - mandatory service name.
-- **Description** - description of service.
-- **Service type** - types of service.
+<ins>VS Code Extension</ins>
 
-Specify the required fields and click **"Save"**. Notification about successful saving means that context service is added to the list of context services.
+To create any service using VS Code Extension, follow the steps outlined below:
+
+1. Open "VS Code Extension" in Visual Studio Code.
+2. In the left bottom find QIP section and expand it.
+3. Near the "Services" folder click on appearing button "QIP Create service".
+4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter some description and click Enter. Next, it opens "Parameters" tab of the created service.
 
 ### Import Service(s)
 
@@ -87,3 +100,11 @@ When import is completed, system displays import result table with the following
 System allows exporting service. There are two possible ways to export service(s):
 - From **"Context Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) (Export).
 - From exact service page - simply click ![cloud-download](img/cloud-download.svg) (Export) from the action menu ![more](img/more.svg).
+
+## Data Storage
+
+---
+
+- In <ins>Web UI</ins>: for any services created, the service parameters and configuration is stored in QIP Catalog database.
+- In <ins>VS Code Extension</ins>: services configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.
+

@@ -4,12 +4,19 @@
 ---
 Qubership Integration Platform is able to integrate with Inner Cloud Services, that are located within the environment. Unlike for external services, Qubership Integration Platform might perform a lookup in order to fetch all Inner Services available within the Cloud.
 
+## Process Initialization
+
+---
+
+- In <ins>Web UI</ins>: to reach the Inner Cloud Services management window, please click "Services" on the top of the Qubership Integration Platform screen and then go to "Inner Cloud" tab.
+- In <ins>VS Code Extension</ins>: to create and configure a service instance, navigate to "Services" section under the "QIP" folder in the left bottom within VS Code Extension.
+
+
 ## User Interface
 
 ---
 ### View Inner Cloud Services
-
-**`⛔ Not available via VS Code extension`**
+<ins>Web UI</ins>
 
 Table with Inner Cloud services is accessible by navigating to **Services** → **Inner Cloud** tab. Next columns and elements are available for the table:
 
@@ -43,12 +50,16 @@ Table with Inner Cloud services is accessible by navigating to **Services** → 
   - ![cloud-upload](img/cloud-upload.svg) - opens pop-up for service import.
   - ![plus](img/plus.svg) - provides ability to add new service.
 
+<ins>VS Code Extension</ins>
+
+All services created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
+
 ### View Parameters
 Parameters tab contains the following information:
-- Name - mandatory service name.
-- Description - description of service.
-- Protocol - service's integration protocol.
-- Labels - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
+- **Name** - mandatory service name.
+- **Description** - description of service.
+- **Protocol** - service's integration protocol.
+- **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
   It might contain **custom** labels, entered by user via Qubership Integration Platform UI or **technical** labels,
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
   **Technical** labels cannot be updated manually.
@@ -59,6 +70,7 @@ For <ins>Web UI</ins> there are some additional information:
 - **Modified** - datetime of entity modifying.
 
 ### View Specification Groups
+When service is clicked, the system shows the table with all specification groups and specifications, available for clicked service. Next columns and elements are available for the table:
 - **Name** - clickable name of the specification group or specification. When clicked, system navigates to respective entity.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
@@ -83,16 +95,18 @@ To add new information, click on the button ![setting](img/setting.svg) located 
 - **Method** -  method of the operation, mentioned in the specification.
 - **URL** - operation path.
 
-**Actions menu** - list of operations, accessed via ![more](img/more.svg) menu. Contains the following operations:
-- ![down](img/down.svg) / ![up](img/up.svg) - fully expands or collapses the entity.
-- ![plus](img/plus.svg) - provides ability to add new specification.
-- ![delete](img/delete.svg) - deletes entity.
+By default the columns in the table can be different from <ins>Web UI</ins> and <ins>VS Code Extension</ins>. But all hidden columns can be set using the button ![setting](img/setting.svg) located on the right side.
 
-In general at the right top the next operation is available:
-- ![cloud-download](img/cloud-download.svg) - exports the service.
+**Actions menu** - list of operations, accessed via ![more](img/more.svg) menu. Contains the following operations:
+- **Expand** ![down](img/down.svg) / **Collapse** ![up](img/up.svg) - fully expands or collapses the entity.
+- **Add Specification** ![plus](img/plus.svg) - allows to add a new specification to the group.
+- **Delete** ![delete](img/delete.svg) - deletes entity.
+
+In general at the right top the next operation is available only for <ins>Web UI</ins>:
+- ![cloud-download](img/cloud-download.svg) - Export service.
 
 ### View Specifications
-When particular specification group name is clicked, system opens new page with the table of available specifications for clicked group. Next columns and elements are available for the table:
+When particular specification group name is clicked, the system opens new page with the table of available specifications for clicked group. Next columns and elements are available for the table:
 
 - **Name** - specification name, which is also considered as a version. Specification name **must be unique** inside of
   API Specification group for any type of service. For **Swagger** and **AsyncAPI** specifications version is retrieving
@@ -126,13 +140,12 @@ To add new information, click on the button ![setting](img/setting.svg) located 
 - ![stop](img/stop.svg) - deprecates the specification, that makes it unavailable for newly added chain elements.
 - ![cloud-download](img/cloud-download.svg) - exports the service.
 
-In general at the right top the next operations are available:
+In general at the right top the following operations are available:
 - ![cloud-upload](img/cloud-upload.svg) - opens pop-up for service import.
-- ![cloud-download](img/cloud-download.svg) - exports the specification.
-
+- ![cloud-download](img/cloud-download.svg) - exports the service (available only for <ins>Web UI</ins>).
 
 ### View Operations
-When specification is clicked, system opens new page with the table of available operations for clicked specifications. Next columns and elements are available for the table:
+When specification is clicked, the system opens new page with the table of available operations for clicked specifications. Next columns and elements are available for the table:
 
 - **Name** - Clickable short operation name. If the name has not been found in the initial specification, QIP generates its own name by concatenating **method** with the first found **entity**,
 identified in the **path** (parameters, mentioned in the **{ }** are ignored). Resulted name will be put in square brackets (e.g. for method **GET** and path **/api/v1/test/config**, the name will be [getConfig]). When clicked, the system shows **"Operation info"** window with available details for specification and request/response schemes.
@@ -143,7 +156,7 @@ identified in the **path** (parameters, mentioned in the **{ }** are ignored). R
 - **Operation** - GraphQL operation definition (without operation type). Only applicable for services using **GraphQL** protocol.
 - **Used by** - list, that contains references to the chains, utilizing this operation.
 - **Control panel** - panel placed on the top of the table. Provides next capabilities:
-  - ![cloud-download](img/cloud-download.svg) - export specification.
+  - ![cloud-download](img/cloud-download.svg) - export specification (available only for <ins>Web UI</ins>).
   
 ### Discover Inner Cloud Services
 To find all available Inner Services, there is a specific button ![cloud-sync](img/cloud-sync.svg) **"Service Discovery"**  available on **"Inner Cloud Services"** tab under **"Services"** section. To start a discovery process, simply click the mentioned button. Progress bar will show the percentage of discovery completion. Notification at the top-right will additionally signal about process start and finish. The result of the discovery might be:
@@ -159,8 +172,7 @@ For inner services, that are discovered in K8S namespace, system uses their name
 
 
 ### Add Inner Cloud Service
-
-**`⛔ Not available via VS Code extension`**
+<ins>Web UI</ins>
 
 To add new Inner Cloud Service, click **"Create service"** button marked with ![plus](img/plus.svg)  on the top right of the screen. Specify service name and description on a newly opened pop-up and click "**Create**" button. System opens new window with three tabs:
 - **Parameters**
@@ -173,10 +185,19 @@ Parameters tab contains minimal set of parameters, that allows to save the inter
 - **Description** - description of service.
 - **Internal name** - non-editable. Field that contains K8S name of the service. Specified only for services that are already available on Kubernetes side.
 - **Labels** - set of labels for service:
-  - **Created** - non-editable. Datetime and author of specification group creation.
-  - **Modified** - non-editable. Datetime and author of last specification group modification.
+- **Created** - non-editable. Datetime and author of specification group creation.
+- **Modified** - non-editable. Datetime and author of last specification group modification.
 
 Specify the required fields and click **"Save"**. Notification about successful saving means that service is added to the list of inner services.
+
+<ins>VS Code Extension</ins>
+
+To create any service using VS Code Extension, follow the steps outlined below:
+
+1. Open "VS Code Extension" in Visual Studio Code.
+2. In the left bottom find QIP section and expand it.
+3. Near the "Services" folder click on appearing button "QIP Create service".
+4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter some description and click Enter. Next, it opens "Parameters" tab of the created service.
 
 ### Add Specification Group
 To add specification group to Inner Cloud service:
@@ -200,6 +221,8 @@ To add API specification into existing specification group:
 4. Confirm operation with **"Save"** button.
 
 ### Add Environment
+**`⛔ Not available via VS Code extension`**
+
 There is no manual option to create new environment for Inner Cloud Service - it will be created automatically as a result of service discovery process. Each particular Inner Cloud Service could have only one related environment.
 
 ### Environment Update
@@ -264,12 +287,12 @@ Default properties are unique for different protocols and described below:
 | acknowledgeMode | String  | Flag controlling the behaviour of the container with respect to message acknowledgement. Possible values: NONE, MANUAL, AUTO | AUTO |
 
 Additionally, if it is required to use same connection for multiple requests of **http** and **GraphQL** services, it is possible to specify **reuseEstablishedConnection** property with values: true/false.
-When environment is saved, its updated card will be available under the environment tab. The card will have next information and elements:
+When environment is saved, its updated item will be available under the environment tab. The environment will have next information and elements:
 
 - **Name** - name of the environment, specified during configuration.
 - **Address** - exact environment address.
 - **Source** - MaaS or Manual.
-- **Modified** - datetime and author of environment modification.
+- **Modified At** - datetime and author of environment modification.
 - **Used by** - the list of chains where service environment is being used.
 
 ### Import Service(s)
@@ -320,6 +343,13 @@ When import is completed, system displays import result table with the following
 **`⛔ Not available via VS Code extension`**
 
 System allows to export service with all its API specifications, environments and sources. From **"Inner Cloud Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) **Export**. Or simply click this button to export all services at once after confirmation.
+
+## Data Storage
+
+---
+
+- In <ins>Web UI</ins>: for any services created, the service parameters and configuration is stored in QIP Catalog database.
+- In <ins>VS Code Extension</ins>: services configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.
 
 ### Constraints
 
