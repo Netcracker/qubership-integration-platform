@@ -48,14 +48,14 @@ Table contains current chain's sessions, aggregated by correlation identifier, i
 - **Control panel** - panel, placed on top of the table. Provides next capabilities:
   - **Search field** - search box, provides ability to find particular session(s) by body field name, body field value, header name or header value.
     > ℹ️ **Note**: When searching for long or complex entity name, please consider specifying its **full name** or **first part of the name** for proper search result.
-  - ![20](img/delete.svg) - deletes selected session(s).
-  - ![20](img/cloud-download.svg) - exports the session.
-  - ![20](img/redo.svg) - refreshes session table.
-  - ![](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns.
+  - ![delete](img/delete.svg) - deletes selected session(s).
+  - ![cloud-download](img/cloud-download.svg) - exports the session.
+  - ![redo](img/redo.svg) - refreshes session table.
+  - ![setting](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns.
 
 ### Session view
-Click **Session ID value** in the respective row of sessions table to see the list of logged chain's elements, that are related to the same session. To expand or collapse compound element simply click the element itself or use ![Plus|20](img/plus.svg)/ ![Minus|20](img/minus.svg) button to expand/collapse all elements at once. Next columns and elements are available for the table:
-- **Element Name** - name of the element, participated in the processing. Click ![Plus|20](img/plus.svg) to open chain element and respective tab in the configuration graph. Reference to the [Chain Call](../1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) will open related configuration graph instead of chain element.
+Click **Session ID value** in the respective row of sessions table to see the list of logged chain's elements, that are related to the same session. To expand or collapse compound element simply click the element itself or use ![right](img/right.svg)/ ![down](img/down.svg) button to expand/collapse all elements at once. Next columns and elements are available for the table:
+- **Element Name** - name of the element, participated in the processing. Click ![link](img/link.svg) to open chain element and respective tab in the configuration graph. Reference to the [Chain Call](../1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) will open related configuration graph instead of chain element.
 - **Status** - processing status.
 - **Duration** - processing duration in milliseconds.
 - **Start Time** - processing start datetime.
@@ -63,7 +63,7 @@ Click **Session ID value** in the respective row of sessions table to see the li
 - **Element Type** - type of the element, according to the library of elements.
 
 ### Session's element view
-Under each element it is possible to get additional information including its state before and after it has been executed. Click on ![Plus|20](img/plus.svg) to expand.
+Under each element it is possible to get additional information including its state before and after it has been executed. Click on ![right](img/right.svg) to expand.
 
 Next information is available, when element's name clicked and window with its details presented:
 - **Previous/Next** buttons - navigation buttons, that allow to open previous or next session element.
