@@ -1,6 +1,7 @@
 import { Element as ElementSchema } from "@netcracker/qip-schemas";
 import { LibraryElement } from "@netcracker/qip-ui";
 import { getLibraryElementByType } from "../response/chainApiRead";
+import { getType } from "./elementUtils";
 
 export class OrderedElementUtils {
   private constructor(
@@ -11,7 +12,7 @@ export class OrderedElementUtils {
   static async create(element: ElementSchema): Promise<OrderedElementUtils> {
     return new OrderedElementUtils(
       element,
-      await getLibraryElementByType(element.type.name ?? ""),
+      await getLibraryElementByType(getType(element)),
     );
   }
 

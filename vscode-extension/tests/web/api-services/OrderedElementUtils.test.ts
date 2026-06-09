@@ -39,9 +39,9 @@ describe("OrderedElementUtils", () => {
 
       const result = await OrderedElementUtils.create(mockElement);
 
-      expect(mockGetLibraryElementByType).toHaveBeenCalledWith(
-        "test-ordered-type",
-      );
+      expect(mockGetLibraryElementByType).toHaveBeenCalledWith({
+        name: "test-ordered-type",
+      });
       expect(result.element).toEqual(mockElement);
     });
 
