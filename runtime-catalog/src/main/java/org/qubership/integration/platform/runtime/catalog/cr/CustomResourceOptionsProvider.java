@@ -29,7 +29,7 @@ public class CustomResourceOptionsProvider {
     @Value("${qip.cr.build.service-account:default}")
     private String serviceAccount;
 
-    @Value("${qip.cr.build.namespace:default")
+    @Value("${qip.cr.build.namespace:default}")
     private String namespace;
 
     @Value("#{${qip.cr.build.environment:{}}}")
