@@ -210,7 +210,7 @@ public class TransferableElementService extends ElementService {
     }
 
     private boolean isParentContainerRestricted(ChainElement parentElement, List<String> elementTypes) {
-        return Optional.ofNullable(libraryService.getElementDescriptor(parentElement.getType()))
+        return libraryService.lookupElementDescriptor(parentElement.getType())
                 .filter(ElementDescriptor::isContainer)
                 .map(ElementDescriptor::getAllowedChildren)
                 .map(allowedChildren ->
@@ -242,10 +242,8 @@ public class TransferableElementService extends ElementService {
     }
 
     private void validateIfInputEnabled(ChainElement element) {
-        ElementDescriptor descriptor = libraryService.getElementDescriptor(element.getType());
-        if (descriptor == null) {
-            throw new ElementTransferException("The " + element.getType() + " with id " + element.getId() + " not found");
-        }
+        ElementDescriptor descriptor = libraryService.lookupElementDescriptor(element.getType())
+            .orElseThrow(() -> new ElementTransferException("The " + element.getType() + " with id " + element.getId() + " not found"));
         if (!descriptor.isInputEnabled()) {
             throw new ElementTransferException("The " + element.getType() + " input disabled");
         }

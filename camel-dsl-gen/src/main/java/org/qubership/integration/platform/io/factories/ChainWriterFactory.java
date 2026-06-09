@@ -1,8 +1,7 @@
-package org.qubership.integration.platform.io.impl;
+package org.qubership.integration.platform.io.factories;
 
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.chain.model.Chain;
-import org.qubership.integration.platform.io.impl.factory.AnnotatedDataWriterFactory;
 import org.qubership.integration.platform.io.model.DataWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
