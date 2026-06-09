@@ -24,11 +24,6 @@ on:
         required: false
         default: false
         type: boolean
-      create-github-release:
-        description: "Create release"
-        required: false
-        default: true
-        type: boolean
       mvn-args:
         description: "Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)"
         required: false
@@ -72,11 +67,6 @@ on:
         required: false
         default: false
         type: boolean
-      create-github-release:
-        description: "Create release"
-        required: false
-        default: true
-        type: boolean
       mvn-args:
         description: "Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)"
         required: false
@@ -97,7 +87,6 @@ jobs:
       version: ${{ inputs.version }}
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
-      create-github-release: ${{ inputs.create-github-release }}
       mvn-args: ${{ inputs.mvn-args }}
     secrets:
       MAVEN_USER: ${{ secrets.MAVEN_USER }}

@@ -31,10 +31,6 @@ on:
         required: false
         type: string
         default: "latest"
-      create-github-release:
-        required: false
-        type: boolean
-        default: true
       cascade-ui:
         required: false
         type: boolean
@@ -66,11 +62,6 @@ on:
         required: false
         type: string
         default: "latest"
-      create-github-release:
-        description: "Create GitHub release"
-        required: false
-        type: boolean
-        default: true
       cascade-ui:
         description: "After releasing schemas, also release ui (auto patch-bump)"
         required: false
@@ -95,7 +86,6 @@ jobs:
       release-type: ${{ inputs.release-type }}
       version: ${{ inputs.version }}
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
-      create-github-release: ${{ inputs.create-github-release }}
 
   # Cascade: release ui (which itself may cascade on to vscode-extension) with an
   # auto patch-bump. Gated on the schemas publish, not on the GitHub release.
@@ -110,4 +100,3 @@ jobs:
       release-type: patch
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
       cascade-vscode-extension: ${{ inputs.cascade-vscode-extension }}
-      create-github-release: ${{ inputs.create-github-release }}

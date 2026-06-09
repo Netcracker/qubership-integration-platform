@@ -26,10 +26,6 @@ on:
         required: false
         type: string
         default: "latest"
-      create-github-release:
-        required: false
-        default: true
-        type: boolean
       cascade-vscode-extension:
         required: false
         type: boolean
@@ -56,11 +52,6 @@ on:
         required: false
         type: string
         default: "latest"
-      create-github-release:
-        description: "Create release"
-        required: false
-        default: true
-        type: boolean
       cascade-vscode-extension:
         description: "After publish, trigger vscode-extension release with an auto patch-bump"
         required: false
@@ -80,12 +71,10 @@ jobs:
       release-type: ${{ inputs.release-type }}
       version: ${{ inputs.version }}
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
-      create-github-release: ${{ inputs.create-github-release }}
       build-schemas: true
 
   # Cascade: release vscode-extension with an auto patch-bump (its package.json
-  # is the source of truth). Gated on the ui publish, not on the GitHub release,
-  # so create-github-release=false doesn't break the chain. Calls the reusable
+  # is the source of truth). Gated on the ui publish job. Calls the reusable
   # directly (not the vscode-extension-release wrapper) to keep the
   # schemas → ui → vscode chain within GitHub's 4-level nesting limit.
   cascade-vscode-extension:
@@ -99,4 +88,3 @@ jobs:
       module: vscode-extension
       release-type: patch
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
-      create-github-release: ${{ inputs.create-github-release }}
