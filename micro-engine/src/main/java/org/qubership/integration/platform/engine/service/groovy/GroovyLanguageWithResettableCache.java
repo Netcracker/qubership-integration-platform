@@ -20,6 +20,7 @@ import groovy.lang.Script;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.language.groovy.GroovyExpression;
 import org.apache.camel.language.groovy.GroovyLanguage;
 
 import java.lang.reflect.Field;
@@ -33,6 +34,31 @@ import java.util.Map;
 public class GroovyLanguageWithResettableCache extends GroovyLanguage {
     public GroovyLanguageWithResettableCache() {
         super();
+    }
+
+    // camel-xml-io-dsl drops whitespace-only expression bodies, leaving the model
+    // ExpressionDefinition.expression == null (the JAXB loader used by the Spring Engine keeps the
+    // whitespace instead). That null reaches GroovyLanguage.getScriptFromCache, which does
+    // ConcurrentHashMap.get(null) and throws NPE. Guard every public entry point that funnels into
+    // getScriptFromCache (createExpression, createPredicate, evaluate) by coalescing null to an
+    // empty script — restoring parity: an empty groovy script compiles to a no-op returning null.
+    @Override
+    public GroovyExpression createExpression(String expression) {
+        return super.createExpression(coalesce(expression));
+    }
+
+    @Override
+    public GroovyExpression createPredicate(String expression) {
+        return super.createPredicate(coalesce(expression));
+    }
+
+    @Override
+    public <T> T evaluate(String script, Map<String, Object> bindings, Class<T> resultType) {
+        return super.evaluate(coalesce(script), bindings, resultType);
+    }
+
+    private static String coalesce(String expression) {
+        return expression == null ? "" : expression;
     }
 
     public void resetScriptCache() {
