@@ -9,6 +9,14 @@ There are 2 options to configure the Implemented Service:
 
 - Create an API Specification from previously implemented chain(s) with HTTP Trigger element configured. In this case, validation scheme must be defined **manually**.
 
+
+## Process Initialization
+
+---
+
+ -	In <ins>Web UI</ins>: to reach the Implemented Services management window, please click "Services" on the top of the Qubership Integration Platform screen and then go to "Implemented" tab.
+ -	In <ins>VS Code Extension</ins>: to create and configure a service instance, navigate to "Services" section under the "QIP" folder in the left bottom within VS Code Extension.
+
 ## User Interface
 
 ---
@@ -300,12 +308,14 @@ System allows to export service with all its API specifications, environments an
 ## Data Storage
 
 ---
--	In <ins>Web UI</ins>: for any services created, the service parameters and configuration is stored in QIP Catalog database.
--	In <ins>VS Code Extension</ins>: services configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.
+
+ -	In <ins>Web UI</ins>: for any services created, the service parameters and configuration is stored in QIP Catalog database.
+ -	In <ins>VS Code Extension</ins>: services configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.
 
 ### Constraints
 
 ---
+
 Please consider next constraints:
 - When implemented service is being created from HTTP Trigger element, it (trigger) **must** have a **single HTTP method** configured in the settings. Otherwise, creation will fail with error.
 - **Technical** labels cannot be imported via UI or exported.

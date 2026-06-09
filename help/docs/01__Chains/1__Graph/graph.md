@@ -7,6 +7,7 @@
 ## Process Initialization
 
 ---
+
 -	In <ins>Web UI</ins>: user is able to reach graph via simply clicking on any particular chain (to open it's detailed configuration).
 -	In <ins>VS Code Extension</ins>: Users can open a chain in one of the following ways:
     - Find the QIP panel in the lower-left corner of VS Code, expand the Chains section, and double-click the desired chain. The corresponding graph will then be displayed.
@@ -103,5 +104,6 @@ To initiate document generation, click ![file](img/file.svg) **"Generate DDS"** 
 ## Data Storage
 
 ---
--	In <ins>Web UI</ins>: chain configuration is being saved in the QIP catalog database in a real-time manner.
--	In <ins>VS Code Extension</ins>: chain configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of respective machine. 
+
+ -	In <ins>Web UI</ins>: chain configuration is being saved in the QIP catalog database in a real-time manner.
+ -	In <ins>VS Code Extension</ins>: chain configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of respective machine. 

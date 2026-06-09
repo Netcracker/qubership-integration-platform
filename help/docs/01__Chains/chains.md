@@ -9,8 +9,9 @@ When the chain configuration was completed, it should be deployed at least on on
 ## Process Initialization
 
 ---
--	In <ins>Web UI</ins>: after logging in to the Web UI, user is navigated directly to "Chains" page to start working with the related functionality.
--	In <ins>VS Code Extension</ins>: Users can find a chain in one of the following ways:
+
+ -	In <ins>Web UI</ins>: after logging in to the Web UI, user is navigated directly to "Chains" page to start working with the related functionality.
+ -	In <ins>VS Code Extension</ins>: Users can find a chain in one of the following ways:
     - Find the QIP panel in the lower-left corner of VS Code, expand the Chains section, and find it by the name.
     - In the Explorer view, find the VS Code Extension section and expand it. Find the required chain by its ID.
 
@@ -255,7 +256,7 @@ Confirm selected options and click "**Deploy**" button. System will attempt to d
 ### Delete Chain(s) and Folder(s)
 <ins>Web UI</ins>
 
-From the [Chains and Folders Table View](#Chains%20and%20Folders%20Table%20View), click on action menu against the entity (folder or chain) name to be deleted. Next, from the available options, click "Delete" ![delete](img/delete.svg). Or mark all entities to be deleted and click on "Delete" button ![delete](img/delete.svg) above the table on the right corner. The screen displays a user confirmation prompt to proceed with deletion. Click "Yes" to delete or "No" to cancel operation.
+From the Chains and Folders View, click on action menu against the entity (folder or chain) name to be deleted. Next, from the available options, click "Delete" ![delete](img/delete.svg). Or mark all entities to be deleted and click on "Delete" button ![delete](img/delete.svg) above the table on the right corner. The screen displays a user confirmation prompt to proceed with deletion. Click "Yes" to delete or "No" to cancel operation.
 If a folder is deleted, all chains grouped under that folder will also be deleted.
 
 <ins>VS Code Extension</ins>
@@ -265,8 +266,9 @@ Under "Chains" folder, right-click on the chain name you want to delete. From th
 ## Data Storage
 
 ---
--	In <ins>Web UI</ins>: during the process of chain creation, both chain and its configuration are stored in the QIP Catalog database. The chains are available for export from UI.
--	In <ins>VS Code Extension</ins>: chains created via QIP UI Extension in VS Code are stored locally under a project folder or workspace directory configured by user on file system of respective machine.
+
+ -	In <ins>Web UI</ins>: during the process of chain creation, both chain and its configuration are stored in the QIP Catalog database. The chains are available for export from UI.
+ -	In <ins>VS Code Extension</ins>: chains created via QIP UI Extension in VS Code are stored locally under a project folder or workspace directory configured by user on file system of respective machine.
 
 ### Constraints
 
