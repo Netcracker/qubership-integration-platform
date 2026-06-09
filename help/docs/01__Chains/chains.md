@@ -10,10 +10,10 @@ When the chain configuration was completed, it should be deployed at least on on
 
 ---
 
- -	In <ins>Web UI</ins>: after logging in to the Web UI, user is navigated directly to "Chains" page to start working with the related functionality.
- -	In <ins>VS Code Extension</ins>: Users can find a chain in one of the following ways:
-    - Find the QIP panel in the lower-left corner of VS Code, expand the Chains section, and find it by the name.
-    - In the Explorer view, find the VS Code Extension section and expand it. Find the required chain by its ID.
+- In <ins>Web UI</ins>: after logging in to the Web UI, user is navigated directly to "Chains" page to start working with the related functionality.
+- In <ins>VS Code Extension</ins>: Users can find a chain in one of the following ways:
+  - Find the QIP panel in the lower-left corner of VS Code, expand the Chains section, and find it by the name.
+  - In the Explorer view, find the VS Code Extension section and expand it. Find the required chain by its ID.
 
 ## User Interface
 
@@ -267,8 +267,8 @@ Under "Chains" folder, right-click on the chain name you want to delete. From th
 
 ---
 
- -	In <ins>Web UI</ins>: during the process of chain creation, both chain and its configuration are stored in the QIP Catalog database. The chains are available for export from UI.
- -	In <ins>VS Code Extension</ins>: chains created via QIP UI Extension in VS Code are stored locally under a project folder or workspace directory configured by user on file system of respective machine.
+- In <ins>Web UI</ins>: during the process of chain creation, both chain and its configuration are stored in the QIP Catalog database. The chains are available for export from UI.
+- In <ins>VS Code Extension</ins>: chains created via QIP UI Extension in VS Code are stored locally under a project folder or workspace directory configured by user on file system of respective machine.
 
 ### Constraints
 

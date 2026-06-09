@@ -10,8 +10,8 @@ Context Services are being used as a temporary storage of chain contexts. Chain 
 
 ---
 
- -	In <ins>Web UI</ins>: to reach the Context Services management window, please click "Services" on the top of the Qubership Integration Platform screen and then go to "Context" tab.
- -	In <ins>VS Code Extension</ins>: to create and configure a service instance, navigate to "Services" section under the "QIP" folder in the left bottom within VS Code Extension.
+- In <ins>Web UI</ins>: to reach the Context Services management window, please click "Services" on the top of the Qubership Integration Platform screen and then go to "Context" tab.
+- In <ins>VS Code Extension</ins>: to create and configure a service instance, navigate to "Services" section under the "QIP" folder in the left bottom within VS Code Extension.
 
 ## User Interface
 
@@ -105,6 +105,6 @@ System allows exporting service. There are two possible ways to export service(s
 
 ---
 
- -	In <ins>Web UI</ins>: for any services created, the service parameters and configuration is stored in QIP Catalog database.
- -	In <ins>VS Code Extension</ins>: services configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.
+- In <ins>Web UI</ins>: for any services created, the service parameters and configuration is stored in QIP Catalog database.
+- In <ins>VS Code Extension</ins>: services configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.
 
