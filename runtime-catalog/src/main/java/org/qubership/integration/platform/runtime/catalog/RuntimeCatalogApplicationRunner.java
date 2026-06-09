@@ -21,8 +21,7 @@ import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication(scanBasePackages = {
-    "org.qubership.integration.platform.runtime.catalog",
-    "org.qubership.integration.platform.serdes"
+    "org.qubership.integration.platform",
 })
 public class RuntimeCatalogApplicationRunner {
 
