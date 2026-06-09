@@ -1,1 +1,2 @@
 org.qubership.integration.platform.library.configuration.DescriptorPropertiesConfiguration
+org.qubership.integration.platform.library.configuration.YamlMapperAutoConfiguration
