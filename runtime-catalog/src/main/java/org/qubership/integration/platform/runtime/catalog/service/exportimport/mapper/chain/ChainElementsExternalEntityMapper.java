@@ -59,8 +59,8 @@ public class ChainElementsExternalEntityMapper implements ExternalEntityMapper<L
         elementsExternalMapperEntity
                 .getChainElementExternalEntities()
                 .stream()
-                .map(externalEntity -> Pair.of(externalEntity, libraryService.getElementDescriptor(externalEntity.getType())))
-                .filter(swimlaneDescriptorPair -> Optional.ofNullable(swimlaneDescriptorPair.getValue())
+                .map(externalEntity -> Pair.of(externalEntity, libraryService.lookupElementDescriptor(externalEntity.getType())))
+                .filter(swimlaneDescriptorPair -> swimlaneDescriptorPair.getValue()
                         .map(descriptor -> descriptor.getType() == ElementType.SWIMLANE)
                         .orElse(false))
                 .forEach(swimlaneDescriptorPair -> createInternalEntity(
@@ -72,10 +72,10 @@ public class ChainElementsExternalEntityMapper implements ExternalEntityMapper<L
         elementsExternalMapperEntity
                 .getChainElementExternalEntities()
                 .stream()
-                .map(externalElement -> Pair.of(externalElement, libraryService.getElementDescriptor(externalElement.getType())))
+                .map(externalElement -> Pair.of(externalElement, libraryService.lookupElementDescriptor(externalElement.getType())))
                 .filter(elementDescriptoPair -> {
-                    ElementDescriptor descriptor = elementDescriptoPair.getValue();
-                    return descriptor == null || descriptor.getType() != ElementType.SWIMLANE;
+                    Optional<ElementDescriptor> descriptor = elementDescriptoPair.getValue();
+                    return descriptor.map(d -> d.getType() != ElementType.SWIMLANE).orElse(true);
                 })
                 .forEach(elementDescriptorPair -> createInternalEntity(
                         elementDescriptorPair,
@@ -102,12 +102,12 @@ public class ChainElementsExternalEntityMapper implements ExternalEntityMapper<L
     }
 
     private ChainElement createInternalEntity(
-            Pair<ChainElementExternalEntity, ElementDescriptor> elementDescriptorPair,
+            Pair<ChainElementExternalEntity, Optional<ElementDescriptor>> elementDescriptorPair,
             File chainFilesDir,
             Map<String, ChainElement> resultElements
     ) {
         ChainElementExternalEntity elementExternalEntity = elementDescriptorPair.getKey();
-        ElementDescriptor descriptor = Optional.ofNullable(elementDescriptorPair.getValue())
+        ElementDescriptor descriptor = elementDescriptorPair.getValue()
                 .orElseGet(() -> {
                     if (CONTAINER.equals(elementExternalEntity.getType())) {
                         ElementDescriptor containerDescriptor = new ElementDescriptor();
@@ -129,7 +129,7 @@ public class ChainElementsExternalEntityMapper implements ExternalEntityMapper<L
 
         if (element instanceof ContainerChainElement containerElement) {
             for (ChainElementExternalEntity childExternal : elementExternalEntity.getChildren()) {
-                ElementDescriptor childDescriptor = libraryService.getElementDescriptor(childExternal.getType());
+                Optional<ElementDescriptor> childDescriptor = libraryService.lookupElementDescriptor(childExternal.getType());
                 ChainElement childEntity = createInternalEntity(
                         Pair.of(childExternal, childDescriptor), chainFilesDir, resultElements);
                 containerElement.addChildElement(childEntity);

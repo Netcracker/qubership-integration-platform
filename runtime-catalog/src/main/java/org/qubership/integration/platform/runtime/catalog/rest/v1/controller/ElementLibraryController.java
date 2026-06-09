@@ -65,12 +65,9 @@ public class ElementLibraryController {
         if (log.isDebugEnabled()) {
             log.debug("Request to receive element with name: {}", name);
         }
-        ElementDescriptor element = libraryElementsService.getElementDescriptor(name);
-        if (element != null) {
-            return ResponseEntity.ok(element);
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+        return libraryElementsService.lookupElementDescriptor(name)
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping("/elements/types")

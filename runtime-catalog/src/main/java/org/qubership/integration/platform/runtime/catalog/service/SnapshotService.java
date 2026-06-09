@@ -22,7 +22,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.chain.model.Label;
-import org.qubership.integration.platform.io.impl.ChainWriterFactory;
+import org.qubership.integration.platform.io.factories.ChainWriterFactory;
 import org.qubership.integration.platform.io.model.DataFormat;
 import org.qubership.integration.platform.runtime.catalog.context.RequestIdContext;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SnapshotCreationException;

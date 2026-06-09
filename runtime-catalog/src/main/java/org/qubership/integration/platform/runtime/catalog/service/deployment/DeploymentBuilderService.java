@@ -127,14 +127,15 @@ public class DeploymentBuilderService {
 
         Set<ChainElement> groupContainers = snapshot.getElements().stream()
                 .filter(item -> ElementService.CONTAINER_TYPE_NAME.equals(item.getType())
-                        || Optional.ofNullable(libraryService.getElementDescriptor(item.getType()))
-                                .map(descriptor -> ElementType.REUSE == descriptor.getType())
+                        || libraryService.lookupElementDescriptor(item.getType())
+                                .map(ElementDescriptor::getType)
+                                .map(ElementType.REUSE::equals)
                                 .orElse(false))
                 .collect(Collectors.toSet());
 
         List<ChainElement> filteredElements = snapshot.getElements().stream()
                 .filter(item -> !item.getType().equals(ElementService.CONTAINER_TYPE_NAME)
-                        && Optional.ofNullable(libraryService.getElementDescriptor(item.getType()))
+                        && libraryService.lookupElementDescriptor(item.getType())
                                 .map(ElementDescriptor::getType)
                                 .map(type -> ElementType.REUSE != type
                                              && ElementType.REUSE_REFERENCE != type

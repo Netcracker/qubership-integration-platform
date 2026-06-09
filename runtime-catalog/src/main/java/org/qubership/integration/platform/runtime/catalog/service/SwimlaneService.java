@@ -30,7 +30,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
-import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -53,7 +52,6 @@ public class SwimlaneService {
     public static final String REUSE_SWIMLANE_COLOR = "Green";
 
     private final LibraryElementsService libraryService;
-    private final ElementUtils elementUtils;
     private final ElementService elementService;
     private final ChainService chainService;
     private final ChainFinderService chainFinderService;
@@ -61,13 +59,11 @@ public class SwimlaneService {
     @Autowired
     public SwimlaneService(
             LibraryElementsService libraryService,
-            ElementUtils elementUtils,
             @Lazy ElementService elementService,
             @Lazy ChainService chainService,
             ChainFinderService chainFinderService
     ) {
         this.libraryService = libraryService;
-        this.elementUtils = elementUtils;
         this.elementService = elementService;
         this.chainService = chainService;
         this.chainFinderService = chainFinderService;
@@ -97,7 +93,7 @@ public class SwimlaneService {
             chainDiff.setCreatedDefaultSwimlaneId(defaultSwimlane.getId());
 
             boolean chainHasReuseElements = chain.getElements().stream()
-                    .map(elementUtils::getElementDescriptor)
+                    .map(element -> libraryService.getElementDescriptorOrDefault(element.getType()))
                     .anyMatch(descriptor -> ElementType.REUSE == descriptor.getType());
             if (chainHasReuseElements) {
                 SwimlaneChainElement reuseSwimlane = createSwimlaneElement(REUSE_SWIMLANE_NAME, elementDescriptor, chain);
@@ -152,7 +148,7 @@ public class SwimlaneService {
                 .filter(swimlaneElement -> StringUtils.equals(swimlaneElement.getId(), swimlaneId))
                 .findFirst()
                 .orElse(null);
-        ElementDescriptor elementDescriptor = elementUtils.getElementDescriptor(element);
+        ElementDescriptor elementDescriptor = libraryService.getElementDescriptorOrDefault(element.getType());
         if (ElementType.REUSE != elementDescriptor.getType()) {
             if (swimlane == null) {
                 updateElementsHierarchy(
@@ -161,8 +157,10 @@ public class SwimlaneService {
                 );
             } else {
                 boolean parentElementReuse = Optional.ofNullable(elementService.findRootParent(element))
-                        .map(elementUtils::getElementDescriptor)
-                        .map(descriptor -> ElementType.REUSE == descriptor.getType())
+                        .map(ChainElement::getType)
+                        .flatMap(libraryService::lookupElementDescriptor)
+                        .map(ElementDescriptor::getType)
+                        .map(ElementType.REUSE::equals)
                         .orElse(false);
                 if (Objects.equals(swimlane, chain.getReuseSwimlane()) && !parentElementReuse) {
                     throw new ElementTransferException("Element " + element.getId() + " cannot be moved to Reuse group");
@@ -252,7 +250,7 @@ public class SwimlaneService {
     ) {
         List<ChainElement> updatedElements = chainElements.stream()
                 .filter(element -> !SWIMLANE_TYPE_NAME.equals(element.getType()))
-                .filter(element -> elementFilter.test(elementUtils.getElementDescriptor(element)))
+                .filter(element -> elementFilter.test(libraryService.getElementDescriptorOrDefault(element.getType())))
                 .toList();
         updateElementsHierarchy(updatedElements, groupElement::addElement);
         return updatedElements;

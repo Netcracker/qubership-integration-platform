@@ -93,8 +93,7 @@ public class XmlBuilder {
                 streamWriter.writeAttribute(BuilderConstants.URI, BuilderConstants.DIRECT + chainRoute.getId());
             }
             for (ChainElement chainElement : chainRoute.getElements()) {
-                ElementDescriptor elementDescriptor = Optional.ofNullable(libraryService.getElementDescriptor(chainElement.getType()))
-                    .orElseGet(ElementDescriptor::new);
+                ElementDescriptor elementDescriptor = libraryService.getElementDescriptorOrDefault(chainElement.getType());
                 ElementType type = elementDescriptor.getType();
                 if (type == ElementType.TRIGGER && !BuilderConstants.ON_COMPLETION_EXCLUDE_TRIGGERS.contains(elementDescriptor.getName())) {
                     addOnCompletion(streamWriter);
@@ -123,14 +122,12 @@ public class XmlBuilder {
 
     private void addWiretapBridgeRoute(ChainRoute chainRoute, XMLStreamWriter2 streamWriter) throws XMLStreamException {
         for (ChainElement element : chainRoute.getElements()) {
-            ElementDescriptor elementDescriptor = Optional.ofNullable(libraryService.getElementDescriptor(element.getType()))
-                .orElseGet(ElementDescriptor::new);
+            ElementDescriptor elementDescriptor = libraryService.getElementDescriptorOrDefault(element.getType());
             String elementName = elementDescriptor.getName();
             if (CamelNames.SPLIT_ASYNC_2_COMPONENT.equals(elementName) || CamelNames.SPLIT_ASYNC_COMPONENT.equals(elementName)) {
                 ContainerChainElement splitContainer = (ContainerChainElement) element;
                 for (ChainElement splitElement : splitContainer.getElements()) {
-                    String splitElementName = Optional.ofNullable(libraryService.getElementDescriptor(splitElement.getType()))
-                        .orElseGet(ElementDescriptor::new).getName();
+                    String splitElementName = libraryService.getElementDescriptorOrDefault(splitElement.getType()).getName();
                     if (ConfigurationPropertiesConstants.ASYNC_SPLIT_ELEMENT.equals(splitElementName)
                             || ConfigurationPropertiesConstants.ASYNC_SPLIT_ELEMENT_2.equals(splitElementName)
                     ) {
