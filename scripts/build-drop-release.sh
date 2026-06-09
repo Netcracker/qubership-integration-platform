@@ -30,20 +30,24 @@ bump() { # X.Y.Z patch|minor|major -> next (10# avoids octal)
         patch) echo "$ma.$mi.$((10#$pa + 1))" ;;
         minor) echo "$ma.$((10#$mi + 1)).0" ;;
         major) echo "$((10#$ma + 1)).0.0" ;;
-        *) echo "::error::release-type must be patch|minor|major (got '$2')" >&2; exit 1 ;;
+        *)
+            echo "::error::release-type must be patch|minor|major (got '$2')" >&2
+            exit 1
+            ;;
     esac
 }
 
 version="$(grep -oP '(?<=<revision>)[^<]+' pom.xml | head -1)"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-    echo "::error::root pom <revision> is not X.Y.Z (got '$version')"; exit 1
+    echo "::error::root pom <revision> is not X.Y.Z (got '$version')"
+    exit 1
 }
 tag="v$version"
 
 # Previous drop = latest bare vX.Y.Z release on this prerelease track (module and
 # legacy per-module releases excluded; empty => first drop). API failure aborts.
-prev="$(gh api "repos/$REPO/releases" \
-    | jq -r --arg cur "$tag" --arg pre "$PRERELEASE" '
+prev="$(gh api "repos/$REPO/releases" |
+    jq -r --arg cur "$tag" --arg pre "$PRERELEASE" '
         [ .[]
           | select(.tag_name | test("^v[0-9]+[.][0-9]+[.][0-9]+$"))
           | select((.prerelease | tostring) == $pre)
@@ -61,18 +65,18 @@ trap 'rm -f "$notes"' EXIT
     echo
     echo "| Module | Version |"
     echo "| --- | --- |"
-    bash scripts/build-bom.sh \
-        | jq -r '.modules | to_entries[] | "| \(.key) | \(.value // "—") |"'
+    bash scripts/build-bom.sh |
+        jq -r '.modules | to_entries[] | "| \(.key) | \(.value // "—") |"'
     echo
 } > "$notes"
 
 # GitHub builds the categorised "What's Changed" via .github/release.yml; a
 # failure is warned, not swallowed, and doesn't abort the drop.
 if generated="$(gh api "repos/$REPO/releases/generate-notes" \
-        -f tag_name="$tag" \
-        -f target_commitish="$TARGET_SHA" \
-        ${prev:+-f previous_tag_name="$prev"} \
-        --jq '.body')"; then
+    -f tag_name="$tag" \
+    -f target_commitish="$TARGET_SHA" \
+    ${prev:+-f previous_tag_name="$prev"} \
+    --jq '.body')"; then
     printf '%s\n' "$generated" >> "$notes"
 else
     echo "::warning::generate-notes failed for $tag (prev=${prev:-none}); release will omit the changelog"
