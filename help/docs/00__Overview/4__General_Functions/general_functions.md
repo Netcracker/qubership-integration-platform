@@ -25,6 +25,8 @@ To open QIP Help:
 3. Use **pages navigation tree** on the left side of QIP Helper to go through the pages and **"Search Documentation... ![search](img/search.svg)"** text field to find particular information by fulltext search.
 
 ## Export/Import
+**`⛔ Not available via VS Code extension`**
+
 QIP provides an ability to export ![download](img/cloud-download.svg) and import ![upload](img/cloud-upload.svg) different entities.
 The export function supports both **legacy** and **new** formats for QIP artifacts.
 Switching between legacy and new format option for export is possible via configuration of specific environment parameter
@@ -86,6 +88,8 @@ Project root (git/SVN root, not included in zip-archive)
 </details>
 
 ## Filters
+**`⛔ Not available via VS Code extension`**
+
 There is filtering functionality available for most of the column tables, utilized across different pages. Click button ![filter](img/filter.svg) and enter next data on filter pop-up:
 - Column
 - Condition
@@ -94,14 +98,20 @@ There is filtering functionality available for most of the column tables, utiliz
 It is possible to specify multiple filtering conditions via "**Add filter**" button. When filters are applied, button "**Filter**" will have a small counter indicator, showing quantity of active filters. It is also possible to remove particular filter via ![delete](img/delete.svg) button or remove all filters via "**Clear All**" button.
 
 ## Table Sorting
+**`⛔ Not available via VS Code extension`**
+
 For some table columns the following functions can be available:
 - ![caret-up](img/caret-up.svg) Sort Ascending
 - ![caret-down](img/caret-down.svg) Sort Descending
 
 ## Table Settings
+**`⛔ Not available via VS Code extension`**
+
 Most of the tables in the system can be adjusted not only by extending/shrinking column size, but also by controlling each column's visibility and sequence. To do so, click gear button ![setting](img/setting.svg) on top of the table and adjust properties accordingly. Some of the columns can't be hidden or moved - this is explained for exact columns in respective design articles.
 
 ## View User Details
+**`⛔ Not available via VS Code extension`**
+
 Click user icon ![user](img/user.svg) on top right of the screen to see user and tenant details:
 - username
 - user email
@@ -112,19 +122,16 @@ Tenant is being defined during the login operation, exactly when user selects th
 
 
 ## Go to Home Page
-
 **`⛔ Not available via VS Code extension`**
 
 In the top-left corner, there is a “QIP” button that allows users to return to the Home Page, where the full list of chains is displayed. This button provides quick navigation back to the main overview, making it easier to access and manage available chains at any time.
 
 ## Switch between Blue and Green versions
-
 **`⛔ Not available via VS Code extension`**
 
 In order to switch between Blue and Green configuration versions in QIP, simply use selector on top right of the screen. This selector is only visible on environments, properly configured for Blue/Green approach.
 
 ## Reset UI Configuration
-
 **`⛔ Not available via VS Code extension`**
 
 System saves state of some UI elements while user is working with them. Such elements are mentioned below:
@@ -144,4 +151,4 @@ To change the interface theme, click the user icon ![user](img/user.svg) at the 
 - HC – maximizes color contrast for better readability.
 
 <ins>VS Code Extension</ins>
-In the VS Code Extension, the interface theme cannot be changed separately. It automatically follows the theme currently selected in the operation system.
+In the VS Code Extension, the interface theme cannot be changed separately. It automatically follows the theme currently selected in the Visual Studio Code.
