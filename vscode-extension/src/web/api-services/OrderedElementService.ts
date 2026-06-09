@@ -7,6 +7,7 @@ import {
 import { OrderedElementUtils } from "./OrderedElementUtils";
 import { ActionDifference, PatchElementRequest } from "@netcracker/qip-ui";
 import { findElementById } from "../response/chainApiUtils";
+import { getType } from "./elementUtils";
 
 export class OrderedElementService {
   constructor(
@@ -21,7 +22,7 @@ export class OrderedElementService {
       return;
     }
 
-    const libraryData = await getLibraryElementByType(element.type.name ?? "");
+    const libraryData = await getLibraryElementByType(getType(element));
 
     if (libraryData.container && element.children) {
       for (const child of element.children as ElementSchema[]) {
@@ -49,9 +50,7 @@ export class OrderedElementService {
   }
 
   static async isOrdered(element: ElementSchema): Promise<boolean> {
-    const libraryElement = await getLibraryElementByType(
-      element.type.name ?? "",
-    );
+    const libraryElement = await getLibraryElementByType(getType(element));
 
     return libraryElement.ordered && element.parentElementId !== null;
   }
