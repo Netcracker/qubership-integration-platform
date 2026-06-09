@@ -20,9 +20,11 @@ import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -59,10 +61,10 @@ public class LibraryElementsServiceTest {
     }
 
     @Test
-    void shouldReturnNullWhenElementNotFound() {
-        ElementDescriptor result = service.getElementDescriptor("nonexistent");
+    void shouldReturnEmptyOptionalWhenElementNotFound() {
+        Optional<ElementDescriptor> result = service.lookupElementDescriptor("nonexistent");
 
-        assertThat(result).isNull();
+        assertTrue(result.isEmpty());
     }
 
     @Test
@@ -118,6 +120,6 @@ public class LibraryElementsServiceTest {
         ElementDescriptor result = service.loadElementDescriptor("element1", inputStream);
 
         assertThat(result).isEqualTo(descriptor);
-        assertThat(service.getElementDescriptor("test")).isEqualTo(descriptor);
+        assertThat(service.lookupElementDescriptor("test")).isEqualTo(Optional.of(descriptor));
     }
 }

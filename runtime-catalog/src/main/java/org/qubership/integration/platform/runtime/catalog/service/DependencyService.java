@@ -184,9 +184,6 @@ public class DependencyService {
         }
 
         ElementDescriptor elementDescriptor = libraryService.getElementDescriptor(elementTo.getType());
-        if (elementDescriptor == null) {
-            throw new DependencyValidationException("Element of type " + elementTo.getType() + " not found");
-        }
 
         if (!elementDescriptor.isInputEnabled()) {
             throw new DependencyValidationException("Input dependency disabled for " + elementTo.getType());

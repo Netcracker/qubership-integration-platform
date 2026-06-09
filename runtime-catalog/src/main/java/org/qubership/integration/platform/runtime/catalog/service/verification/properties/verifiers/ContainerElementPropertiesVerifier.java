@@ -28,6 +28,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Optional;
 
 @Component
 public class ContainerElementPropertiesVerifier implements ElementPropertiesVerifier {
@@ -63,8 +64,9 @@ public class ContainerElementPropertiesVerifier implements ElementPropertiesVeri
     }
 
     private String extractElementName(ChainElement element) {
-        ElementDescriptor descriptor = libraryService.getElementDescriptor(element.getType());
-        if (descriptor != null && CollectionUtils.isNotEmpty(descriptor.getParentRestriction())
+        Optional<ElementDescriptor> descriptor = libraryService.lookupElementDescriptor(element.getType());
+        if (descriptor.map(ElementDescriptor::getParentRestriction)
+                    .map(CollectionUtils::isNotEmpty).orElse(false)
                 && element.getParent() != null) {
             return element.getParent().getName() + " -> " + element.getName();
         }
