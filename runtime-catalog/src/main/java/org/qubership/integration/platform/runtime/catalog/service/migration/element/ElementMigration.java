@@ -18,10 +18,10 @@ package org.qubership.integration.platform.runtime.catalog.service.migration.ele
 
 import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 
 import java.util.ArrayList;
 import java.util.List;

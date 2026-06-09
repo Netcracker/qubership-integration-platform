@@ -24,15 +24,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.components.LibraryResourceLoader;
+import org.qubership.integration.platform.library.configuration.DescriptorPropertiesConfiguration;
+import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.runtime.catalog.builder.templates.helpers.MapperInterpretatorHelper;
-import org.qubership.integration.platform.runtime.catalog.configuration.element.descriptor.DescriptorPropertiesConfiguration;
 import org.qubership.integration.platform.runtime.catalog.model.ChainDiff;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryResourceLoader;
 import org.qubership.integration.platform.runtime.catalog.testutils.configuration.TestConfig;
+import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ContextConfiguration;
@@ -53,6 +54,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
         TestConfig.class,
         DescriptorPropertiesConfiguration.class,
         LibraryElementsService.class,
+        ElementUtils.class,
         LibraryResourceLoader.class,
         OrderedElementService.class
 })
@@ -68,6 +70,8 @@ public class OrderedElementServiceTest {
 
     @Autowired
     private LibraryElementsService libraryService;
+    @Autowired
+    private ElementUtils elementUtils;
     @Autowired
     private OrderedElementService orderedElementService;
 
@@ -267,7 +271,7 @@ public class OrderedElementServiceTest {
     @MethodSource("changePriorityTestData")
     public void changePriorityTest(String scenario, String elementId, Integer newPriority, Map<String, String> expected) {
         ChainElement testElement = elements.get(elementId);
-        ElementDescriptor descriptor = libraryService.getElementDescriptor(testElement);
+        ElementDescriptor descriptor = libraryService.getElementDescriptor(testElement.getType());
         ChainDiff chainDiff = orderedElementService.changePriority(parentElement, testElement, newPriority);
 
         assertThat(chainDiff.getUpdatedElements().size(), equalTo(expected.size()));
@@ -321,7 +325,7 @@ public class OrderedElementServiceTest {
     @MethodSource("removeOrderedElementTestData")
     public void removeOrderedElementTest(String scenario, String elementId, Map<String, String> expected) {
         ChainElement testElement = elements.get(elementId);
-        ElementDescriptor descriptor = libraryService.getElementDescriptor(testElement);
+        ElementDescriptor descriptor = libraryService.getElementDescriptor(testElement.getType());
         ChainDiff chainDiff = orderedElementService.removeOrderedElement(parentElement, testElement);
 
         assertThat(chainDiff.getUpdatedElements().size(), equalTo(expected.size()));

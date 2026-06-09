@@ -2,13 +2,13 @@ package org.qubership.integration.platform.runtime.catalog.builder;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.model.ElementDescriptor;
+import org.qubership.integration.platform.library.model.ElementType;
 import org.qubership.integration.platform.runtime.catalog.model.ChainRoute;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -37,7 +37,8 @@ public class ChainRouteBuilder {
         List<ChainElement> startElements = elementUtils.splitCompositeTriggers(elements)
                 .stream()
                 .filter(chainElement -> {
-                    ElementDescriptor descriptor = libraryService.getElementDescriptor(chainElement);
+                    ElementDescriptor descriptor = Optional.ofNullable(libraryService.getElementDescriptor(chainElement.getType()))
+                        .orElseGet(ElementDescriptor::new);
                     boolean elementHasNoParent = chainElement.getParent() == null
                             || CONTAINER.equals(chainElement.getParent().getType());
                     return descriptor != null
@@ -71,7 +72,8 @@ public class ChainRouteBuilder {
             Pair<ChainElement, ChainRoute> currentElement = stack.pop();
             ChainElement current = currentElement.getLeft();
             ChainRoute currentRoute = currentElement.getRight();
-            ElementDescriptor elementDescriptor = libraryService.getElementDescriptor(current);
+            ElementDescriptor elementDescriptor = Optional.ofNullable(libraryService.getElementDescriptor(current.getType()))
+                .orElseGet(ElementDescriptor::new);
             ElementType elementType = elementDescriptor.getType();
 
             if (currentRoute.getElements().isEmpty()) {
@@ -134,7 +136,8 @@ public class ChainRouteBuilder {
             Deque<Pair<ChainElement, ChainRoute>> elementRouteStack
     ) {
         List<ChainRoute> routes = new LinkedList<>();
-        ElementDescriptor elementDescriptor = libraryService.getElementDescriptor(containerElement);
+        ElementDescriptor elementDescriptor = Optional.ofNullable(libraryService.getElementDescriptor(containerElement.getType()))
+            .orElseGet(ElementDescriptor::new);
         if (!elementDescriptor.getAllowedChildren().isEmpty()) {
             for (ChainElement child : containerElement.getElements()) {
                 if (!(child instanceof ContainerChainElement childContainer)) {

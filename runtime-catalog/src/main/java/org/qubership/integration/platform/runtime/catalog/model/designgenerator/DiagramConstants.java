@@ -23,9 +23,9 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.*;
 import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramLangType.MERMAID;
 import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramLangType.PLANT_UML;
-import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramOperationType.*;
 
 public class DiagramConstants {
 
@@ -43,7 +43,7 @@ public class DiagramConstants {
     public static final Pattern ARG_PLACEHOLDER_PATTERN = Pattern.compile(ARG_PLACEHOLDER);
 
     // <language_type, <operation, operation>>
-    public static final Map<DiagramLangType, Map<DiagramOperationType, DiagramOperation>> OPERATIONS = fillOperations();
+    public static final Map<DiagramLangType, Map<org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType, DiagramOperation>> OPERATIONS = fillOperations();
 
     public static final DiagramOperation EMPTY_OPERATION = new DiagramOperation("");
 
@@ -51,15 +51,15 @@ public class DiagramConstants {
     private DiagramConstants() {
     }
 
-    private static Map<DiagramLangType, Map<DiagramOperationType, DiagramOperation>> fillOperations() {
-        Map<DiagramLangType, Map<DiagramOperationType, DiagramOperation>> operations = new HashMap<>();
+    private static Map<DiagramLangType, Map<org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType, DiagramOperation>> fillOperations() {
+        Map<DiagramLangType, Map<org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType, DiagramOperation>> operations = new HashMap<>();
         fillMermaidOperations(operations);
         fillPlantUMLOperations(operations);
         return operations;
     }
 
-    private static void fillMermaidOperations(Map<DiagramLangType, Map<DiagramOperationType, DiagramOperation>> operations) {
-        Map<DiagramOperationType, DiagramOperation> operationsMap = new HashMap<>();
+    private static void fillMermaidOperations(Map<DiagramLangType, Map<org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType, DiagramOperation>> operations) {
+        Map<org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType, DiagramOperation> operationsMap = new HashMap<>();
 
         operationsMap.put(DOCUMENT_START, createOperation("sequenceDiagram"));
         operationsMap.put(DOCUMENT_END, createOperation(""));
@@ -79,8 +79,8 @@ public class DiagramConstants {
         operations.put(MERMAID, operationsMap);
     }
 
-    private static void fillPlantUMLOperations(Map<DiagramLangType, Map<DiagramOperationType, DiagramOperation>> operations) {
-        Map<DiagramOperationType, DiagramOperation> operationsMap = new HashMap<>();
+    private static void fillPlantUMLOperations(Map<DiagramLangType, Map<org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType, DiagramOperation>> operations) {
+        Map<org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType, DiagramOperation> operationsMap = new HashMap<>();
 
         operationsMap.put(DOCUMENT_START, createOperation("@startuml"));
         operationsMap.put(DOCUMENT_END, createOperation("@enduml"));
@@ -100,7 +100,7 @@ public class DiagramConstants {
         operations.put(PLANT_UML, operationsMap);
     }
 
-    private static void fillCommonOperations(Map<DiagramOperationType, DiagramOperation> operationsMap) {
+    private static void fillCommonOperations(Map<org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType, DiagramOperation> operationsMap) {
         operationsMap.put(AUTONUMBER, createOperation("autonumber"));
         operationsMap.put(BLOCK_DELIMITER, createOperation(""));
 
@@ -121,7 +121,7 @@ public class DiagramConstants {
         operationsMap.put(START_PAR, createOperation("par " + ARG_PLACEHOLDER));
     }
 
-    private static void buildLines(Map<DiagramOperationType, DiagramOperation> operationsMap, String ...arrows) {
+    private static void buildLines(Map<org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType, DiagramOperation> operationsMap, String ...arrows) {
         operationsMap.put(LINE_WITH_ARROW_SOLID_RIGHT, buildLineTemplate(arrows[0]));
         operationsMap.put(LINE_WITH_ARROW_DOTTED_RIGHT, buildLineTemplate(arrows[1]));
         operationsMap.put(LINE_WITH_OPEN_ARROW_SOLID_RIGHT, buildLineTemplate(arrows[2]));
