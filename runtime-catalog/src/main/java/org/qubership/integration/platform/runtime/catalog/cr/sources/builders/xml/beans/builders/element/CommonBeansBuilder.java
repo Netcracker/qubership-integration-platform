@@ -2,6 +2,7 @@ package org.qubership.integration.platform.runtime.catalog.cr.sources.builders.x
 
 import org.codehaus.stax2.XMLStreamWriter2;
 import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.library.model.ElementType;
 import org.qubership.integration.platform.runtime.catalog.builder.BuilderConstants;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.SourceBuilderContext;
@@ -10,8 +11,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.service.ElementService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-
-import java.util.Optional;
 
 import static java.util.Objects.nonNull;
 import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.ELEMENTS_WITH_INTERMEDIATE_CHILDREN;
@@ -69,8 +68,9 @@ public class CommonBeansBuilder implements ElementBeansBuilder {
         if (nonNull(element.getParent())) {
             ChainElement parent = element.getParent();
             if (ElementService.CONTAINER_TYPE_NAME.equals(parent.getType())
-                || Optional.ofNullable(libraryService.getElementDescriptor(parent.getType()))
-                    .map(descriptor -> ElementType.REUSE == descriptor.getType())
+                || libraryService.lookupElementDescriptor(parent.getType())
+                    .map(ElementDescriptor::getType)
+                    .map(ElementType.REUSE::equals)
                     .orElse(false)) {
                 streamWriter.writeEmptyElement("property");
                 streamWriter.writeAttribute("key", "parentId");

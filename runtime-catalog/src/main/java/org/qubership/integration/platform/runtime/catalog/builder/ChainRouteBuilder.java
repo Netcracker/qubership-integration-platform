@@ -37,16 +37,15 @@ public class ChainRouteBuilder {
         List<ChainElement> startElements = elementUtils.splitCompositeTriggers(elements)
                 .stream()
                 .filter(chainElement -> {
-                    ElementDescriptor descriptor = Optional.ofNullable(libraryService.getElementDescriptor(chainElement.getType()))
-                        .orElseGet(ElementDescriptor::new);
                     boolean elementHasNoParent = chainElement.getParent() == null
                             || CONTAINER.equals(chainElement.getParent().getType());
-                    return descriptor != null
-                            && (descriptor.getType() == ElementType.TRIGGER
+                    return libraryService.lookupElementDescriptor(chainElement.getType()).map(descriptor ->
+                            descriptor.getType() == ElementType.TRIGGER
                             || descriptor.getType() == ElementType.REUSE
                             || (descriptor.getType() == ElementType.COMPOSITE_TRIGGER
                             && elementHasNoParent
-                            && chainElement.getInputDependencies().isEmpty()));
+                            && chainElement.getInputDependencies().isEmpty()))
+                        .orElse(false);
                 })
                 .collect(Collectors.toList());
 
@@ -72,8 +71,7 @@ public class ChainRouteBuilder {
             Pair<ChainElement, ChainRoute> currentElement = stack.pop();
             ChainElement current = currentElement.getLeft();
             ChainRoute currentRoute = currentElement.getRight();
-            ElementDescriptor elementDescriptor = Optional.ofNullable(libraryService.getElementDescriptor(current.getType()))
-                .orElseGet(ElementDescriptor::new);
+            ElementDescriptor elementDescriptor = libraryService.getElementDescriptorOrDefault(current.getType());
             ElementType elementType = elementDescriptor.getType();
 
             if (currentRoute.getElements().isEmpty()) {
@@ -136,8 +134,7 @@ public class ChainRouteBuilder {
             Deque<Pair<ChainElement, ChainRoute>> elementRouteStack
     ) {
         List<ChainRoute> routes = new LinkedList<>();
-        ElementDescriptor elementDescriptor = Optional.ofNullable(libraryService.getElementDescriptor(containerElement.getType()))
-            .orElseGet(ElementDescriptor::new);
+        ElementDescriptor elementDescriptor = libraryService.getElementDescriptorOrDefault(containerElement.getType());
         if (!elementDescriptor.getAllowedChildren().isEmpty()) {
             for (ChainElement child : containerElement.getElements()) {
                 if (!(child instanceof ContainerChainElement childContainer)) {

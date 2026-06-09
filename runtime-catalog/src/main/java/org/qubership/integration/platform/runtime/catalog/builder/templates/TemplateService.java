@@ -37,7 +37,6 @@ import org.springframework.stereotype.Component;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Map;
-import java.util.Optional;
 
 @Slf4j
 @Component
@@ -116,8 +115,10 @@ public final class TemplateService {
     }
 
     public Template getTemplate(ChainElement element) {
-        return Optional.ofNullable(libraryService.getElementDescriptor(element.getType()))
-                    .orElseGet(ElementDescriptor::new).getType() == ElementType.COMPOSITE_TRIGGER
+        return libraryService.lookupElementDescriptor(element.getType())
+                    .map(ElementDescriptor::getType)
+                    .map(ElementType.COMPOSITE_TRIGGER::equals)
+                    .orElse(false)
                 ? getTemplate(element.getType() + (element.getInputDependencies().isEmpty() && element.getParent() == null
                         ? COMPOSITE_TRIGGER_DIR_SUFFIX
                         : COMPOSITE_TRIGGER_MODULE_DIR_SUFFIX))

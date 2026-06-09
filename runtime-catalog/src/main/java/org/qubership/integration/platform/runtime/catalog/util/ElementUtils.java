@@ -19,10 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.util;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.library.components.LibraryElementsService;
-import org.qubership.integration.platform.library.model.CustomTab;
-import org.qubership.integration.platform.library.model.ElementDescriptor;
-import org.qubership.integration.platform.library.model.ElementType;
-import org.qubership.integration.platform.library.model.PropertyValueType;
+import org.qubership.integration.platform.library.model.*;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SnapshotCreationException;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -86,7 +83,7 @@ public class ElementUtils {
     public List<ChainElement> splitCompositeTriggers(List<ChainElement> elements) {
         List<ChainElement> newElements = new ArrayList<>(elements);
         for (ChainElement element : elements) {
-            org.qubership.integration.platform.library.model.ElementDescriptor descriptor = getElementDescriptor(element);
+            ElementDescriptor descriptor = libraryService.lookupElementDescriptor(element.getType()).orElse(null);
             if (descriptor != null && descriptor.getType() == ElementType.COMPOSITE_TRIGGER) {
                 boolean elementHasNoParent = element.getParent() == null || CamelNames.CONTAINER.equals(element.getParent().getType());
                 if (elementHasNoParent && element.getInputDependencies().isEmpty()) {
@@ -119,9 +116,8 @@ public class ElementUtils {
 
     public void updateResetOnCopyProperties(ChainElement copy, String chainId) {
         Map<String, Object> copyProperties = copy.getProperties();
-        org.qubership.integration.platform.library.model.ElementDescriptor descriptor = libraryService.getElementDescriptor(copy.getType());
-        if (null != descriptor) {
-            for (org.qubership.integration.platform.library.model.ElementProperty elementProperty : descriptor.getProperties().getAll()) {
+        libraryService.lookupElementDescriptor(copy.getType()).ifPresent(descriptor -> {
+            for (ElementProperty elementProperty : descriptor.getProperties().getAll()) {
                 if (elementProperty.isResetValueOnCopy()) {
                     copyProperties.put(
                         elementProperty.getName(),
@@ -129,11 +125,11 @@ public class ElementUtils {
                             copy.getId(), chainId));
                 }
             }
-        }
+        });
     }
 
     public boolean areMandatoryPropertiesPresent(@NonNull ChainElement element) {
-        org.qubership.integration.platform.library.model.ElementDescriptor descriptor = getElementDescriptor(element);
+        ElementDescriptor descriptor = libraryService.lookupElementDescriptor(element.getType()).orElse(null);
         if (descriptor == null) {
             return true;
         }
@@ -144,7 +140,7 @@ public class ElementUtils {
                 return false;
             }
         }
-        for (org.qubership.integration.platform.library.model.ElementProperty propertyDescriptor : descriptor.getProperties().getAll()) {
+        for (ElementProperty propertyDescriptor : descriptor.getProperties().getAll()) {
             if (!isMandatoryPropertyPresent(propertyDescriptor, element)) {
                 return false;
             }
@@ -152,7 +148,7 @@ public class ElementUtils {
         return true;
     }
 
-    public boolean isMandatoryPropertyPresent(@NonNull org.qubership.integration.platform.library.model.ElementProperty propertyDescriptor, @NonNull ChainElement element) {
+    public boolean isMandatoryPropertyPresent(@NonNull ElementProperty propertyDescriptor, @NonNull ChainElement element) {
         if (propertyDescriptor.getType() == PropertyValueType.CUSTOM && propertyDescriptor.getValidation() != null) {
             return propertyDescriptor.getValidation().arePropertiesValid(element.getProperties());
         }
@@ -165,26 +161,16 @@ public class ElementUtils {
     }
 
     public boolean isMandatoryInnerElementPresent(@NonNull ChainElement element) {
-        org.qubership.integration.platform.library.model.ElementDescriptor descriptor = getElementDescriptor(element);
-        if (descriptor == null || !descriptor.isMandatoryInnerElement()) {
+        Optional<ElementDescriptor> descriptor = libraryService.lookupElementDescriptor(element.getType());
+        if (!descriptor.map(ElementDescriptor::isMandatoryInnerElement).orElse(false)) {
             return true;
         }
 
         if (element instanceof ContainerChainElement container) {
-            boolean hasAtLeastOneStartElement = container.getElements().stream()
+            return container.getElements().stream()
                     .anyMatch(child -> child.getInputDependencies().isEmpty());
-            if (!hasAtLeastOneStartElement) {
-                return false;
-            }
-        } else if (element.getOutputDependencies().isEmpty()) {
-            return false;
+        } else {
+            return !element.getOutputDependencies().isEmpty();
         }
-
-        return true;
-    }
-
-    public ElementDescriptor getElementDescriptor(ChainElement element) {
-        return Optional.ofNullable(libraryService.getElementDescriptor(element.getType()))
-            .orElseGet(ElementDescriptor::new);
     }
 }

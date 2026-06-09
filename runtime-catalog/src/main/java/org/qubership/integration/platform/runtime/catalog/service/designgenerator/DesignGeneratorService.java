@@ -131,8 +131,10 @@ public class DesignGeneratorService {
 
         List<ChainElement> triggers = elements.stream()
                 .filter(chainElement ->
-                        libraryService.getElementDescriptor(chainElement.getType()) != null
-                                && libraryService.getElementDescriptor(chainElement.getType()).getType() == ElementType.TRIGGER)
+                        libraryService.lookupElementDescriptor(chainElement.getType())
+                            .map(ElementDescriptor::getType)
+                            .map(ElementType.TRIGGER::equals)
+                            .orElse(false))
                 .sorted(Comparator.comparing(AbstractEntity::getName))
                 .collect(Collectors.toList());
 
@@ -225,7 +227,7 @@ public class DesignGeneratorService {
     }
 
     private void addParticipant(String chainId, Map<String, String> participants, ChainElement element) {
-        ElementDesignParameters designParameters = Optional.ofNullable(libraryService.getElementDescriptor(element.getType()))
+        ElementDesignParameters designParameters = libraryService.lookupElementDescriptor(element.getType())
             .map(ElementDescriptor::getDesignParameters)
             .orElse(null);
         DesignProcessor designProcessor = designProcessors.get(element.getType());
@@ -258,8 +260,7 @@ public class DesignGeneratorService {
         }
 
         List<ChainElement> elementsTo = fromElementMap.getOrDefault(currentElement.getId(), Collections.emptyList());
-        ElementDescriptor elementDescriptor = Optional.ofNullable(libraryService.getElementDescriptor(currentElement.getType()))
-            .orElseGet(ElementDescriptor::new);
+        ElementDescriptor elementDescriptor = libraryService.getElementDescriptorOrDefault(currentElement.getType());
         DesignProcessor designProcessor = designProcessors.get(currentElement.getType());
 
         if (elementsToProcessIds.contains(currentElement.getId())) {
@@ -502,8 +503,7 @@ public class DesignGeneratorService {
                         Function.identity())
                 );
         for (ChainElement element : elements) {
-            ElementDescriptor descriptor = Optional.ofNullable(libraryService.getElementDescriptor(element.getType()))
-                .orElseGet(ElementDescriptor::new);
+            ElementDescriptor descriptor = libraryService.getElementDescriptorOrDefault(element.getType());
             if (ElementType.REUSE_REFERENCE != descriptor.getType()) {
                 continue;
             }

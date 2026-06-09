@@ -25,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.library.configuration.ElementDescriptorProperties;
+import org.qubership.integration.platform.library.exceptions.ElementNotFoundException;
 import org.qubership.integration.platform.library.model.*;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -116,8 +117,17 @@ public class LibraryElementsService {
         }
     }
 
+    public Optional<ElementDescriptor> lookupElementDescriptor(String name) {
+        return Optional.ofNullable(elements.get(name));
+    }
+
     public ElementDescriptor getElementDescriptor(String name) {
-        return elements.get(name);
+        return lookupElementDescriptor(name)
+            .orElseThrow(() -> new ElementNotFoundException(name));
+    }
+
+    public ElementDescriptor getElementDescriptorOrDefault(String name) {
+        return lookupElementDescriptor(name).orElseGet(ElementDescriptor::new);
     }
 
     public List<ElementDescriptor> getElementDescriptorsByType(ElementType type) {

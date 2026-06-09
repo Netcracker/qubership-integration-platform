@@ -297,7 +297,7 @@ public class ElementService extends ElementBaseService {
         String swimlaneId = createElementRequest.getSwimlaneId();
         Chain chain = chainFinderService.findById(chainId);
         checkElementParentRestriction(elementType, null);
-        ElementDescriptor descriptor = libraryService.getElementDescriptor(elementType);
+        ElementDescriptor descriptor = libraryService.getElementDescriptorOrDefault(elementType);
 
         SwimlaneChainElement swimlane = findDefaultSwimlaneWithLockingByChainId(chainId)
                 .orElse(null);
@@ -319,8 +319,10 @@ public class ElementService extends ElementBaseService {
                                 .filter(element -> StringUtils.equals(parentId, element.getId()))
                                 .findFirst())
                         .map(this::findRootParent)
-                        .map(elementUtils::getElementDescriptor)
-                        .map(elementDescriptor -> ElementType.REUSE == elementDescriptor.getType())
+                        .map(ChainElement::getType)
+                        .flatMap(libraryService::lookupElementDescriptor)
+                        .map(ElementDescriptor::getType)
+                        .map(ElementType.REUSE::equals)
                         .orElse(false);
                 if (swimlane.isReuseSwimlane() && !rootParentReuse) {
                     throw new ElementCreationException("Only Reuse element can be added to Reuse Swimlane");
@@ -378,7 +380,7 @@ public class ElementService extends ElementBaseService {
                 String libraryElement = childDefinition.getKey();
                 Quantity libraryElementQuantity = childDefinition.getValue();
 
-                ElementDescriptor childTypeDefinition = libraryService.getElementDescriptor(libraryElement);
+                ElementDescriptor childTypeDefinition = libraryService.getElementDescriptorOrDefault(libraryElement);
                 if (childTypeDefinition.isDeprecated() && !descriptor.isDeprecated()) {
                     continue;
                 }
@@ -409,10 +411,8 @@ public class ElementService extends ElementBaseService {
     }
 
     protected void checkElementParentRestriction(String elementType, String parentElementType) {
-        ElementDescriptor elementDescriptor = libraryService.getElementDescriptor(elementType);
-        if (elementDescriptor == null) {
-            throw new ElementValidationException("Element of type " + elementType + " cannot be a child");
-        }
+        ElementDescriptor elementDescriptor = libraryService.lookupElementDescriptor(elementType)
+            .orElseThrow(() -> new ElementValidationException("Element of type " + elementType + " cannot be a child"));
 
         if (elementDescriptor.getParentRestriction() == null || elementDescriptor.getParentRestriction().isEmpty()) {
             return;
@@ -426,7 +426,7 @@ public class ElementService extends ElementBaseService {
     }
 
     protected void checkAddingChildParentRestriction(String childElementType, ContainerChainElement parent) {
-        ElementDescriptor parentDescriptor = libraryService.getElementDescriptor(parent.getType());
+        ElementDescriptor parentDescriptor = libraryService.lookupElementDescriptor(parent.getType()).orElse(null);
         if (parentDescriptor != null) {
             Map<String, Quantity> childrenMap = parentDescriptor.getAllowedChildren();
 
@@ -454,7 +454,7 @@ public class ElementService extends ElementBaseService {
     }
 
     protected void checkIfAllowedInContainers(String elementType) {
-        Optional.ofNullable(libraryService.getElementDescriptor(elementType))
+        libraryService.lookupElementDescriptor(elementType)
                 .filter(descriptor -> !descriptor.isAllowedInContainers())
                 .ifPresent(descriptor -> {
                     throw new ElementValidationException(
@@ -473,7 +473,7 @@ public class ElementService extends ElementBaseService {
         parent = elementRepository.save(auditingHandler.markModified(parent));
 
         if (!isImportProcess) {
-            ElementDescriptor parentDescriptor = libraryService.getElementDescriptor(parent.getType());
+            ElementDescriptor parentDescriptor = libraryService.lookupElementDescriptor(parent.getType()).orElse(null);
             if (parentDescriptor != null) {
                 Map<String, Quantity> childrenMap = parentDescriptor.getAllowedChildren();
                 if (MapUtils.isNotEmpty(childrenMap) && childrenMap.get(child.getType()) != null) {
@@ -593,7 +593,7 @@ public class ElementService extends ElementBaseService {
                 chainDiff.addUpdatedElement(parentElement);
             }
             chainDiff.addRemovedElements(elements);
-            Optional.ofNullable(elementUtils.getElementDescriptor(element))
+            libraryService.lookupElementDescriptor(element.getType())
                     .filter(ElementDescriptor::isReferencedByAnotherElement)
                     .ifPresent(descriptor -> deleteElementReferences(chainDiff, element));
 
@@ -792,19 +792,20 @@ public class ElementService extends ElementBaseService {
     }
 
     public boolean isElementDeprecated(ChainElement chainElement) {
-        return Optional.ofNullable(elementUtils.getElementDescriptor(chainElement))
+        return libraryService.lookupElementDescriptor(chainElement.getType())
                 .map(ElementDescriptor::isDeprecated)
                 .orElse(false);
     }
 
     public boolean isElementUnsupported(ChainElement chainElement) {
-        return Optional.ofNullable(elementUtils.getElementDescriptor(chainElement))
+        return libraryService.lookupElementDescriptor(chainElement.getType())
                 .map(ElementDescriptor::isUnsupported)
                 .orElse(false);
     }
 
     public void validateElementProperties(ChainElement element) {
-        ElementDescriptor descriptor = elementUtils.getElementDescriptor(element);
+        ElementDescriptor descriptor = libraryService.lookupElementDescriptor(element.getType())
+            .orElse(null);
         if (descriptor == null) {
             return;
         }

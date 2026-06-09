@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.io.impl.factory;
+package org.qubership.integration.platform.io.factories;
 
 import org.qubership.integration.platform.io.model.DataFormat;
 

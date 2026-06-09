@@ -1,8 +1,8 @@
-package org.qubership.integration.platform.io.impl.writers.camel.xml;
+package org.qubership.integration.platform.io.writers.camel.xml;
 
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.chain.model.Chain;
-import org.qubership.integration.platform.io.impl.factory.ForDataFormat;
+import org.qubership.integration.platform.io.factories.ForDataFormat;
 import org.qubership.integration.platform.io.model.DataFormat;
 import org.qubership.integration.platform.io.model.DataWriter;
 import org.springframework.stereotype.Component;

@@ -51,8 +51,7 @@ public class QueryParamsHelper extends BaseHelper implements Helper<ChainElement
 
     @Override
     public Object apply(ChainElement element, Options options) throws IOException {
-        ElementDescriptor descriptor = Optional.ofNullable(libraryElementsService.getElementDescriptor(element.getType()))
-            .orElseGet(ElementDescriptor::new);
+        ElementDescriptor descriptor = libraryElementsService.getElementDescriptorOrDefault(element.getType());
         StringBuilder str = new StringBuilder();
         List<ElementProperty> queryProperties = descriptor.getQueryProperties();
         ArrayList<String> maasEnabledParams = MaasUtils.getMaasParams(element);
