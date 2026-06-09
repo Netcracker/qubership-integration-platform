@@ -1,17 +1,25 @@
 # Chains
-
-> ⛔️ This functionality is not available via the VS Code Extension.
-
 ## Description
 
 ---
 Chain is an integration configuration which consist of Apache Camel (or customized) modules. Each chain is indented to perform particular integration task.
 Chain can be triggered by any external consumer, so chain configuration starts from some trigger (HTTP Trigger, Kafka Trigger, etc.).
 When the chain configuration was completed, it should be deployed at least on one [Engine Domain](../03__Admin_Tools/1__Domains/domains.md) (otherwise, the chain cannot be triggered).
+
+## Process Initialization
+
+---
+-	In <ins>Web UI</ins>: after logging in to the Web UI, user is navigated directly to "Chains" page to start working with the related functionality.
+-	In <ins>VS Code Extension</ins>: Users can find a chain in one of the following ways:
+    - Find the QIP panel in the lower-left corner of VS Code, expand the Chains section, and find it by the name.
+    - In the Explorer view, find the VS Code Extension section and expand it. Find the required chain by its ID.
+
 ## User Interface
 
 ---
-### Chains and Folders Table View
+### Chains and Folders View
+<ins>Web UI</ins>
+
 Screen shows the table of chains (marked with icon ![file](img/file.svg)) and chain folders (marked with icon ![folder](img/folder.svg)). To see all the chains & folders under the particular folder, you can click ![right](img/right.svg) icon near folder name. Next control elements are available on top of the table:
 - **Search field** - search box, provides ability to find respective data in the table. To find a particular chain/folder by a specific feature (case-insensitive) use search field at the top of the screen with the text "Full text search" and a lens icon ![search](img/search.svg). Full-text search is applicable by the following data:
   - Chain fields:
@@ -30,12 +38,12 @@ Screen shows the table of chains (marked with icon ![file](img/file.svg)) and ch
   - Folder name - if search query matches, all content (chains and child folders) under the folder will be shown.
 - ![filter](img/filter.svg) - opens filter pop-up.
 - ![setting](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns except **Name**.
-- ![difference](img/diff.svg) - compare selected chains.
+- ![difference](img/diff.svg) - compares selected chains.
 - ![carry-out](img/carry-out.svg) - pastes chain or folder.
 - ![send](img/send.svg) - opens pop-up for chains redeploy.
 - ![cloud-download](img/cloud-download.svg) - exports the chain(s).
 - ![cloud-upload](img/cloud-upload.svg) - opens pop-up for chain(s) import. As part of upload/import operation, user is able to additionally select an option to create a snapshot for imported chain or even deploy it to the selected engine as soon import is successfully completed.
-- ![delete](img/delete.svg) - delete selected chains or folders.
+- ![delete](img/delete.svg) - deletes selected chains or folders.
 
 Each **chain** contains the following parameters on table view:
 - **Name** - chain name, which is clickable reference to the chain [graph](1__Graph/graph.md).
@@ -79,7 +87,13 @@ Each **chain** contains the following parameters on table view:
 > - You can **move chain/folder** to the folder via drag&drop operation (instead of Cut and Paste). To **move it to the root directory**, drop chain/folder to the ![home](img/home.svg) at the right top above the table.
 > - Mentioned "Chains" window **does not validate** the uniqueness of the names, neither folders nor the chains. Hence, it is possible that multiple chains (or folders) might have the same names.
 
+<ins>VS Code Extension</ins>
+
+All chains configured using VS Code Extension appears under "Chains" folder. The "Chains" folder is located by expanding "QIP" in the left bottom. Under "Chains" folder, a list of created chains is available.
+
 ### Chain Details Side Panel
+**`⛔ Not available via VS Code extension`**
+
 More chain details are available via **right side panel**. To open it, click on any place in the chain row (except chain name, which leads to [graph](1__Graph/graph.md)). The following information about chain will be available (in read-only mode):
 
 - **ID** - chain identifier.
@@ -99,6 +113,8 @@ More chain details are available via **right side panel**. To open it, click on 
 - **Modified** - date, time and user of the last chain modification.
 
 ### Create New Chain or Folder
+<ins>Web UI</ins>
+
 To create a new chain or a folder, click button **"Create"** on the top right of the screen and select either **"New chain"** or **"New folder"** from the list menu.
 
 You will be presented with the window. Fill in the following fields:
@@ -121,7 +137,17 @@ In the **Extended Description** tab:
 
 When all necessary parameters are filled, click **"Submit"** button or use the combination of **`Ctrl+Enter`**.
 
+<ins>VS Code Extension</ins>
+
+To create a chain using VS Code Extension, follow the steps outlined below:
+1. Open "VS Code Extension" in Visual Studio Code.
+2. In the left bottom find QIP section and expand it.
+3. Near the "Chain" folder click on appearing button "QIP Create a chain".
+4. At the top of Visual Studio Code enter the name of the chain and click `Enter`. Next, it opens the QIP Extension UI with the "blueprint-like" environment on the "Graph" tab to design and configure the chain logic.
+
 ### Import Chain(s)
+**`⛔ Not available via VS Code extension`**
+
 To upload the chain(s), click the icon ![cloud-upload](img/cloud-upload.svg), drag and drop **.zip** or **.yaml** file into import area or click on this area, select the file and click "Next" at the bottom right. The second step allows to specify actions. There are four tabs under one.
 
 #### Chains Tab
@@ -191,6 +217,8 @@ After all actions it is necessary to click on the "import" button at the bottom 
 The last step is the result of import. In each tab the specified field "Status" is added as a result of import that is described at the end of each table.
 
 ### Export Chain(s)
+**`⛔ Not available via VS Code extension`**
+
 To export the chain(s), simply select respective rows in the table with checkboxes (use checkbox in table heading if you need to select all/filtered chains) and ![cloud-download](img/cloud-download.svg).
 When no entities are selected and button clicked, system will attempt to export every chain after receiving a user's confirmation.
 During export, you can adjust the data to be downloaded using the following checkboxes in the dialog window. All checkboxes are unchecked by default:
@@ -202,6 +230,8 @@ and sub-chains selected as the handler for duplicate idempotency keys on the "Id
 - **Export all common variables** - if selected, system will also export all common variables, utilized within chains.
 
 ### Deploy Chain(s)
+**`⛔ Not available via VS Code extension`**
+
 To deploy desired chains, mark them via checkboxes (use checkbox in table heading if you need to select all/filtered chains) and click ![send](img/send.svg).
 System will attempt to deploy every available chain when button is clicked but none of the chains selected.
 In both cases, system shows pop-up and requests additional data:
@@ -221,6 +251,22 @@ Confirm selected options and click "**Deploy**" button. System will attempt to d
   - **Deployment queued** - deploy operation has been successfully queued to processing.
   - **Deployment ignored** - operation can't be performed for overridden chains.
 - **Message** - contains additional message for failed operations.
+
+### Delete Chain(s) and Folder(s)
+<ins>Web UI</ins>
+
+From the [Chains and Folders Table View](#Chains%20and%20Folders%20Table%20View), click on action menu against the entity (folder or chain) name to be deleted. Next, from the available options, click "Delete" ![delete](img/delete.svg). Or mark all entities to be deleted and click on "Delete" button ![delete](img/delete.svg) above the table on the right corner. The screen displays a user confirmation prompt to proceed with deletion. Click "Yes" to delete or "No" to cancel operation.
+If a folder is deleted, all chains grouped under that folder will also be deleted.
+
+<ins>VS Code Extension</ins>
+
+Under "Chains" folder, right-click on the chain name you want to delete. From the available options, click "Delete". A notification appears in the bottom-right corner of the screen to confirm deletion is successful.
+
+## Data Storage
+
+---
+-	In <ins>Web UI</ins>: during the process of chain creation, both chain and its configuration are stored in the QIP Catalog database. The chains are available for export from UI.
+-	In <ins>VS Code Extension</ins>: chains created via QIP UI Extension in VS Code are stored locally under a project folder or workspace directory configured by user on file system of respective machine.
 
 ### Constraints
 
