@@ -26,11 +26,6 @@ on:
         required: false
         default: true
         type: boolean
-      create-github-release:
-        description: "Create release"
-        required: false
-        default: true
-        type: boolean
       mvn-args:
         description: "Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)"
         required: false
@@ -57,11 +52,6 @@ on:
         required: false
         default: true
         type: boolean
-      create-github-release:
-        description: "Create release"
-        required: false
-        default: true
-        type: boolean
       mvn-args:
         description: "Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)"
         required: false
@@ -83,5 +73,4 @@ jobs:
       # Fixed to github: private com.netcracker.cloud deps are not on Central.
       profile: github
       build-docker: ${{ inputs.build-docker }}
-      create-github-release: ${{ inputs.create-github-release }}
       mvn-args: ${{ inputs.mvn-args }}

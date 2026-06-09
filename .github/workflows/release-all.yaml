@@ -31,7 +31,7 @@ on:
         default: true
         type: boolean
       create-github-release:
-        description: "Create GitHub release"
+        description: "Cut the single drop GitHub Release for this wave (tag v<platform-version>). Module releases never create their own GitHub Release."
         required: false
         default: true
         type: boolean
@@ -98,7 +98,6 @@ jobs:
       release-type: ${{ inputs.release-type }}
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
-      create-github-release: ${{ inputs.create-github-release }}
     secrets:
       MAVEN_USER: ${{ secrets.MAVEN_USER }}
       MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
@@ -118,7 +117,6 @@ jobs:
     with:
       release-type: ${{ inputs.release-type }}
       build-docker: ${{ inputs.build-docker }}
-      create-github-release: ${{ inputs.create-github-release }}
 
   release-runtime-catalog:
     needs: prepare
@@ -131,7 +129,6 @@ jobs:
       release-type: ${{ inputs.release-type }}
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
-      create-github-release: ${{ inputs.create-github-release }}
     secrets:
       MAVEN_USER: ${{ secrets.MAVEN_USER }}
       MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
@@ -149,7 +146,6 @@ jobs:
       release-type: ${{ inputs.release-type }}
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
-      create-github-release: ${{ inputs.create-github-release }}
     secrets:
       MAVEN_USER: ${{ secrets.MAVEN_USER }}
       MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
@@ -165,7 +161,6 @@ jobs:
     uses: ./.github/workflows/ui-release.yaml
     with:
       release-type: ${{ inputs.release-type }}
-      create-github-release: ${{ inputs.create-github-release }}
 
   release-vscode-extension:
     needs: [prepare, release-ui]
@@ -176,7 +171,6 @@ jobs:
     uses: ./.github/workflows/vscode-extension-release.yaml
     with:
       release-type: ${{ inputs.release-type }}
-      create-github-release: ${{ inputs.create-github-release }}
 
   # ---------------------------------------------------------------------------
   # Bill of Materials: snapshot the released version of every module (derived
@@ -212,3 +206,36 @@ jobs:
           name: release-manifest
           path: release-manifest.json
           if-no-files-found: error
+
+  # The one GitHub Release per wave (tag v<platform-version>); module jobs only tag.
+  create-drop-release:
+    needs:
+      - prepare
+      - release-engine
+      - release-micro-engine
+      - release-runtime-catalog
+      - release-sessions-management
+      - release-ui
+      - release-vscode-extension
+    # Not always(): a failed module must not still cut a drop + bump the version.
+    if: ${{ !cancelled() && !failure() && inputs.create-github-release && needs.prepare.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          # The platform-version bump commit is pushed back at the end.
+          persist-credentials: true
+      - name: Create platform drop release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RELEASE_TYPE: ${{ inputs.release-type }}
+          PRERELEASE: ${{ github.ref_name != 'main' }}
+          BRANCH: ${{ github.ref_name }}
+        run: bash scripts/build-drop-release.sh

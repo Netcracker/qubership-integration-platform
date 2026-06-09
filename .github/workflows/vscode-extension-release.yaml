@@ -22,10 +22,6 @@ on:
         required: false
         type: string
         default: "latest"
-      create-github-release:
-        required: false
-        default: true
-        type: boolean
   workflow_dispatch:
     inputs:
       release-type:
@@ -47,11 +43,6 @@ on:
         required: false
         type: string
         default: "latest"
-      create-github-release:
-        description: "Create release"
-        required: false
-        default: true
-        type: boolean
 
 permissions: {}
 
@@ -66,4 +57,3 @@ jobs:
       release-type: ${{ inputs.release-type }}
       version: ${{ inputs.version }}
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
-      create-github-release: ${{ inputs.create-github-release }}

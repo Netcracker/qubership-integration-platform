@@ -55,10 +55,6 @@ on:
         required: false
         type: string
         default: "latest"
-      create-github-release:
-        required: false
-        type: boolean
-        default: true
       build-schemas:
         required: false
         type: boolean
@@ -196,30 +192,4 @@ jobs:
             "chore: $MODULE $RELEASE_VERSION [skip ci]" \
             "$MODULE/package.json" package-lock.json
 
-  # ---------------------------------------------------------------------------
-  # GitHub Release notes (after a successful publish + tag).
-  # ---------------------------------------------------------------------------
-  create-release:
-    if: ${{ inputs.create-github-release == true }}
-    needs: [check-version, npm-publish]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-          ref: ${{ github.ref }}
-      - name: Run Release Drafter
-        uses: netcracker/release-drafter@86f4276a3894b5af70480e826c32fe3648ac6a70 # v1.0.0
-        with:
-          config-name: "release-drafter-config.yml"
-          publish: true
-          prerelease: ${{ github.ref_name != 'main' }}
-          name: "${{ inputs.module }}-${{ needs.check-version.outputs.release-version }}"
-          tag: "${{ needs.check-version.outputs.release-tag }}"
-          version: "${{ needs.check-version.outputs.release-tag }}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # No GitHub Release here — cut once per drop by release-all.
