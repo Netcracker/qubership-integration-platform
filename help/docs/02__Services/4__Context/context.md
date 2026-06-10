@@ -93,9 +93,3 @@ When import is completed, system displays import result table with the following
 System allows exporting service. There are two possible ways to export service(s):
 - From **"Context Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) (Export).
 - From exact service page - simply click ![cloud-download](img/cloud-download.svg) (Export) from the action menu ![more](img/more.svg).
-
-## Data Storage
-
----
--	In <ins>Web UI</ins>: for any services created, the service parameters and configuration is stored in QIP Catalog database.
--	In <ins>VS Code Extension</ins>: services configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.

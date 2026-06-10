@@ -4,15 +4,6 @@
 ---
 **Graph** is a work environment, presented in a "blueprint-like" way, that provides ability to connect multiple chain elements in particular order to form an integration chain and solve specific integration task.
 
-## Process Initialization
-
----
--	In <ins>Web UI</ins>: user is able to reach graph via simply clicking on any particular chain (to open it's detailed configuration).
--	In <ins>VS Code Extension</ins>: Users can open a chain in one of the following ways:
-    - Find the QIP panel in the lower-left corner of VS Code, expand the Chains section, and double-click the desired chain. The corresponding graph will then be displayed.
-    - In the Explorer view, find the VS Code Extension section and expand it. Find the required chain by its ID, expand it if necessary, and double-click it to open the corresponding graph.
-
-
 ## User Interface
 
 ---
@@ -99,9 +90,3 @@ Chain is also available in a text view, that could be used to compare one chain 
 **`⛔ Not available via VS Code extension`**
 
 To initiate document generation, click ![file](img/file.svg) **"Generate DDS"** on control panel, select desired template from the list, specify document name and click "**Generate**". System will show preview screen, where it is possible to get familiar with the finalized view of the document. Click "**Download**" to get the archive, that contains design document in .md format and other supplementary files, like pictures, etc. Data from the archive can be further processed by Markdown editors or processors to build proper human-readable document, presented on preview step.
-
-## Data Storage
-
----
--	In <ins>Web UI</ins>: chain configuration is being saved in the QIP catalog database in a real-time manner.
--	In <ins>VS Code Extension</ins>: chain configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of respective machine. 
