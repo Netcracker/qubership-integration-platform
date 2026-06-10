@@ -95,6 +95,11 @@ export class OrderedElementService {
 
       utils.updatePriority(newPriority);
 
+      // If new priority is beyond the current range, don't update other elements
+      if (newPriorityIndex === -1 && newPriority >= sortedElements.length) {
+        return chainDiff;
+      }
+
       let elementsToUpdate = [];
       let priorityFunction: (currentPriority: number) => number;
 
