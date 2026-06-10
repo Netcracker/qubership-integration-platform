@@ -7,7 +7,7 @@ import {
 import { OrderedElementUtils } from "./OrderedElementUtils";
 import { ActionDifference, PatchElementRequest } from "@netcracker/qip-ui";
 import { findElementById } from "../response/chainApiUtils";
-import { getType } from "./elementUtils";
+import { ElementWithParentId, getType } from "./elementUtils";
 
 export class OrderedElementService {
   constructor(
@@ -16,27 +16,29 @@ export class OrderedElementService {
     private readonly chainElements: ElementSchema[],
   ) {}
 
-  async updatePriority(element: ElementSchema) {
+  async updatePriority(element: ElementWithParentId) {
     if (await OrderedElementService.isOrdered(element)) {
       await this.calculatePriority(element);
       return;
     }
 
-    const libraryData = await getLibraryElementByType(getType(element));
+    const libraryData = await getLibraryElementByType(getType(element.element));
 
-    if (libraryData.container && element.children) {
-      for (const child of element.children as ElementSchema[]) {
-        if (await OrderedElementService.isOrdered(child)) {
-          await this.calculatePriority(child);
+    const elementSchema = element.element;
+    if (libraryData.container && elementSchema.children) {
+      for (const child of elementSchema.children as ElementSchema[]) {
+        const childElement = {element: child, parentElementId: elementSchema.id};
+        if (await OrderedElementService.isOrdered(childElement)) {
+          await this.calculatePriority(childElement);
         }
       }
     }
   }
 
-  async calculatePriority(element: ElementSchema) {
+  async calculatePriority(element: ElementWithParentId) {
     const orderedElementUtils = await OrderedElementUtils.create(element);
     const orderedElements = orderedElementUtils.extractOtherOrderedElements(
-      this.getParentElement(element),
+      this.getParentElement(element.parentElementId!),
     );
 
     const orderNumber: number = orderedElements.filter((orderedElement) => {
@@ -49,14 +51,14 @@ export class OrderedElementService {
     orderedElementUtils.updatePriority(orderNumber);
   }
 
-  static async isOrdered(element: ElementSchema): Promise<boolean> {
-    const libraryElement = await getLibraryElementByType(getType(element));
+  static async isOrdered(element: ElementWithParentId): Promise<boolean> {
+    const libraryElement = await getLibraryElementByType(getType(element.element));
 
-    return libraryElement.ordered && element.parentElementId !== null;
+    return element.parentElementId !== undefined && libraryElement.ordered;
   }
 
   async updateProperties(
-    element: ElementSchema,
+    element: ElementWithParentId,
     elementRequest: PatchElementRequest,
   ): Promise<ActionDifference | undefined> {
     if (
@@ -75,7 +77,7 @@ export class OrderedElementService {
     }
   }
 
-  async changePriority(
+  private async changePriority(
     utils: OrderedElementUtils,
     newPriority: number,
   ): Promise<ActionDifference> {
@@ -87,48 +89,40 @@ export class OrderedElementService {
     const currentPriority: number = utils.getPriority();
 
     if (currentPriority !== newPriority) {
-      const parentElement = this.getParentElement(utils.element);
+      const parentElement = this.getParentElement(utils.parentElementId);
       const sortedElements = utils.extractSortedOrderedElements(parentElement);
 
       const currentPriorityIndex = utils.getIndex(sortedElements);
-      let newPriorityIndex = utils.getIndex(sortedElements, newPriority);
+
+      const hasExactPriorityMatch: boolean = sortedElements.some(
+        (element) => utils.getPriority(element) === newPriority,
+      );
+
+      let targetIndex = utils.getIndexToInsert(sortedElements, newPriority);
 
       utils.updatePriority(newPriority);
 
-      let elementsToUpdate = [];
-      let priorityFunction: (currentPriority: number) => number;
-
-      if (newPriority > currentPriority) {
-        if (newPriorityIndex === -1) {
-          if (currentPriorityIndex + 1 >= sortedElements.length) {
-            return chainDiff;
-          }
-          const elements = sortedElements
-            .map((element) => utils.getPriority(element))
-            .filter((priority) => priority < sortedElements.length);
-          newPriorityIndex =
-            elements.length > 0 ? Math.max(...elements) : currentPriorityIndex;
+      if (hasExactPriorityMatch) {
+        let elementsToUpdate: ElementSchema[] = [];
+        if (targetIndex > currentPriorityIndex) {
+          elementsToUpdate = sortedElements.slice(
+            currentPriorityIndex + 1,
+            targetIndex + 1,
+          );
+        } else if (targetIndex < currentPriorityIndex) {
+          elementsToUpdate = sortedElements.slice(
+            targetIndex,
+            currentPriorityIndex,
+          );
         }
-        elementsToUpdate = sortedElements.slice(
-          currentPriorityIndex + 1,
-          newPriorityIndex + 1,
-        );
-        priorityFunction = (currentPriority: number) => currentPriority - 1;
-      } else {
-        if (newPriorityIndex === -1) {
-          return chainDiff;
-        }
-        elementsToUpdate = sortedElements.slice(
-          newPriorityIndex,
-          currentPriorityIndex,
-        );
-        priorityFunction = (currentPriority: number) => currentPriority + 1;
-      }
 
-      for (const elementToUpdate of elementsToUpdate) {
-        const priority: number = utils.getPriority(elementToUpdate);
-        if (priority < sortedElements.length) {
-          utils.updatePriority(priorityFunction(priority), elementToUpdate);
+        for (const elementToUpdate of elementsToUpdate) {
+          const priority: number = utils.getPriority(elementToUpdate);
+
+          utils.updatePriority(
+            targetIndex > currentPriorityIndex ? priority - 1 : priority + 1,
+            elementToUpdate,
+          );
           chainDiff.updatedElements?.push(
             await parseElement(
               this.chainFileUri,
@@ -145,7 +139,7 @@ export class OrderedElementService {
   }
 
   async removeElementIfOrderedAndMergeDiff(
-    element: ElementSchema,
+    element: ElementWithParentId,
     chainDiff: ActionDifference,
   ): Promise<void> {
     const diff = await this.removeElementIfOrdered(element);
@@ -159,7 +153,7 @@ export class OrderedElementService {
   }
 
   private async removeElementIfOrdered(
-    element: ElementSchema,
+    element: ElementWithParentId,
   ): Promise<ActionDifference> {
     const chainDiff: ActionDifference = {
       updatedElements: [],
@@ -168,7 +162,7 @@ export class OrderedElementService {
       const utils = await OrderedElementUtils.create(element);
       const currentPriority: number = utils.getPriority();
 
-      const parentElement = this.getParentElement(element);
+      const parentElement = this.getParentElement(element.parentElementId!);
 
       if (
         currentPriority < (parentElement.children as ElementSchema[]).length
@@ -203,10 +197,10 @@ export class OrderedElementService {
     return chainDiff;
   }
 
-  private getParentElement(element: ElementSchema): ElementSchema {
+  private getParentElement(parentId: string): ElementSchema {
     return findElementById(
       this.chainElements,
-      element.parentElementId as string,
+      parentId,
     )?.element!;
   }
 }
