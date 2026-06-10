@@ -4,14 +4,6 @@
 ---
 Qubership Integration Platform is able to integrate with Inner Cloud Services, that are located within the environment. Unlike for external services, Qubership Integration Platform might perform a lookup in order to fetch all Inner Services available within the Cloud.
 
-## Process Initialization
-
----
-
-- In <ins>Web UI</ins>: to reach the Inner Cloud Services management window, please click "Services" on the top of the Qubership Integration Platform screen and then go to "Inner Cloud" tab.
-- In <ins>VS Code Extension</ins>: to create and configure a service instance, navigate to "Services" section under the "QIP" folder in the left bottom within VS Code Extension.
-
-
 ## User Interface
 
 ---
@@ -343,13 +335,6 @@ When import is completed, system displays import result table with the following
 **`⛔ Not available via VS Code extension`**
 
 System allows to export service with all its API specifications, environments and sources. From **"Inner Cloud Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) **Export**. Or simply click this button to export all services at once after confirmation.
-
-## Data Storage
-
----
-
-- In <ins>Web UI</ins>: for any services created, the service parameters and configuration is stored in QIP Catalog database.
-- In <ins>VS Code Extension</ins>: services configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.
 
 ### Constraints
 

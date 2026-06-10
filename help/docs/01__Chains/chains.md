@@ -6,15 +6,6 @@ Chain is an integration configuration which consist of Apache Camel (or customiz
 Chain can be triggered by any external consumer, so chain configuration starts from some trigger (HTTP Trigger, Kafka Trigger, etc.).
 When the chain configuration was completed, it should be deployed at least on one [Engine Domain](../03__Admin_Tools/1__Domains/domains.md) (otherwise, the chain cannot be triggered).
 
-## Process Initialization
-
----
-
-- In <ins>Web UI</ins>: after logging in to the Web UI, user is navigated directly to "Chains" page to start working with the related functionality.
-- In <ins>VS Code Extension</ins>: Users can find a chain in one of the following ways:
-  - Find the QIP panel in the lower-left corner of VS Code, expand the Chains section, and find it by the name.
-  - In the Explorer view, find the VS Code Extension section and expand it. Find the required chain by its ID.
-
 ## User Interface
 
 ---
@@ -262,13 +253,6 @@ If a folder is deleted, all chains grouped under that folder will also be delete
 <ins>VS Code Extension</ins>
 
 Under "Chains" folder, right-click on the chain name you want to delete. From the available options, click "Delete". A notification appears in the bottom-right corner of the screen to confirm deletion is successful.
-
-## Data Storage
-
----
-
-- In <ins>Web UI</ins>: during the process of chain creation, both chain and its configuration are stored in the QIP Catalog database. The chains are available for export from UI.
-- In <ins>VS Code Extension</ins>: chains created via QIP UI Extension in VS Code are stored locally under a project folder or workspace directory configured by user on file system of respective machine.
 
 ### Constraints
 

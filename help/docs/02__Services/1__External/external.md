@@ -9,14 +9,6 @@ Services, located outside of environment are called **External Services**. To in
 
 > ℹ️ **Note:** External services might have **multiple environments** in the system, so it is possible to quickly switch between them according to the needs. To properly apply the changes after switching the environment, it is **required to redeploy all affected chains**, making new address registered in Egress Gateway.
 
-## Process Initialization
-
----
-
-- In <ins>Web UI</ins>: to reach the External Services management window, please click "Services" on the top of the Qubership Integration Platform screen and then go to "External" tab.
-- In <ins>VS Code Extension</ins>: to create and configure a service instance, navigate to "Services" section under the "QIP" folder in the left bottom within VS Code Extension.
-
-
 ## User Interface
 
 ---
@@ -334,14 +326,6 @@ When import is completed, system displays import result table with the following
 **`⛔ Not available via VS Code extension`**
 
 System allows to export service with all its API specifications, environments and sources. From **"External Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) **Export**. Or simply click this button to export all services at once after confirmation.
-
-## Data Storage
-
----
-
-- In <ins>Web UI</ins>: for any services created, the service parameters and configuration is stored in QIP Catalog database.
-- In <ins>VS Code Extension</ins>: services configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.
-
 
 ### Constraints
 
