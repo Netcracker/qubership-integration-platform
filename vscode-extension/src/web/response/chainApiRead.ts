@@ -256,15 +256,20 @@ export async function parseElement(
   parentId: string | undefined = undefined,
 ): Promise<Element> {
   async function handleServiceCallProperty(beforeAfterBlock: any) {
+    if (!beforeAfterBlock.propertiesFilename) {
+      return;
+    }
     if (beforeAfterBlock.type === "script") {
       beforeAfterBlock["script"] = await fileApi.readFile(
         fileUri,
         beforeAfterBlock.propertiesFilename,
       );
     } else if (beforeAfterBlock.type?.startsWith("mapper")) {
-      const properties: any = JSON.parse(
-        await fileApi.readFile(fileUri, beforeAfterBlock.propertiesFilename),
+      const fileContent = await fileApi.readFile(
+        fileUri,
+        beforeAfterBlock.propertiesFilename,
       );
+      const properties: any = fileContent ? JSON.parse(fileContent) : {};
       for (const key in properties) {
         beforeAfterBlock[key] = properties[key];
       }
@@ -273,31 +278,31 @@ export async function parseElement(
 
   if ((element.properties as any)?.propertiesToExportInSeparateFile) {
     const elementProperties = element.properties as any;
-    if (elementProperties.exportFileExtension === "json") {
-      const propertyNames: string[] | undefined =
-        elementProperties.propertiesToExportInSeparateFile
-          ?.split(",")
-          .map(function (item: string) {
-            return item.trim();
-          });
-      const properties: any = JSON.parse(
-        await fileApi.readFile(
-          fileUri,
-          elementProperties.propertiesFilename as string,
-        ),
-      );
-      if (propertyNames) {
-        for (const propertyName of propertyNames) {
-          elementProperties[propertyName] = properties[propertyName];
+    const propertiesFilename = elementProperties.propertiesFilename as
+      | string
+      | undefined;
+    // Mirror runtime-catalog import: empty separate-file content (e.g. a mapper
+    // with empty mappingDescription) is exported without a file or filename.
+    if (propertiesFilename) {
+      if (elementProperties.exportFileExtension === "json") {
+        const propertyNames: string[] | undefined =
+          elementProperties.propertiesToExportInSeparateFile
+            ?.split(",")
+            .map(function (item: string) {
+              return item.trim();
+            });
+        const fileContent = await fileApi.readFile(fileUri, propertiesFilename);
+        const properties: any = fileContent ? JSON.parse(fileContent) : {};
+        if (propertyNames) {
+          for (const propertyName of propertyNames) {
+            elementProperties[propertyName] = properties[propertyName];
+          }
         }
+      } else {
+        elementProperties[
+          elementProperties.propertiesToExportInSeparateFile as string
+        ] = await fileApi.readFile(fileUri, propertiesFilename);
       }
-    } else {
-      elementProperties[
-        elementProperties.propertiesToExportInSeparateFile as string
-      ] = await fileApi.readFile(
-        fileUri,
-        elementProperties.propertiesFilename as string,
-      );
     }
   }
 
