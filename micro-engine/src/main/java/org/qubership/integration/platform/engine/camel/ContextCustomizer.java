@@ -9,7 +9,6 @@ import org.apache.camel.CamelContext;
 import org.apache.camel.observation.MicrometerObservationTracer;
 import org.apache.camel.spi.CamelContextCustomizer;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
-import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 
 @Slf4j
 @ApplicationScoped
