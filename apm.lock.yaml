@@ -1,0 +1,93 @@
+lockfile_version: '1'
+generated_at: '2026-06-10T19:31:51.866828+00:00'
+apm_version: 0.19.0
+dependencies:
+- repo_url: Netcracker/qubership-ai-packages
+  host: github.com
+  resolved_commit: 5317a7b1325eadf5bd1859c6ff92b68b857d40c8
+  virtual_path: agent-packages/apm-authoring
+  is_virtual: true
+  package_type: apm_package
+  deployed_files:
+  - .agents/skills/apm-authoring
+  - .agents/skills/apm-authoring/SKILL.md
+  - .claude/rules/apm-authoring.md
+  - .claude/skills/apm-authoring
+  - .claude/skills/apm-authoring/SKILL.md
+  - .cursor/rules/apm-authoring.mdc
+  deployed_file_hashes:
+    .agents/skills/apm-authoring/SKILL.md: sha256:b7f059feadabde6c1016cb5151770d2fc14363730cbb353f546d187489ed596a
+    .claude/rules/apm-authoring.md: sha256:5c4185d3d69333a810c01f5e26a8ea46b033e7082a21f1551433d6c97d8a24a2
+    .claude/skills/apm-authoring/SKILL.md: sha256:b7f059feadabde6c1016cb5151770d2fc14363730cbb353f546d187489ed596a
+    .cursor/rules/apm-authoring.mdc: sha256:fbc8f94d4f0b94c04a0ed042ee06f1f48244fdac316f0ce15e2d38b0affbb9aa
+  content_hash: sha256:67d86cc0cae0313cfbfa3e6a16d52c0184bc477711a4d2d668236fca5f7c2c47
+  is_dev: true
+- repo_url: Netcracker/qubership-ai-packages
+  host: github.com
+  resolved_commit: 5317a7b1325eadf5bd1859c6ff92b68b857d40c8
+  virtual_path: agent-packages/english-developer-style
+  is_virtual: true
+  package_type: apm_package
+  content_hash: sha256:d06ce3b1506f828c5698dcab55bfbf0dbb8c9f216185e8f5715c872a88afd6e8
+- repo_url: Netcracker/qubership-ai-packages
+  host: github.com
+  resolved_commit: 0453aca8531265db34d1299519dd5c8dbde1f307
+  resolved_ref: 0453aca8531265db34d1299519dd5c8dbde1f307
+  virtual_path: agent-packages/english-us-developer-style
+  is_virtual: true
+  package_type: apm_package
+  deployed_files:
+  - .agents/skills/english-us-developer-style
+  - .agents/skills/english-us-developer-style/SKILL.md
+  - .claude/rules/english-us-developer-style.md
+  - .claude/skills/english-us-developer-style
+  - .claude/skills/english-us-developer-style/SKILL.md
+  - .cursor/rules/english-us-developer-style.mdc
+  deployed_file_hashes:
+    .agents/skills/english-us-developer-style/SKILL.md: sha256:29ad7156586f8265dab3f7e55b257f2a9b3cb1b78b99180d7f7b362f5e11b74c
+    .claude/rules/english-us-developer-style.md: sha256:50cb5c3eb0809ebdfa3fb5a95b6234c95b47905ce82c05e2be2334cee5b16f14
+    .claude/skills/english-us-developer-style/SKILL.md: sha256:29ad7156586f8265dab3f7e55b257f2a9b3cb1b78b99180d7f7b362f5e11b74c
+    .cursor/rules/english-us-developer-style.mdc: sha256:dbc642bc4c4de0abc3a3f0cc2a623713c8967936ab1ad49ba42829c83214b10b
+  content_hash: sha256:81ed9935f43fbcf4aab9a7a3d41f5cd273cb293b7e7d2136bdace53add6ad0a0
+local_deployed_files:
+- .agents/skills/ui-api-and-utilities
+- .agents/skills/ui-api-and-utilities/SKILL.md
+- .agents/skills/ui-component-patterns
+- .agents/skills/ui-component-patterns/SKILL.md
+- .agents/skills/ui-core-development
+- .agents/skills/ui-core-development/SKILL.md
+- .agents/skills/ui-theme-and-vscode-webview
+- .agents/skills/ui-theme-and-vscode-webview/SKILL.md
+- .claude/rules/ui-api-and-utilities.md
+- .claude/rules/ui-component-patterns.md
+- .claude/rules/ui-core-development.md
+- .claude/rules/ui-theme-and-vscode-webview.md
+- .claude/skills/ui-api-and-utilities
+- .claude/skills/ui-api-and-utilities/SKILL.md
+- .claude/skills/ui-component-patterns
+- .claude/skills/ui-component-patterns/SKILL.md
+- .claude/skills/ui-core-development
+- .claude/skills/ui-core-development/SKILL.md
+- .claude/skills/ui-theme-and-vscode-webview
+- .claude/skills/ui-theme-and-vscode-webview/SKILL.md
+- .cursor/rules/ui-api-and-utilities.mdc
+- .cursor/rules/ui-component-patterns.mdc
+- .cursor/rules/ui-core-development.mdc
+- .cursor/rules/ui-theme-and-vscode-webview.mdc
+local_deployed_file_hashes:
+  .agents/skills/ui-api-and-utilities/SKILL.md: sha256:c88f1c0204789a249055d485bab96b859b6be9b64fe30df9b792d56b3d3f6a3a
+  .agents/skills/ui-component-patterns/SKILL.md: sha256:f0a55c6c01fb67026c5ecd7c83eaa4fea7463e09cb41fa9100b39288be409970
+  .agents/skills/ui-core-development/SKILL.md: sha256:72143be4cc559bea04e321d7246454e9ee84e4e2fb04b16315a84a8388ec8de9
+  .agents/skills/ui-theme-and-vscode-webview/SKILL.md: sha256:aeff9e0efe9fa49b50cfd292e26ad781edc1fe15a4a7681943107fb37322961b
+  .claude/rules/ui-api-and-utilities.md: sha256:71aa40132c92c5861e02877fac639503defe750689e9b5019420180c9dda9a94
+  .claude/rules/ui-component-patterns.md: sha256:6ea0cf80626c5e7a78b5d8e36ee5817cfdc8266afcf32b76c85e69d6702ffe1a
+  .claude/rules/ui-core-development.md: sha256:cd27211d682f0c03809a67e30e7dbbc67c00145df56e3c0eb14c9b89ce6408d5
+  .claude/rules/ui-theme-and-vscode-webview.md: sha256:b9c3fb0eb8853ff8fc98a27ac8ccbdb9f6755fd235addba7d44a5855b5b43a17
+  .claude/skills/ui-api-and-utilities/SKILL.md: sha256:c88f1c0204789a249055d485bab96b859b6be9b64fe30df9b792d56b3d3f6a3a
+  .claude/skills/ui-component-patterns/SKILL.md: sha256:f0a55c6c01fb67026c5ecd7c83eaa4fea7463e09cb41fa9100b39288be409970
+  .claude/skills/ui-core-development/SKILL.md: sha256:72143be4cc559bea04e321d7246454e9ee84e4e2fb04b16315a84a8388ec8de9
+  .claude/skills/ui-theme-and-vscode-webview/SKILL.md: sha256:aeff9e0efe9fa49b50cfd292e26ad781edc1fe15a4a7681943107fb37322961b
+  .cursor/rules/ui-api-and-utilities.mdc: sha256:2db0434f5f2c5d22240435520b454f7da4d900795a698563570bddddaec0db34
+  .cursor/rules/ui-component-patterns.mdc: sha256:76114bbb23037926ccea5110a104dcc9cb0d67f4c1002b107f9a78980ac1ff19
+  .cursor/rules/ui-core-development.mdc: sha256:b5fa4e22978c0b3ad030432ba96c8a8d268337d2e6f1b88de6689bbc84d8700f
+  .cursor/rules/ui-theme-and-vscode-webview.mdc: sha256:6d22cae143816f98685ba75afb5198d9abf57c9e584aa7b78391553a49ffabd9
