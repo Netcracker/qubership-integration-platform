@@ -39,6 +39,6 @@ public class SdsSchedulerJobsRegistrationHelper {
     }
 
     public void markUnregistered(DeploymentInfo deploymentInfo) {
-        registeredJobs.remove(deploymentInfo.getId());
+        registeredJobs.remove(deploymentInfo.getChain().getId());
     }
 }
