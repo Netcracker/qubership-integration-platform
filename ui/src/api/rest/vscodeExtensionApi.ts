@@ -87,6 +87,12 @@ export const STARTUP_EVENT = "startup";
 export const COMPARED_DOCUMENTS_REQUEST_EVENT = "comparedDocumentsRequest";
 export const isVsCode = window.location.protocol === "vscode-webview:";
 
+/** Save target chosen by the user in the host save dialog. */
+export type ImageSaveTarget = {
+  uri: string;
+  format: "png" | "svg";
+};
+
 export class VSCodeExtensionApi implements Api {
   vscode: VSCodeApi<never>;
   responseResolvers: Record<string, MessageResolver> = {};
@@ -438,6 +444,32 @@ export class VSCodeExtensionApi implements Api {
         systemId,
       })
     ).payload;
+  };
+
+  /**
+   * Asks the extension host to show a save dialog for the chain graph image.
+   * Returns the chosen target (uri + format derived from extension) or null if cancelled.
+   * Extension-only: not part of the shared {@link Api} contract.
+   */
+  chooseImageSavePath = async (
+    suggestedName: string,
+  ): Promise<ImageSaveTarget | null> => {
+    return (
+      (
+        await this.sendMessageToExtension<
+          ImageSaveTarget | null,
+          { suggestedName: string }
+        >("chooseImageSavePath", { suggestedName })
+      ).payload ?? null
+    );
+  };
+
+  /** Writes the rendered image bytes to the previously chosen uri on the host. */
+  writeImageFile = async (uri: string, data: ArrayBuffer): Promise<void> => {
+    await this.sendMessageToExtension<void, { uri: string; data: ArrayBuffer }>(
+      "writeImageFile",
+      { uri, data },
+    );
   };
 
   getImportSpecificationResult = async (

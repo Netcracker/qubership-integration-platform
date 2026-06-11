@@ -76,6 +76,7 @@ import {
   IconOverrides,
 } from "@netcracker/qip-ui";
 import { getAndClearNavigationStateValue } from "./navigationUtils";
+import { chooseImageSavePath, writeImageFile } from "./imageExportApi";
 
 let lastWebviewPath: string | undefined = undefined;
 
@@ -369,6 +370,12 @@ export async function getApiResponse(
         message.payload.fileUri,
         message.payload.specificationFilePath,
       );
+
+    // Chain graph image export
+    case "chooseImageSavePath":
+      return await chooseImageSavePath(fileUri, message.payload.suggestedName);
+    case "writeImageFile":
+      return await writeImageFile(message.payload.uri, message.payload.data);
   }
 }
 

@@ -31,9 +31,11 @@ import {
   ChainGraphViewControls,
   ChainGraphViewControlsProps,
 } from "../components/graph/ChainGraphViewControls.tsx";
-import { Modal } from "antd";
+import { Modal, Spin } from "antd";
 import ContextMenu from "../components/graph/ContextMenu.tsx";
 import { useChainGraph } from "../hooks/graph/useChainGraph.tsx";
+import { useExportGraphImage } from "../hooks/graph/useExportGraphImage.ts";
+import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
 import {
   getElementColor,
   isSwimlanesOnly,
@@ -131,6 +133,10 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
     collapseAllContainers,
     structureChanged,
   } = useChainGraph();
+
+  const { exporting, exportImage } = useExportGraphImage(
+    chainContext?.chain?.name,
+  );
 
   useEffect(() => {
     currentThemeRef.current = currentTheme;
@@ -291,8 +297,6 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
     [],
   );
 
-
-
   const libraryElementColorByName = useMemo(() => {
     const colorByName = new Map<string, string>();
 
@@ -335,7 +339,9 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
       }
 
       if (node.data?.elementType) {
-        return libraryElementColorByName.get(node.data.elementType) ?? "#fdf39d";
+        return (
+          libraryElementColorByName.get(node.data.elementType) ?? "#fdf39d"
+        );
       }
 
       return "#fdf39d";
@@ -468,16 +474,16 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
     () =>
       readOnly
         ? nodes.map((node) => {
-          if (node.draggable === false && node.connectable === false) {
-            return node;
-          }
+            if (node.draggable === false && node.connectable === false) {
+              return node;
+            }
 
-          return {
-            ...node,
-            draggable: false,
-            connectable: false,
-          };
-        })
+            return {
+              ...node,
+              draggable: false,
+              connectable: false,
+            };
+          })
         : nodes,
     [nodes, readOnly],
   );
@@ -490,10 +496,9 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
       ref={reactFlowWrapper}
       {...rest}
     >
-      <ElkDirectionContextProvider
-        elkDirectionControl={elkDirectionControl}
-      >
-        <ReactFlow onlyRenderVisibleElements
+      <ElkDirectionContextProvider elkDirectionControl={elkDirectionControl}>
+        <ReactFlow
+          onlyRenderVisibleElements={!exporting}
           nodes={flowNodes}
           nodeTypes={nodeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
@@ -531,10 +536,32 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
             {...controls}
             onExpandAllContainers={expandAllContainers}
             onCollapseAllContainers={collapseAllContainers}
+            onExportImage={isVsCode ? () => void exportImage() : undefined}
+            exporting={exporting}
           />
           {menu && <ContextMenu menu={menu} closeMenu={closeMenu} />}
         </ReactFlow>
       </ElkDirectionContextProvider>
+      {exporting && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 10,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+            background: "var(--vscode-editor-background, #1f1f1f)",
+          }}
+        >
+          <Spin size="large" />
+          <span style={{ color: "var(--vscode-foreground)" }}>
+            Generating image…
+          </span>
+        </div>
+      )}
     </div>
   );
 };
