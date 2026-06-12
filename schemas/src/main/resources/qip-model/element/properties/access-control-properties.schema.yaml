@@ -90,6 +90,10 @@ allOf:
       required:
         - abacParameters
 title: Access Control
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
 properties:
   accessControlType:
     title: Access Control Type

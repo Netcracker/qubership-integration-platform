@@ -5,6 +5,10 @@ type: object
 allOf:
   - $ref: "#/definitions/MetadataAware"
 title: Mapper Description
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
 properties:
   source:
     $ref: "#/definitions/MessageSchema"
