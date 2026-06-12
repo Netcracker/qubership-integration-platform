@@ -65,6 +65,7 @@ definitions:
         title: Main source
       fileName:
         type: string
+        subtype: resourceReference
         title: File name
     required:
       - id

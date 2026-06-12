@@ -16,6 +16,8 @@ properties:
     const: mappingDescription
   propertiesFilename:
     type: string
+    subtype: resourceReference
+    resourceType: json
     title: Mapper resource reference
   throwException:
     type: boolean

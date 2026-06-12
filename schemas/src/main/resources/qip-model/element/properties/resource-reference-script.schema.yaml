@@ -16,6 +16,8 @@ properties:
     const: script
   propertiesFilename:
     type: string
+    subtype: resourceReference
+    resourceType: groovy
     title: Specification resource reference
   script:
     type: string
