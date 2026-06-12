@@ -15,6 +15,7 @@ import {
   MappingAction,
   MappingDescription,
   SchemaKind,
+  TypeDefinition,
 } from "../../mapper/model/model.ts";
 import {
   Dropdown,
@@ -142,6 +143,24 @@ function buildArcherElementId(
         : `${schemaKind}-${item.id}`;
 }
 
+type DataTypeLabelProps = {
+  type: DataType | null | undefined;
+  typeDefinitions?: TypeDefinition[];
+};
+
+const DataTypeLabel: React.FC<DataTypeLabelProps> = ({
+  type,
+  typeDefinitions = [],
+}) => (
+  <Flex className={graphViewStyles["attribute-type"]}>
+    <span className={graphViewStyles["type-bracket"]}>[</span>
+    <span className={graphViewStyles["type-name"]}>
+      {type ? DataTypes.buildTypeName(type, typeDefinitions) : []}
+    </span>
+    <span className={graphViewStyles["type-bracket"]}>]</span>
+  </Flex>
+);
+
 type SchemaTreeItemViewProps = {
   mappingDescription: MappingDescription;
   schemaKind: SchemaKind;
@@ -225,34 +244,37 @@ const SchemaTreeItemView: React.FC<SchemaTreeItemViewProps> = ({
 }) => {
   const groupLabelClass = (styles["group-label"] as string | undefined) ?? "";
   return isBodyGroup(item) ? (
-    <Space>
-      <span className={groupLabelClass}>body</span>
-      {mappingDescription[schemaKind].body ? (
-        <Select<string>
-          size={"small"}
-          value={getBodyFormat(mappingDescription, schemaKind)}
-          variant="borderless"
-          options={[
-            { value: SourceFormat.JSON, label: "JSON" },
-            { value: SourceFormat.XML, label: "XML" },
-          ]}
-          onChange={(value) => {
-            const body = mappingDescription[schemaKind].body;
-            if (!body) {
-              return;
-            }
-            const type = MetadataUtil.setValue<typeof body, string>(
-              body,
-              METADATA_DATA_FORMAT_KEY,
-              value,
-            ) as DataType;
-            onBodyFormatChange?.(type);
-          }}
-        />
-      ) : (
-        <></>
+    <Flex vertical={false} justify="space-between" align="center" gap={8}>
+      <Space>
+        <span className={groupLabelClass}>body</span>
+        {mappingDescription[schemaKind].body && (
+          <Select<string>
+            size={"small"}
+            value={getBodyFormat(mappingDescription, schemaKind)}
+            variant="borderless"
+            options={[
+              { value: SourceFormat.JSON, label: "JSON" },
+              { value: SourceFormat.XML, label: "XML" },
+            ]}
+            onChange={(value) => {
+              const body = mappingDescription[schemaKind].body;
+              if (!body) {
+                return;
+              }
+              const type = MetadataUtil.setValue<typeof body, string>(
+                body,
+                METADATA_DATA_FORMAT_KEY,
+                value,
+              ) as DataType;
+              onBodyFormatChange?.(type);
+            }}
+          />
+        )}
+      </Space>
+      {DataTypes.isArrayType(item.type) && (
+        <DataTypeLabel type={mappingDescription[schemaKind].body} />
       )}
-    </Space>
+    </Flex>
   ) : isConstantGroup(item) ? (
     <span className={groupLabelClass}>constants</span>
   ) : isHeaderGroup(item) ? (
@@ -273,15 +295,10 @@ const SchemaTreeItemView: React.FC<SchemaTreeItemViewProps> = ({
           <></>
         )}
       </Space>
-      <Flex className={graphViewStyles["attribute-type"]}>
-        <span className={graphViewStyles["type-bracket"]}>[</span>
-        <span className={graphViewStyles["type-name"]}>
-          {item.attribute.type
-            ? DataTypes.buildTypeName(item.attribute.type, item.typeDefinitions)
-            : []}
-        </span>
-        <span className={graphViewStyles["type-bracket"]}>]</span>
-      </Flex>
+      <DataTypeLabel
+        type={item.attribute.type}
+        typeDefinitions={item.typeDefinitions}
+      />
     </Flex>
   ) : isConstantItem(item) ? (
     <>

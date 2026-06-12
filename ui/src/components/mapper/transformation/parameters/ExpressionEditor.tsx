@@ -22,7 +22,10 @@ import {
   Uri,
   IMarkdownString,
 } from "monaco-editor";
-import { Constant } from "../../../../mapper/model/model.ts";
+import {
+  Constant,
+  MessageSchema,
+} from "../../../../mapper/model/model.ts";
 import { validateExpression } from "../../../../mapper/expressions/validation.ts";
 import { MappingUtil } from "../../../../mapper/util/mapping.ts";
 import { AttributeDetail } from "../../../../mapper/util/schema.ts";
@@ -112,6 +115,7 @@ const MAPPER_TRANSFORMATION_EXPRESSION_LANGUAGE_TOKENIZER: languages.IMonarchLan
 type ExpressionReferences = {
   attributes: AttributeDetail[];
   constants: Constant[];
+  sourceSchema?: MessageSchema;
 };
 
 class TransformationExpressionCompletionProvider
@@ -610,6 +614,7 @@ mergeObjects(
     const references = this.getReferenceMap().get(model.uri.toString()) ?? {
       attributes: [],
       constants: [],
+      sourceSchema: undefined,
     };
     const line = model.getLineContent(position.lineNumber);
     const textBeforePosition = line.substring(0, position.column);
@@ -645,13 +650,19 @@ mergeObjects(
         range,
       })),
       ...references.attributes
-        .filter((detail) => detail.kind && detail.path.every((a) => a.name))
-        .map((detail) => ({
-          label: detail.kind + "." + detail.path.map((a) => a.name).join("."),
-          kind: languages.CompletionItemKind.Variable,
-          insertText: buildAttributeReferenceText(detail),
-          range,
-        })),
+        .filter((detail) => detail.kind)
+        .map((detail) => {
+          const referenceText = buildAttributeReferenceText(
+            detail,
+            references.sourceSchema,
+          );
+          return {
+            label: referenceText,
+            kind: languages.CompletionItemKind.Variable,
+            insertText: referenceText,
+            range,
+          };
+        }),
       ...references.constants
         .filter((constant) => constant.name)
         .map((constant) => ({
@@ -754,7 +765,11 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
         MappingUtil.findConstantById(mappingDescription, source.constantId),
       )
       .filter((constant) => !!constant);
-    setReferences({ attributes, constants });
+    setReferences({
+      attributes,
+      constants,
+      sourceSchema: mappingDescription.source,
+    });
   }, [mappingDescription, action]);
 
   const validateValue = useCallback(
@@ -782,6 +797,7 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
             endColumn: location.end.column,
           });
         },
+        mappingDescription.source,
       );
 
       monacoRef.current?.editor?.setModelMarkers(
@@ -790,7 +806,7 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
         markers,
       );
     },
-    [references.attributes, references.constants],
+    [references.attributes, references.constants, mappingDescription.source],
   );
 
   const monacoTheme = useMonacoTheme();
