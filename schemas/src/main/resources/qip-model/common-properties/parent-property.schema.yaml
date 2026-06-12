@@ -3,6 +3,10 @@ $id: http://qubership.org/schemas/product/qip/common-properties/parent-property.
 $schema: http://json-schema.org/draft-07/schema
 type: object
 title: Entity content with Parent
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
 properties:
   parentId:
     type: string

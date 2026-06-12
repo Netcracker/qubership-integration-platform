@@ -52,6 +52,10 @@ allOf:
           required:
             - elementId
 title: Chain Failure Handler
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
 properties:
   handleChainFailureAction:
     type: string

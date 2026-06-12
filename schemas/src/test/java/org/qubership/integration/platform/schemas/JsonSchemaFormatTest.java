@@ -89,4 +89,46 @@ public class JsonSchemaFormatTest {
                 "required"
         );
     }
+
+    @ParameterizedTest
+    @FieldSource("schemaResources")
+    public void testSchemaMetaInfoPresent(Resource resource) throws IOException {
+        String source = resource.getContentAsString(Charset.defaultCharset());
+        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        LinkedHashMap<String, Object> schemaYaml = mapper.readValue(source, LinkedHashMap.class);
+
+        var metaInfo = (LinkedHashMap<String, Object>) schemaYaml.get("metaInfo");
+        assertNotNull(metaInfo, resource.getFilename() + ": 'metaInfo' field must present!");
+        assertEquals("Qubership Integration Platform", metaInfo.get("application"), resource.getFilename() + ": 'application' field must match!");
+
+        var labels = (List<String>) metaInfo.get("labels");
+        assertLinesMatch(List.of("QIP"), labels, resource.getFilename() + ": 'labels' must be [QIP]!");
+    }
+
+    @ParameterizedTest
+    @FieldSource("schemaResources")
+    public void testSchemaMetaInfoFileExtPresentForTopLevel(Resource resource) throws IOException {
+        String source = resource.getContentAsString(Charset.defaultCharset());
+        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        LinkedHashMap<String, Object> schemaYaml = mapper.readValue(source, LinkedHashMap.class);
+
+        var metaInfo = (LinkedHashMap<String, Object>) schemaYaml.get("metaInfo");
+
+        var topLevelAllOf = (List<LinkedHashMap<String, String>>) schemaYaml.get("allOf");
+        if (topLevelAllOf == null) {
+            return;
+        }
+
+        var topLevelAllOfRef = topLevelAllOf.get(0).get("$ref");
+        if (topLevelAllOfRef == null) {
+            return;
+        }
+
+        boolean isTopLevelEntity = topLevelAllOfRef.equals("http://qubership.org/schemas/product/qip/common-properties/top-level-entity-properties.schema.yaml");
+        if (isTopLevelEntity) {
+            String schemaName = resource.getFilename().replace(".schema.yaml", "");
+            String expectedFileExt = schemaName + ".qip";
+            assertEquals(expectedFileExt, metaInfo.get("fileExtension"), resource.getFilename() + ": 'fileExtension' field must match!");
+        }
+    }
 }

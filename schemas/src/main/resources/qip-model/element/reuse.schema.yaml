@@ -6,6 +6,10 @@ allOf:
   - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/properties/container-element-properties.schema.yaml"
 title: Reuse
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
 properties:
   type:
     type: string

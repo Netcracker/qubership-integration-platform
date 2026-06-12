@@ -6,6 +6,10 @@ allOf:
   - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
 title: Service Call
 description: Make a call to a service registered in API Repository.
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
 properties:
   type:
     type: string
