@@ -12,6 +12,12 @@ properties:
   name:
     type: string
     title: Name
+  metaInfo:
+    type: object
+    properties:
+      group:
+        type: string
+        pattern: ^([^\/:*?"<>|,;\\]+)(\/[^\/:*?"<>|,;\\]+)*$
 required:
   - $schema
   - id

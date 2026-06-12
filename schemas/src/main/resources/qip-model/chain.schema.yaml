@@ -20,6 +20,7 @@ properties:
       outOfScope:
         type: string
       folder:
+        deprecated: true
         $ref: "#/definitions/Folder"
       maskingEnabled:
         type: boolean
