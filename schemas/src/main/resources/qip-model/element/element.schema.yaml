@@ -7,6 +7,8 @@ metaInfo:
   application: Qubership Integration Platform
   labels:
     - QIP
+discriminator:
+  propertyName: type
 oneOf:
 
   # Composite Triggers

@@ -48,6 +48,7 @@ properties:
         items:
           $ref: "#/definitions/ResponseHandler"
       authorizationConfiguration:
+        type: object
         title: Authorization type
         discriminator:
           propertyName: type
