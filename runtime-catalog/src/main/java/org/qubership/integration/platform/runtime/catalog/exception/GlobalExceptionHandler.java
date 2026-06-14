@@ -289,6 +289,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(getExceptionDTO(exception));
     }
 
+    @ExceptionHandler(DefaultSecretGoneException.class)
+    public ResponseEntity<ExceptionDTO> handleDefaultSecretGoneException(DefaultSecretGoneException exception) {
+        return ResponseEntity.status(HttpStatus.GONE).body(getExceptionDTO(exception));
+    }
+
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
             MethodArgumentNotValidException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {

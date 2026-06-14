@@ -38,6 +38,7 @@ public class DefaultVariablesService {
     private final SecretService secretService;
     private final CommonVariablesService commonVariablesService;
     private final SecuredVariableService securedVariableService;
+    private final DefaultSecretPolicyService defaultSecretPolicyService;
     private final KubeOperatorAutoConfiguration kubeOperatorAutoConfiguration;
     private final DefaultVariablesProvider defaultVariablesProvider;
 
@@ -45,12 +46,14 @@ public class DefaultVariablesService {
             SecretService secretService,
             CommonVariablesService commonVariablesService,
             SecuredVariableService securedVariableService,
+            DefaultSecretPolicyService defaultSecretPolicyService,
             KubeOperatorAutoConfiguration kubeOperatorAutoConfiguration,
             DefaultVariablesProvider defaultVariablesProvider
     ) {
         this.secretService = secretService;
         this.commonVariablesService = commonVariablesService;
         this.securedVariableService = securedVariableService;
+        this.defaultSecretPolicyService = defaultSecretPolicyService;
         this.kubeOperatorAutoConfiguration = kubeOperatorAutoConfiguration;
         this.defaultVariablesProvider = defaultVariablesProvider;
         DEFAULT_VARIABLES_LIST.add(NAMESPACE_VARIABLE_NAME);
@@ -67,7 +70,10 @@ public class DefaultVariablesService {
 
             Map<String, String> defaultCommonVariables = getDefaultCommonVariables();
 
-            securedVariableService.deleteVariables(secretService.getDefaultSecretName(), defaultCommonVariables.keySet(), false);
+            if (defaultSecretPolicyService.isDefaultSecretEnabled()) {
+                securedVariableService.deleteVariables(
+                        secretService.getDefaultSecretName(), defaultCommonVariables.keySet(), false);
+            }
 
             commonVariablesService.addVariablesUnlogged(defaultCommonVariables);
             log.debug("Restore variables finished");

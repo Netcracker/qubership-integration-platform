@@ -56,6 +56,7 @@ public class SecuredVariableService {
     public static final String EMPTY_SECURED_VARIABLE_NAME_ERROR_MESSAGE = "Secured variable's name is empty";
 
     private final SecretService secretService;
+    private final DefaultSecretPolicyService defaultSecretPolicyService;
     private final ActionsLogService actionLogger;
     private final YAMLMapper yamlMapper;
     private final CommonVariablesService commonVariablesService;
@@ -64,11 +65,13 @@ public class SecuredVariableService {
     @Autowired
     public SecuredVariableService(
             SecretService secretService,
+            DefaultSecretPolicyService defaultSecretPolicyService,
             ActionsLogService actionLogger,
             @Lazy CommonVariablesService commonVariablesService,
             @Qualifier("yamlMapper") YAMLMapper yamlMapper
     ) {
         this.secretService = secretService;
+        this.defaultSecretPolicyService = defaultSecretPolicyService;
         this.actionLogger = actionLogger;
         this.commonVariablesService = commonVariablesService;
         this.yamlMapper = yamlMapper;
@@ -78,8 +81,10 @@ public class SecuredVariableService {
     public Map<String, Set<String>> getAllSecretsVariablesNames() {
         lock.lock();
         try {
-            return secretService.getAllSecretsData().entrySet().stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().keySet()));
+            Map<String, ? extends Map<String, String>> secrets = defaultSecretPolicyService
+                .filterSecretsForList(secretService.getAllSecretsData());
+            return secrets.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().keySet()));
         } finally {
             lock.unlock();
         }
@@ -90,6 +95,7 @@ public class SecuredVariableService {
     }
 
     public Set<String> getVariablesForSecret(String secretName, boolean failIfSecretNotExist) {
+        defaultSecretPolicyService.assertDefaultSecretAccessible(secretName);
         lock.lock();
         try {
             return secretService.getSecretData(secretName, failIfSecretNotExist).keySet();
@@ -108,6 +114,7 @@ public class SecuredVariableService {
     }
 
     public Map<String, Set<String>> addVariables(String secretName, Map<String, String> newVariables, boolean importMode) {
+        defaultSecretPolicyService.assertDefaultSecretAccessible(secretName);
         if (newVariables.isEmpty()) {
             return Collections.singletonMap(secretName, Collections.emptySet());
         }
@@ -117,6 +124,7 @@ public class SecuredVariableService {
         lock.lock();
         try {
             variables = secretService.getSecretData(secretName, true);
+            defaultSecretPolicyService.assertCanAddVariables(secretName, newVariables, variables);
 
             if (secretService.isDefaultSecret(secretName)) {
                 validateSecuredVariablesUniqueness(variables, newVariables);
@@ -152,7 +160,7 @@ public class SecuredVariableService {
         if (CollectionUtils.isEmpty(variablesNames)) {
             return;
         }
-
+        defaultSecretPolicyService.assertDefaultSecretAccessible(secretName);
         lock.lock();
         try {
             Set<String> existedVariables = secretService.getSecretData(secretName, true).keySet();
@@ -176,7 +184,7 @@ public class SecuredVariableService {
     public List<SecretErrorResponse> deleteVariablesForMultipleSecrets(Map<String, Set<String>> variablesPerSecret) {
         List<CompletableFuture<Map<String, String>>> secretUpdateFutures = new ArrayList<>();
         Map<String, Throwable> secretUpdateExceptions = new HashMap<>();
-
+        variablesPerSecret.keySet().forEach(defaultSecretPolicyService::assertDefaultSecretAccessible);
         lock.lock();
         Map<String, ? extends Map<String, String>> variablesBySecret;
         try {
@@ -244,6 +252,7 @@ public class SecuredVariableService {
     }
 
     public Pair<String, Set<String>> updateVariables(String secretName, Map<String, String> variablesToUpdate) {
+        defaultSecretPolicyService.assertDefaultSecretAccessible(secretName);
         lock.lock();
         try {
             Map<String, String> variables = new HashMap<>(secretService.getSecretData(secretName, true));

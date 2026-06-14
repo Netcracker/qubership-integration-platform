@@ -27,6 +27,7 @@ import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DefaultSecretGoneException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.EmptyVariableFieldException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SecretNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SecuredVariablesNotFoundException;
@@ -34,6 +35,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.runtime.catalog.service.variables.CommonVariablesService;
+import org.qubership.integration.platform.runtime.catalog.service.variables.DefaultSecretPolicyService;
 import org.qubership.integration.platform.runtime.catalog.service.variables.SecuredVariableService;
 import org.qubership.integration.platform.runtime.catalog.service.variables.secrets.KubeSecretSerializer;
 import org.qubership.integration.platform.runtime.catalog.service.variables.secrets.SecretService;
@@ -76,6 +78,9 @@ public class SecuredVariablesServiceTest {
     @MockitoBean
     CommonVariablesService commonVariablesService;
 
+    @MockitoBean
+    DefaultSecretPolicyService defaultSecretPolicyService;
+
     @Captor
     private ArgumentCaptor<ActionLog> actionLogCaptor;
 
@@ -95,13 +100,59 @@ public class SecuredVariablesServiceTest {
                 .when(secretService).getSecretData(eq(DEFAULT_SECRET_NAME), anyBoolean());
         doReturn(data.get("fiz"))
                 .when(secretService).getSecretData(eq("fiz"), anyBoolean());
+
+        doAnswer(invocation -> invocation.getArgument(0))
+                .when(defaultSecretPolicyService).filterSecretsForList(any());
+        doNothing().when(defaultSecretPolicyService).assertDefaultSecretAccessible(anyString());
+        doNothing().when(defaultSecretPolicyService).assertCanAddVariables(anyString(), anyMap(), anyMap());
     }
 
     @DisplayName("getAllSecretsVariablesNames should return all variable names by secrets")
     @Test
     public void shouldReturnAllSecretsVariableNames() {
+        Map<String, Map<String, String>> allSecrets = Map.of(
+                DEFAULT_SECRET_NAME, Map.of("foo", "bar", "baz", "qux"),
+                "fiz", Map.of("quux", "gee")
+        );
+
         assertThat(securedVariableService.getAllSecretsVariablesNames(),
                 equalTo(Map.of(DEFAULT_SECRET_NAME, Set.of("foo", "baz"), "fiz", Set.of("quux"))));
+        verify(defaultSecretPolicyService).filterSecretsForList(allSecrets);
+    }
+
+    @DisplayName("getAllSecretsVariablesNames should return filtered secrets from policy service")
+    @Test
+    void getAllSecretsVariablesNamesShouldReturnFilteredSecrets() {
+        Map<String, Map<String, String>> allSecrets = Map.of(
+                DEFAULT_SECRET_NAME, Map.of("foo", "bar"),
+                "fiz", Map.of("quux", "gee")
+        );
+        Map<String, Map<String, String>> filteredSecrets = Map.of("fiz", Map.of("quux", "gee"));
+        doReturn(allSecrets).when(secretService).getAllSecretsData();
+        doReturn(filteredSecrets).when(defaultSecretPolicyService).filterSecretsForList(allSecrets);
+
+        assertThat(securedVariableService.getAllSecretsVariablesNames(),
+                equalTo(Map.of("fiz", Set.of("quux"))));
+        verify(defaultSecretPolicyService).filterSecretsForList(allSecrets);
+    }
+
+    @DisplayName("getVariablesForSecret should enforce default secret policy before reading secret")
+    @Test
+    void getVariablesForSecretShouldEnforceDefaultSecretPolicy() {
+        securedVariableService.getVariablesForSecret("fiz", true);
+
+        verify(defaultSecretPolicyService).assertDefaultSecretAccessible("fiz");
+    }
+
+    @DisplayName("getVariablesForSecret should propagate DefaultSecretGoneException from policy")
+    @Test
+    void getVariablesForSecretShouldPropagateDefaultSecretGoneException() {
+        doThrow(DefaultSecretGoneException.disabled())
+                .when(defaultSecretPolicyService).assertDefaultSecretAccessible(DEFAULT_SECRET_NAME);
+
+        assertThrows(DefaultSecretGoneException.class,
+                () -> securedVariableService.getVariablesForSecret(DEFAULT_SECRET_NAME, true));
+        verify(secretService, never()).getSecretData(eq(DEFAULT_SECRET_NAME), anyBoolean());
     }
 
     @DisplayName("getVariablesForDefaultSecret should throw an exception when default secret does not exists and fail flag is set")
@@ -177,6 +228,8 @@ public class SecuredVariablesServiceTest {
         assertThat(
                 securedVariableService.addVariables("fiz", variables, false),
                 equalTo(Map.of("fiz", Set.of("quux", "bla-bla-bla"))));
+        verify(defaultSecretPolicyService).assertDefaultSecretAccessible("fiz");
+        verify(defaultSecretPolicyService).assertCanAddVariables(eq("fiz"), eq(variables), anyMap());
     }
 
     @DisplayName("addVariables should log actions on variables")
@@ -264,6 +317,7 @@ public class SecuredVariablesServiceTest {
     public void deleteVariablesShouldCallSecretServiceMethodRemoveEntities() {
         Set<String> variables = Set.of("foo", "bla-bla-bla");
         securedVariableService.deleteVariables(DEFAULT_SECRET_NAME, variables, false);
+        verify(defaultSecretPolicyService).assertDefaultSecretAccessible(DEFAULT_SECRET_NAME);
         verify(secretService, times(1)).removeEntries(eq(DEFAULT_SECRET_NAME), eq(Set.of("foo")));
     }
 
@@ -344,6 +398,7 @@ public class SecuredVariablesServiceTest {
     public void updateVariablesShouldCallSecretServiceUpdateEntriesMethod() {
         Map<String, String> data = Map.of("foo", "bar", "baz", "qux");
         securedVariableService.updateVariables(DEFAULT_SECRET_NAME, data);
+        verify(defaultSecretPolicyService).assertDefaultSecretAccessible(DEFAULT_SECRET_NAME);
         verify(secretService, times(1)).updateEntries(eq(DEFAULT_SECRET_NAME), eq(data));
     }
 

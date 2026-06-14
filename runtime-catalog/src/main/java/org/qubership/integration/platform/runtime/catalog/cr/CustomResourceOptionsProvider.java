@@ -11,6 +11,8 @@ import java.util.Map;
 @Slf4j
 @Service
 public class CustomResourceOptionsProvider {
+    private static final String DEFAULT_SECRET_ENABLED_ENV = "DEFAULT_SECRET_ENABLED";
+
     @Value("${qip.cr.build.container.image}")
     private String containerImage;
 
@@ -34,6 +36,9 @@ public class CustomResourceOptionsProvider {
 
     @Value("#{${qip.cr.build.environment:{T(java.util.Collections).emptyMap()}}}")
     private Map<String, String> environment;
+
+    @Value("${qip.variables.default-secret.enabled:false}")
+    private boolean defaultSecretEnabled;
 
     public ResourceBuildOptions getOptions(ResourceDeployRequest request) {
         return ResourceBuildOptions.builder()
@@ -61,6 +66,7 @@ public class CustomResourceOptionsProvider {
     private Map<String, String> getEnvironment() {
         Map<String, String> result = new HashMap<>(environment);
         result.put("MONITORING_ENABLED", Boolean.valueOf(monitoringEnabled).toString());
+        result.put(DEFAULT_SECRET_ENABLED_ENV, Boolean.toString(defaultSecretEnabled));
         return result;
     }
 }

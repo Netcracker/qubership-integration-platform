@@ -104,6 +104,11 @@ spec:
                 configMapKeyRef:
                   key: TRACING_ENABLED
                   name: {{ .Release.Name }}-env
+            - name: DEFAULT_SECRET_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  key: DEFAULT_SECRET_ENABLED
+                  name: {{ .Release.Name }}-env
             - name: MICROSERVICE_NAME
               value: {{ .Release.Name }}-engine
           image: ghcr.io/netcracker/qubership-integration-engine:main
