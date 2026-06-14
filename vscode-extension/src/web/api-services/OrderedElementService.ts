@@ -91,14 +91,9 @@ export class OrderedElementService {
       const sortedElements = utils.extractSortedOrderedElements(parentElement);
 
       const currentPriorityIndex = utils.getIndex(sortedElements);
-      let newPriorityIndex = utils.getIndex(sortedElements, newPriority);
+      let newPriorityIndex = utils.getIndexForNewPriority(sortedElements, newPriority);
 
       utils.updatePriority(newPriority);
-
-      // If new priority is beyond the current range, don't update other elements
-      if (newPriorityIndex === -1 && newPriority >= sortedElements.length) {
-        return chainDiff;
-      }
 
       let elementsToUpdate = [];
       let priorityFunction: (currentPriority: number) => number;

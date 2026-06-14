@@ -42,6 +42,12 @@ export class OrderedElementUtils {
     );
   }
 
+  getIndexForNewPriority(sortedElements: ElementSchema[], newPriority: number): number {
+    return sortedElements.findIndex((element) =>
+      this.getPriority(element) === newPriority,
+    );
+  }
+
   extractOtherOrderedElements(parentElement: ElementSchema): ElementSchema[] {
     return this.extractOrderedElements(parentElement).filter(
       (child) => this.element.id !== child.id,

@@ -225,9 +225,26 @@ public class OrderedElementServiceTest {
                         "Move first down to priority 100",
                         FIRST_ELEMENT_ID,
                         100,
+                        Collections.emptyMap()
+                ),
+                Arguments.of(
+                        "Move first down to priority 3",
+                        FIRST_ELEMENT_ID,
+                        3,
+                        Collections.emptyMap()
+                ),
+                Arguments.of(
+                        "Move second down to priority 3",
+                        SECOND_ELEMENT_ID,
+                        3,
+                        Collections.emptyMap()
+                ),
+                Arguments.of(
+                        "Move third down to priority 99",
+                        THIRD_ELEMENT_ID,
+                        99,
                         ImmutableMap.<String, String>builder()
-                                .put(SECOND_ELEMENT_ID, "0")
-                                .put(THIRD_ELEMENT_ID, "1")
+                                .put(FOURTH_ELEMENT_ID, "98")
                                 .build()
                 ),
                 Arguments.of(

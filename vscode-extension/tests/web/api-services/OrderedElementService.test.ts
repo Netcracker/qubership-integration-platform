@@ -40,6 +40,7 @@ describe("OrderedElementService", () => {
     updatePriority: jest.fn(),
     getIndex: jest.fn().mockReturnValue(0),
     getPriorityOrUndefined: jest.fn().mockReturnValue(undefined),
+    getIndexForNewPriority: jest.fn().mockReturnValue(-1),
   });
 
   beforeEach(() => {
@@ -478,6 +479,252 @@ describe("OrderedElementService", () => {
       const result = await service.changePriority(mockUtils as any, 0);
 
       expect(result).toEqual({ updatedElements: [] });
+    });
+
+    describe("changePriority, cases with priority gap", () => {
+      it("[0, 1], should not change priority of second element when changing priority of first from 0 to 5", async () => {
+        const mockUtils = createMockUtils();
+
+        const sortedElements: ElementSchema[] = [
+          {
+            id: "elem-1",
+            type: { name: "ordered-type" },
+            parentElementId: "parent-id",
+            properties: { priority: 0 },
+          },
+          {
+            id: "elem-2",
+            type: { name: "ordered-type" },
+            parentElementId: "parent-id",
+            properties: { priority: 1 },
+          },
+        ] as unknown as ElementSchema[];
+
+        const parentElement: ElementSchema = {
+          id: "parent-id",
+          type: { name: "parent-type" } as any,
+          parentElementId: null,
+          properties: {},
+          children: sortedElements as any,
+        } as unknown as ElementSchema;
+
+        mockFindElementById.mockReturnValue({
+          element: parentElement,
+          parentId: undefined,
+        });
+
+        mockUtils.element = sortedElements[0];
+        mockUtils.getPriority.mockReturnValue(0);
+        mockUtils.extractSortedOrderedElements.mockReturnValue(sortedElements);
+        mockUtils.getIndex.mockReturnValue(0); // current index
+        mockUtils.getIndexForNewPriority = jest.fn().mockReturnValue(1);
+
+        mockParseElement.mockImplementation(() =>
+          Promise.resolve({ id: "elem-1", type: "ordered-type" } as any),
+        );
+
+        service = new OrderedElementService(
+          mockChainFileUri,
+          mockChainId,
+          mockChainElements,
+        );
+
+        const result = await service.changePriority(mockUtils as any, 5);
+
+        // Only the first element should be updated, second element should not be changed
+        expect(mockUtils.updatePriority).toHaveBeenCalled();
+        expect(result.updatedElements).toHaveLength(1);
+        expect(result.updatedElements?.[0].id).toBe("elem-1");
+      });
+
+      it("[0, 1, 40], should not change priorities of others when change priority of the second from 1 to 3", async () => {
+        const mockUtils = createMockUtils();
+
+        const sortedElements: ElementSchema[] = [
+          {
+            id: "elem-1",
+            type: { name: "ordered-type" },
+            parentElementId: "parent-id",
+            properties: { priority: 0 },
+          },
+          {
+            id: "elem-2",
+            type: { name: "ordered-type" },
+            parentElementId: "parent-id",
+            properties: { priority: 1 },
+          },
+          {
+            id: "elem-3",
+            type: { name: "ordered-type" },
+            parentElementId: "parent-id",
+            properties: { priority: 40 },
+          },
+        ] as unknown as ElementSchema[];
+
+        const parentElement: ElementSchema = {
+          id: "parent-id",
+          type: { name: "parent-type" } as any,
+          parentElementId: null,
+          properties: {},
+          children: sortedElements as any,
+        } as unknown as ElementSchema;
+
+        mockFindElementById.mockReturnValue({
+          element: parentElement,
+          parentId: undefined,
+        });
+
+        mockUtils.element = sortedElements[1];
+        mockUtils.getPriority.mockReturnValue(1);
+        mockUtils.extractSortedOrderedElements.mockReturnValue(sortedElements);
+        mockUtils.getIndex
+          .mockReturnValueOnce(1) // current index (priority 1)
+          .mockReturnValueOnce(3); // new priority index (priority 3)
+        mockUtils.getIndexForNewPriority = jest.fn().mockReturnValue(3);
+
+        mockParseElement.mockImplementation(() =>
+          Promise.resolve({ id: "elem-2", type: "ordered-type" } as any),
+        );
+
+        service = new OrderedElementService(
+          mockChainFileUri,
+          mockChainId,
+          mockChainElements,
+        );
+
+        const result = await service.changePriority(mockUtils as any, 3);
+
+        // Only the second element should be updated, first and third elements should not be changed
+        expect(mockUtils.updatePriority).toHaveBeenCalled();
+        expect(result.updatedElements).toHaveLength(1);
+        expect(result.updatedElements?.[0].id).toBe("elem-2");
+      });
+
+      it("[0, 2, 40], should not change priorities of others when change priority of the second from 2 to 1", async () => {
+        const mockUtils = createMockUtils();
+
+        const sortedElements: ElementSchema[] = [
+          {
+            id: "elem-1",
+            type: { name: "ordered-type" },
+            parentElementId: "parent-id",
+            properties: { priority: 0 },
+          },
+          {
+            id: "elem-2",
+            type: { name: "ordered-type" },
+            parentElementId: "parent-id",
+            properties: { priority: 2 },
+          },
+          {
+            id: "elem-3",
+            type: { name: "ordered-type" },
+            parentElementId: "parent-id",
+            properties: { priority: 40 },
+          },
+        ] as unknown as ElementSchema[];
+
+        const parentElement: ElementSchema = {
+          id: "parent-id",
+          type: { name: "parent-type" } as any,
+          parentElementId: null,
+          properties: {},
+          children: sortedElements as any,
+        } as unknown as ElementSchema;
+
+        mockFindElementById.mockReturnValue({
+          element: parentElement,
+          parentId: undefined,
+        });
+
+        mockUtils.element = sortedElements[1];
+        mockUtils.getPriority.mockReturnValue(2);
+        mockUtils.extractSortedOrderedElements.mockReturnValue(sortedElements);
+        mockUtils.getIndex
+          .mockReturnValueOnce(2) // current index (priority 2)
+          .mockReturnValueOnce(1); // new priority index (priority 1)
+        mockUtils.getIndexForNewPriority = jest.fn().mockReturnValue(1);
+
+        mockParseElement.mockImplementation(() =>
+          Promise.resolve({ id: "elem-2", type: "ordered-type" } as any),
+        );
+
+        service = new OrderedElementService(
+          mockChainFileUri,
+          mockChainId,
+          mockChainElements,
+        );
+
+        const result = await service.changePriority(mockUtils as any, 1);
+
+        // Only the second element should be updated, first and third elements should not be changed
+        expect(mockUtils.updatePriority).toHaveBeenCalled();
+        expect(result.updatedElements).toHaveLength(1);
+        expect(result.updatedElements?.[0].id).toBe("elem-2");
+      });
+
+      it("[1, 0, 40], should not change priorities of others when change priority of the second from 0 to 2", async () => {
+        const mockUtils = createMockUtils();
+
+        const sortedElements: ElementSchema[] = [
+          {
+            id: "elem-1",
+            type: { name: "ordered-type" },
+            parentElementId: "parent-id",
+            properties: { priority: 1 },
+          },
+          {
+            id: "elem-2",
+            type: { name: "ordered-type" },
+            parentElementId: "parent-id",
+            properties: { priority: 0 },
+          },
+          {
+            id: "elem-3",
+            type: { name: "ordered-type" },
+            parentElementId: "parent-id",
+            properties: { priority: 40 },
+          },
+        ] as unknown as ElementSchema[];
+
+        const parentElement: ElementSchema = {
+          id: "parent-id",
+          type: { name: "parent-type" } as any,
+          parentElementId: null,
+          properties: {},
+          children: sortedElements as any,
+        } as unknown as ElementSchema;
+
+        mockFindElementById.mockReturnValue({
+          element: parentElement,
+          parentId: undefined,
+        });
+
+        mockUtils.element = sortedElements[1];
+        mockUtils.getPriority.mockReturnValue(0);
+        mockUtils.extractSortedOrderedElements.mockReturnValue(sortedElements);
+        mockUtils.getIndex
+          .mockReturnValueOnce(0) // current index (priority 0)
+          .mockReturnValueOnce(2); // new priority index (priority 2)
+        mockUtils.getIndexForNewPriority = jest.fn().mockReturnValue(2);
+
+        mockParseElement.mockImplementation(() =>
+          Promise.resolve({ id: "elem-2", type: "ordered-type" } as any),
+        );
+
+        service = new OrderedElementService(
+          mockChainFileUri,
+          mockChainId,
+          mockChainElements,
+        );
+
+        const result = await service.changePriority(mockUtils as any, 2);
+
+        // Only the second element should be updated, first and third elements should not be changed
+        expect(mockUtils.updatePriority).toHaveBeenCalled();
+        expect(result.updatedElements).toHaveLength(1);
+        expect(result.updatedElements?.[0].id).toBe("elem-2");
+      });
     });
   });
 
