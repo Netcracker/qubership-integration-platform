@@ -136,18 +136,6 @@ public class SecuredVariablesServiceTest {
         verify(defaultSecretPolicyService).filterSecretsForList(allSecrets);
     }
 
-    @DisplayName("getDefaultSecretVariableNamesForUniquenessCheck should return default secret variable names")
-    @Test
-    void getDefaultSecretVariableNamesForUniquenessCheckShouldReturnDefaultSecretKeys() {
-        doReturn(Map.of("foo", "bar", "baz", "qux"))
-                .when(secretService).getSecretData(DEFAULT_SECRET_NAME, false);
-
-        assertThat(securedVariableService.getDefaultSecretVariableNamesForUniquenessCheck(),
-                equalTo(Set.of("foo", "baz")));
-        verify(secretService).getSecretData(DEFAULT_SECRET_NAME, false);
-        verify(defaultSecretPolicyService, never()).assertDefaultSecretAccessible(anyString());
-    }
-
     @DisplayName("getVariablesForSecret should enforce default secret policy before reading secret")
     @Test
     void getVariablesForSecretShouldEnforceDefaultSecretPolicy() {

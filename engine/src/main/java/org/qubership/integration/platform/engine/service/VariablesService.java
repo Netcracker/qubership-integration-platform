@@ -52,6 +52,7 @@ import static java.util.Objects.nonNull;
 public class VariablesService {
     private final String kubeSecretV2Name;
     private final Pair<String, String> kubeSecretsLabel;
+    private final boolean defaultSecretEnabled;
     private static final Pattern VARIABLE_PATTERN = Pattern.compile("#\\{[a-zA-Z0-9:._-]+\\}");
     private static final String SECRET_VARIABLE_SEPARATOR = ":";
     public static final String NAMESPACE_VARIABLE = "namespace";
@@ -77,12 +78,14 @@ public class VariablesService {
                             KubeOperator operator,
                             NamespaceProvider namespaceProvider,
                             @Value("${kubernetes.variables-secret.label}") String kubeSecretsLabel,
-                            @Value("${kubernetes.variables-secret.name}") String kubeSecretV2Name) {
+                            @Value("${kubernetes.variables-secret.name}") String kubeSecretV2Name,
+                            @Value("${qip.variables.default-secret.enabled:false}") boolean defaultSecretEnabled) {
         this.applicationEventPublisher = applicationEventPublisher;
         this.operator = operator;
         this.namespaceProvider = namespaceProvider;
         this.kubeSecretV2Name = kubeSecretV2Name;
         this.kubeSecretsLabel = Pair.of(kubeSecretsLabel, "secured");
+        this.defaultSecretEnabled = defaultSecretEnabled;
     }
 
     public String injectVariables(String text) {
@@ -165,6 +168,9 @@ public class VariablesService {
             for (Map.Entry<String, Map<String, String>> secretEntry : operator.getAllSecretsWithLabel(
                 kubeSecretsLabel).entrySet()) {
                 String secretName = secretEntry.getKey();
+                if (!defaultSecretEnabled && kubeSecretV2Name.equals(secretName)) {
+                    continue;
+                }
                 Map<String, String> variables = secretEntry.getValue();
 
                 for (Map.Entry<String, String> variablesEntry : variables.entrySet()) {

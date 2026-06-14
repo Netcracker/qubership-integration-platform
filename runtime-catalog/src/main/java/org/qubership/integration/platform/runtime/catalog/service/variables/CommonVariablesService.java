@@ -83,6 +83,7 @@ public class CommonVariablesService {
     private final ActionsLogService actionLogger;
     private final YAMLMapper yamlMapper;
     private final SecuredVariableService securedVariableService;
+    private final DefaultSecretPolicyService defaultSecretPolicyService;
     private final ConsulService consulService;
     private final ImportInstructionsService importInstructionsService;
 
@@ -91,12 +92,14 @@ public class CommonVariablesService {
             ActionsLogService actionLogger,
             @Qualifier("variablesYamlMapper") YAMLMapper yamlImportExportMapper,
             SecuredVariableService securedVariableService,
+            DefaultSecretPolicyService defaultSecretPolicyService,
             ConsulService consulService,
             ImportInstructionsService importInstructionsService
     ) {
         this.actionLogger = actionLogger;
         this.yamlMapper = yamlImportExportMapper;
         this.securedVariableService = securedVariableService;
+        this.defaultSecretPolicyService = defaultSecretPolicyService;
         this.consulService = consulService;
         this.importInstructionsService = importInstructionsService;
     }
@@ -111,7 +114,7 @@ public class CommonVariablesService {
             throw new MalformedVariableNameException(key);
         }
 
-        Set<String> securedVariablesNames = securedVariableService.getDefaultSecretVariableNamesForUniquenessCheck();
+        Set<String> securedVariablesNames = getDefaultSecretNamesForUniquenessCheck();
         ImportVariableResult commonVariable = checkAndMapVariable(key, value, securedVariablesNames, false);
         consulService.updateCommonVariable(key, value);
         return commonVariable.getName();
@@ -120,7 +123,7 @@ public class CommonVariablesService {
     public List<ImportVariableResult> addVariables(Map<String, String> variables, boolean importMode) {
         List<ImportVariableResult> importResults = Collections.emptyList();
         if (!variables.isEmpty()) {
-            Set<String> securedVariablesNames = securedVariableService.getDefaultSecretVariableNamesForUniquenessCheck();
+            Set<String> securedVariablesNames = getDefaultSecretNamesForUniquenessCheck();
 
             importResults = variables.entrySet().stream()
                     .map(entry -> checkAndMapVariable(entry.getKey(), entry.getValue(), securedVariablesNames, importMode))
@@ -128,6 +131,13 @@ public class CommonVariablesService {
             consulService.updateCommonVariables(variables);
         }
         return importResults;
+    }
+
+    private Set<String> getDefaultSecretNamesForUniquenessCheck() {
+        if (!defaultSecretPolicyService.isDefaultSecretEnabled()) {
+            return Collections.emptySet();
+        }
+        return securedVariableService.getVariablesForDefaultSecret(false);
     }
 
     private ImportVariableResult checkAndMapVariable(String key, String value, Set<String> securedVariablesNames, boolean importMode) {
