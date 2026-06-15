@@ -12,8 +12,6 @@ export type ChainGraphViewControlsProps = {
   after?: React.ReactNode;
   onExpandAllContainers?: () => void;
   onCollapseAllContainers?: () => void;
-  onExportImage?: () => void;
-  exporting?: boolean;
 };
 
 export const ChainGraphViewControls = ({
@@ -21,8 +19,6 @@ export const ChainGraphViewControls = ({
   after,
   onExpandAllContainers,
   onCollapseAllContainers,
-  onExportImage,
-  exporting,
 }: ChainGraphViewControlsProps) => {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const { zoom } = useViewport();
@@ -99,17 +95,6 @@ export const ChainGraphViewControls = ({
         onClick={onCollapseAllContainers}
         icon={<OverridableIcon name="collapseAll" />}
       />
-      {onExportImage && (
-        <Button
-          className={styles.button}
-          type={"text"}
-          title="Export image"
-          loading={exporting}
-          disabled={exporting}
-          onClick={onExportImage}
-          icon={<OverridableIcon name="export" />}
-        />
-      )}
       {after ? (
         <>
           <span className={styles.extraDivider} />

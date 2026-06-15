@@ -19,6 +19,7 @@ import {
   OnSelectionChangeFunc,
   ReactFlow,
   useOnSelectionChange,
+  useReactFlow,
 } from "@xyflow/react";
 import {
   ChainGraphNode,
@@ -31,11 +32,10 @@ import {
   ChainGraphViewControls,
   ChainGraphViewControlsProps,
 } from "../components/graph/ChainGraphViewControls.tsx";
-import { Modal, Spin } from "antd";
+import { Modal } from "antd";
 import ContextMenu from "../components/graph/ContextMenu.tsx";
 import { useChainGraph } from "../hooks/graph/useChainGraph.tsx";
-import { useExportGraphImage } from "../hooks/graph/useExportGraphImage.ts";
-import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
+import { registerGraphNodesAccessor } from "../hooks/graph/graphCaptureBridge.ts";
 import {
   getElementColor,
   isSwimlanesOnly,
@@ -134,9 +134,9 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
     structureChanged,
   } = useChainGraph();
 
-  const { exporting, exportImage } = useExportGraphImage(
-    chainContext?.chain?.name,
-  );
+  // Expose the live graph's nodes to captureChainGraphImage, which runs outside React.
+  const { getNodes } = useReactFlow();
+  useEffect(() => registerGraphNodesAccessor(getNodes), [getNodes]);
 
   useEffect(() => {
     currentThemeRef.current = currentTheme;
@@ -498,7 +498,7 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
     >
       <ElkDirectionContextProvider elkDirectionControl={elkDirectionControl}>
         <ReactFlow
-          onlyRenderVisibleElements={!exporting}
+          onlyRenderVisibleElements
           nodes={flowNodes}
           nodeTypes={nodeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
@@ -536,32 +536,10 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
             {...controls}
             onExpandAllContainers={expandAllContainers}
             onCollapseAllContainers={collapseAllContainers}
-            onExportImage={isVsCode ? () => void exportImage() : undefined}
-            exporting={exporting}
           />
           {menu && <ContextMenu menu={menu} closeMenu={closeMenu} />}
         </ReactFlow>
       </ElkDirectionContextProvider>
-      {exporting && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 10,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 12,
-            background: "var(--vscode-editor-background, #1f1f1f)",
-          }}
-        >
-          <Spin size="large" />
-          <span style={{ color: "var(--vscode-foreground)" }}>
-            Generating image…
-          </span>
-        </div>
-      )}
     </div>
   );
 };

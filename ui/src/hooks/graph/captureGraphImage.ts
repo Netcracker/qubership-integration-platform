@@ -1,15 +1,12 @@
-import { useCallback, useState } from "react";
-import { getNodesBounds, Node, useReactFlow } from "@xyflow/react";
+import { getNodesBounds, type Node } from "@xyflow/react";
 import {
   domToBlob,
   domToForeignObjectSvg,
   type Options,
 } from "modern-screenshot";
-import { App } from "antd";
-import { api } from "../../api/api.ts";
-import { VSCodeExtensionApi } from "../../api/rest/vscodeExtensionApi.ts";
+import { getCurrentGraphNodes } from "./graphCaptureBridge.ts";
 
-type ImageFormat = "png" | "svg";
+export type ImageFormat = "png" | "svg";
 
 // Margin (px) around the graph in the exported image.
 const PADDING = 48;
@@ -199,12 +196,6 @@ const CLONED_STYLE_PROPERTIES = [
   "cursor",
 ];
 
-const nextFrame = () =>
-  new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-
-const sanitizeFileName = (name: string) =>
-  (name.trim() || "chain").replace(/[\\/:*?"<>|]+/g, "_");
-
 const readBackgroundColor = () => {
   if (typeof window === "undefined") return "#ffffff";
   const root =
@@ -216,116 +207,93 @@ const readBackgroundColor = () => {
 };
 
 /**
- * Captures the whole graph (not just the visible viewport) as a PNG and sends
- * the bytes to the VS Code extension host to be written to disk.
+ * Snapshots a React Flow graph into image bytes (PNG raster or true-vector SVG).
  *
- * Uses React Flow's official screenshot recipe: snapshot the `.react-flow__viewport`
- * element while overriding its size and transform on the rendered CLONE (via the
- * `style` option), so the live graph is never moved. The caller must disable
- * `onlyRenderVisibleElements` while `exporting` is true so every off-screen node
- * is mounted into the DOM and therefore cloned.
+ * Pure DOM→bytes: the caller supplies the already-mounted `.react-flow__viewport`
+ * element and the graph's nodes (for framing). The live graph is never moved — the
+ * size/transform overrides are applied to the rendered CLONE via the `style` option.
+ *
+ * {@link captureChainGraphImage} wraps this for callers that just want "snapshot the
+ * currently mounted chain graph". Both stay free of React/hook state so they can run
+ * outside React.
  */
-export function useExportGraphImage(fileName?: string) {
-  const { getNodes } = useReactFlow();
-  const { message } = App.useApp();
-  const [exporting, setExporting] = useState(false);
+export async function captureGraphImage(params: {
+  viewportEl: HTMLElement;
+  nodes: Node[];
+  format: ImageFormat;
+}): Promise<ArrayBuffer> {
+  const { viewportEl, nodes, format } = params;
 
-  const capture = useCallback(
-    async (format: ImageFormat): Promise<ArrayBuffer> => {
-      const viewportEl = document.querySelector<HTMLElement>(
-        ".react-flow__viewport",
-      );
-      if (!viewportEl) {
-        throw new Error("Graph viewport element not found");
-      }
+  if (nodes.length === 0) {
+    throw new Error("Graph is empty");
+  }
 
-      const nodes = getNodes().filter((node: Node) => !node.hidden);
-      if (nodes.length === 0) {
-        throw new Error("Graph is empty");
-      }
+  const bounds = getNodesBounds(nodes);
+  const width = Math.ceil(bounds.width + PADDING * 2);
+  const height = Math.ceil(bounds.height + PADDING * 2);
 
-      const bounds = getNodesBounds(nodes);
-      const width = Math.ceil(bounds.width + PADDING * 2);
-      const height = Math.ceil(bounds.height + PADDING * 2);
-
-      // Shared between PNG and SVG: same clone pipeline, same framing.
-      const shared: Options = {
-        width,
-        height,
-        backgroundColor: readBackgroundColor(), // WYSIWYG — match the editor background
-        font: false as const, // fonts are already available in this browser
-        timeout: 4000, // don't stall 30s on unreachable assets
-        drawImageInterval: 0, // Safari/Firefox decode fix, not needed in webview
-        includeStyleProperties: CLONED_STYLE_PROPERTIES, // avoid full-style diff per node
-        style: {
-          width: `${width}px`,
-          height: `${height}px`,
-          // Place the graph at (PADDING, PADDING) at zoom 1 inside the frame.
-          transform: `translate(${PADDING - bounds.x}px, ${PADDING - bounds.y}px) scale(1)`,
-        },
-      };
-
-      if (format === "svg") {
-        // True vector (foreignObject) SVG — the same intermediate the PNG path
-        // rasterizes, minus rasterization. Resolution-independent, so no DPI scale.
-        const svg = await domToForeignObjectSvg(viewportEl, shared);
-        const markup = new XMLSerializer().serializeToString(svg);
-        return new TextEncoder().encode(
-          `<?xml version="1.0" encoding="UTF-8"?>\n${markup}`,
-        ).buffer;
-      }
-
-      let scale = TARGET_SCALE;
-      const longestSide = Math.max(width, height) * scale;
-      if (longestSide > MAX_SIDE) scale = MAX_SIDE / Math.max(width, height);
-
-      const blob = await domToBlob(viewportEl, {
-        ...shared,
-        type: "image/png",
-        scale,
-      });
-
-      return blob.arrayBuffer();
+  // Shared between PNG and SVG: same clone pipeline, same framing.
+  const shared: Options = {
+    width,
+    height,
+    backgroundColor: readBackgroundColor(), // WYSIWYG — match the editor background
+    font: false as const, // fonts are already available in this browser
+    timeout: 4000, // don't stall 30s on unreachable assets
+    drawImageInterval: 0, // Safari/Firefox decode fix, not needed in webview
+    includeStyleProperties: CLONED_STYLE_PROPERTIES, // avoid full-style diff per node
+    style: {
+      width: `${width}px`,
+      height: `${height}px`,
+      // Place the graph at (PADDING, PADDING) at zoom 1 inside the frame.
+      transform: `translate(${PADDING - bounds.x}px, ${PADDING - bounds.y}px) scale(1)`,
     },
-    [getNodes],
+  };
+
+  if (format === "svg") {
+    // True vector (foreignObject) SVG — the same intermediate the PNG path
+    // rasterizes, minus rasterization. Resolution-independent, so no DPI scale.
+    const svg = await domToForeignObjectSvg(viewportEl, shared);
+    const markup = new XMLSerializer().serializeToString(svg);
+    return new TextEncoder().encode(
+      `<?xml version="1.0" encoding="UTF-8"?>\n${markup}`,
+    ).buffer;
+  }
+
+  let scale = TARGET_SCALE;
+  const longestSide = Math.max(width, height) * scale;
+  if (longestSide > MAX_SIDE) scale = MAX_SIDE / Math.max(width, height);
+
+  const blob = await domToBlob(viewportEl, {
+    ...shared,
+    type: "image/png",
+    scale,
+  });
+
+  return blob.arrayBuffer();
+}
+
+/**
+ * Captures the chain graph currently mounted in the webview to image bytes (PNG by
+ * default). The single function an external consumer of the extension calls: it
+ * needs no arguments — it finds the live `.react-flow__viewport` and the graph's
+ * nodes (published via {@link getCurrentGraphNodes}) and snapshots them with
+ * {@link captureGraphImage} (scale 1.25, editor-matched background).
+ *
+ * Throws if no chain graph is mounted, so the caller knows to render one first.
+ */
+export async function captureChainGraphImage(
+  format: ImageFormat = "png",
+): Promise<ArrayBuffer> {
+  const viewportEl = document.querySelector<HTMLElement>(
+    ".react-flow__viewport",
   );
-
-  const exportImage = useCallback(async () => {
-    if (exporting) return;
-
-    const vscodeApi = api as VSCodeExtensionApi;
-    let target;
-    try {
-      target = await vscodeApi.chooseImageSavePath(
-        sanitizeFileName(fileName ?? "chain"),
-      );
-    } catch (error) {
-      console.error("Failed to open save dialog", error);
-      void message.error("Failed to open save dialog");
-      return;
-    }
-    if (!target) return; // user cancelled
-
-    setExporting(true);
-    try {
-      // Let React commit onlyRenderVisibleElements={false} and ReactFlow mount
-      // and measure every node before snapshotting the graph.
-      await nextFrame();
-      await nextFrame();
-
-      const data = await capture(target.format);
-      await vscodeApi.writeImageFile(target.uri, data);
-    } catch (error) {
-      console.error("Failed to export graph image", error);
-      void message.error(
-        error instanceof Error
-          ? `Failed to export image: ${error.message}`
-          : "Failed to export image",
-      );
-    } finally {
-      setExporting(false);
-    }
-  }, [exporting, fileName, capture, message]);
-
-  return { exporting, exportImage };
+  const nodes = getCurrentGraphNodes();
+  if (!viewportEl || !nodes) {
+    throw new Error("No chain graph mounted to capture");
+  }
+  return captureGraphImage({
+    viewportEl,
+    nodes: nodes.filter((node) => !node.hidden),
+    format,
+  });
 }

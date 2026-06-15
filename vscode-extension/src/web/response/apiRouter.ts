@@ -1,6 +1,7 @@
-import vscode, { ExtensionContext, Uri } from "vscode";
+import vscode, {ExtensionContext, Uri} from "vscode";
 import {
   changeFolder,
+  cloneElements,
   createConnection,
   createElement,
   createMaskedField,
@@ -8,14 +9,14 @@ import {
   deleteElements,
   deleteMaskedFields,
   groupElements,
-  ungroupElements,
   transferElement,
+  ungroupElements,
   updateChain,
   updateElement,
   updateMaskedField,
-  cloneElements,
 } from "./chainApiModify";
 import {
+  findChainByElementId,
   getChain,
   getChainFileUri,
   getConnections,
@@ -24,7 +25,6 @@ import {
   getLibrary,
   getLibraryElementByType,
   getMaskedFields,
-  findChainByElementId,
 } from "./chainApiRead";
 import {
   getApiSpecifications,
@@ -54,29 +54,24 @@ import {
   updateService,
   updateSpecificationModel,
 } from "./serviceApiModify";
-import { fileApi } from "./file";
-import { getChainUri } from "./chainApiUtils";
+import {fileApi} from "./file";
+import {getChainUri} from "./chainApiUtils";
 import {
+  getContextServiceUri,
+  getMcpServiceUri,
   getServiceOperationsUri,
   getServiceSpecificationsUri,
   getServiceUri,
   handleCreateService,
   handleGetImportSpecificationResult,
+  handleGetSpecApiFiles,
   handleImportSpecification,
   handleImportSpecificationGroup,
-  handleGetSpecApiFiles,
   handleReadSpecificationFileContent,
   QipFileType,
-  getContextServiceUri,
-  getMcpServiceUri,
 } from "./serviceApiUtils";
-import {
-  VSCodeMessage,
-  AppExtensionProps,
-  IconOverrides,
-} from "@netcracker/qip-ui";
-import { getAndClearNavigationStateValue } from "./navigationUtils";
-import { chooseImageSavePath, writeImageFile } from "./imageExportApi";
+import {AppExtensionProps, VSCodeMessage,} from "@netcracker/qip-ui";
+import {getAndClearNavigationStateValue} from "./navigationUtils";
 
 let lastWebviewPath: string | undefined = undefined;
 
@@ -105,11 +100,10 @@ export async function getApiResponse(
           return;
         }
         lastWebviewPath = message.payload.path;
-        const parsedPath = await parseNavigatePath(
+        return await parseNavigatePath(
           message.payload.path,
           fileUri,
         );
-        return parsedPath;
       }
 
       const pathToNavigateFromContext =
@@ -370,12 +364,6 @@ export async function getApiResponse(
         message.payload.fileUri,
         message.payload.specificationFilePath,
       );
-
-    // Chain graph image export
-    case "chooseImageSavePath":
-      return await chooseImageSavePath(fileUri, message.payload.suggestedName);
-    case "writeImageFile":
-      return await writeImageFile(message.payload.uri, message.payload.data);
   }
 }
 
