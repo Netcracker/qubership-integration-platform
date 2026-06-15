@@ -184,7 +184,7 @@ To add specification group to the external service:
 2. Specify the **name** of the specification group on the opened pop-up.
 3. **Upload** file or archive with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
 > ℹ️ **Note:**
-> - For the service with _**grpc**_ protocol there could be uploaded `.zip` archive with more than one `.proto` file. 
+> - For the service with _**grpc**_ protocol there could be uploaded `.zip` archive with more than one `.proto` file.
 > - For **WSDL**, **GraphQL**, **Protobuf** specifications, system will generate the name by autoincrement (e.g. 1.0.0 -> 2.0.0), rename if required.
 4. Confirm operation with **"Import File"** button.
 
