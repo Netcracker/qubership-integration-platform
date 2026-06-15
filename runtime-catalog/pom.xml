@@ -54,7 +54,7 @@
     <okhttp-bom.version>5.3.2</okhttp-bom.version>
     <!-- Newest versions requires commons-io 2.15! -->
     <!-- TODO update io.kubernetes.client-java before update this library -->
-    <poi.version>5.2.3</poi.version>
+    <poi.version>5.4.0</poi.version>
     <!-- Plugins -->
     <values-schema-json-plugin.version>1.1.1</values-schema-json-plugin.version>
     <graphql-maven-plugin.version>2.0</graphql-maven-plugin.version>
