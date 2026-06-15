@@ -7,6 +7,10 @@ allOf:
 title: Swimlane
 description: >
   Group elements, that will be represented in UI as Swimlanes.
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
 properties:
   type:
     type: string

@@ -34,6 +34,10 @@ allOf:
         handlerContainer:
           $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-mapper.schema.yaml"
 title: Validation Failure Handler
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
 properties:
   handleValidationAction:
     type: string
