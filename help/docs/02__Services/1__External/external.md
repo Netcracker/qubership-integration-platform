@@ -82,9 +82,6 @@ When service is clicked, the system shows the table with all specification group
 - **Created By** - shows the user, who created an entity.
 - **Modified At** - datetime of entity modifying.
 - **Modified By** - shows the user, who modified an entity.
-
-To add new information, click on the button ![setting](img/setting.svg) located on the right side. The following field are available:
-
 - **Protocol** - shows what protocol is used.
 - **Extended Protocol** - shows special rules for the service protocol.
 - **Specification** - the service's instruction.
@@ -92,7 +89,7 @@ To add new information, click on the button ![setting](img/setting.svg) located 
 - **Method** -  method of the operation, mentioned in the specification.
 - **URL** - operation path.
 
-By default the columns in the table can be different from <ins>Web UI</ins> and <ins>VS Code Extension</ins>. But all hidden columns can be set using the button ![setting](img/setting.svg) located on the right side.
+Column visibility and order can be adjusted using the ![setting](img/setting.svg) button located above the table in the top-right corner of the page.
 
 **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu. Contains the following operations:
 - **Expand** ![down](img/down.svg) / **Collapse** ![up](img/up.svg) - fully expands or collapses the entity.
@@ -135,11 +132,11 @@ To add new information, click on the button ![setting](img/setting.svg) located 
 **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu. Contains the following operations:
 - ![down](img/down.svg) / ![up](img/up.svg) - expands the specification and shows all operations under it or collapses the specification and hides operations under it.
 - ![stop](img/stop.svg) - deprecates the specification, that makes it unavailable for newly added chain elements.
-- ![cloud-download](img/cloud-download.svg) - exports the service.
+- ![cloud-download](img/cloud-download.svg) - exports the specification.
 
 In general at the right top the following operations are available:
-- ![cloud-upload](img/cloud-upload.svg) - opens pop-up for service import.
-- ![cloud-download](img/cloud-download.svg) - exports the service (available only for <ins>Web UI</ins>).
+- ![cloud-upload](img/cloud-upload.svg) - opens pop-up for the service specification.
+- ![cloud-download](img/cloud-download.svg) - exports the specification (available only for <ins>Web UI</ins>).
 
 ### View Operations
 When specification is clicked, the system opens new page with the table of available operations for clicked specifications. Next columns and elements are available for the table:
@@ -186,9 +183,10 @@ To add specification group to the external service:
 1. Select ![plus](img/plus.svg) "**Add Specification Group**" option.
 2. Specify the **name** of the specification group on the opened pop-up.
 3. **Upload** file or archive with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
-> ℹ️ **Note:** For the service with _**grpc**_ protocol there could be uploaded `.zip` archive with more than one `.proto` file.
-4. For **WSDL**, **GraphQL**, **Protobuf** specifications, system will generate the name by autoincrement (e.g. 1.0.0 -> 2.0.0), rename if required.
-5. Confirm operation with **"Save"** button.
+> ℹ️ **Note:**
+> - For the service with _**grpc**_ protocol there could be uploaded `.zip` archive with more than one `.proto` file.
+> - For **WSDL**, **GraphQL**, **Protobuf** specifications, system will generate the name by autoincrement (e.g. 1.0.0 -> 2.0.0), rename if required.
+4. Confirm operation with **"Import File"** button.
 
 When API specification is added you will see the specification group with respective name and dates. All specifications will be placed under this specification group.
 
@@ -199,11 +197,10 @@ To add API specification into existing specification group:
 > ℹ️ **Note:**
 > - **API Specification version must be unique inside of API Specification group for any type of service**. Import of API Specification with non-unique version will result in version duplication error.
 > - For service with _**grpc**_ protocol, import archive could contain more than one `.proto` file.
-3. For **WSDL**, **GraphQL**, **Protobuf** specifications, system will generate the name by autoincrement (e.g. 1.0.0 -> 2.0.0), rename if required.
-4. Confirm operation with **"Save"** button.
+> - For **WSDL**, **GraphQL**, **Protobuf** specifications, system will generate the name by autoincrement (e.g. 1.0.0 -> 2.0.0), rename if required.
+3. Confirm operation with **"Import File"** button.
 
 ### Add Environment
-**`⛔ Not available via VS Code extension`**
 
 There are several environments might be created for single service, but **only one** environment can be active. To add new environment to the external service, click the name of existing service, navigate to "**Environment**" tab and complete next steps:
 
