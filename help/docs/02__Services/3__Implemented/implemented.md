@@ -82,9 +82,6 @@ When service is clicked, the system shows the table with all specification group
 - **Created By** - shows the user, who created an entity.
 - **Modified At** - datetime of entity modification.
 - **Modified By** - shows the user, who modified an entity.
-
-To add new information, click on the button ![setting](img/setting.svg) located on the right side. The following field are available:
-
 - **Protocol** - shows what protocol is used.
 - **Extended Protocol** - shows special rules for the service protocol.
 - **Specification** - the service's instruction.
@@ -92,7 +89,7 @@ To add new information, click on the button ![setting](img/setting.svg) located 
 - **Method** -  method of the operation, mentioned in the specification.
 - **URL** - operation path.
 
-By default the columns in the table can be different from <ins>Web UI</ins> and <ins>VS Code Extension</ins>. But all hidden columns can be set using the button ![setting](img/setting.svg) located on the right side.
+Column visibility and order can be adjusted using the ![setting](img/setting.svg) button located above the table in the top-right corner of the page.
 
 **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu. Contains the following operations:
 - **Expand** ![down](img/down.svg) / **Collapse** ![up](img/up.svg) - fully expands or collapses the entity.
@@ -139,8 +136,8 @@ To add new information, click on the button ![setting](img/setting.svg) located 
 - ![cloud-download](img/cloud-download.svg) - exports the specification.
 
 In general at the right top the following operations are available:
-- ![cloud-upload](img/cloud-upload.svg) - opens pop-up for service import.
-- ![cloud-download](img/cloud-download.svg) - exports the service (available only for <ins>Web UI</ins>).
+- ![cloud-upload](img/cloud-upload.svg) - opens pop-up for the service specification.
+- ![cloud-download](img/cloud-download.svg) - exports the specification (available only for <ins>Web UI</ins>).
 
 ### View Operations
 When specification is clicked, the system opens new page with the table of available operations for clicked specifications. Next columns and elements are available for the table:
@@ -191,7 +188,7 @@ To add specification group to Implemented service:
     - **Import from Chains** - on this tab, it is possible to select existing [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) endpoint, configured within a particular chain and create API Specification from it.
 > ℹ️ **Note:** Via checkbox _**"External routes only"**_ it is possible to control showing only respective [HTTP Triggers](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) in the list.
 
-4. Confirm operation with **"Save"** button.
+4. Confirm operation with **"Import File"** button.
 
 When API specification is added you will see the specification group with respective name and dates. All specifications will be placed under this specification group.
 
@@ -204,7 +201,7 @@ To add API specification into existing specification group:
 
     - **Import from Chains** - on this tab, it is possible to select existing [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) endpoint, configured within a particular chain and create API Specification from it.
     > ℹ️ **Note:** Checked _**"External routes only"**_ parameter allows to create specification only from chains with external [HTTP Triggers](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md).
-1. Confirm operation with **"Save"** button.
+3. Confirm operation with **"Import File"** button.
 
 ### Add Environment
 There is no manual option to create new environment for Implemented Service - it will be created automatically after API specification is successfully uploaded. Each particular Implemented Service could have only one related environment.
