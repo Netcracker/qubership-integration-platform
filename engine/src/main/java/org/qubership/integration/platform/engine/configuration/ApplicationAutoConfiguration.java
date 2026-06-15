@@ -18,13 +18,11 @@ package org.qubership.integration.platform.engine.configuration;
 
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.actuator.configuration.InfoContributorsConfiguration;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Import;
 import org.springframework.retry.annotation.EnableRetry;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -36,7 +34,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableRetry
 @EnableAsync
 @ComponentScan(value = {"org.qubership.integration.platform.engine"})
-@Import(InfoContributorsConfiguration.class)
 public class ApplicationAutoConfiguration {
     private final ApplicationContext context;
 
