@@ -256,20 +256,21 @@ export async function parseElement(
   parentId: string | undefined = undefined,
 ): Promise<Element> {
   async function handleServiceCallProperty(beforeAfterBlock: any) {
-    if (!beforeAfterBlock.propertiesFilename) {
-      return;
-    }
     if (beforeAfterBlock.type === "script") {
-      beforeAfterBlock["script"] = await fileApi.readFile(
-        fileUri,
-        beforeAfterBlock.propertiesFilename,
-      );
+      // Empty script content is exported without a file; treat a missing file as
+      // empty rather than leaving the script property undefined.
+      beforeAfterBlock["script"] = beforeAfterBlock.propertiesFilename
+        ? await fileApi.readFile(fileUri, beforeAfterBlock.propertiesFilename)
+        : "";
     } else if (beforeAfterBlock.type?.startsWith("mapper")) {
+      if (!beforeAfterBlock.propertiesFilename) {
+        return;
+      }
       const fileContent = await fileApi.readFile(
         fileUri,
         beforeAfterBlock.propertiesFilename,
       );
-      const properties: any = fileContent ? JSON.parse(fileContent) : {};
+      const properties: any = fileContent?.trim() ? JSON.parse(fileContent) : {};
       for (const key in properties) {
         beforeAfterBlock[key] = properties[key];
       }
@@ -292,7 +293,7 @@ export async function parseElement(
               return item.trim();
             });
         const fileContent = await fileApi.readFile(fileUri, propertiesFilename);
-        const properties: any = fileContent ? JSON.parse(fileContent) : {};
+        const properties: any = fileContent?.trim() ? JSON.parse(fileContent) : {};
         if (propertyNames) {
           for (const propertyName of propertyNames) {
             elementProperties[propertyName] = properties[propertyName];

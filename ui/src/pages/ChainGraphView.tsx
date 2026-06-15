@@ -35,7 +35,8 @@ import {
 import { Modal } from "antd";
 import ContextMenu from "../components/graph/ContextMenu.tsx";
 import { useChainGraph } from "../hooks/graph/useChainGraph.tsx";
-import { registerGraphNodesAccessor } from "../hooks/graph/graphCaptureBridge.ts";
+import { registerGraphCaptureSource } from "../hooks/graph/graphCaptureBridge.ts";
+import { ThemeContext, ThemeContextValue } from "../theme/context.tsx";
 import {
   getElementColor,
   isSwimlanesOnly,
@@ -78,6 +79,20 @@ const readTheme = () => {
   return "light";
 };
 
+// Waits one animation frame, with a timeout fallback: requestAnimationFrame is
+// paused in hidden/background webviews, so a bare rAF could hang the export forever.
+const nextFrame = () =>
+  new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    requestAnimationFrame(finish);
+    setTimeout(finish, 100);
+  });
+
 export type ChainGraphViewProps = HTMLAttributes<HTMLDivElement> & {
   readOnly: boolean;
   controls?: Partial<Pick<ChainGraphViewControlsProps, "before" | "after">>;
@@ -95,7 +110,7 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
   ...rest
 }) => {
   const { elementId } = useParams<string>();
-  const reactFlowWrapper = useRef(null);
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const chainContext = useContext(ChainContext);
   const { isLibraryLoading, libraryElements } = useLibraryContext();
   const [currentTheme, setCurrentTheme] = useState<string>(() => readTheme());
@@ -103,6 +118,9 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
   const [selectedByRightClick, setSelectedByRightClick] =
     useState<boolean>(false);
   const [, setIsPageLoaded] = useState<boolean>(false);
+  // True only during an image capture: temporarily disables node culling so the
+  // whole graph (incl. off-screen nodes) is mounted for the snapshot.
+  const [exporting, setExporting] = useState<boolean>(false);
 
   const deleteKeyCode = useMemo<KeyCode | null>(
     () => (readOnly ? null : ["Backspace", "Delete"]),
@@ -134,9 +152,45 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
     structureChanged,
   } = useChainGraph();
 
-  // Expose the live graph's nodes to captureChainGraphImage, which runs outside React.
+  // Register this graph as a capture source for captureChainGraphImage, which runs
+  // outside React. The source ties this graph's own viewport to its own nodes, so a
+  // multi-graph layout (the side-by-side diff view) never crosses them.
   const { getNodes } = useReactFlow();
-  useEffect(() => registerGraphNodesAccessor(getNodes), [getNodes]);
+  useEffect(
+    () =>
+      registerGraphCaptureSource({
+        isMounted: () => reactFlowWrapper.current?.isConnected ?? false,
+        getViewportEl: () =>
+          reactFlowWrapper.current?.querySelector<HTMLElement>(
+            ".react-flow__viewport",
+          ) ?? null,
+        getNodes,
+        prepareForExport: async () => {
+          setExporting(true);
+          // Two frames: let React commit the culling-off render and ReactFlow
+          // mount/measure every node before the snapshot.
+          await nextFrame();
+          await nextFrame();
+          return () => setExporting(false);
+        },
+      }),
+    [getNodes],
+  );
+
+  // During export the graph renders in the light theme (so the snapshot is light
+  // regardless of the active theme); this drives the container fill tint, which is
+  // theme state rather than a CSS var. Outside export it passes the theme through.
+  const inheritedTheme = useContext(ThemeContext);
+  const exportThemeValue = useMemo<ThemeContextValue | null>(
+    () =>
+      exporting
+        ? {
+            theme: "light",
+            onThemeChange: inheritedTheme?.onThemeChange ?? (() => undefined),
+          }
+        : inheritedTheme,
+    [exporting, inheritedTheme],
+  );
 
   useEffect(() => {
     currentThemeRef.current = currentTheme;
@@ -496,50 +550,52 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
       ref={reactFlowWrapper}
       {...rest}
     >
-      <ElkDirectionContextProvider elkDirectionControl={elkDirectionControl}>
-        <ReactFlow
-          onlyRenderVisibleElements
-          nodes={flowNodes}
-          nodeTypes={nodeTypes}
-          defaultEdgeOptions={defaultEdgeOptions}
-          edges={renderEdges}
-          onNodeDragStart={readOnly ? undefined : onNodeDragStart}
-          onNodeDrag={readOnly ? undefined : onNodeDrag}
-          onNodeDragStop={readOnly ? undefined : handleNodeDragStop}
-          onNodesChange={readOnly ? undefined : onNodesChange}
-          onEdgesChange={readOnly ? undefined : handleEdgesChange}
-          onConnect={readOnly ? undefined : handleConnect}
-          onDelete={readOnly ? undefined : handleOnDelete}
-          onBeforeDelete={readOnly ? undefined : onBeforeDelete}
-          onDrop={readOnly ? undefined : handleDrop}
-          onDragOver={readOnly ? undefined : onDragOver}
-          onNodeDoubleClick={readOnly ? undefined : handleNodeDoubleClick}
-          zoomOnDoubleClick={false}
-          deleteKeyCode={deleteKeyCode}
-          proOptions={proOptions}
-          onContextMenu={readOnly ? undefined : onContextMenu}
-          onNodeContextMenu={readOnly ? undefined : onNodeContextMenu}
-          onPaneClick={closeMenu}
-          fitView
-        >
-          <ElementFocus />
-          <Background variant={BackgroundVariant.Dots} />
-          <MiniMap
-            zoomable
-            pannable
-            position="top-right"
-            nodeColor={getMinimapNodeColor}
-            nodeStrokeColor={getMinimapNodeStrokeColor}
-            nodeStrokeWidth={2}
-          />
-          <ChainGraphViewControls
-            {...controls}
-            onExpandAllContainers={expandAllContainers}
-            onCollapseAllContainers={collapseAllContainers}
-          />
-          {menu && <ContextMenu menu={menu} closeMenu={closeMenu} />}
-        </ReactFlow>
-      </ElkDirectionContextProvider>
+      <ThemeContext.Provider value={exportThemeValue}>
+        <ElkDirectionContextProvider elkDirectionControl={elkDirectionControl}>
+          <ReactFlow
+            onlyRenderVisibleElements={!exporting}
+            nodes={flowNodes}
+            nodeTypes={nodeTypes}
+            defaultEdgeOptions={defaultEdgeOptions}
+            edges={renderEdges}
+            onNodeDragStart={readOnly ? undefined : onNodeDragStart}
+            onNodeDrag={readOnly ? undefined : onNodeDrag}
+            onNodeDragStop={readOnly ? undefined : handleNodeDragStop}
+            onNodesChange={readOnly ? undefined : onNodesChange}
+            onEdgesChange={readOnly ? undefined : handleEdgesChange}
+            onConnect={readOnly ? undefined : handleConnect}
+            onDelete={readOnly ? undefined : handleOnDelete}
+            onBeforeDelete={readOnly ? undefined : onBeforeDelete}
+            onDrop={readOnly ? undefined : handleDrop}
+            onDragOver={readOnly ? undefined : onDragOver}
+            onNodeDoubleClick={readOnly ? undefined : handleNodeDoubleClick}
+            zoomOnDoubleClick={false}
+            deleteKeyCode={deleteKeyCode}
+            proOptions={proOptions}
+            onContextMenu={readOnly ? undefined : onContextMenu}
+            onNodeContextMenu={readOnly ? undefined : onNodeContextMenu}
+            onPaneClick={closeMenu}
+            fitView
+          >
+            <ElementFocus />
+            <Background variant={BackgroundVariant.Dots} />
+            <MiniMap
+              zoomable
+              pannable
+              position="top-right"
+              nodeColor={getMinimapNodeColor}
+              nodeStrokeColor={getMinimapNodeStrokeColor}
+              nodeStrokeWidth={2}
+            />
+            <ChainGraphViewControls
+              {...controls}
+              onExpandAllContainers={expandAllContainers}
+              onCollapseAllContainers={collapseAllContainers}
+            />
+            {menu && <ContextMenu menu={menu} closeMenu={closeMenu} />}
+          </ReactFlow>
+        </ElkDirectionContextProvider>
+      </ThemeContext.Provider>
     </div>
   );
 };

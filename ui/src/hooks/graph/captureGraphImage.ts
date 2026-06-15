@@ -4,7 +4,7 @@ import {
   domToForeignObjectSvg,
   type Options,
 } from "modern-screenshot";
-import { getCurrentGraphNodes } from "./graphCaptureBridge.ts";
+import { getGraphCaptureSource } from "./graphCaptureBridge.ts";
 
 export type ImageFormat = "png" | "svg";
 
@@ -196,6 +196,53 @@ const CLONED_STYLE_PROPERTIES = [
   "cursor",
 ];
 
+// Whether the active theme is dark (incl. high-contrast dark). Set by useVSCodeTheme.
+const isDarkThemeActive = (): boolean => {
+  if (typeof document === "undefined") return false;
+  const root = document.documentElement;
+  const flag = getComputedStyle(root)
+    .getPropertyValue("--vscode-is-dark")
+    .trim();
+  if (flag === "1") return true;
+  if (flag === "0") return false;
+  const dataTheme = root.getAttribute("data-theme");
+  return dataTheme === "dark" || dataTheme === "high-contrast";
+};
+
+// Switches the whole document to the app's own light theme (the light defaults in
+// styles/theme-variables.css) so the snapshot is one-to-one with the light theme —
+// including hard-coded rules like edge stroke that only branch on data-theme. Returns
+// a restore cleanup. Container fill opacity is theme state, not CSS — flipped via
+// ThemeContext during export (see ChainGraphView). Transitions are suppressed so the
+// new colors apply instantly rather than animating into the frame.
+const applyLightThemeFlip = (): (() => void) => {
+  const root = document.documentElement;
+  const body = document.body;
+  const hadRootWebview = root.classList.contains("vscode-webview");
+  const hadBodyWebview = body.classList.contains("vscode-webview");
+  const savedDataTheme = root.getAttribute("data-theme");
+  const savedStyle = root.getAttribute("style");
+
+  root.classList.add("theme-switching");
+  // Drop the IDE theme: remove the webview marker + host-injected --vscode-* inline
+  // overrides and select the light data-theme, so the light defaults win.
+  root.classList.remove("vscode-webview");
+  body.classList.remove("vscode-webview");
+  root.setAttribute("data-theme", "light");
+  root.removeAttribute("style");
+
+  return () => {
+    if (savedStyle !== null) root.setAttribute("style", savedStyle);
+    else root.removeAttribute("style");
+    if (savedDataTheme !== null)
+      root.setAttribute("data-theme", savedDataTheme);
+    else root.removeAttribute("data-theme");
+    if (hadRootWebview) root.classList.add("vscode-webview");
+    if (hadBodyWebview) body.classList.add("vscode-webview");
+    root.classList.remove("theme-switching");
+  };
+};
+
 const readBackgroundColor = () => {
   if (typeof window === "undefined") return "#ffffff";
   const root =
@@ -236,7 +283,7 @@ export async function captureGraphImage(params: {
   const shared: Options = {
     width,
     height,
-    backgroundColor: readBackgroundColor(), // WYSIWYG — match the editor background
+    backgroundColor: readBackgroundColor(), // matches the (possibly light-flipped) document
     font: false as const, // fonts are already available in this browser
     timeout: 4000, // don't stall 30s on unreachable assets
     drawImageInterval: 0, // Safari/Firefox decode fix, not needed in webview
@@ -275,25 +322,42 @@ export async function captureGraphImage(params: {
 /**
  * Captures the chain graph currently mounted in the webview to image bytes (PNG by
  * default). The single function an external consumer of the extension calls: it
- * needs no arguments — it finds the live `.react-flow__viewport` and the graph's
- * nodes (published via {@link getCurrentGraphNodes}) and snapshots them with
- * {@link captureGraphImage} (scale 1.25, editor-matched background).
+ * needs no arguments — it resolves the mounted graph (via {@link getGraphCaptureSource}),
+ * mounts every off-screen node so the WHOLE graph is captured, then snapshots its
+ * viewport with {@link captureGraphImage} (scale 1.25, editor-matched background).
  *
  * Throws if no chain graph is mounted, so the caller knows to render one first.
  */
 export async function captureChainGraphImage(
   format: ImageFormat = "png",
 ): Promise<ArrayBuffer> {
-  const viewportEl = document.querySelector<HTMLElement>(
-    ".react-flow__viewport",
-  );
-  const nodes = getCurrentGraphNodes();
-  if (!viewportEl || !nodes) {
+  const source = getGraphCaptureSource();
+  if (!source) {
     throw new Error("No chain graph mounted to capture");
   }
-  return captureGraphImage({
-    viewportEl,
-    nodes: nodes.filter((node) => !node.hidden),
-    format,
-  });
+
+  // Disable culling and wait for all nodes to mount/measure, so off-screen nodes are
+  // in the DOM before the snapshot; restore afterwards.
+  const restore = await source.prepareForExport();
+  try {
+    const viewportEl = source.getViewportEl();
+    if (!viewportEl) {
+      throw new Error("No chain graph mounted to capture");
+    }
+    // Export always looks light: when the active theme is dark, switch the document
+    // to the app's light theme for the snapshot; when it's already light, leave it.
+    // (Container fill opacity is flipped via ThemeContext during export regardless.)
+    const restoreTheme = isDarkThemeActive() ? applyLightThemeFlip() : null;
+    try {
+      return await captureGraphImage({
+        viewportEl,
+        nodes: source.getNodes().filter((node) => !node.hidden),
+        format,
+      });
+    } finally {
+      restoreTheme?.();
+    }
+  } finally {
+    restore();
+  }
 }
