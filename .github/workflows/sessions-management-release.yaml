@@ -4,10 +4,16 @@ name: Sessions Management Release
 on:
   workflow_call:
     inputs:
-      version:
-        required: true
+      release-type:
+        description: "patch | minor | major"
+        required: false
         type: string
-        description: "Release version (e.g., 1.0.0)"
+        default: "patch"
+      version:
+        description: "Explicit release version (X.Y.Z) override. Empty = bump current <revision> by release-type."
+        required: false
+        type: string
+        default: ""
       profile:
         description: "Maven profile to use"
         type: string
@@ -15,11 +21,6 @@ on:
         default: "central"
       build-docker:
         description: "Build Docker image"
-        required: false
-        default: true
-        type: boolean
-      create-github-release:
-        description: "Create release"
         required: false
         default: true
         type: boolean
@@ -39,11 +40,20 @@ on:
         required: false
   workflow_dispatch:
     inputs:
+      release-type:
+        description: "Release type (ignored if a version override is given)"
+        type: choice
+        options:
+          - "patch"
+          - "minor"
+          - "major"
+        required: false
+        default: "patch"
       version:
-        required: true
-        default: "1.0.0"
+        description: "Explicit release version (X.Y.Z) override. Empty = bump current <revision> by release-type."
+        required: false
+        default: ""
         type: string
-        description: "Release version (e.g., 1.0.0)"
       profile:
         description: "Maven profile to use"
         type: choice
@@ -54,11 +64,6 @@ on:
         default: "central"
       build-docker:
         description: "Build Docker image"
-        required: false
-        default: true
-        type: boolean
-      create-github-release:
-        description: "Create release"
         required: false
         default: true
         type: boolean
@@ -78,10 +83,10 @@ jobs:
     uses: ./.github/workflows/_maven-module-release.yaml
     with:
       module: sessions-management
+      release-type: ${{ inputs.release-type }}
       version: ${{ inputs.version }}
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
-      create-github-release: ${{ inputs.create-github-release }}
       mvn-args: ${{ inputs.mvn-args }}
     secrets:
       MAVEN_USER: ${{ secrets.MAVEN_USER }}

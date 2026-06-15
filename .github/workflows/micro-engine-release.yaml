@@ -1,25 +1,28 @@
 ---
+# micro-engine is the only module with private com.netcracker.cloud.* deps
+# (pulled from maven.pkg.github.com/netcracker/*). They are not on Maven Central,
+# so micro-engine is published to GitHub Packages: the `github` profile both
+# authenticates the read of those private deps (server-id=github + GITHUB_TOKEN)
+# and targets the github distributionManagement. There is therefore no profile
+# choice here — it is fixed to `github`.
+
 name: Micro Engine Release
 
 on:
   workflow_call:
     inputs:
-      version:
-        required: true
-        type: string
-        description: "Release version (e.g., 1.0.0)"
-      profile:
-        description: "Maven profile to use"
-        type: string
+      release-type:
+        description: "patch | minor | major"
         required: false
-        default: "central"
+        type: string
+        default: "patch"
+      version:
+        description: "Explicit release version (X.Y.Z) override. Empty = bump current <revision> by release-type."
+        required: false
+        type: string
+        default: ""
       build-docker:
         description: "Build Docker image"
-        required: false
-        default: true
-        type: boolean
-      create-github-release:
-        description: "Create release"
         required: false
         default: true
         type: boolean
@@ -28,37 +31,24 @@ on:
         required: false
         default: ""
         type: string
-    secrets:
-      MAVEN_USER:
-        required: false
-      MAVEN_PASSWORD:
-        required: false
-      MAVEN_GPG_PRIVATE_KEY:
-        required: false
-      MAVEN_GPG_PASSPHRASE:
-        required: false
   workflow_dispatch:
     inputs:
-      version:
-        required: true
-        default: "1.0.0"
-        type: string
-        description: "Release version (e.g., 1.0.0)"
-      profile:
-        description: "Maven profile to use"
+      release-type:
+        description: "Release type (ignored if a version override is given)"
         type: choice
         options:
-          - "github"
-          - "central"
+          - "patch"
+          - "minor"
+          - "major"
         required: false
-        default: "central"
+        default: "patch"
+      version:
+        description: "Explicit release version (X.Y.Z) override. Empty = bump current <revision> by release-type."
+        required: false
+        default: ""
+        type: string
       build-docker:
         description: "Build Docker image"
-        required: false
-        default: true
-        type: boolean
-      create-github-release:
-        description: "Create release"
         required: false
         default: true
         type: boolean
@@ -78,13 +68,9 @@ jobs:
     uses: ./.github/workflows/_maven-module-release.yaml
     with:
       module: micro-engine
+      release-type: ${{ inputs.release-type }}
       version: ${{ inputs.version }}
-      profile: ${{ inputs.profile }}
+      # Fixed to github: private com.netcracker.cloud deps are not on Central.
+      profile: github
       build-docker: ${{ inputs.build-docker }}
-      create-github-release: ${{ inputs.create-github-release }}
       mvn-args: ${{ inputs.mvn-args }}
-    secrets:
-      MAVEN_USER: ${{ secrets.MAVEN_USER }}
-      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
-      MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}

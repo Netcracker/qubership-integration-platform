@@ -1,18 +1,14 @@
 export function endpointColumnTitleForProtocol(
   protocol: string | undefined,
 ): string {
-  if (!protocol) return "URL";
-  const p = protocol.toUpperCase();
-  if (
-    p.includes("HTTP") ||
-    p.includes("REST") ||
-    p.includes("HTTPS") ||
-    p.includes("SOAP")
-  ) {
-    return "URL";
+  switch (protocol?.toLowerCase()) {
+    case "amqp":
+      return "Channel";
+    case "kafka":
+      return "Topic";
+    case "graphql":
+      return "Operation";
+    default: // grpc, http, soap
+      return "URL";
   }
-  if (p.includes("KAFKA") || p.includes("PULSAR") || p.includes("TOPIC")) {
-    return "Topic";
-  }
-  return "Channel";
 }

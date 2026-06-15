@@ -25,8 +25,8 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequestAction;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.runtime.catalog.util.DistinctByKey;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -152,11 +152,7 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
                                         .orElse(null))
                         .elements(elementsExternalMapperEntity.getChainElementExternalEntities())
                         .dependencies(extractExternalDependencies(chain))
-                        .migrations(chainImportFileMigrations.stream()
-                                .map(ImportFileMigration::getVersion)
-                                .sorted()
-                                .toList()
-                                .toString())
+                        .migrations(MigrationUtil.formatVersions(chainImportFileMigrations))
                         .deployments(deployments)
                         .deployAction(CollectionUtils.isEmpty(deployments) ? ChainCommitRequestAction.SNAPSHOT
                                 : ChainCommitRequestAction.DEPLOY)

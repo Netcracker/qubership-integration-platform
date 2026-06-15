@@ -29,7 +29,7 @@ import $import;
 #end
 #if ($object.comments.size() > 0)
  * <BR/>
- * 
+ *
 #end
  */
 ${object.annotation}
@@ -37,27 +37,27 @@ public interface ${object.javaName} #if($object.implementz.size()>0)extends #for
 #foreach ($field in $object.fields)
 
 #if ($field.comments.size() > 0)
-	/**
-#end	
+    /**
+#end
 #foreach ($comment in $field.comments)
-	 * $comment
+     * $comment
 #end
 #if ($field.comments.size() > 0)
-	 */
+     */
 #end
-	${field.annotation}
-	public void set${field.pascalCaseName}(${field.javaTypeFullClassname} ${field.javaName});
+    ${field.annotation}
+    public void set${field.pascalCaseName}(${field.javaTypeFullClassname} ${field.javaName});
 
 #if ($field.comments.size() > 0)
-	/**
-#end	
+    /**
+#end
 #foreach ($comment in $field.comments)
-	 * $comment
+     * $comment
 #end
 #if ($field.comments.size() > 0)
-	 */
+     */
 #end
-	${field.annotation}
-	public ${field.javaTypeFullClassname} get${field.pascalCaseName}();
+    ${field.annotation}
+    public ${field.javaTypeFullClassname} get${field.pascalCaseName}();
 #end
 }

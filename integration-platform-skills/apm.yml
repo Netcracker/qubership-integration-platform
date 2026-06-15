@@ -1,0 +1,14 @@
+name: integration-platform-skills
+version: 0.0.1
+description: 'User-facing APM repository with skills for the Integration Platform
+  — creating new integration chains, modifying existing one by adding or updating
+  its elements'
+targets:
+- claude
+- codex
+- cursor
+dependencies:
+  apm: []
+  mcp: []
+includes: auto
+scripts: {}

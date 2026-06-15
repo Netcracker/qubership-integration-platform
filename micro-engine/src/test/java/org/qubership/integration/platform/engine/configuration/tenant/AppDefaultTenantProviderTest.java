@@ -14,9 +14,7 @@ import org.qubership.integration.platform.engine.camel.context.propagation.Camel
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import static com.netcracker.cloud.framework.contexts.tenant.TenantContextObject.TENANT_HEADER;
-import static org.junit.Assert.assertNull;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;

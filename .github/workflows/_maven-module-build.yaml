@@ -18,6 +18,15 @@ on:
         type: string
         default: ""
         description: "Sonar project key for this module. Leave empty to skip the Sonar scan."
+      force-update:
+        required: false
+        type: boolean
+        default: false
+        description: >-
+          Pass -U to Maven (force re-check of release/snapshot resolution).
+          Enable for modules with private GitHub Packages deps (micro-engine):
+          the OWNER/* wildcard repo intermittently fails under load, and Maven
+          negative-caches the miss across runs (cache: maven). -U defeats that.
     secrets:
       SONAR_TOKEN:
         required: false
@@ -61,12 +70,15 @@ jobs:
         env:
           MAVEN_USERNAME: ${{ github.actor }}
           MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_UPDATE: ${{ inputs.force-update }}
         run: |
           set -eu
           # Run from the module dir so Maven reads only this module + parent (via
           # relativePath), never siblings — micro-engine pulls private
           # com.netcracker.cloud artifacts this token can't read. Publishes nothing.
-          mvn --batch-mode verify -Dgpg.skip=true
+          UPDATE_FLAG=""
+          if [ "$FORCE_UPDATE" = "true" ]; then UPDATE_FLAG="-U"; fi
+          mvn --batch-mode verify $UPDATE_FLAG -Dgpg.skip=true
 
       - name: Upload Sonar inputs
         if: ${{ inputs.sonar-project-key != '' }}
@@ -92,6 +104,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # Sonar must build the project model before scanning. micro-engine imports
+      # private com.netcracker.cloud BOMs (dependencyManagement, scope=import)
+      # that have to be resolved from GitHub Packages just to read its POM.
+      # Other modules' only private dep (qip-checkstyle) is a plugin dependency
+      # the sonar-only run never triggers, so this is a no-op for them.
+      packages: read
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -105,6 +123,11 @@ jobs:
         with:
           java-version: "21"
           distribution: "temurin"
+          # Authenticated GitHub Packages reads (mirrors the build job) so the
+          # effective POM can be assembled — micro-engine needs the private BOMs.
+          server-id: github
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
           cache: "maven"
 
       - name: Download Sonar inputs
@@ -116,6 +139,10 @@ jobs:
       - name: Sonar scan (blocks on red Quality Gate)
         working-directory: ${{ inputs.module }}
         env:
+          # GitHub Packages creds for the github server in settings.xml — needed
+          # to resolve micro-engine's private BOM imports while building the model.
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_PLUGIN_VERSION: ${{ vars.SONAR_PLUGIN_VERSION }}
           SONAR_PROJECT_KEY: ${{ inputs.sonar-project-key }}

@@ -18,32 +18,32 @@ On the "**Graph**" tab user can view and edit a particular chain by adding, upda
 
 Please find the description for all available tools below:
 
-- ![Plus|20](img/plus.svg) - zoom in configuration graph.
-- ![Minus|20](img/minus.svg) - zoom out configuration graph.
-- ![Expand|20](img/expand.svg) - fit view.
-- ![Rotate right|20](img/rotate-right.svg) - change graph orientation (vertical/horizontal).
-- ![20](img/arrows-alt.svg) - expand all existing containers in graph.
-- ![20](img/shrink.svg) - collapse all existing containers in graph.
-- ![20](img/insert-row-right.svg) - expand/hide right panel. The panel is indented to edit chain graph by its text representation.
-- ![](img/insert-row-left.svg) - expand/hide left panel.
-- ![](img/fullscreen.svg) ![](img/fullscreen-exit.svg) - switch between full screen and collapsed process view.
+- ![plus](img/plus.svg) - zoom in configuration graph.
+- ![minus](img/minus.svg) - zoom out configuration graph.
+- ![expand](img/expand.svg) - fit view.
+- ![rotate-right](img/rotate-right.svg) - change graph orientation (vertical/horizontal).
+- ![arrows-alt](img/arrows-alt.svg) - expand all existing containers in graph.
+- ![shrink](img/shrink.svg) - collapse all existing containers in graph.
+- ![insert-row-right](img/insert-row-right.svg) - expand/hide right panel. The panel is indented to edit chain graph by its text representation.
+- ![insert-row-left](img/insert-row-left.svg) - expand/hide left panel.
+- ![fullscreen](img/fullscreen.svg) ![Exit full screen icon](img/fullscreen-exit.svg) - switch between full screen and collapsed process view. **`⛔ Not available via VS Code extension`**
 
 ### General Actions
 The next actions are available upper right corner:
 
 #### <ins>Web UI</ins>
-* ![](img/column-width.svg) - show sequence diagram based on the chain.
-* ![](img/file.svg) - generate DDS.
-* ![Download|20](img/cloud-download.svg) - export chain. During export, you can adjust the data to be downloaded using the following checkboxes in the dialog window. All checkboxes are unchecked by default:
+* ![column-width](img/column-width.svg) - show sequence diagram based on the chain.
+* ![file](img/file.svg) - generate DDS.
+* ![cloud-download](img/cloud-download.svg) - export chain. During export, you can adjust the data to be downloaded using the following checkboxes in the dialog window. All checkboxes are unchecked by default:
   - **Export related sub-chains** - if selected, system will also export the whole tree of chains, that are connected via [Chain Call](1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) and [Chain Trigger](1__Elements_Library/6__Triggers/2__Chain_Trigger/chain_trigger.md) elements,
   sub-chains selected as failure handling option on "Failure Response Mapping" tab for [HTTP Trigger](1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) and sub-chains selected as the handler for duplicate idempotency keys on the "Idempotency" tab of the relevant trigger.
   - **Export related services** - if selected, system will also export services and specifications, utilized within chains.
   - **Export all common variables** - if selected, system will also export all common variables, utilized within chains.
-* ![Send|20](img/send.svg) - save and deploy the chain.
+* ![send](img/send.svg) - save and deploy the chain.
 
 
 #### <ins>VS Code Extension</ins>
-* ![](img/column-width.svg) - show sequence diagram based on the chain.
+* ![column-width](img/column-width.svg) - show sequence diagram based on the chain.
 
 ### Add Element to the Graph
 To add a new element, find the suitable one from the left library panel and then drag it to the graph space.
@@ -55,11 +55,11 @@ To put the element into containers (e.g. [swimlanes](1__Elements_Library/8__Grou
 To connect the elements simply drop one element on another one or hover the mouse on the white dot (placed on the right border of the one element), click it and drag the connection line to the target element.
 
 ### Edit Element
-To edit a particular element, either double-click the element or choose "**Edit**" option from the context menu, that could be requested via right-click on the element. It is also possible to control element's window size with ![20](img/arrows-alt.svg) and ![20](img/shrink.svg) buttons.
+To edit a particular element, either double-click the element or choose "**Edit**" option from the context menu, that could be requested via right-click on the element. It is also possible to control element's window size with ![arrows-alt](img/arrows-alt.svg) and ![shrink](img/shrink.svg) buttons.
 
 >ℹ️ **In‑place element name editing**
 >
->To quickly change an element's name without switching tabs on the configuration window: hover over the name area (![](img/edit.svg) appears), click it, edit the name, and then click outside the input field.
+>To quickly change an element's name without switching tabs on the configuration window: hover over the name area (![edit](img/edit.svg) appears), click it, edit the name, and then click outside the input field.
 
 ### Copy Element
 To copy a particular element, right-click it and choose "**Copy**" option from context menu. Then click right mouse on the space area and choose "**Paste**".
@@ -70,10 +70,10 @@ Elements may also be deleted with the "**Delete**" option from the context menu,
 For container-type elements, that have multiple elements in them, system will request to confirm delete process via dialog menu.
 
 ### View Table with Added Elements
-To see all elements, currently added to the configuration graph, click ![20](img/right-square.svg) - open right panel with the elements using in the chain. Clicking the element in the list will immediately show it on the graph. Double-click will open this element in edit mode.
+To see all elements, currently added to the configuration graph, click ![insert-row-right](img/insert-row-right.svg) - open right panel with the elements using in the chain. Clicking the element in the list will immediately show it on the graph. Double-click will open this element in edit mode.
 
 ### View Table with Exchange Properties
-To open window with a table, that contains all utilized exchange properties in the current chain, click ![20](img/right-square.svg) to open right panel and then click ![22](img/menu-unfold.svg)tab. Each property in the list will have numeric indicator of elements, where this property is being utilized, type (if available) and labels, which help to identify property origin:
+To open window with a table, that contains all utilized exchange properties in the current chain, click ![insert-row-right](img/insert-row-right.svg) to open right panel and then click ![menu-unfold](img/menu-unfold.svg)tab. Each property in the list will have numeric indicator of elements, where this property is being utilized, type (if available) and labels, which help to identify property origin:
 - P - common property, added via script, mapper, etc.
 - H - property, built from header or query parameters.
 
@@ -82,7 +82,11 @@ When property record is expanded, it shows related element's information as well
 > ℹ️ **Note:** Please note, that this view might not contain property usage record when property participates in complex scenarios (e.g. when property is declared and then fetched via "GET" as a variable).
 
 ### Open Chain's Text View
-Chain is also available in a text view, that could be used to compare one chain with another, find specific data or debugging. To open text view, simply click ![20](img/right-square.svg) to open right panel and then select respective tab with ![20](img/file.svg) icon.
+**`⛔ Not available via VS Code extension`**
+
+Chain is also available in a text view, that could be used to compare one chain with another, find specific data or debugging. To open text view, simply click ![insert-row-right](img/insert-row-right.svg) to open right panel and then select respective tab with ![file](img/file.svg) icon.
 
 ### Generate Document by Template
-To initiate document generation, click ![](img/file.svg) **"Generate DDS"** on control panel, select desired template from the list, specify document name and click "**Generate**". System will show preview screen, where it is possible to get familiar with the finalized view of the document. Click "**Download**" to get the archive, that contains design document in .md format and other supplementary files, like pictures, etc. Data from the archive can be further processed by markdown editors or processors to build proper human-readable document, presented on preview step.
+**`⛔ Not available via VS Code extension`**
+
+To initiate document generation, click ![file](img/file.svg) **"Generate DDS"** on control panel, select desired template from the list, specify document name and click "**Generate**". System will show preview screen, where it is possible to get familiar with the finalized view of the document. Click "**Download**" to get the archive, that contains design document in .md format and other supplementary files, like pictures, etc. Data from the archive can be further processed by Markdown editors or processors to build proper human-readable document, presented on preview step.

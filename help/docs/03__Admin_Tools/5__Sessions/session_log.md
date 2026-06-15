@@ -75,7 +75,7 @@ The following operations are available right top:
 To retry any session, find it in the table and click retry ![Redo|20](img/redo.svg) button. Retry can only be performed if at least one [Checkpoint](../../01__Chains/1__Graph/1__Elements_Library/3__Composite_Triggers/1__Checkpoint/checkpoint.md) element was configured in the chain at the time of session failure.
 
 ### Export Session(s)
-To export session(s) to a **json** file, please mark all required sessions via checkbox and click **Export** button ![Download](img/cloud-download.svg). To limit the amount of exported data, **Export** button is disabled when all sessions are marked via global checkbox on top of the table. Export is also possible from sessions details window, where all session's steps are presented.
+To export session(s) to a **JSON** file, please mark all required sessions via checkbox and click **Export** button ![Download](img/cloud-download.svg). To limit the amount of exported data, **Export** button is disabled when all sessions are marked via global checkbox on top of the table. Export is also possible from sessions details window, where all session's steps are presented.
 
 ### Import Session(s)
 To import session(s), please click ![Upload|20](img/cloud-upload.svg). Imported sessions will be available for view in read-only mode without ability to navigate to the exact elements.

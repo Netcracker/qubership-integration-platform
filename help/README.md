@@ -2,7 +2,7 @@
 
 This repository stores helper documents for the [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform) (QIP).
 
-QIP is an open-source integration solution built on [Apache Camel](https://camel.apache.org/). It enables integration between diverse systems while handling data transformation, process orchestration and mapping between different system formats.
+QIP is an open-source integration solution built on [Apache Camel](https://camel.apache.org/index.html). It enables integration between diverse systems while handling data transformation, process orchestration and mapping between different system formats.
 
 The documents from this repository are consumed by:
 

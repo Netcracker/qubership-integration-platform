@@ -14,13 +14,12 @@ Services, located outside of environment are called **External Services**. To in
 ---
 
 ### View External Services
-
-**`⛔ Not available via VS Code extension`**
+<ins>Web UI</ins>
 
 Table with External services is accessible by navigating to **Services** → **External** tab. Next columns and elements are available for the table:
 
 - **Name** - clickable name of the service or specification group. When clicked, system navigates to respective entity.
-- **Protocol** - service's integration protocol. Possible values: **_http, soap, kafka, amqp, graphql, grpc_**. Value for this parameter will be propagated from the firstly imported API specification. There is no ability to upload API specifications with another protocol after that.
+- **Protocol** - service's integration protocol. Possible values: **_http, soap, kafka, amqp, GraphQL, gRPC_**. Value for this parameter will be propagated from the firstly imported API specification. There is no ability to upload API specifications with another protocol after that.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
   - 🟢 _**In Use**_ - status indicates that API Specification is utilized within at least one chain.
@@ -31,40 +30,44 @@ Table with External services is accessible by navigating to **Services** → **E
 - **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
 - **Created At** - datetime of entity creation.
 - **Created By** - shows the user, who created an entity.
-- **Actions menu** - list of operations, accessed via ![More|20](img/more.svg) menu under each service. Contains next operations:
-  - **Edit** ![Edit|20](img/edit.svg) - opens pop-up to change service name, description or set of **custom** labels.
-  - **Delete** ![Delete|20](img/delete.svg) - deletes entity.
-  - **Expand All** ![Column height|20](img/column-height.svg) - fully expands the entity.
-  - **Collapse All** ![Vertical align middle|20](img/vertical-align-middle.svg) - fully collapses the entity.
-  - **Export** ![Upload|20](img/cloud-upload.svg) - allows to export the entity.
+- **Modified At** - datetime of entity modifying (hidden by default).
+- **Modified By** - shows the user, who modified an entity (hidden by default).
+- **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu under each service. Contains next operations:
+  - **Edit** ![edit](img/edit.svg) - opens pop-up to change service name, description or set of **custom** labels.
+  - **Delete** ![delete](img/delete.svg) - deletes entity.
+  - **Add Specification Group** ![plus](img/plus.svg) - allows to add a specification group.
+  - **Expand All** ![column-height](img/column-height.svg) - fully expands the entity.
+  - **Collapse All** ![vertical-align-middle](img/vertical-align-middle.svg) - fully collapses the entity.
+  - **Export** ![cloud-download](img/cloud-download.svg) - allows to export the entity.
 - **Control panel** - panel, placed on top of the table. Provides next capabilities:
   - **Search field** - search box, provides ability to find respective data in the table.
-  - ![20](img/filter.svg) - opens filter pop-up.
-  - ![20](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
-  - ![20](img/cloud-download.svg) - exports the service.
-  - ![20](img/cloud-upload.svg) - opens pop-up for service import.
-  - ![20](img/plus.svg) - provides ability to add new service.
+  - ![filter](img/filter.svg) - opens filter pop-up.
+  - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
+  - ![cloud-download](img/cloud-download.svg) - exports the service.
+  - ![cloud-upload](img/cloud-upload.svg) - opens pop-up for service import.
+  - ![plus](img/plus.svg) - provides ability to add new service.
+
+<ins>VS Code Extension</ins>
+
+All services created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
 
 ### View Parameters
-When service is clicked, system shows Parameters tab with the following information:
-- Name - mandatory service name.
-- Description - description of service.
-- Protocol - service's integration protocol.
-- Type - type of service. Possible values:
-  - External;
-  - Internal;
-  - Implemented.
-- Labels - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
+Parameters tab contains the following information:
+- **Name** - mandatory service name.
+- **Description** - description of service.
+- **Protocol** - service's integration protocol.
+- **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
   It might contain **custom** labels, entered by user via Qubership Integration Platform UI or **technical** labels,
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
   **Technical** labels cannot be updated manually.
 
 For <ins>Web UI</ins> there are some additional information:
 
-- Created - datetime of entity creation.
-- Modified - datetime of entity modifying.
+- **Created** - datetime of entity creation.
+- **Modified** - datetime of entity modifying.
 
 ### View Specification Groups
+When service is clicked, the system shows the table with all specification groups and specifications, available for clicked service. Next columns and elements are available for the table:
 - **Name** - clickable name of the specification group or specification. When clicked, system navigates to respective entity.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
@@ -75,12 +78,12 @@ For <ins>Web UI</ins> there are some additional information:
   - **Discovered** - added as the result of service discovery. This is only applicable to Inner Cloud Services.
 - **Labels** - list of colored labels of the specification group, unique within particular specification group.
 - **Used By** - expand, that contains the list of chains, where specification is being utilized. Each chain name under this expand is clickable and navigates to respective configuration graph.
-- **Created When** - datetime of entity creation.
+- **Created At** - datetime of entity creation.
 - **Created By** - shows the user, who created an entity.
-- **Modified When** - datetime of entity modifying.
+- **Modified At** - datetime of entity modifying.
 - **Modified By** - shows the user, who modified an entity.
 
-To add new information, click on the button ![Settings|20](img/setting.svg) located on the right side. The following field are available:
+To add new information, click on the button ![setting](img/setting.svg) located on the right side. The following field are available:
 
 - **Protocol** - shows what protocol is used.
 - **Extended Protocol** - shows special rules for the service protocol.
@@ -89,17 +92,18 @@ To add new information, click on the button ![Settings|20](img/setting.svg) loca
 - **Method** -  method of the operation, mentioned in the specification.
 - **URL** - operation path.
 
-**Actions menu** - list of operations, accessed via ![More|20](img/more.svg) menu. Contains the following operations:
-- **Expand** ![Arrow down|20](img/down.svg) - fully expands the entity.
-- **Add Specification** ![Plus|20](img/plus.svg) - allows to add a new specification to the group.
-- **Delete** ![Delete|20](img/delete.svg) - deletes entity.
+By default the columns in the table can be different from <ins>Web UI</ins> and <ins>VS Code Extension</ins>. But all hidden columns can be set using the button ![setting](img/setting.svg) located on the right side.
 
-In general at the right top the next operations are available:
-- ![Upload|20](img/cloud-upload.svg) - Import Specifications.
-- ![Download|20](img/cloud-download.svg) - Export All Groups.
+**Actions menu** - list of operations, accessed via ![more](img/more.svg) menu. Contains the following operations:
+- **Expand** ![down](img/down.svg) / **Collapse** ![up](img/up.svg) - fully expands or collapses the entity.
+- **Add Specification** ![plus](img/plus.svg) - allows to add a new specification to the group.
+- **Delete** ![delete](img/delete.svg) - deletes entity.
+
+In general at the right top the next operation is available only for <ins>Web UI</ins>:
+- ![cloud-download](img/cloud-download.svg) - Export service.
 
 ### View Specifications
-When particular specification group name is clicked, system opens new page with the table of available specifications for clicked group. Next columns and elements are available for the table:
+When particular specification group name is clicked, the system opens new page with the table of available specifications for clicked group. Next columns and elements are available for the table:
 
 - **Name** - specification name, which is also considered as a version. Specification name **must be unique** inside of
   API Specification group for any type of service. For **Swagger** and **AsyncAPI** specifications version is retrieving
@@ -117,43 +121,44 @@ When particular specification group name is clicked, system opens new page with 
 - **Method** - method of the operation, mentioned in the specification (GET, POST, etc.)
 - **URL** - operation path.
 
-To add new information, click on the button ![Settings|20](img/setting.svg) located on the right side. The following field are available:
+To add new information, click on the button ![setting](img/setting.svg) located on the right side. The following field are available:
 
 - **Protocol** - shows what protocol is used.
 - **Extended Protocol** - shows special rules for the service protocol.
 - **Specification** - the service's instruction.
 - **Internal Service Name** - shows internal service name.
-- **Created When** - datetime of entity creation.
+- **Created At** - datetime of entity creation.
 - **Created By** - shows the user, who created an entity.
-- **Modified When** - datetime of entity modification.
+- **Modified At** - datetime of entity modification.
 - **Modified By** - shows the user, who modified an entity.
 
-**Actions menu** - list of operations, accessed via ![More|20](img/more.svg) menu. Contains the following operations:
-- ![Arrow down|20](img/down.svg) - Expand.
-- ![Stop|20](img/stop.svg) - Deprecate.
-- ![Export|20](img/export.svg) - Export.
+**Actions menu** - list of operations, accessed via ![more](img/more.svg) menu. Contains the following operations:
+- ![down](img/down.svg) / ![up](img/up.svg) - expands the specification and shows all operations under it or collapses the specification and hides operations under it.
+- ![stop](img/stop.svg) - deprecates the specification, that makes it unavailable for newly added chain elements.
+- ![cloud-download](img/cloud-download.svg) - exports the service.
 
-In general at the right top only one operation is available:
-- ![Upload|20](img/cloud-upload.svg) - Import Specifications.
+In general at the right top the following operations are available:
+- ![cloud-upload](img/cloud-upload.svg) - opens pop-up for service import.
+- ![cloud-download](img/cloud-download.svg) - exports the service (available only for <ins>Web UI</ins>).
 
 ### View Operations
-When specification is clicked, system opens new page with the table of available operations for clicked specifications. Next columns and elements are available for the table:
+When specification is clicked, the system opens new page with the table of available operations for clicked specifications. Next columns and elements are available for the table:
 
-- **Name** - Clickable short operation name. If the name has not been found in the initial specification,
-  the system generates its own name by concatenating **method** with the first found **entity**,
-  identified in the **path** (parameters, mentioned in the **{ }** are ignored).
-  Resulted name will be put in square brackets (e.g. for method **GET** and path **/api/v1/test/config**,
-  the name will be [getConfig]). When clicked, system shows **"Operation info"** window with available details
-  for specification and request/response schemes.
+- **Name** - Clickable short operation name. If the name has not been found in the initial specification, QIP generates its own name by concatenating **method** with the first found **entity**,
+identified in the **path** (parameters, mentioned in the **{ }** are ignored). Resulted name will be put in square brackets (e.g. for method **GET** and path **/api/v1/test/config**, the name will be [getConfig]). When clicked, the system shows **"Operation info"** window with available details for specification and request/response schemes.
 - **Method** - method of the operation, mentioned in the specification (GET, POST, etc.)
-- **URL** - operation path.
+- **URL** - operation path. Applicable for services using **HTTP** and **gRPC** protocols.
+- **Topic** - topic name used for publishing and consuming messages. Only applicable for services using **Kafka** protocol.
+- **Channel** - channel used for queuing, publishing and consuming messages. Only applicable for services using **AMQP** protocol.
+- **Operation** - GraphQL operation definition (without operation type). Only applicable for services using **GraphQL** protocol.
 - **Used by** - list, that contains references to the chains, utilizing this operation.
+- **Control panel** - panel placed on the top of the table. Provides next capabilities:
+  - ![cloud-download](img/cloud-download.svg) - export specification (available only for <ins>Web UI</ins>).
 
 ### Add External Service
+<ins>Web UI</ins>
 
-**`⛔ Not available via VS Code extension`**
-
-To add new external service, click **"Create service"** button marked with ![Plus|20](img/plus.svg)  at the top right of the screen. Specify service name and description on a newly opened pop-up and click "**Create**" button. System opens new window with three tabs:
+To add new external service, click **"Create service"** button marked with ![plus](img/plus.svg)  at the top right of the screen. Specify service name and description on a newly opened pop-up and click "**Create**" button. System opens new window with three tabs:
 - **Parameters**
 - **API Specifications**
 - **Environments**
@@ -161,15 +166,24 @@ To add new external service, click **"Create service"** button marked with ![Plu
 Parameters tab contains minimal set of parameters, that allows to save the external service:
 - **Name**  - mandatory service name.
 - **Description** - description of service.
-- **Labels** - set of labels for service.
+- **Labels** - set of labels for service:
 - **Created** - non-editable. Datetime and author of specification group creation.
 - **Modified** - non-editable. Datetime and author of last specification group modification.
 
 Specify the required fields and click **"Save"**. Notification about successful saving means that external service is added to the list of external services.
 
+<ins>VS Code Extension</ins>
+
+To create any service using VS Code Extension, follow the steps outlined below:
+
+1. Open "VS Code Extension" in Visual Studio Code.
+2. In the left bottom find QIP section and expand it.
+3. Near the "Services" folder click on appearing button "QIP Create service".
+4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter some description and click Enter. Next, it opens "Parameters" tab of the created service.
+
 ### Add Specification Group
 To add specification group to the external service:
-1. Select ![Upload|20](img/cloud-upload.svg) "**Import Specifications**" option for desired service.
+1. Select ![plus](img/plus.svg) "**Add Specification Group**" option.
 2. Specify the **name** of the specification group on the opened pop-up.
 3. **Upload** file or archive with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
 > ℹ️ **Note:** For the service with _**grpc**_ protocol there could be uploaded `.zip` archive with more than one `.proto` file.
@@ -180,7 +194,7 @@ When API specification is added you will see the specification group with respec
 
 ### Add API Specification
 To add API specification into existing specification group:
-1. Select ![Upload|20](img/cloud-upload.svg) "**Import Specifications**" option for desired group.
+1. Select ![cloud-upload](img/cloud-upload.svg) "**Import Specification**" option for desired group.
 2. **Upload** file or archive with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
 > ℹ️ **Note:**
 > - **API Specification version must be unique inside of API Specification group for any type of service**. Import of API Specification with non-unique version will result in version duplication error.
@@ -189,6 +203,8 @@ To add API specification into existing specification group:
 4. Confirm operation with **"Save"** button.
 
 ### Add Environment
+**`⛔ Not available via VS Code extension`**
+
 There are several environments might be created for single service, but **only one** environment can be active. To add new environment to the external service, click the name of existing service, navigate to "**Environment**" tab and complete next steps:
 
 1. Click **"Add Environment"** button.
@@ -197,27 +213,27 @@ There are several environments might be created for single service, but **only o
 4. Only for **kafka** or **amqp** protocol, choose **Source type:** **MaaS** or **Manual**.
 5. Specify environment **Address**, which defines the URL for the current environment. This field is disabled, when Source type is "MaaS" or route registration on **Egress** is disabled in global environment settings.
 6. Add **properties**:
-  - To add new property, click the icon ![Caret down|20](img/caret-down.svg) near the section **"Properties"**, press button ![Plus|20](img/plus.svg), enter suitable data and click **`Enter`**.
-  - To bulk create/update of environment properties, turn on the slider **"Show as Key Value"**, put pairs of property name and value and click **`Enter`**. See the format below:
-     ```text
-     property1_name=property1_value;
-     property2_name=property2_value;
-     ```
-1. When everything is done, click **"Save"** button.
-2. Click **radio button** near the desired environment name to switch it.
+  - To add new property, click the icon ![right](img/right.svg) near the section **"Properties"**, press button ![plus](img/plus.svg), enter suitable data and click **`Enter`**.
+  - To bulk create/update of environment properties, turn on the slider **"Show as key-value"**, put pairs of property name and value and click **`Enter`**. See the format below:
+  ```text
+  property1_name=property1_value;
+  property2_name=property2_value;
+  ```
+7. When everything is done, click **"Save"** button.
+8. Click **radio button** near the desired environment name to switch it.
 
-When environment is saved, its card will be available under the environment tab. The card will have next information and elements:
+When environment is saved, it will be available under the environment tab. The environment will have next information and elements:
 - **Address** - exact environment address.
 - **Source** - MaaS or Manual.
-- **Modified** - datetime and author of environment modification.
+- **Modified At** - datetime and author of environment modification.
 - **Labels** - list of environment labels. During the commit process via configuration management, if given label is equal to the one, specified in the configuration management it will be activated.
 - **Used by** - the list of chains where service environment is being used.
-- Button with **"Bin"** icon ![Delete|20](img/delete.svg) - delete the environment.
+- Button with **"Bin"** icon ![delete](img/delete.svg) - delete the environment.
 
 The environment could be easily modified by clicking the name of the environment, updating the parameters and confirming (saving) the changes via **"Save"** button.
 Default properties are unique for different protocols and described below:
 
-**http**
+#### http
 
 | Parameter                | Data Type | Description                                                                                                                                                                            | Sample |
 | ------------------------ | :-------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
@@ -228,7 +244,7 @@ Default properties are unique for different protocols and described below:
 | deleteWithBody           | Boolean   | Indicates that DELETE request contains body.<br>**Default value:** false                                                                                                               | false  |
 | getWithBody              | Boolean   | Indicates that GET request contains body.<br>**Default value:** false                                                                                                                  | false  |
 
-**kafka**
+#### kafka
 
 | Parameter | Data Type | Description | Sample |
 | --- | :--- | --- | --- |
@@ -248,19 +264,19 @@ Default properties are unique for different protocols and described below:
 > (The maximum number of records returned in a single call to poll) with value **lower**, than defaulted **500**.
 > This will allow to process the messages smoothly, with lower risk of timeout.
 
-**amqp**
+#### amqp
 
 | Parameter  | Data Type | Description                                                                                                                               | Sample |
 | ---------- | :-------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | username   | String    | Username in case of authenticated access.                                                                                                 | N/A    |
 | password   | String    | Password for authenticated access.                                                                                                        | N/A    |
 | routingKey | String    | The routing key to use when binding a consumer queue to the exchange. For producer routing keys, you set the header rabbitmq.ROUTING_KEY. | rkey1  |
-| acknowledgeMode | String  | Flag controlling the behaviour of the container with respect to message acknowledgement. Possible values: NONE, MANUAL, AUTO | AUTO
+| acknowledgeMode | String  | Flag controlling the behaviour of the container with respect to message acknowledgement. Possible values: NONE, MANUAL, AUTO | AUTO |
 
-Additionally, if it is required to use same connection for multiple requests of **http** and **graphql** services, it is possible to specify **reuseEstablishedConnection** property with values: true/false.
+Additionally, if it is required to use same connection for multiple requests of **http** and **GraphQL** services, it is possible to specify **reuseEstablishedConnection** property with values: true/false.
 
 ### Switch Environment
-To switch the environment, click the radio button near appropriate environment card and then confirm your choice in dialog window.
+To switch the environment, click the radio button near appropriate environment and then confirm your choice in dialog window.
 
 > ⚠️ **Warning:** **Switching of environment requires chain redeploy**, as new active address will be registered on Egress Gateway.
 
@@ -268,16 +284,16 @@ To switch the environment, click the radio button near appropriate environment c
 
 **`⛔ Not available via VS Code extension`**
 
-To import the service(s), click the icon ![Upload|20](img/cloud-upload.svg), drag and drop **.zip** file into import area
+To import the service(s), click the icon ![cloud-upload](img/cloud-upload.svg), drag and drop **.zip** file into import area
 or click **"browse"** link and select **single** file with respective format from the explorer menu.
 When appropriate file is added to the window, click **"Import"** button to start the import process.
 API Specification version in archive **must be unique** for each API Specification.
 During the import, system follows next logic:
 - Verify Import Instructions, saved in the system. Proceed with the step below only if they exist:
-  - Fetch the list of service ids with **ignore** action and skip import process for them.
-- Find existing services, specification groups and specification by ids from import archive:
-  - If there are specifications with ids already exist in the system, regardless of their parent specification groups and services, system **ignores** them.
-  - If system already has entities with ids, specified in import archive:
+  - Fetch the list of service IDs with **ignore** action and skip import process for them.
+- Find existing services, specification groups and specification by IDs from import archive:
+  - If there are specifications with IDs already exist in the system, regardless of their parent specification groups and services, system **ignores** them.
+  - If system already has entities with IDs, specified in import archive:
     - Merge data from archive, including **custom labels**, into existing entities.
     - **Technical labels** are going to be removed from existing entities if they are updated as a part of import process.
 
@@ -309,12 +325,11 @@ When import is completed, system displays import result table with the following
 
 **`⛔ Not available via VS Code extension`**
 
-System allows to export service with all its API specifications, environments and sources. From **"External Services"** page - mark specific services with checkboxes and click ![Download|20](img/cloud-download.svg) **Export**. Or simply click this button to export all services at once after confirmation.
+System allows to export service with all its API specifications, environments and sources. From **"External Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) **Export**. Or simply click this button to export all services at once after confirmation.
 
 ### Constraints
 
 ---
-
 Please consider next constraints:
-- When entering environment's **address** or **properties** on respective window, _avoid using run time variables_, as they won't work due to technical limitations. Instead, use design time variables if it suits the requirements.
+- When entering environment's **address** or **properties** on respective window, _avoid using runtime variables_, as they won't work due to technical limitations. Instead, use design time variables if it suits the requirements.
 - **Technical** labels cannot be imported via UI or exported.

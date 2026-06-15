@@ -5,7 +5,6 @@ dist-lib/
 .idea/
 *.iml
 .vscode/
-.cursor/
 .DS_Store
 Thumbs.db
 .env
@@ -18,3 +17,7 @@ release.properties
 pom.xml.releaseBackup
 pom.xml.tag
 pom.xml.next
+
+
+# APM dependencies
+apm_modules/

@@ -20,7 +20,7 @@ import org.qubership.integration.platform.runtime.catalog.model.exportimport.sys
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ContextServiceDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -62,12 +62,7 @@ public class ContextServiceDtoMapper implements ExternalEntityMapper<ContextSyst
                 .schema(schemaUri)
                 .content(ContextServiceContentDto.builder()
                         .description(contextSystem.getDescription())
-                        .migrations(serviceImportFileMigrations
-                                .stream()
-                                .map(ImportFileMigration::getVersion)
-                                .sorted()
-                                .toList()
-                                .toString())
+                        .migrations(MigrationUtil.formatVersions(serviceImportFileMigrations))
                         .build())
                 .build();
     }

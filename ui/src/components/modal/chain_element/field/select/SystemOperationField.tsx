@@ -229,6 +229,7 @@ const SystemOperationField: React.FC<
           integrationOperationPathParameters: undefined,
           integrationOperationQueryParameters: undefined,
           after: undefined,
+          errorThrowing: true,
         });
       };
 

@@ -1,0 +1,23 @@
+name: qubership-integration-platform
+version: 0.0.1
+description: APM project for qubership-integration-platform
+targets:
+  - cursor
+  - claude
+  - codex
+dependencies:
+  apm:
+    - Netcracker/qubership-ai-packages/agent-packages/english-developer-style
+devDependencies:
+  apm:
+    - Netcracker/qubership-ai-packages/agent-packages/apm-authoring
+includes:
+  - .apm/instructions/
+  - .apm/skills/
+compilation:
+  exclude:
+    - integration-platform-skills/**
+    - .claude/**
+    - .cursor/**
+    - .agents/**
+    - apm_modules/**

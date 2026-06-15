@@ -2,11 +2,11 @@
 ## Description
 
 ---
-Following the security practices and guidelines, Qubership Integration Platform has introduced an ability to integrate with **Access Control Microservice** in order to control the access to the endpoints, configured within [Chains](../../01__Chains/chains.md). When mentioned functionality is properly utilized, for each chain request Qubership Integration Platform performs a policy check and ensures, that calling system/user is actually allowed to trigger requested endpoint and start the logic, configured within related chain. 
+Following the security practices and guidelines, Qubership Integration Platform has introduced an ability to integrate with **Access Control Microservice** in order to control the access to the endpoints, configured within [Chains](../../01__Chains/chains.md). When mentioned functionality is properly utilized, for each chain request Qubership Integration Platform performs a policy check and ensures, that calling system/user is actually allowed to trigger requested endpoint and start the logic, configured within related chain.
 
 Please refer to the diagram below, that visually represents the flow:
 
-![](img/access_control.svg)
+![Access control flow diagram](img/access_control.svg)
 
 **Diagram details**
 
@@ -17,7 +17,7 @@ Please refer to the diagram below, that visually represents the flow:
 | 3   | Engine verifies access, utilizing cached data.                               |
 | 4   | If access granted, Qubership Integration Platform allows to trigger a chain. |
 
-User will get **403 Forbidden** error if it has no access to the called endpoint. 
+User will get **403 Forbidden** error if it has no access to the called endpoint.
 
 **Custom Policies**
 

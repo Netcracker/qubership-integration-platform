@@ -82,14 +82,31 @@ const changeActionType = (
   }
 };
 
-const defaultCodeOptions = [
-  { value: "1xx" },
-  { value: "2xx" },
-  { value: "3xx" },
-  { value: "4xx" },
-  { value: "5xx" },
-  { value: "Default" },
-];
+const WILDCARD_1XX_CODE = '100..199';
+const WILDCARD_2XX_CODE = '200..299';
+const WILDCARD_3XX_CODE = '300..399';
+const WILDCARD_4XX_CODE = '400..499';
+const WILDCARD_5XX_CODE = '500..599';
+const DEFAULT_CODE = 'default';
+
+const WILDCARD_CODES = new Set<string>([
+  WILDCARD_1XX_CODE,
+  WILDCARD_2XX_CODE,
+  WILDCARD_3XX_CODE,
+  WILDCARD_4XX_CODE,
+  WILDCARD_5XX_CODE,
+]);
+
+const CAMEL_LABEL_TO_CODE: Record<string, string> = {
+  ['1xx']: WILDCARD_1XX_CODE,
+  ['2xx']: WILDCARD_2XX_CODE,
+  ['3xx']: WILDCARD_3XX_CODE,
+  ['4xx']: WILDCARD_4XX_CODE,
+  ['5xx']: WILDCARD_5XX_CODE,
+  ['Default']: DEFAULT_CODE,
+};
+
+const defaultCodeOptions = Object.keys(CAMEL_LABEL_TO_CODE).map(label => ({value: label}));
 
 const CustomArrayField: FC<
   FieldProps<ArrayItem[], RJSFSchema, FormContext>
@@ -211,6 +228,7 @@ const CustomArrayField: FC<
     if (!selectedCode) return;
     if (formData.some((f) => f.label === selectedCode)) return;
 
+    const responseCodeValue = CAMEL_LABEL_TO_CODE[selectedCode] || selectedCode;
     let newItem: ArrayItem;
     if (readOnlyMode) {
       const source = validationSchemas[selectedCode];
@@ -233,12 +251,18 @@ const CustomArrayField: FC<
       }
     } else {
       newItem = {
-        code: selectedCode,
-        id: selectedCode,
+        code: responseCodeValue,
+        id: responseCodeValue,
         label: selectedCode,
         type: "none",
-        wildcard: false,
+        wildcard: WILDCARD_CODES.has(responseCodeValue),
       };
+    }
+
+    if (responseCodeValue === DEFAULT_CODE) {
+      formContext.updateContext?.({
+        errorThrowing: false,
+      })
     }
 
     const newArray = [...formData, newItem];
@@ -257,6 +281,12 @@ const CustomArrayField: FC<
     if (!readOnlyMode) {
       const handler = item as ResponseHandler;
       autoFilledHandlerIdsRef.current.delete(`${handler.id}::${handler.code}`);
+    }
+
+    if (item.code === DEFAULT_CODE) {
+      formContext.updateContext?.({
+        errorThrowing: true,
+      })
     }
 
     const newArray = [...formData];

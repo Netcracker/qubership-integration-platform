@@ -21,7 +21,7 @@ import org.qubership.integration.platform.runtime.catalog.model.exportimport.sys
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystemLabel;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -85,12 +85,7 @@ public class IntegrationSystemDtoMapper implements ExternalEntityMapper<Integrat
                         .protocol(integrationSystem.getProtocol())
                         .environments(integrationSystem.getEnvironments())
                         .labels(integrationSystem.getLabels().stream().map(IntegrationSystemLabel::getName).toList())
-                        .migrations(serviceImportFileMigrations
-                                .stream()
-                                .map(ImportFileMigration::getVersion)
-                                .sorted()
-                                .toList()
-                                .toString())
+                        .migrations(MigrationUtil.formatVersions(serviceImportFileMigrations))
                         .build())
                 .build();
     }

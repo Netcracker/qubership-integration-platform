@@ -29,10 +29,10 @@ public class CustomResourceOptionsProvider {
     @Value("${qip.cr.build.service-account:default}")
     private String serviceAccount;
 
-    @Value("${qip.cr.build.namespace:default")
+    @Value("${qip.cr.build.namespace:default}")
     private String namespace;
 
-    @Value("#{${qip.cr.build.environment:{}}}")
+    @Value("#{${qip.cr.build.environment:{T(java.util.Collections).emptyMap()}}}")
     private Map<String, String> environment;
 
     public ResourceBuildOptions getOptions(ResourceDeployRequest request) {
