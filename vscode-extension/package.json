@@ -190,7 +190,7 @@
     "@types/yauzl": "^2.10.3",
     "@typescript-eslint/eslint-plugin": "^8.31.1",
     "@typescript-eslint/parser": "^8.31.1",
-    "@vscode/test-web": "^0.0.69",
+    "@vscode/test-web": "^0.0.80",
     "assert": "^2.1.0",
     "copy-webpack-plugin": "^13.0.1",
     "eslint": "^9.25.1",
