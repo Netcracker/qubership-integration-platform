@@ -28,7 +28,7 @@ import lombok.experimental.SuperBuilder;
 import org.apache.commons.lang3.StringUtils;
 import org.hibernate.proxy.HibernateProxy;
 import org.jetbrains.annotations.Nullable;
-import org.qubership.integration.platform.runtime.catalog.util.HashUtils;
+import org.qubership.integration.platform.util.HashUtils;
 
 @Getter
 @Setter

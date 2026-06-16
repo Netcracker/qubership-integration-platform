@@ -34,8 +34,8 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.d
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ddsgenerator.TemplateDataBuilderException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ddsgenerator.TemplateDataEscapingException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ddsgenerator.TemplateProcessingException;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
+import org.qubership.integration.platform.library.constants.CamelNames;
+import org.qubership.integration.platform.library.constants.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.model.dds.TemplateData;
 import org.qubership.integration.platform.runtime.catalog.model.dds.TemplateSequenceDiagram;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;

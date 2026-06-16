@@ -1,7 +1,7 @@
 package org.qubership.integration.platform.runtime.catalog.service.helpers;
 
 import jakarta.persistence.EntityNotFoundException;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
+import org.qubership.integration.platform.library.constants.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;

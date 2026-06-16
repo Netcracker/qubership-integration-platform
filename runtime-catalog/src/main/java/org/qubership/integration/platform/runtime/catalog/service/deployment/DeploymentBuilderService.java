@@ -21,8 +21,8 @@ import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.library.components.LibraryElementsService;
 import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.library.model.ElementType;
-import org.qubership.integration.platform.runtime.catalog.builder.BuilderConstants;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
+import org.qubership.integration.platform.io.writers.camel.xml.BuilderConstants;
+import org.qubership.integration.platform.library.constants.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentConfiguration;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentUpdate;
@@ -37,7 +37,6 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.Deploym
 import org.qubership.integration.platform.runtime.catalog.service.*;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilderFactory;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
-import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
@@ -48,9 +47,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.*;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.CHECKPOINT;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.SCHEDULER;
+import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.*;
+import static org.qubership.integration.platform.library.constants.CamelNames.CHECKPOINT;
+import static org.qubership.integration.platform.library.constants.CamelNames.SCHEDULER;
 
 @Slf4j
 @Component
@@ -63,25 +62,26 @@ public class DeploymentBuilderService {
 
     private final ChainFinderService chainFinderService;
     private final SnapshotService snapshotService;
-    private final ElementUtils elementUtils;
     private final ElementPropertiesBuilderFactory elementPropertiesBuilderFactory;
     private final LibraryElementsService libraryService;
     private final DeploymentRouteMapper deploymentRouteMapper;
+    private final org.qubership.integration.platform.io.writers.camel.xml.CompositeTriggerHelper compositeTriggerHelper;
 
     @Autowired
     public DeploymentBuilderService(
             ChainFinderService chainFinderService,
             @Lazy SnapshotService snapshotService,
-            ElementUtils elementUtils,
             ElementPropertiesBuilderFactory elementPropertiesBuilderFactory,
             LibraryElementsService libraryService,
-            DeploymentRouteMapper deploymentRouteMapper) {
+            DeploymentRouteMapper deploymentRouteMapper,
+            org.qubership.integration.platform.io.writers.camel.xml.CompositeTriggerHelper compositeTriggerHelper
+    ) {
         this.chainFinderService = chainFinderService;
         this.snapshotService = snapshotService;
-        this.elementUtils = elementUtils;
         this.elementPropertiesBuilderFactory = elementPropertiesBuilderFactory;
         this.libraryService = libraryService;
         this.deploymentRouteMapper = deploymentRouteMapper;
+        this.compositeTriggerHelper = compositeTriggerHelper;
     }
 
     public List<DeploymentUpdate> buildDeploymentsUpdate(List<Deployment> deployments) {
@@ -142,7 +142,7 @@ public class DeploymentBuilderService {
                                              && ElementType.SWIMLANE != type)
                                 .orElse(true))
                 .collect(Collectors.toList());
-        filteredElements = elementUtils.splitCompositeTriggers(filteredElements);
+        filteredElements = compositeTriggerHelper.splitCompositeTriggers(filteredElements);
 
         List<ElementProperties> elementProperties = new ArrayList<>();
         filteredElements.stream()

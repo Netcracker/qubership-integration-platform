@@ -17,7 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties.builders;
 
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants;
+import org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.ElementService;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
@@ -28,7 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.CHAIN_CALL_2_ELEMENT;
+import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.CHAIN_CALL_2_ELEMENT;
 
 
 @Slf4j

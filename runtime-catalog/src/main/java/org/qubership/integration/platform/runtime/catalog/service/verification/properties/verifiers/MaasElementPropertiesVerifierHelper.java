@@ -17,8 +17,8 @@
 package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
 
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.runtime.catalog.model.constant.ConnectionSourceType;
-import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
+import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
+import org.qubership.integration.platform.library.constants.ConnectionSourceType;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
 
 import java.util.Collection;
