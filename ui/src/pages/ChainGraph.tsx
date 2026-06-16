@@ -296,6 +296,49 @@ const ChainGraphInner: React.FC = () => {
   );
   useRegisterChainHeaderActions(headerActions, [chainId]);
 
+  const toggleLeftPanelVisible = useCallback(() => {
+    setLeftPanelVisible((prev) => !prev);
+  }, []);
+
+  const toggleRightPanelVisible = useCallback(() => {
+    setRightPanelVisible((prev) => !prev);
+  }, []);
+
+  const graphControls = useMemo(
+    () => ({
+      before: (
+        <>
+          {!readOnly && (
+            <Button
+              className={controlStyles.button}
+              type="text"
+              title="Left Panel"
+              data-active={leftPanelVisible}
+              onClick={toggleLeftPanelVisible}
+              icon={<OverridableIcon name="leftPanel" />}
+            />
+          )}
+
+          <Button
+            className={controlStyles.button}
+            type="text"
+            title="Right Panel"
+            data-active={rightPanelVisible}
+            onClick={toggleRightPanelVisible}
+            icon={<OverridableIcon name="rightPanel" />}
+          />
+        </>
+      ),
+    }),
+    [
+      readOnly,
+      leftPanelVisible,
+      rightPanelVisible,
+      toggleLeftPanelVisible,
+      toggleRightPanelVisible,
+    ],
+  );
+
   return (
     <Flex className={styles["graph-wrapper"]}>
       <ElementFocusContext.Provider value={fitViewToElementIdRef}>
@@ -317,30 +360,7 @@ const ChainGraphInner: React.FC = () => {
         <ChainGraphView
           readOnly={readOnly}
           submitOpenElement={openElementModal}
-          controls={{
-            before: (
-              <>
-                {!readOnly && (
-                  <Button
-                    className={controlStyles.button}
-                    type="text"
-                    title="Left Panel"
-                    data-active={leftPanelVisible}
-                    onClick={() => setLeftPanelVisible((prev) => !prev)}
-                    icon={<OverridableIcon name="leftPanel" />}
-                  />
-                )}
-                <Button
-                  className={controlStyles.button}
-                  type="text"
-                  title="Right Panel"
-                  data-active={rightPanelVisible}
-                  onClick={() => setRightPanelVisible((prev) => !prev)}
-                  icon={<OverridableIcon name="rightPanel" />}
-                />
-              </>
-            ),
-          }}
+          controls={graphControls}
         />
         {rightPanelVisible && (
           <>

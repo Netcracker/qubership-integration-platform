@@ -3,6 +3,10 @@ $id: http://qubership.org/schemas/product/qip/element/properties/container-eleme
 $schema: http://json-schema.org/draft-07/schema
 type: object
 title: Container Element Properties
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
 properties:
   children:
     type: array

@@ -49,11 +49,6 @@ on:
         required: false
         default: true
         type: boolean
-      create-github-release:
-        description: "Create GitHub release"
-        required: false
-        default: true
-        type: boolean
       mvn-args:
         description: "Additional maven arguments (e.g. -DskipTests=true)"
         required: false
@@ -261,30 +256,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ---------------------------------------------------------------------------
-  # GitHub Release notes.
-  # ---------------------------------------------------------------------------
-  create-release:
-    if: ${{ inputs.create-github-release == true }}
-    needs: [check-version, build-and-publish]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-          ref: ${{ github.ref }}
-      - name: Run Release Drafter
-        uses: netcracker/release-drafter@86f4276a3894b5af70480e826c32fe3648ac6a70 # v1.0.0
-        with:
-          config-name: "release-drafter-config.yml"
-          publish: true
-          prerelease: ${{ github.ref_name != 'main' }}
-          name: "${{ inputs.module }}-${{ needs.check-version.outputs.release-version }}"
-          tag: "${{ needs.check-version.outputs.release-tag }}"
-          version: "${{ needs.check-version.outputs.release-tag }}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  # No GitHub Release here — cut once per drop by release-all.

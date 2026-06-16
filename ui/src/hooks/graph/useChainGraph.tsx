@@ -81,31 +81,102 @@ type StructureChangedOptions = {
 const RELAYOUT_OVERLAP_GAP = 40;
 const MAX_OVERLAP_RESOLVE_PASSES = 8;
 
+const requestHoverVisualsFrame = (
+  callback: FrameRequestCallback,
+): number => {
+  if (
+    typeof window !== "undefined" &&
+    typeof window.requestAnimationFrame === "function"
+  ) {
+    return window.requestAnimationFrame(callback);
+  }
+
+  return globalThis.setTimeout(() => callback(Date.now()), 16) as unknown as number;
+};
+
+const cancelHoverVisualsFrame = (frameId: number): void => {
+  if (
+    typeof window !== "undefined" &&
+    typeof window.cancelAnimationFrame === "function"
+  ) {
+    window.cancelAnimationFrame(frameId);
+    return;
+  }
+
+  globalThis.clearTimeout(frameId);
+};
+
+type ChainGraphNodeMap = Map<string, ChainGraphNode>;
+
+const getRelayoutRootIdsForContentChanges = (
+  changedContainerIds: string[],
+  sourceNodes: ChainGraphNode[],
+): string[] | undefined => {
+  const nodeMap = buildNodeMap(sourceNodes);
+  const relayoutRootIds = new Set<string>();
+
+  for (const changedContainerId of changedContainerIds) {
+    const changedContainer = nodeMap.get(changedContainerId);
+
+    if (!changedContainer) {
+      continue;
+    }
+
+    if (changedContainer.parentId) {
+      relayoutRootIds.add(changedContainer.parentId);
+    } else {
+      return undefined;
+    }
+  }
+
+  return relayoutRootIds.size ? Array.from(relayoutRootIds) : undefined;
+};
+
+const buildNodeMap = (nodes: ChainGraphNode[]): ChainGraphNodeMap =>
+  new Map(nodes.map((node) => [node.id, node]));
+
 const getAbsolutePosition = (
   node: ChainGraphNode,
-  allNodes: ChainGraphNode[],
+  nodeMap: ChainGraphNodeMap,
 ) => {
   let x = node.position?.x ?? 0;
   let y = node.position?.y ?? 0;
   let parentId = node.parentId;
-  while (parentId) {
-    const parent = allNodes.find((n) => n.id === parentId);
-    if (!parent) break;
+
+  const seen = new Set<string>();
+
+  while (parentId && !seen.has(parentId)) {
+    seen.add(parentId);
+
+    const parent = nodeMap.get(parentId);
+
+    if (!parent) {
+      break;
+    }
+
     x += parent.position?.x ?? 0;
     y += parent.position?.y ?? 0;
     parentId = parent.parentId;
   }
+
   return { x, y };
 };
 
 const getParentAbsolutePosition = (
   parentId: string | undefined,
-  allNodes: ChainGraphNode[],
+  nodeMap: ChainGraphNodeMap,
 ) => {
-  if (!parentId) return { x: 0, y: 0 };
-  const parent = allNodes.find((n) => n.id === parentId);
-  if (!parent) return { x: 0, y: 0 };
-  return getAbsolutePosition(parent, allNodes);
+  if (!parentId) {
+    return { x: 0, y: 0 };
+  }
+
+  const parent = nodeMap.get(parentId);
+
+  if (!parent) {
+    return { x: 0, y: 0 };
+  }
+
+  return getAbsolutePosition(parent, nodeMap);
 };
 
 const computeAffectedParents = (
@@ -303,6 +374,12 @@ export const useChainGraph = () => {
 
   const isInitialized = useRef<boolean>(false);
   const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+
+  const hoverVisualsFrameRef = useRef<number | null>(null);
+  const pendingHoverVisualsJobRef = useRef<
+    (() => ChainGraphNode | undefined) | null
+  >(null);
 
   const notificationService = useNotificationService();
   const { arrangeNodes, direction, toggleDirection } = useAutoLayout();
@@ -311,6 +388,8 @@ export const useChainGraph = () => {
   const structureChangedRef = useRef<boolean>(false);
   const structureChangedParentIdsRef = useRef<string[] | null>(null);
   const structureChangedResolveOverlapsRef = useRef<boolean>(true);
+
+  const layoutRequestIdRef = useRef(0);
 
   const onChainUpdate = useCallback(async () => {
     if (chainContext?.refresh) {
@@ -321,6 +400,10 @@ export const useChainGraph = () => {
   useEffect(() => {
     nodesRef.current = nodes;
   }, [nodes]);
+
+  useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
 
   const { decorativeEdges, setDecorativeEdges } = useDecorativeEdges(
     nodes,
@@ -334,6 +417,49 @@ export const useChainGraph = () => {
     highlightDragIntersections,
     expandDragIntersection,
   } = useHoverDragVisuals(nodes, setNodes);
+
+  const cancelPendingHoverVisuals = useCallback(() => {
+    if (hoverVisualsFrameRef.current !== null) {
+      cancelHoverVisualsFrame(hoverVisualsFrameRef.current);
+      hoverVisualsFrameRef.current = null;
+    }
+
+    pendingHoverVisualsJobRef.current = null;
+    clearHoverTimer();
+  }, [clearHoverTimer]);
+
+  const flushHoverVisuals = useCallback(() => {
+    hoverVisualsFrameRef.current = null;
+
+    const job = pendingHoverVisualsJobRef.current;
+    pendingHoverVisualsJobRef.current = null;
+
+    if (!job) return;
+
+    const node = job();
+
+    if (!node) return;
+
+    clearHoverTimer();
+    highlightDragIntersections(node);
+    expandDragIntersection(node);
+  }, [clearHoverTimer, expandDragIntersection, highlightDragIntersections]);
+
+  const scheduleHoverVisuals = useCallback(
+    (job: () => ChainGraphNode | undefined) => {
+      pendingHoverVisualsJobRef.current = job;
+
+      if (hoverVisualsFrameRef.current !== null) {
+        return;
+      }
+
+      hoverVisualsFrameRef.current =
+        requestHoverVisualsFrame(flushHoverVisuals);
+    },
+    [flushHoverVisuals],
+  );
+
+  useEffect(() => cancelPendingHoverVisuals, [cancelPendingHoverVisuals]);
 
   const structureChanged = useCallback(
     (parentIds?: string[], options?: StructureChangedOptions) => {
@@ -391,18 +517,23 @@ export const useChainGraph = () => {
 
       let arrangedNodes: ChainGraphNode[];
 
+      const layoutSourceNodes = reapplyNodesVisibility(nodes);
+      const layoutSourceEdges = reapplyEdgesVisibility(layoutSourceNodes, edges);
+
       if (parentIds && parentIds.length) {
         const nodeMap = new Map(
-          nodes.map((node) => [node.id, node]),
+          layoutSourceNodes.map((node) => [node.id, node]),
         );
+
         const sorted = [...new Set(parentIds)].sort(
           (left, right) => depthOf(right, nodeMap) - depthOf(left, nodeMap),
         );
 
-        let current = nodes;
+        let current = layoutSourceNodes;
+
         for (const parentId of sorted) {
           const subNodes = collectSubgraphByParents([parentId], current);
-          const subEdges = edgesForSubgraph(edges, subNodes);
+          const subEdges = edgesForSubgraph(layoutSourceEdges, subNodes);
           const laidSubset = await arrangeNodes(subNodes, subEdges);
 
           const pinned = new Set(expandWithParent([parentId], current));
@@ -411,7 +542,7 @@ export const useChainGraph = () => {
 
         arrangedNodes = current;
       } else {
-        arrangedNodes = await arrangeNodes(nodes, edges);
+        arrangedNodes = await arrangeNodes(layoutSourceNodes, layoutSourceEdges);
       }
 
       const overlapResolvedNodes =
@@ -427,7 +558,7 @@ export const useChainGraph = () => {
       const visibleNodes = reapplyNodesVisibility(withToggle);
       const withCounts = setNestedUnitCounts(visibleNodes);
       const orderedVisibleNodes = sortParentsBeforeChildren(withCounts);
-      const visibleEdges = reapplyEdgesVisibility(withToggle, edges);
+      const visibleEdges = reapplyEdgesVisibility(visibleNodes, layoutSourceEdges);
 
       setNodes(orderedVisibleNodes);
       setEdges(visibleEdges);
@@ -513,6 +644,80 @@ export const useChainGraph = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chainContext, isLibraryLoading]);
 
+  const layoutAndCommit = useCallback(
+    async (
+      sourceNodes: ChainGraphNode[],
+      sourceEdges: Edge[],
+      parentIds?: string[],
+      options?: StructureChangedOptions,
+    ) => {
+      const requestId = ++layoutRequestIdRef.current;
+      const shouldResolveOverlaps = options?.resolveOverlaps ?? true;
+
+      let arrangedNodes: ChainGraphNode[];
+
+      if (parentIds && parentIds.length) {
+        const expandedParentIds = Array.from(
+          new Set(expandWithParent(parentIds, sourceNodes)),
+        );
+
+        const relayoutParentIds = [...expandedParentIds];
+
+        const nodeMap = new Map(sourceNodes.map((node) => [node.id, node]));
+
+        const sorted = [...expandedParentIds].sort(
+          (left, right) => depthOf(right, nodeMap) - depthOf(left, nodeMap),
+        );
+
+        let current = sourceNodes;
+
+        for (const parentId of sorted) {
+          const subNodes = collectSubgraphByParents([parentId], current);
+          const subEdges = edgesForSubgraph(sourceEdges, subNodes);
+          const laidSubset = await arrangeNodes(subNodes, subEdges);
+
+          const pinned = new Set(expandWithParent([parentId], current));
+          current = mergeWithPinnedPositions(current, laidSubset, pinned);
+        }
+
+        arrangedNodes = current;
+
+        if (shouldResolveOverlaps) {
+          arrangedNodes = resolveSiblingOverlapsAfterResize(
+            arrangedNodes,
+            relayoutParentIds,
+            direction,
+          );
+        }
+      } else {
+        arrangedNodes = await arrangeNodes(sourceNodes, sourceEdges);
+      }
+
+      if (requestId !== layoutRequestIdRef.current) {
+        return;
+      }
+
+      const withToggle = attachToggle(arrangedNodes);
+      const visibleNodes = reapplyNodesVisibility(withToggle);
+      const withCounts = setNestedUnitCounts(visibleNodes);
+      const orderedNodes = sortParentsBeforeChildren(withCounts);
+      const visibleEdges = reapplyEdgesVisibility(visibleNodes, sourceEdges);
+
+      setNodes(orderedNodes);
+      setEdges(visibleEdges);
+    },
+    [
+      arrangeNodes,
+      direction,
+      attachToggle,
+      reapplyNodesVisibility,
+      reapplyEdgesVisibility,
+      setNestedUnitCounts,
+      setNodes,
+      setEdges,
+    ],
+  );
+
   const onConnect = useCallback(
     async (connection: ReactFlowConnection) => {
       if (!chainContext?.chain) return;
@@ -555,33 +760,34 @@ export const useChainGraph = () => {
   const onDragOver = useCallback(
     (event: DragEvent<HTMLDivElement>) => {
       event.preventDefault();
-      clearHoverTimer();
       event.dataTransfer.dropEffect = "move";
 
-      const currentDragPosition = screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
-      });
+      const { clientX, clientY } = event;
 
-      const fakeDragNode = getFakeNode(currentDragPosition);
-      highlightDragIntersections(fakeDragNode);
-      expandDragIntersection(fakeDragNode);
+      scheduleHoverVisuals(() => {
+        const currentDragPosition = screenToFlowPosition({
+          x: clientX,
+          y: clientY,
+        });
+
+        return getFakeNode(currentDragPosition);
+      });
     },
-    [
-      clearHoverTimer,
-      expandDragIntersection,
-      highlightDragIntersections,
-      screenToFlowPosition,
-    ],
+    [scheduleHoverVisuals, screenToFlowPosition],
   );
 
   const onDrop = useCallback(
     async (event: React.DragEvent) => {
       event.preventDefault();
+      cancelPendingHoverVisuals();
+
       if (!chainContext?.chain) return;
 
       const name = event.dataTransfer.getData("application/reactflow");
       if (!name) return;
+
+      const currentNodes = nodesRef.current;
+      const currentEdges = edgesRef.current;
 
       const dropPosition = screenToFlowPosition({
         x: event.clientX,
@@ -589,6 +795,7 @@ export const useChainGraph = () => {
       });
 
       const fakeNode = getFakeNode(dropPosition);
+
       const intersecting = getIntersectingNodes(fakeNode).filter(
         (node) => node.type === "container" || node.type === "swimlane",
       );
@@ -598,6 +805,8 @@ export const useChainGraph = () => {
         const areaB = (b.width ?? 0) * (b.height ?? 0);
         return areaA - areaB;
       })[0];
+
+      const targetParentId = parentNode?.id;
 
       let createElementRequest: CreateElementRequest = { type: name };
 
@@ -619,54 +828,107 @@ export const useChainGraph = () => {
         const createdElement = response.createdElements?.[0];
         if (!createdElement) return;
 
-        const newNode: ChainGraphNode = getNodeFromElement(
-          createdElement,
-          getLibraryElement(createdElement, libraryElements),
-          direction,
-          dropPosition,
+        const nodeMap = buildNodeMap(currentNodes);
+
+        const rootCreatedNodePosition = (() => {
+          if (!targetParentId) {
+            return dropPosition;
+          }
+
+          const parentAbs = getParentAbsolutePosition(targetParentId, nodeMap);
+
+          return {
+            x: dropPosition.x - parentAbs.x,
+            y: dropPosition.y - parentAbs.y,
+          };
+        })();
+
+        const createdElements: Element[] = [];
+
+        traverseElementsDepthFirst([createdElement], (element) => {
+          createdElements.push(element);
+        });
+
+        const createdNodes: ChainGraphNode[] = createdElements
+          .map((element) => {
+            const node = getNodeFromElement(
+              element,
+              getLibraryElement(element, libraryElements),
+              direction,
+              element.id === createdElement.id
+                ? rootCreatedNodePosition
+                : undefined,
+            );
+
+            if (!node) return undefined;
+
+            if (element.id === createdElement.id && targetParentId) {
+              return {
+                ...node,
+                parentId: targetParentId,
+                position: rootCreatedNodePosition,
+              };
+            }
+
+            return node;
+          })
+          .filter((node): node is ChainGraphNode => !!node);
+
+        const newNode = createdNodes.find(
+          (node) => node.id === createdElement.id,
         );
 
         if (!newNode) return;
-
-        const childNodes: ChainGraphNode[] = createdElement?.children
-          ? createdElement.children.map((child: Element) =>
-              getNodeFromElement(
-                child,
-                getLibraryElement(child, libraryElements),
-                direction,
-                dropPosition,
-              ),
-            )
-          : [];
 
         const updatedNodes = buildGraphNodes(
           response.updatedElements ?? [],
           libraryElements,
         );
 
-        const arrangedNodes = await arrangeNodes(
-          childNodes.concat(newNode, ...updatedNodes),
-          edges,
+        const draftNodeById = new Map<string, ChainGraphNode>();
+
+        for (const node of currentNodes) {
+          draftNodeById.set(node.id, node);
+        }
+
+        for (const node of updatedNodes) {
+          draftNodeById.set(node.id, node);
+        }
+
+        for (const node of createdNodes) {
+          draftNodeById.set(node.id, node);
+        }
+
+        const draftNodes = sortParentsBeforeChildren(
+          Array.from(draftNodeById.values()),
         );
 
-        const allNodes = nodes
-          .filter((node) => !arrangedNodes.some((n) => n.id === node.id))
-          .concat(arrangedNodes);
-
-        const withToggle = attachToggle(allNodes);
-        const withCount = setNestedUnitCounts(withToggle);
-
-        const withDropPosition = withCount.map((node: ChainGraphNode) =>
-          node.id === newNode.id ? { ...node, position: dropPosition } : node,
+        const hasCreatedSubtree = createdNodes.some(
+          (node) => node.id !== newNode.id,
         );
 
-        const ordered = sortParentsBeforeChildren(withDropPosition);
-        setNodes(ordered);
+        const changedContainerId = targetParentId ?? newNode.parentId;
 
-        if (parentNode || newNode.parentId) {
-          structureChanged([parentNode?.id ?? newNode.parentId], {
-            resolveOverlaps: false,
-          });
+        if (changedContainerId) {
+          const relayoutRootIds = getRelayoutRootIdsForContentChanges(
+            [changedContainerId],
+            draftNodes,
+          );
+
+          await layoutAndCommit(draftNodes, currentEdges, relayoutRootIds);
+        } else if (hasCreatedSubtree) {
+          await layoutAndCommit(draftNodes, currentEdges, [newNode.id]);
+        } else {
+          layoutRequestIdRef.current += 1;
+
+          const withToggle = attachToggle(draftNodes);
+          const visibleNodes = reapplyNodesVisibility(withToggle);
+          const withCount = setNestedUnitCounts(visibleNodes);
+          const ordered = sortParentsBeforeChildren(withCount);
+          const visibleEdges = reapplyEdgesVisibility(visibleNodes, currentEdges);
+
+          setNodes(ordered);
+          setEdges(visibleEdges);
         }
 
         if (onChainUpdate) {
@@ -682,7 +944,24 @@ export const useChainGraph = () => {
         );
       }
     },
-    [screenToFlowPosition, getIntersectingNodes, libraryElements, direction, nodes, edges, arrangeNodes, attachToggle, setNestedUnitCounts, setNodes, notificationService, structureChanged, clearDragVisuals, onChainUpdate, chainContext?.chain],
+    [
+      chainContext?.chain,
+      screenToFlowPosition,
+      getIntersectingNodes,
+      libraryElements,
+      direction,
+      layoutAndCommit,
+      attachToggle,
+      reapplyNodesVisibility,
+      reapplyEdgesVisibility,
+      setNestedUnitCounts,
+      setNodes,
+      setEdges,
+      notificationService,
+      clearDragVisuals,
+      cancelPendingHoverVisuals,
+      onChainUpdate,
+    ],
   );
 
   const onEdgesChange = useCallback(
@@ -782,10 +1061,13 @@ export const useChainGraph = () => {
 
       for (const id of rootIdsToDelete) {
         const node = nodes.find((x) => x.id === id);
-        if (node?.parentId) affectedParents.add(node.parentId);
+
+        if (node?.parentId) {
+          affectedParents.add(node.parentId);
+        }
       }
 
-      const deletedEdgeIds: string[] = [];
+      const deletedEdgeIds = new Set<string>();
 
       const separateEdgesToDelete = normalizedEdges.filter(
         (edge) =>
@@ -802,7 +1084,7 @@ export const useChainGraph = () => {
           );
 
           response.removedDependencies?.forEach((connection) =>
-            deletedEdgeIds.push(connection.id),
+            deletedEdgeIds.add(connection.id),
           );
         } catch (error) {
           notificationService.requestFailed(
@@ -813,50 +1095,60 @@ export const useChainGraph = () => {
       }
 
       try {
-        const elementsDeleteResponse = await api.deleteElements(
-          rootIdsToDelete,
-          chainContext.chain.id,
+        const elementsDeleteResponse =
+          rootIdsToDelete.length > 0
+            ? await api.deleteElements(rootIdsToDelete, chainContext.chain.id)
+            : undefined;
+
+        const deletedNodeIds = new Set(
+          (elementsDeleteResponse?.removedElements ?? []).map(
+            (element) => element.id,
+          ),
         );
 
-        const deletedNodeIds = (
-          elementsDeleteResponse.removedElements || []
-        ).map((element) => element.id);
-
-        elementsDeleteResponse.removedDependencies?.forEach((connection) =>
-          deletedEdgeIds.push(connection.id),
+        elementsDeleteResponse?.removedDependencies?.forEach((connection) =>
+          deletedEdgeIds.add(connection.id),
         );
 
         const updatedNodes = buildGraphNodes(
-          elementsDeleteResponse.updatedElements ?? [],
+          elementsDeleteResponse?.updatedElements ?? [],
           libraryElements,
         );
 
         const updatedNodeIds = new Set(updatedNodes.map((node) => node.id));
 
-        const allNodes = nodes.filter(
-          (node) =>
-            !deletedNodeIds.includes(node.id) && !updatedNodeIds.has(node.id),
-        );
+        const draftNodes = nodes
+          .filter(
+            (node) => !deletedNodeIds.has(node.id) && !updatedNodeIds.has(node.id),
+          )
+          .concat(updatedNodes);
 
-        const allEdges = edges.filter(
-          (edge) => !deletedEdgeIds.includes(edge.id),
-        );
+        const draftEdges = edges.filter((edge) => !deletedEdgeIds.has(edge.id));
 
-        allNodes.push(...(await arrangeNodes(updatedNodes, allEdges)));
+        const affectedParentIds = Array.from(affectedParents);
 
-        const ordered = sortParentsBeforeChildren(allNodes);
+        if (affectedParentIds.length) {
+          const relayoutRootIds = getRelayoutRootIdsForContentChanges(
+            affectedParentIds,
+            draftNodes,
+          );
 
-        setNodes(ordered);
-        setEdges(allEdges);
+          await layoutAndCommit(draftNodes, draftEdges, relayoutRootIds);
+        } else {
+          layoutRequestIdRef.current += 1;
+
+          const withToggle = attachToggle(draftNodes);
+          const visibleNodes = reapplyNodesVisibility(withToggle);
+          const withCounts = setNestedUnitCounts(visibleNodes);
+          const orderedNodes = sortParentsBeforeChildren(withCounts);
+          const visibleEdges = reapplyEdgesVisibility(visibleNodes, draftEdges);
+
+          setNodes(orderedNodes);
+          setEdges(visibleEdges);
+        }
 
         if (onChainUpdate) {
           void onChainUpdate();
-        }
-
-        const ids = Array.from(affectedParents);
-
-        if (ids.length) {
-          structureChanged(ids);
         }
       } catch (error) {
         notificationService.requestFailed(
@@ -865,41 +1157,93 @@ export const useChainGraph = () => {
         );
       }
     },
-    [nodes, edges, libraryElements, notificationService, arrangeNodes, setNodes, setEdges, structureChanged, onChainUpdate, chainContext?.chain],
+    [
+      chainContext?.chain,
+      nodes,
+      edges,
+      libraryElements,
+      notificationService,
+      layoutAndCommit,
+      attachToggle,
+      reapplyNodesVisibility,
+      reapplyEdgesVisibility,
+      setNestedUnitCounts,
+      setNodes,
+      setEdges,
+      onChainUpdate,
+    ],
   );
 
   const handleDragInteraction = useCallback(
     (_: React.MouseEvent, draggedNode: ChainGraphNode) => {
-      clearHoverTimer();
-      highlightDragIntersections(draggedNode);
-      expandDragIntersection(draggedNode);
+      scheduleHoverVisuals(() => draggedNode);
     },
-    [clearHoverTimer, expandDragIntersection, highlightDragIntersections],
+    [scheduleHoverVisuals],
   );
+
+  const isNodeInsideForbiddenSubtree = (
+    nodeId: string | undefined,
+    forbiddenRootIds: Set<string>,
+    nodeMap: ChainGraphNodeMap,
+  ): boolean => {
+    if (!nodeId) {
+      return false;
+    }
+
+    let currentId: string | undefined = nodeId;
+    const seen = new Set<string>();
+
+    while (currentId && !seen.has(currentId)) {
+      if (forbiddenRootIds.has(currentId)) {
+        return true;
+      }
+
+      seen.add(currentId);
+      currentId = nodeMap.get(currentId)?.parentId;
+    }
+
+    return false;
+  };
 
   const onNodeDragStop = useCallback(
     async (_event: React.MouseEvent, draggedNode: ChainGraphNode) => {
       if (!chainContext?.chain) return;
       if (isLibraryLoading) return;
 
-      clearHoverTimer();
-      setNodes((curr) => applyHighlight(curr));
+      cancelPendingHoverVisuals();
 
-      const allBefore = nodesRef.current;
+      const allBefore = applyHighlight(nodesRef.current);
+      const nodeMap = buildNodeMap(allBefore);
 
-      const originalNode = allBefore.find((node) => node.id === draggedNode.id);
-      if (!originalNode) return;
+      const originalNode = nodeMap.get(draggedNode.id);
 
-      const selected = allBefore.filter((n) => n.selected).map((n) => n.id);
+      if (!originalNode) {
+        return;
+      }
+
+      const selected = allBefore
+        .filter((node) => node.selected)
+        .map((node) => node.id);
+
       const selectedIds = selected.length ? selected : [originalNode.id];
+      const selectedIdSet = new Set(selectedIds);
 
       const originalParentId = originalNode.parentId;
 
+      const draggedChildren = collectChildren(draggedNode.id, allBefore);
+      const draggedSubtreeIds = new Set<string>([
+        draggedNode.id,
+        ...draggedChildren.map((node) => node.id),
+      ]);
+
       let newParentNode: Node | undefined = undefined;
+
       const possibleGraphIntersect: Node | undefined =
         getPossibleGraphIntersection(
-          getIntersectingNodes(draggedNode),
-          collectChildren(draggedNode.id, allBefore),
+          getIntersectingNodes(draggedNode).filter(
+            (node) => !draggedSubtreeIds.has(node.id),
+          ),
+          draggedChildren,
         ) ?? undefined;
 
       if (possibleGraphIntersect !== undefined) {
@@ -911,9 +1255,24 @@ export const useChainGraph = () => {
       }
 
       const parentNodeId = newParentNode?.id ?? undefined;
+
+      const isInvalidParentTarget = isNodeInsideForbiddenSubtree(
+        parentNodeId,
+        selectedIdSet,
+        nodeMap,
+      );
+
+      if (isInvalidParentTarget) {
+        setNodes(allBefore);
+        return;
+      }
+
       const isParentChanged = parentNodeId !== originalParentId;
 
-      if (!isParentChanged) return;
+      if (!isParentChanged) {
+        setNodes(allBefore);
+        return;
+      }
 
       let finalParentId = originalParentId;
 
@@ -955,42 +1314,48 @@ export const useChainGraph = () => {
         finalParentId = originalParentId;
       }
 
-      setNodes((prev) => {
-        const snapshot = nodesRef.current;
-        const parentAbs = getParentAbsolutePosition(finalParentId, snapshot);
+      const parentAbs = getParentAbsolutePosition(finalParentId, nodeMap);
 
-        const next = prev.map((node) => {
-          if (!selectedIds.includes(node.id)) return node;
+      const draftNodes = allBefore.map((node) => {
+        if (!selectedIdSet.has(node.id)) {
+          return node;
+        }
 
-          const currentNode = snapshot.find((z) => z.id === node.id);
-          if (!currentNode) return node;
+        const nowAbs = getAbsolutePosition(node, nodeMap);
 
-          const nowAbs = getAbsolutePosition(currentNode, snapshot);
-
-          return {
-            ...node,
-            parentId: finalParentId ?? undefined,
-            position: {
-              x: nowAbs.x - parentAbs.x,
-              y: nowAbs.y - parentAbs.y,
-            },
-          };
-        });
-
-        return sortParentsBeforeChildren(next);
+        return {
+          ...node,
+          parentId: finalParentId ?? undefined,
+          position: {
+            x: nowAbs.x - parentAbs.x,
+            y: nowAbs.y - parentAbs.y,
+          },
+        };
       });
 
       const affectedParentIds = computeAffectedParents(
         originalParentId,
         finalParentId,
-        nodesRef.current,
+        allBefore,
       );
 
-      structureChanged(
+      await layoutAndCommit(
+        sortParentsBeforeChildren(draftNodes),
+        edgesRef.current,
         affectedParentIds.length ? affectedParentIds : undefined,
       );
     },
-    [isLibraryLoading, getIntersectingNodes, libraryElements, notificationService, setNodes, structureChanged, clearHoverTimer, onChainUpdate, chainContext?.chain],
+    [
+      chainContext?.chain,
+      isLibraryLoading,
+      getIntersectingNodes,
+      libraryElements,
+      notificationService,
+      setNodes,
+      layoutAndCommit,
+      cancelPendingHoverVisuals,
+      onChainUpdate,
+    ],
   );
 
   const updateNodeData = useCallback(

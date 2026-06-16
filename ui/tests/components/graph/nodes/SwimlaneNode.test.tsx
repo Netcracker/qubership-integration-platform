@@ -17,6 +17,16 @@ jest.mock("@xyflow/react", () => ({
   Position: { Left: "left", Right: "right", Top: "top", Bottom: "bottom" },
 }));
 
+jest.mock("../../../../src/components/LibraryContext", () => ({
+  LibraryProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  useLibraryContext: () => ({
+    isLibraryLoading: false,
+    libraryElements: [{ name: "script", title: "Script", type: "script" }],
+  }),
+}));
+
 const DEFAULT_SWIMLANE_ID = "swimlane-default";
 const REUSE_SWIMLANE_ID = "swimlane-reuse";
 const OTHER_SWIMLANE_ID = "swimlane-other";

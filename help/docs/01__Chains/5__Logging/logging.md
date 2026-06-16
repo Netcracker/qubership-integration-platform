@@ -5,11 +5,13 @@
 
 ---
 This tab provides consolidated access to the logging capabilities, that could be applied to the chain, when it is deployed.Next main capabilities are available:
-- Configure logging settings and apply them in run-time.
+- Configure logging settings and apply them in runtime.
 - Apply logging masking for specific parameters in order to protect the data from unauthorized access.
 
 Please refer to the diagram below, that represents architecture on the high level:
-![](img/loggingSettings.svg)
+
+![loggingSettings](img/loggingSettings.svg)
+
 | #   | Description                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | Consul data is being cached in the QIP to ensure fast and stable access to the logging settings for the given chain.                                                                                                                                                                            |
@@ -23,7 +25,7 @@ Please refer to the diagram below, that represents architecture on the high leve
 User is able to navigate to the **"Logging Settings"** tab under the chain and view/correct logging settings for the chain.
 It shall be noted that Qubership Integration Platform will always attempt to use the settings that are available in the Consul, which plays the role of the main source of such data.
 When no settings available in the Consul for a given chain and there are no even default settings available there,
-Qubership Integration Platform will apply its own default hard-coded option and notify the user via message on top of the screen. Please view detailed description for each particular setting below:
+Qubership Integration Platform will apply its own default hardcoded option and notify the user via message on top of the screen. Please view detailed description for each particular setting below:
 
 - **Override default properties** switcher - allows to enable other fields and specify own settings for current chain.
 - **Logging settings source** - label, that shows the source of the settings. Possible values:

@@ -2,7 +2,9 @@
     "rules": {
         "terminology": {
             "exclude": [
-                "V[ -]?S[ -]?Code"
+                "V[ -]?S[ -]?Code",
+                "file[- ]name(s)?",
+                "ID"
             ]
         }
     }

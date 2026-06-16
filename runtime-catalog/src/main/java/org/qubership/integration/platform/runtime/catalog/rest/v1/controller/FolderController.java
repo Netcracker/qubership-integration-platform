@@ -18,6 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -87,7 +88,7 @@ public class FolderController {
     @GetMapping
     @Operation(description = "Get root folder")
     public ResponseEntity<List<? extends FolderItemResponse>> findRootFolder(
-            @RequestParam(required = false) @Parameter(description = "Content filter object for a folder item request") FolderContentFilter filter,
+            @RequestParam(required = false) @Parameter(description = "Content filter object for a folder item request", schema = @Schema(implementation = FolderContentFilter.class)) FolderContentFilter filter,
             @RequestParam(required = false) @Parameter(description = "Pre-opened folder (if specified, data for this folder will be fetched as well as root folder") String openedFolderId
     ) {
         if (log.isDebugEnabled()) {
@@ -109,7 +110,7 @@ public class FolderController {
     @Operation(description = "Get specific folder")
     public ResponseEntity<FolderResponse> findById(
             @PathVariable @Parameter(description = "Folder id") String folderId,
-            @RequestParam(required = false) @Parameter(description = "Content filter object for a folder item request") FolderContentFilter filter
+            @RequestParam(required = false) @Parameter(description = "Content filter object for a folder item request", schema = @Schema(implementation = FolderContentFilter.class)) FolderContentFilter filter
     ) {
         if (log.isDebugEnabled()) {
             log.debug("Request to find folder by id: {}", folderId);
@@ -135,7 +136,7 @@ public class FolderController {
     @Operation(description = "Get nested chains from specified folder")
     public ResponseEntity<List<ChainResponse>> findNestedChains(
             @PathVariable @Parameter(description = "Folder id") String folderId,
-            @RequestParam(required = false) @Parameter(description = "Content filter object for a folder item request") FolderContentFilter filter
+            @RequestParam(required = false) @Parameter(description = "Content filter object for a folder item request", schema = @Schema(implementation = FolderContentFilter.class)) FolderContentFilter filter
     ) {
         if (log.isDebugEnabled()) {
             log.debug("Request to find nested chains by folder id: {}. Content filter: {}.", folderId, filter);
@@ -148,7 +149,7 @@ public class FolderController {
     @Operation(description = "Get nested chains and folders from specified folder")
     public ResponseEntity<List<? extends FolderItemResponse>> findNestedElements(
             @PathVariable @Parameter(description = "Folder id") String folderId,
-            @RequestParam(required = false) @Parameter(description = "Content filter object for a folder item request") FolderContentFilter filter
+            @RequestParam(required = false) @Parameter(description = "Content filter object for a folder item request", schema = @Schema(implementation = FolderContentFilter.class)) FolderContentFilter filter
     ) {
         if (log.isDebugEnabled()) {
             log.debug("Request to find nested elements by folder id: {}. Content filter: {}.", folderId, filter);

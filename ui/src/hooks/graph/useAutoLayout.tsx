@@ -1,5 +1,5 @@
-import {Edge, Node, Position, useReactFlow} from "@xyflow/react";
-import {useCallback, useEffect, useRef} from "react";
+import {Edge, Node, Position} from "@xyflow/react";
+import {useCallback} from "react";
 import ELK, {ElkNode, LayoutOptions} from "elkjs/lib/elk.bundled";
 import {ElkDirection, useElkDirection} from "./useElkDirection.tsx";
 
@@ -62,6 +62,103 @@ function overlaps1D(aMin: number, aMax: number, bMin: number, bMax: number) {
   return aMin < bMax && bMin < aMax;
 }
 
+function getVisibleRepresentative<
+  NodeData extends Record<string, unknown>,
+>(
+  nodeId: string,
+  nodeMap: Map<string, Node<NodeData>>,
+): string | undefined {
+  const node = nodeMap.get(nodeId);
+  if (!node) return undefined;
+
+  if (!node.hidden) {
+    return node.id;
+  }
+
+  let currentParentId = node.parentId;
+  const seen = new Set<string>([nodeId]);
+
+  while (currentParentId && !seen.has(currentParentId)) {
+    seen.add(currentParentId);
+
+    const parent = nodeMap.get(currentParentId);
+    if (!parent) return undefined;
+
+    if (!parent.hidden) {
+      return parent.id;
+    }
+
+    currentParentId = parent.parentId;
+  }
+
+  return undefined;
+}
+
+function buildLayoutEdges<
+  NodeData extends Record<string, unknown>,
+  EdgeData extends Record<string, unknown>,
+>(
+  nodes: Node<NodeData>[],
+  edges: Edge<EdgeData>[],
+): Edge<EdgeData>[] {
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
+  const visibleIds = new Set(
+    nodes.filter((node) => !node.hidden).map((node) => node.id),
+  );
+
+  const layoutEdges: Edge<EdgeData>[] = [];
+
+  for (const edge of edges) {
+    const source = getVisibleRepresentative(edge.source, nodeMap);
+    const target = getVisibleRepresentative(edge.target, nodeMap);
+
+    if (!source || !target) continue;
+    if (source === target) continue;
+    if (!visibleIds.has(source) || !visibleIds.has(target)) continue;
+
+    const isOriginalEdge = source === edge.source && target === edge.target;
+
+    layoutEdges.push({
+      ...edge,
+      id: isOriginalEdge
+        ? edge.id
+        : `layout:${edge.id}:${source}->${target}`,
+      source,
+      target,
+    });
+  }
+
+  return layoutEdges;
+}
+
+function buildNodeLayoutOptions(
+  nodeType: string | undefined,
+  direction: ElkDirection,
+): LayoutOptions | undefined {
+  const isSwimlane = nodeType === "swimlane";
+  const isContainer = nodeType === "container";
+
+  if (isSwimlane) {
+    return {
+      "elk.padding":
+        direction === "RIGHT"
+          ? "[top=20,left=55,right=20,bottom=20]"
+          : "[top=55,left=20,right=20,bottom=20]",
+      "elk.alignment": direction === "RIGHT" ? "LEFT" : "TOP",
+      "elk.nodeSize.constraints": "MINIMUM_SIZE",
+      "elk.nodeSize.minimum": direction === "RIGHT" ? "(50, 150)" : "(150, 50)",
+    };
+  }
+
+  if (isContainer) {
+    return {
+      "elk.padding": "[top=55,left=20,right=20,bottom=20]",
+    };
+  }
+
+  return undefined;
+}
+
 function buildElkGraph<
   T extends ElkNode,
   NodeData extends Record<string, unknown> = never,
@@ -78,12 +175,24 @@ function buildElkGraph<
 
   const visibleNodes = nodes.filter((node) => !node.hidden);
   const visibleIds = new Set(visibleNodes.map((node) => node.id));
-  const visibleEdges = edges.filter(
-    (edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target),
-  );
+  const visibleEdges = buildLayoutEdges(nodes, edges);
 
-  const containerNodeIds = new Set(
-    visibleNodes.filter((n) => n.type === "container").map((n) => n.id),
+  const visibleChildrenCountByParentId = new Map<string, number>();
+
+  for (const node of visibleNodes) {
+    if (!node.parentId) continue;
+    if (!visibleIds.has(node.parentId)) continue;
+
+    visibleChildrenCountByParentId.set(
+      node.parentId,
+      (visibleChildrenCountByParentId.get(node.parentId) ?? 0) + 1,
+    );
+  }
+
+  const containerLikeNodeIds = new Set(
+    visibleNodes
+      .filter((node) => node.type === "container" || node.type === "swimlane")
+      .map((node) => node.id),
   );
 
   const nodeMap = new Map<string, ElkNode>();
@@ -91,26 +200,15 @@ function buildElkGraph<
 
   for (const node of visibleNodes) {
     parentMap.set(node.id, node.parentId);
-    const hasChildren = visibleNodes.some((n) => n.parentId === node.id);
-    const isSwimlane = node.type === "swimlane";
+
+    const hasChildren = (visibleChildrenCountByParentId.get(node.id) ?? 0) > 0;
 
     nodeMap.set(node.id, {
       id: node.id,
       ...(hasChildren || node.type === "unit"
         ? { width: node.width ?? 150, height: node.height ?? 50 }
         : { width: 150, height: 50 }),
-      layoutOptions: isSwimlane
-        ? {
-            "elk.padding":
-              direction === "RIGHT"
-                ? "[top=20,left=55,right=20,bottom=20]"
-                : "[top=55,left=20,right=20,bottom=20]",
-            "elk.alignment": direction === "RIGHT" ? "LEFT" : "TOP",
-            "elk.nodeSize.constraints": "MINIMUM_SIZE",
-            "elk.nodeSize.minimum":
-              direction === "RIGHT" ? "(50, 150)" : "(150, 50)",
-          }
-        : undefined,
+      layoutOptions: buildNodeLayoutOptions(node.type, direction),
     });
   }
 
@@ -123,7 +221,7 @@ function buildElkGraph<
   }
 
   for (const elkNode of nodeMap.values()) {
-    if (elkNode.children?.length || containerNodeIds.has(elkNode.id)) {
+    if (elkNode.children?.length || containerLikeNodeIds.has(elkNode.id)) {
       elkNode.layoutOptions = {
         ...layoutOptions,
         ...elkNode.layoutOptions,
@@ -138,11 +236,13 @@ function buildElkGraph<
     const result: string[] = [];
     let current: string | undefined = id;
     const seen = new Set<string>();
+
     while (current && !seen.has(current)) {
       result.push(current);
       seen.add(current);
       current = parentMap.get(current);
     }
+
     return result;
   };
 
@@ -150,17 +250,19 @@ function buildElkGraph<
     const allParents = new Set(getNestedParents(a));
     let current: string | undefined = b;
     const seen = new Set<string>();
+
     while (current && !seen.has(current)) {
       if (allParents.has(current)) return current;
       seen.add(current);
       current = parentMap.get(current);
     }
+
     return undefined;
   };
 
   const topLevelNodes = visibleNodes
-    .filter((n) => !n.parentId)
-    .map((n) => nodeMap.get(n.id)!)
+    .filter((node) => !node.parentId || !nodeMap.has(node.parentId))
+    .map((node) => nodeMap.get(node.id)!)
     .filter(Boolean);
 
   const root: ElkNode = {
@@ -174,8 +276,9 @@ function buildElkGraph<
 
   for (const edge of visibleEdges) {
     const edgeLocationId = getClosestParent(edge.source, edge.target);
-    const edgeLocation = getEdgeLocation(edgeLocationId);
-    (edgeLocation!.edges ??= []).push({
+    const edgeLocation = getEdgeLocation(edgeLocationId) ?? root;
+
+    (edgeLocation.edges ??= []).push({
       id: edge.id,
       sources: [edge.source],
       targets: [edge.target],
@@ -333,6 +436,8 @@ function leftAlignDisconnectedSiblings<
   }
 }
 
+const elk = new ELK();
+
 export async function arrangeNodes<
   NodeData extends Record<string, unknown> = never,
   EdgeData extends Record<string, unknown> = never,
@@ -341,7 +446,6 @@ export async function arrangeNodes<
   edges: Edge<EdgeData>[],
   direction: ElkDirection,
 ): Promise<Node<NodeData>[]> {
-  const elk = new ELK();
   const elkGraph = buildElkGraph(nodes, edges, direction);
 
   const nodeMap = new Map<string, Node<NodeData>>(nodes.map((n) => [n.id, n]));
@@ -376,6 +480,11 @@ function alignSwimlaneSize<NodeData extends Record<string, unknown>>(
   direction: ElkDirection,
 ) {
   const swimlanes = nodes.filter((node) => node.type === "swimlane");
+
+  if (!swimlanes.length) {
+    return;
+  }
+
   if (direction === "RIGHT") {
     const maxWidth = Math.max(...swimlanes.map((node) => node.width ?? 0));
     swimlanes.forEach((swimlane) => (swimlane.width = maxWidth));
@@ -385,30 +494,8 @@ function alignSwimlaneSize<NodeData extends Record<string, unknown>>(
   }
 }
 
-function autoLayout(
-  reactFlow: ReturnType<typeof useReactFlow>,
-  direction: ElkDirection,
-): void {
-  const nodes = reactFlow.getNodes().map((node: Node) => {
-    const bounds = reactFlow.getNodesBounds([node]);
-    return { ...node, width: bounds.width, height: bounds.height };
-  });
-
-  const edges = reactFlow.getEdges();
-
-  void arrangeNodes(nodes, edges, direction).then((newNodes) => {
-    const nodeMap = new Map(newNodes.map((node) => [node.id, node]));
-    for (const nn of newNodes) {
-      reactFlow.updateNode(nn.id, () => nodeMap.get(nn.id)!);
-    }
-    requestAnimationFrame(() => void reactFlow.fitView());
-  });
-}
-
 export const useAutoLayout = () => {
-  const reactFlow = useReactFlow();
   const { direction, toggleDirection } = useElkDirection();
-  const elk = useRef(new ELK()).current;
 
   const arrangeNodesUsingDirection = useCallback(
     async <
@@ -425,10 +512,12 @@ export const useAutoLayout = () => {
 
         function visit(node: Node<NodeData>) {
           if (visited.has(node.id)) return;
+
           if (node.parentId) {
             const parent = idToNode.get(node.parentId);
             if (parent) visit(parent);
           }
+
           visited.add(node.id);
           sorted.push(node);
         }
@@ -437,15 +526,11 @@ export const useAutoLayout = () => {
         return sorted;
       }
 
-      const sortedNodes: Node<NodeData>[] = sortNodesTopologically(nodes);
+      const sortedNodes = sortNodesTopologically(nodes);
       return arrangeNodes(sortedNodes, edges, direction);
     },
     [direction],
   );
-
-  useEffect(() => {
-    autoLayout(reactFlow, direction);
-  }, [direction, reactFlow, elk]);
 
   return {
     arrangeNodes: arrangeNodesUsingDirection,

@@ -23,9 +23,9 @@ package ${configuration.packageName};
 #end
 #if ($object.comments.size() > 0)
  * <BR/>
- * 
+ *
 #end
  */
 public enum ${object.javaName} {
-	#foreach ($value in $object.values)${value.name}#if($foreach.hasNext), #end#end;
+    #foreach ($value in $object.values)${value.name}#if($foreach.hasNext), #end#end;
 }

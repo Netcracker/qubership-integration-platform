@@ -17,7 +17,7 @@
 | Username                   | O         | String    | Username value, required for authenticated access.                          | #{username} |
 | Password                   | O         | String    | Password value, required for authenticated access.                          | #{password} |
 | Name        | M         | String    | Name of the element.                                       | SFTP upload                                    |
-| Description | O         | String    | Free text field, that contains description of the element. | Upload documents to specific remote ftp server |
+| Description | O         | String    | Free text field, that contains description of the element. | Upload documents to specific remote FTP server |
 
 ## Constraints
 

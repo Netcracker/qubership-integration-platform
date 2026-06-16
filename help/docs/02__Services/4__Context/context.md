@@ -11,62 +11,67 @@ Context Services are being used as a temporary storage of chain contexts. Chain 
 ---
 
 ### View Context Services
-
-**`⛔ Not available via VS Code extension`**
+<ins>Web UI</ins>
 
 Table with **Context** services is accessible by navigating to **Services** → **Context** tab. Next columns and elements are available for the table:
 
 - **Name** - clickable name of the service or specification group. When clicked, system navigates to respective entity.
-- **Protocol** - service's integration protocol. Possible values: **_http, soap, kafka, amqp, graphql, grpc_**. Value for this parameter will be propagated from the firstly imported API specification. There is no ability to upload API specifications with another protocol after that.
-- **Status** - API Specification status.
-- **Source** - specifies the way specification was created. Possible values:
-  - **Manual** - uploaded manually.
-  - **Discovered** - added as the result of service discovery. This is only applicable to Inner Cloud Services.
 - **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
-- **Created When** - datetime of entity creation.
-- **Created By** - shows the user, who created an entity.
-- **Actions menu** - list of operations, accessed via ![More|20](img/more.svg) menu under each service. Contains next operations:
-  - **Edit** ![Edit|20](img/edit.svg) - opens pop-up to change service name, description or set of **custom** labels.
-  - **Delete** ![Delete|20](img/delete.svg) - deletes entity.
-  - **Export** ![Upload|20](img/cloud-upload.svg) - allows to export the entity.
+- **Used By** - shows the chains using this service.
+- **Created At** - datetime of entity creation (hidden by default).
+- **Created By** - shows the user, who created an entity (hidden by default).
+- **Modified At** - datetime of entity modifying (hidden by default).
+- **Modified By** - shows the user, who modified an entity (hidden by default).
+- **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu under each service. Contains next operations:
+  - **Edit** ![edit](img/edit.svg) - opens pop-up to change service name, description or set of **custom** labels.
+  - **Delete** ![delete](img/delete.svg) - deletes entity.
+  - **Export** ![cloud-download](img/cloud-download.svg) - allows to export the entity.
 - **Control panel** - panel, placed on top of the table. Provides next capabilities:
   - **Search field** - search box, provides ability to find respective data in the table.
-  - ![20](img/filter.svg) - opens filter pop-up.
-  - ![20](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
-  - ![20](img/cloud-download.svg) - exports the service.
-  - ![20](img/cloud-upload.svg) - opens pop-up for service import.
-  - ![20](img/plus.svg) - provides ability to add new service.
+  - ![filter](img/filter.svg) - opens filter pop-up.
+  - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
+  - ![cloud-download](img/cloud-download.svg) - exports the service.
+  - ![cloud-upload](img/cloud-upload.svg) - opens pop-up for service import.
+  - ![plus](img/plus.svg) - provides ability to add new service.
+
+<ins>VS Code Extension</ins>
+
+All services created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
 
 ### View Parameters
-When service is clicked, system shows Parameters tab with the following information:
-- Name - mandatory service name.
-- Description - description of service.
+Parameters tab contains the following information:
+- **Name** - mandatory service name.
+- **Description** - description of service.
+- **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
 
 For <ins>Web UI</ins> there are some additional information:
 
-- Created - datetime of entity creation.
-- Modified - datetime of entity modifying.
+- **Created** - datetime of entity creation.
+- **Modified** - datetime of entity modifying.
 
 ### Add Context Service
+<ins>Web UI</ins>
 
-**`⛔ Not available via VS Code extension`**
+To add new context service, click **"Create"** button marked with ![plus](img/plus.svg). Specify service name and description on a newly opened pop-up and then click **"Save"**.
 
-To add new context service, click **"Create"** button marked with ![Plus|20](img/plus.svg).  Specify service name, description and labels on a newly opened pop-up and then click **"Save"**. System opens new window with the **"Parameters"** tab:
-- **Name** - mandatory service name.
-- **Description** - description of service.
-- **Service type** - types of service.
+<ins>VS Code Extension</ins>
 
-Specify the required fields and click **"Save"**. Notification about successful saving means that context service is added to the list of context services.
+To create any service using VS Code Extension, follow the steps outlined below:
+
+1. Open "VS Code Extension" in Visual Studio Code.
+2. In the left bottom find QIP section and expand it.
+3. Near the "Services" folder click on appearing button "QIP Create service".
+4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter some description and click Enter. Next, it opens "Parameters" tab of the created service.
 
 ### Import Service(s)
 
 **`⛔ Not available via VS Code extension`**
 
-To import the service(s), click the icon ![Upload|20](img/cloud-upload.svg), drag and drop **.zip** file into import area or click **"browse"** link and select **single** file with respective format from the explorer menu. When appropriate file is added to the window, click **"Import"** button to start the import process. During the import, system follows next logic:
+To import the service(s), click the icon ![cloud-upload](img/cloud-upload.svg), drag and drop **.zip** file into import area or click **"browse"** link and select **single** file with respective format from the explorer menu. When appropriate file is added to the window, click **"Import"** button to start the import process. During the import, system follows next logic:
 - Verify Import Instructions, saved in the system. Proceed with the step below only if they exist:
-  - Fetch the list of service ids with **ignore** action and skip import process for them. Find more details about Import Instructions in the respective article: [Import Instructions](../../03__Admin_Tools/4__Import_Instructions/import_instructions.md).
-- Find existing services by ids from import archive:
-  - If system already has entities with ids, specified in import archive:
+  - Fetch the list of service IDs with **ignore** action and skip import process for them. Find more details about Import Instructions in the respective article: [Import Instructions](../../03__Admin_Tools/4__Import_Instructions/import_instructions.md).
+- Find existing services by IDs from import archive:
+  - If system already has entities with IDs, specified in import archive:
     - Merge data from archive, including **custom labels**, into existing entities.
     - **Technical labels** are going to be removed from existing entities if they are updated as a part of import process.
 > ℹ️ **Note:** If import is done as a part of deployment process or it is initiated directly via API with **corresponding headers**, the current set of technical labels is **always overridden** by the values, received from import archive. This might lead to technical labels to be removed from existing entities if imported file has no corresponding technical labels for them.
@@ -86,5 +91,5 @@ When import is completed, system displays import result table with the following
 **`⛔ Not available via VS Code extension`**
 
 System allows exporting service. There are two possible ways to export service(s):
-- From **"Context Services"** page - mark specific services with checkboxes and click ![Download|20](img/cloud-download.svg) (Export).
-- From exact service page - simply click ![Download|20](img/cloud-download.svg) (Export) from the action menu ![More|20](img/more.svg).
+- From **"Context Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) (Export).
+- From exact service page - simply click ![cloud-download](img/cloud-download.svg) (Export) from the action menu ![more](img/more.svg).

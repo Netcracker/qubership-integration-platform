@@ -407,6 +407,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
         await loadGroups(systemId);
       }
     },
+    urlColumnTitle: endpointColumnTitleForProtocol(system?.protocol),
   });
 
   const modelsTable = useServicesTreeTable<ServiceEntity>({
@@ -456,6 +457,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
         await loadModels(systemId, groupId);
       }
     },
+    urlColumnTitle: endpointColumnTitleForProtocol(system?.protocol),
   });
 
   const operationsTable = useServicesTreeTable<ServiceEntity>({

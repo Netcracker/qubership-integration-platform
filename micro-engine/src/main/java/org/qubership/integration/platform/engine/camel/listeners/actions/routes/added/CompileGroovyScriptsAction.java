@@ -57,6 +57,11 @@ public class CompileGroovyScriptsAction implements EventProcessingAction<CamelEv
     private void compileGroovyScript(ExpressionDefinition expression) {
         try {
             String text = expression.getExpression();
+            if (isNull(text)) {
+                // camel-xml-io-dsl leaves the expression null for empty/whitespace-only <groovy>
+                // bodies; treat it as an empty (no-op) script instead of dereferencing null below.
+                text = "";
+            }
             if (isNull(expression.getTrim()) || Boolean.parseBoolean(expression.getTrim())) {
                 text = text.trim();
             }

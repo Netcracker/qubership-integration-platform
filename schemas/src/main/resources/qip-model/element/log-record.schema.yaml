@@ -8,6 +8,10 @@ title: Log Record
 description: >
   Log Record element allows to configure a message that will be logged
   for selected logging level.
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
 properties:
   type:
     type: string

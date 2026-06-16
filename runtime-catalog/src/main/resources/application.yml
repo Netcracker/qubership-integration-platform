@@ -173,7 +173,7 @@ qip:
       monitoring:
         enabled: ${CR_MONITORING_ENABLED:false}
       namespace: ${NAMESPACE:default}
-      environment: ${CR_ENVIRONMENT:{}}
+      environment: ${CR_ENVIRONMENT:T(java.util.Collections).emptyMap()}
   snapshots:
     cleanup:
       interval: ${SNAPSHOTS_CLEANUP_INTERVAL:14} # snapshots older than an interval will be deleted

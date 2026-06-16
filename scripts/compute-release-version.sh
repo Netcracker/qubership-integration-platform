@@ -24,14 +24,17 @@ VERSION_OVERRIDE="${VERSION_OVERRIDE:-}"
 
 is_semver() { [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; }
 
-bump() {  # $1=X.Y.Z $2=patch|minor|major -> next on stdout (10# avoids octal)
+bump() { # $1=X.Y.Z $2=patch|minor|major -> next on stdout (10# avoids octal)
     local ma mi pa
-    IFS=. read -r ma mi pa <<<"$1"
+    IFS=. read -r ma mi pa <<< "$1"
     case "$2" in
         patch) echo "$ma.$mi.$((10#$pa + 1))" ;;
         minor) echo "$ma.$((10#$mi + 1)).0" ;;
         major) echo "$((10#$ma + 1)).0.0" ;;
-        *) echo "::error::release-type must be patch|minor|major (got '$2')" >&2; exit 1 ;;
+        *)
+            echo "::error::release-type must be patch|minor|major (got '$2')" >&2
+            exit 1
+            ;;
     esac
 }
 
@@ -39,15 +42,24 @@ bump() {  # $1=X.Y.Z $2=patch|minor|major -> next on stdout (10# avoids octal)
 case "$ECOSYSTEM" in
     maven)
         POM="$MODULE/pom.xml"
-        [ -f "$POM" ] || { echo "::error::No pom.xml at $MODULE/"; exit 1; }
+        [ -f "$POM" ] || {
+            echo "::error::No pom.xml at $MODULE/"
+            exit 1
+        }
         current=$(grep -oP '(?<=<revision>)[^<]+' "$POM" | head -1 || true)
         ;;
     npm)
         PKG="$MODULE/package.json"
-        [ -f "$PKG" ] || { echo "::error::No package.json at $MODULE/"; exit 1; }
+        [ -f "$PKG" ] || {
+            echo "::error::No package.json at $MODULE/"
+            exit 1
+        }
         current=$(node -p "require('./$PKG').version")
         ;;
-    *) echo "::error::ECOSYSTEM must be maven|npm (got '$ECOSYSTEM')"; exit 1 ;;
+    *)
+        echo "::error::ECOSYSTEM must be maven|npm (got '$ECOSYSTEM')"
+        exit 1
+        ;;
 esac
 
 # Release version: an explicit override wins; else maven releases the current
@@ -57,10 +69,16 @@ if [ -n "$VERSION_OVERRIDE" ]; then
 elif [ "$ECOSYSTEM" = maven ]; then
     release="$current"
 else
-    is_semver "$current" || { echo "::error::Current version must be X.Y.Z (got '$current')"; exit 1; }
+    is_semver "$current" || {
+        echo "::error::Current version must be X.Y.Z (got '$current')"
+        exit 1
+    }
     release=$(bump "$current" "$RELEASE_TYPE")
 fi
-is_semver "$release" || { echo "::error::Release version must be X.Y.Z (got '$release')"; exit 1; }
+is_semver "$release" || {
+    echo "::error::Release version must be X.Y.Z (got '$release')"
+    exit 1
+}
 
 # next-dev only applies to maven (written back into <revision> after release).
 next=""
@@ -72,7 +90,7 @@ fi
 # recover (re-apply the bump only) instead of wedging the module.
 tag="$MODULE-v$release"
 recover=false
-if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null 2>&1; then
     recover=true
     echo "::warning::Tag $tag already exists — recovery mode: skipping build/publish, re-applying the version bump only."
 fi
