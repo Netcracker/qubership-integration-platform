@@ -10,6 +10,11 @@ export type {
 } from "./api/rest/vscodeExtensionApi";
 export type { AppExtensionProps, AppConfig } from "./appConfig";
 export type {
+  ExportImagesConfig,
+  ExportImagesStartupPayload,
+  ExportImagesTarget,
+} from "./appConfig";
+export type {
   IconOverrides,
   IconName,
   IconSource,

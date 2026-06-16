@@ -3,6 +3,7 @@ import {
   Dependency,
   Element,
   EntityLabel,
+  ExportImagesTarget,
   Folder,
   LibraryData,
   LibraryElement,
@@ -21,6 +22,37 @@ import {
 } from "./chainApiUtils";
 import { fileApi } from "./file";
 import { getExtensionsForUri } from "./file/fileExtensions";
+import { sanitizeExportOutputName } from "../exportImageUtils";
+
+export async function listChainExportTargets(): Promise<ExportImagesTarget[]> {
+  const extensions = getExtensionsForUri();
+  const files = await fileApi.findFiles(extensions.chain);
+
+  const parsed = await Promise.all(
+    files.map(async (fileUri): Promise<ExportImagesTarget | null> => {
+      const chain = (await fileApi.parseFile(fileUri)) as
+        | ChainSchema
+        | undefined;
+      const chainId = typeof chain?.id === "string" ? chain.id : undefined;
+      if (!chainId) {
+        return null;
+      }
+      return {
+        chainId,
+        filePath: fileUri.toString(),
+        outputName: sanitizeExportOutputName(chainId),
+      };
+    }),
+  );
+
+  const targets = parsed.filter((target) => target !== null);
+
+  return targets.sort((left, right) =>
+    (left.outputName ?? left.chainId).localeCompare(
+      right.outputName ?? right.chainId,
+    ),
+  );
+}
 
 export async function getCurrentChainId(fileUri: Uri): Promise<string> {
   const chain = await getMainChain(fileUri);
@@ -389,14 +421,19 @@ async function parseElementsForType(
   return result;
 }
 
-export async function getChain(fileUri: Uri, chainId: string): Promise<Chain> {
-  const chain = await getMainChain(fileUri);
+export async function getChain(
+  fileUri: Uri,
+  chainId: string,
+  chainFileUri?: Uri,
+): Promise<Chain> {
+  const resolvedUri = chainFileUri ?? (await getChainFileUri(chainId, fileUri));
+  const chain = (await fileApi.parseFile(resolvedUri)) as ChainSchema;
   if (chain.id !== chainId) {
     console.error(`ChainId mismatch`);
     throw Error("ChainId mismatch");
   }
 
-  return schemaToChain(fileUri, chain);
+  return schemaToChain(resolvedUri, chain);
 }
 
 export async function schemaToChain(
