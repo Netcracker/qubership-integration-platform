@@ -72,7 +72,7 @@
         <kubernetes-client-java.version>19.0.3</kubernetes-client-java.version>
         <reflections.version>0.10.2</reflections.version>
         <hypersistence-utils-hibernate.version>3.14.1</hypersistence-utils-hibernate.version>
-        <groovy.xml.version>5.0.2</groovy.xml.version>
+        <groovy.xml.version>5.0.6</groovy.xml.version>
 
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.2</surefire-plugin.version>
