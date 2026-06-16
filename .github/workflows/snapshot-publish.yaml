@@ -83,8 +83,6 @@ jobs:
         env:
           MAVEN_USERNAME: ${{ github.actor }}
           MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
           # Run from the module dir so Maven reads only this module + parent (via
