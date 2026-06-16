@@ -843,6 +843,12 @@ export type SecretResponse = {
   defaultSecret: boolean;
 };
 
+export type SecuredVariablesListApiResponse = {
+  secrets: SecretResponse[];
+  defaultSecretEnabled: boolean;
+  defaultSecretExistsInEnv: boolean;
+};
+
 export type SecuredVariablesListResponse = {
   secrets: SecretWithVariables[];
   defaultSecretEnabled: boolean;

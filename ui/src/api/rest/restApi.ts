@@ -108,7 +108,9 @@ import type {
   ApiResponse,
   DiscoveryResponse,
   SecretResponse,
+  SecuredVariablesListApiResponse,
   SecuredVariablesListResponse,
+  SecretWithVariables,
   Variable,
 } from "../apiTypes.ts";
 
@@ -416,24 +418,24 @@ export class RestApi implements Api {
       serviceName,
       "Failed to fetch secured variables",
       async () => {
-        const response = await this.instance.get<{
-          secrets: SecretResponse[];
-          defaultSecretEnabled: boolean;
-          defaultSecretExistsInEnv: boolean;
-        }>(`${this.v2()}/secured-variables`);
+        const response = await this.instance.get<SecuredVariablesListApiResponse>(
+          `${this.v2()}/secured-variables`,
+        );
+        const { secrets, defaultSecretEnabled, defaultSecretExistsInEnv } =
+          response.data;
         return {
-          secrets: response.data.secrets.map(
-            ({ secretName, variablesNames, defaultSecret }) => ({
-              secretName,
-              variables: variablesNames.map((key: string) => ({
+          secrets: secrets.map(
+            (secret: SecretResponse): SecretWithVariables => ({
+              secretName: secret.secretName,
+              variables: secret.variablesNames.map((key) => ({
                 key,
                 value: "******",
               })),
-              isDefaultSecret: defaultSecret,
+              isDefaultSecret: secret.defaultSecret,
             }),
           ),
-          defaultSecretEnabled: response.data.defaultSecretEnabled,
-          defaultSecretExistsInEnv: response.data.defaultSecretExistsInEnv,
+          defaultSecretEnabled,
+          defaultSecretExistsInEnv,
         };
       },
     );

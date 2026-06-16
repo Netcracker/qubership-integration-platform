@@ -9,7 +9,6 @@ import type {
   ImportInstructionResult,
   MCPSystem,
   MCPSystemUpdateRequest,
-  SecretWithVariables,
   SecuredVariablesListResponse,
   Variable,
 } from "../apiTypes.ts";
