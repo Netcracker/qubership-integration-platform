@@ -180,7 +180,7 @@ public class SwaggerSpecificationParser implements SpecificationParser {
             }
             ((ObjectNode) specificationNode).put(OPEN_API_LABEL, OPENAPI_31_FALLBACK_VERSION);
             messageHandler.accept(String.format(
-                    "OpenAPI %s imported with the 3.1 parser. 3.2-only features such as the QUERY method may be dropped. ",
+                    "OpenAPI %s imported with the 3.1 parser. 3.2-only features may be dropped. ",
                     version));
             return specificationNode.toString();
         } catch (Exception e) {
