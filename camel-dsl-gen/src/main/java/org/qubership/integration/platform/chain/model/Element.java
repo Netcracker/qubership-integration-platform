@@ -16,4 +16,12 @@ public interface Element extends Entity {
     Collection<Connection> getInputConnections();
 
     Collection<Connection> getOutputConnections();
+
+    Optional<String> getOriginalId();
+
+    Chain getChain();
+
+    Optional<ServiceEnvironment> getEnvironment();
+
+    boolean isContainer();
 }

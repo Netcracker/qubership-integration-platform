@@ -19,14 +19,13 @@ package org.qubership.integration.platform.runtime.catalog.mapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.datatypes.*;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.MappingDescription;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.action.*;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.Attribute;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.MessageSchema;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.ObjectSchema;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.definition.constant.*;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.metadata.Metadata;
+import org.qubership.integration.platform.mapper.model.mapping.action.AttributeKind;
+import org.qubership.integration.platform.mapper.model.mapping.action.ElementType;
+import org.qubership.integration.platform.mapper.model.mapping.MappingDescription;
+import org.qubership.integration.platform.mapper.model.mapping.definition.Attribute;
+import org.qubership.integration.platform.mapper.model.mapping.definition.MessageSchema;
+import org.qubership.integration.platform.mapper.model.mapping.definition.ObjectSchema;
+import org.qubership.integration.platform.mapper.model.metadata.Metadata;
 
 import java.util.Collections;
 import java.util.List;
@@ -56,58 +55,58 @@ public class MappingDescriptionDeserializationTest {
 
     @Test
     void testNullTypeDeserialization() throws JsonProcessingException {
-        DataType type = objectMapper.readValue("{\"name\": \"null\"}", DataType.class);
-        assertTrue(type instanceof NullType);
+        org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("{\"name\": \"null\"}", org.qubership.integration.platform.mapper.model.datatypes.DataType.class);
+        assertTrue(type instanceof org.qubership.integration.platform.mapper.model.datatypes.NullType);
     }
 
     @Test
     void testStringTypeDeserialization() throws JsonProcessingException {
-        DataType type = objectMapper.readValue("{\"name\": \"string\"}", DataType.class);
-        assertTrue(type instanceof StringType);
+        org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("{\"name\": \"string\"}", org.qubership.integration.platform.mapper.model.datatypes.DataType.class);
+        assertTrue(type instanceof org.qubership.integration.platform.mapper.model.datatypes.StringType);
     }
 
     @Test
     void testIntegerTypeDeserialization() throws JsonProcessingException {
-        DataType type = objectMapper.readValue("{\"name\": \"number\"}", DataType.class);
-        assertTrue(type instanceof IntegerType);
+        org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("{\"name\": \"number\"}", org.qubership.integration.platform.mapper.model.datatypes.DataType.class);
+        assertTrue(type instanceof org.qubership.integration.platform.mapper.model.datatypes.IntegerType);
     }
 
     @Test
     void testBooleanTypeDeserialization() throws JsonProcessingException {
-        DataType type = objectMapper.readValue("{\"name\": \"boolean\"}", DataType.class);
-        assertTrue(type instanceof BooleanType);
+        org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("{\"name\": \"boolean\"}", org.qubership.integration.platform.mapper.model.datatypes.DataType.class);
+        assertTrue(type instanceof org.qubership.integration.platform.mapper.model.datatypes.BooleanType);
     }
 
     @Test
     void testTypeDefinitionDeserialization() throws JsonProcessingException {
-        TypeDefinition typeDefinition = objectMapper.readValue("""
+        org.qubership.integration.platform.mapper.model.datatypes.TypeDefinition typeDefinition = objectMapper.readValue("""
                 {
                     "id": "foo",
                     "name": "bar",
                     "type": { "name": "string" }
                 }
-                """, TypeDefinition.class);
+                """, org.qubership.integration.platform.mapper.model.datatypes.TypeDefinition.class);
         assertEquals("foo", typeDefinition.getId());
         assertEquals("bar", typeDefinition.getName());
-        assertTrue(typeDefinition.getType() instanceof StringType);
+        assertTrue(typeDefinition.getType() instanceof org.qubership.integration.platform.mapper.model.datatypes.StringType);
     }
 
     @Test
     void testArrayTypeDeserialization() throws JsonProcessingException {
-        DataType type = objectMapper.readValue("""
+        org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("""
                 {
                     "name": "array",
                     "itemType": { "name": "string" }
                 }
-                """, DataType.class);
-        assertTrue(type instanceof ArrayType);
-        assertTrue(((ArrayType) type).getItemType() instanceof StringType);
-        assertTrue(((ArrayType) type).getDefinitions().isEmpty());
+                """, org.qubership.integration.platform.mapper.model.datatypes.DataType.class);
+        assertTrue(type instanceof org.qubership.integration.platform.mapper.model.datatypes.ArrayType);
+        assertTrue(((org.qubership.integration.platform.mapper.model.datatypes.ArrayType) type).getItemType() instanceof org.qubership.integration.platform.mapper.model.datatypes.StringType);
+        assertTrue(((org.qubership.integration.platform.mapper.model.datatypes.ArrayType) type).getDefinitions().isEmpty());
     }
 
     @Test
     void testDeserializationOfArrayTypeWithDefinitions() throws JsonProcessingException {
-        DataType type = objectMapper.readValue("""
+        org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("""
                 {
                     "name": "array",
                     "itemType": { "name": "string" },
@@ -119,15 +118,15 @@ public class MappingDescriptionDeserializationTest {
                         }
                     ]
                 }
-                """, DataType.class);
-        assertTrue(type instanceof ArrayType);
-        assertTrue(((ArrayType) type).getItemType() instanceof StringType);
-        assertEquals(1, ((ArrayType) type).getDefinitions().size());
+                """, org.qubership.integration.platform.mapper.model.datatypes.DataType.class);
+        assertTrue(type instanceof org.qubership.integration.platform.mapper.model.datatypes.ArrayType);
+        assertTrue(((org.qubership.integration.platform.mapper.model.datatypes.ArrayType) type).getItemType() instanceof org.qubership.integration.platform.mapper.model.datatypes.StringType);
+        assertEquals(1, ((org.qubership.integration.platform.mapper.model.datatypes.ArrayType) type).getDefinitions().size());
 
-        TypeDefinition typeDefinition = ((ArrayType) type).getDefinitions().iterator().next();
+        org.qubership.integration.platform.mapper.model.datatypes.TypeDefinition typeDefinition = ((org.qubership.integration.platform.mapper.model.datatypes.ArrayType) type).getDefinitions().iterator().next();
         assertEquals("foo", typeDefinition.getId());
         assertEquals("bar", typeDefinition.getName());
-        assertTrue(typeDefinition.getType() instanceof StringType);
+        assertTrue(typeDefinition.getType() instanceof org.qubership.integration.platform.mapper.model.datatypes.StringType);
     }
 
     @Test
@@ -141,7 +140,7 @@ public class MappingDescriptionDeserializationTest {
                 """, Attribute.class);
         assertEquals("foo", attribute.getId());
         assertEquals("bar", attribute.getName());
-        assertTrue(attribute.getType() instanceof StringType);
+        assertTrue(attribute.getType() instanceof org.qubership.integration.platform.mapper.model.datatypes.StringType);
     }
 
     @Test
@@ -161,118 +160,118 @@ public class MappingDescriptionDeserializationTest {
 
     @Test
     void testObjectTypeDeserialization() throws JsonProcessingException {
-        DataType type = objectMapper.readValue("""
+        org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("""
                 {
                     "name": "object",
                     "schema": { "id": "foo", "attributes": [] }
                 }
-                """, DataType.class);
-        assertTrue(type instanceof ObjectType);
-        assertEquals("foo", ((ObjectType) type).getSchema().getId());
+                """, org.qubership.integration.platform.mapper.model.datatypes.DataType.class);
+        assertTrue(type instanceof org.qubership.integration.platform.mapper.model.datatypes.ObjectType);
+        assertEquals("foo", ((org.qubership.integration.platform.mapper.model.datatypes.ObjectType) type).getSchema().getId());
     }
 
     @Test
     void testReferenceTypeDeserialization() throws JsonProcessingException {
-        DataType type = objectMapper.readValue("""
+        org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("""
                 {
                     "name": "reference",
                     "definitionId": "foo"
                 }
-                """, DataType.class);
-        assertTrue(type instanceof ReferenceType);
-        assertEquals("foo", ((ReferenceType) type).getDefinitionId());
+                """, org.qubership.integration.platform.mapper.model.datatypes.DataType.class);
+        assertTrue(type instanceof org.qubership.integration.platform.mapper.model.datatypes.ReferenceType);
+        assertEquals("foo", ((org.qubership.integration.platform.mapper.model.datatypes.ReferenceType) type).getDefinitionId());
     }
 
     @Test
     void testAnyOfTypeDeserialization() throws JsonProcessingException {
-        DataType type = objectMapper.readValue("""
+        org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("""
                 {
                     "name": "anyOf",
                     "types": [{ "name": "string" }]
                 }
-                """, DataType.class);
-        assertTrue(type instanceof AnyOfType);
-        assertEquals(1, ((AnyOfType) type).getTypes().size());
-        assertTrue(((AnyOfType) type).getTypes().iterator().next() instanceof StringType);
+                """, org.qubership.integration.platform.mapper.model.datatypes.DataType.class);
+        assertTrue(type instanceof org.qubership.integration.platform.mapper.model.datatypes.AnyOfType);
+        assertEquals(1, ((org.qubership.integration.platform.mapper.model.datatypes.AnyOfType) type).getTypes().size());
+        assertTrue(((org.qubership.integration.platform.mapper.model.datatypes.AnyOfType) type).getTypes().iterator().next() instanceof org.qubership.integration.platform.mapper.model.datatypes.StringType);
     }
 
     @Test
     void testAllOfTypeDeserialization() throws JsonProcessingException {
-        DataType type = objectMapper.readValue("""
+        org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("""
                 {
                     "name": "allOf",
                     "types": [{ "name": "string" }]
                 }
-                """, DataType.class);
-        assertTrue(type instanceof AllOfType);
-        assertEquals(1, ((AllOfType) type).getTypes().size());
-        assertTrue(((AllOfType) type).getTypes().iterator().next() instanceof StringType);
+                """, org.qubership.integration.platform.mapper.model.datatypes.DataType.class);
+        assertTrue(type instanceof org.qubership.integration.platform.mapper.model.datatypes.AllOfType);
+        assertEquals(1, ((org.qubership.integration.platform.mapper.model.datatypes.AllOfType) type).getTypes().size());
+        assertTrue(((org.qubership.integration.platform.mapper.model.datatypes.AllOfType) type).getTypes().iterator().next() instanceof org.qubership.integration.platform.mapper.model.datatypes.StringType);
     }
 
     @Test
     void testOneOfTypeDeserialization() throws JsonProcessingException {
-        DataType type = objectMapper.readValue("""
+        org.qubership.integration.platform.mapper.model.datatypes.DataType type = objectMapper.readValue("""
                 {
                     "name": "oneOf",
                     "types": [{ "name": "string" }]
                 }
-                """, DataType.class);
-        assertTrue(type instanceof OneOfType);
-        assertEquals(1, ((OneOfType) type).getTypes().size());
-        assertTrue(((OneOfType) type).getTypes().iterator().next() instanceof StringType);
+                """, org.qubership.integration.platform.mapper.model.datatypes.DataType.class);
+        assertTrue(type instanceof org.qubership.integration.platform.mapper.model.datatypes.OneOfType);
+        assertEquals(1, ((org.qubership.integration.platform.mapper.model.datatypes.OneOfType) type).getTypes().size());
+        assertTrue(((org.qubership.integration.platform.mapper.model.datatypes.OneOfType) type).getTypes().iterator().next() instanceof org.qubership.integration.platform.mapper.model.datatypes.StringType);
     }
 
     @Test
     void testGivenValueDeserialization() throws JsonProcessingException {
-        ValueSupplier supplier = objectMapper.readValue("""
+        org.qubership.integration.platform.mapper.model.mapping.definition.constant.ValueSupplier supplier = objectMapper.readValue("""
                 {
                     "kind": "given",
                     "value": "foo"
                 }
-                """, ValueSupplier.class);
-        assertTrue(supplier instanceof ValueSupplier);
-        assertEquals("foo", ((GivenValue) supplier).getValue());
+                """, org.qubership.integration.platform.mapper.model.mapping.definition.constant.ValueSupplier.class);
+        assertTrue(supplier instanceof org.qubership.integration.platform.mapper.model.mapping.definition.constant.ValueSupplier);
+        assertEquals("foo", ((org.qubership.integration.platform.mapper.model.mapping.definition.constant.GivenValue) supplier).getValue());
     }
 
     @Test
     void testValueGeneratorDeserialization() throws JsonProcessingException {
-        ValueGenerator generator = objectMapper.readValue("""
+        org.qubership.integration.platform.mapper.model.mapping.definition.constant.ValueGenerator generator = objectMapper.readValue("""
                 {
                     "name": "foo",
                     "parameters": ["bar", "baz", "biz"]
                 }
-                """, ValueGenerator.class);
+                """, org.qubership.integration.platform.mapper.model.mapping.definition.constant.ValueGenerator.class);
         assertEquals("foo", generator.getName());
         assertEquals(List.of("bar", "baz", "biz"), generator.getParameters());
     }
 
     @Test
     void testGeneratedValueDeserialization() throws JsonProcessingException {
-        ValueSupplier supplier = objectMapper.readValue("""
+        org.qubership.integration.platform.mapper.model.mapping.definition.constant.ValueSupplier supplier = objectMapper.readValue("""
                 {
                     "kind": "generated",
                     "generator": { "name": "foo", "parameters": [] }
                 }
-                """, ValueSupplier.class);
-        assertTrue(supplier instanceof GeneratedValue);
-        assertEquals("foo", ((GeneratedValue) supplier).getGenerator().getName());
+                """, org.qubership.integration.platform.mapper.model.mapping.definition.constant.ValueSupplier.class);
+        assertTrue(supplier instanceof org.qubership.integration.platform.mapper.model.mapping.definition.constant.GeneratedValue);
+        assertEquals("foo", ((org.qubership.integration.platform.mapper.model.mapping.definition.constant.GeneratedValue) supplier).getGenerator().getName());
     }
 
     @Test
     void testConstantDeserialization() throws JsonProcessingException {
-        Constant constant = objectMapper.readValue("""
+        org.qubership.integration.platform.mapper.model.mapping.definition.constant.Constant constant = objectMapper.readValue("""
                 {
                     "id": "foo",
                     "name": "bar",
                     "type": { "name":  "string" },
                     "valueSupplier": { "kind": "given", "value": "baz" }
                 }
-                """, Constant.class);
+                """, org.qubership.integration.platform.mapper.model.mapping.definition.constant.Constant.class);
         assertEquals("foo", constant.getId());
         assertEquals("bar", constant.getName());
-        assertTrue(constant.getType() instanceof StringType);
-        assertTrue(constant.getValueSupplier() instanceof GivenValue);
-        assertEquals("baz", ((GivenValue) constant.getValueSupplier()).getValue());
+        assertTrue(constant.getType() instanceof org.qubership.integration.platform.mapper.model.datatypes.StringType);
+        assertTrue(constant.getValueSupplier() instanceof org.qubership.integration.platform.mapper.model.mapping.definition.constant.GivenValue);
+        assertEquals("baz", ((org.qubership.integration.platform.mapper.model.mapping.definition.constant.GivenValue) constant.getValueSupplier()).getValue());
     }
 
     @Test
@@ -288,57 +287,57 @@ public class MappingDescriptionDeserializationTest {
         assertEquals("foo", messageSchema.getHeaders().iterator().next().getId());
         assertEquals(1, messageSchema.getProperties().size());
         assertEquals("baz", messageSchema.getProperties().iterator().next().getId());
-        assertTrue(messageSchema.getBody() instanceof IntegerType);
+        assertTrue(messageSchema.getBody() instanceof org.qubership.integration.platform.mapper.model.datatypes.IntegerType);
     }
 
     @Test
     void testTransformationDeserialization() throws JsonProcessingException {
-        Transformation transformation = objectMapper.readValue("""
+        org.qubership.integration.platform.mapper.model.mapping.action.Transformation transformation = objectMapper.readValue("""
                 {
                     "name": "foo",
                     "parameters": ["bar", "baz", "biz"]
                 }
-                """, Transformation.class);
+                """, org.qubership.integration.platform.mapper.model.mapping.action.Transformation.class);
         assertEquals("foo", transformation.getName());
         assertEquals(List.of("bar", "baz", "biz"), transformation.getParameters());
     }
 
     @Test
     void testConstantReferenceDeserialization() throws JsonProcessingException {
-        ElementReference elementReference = objectMapper.readValue("""
+        org.qubership.integration.platform.mapper.model.mapping.action.ElementReference elementReference = objectMapper.readValue("""
                 {
                     "type": "constant",
                     "constantId": "foo"
                 }
-                """, ElementReference.class);
-        assertTrue(elementReference instanceof ConstantReference);
-        assertEquals("foo", ((ConstantReference) elementReference).getConstantId());
+                """, org.qubership.integration.platform.mapper.model.mapping.action.ElementReference.class);
+        assertTrue(elementReference instanceof org.qubership.integration.platform.mapper.model.mapping.action.ConstantReference);
+        assertEquals("foo", ((org.qubership.integration.platform.mapper.model.mapping.action.ConstantReference) elementReference).getConstantId());
     }
 
     @Test
     void testAttributeReferenceDeserialization() throws JsonProcessingException {
-        ElementReference elementReference = objectMapper.readValue("""
+        org.qubership.integration.platform.mapper.model.mapping.action.ElementReference elementReference = objectMapper.readValue("""
                 {
                     "type": "attribute",
                     "kind": "header",
                     "path": ["foo", "bar"]
                 }
-                """, ElementReference.class);
-        assertTrue(elementReference instanceof AttributeReference);
-        assertEquals(AttributeKind.HEADER, ((AttributeReference) elementReference).getKind());
-        assertEquals(List.of("foo", "bar"), ((AttributeReference) elementReference).getPath());
+                """, org.qubership.integration.platform.mapper.model.mapping.action.ElementReference.class);
+        assertTrue(elementReference instanceof org.qubership.integration.platform.mapper.model.mapping.action.AttributeReference);
+        assertEquals(AttributeKind.HEADER, ((org.qubership.integration.platform.mapper.model.mapping.action.AttributeReference) elementReference).getKind());
+        assertEquals(List.of("foo", "bar"), ((org.qubership.integration.platform.mapper.model.mapping.action.AttributeReference) elementReference).getPath());
     }
 
     @Test
     void testMappingActionDeserialization() throws JsonProcessingException {
-        MappingAction action = objectMapper.readValue("""
+        org.qubership.integration.platform.mapper.model.mapping.action.MappingAction action = objectMapper.readValue("""
                 {
                     "id": "fizz",
                     "sources": [{ "type": "constant", "constantId": "foo" }],
                     "target": { "type": "attribute", "kind": "property", "path": ["bar"] },
                     "transformation": { "name": "baz", "parameters": [] }
                 }
-                """, MappingAction.class);
+                """, org.qubership.integration.platform.mapper.model.mapping.action.MappingAction.class);
         assertEquals("fizz", action.getId());
         assertEquals(1, action.getSources().size());
         assertEquals(ElementType.CONSTANT, action.getSources().get(0).getType());
@@ -356,7 +355,7 @@ public class MappingDescriptionDeserializationTest {
                     "actions": []
                 }
                 """, MappingDescription.class);
-        assertTrue(mappingDescription.getSource().getBody() instanceof NullType);
-        assertTrue(mappingDescription.getTarget().getBody() instanceof BooleanType);
+        assertTrue(mappingDescription.getSource().getBody() instanceof org.qubership.integration.platform.mapper.model.datatypes.NullType);
+        assertTrue(mappingDescription.getTarget().getBody() instanceof org.qubership.integration.platform.mapper.model.datatypes.BooleanType);
     }
 }

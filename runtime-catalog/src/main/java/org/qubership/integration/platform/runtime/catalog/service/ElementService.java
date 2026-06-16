@@ -41,7 +41,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.re
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.CreateElementRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemType;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
-import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
+import org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers.MandatoryPropertyVerificationHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.lang.NonNull;
@@ -55,8 +55,8 @@ import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.*;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.*;
+import static org.qubership.integration.platform.library.constants.CamelNames.*;
+import static org.qubership.integration.platform.library.constants.CamelOptions.*;
 
 @Slf4j
 @Service
@@ -74,10 +74,11 @@ public class ElementService extends ElementBaseService {
     protected final SwimlaneService swimlaneService;
     protected final ActionsLogService actionLogger;
     protected final OrderedElementService orderedElementService;
-    protected final ElementUtils elementUtils;
     protected final SystemEnvironmentsGenerator systemEnvironmentsGenerator;
     protected final SystemBaseService systemBaseService;
     protected final SystemModelBaseService systemModelBaseService;
+    protected final MandatoryPropertyVerificationHelper mandatoryPropertyVerificationHelper;
+    protected final PropertyPlaceholderHelper propertyPlaceholderHelper;
 
     @Autowired
     public ElementService(
@@ -88,10 +89,11 @@ public class ElementService extends ElementBaseService {
             SwimlaneService swimlaneService,
             ActionsLogService actionLogger,
             OrderedElementService orderedElementService,
-            ElementUtils elementUtils,
             SystemEnvironmentsGenerator systemEnvironmentsGenerator,
             SystemBaseService systemBaseService,
-            SystemModelBaseService systemModelBaseService
+            SystemModelBaseService systemModelBaseService,
+            MandatoryPropertyVerificationHelper mandatoryPropertyVerificationHelper,
+            PropertyPlaceholderHelper propertyPlaceholderHelper
     ) {
         super(elementRepository);
         this.auditingHandler = jpaAuditingHandler;
@@ -100,10 +102,11 @@ public class ElementService extends ElementBaseService {
         this.swimlaneService = swimlaneService;
         this.actionLogger = actionLogger;
         this.orderedElementService = orderedElementService;
-        this.elementUtils = elementUtils;
         this.systemEnvironmentsGenerator = systemEnvironmentsGenerator;
         this.systemBaseService = systemBaseService;
         this.systemModelBaseService = systemModelBaseService;
+        this.mandatoryPropertyVerificationHelper = mandatoryPropertyVerificationHelper;
+        this.propertyPlaceholderHelper = propertyPlaceholderHelper;
     }
 
     public List<ChainElement> findAllBySnapshotIdAndType(String snapshotId, String type) {
@@ -237,7 +240,7 @@ public class ElementService extends ElementBaseService {
     @ChainModification
     public ChainElement clone(String elementId, String parentId) {
         ChainElement copy = recursiveClone(findById(elementId));
-        elementUtils.updateResetOnCopyProperties(copy);
+        propertyPlaceholderHelper.updateResetOnCopyProperties(copy);
 
         if (parentId != null) {
             ContainerChainElement parent = findById(parentId, ContainerChainElement.class);
@@ -500,7 +503,7 @@ public class ElementService extends ElementBaseService {
                 .collect(Collectors.toMap(
                         ElementProperty::getName,
                         prop -> PropertyValueType.STRING.equals(prop.getType())
-                                ? ElementUtils.replaceDefaultValuePlaceholders(prop.getDefaultValue(), elementId, chainId)
+                                ? PropertyPlaceholderHelper.replaceDefaultValuePlaceholders(prop.getDefaultValue(), elementId, chainId)
                                 : prop.defaultValue()
                 )));
     }
@@ -811,7 +814,7 @@ public class ElementService extends ElementBaseService {
         }
 
         for (ElementProperty property : descriptor.getProperties().getAll()) {
-            if (!elementUtils.isMandatoryPropertyPresent(property, element)) {
+            if (!mandatoryPropertyVerificationHelper.isMandatoryPropertyPresent(property, element)) {
                 throw new ElementValidationException("Value not found for " + property.getName());
             }
 

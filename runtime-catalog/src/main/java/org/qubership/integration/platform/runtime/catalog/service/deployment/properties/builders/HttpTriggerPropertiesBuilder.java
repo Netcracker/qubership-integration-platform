@@ -27,7 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.*;
+import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.*;
 
 @Slf4j
 @Component

@@ -32,7 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.library.components.LibraryElementsService;
 import org.qubership.integration.platform.library.components.LibraryResourceLoader;
 import org.qubership.integration.platform.library.configuration.DescriptorPropertiesConfiguration;
-import org.qubership.integration.platform.runtime.catalog.builder.templates.helpers.MapperInterpretatorHelper;
+import org.qubership.integration.platform.io.writers.camel.xml.templates.helpers.MapperInterpreterHelper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -107,7 +107,7 @@ public class ChainMigrationServiceTest {
     @MockBean
     private AuditingHandler jpaAuditingHandler;
     @MockBean
-    MapperInterpretatorHelper mapperInterpretatorHelper;
+    MapperInterpreterHelper mapperInterpreterHelper;
 
     @Autowired
     private List<ElementMigration> elemenMigrationList;

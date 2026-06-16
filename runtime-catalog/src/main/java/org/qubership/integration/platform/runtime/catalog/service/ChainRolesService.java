@@ -21,7 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.AbacRoleChangeException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SnapshotCreationException;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
+import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.ChainRuntimeDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.DeploymentStatus;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineDeployment;

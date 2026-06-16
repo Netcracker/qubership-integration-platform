@@ -45,7 +45,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.CONNECT_TIMEOUT;
+import static org.qubership.integration.platform.library.constants.CamelOptions.CONNECT_TIMEOUT;
 
 @Slf4j
 @Service

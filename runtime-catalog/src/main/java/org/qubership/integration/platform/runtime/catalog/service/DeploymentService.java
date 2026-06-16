@@ -27,7 +27,7 @@ import org.qubership.integration.platform.runtime.catalog.configuration.aspect.D
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
 import org.qubership.integration.platform.runtime.catalog.model.ElementRoute;
 import org.qubership.integration.platform.runtime.catalog.model.MultiConsumer;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
+import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineDeploymentsDTO;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentUpdate;

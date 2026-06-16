@@ -20,6 +20,7 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.time.DurationFormatUtils;
+import org.qubership.integration.platform.chain.model.Connection;
 import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.chain.model.Label;
 import org.qubership.integration.platform.io.factories.ChainWriterFactory;
@@ -218,8 +219,23 @@ public class SnapshotService {
                     }
 
                     @Override
+                    public Collection<Connection> getConnections() {
+                        return List.of();
+                    }
+
+                    @Override
                     public Collection<Label> getLabels() {
                         return List.of();
+                    }
+
+                    @Override
+                    public Optional<Element> getDefaultSwimlane() {
+                        return Optional.empty();
+                    }
+
+                    @Override
+                    public Optional<Element> getReuseSwimlane() {
+                        return Optional.empty();
                     }
 
                     @Override

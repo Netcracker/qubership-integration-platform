@@ -34,7 +34,7 @@ import java.sql.Timestamp;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.CONTAINER;
+import static org.qubership.integration.platform.library.constants.CamelNames.CONTAINER;
 
 
 @Component

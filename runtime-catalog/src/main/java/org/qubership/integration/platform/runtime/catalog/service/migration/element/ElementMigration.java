@@ -27,7 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.CONTAINER;
+import static org.qubership.integration.platform.library.constants.CamelNames.CONTAINER;
 import static org.qubership.integration.platform.runtime.catalog.service.migration.element.MigrationContext.REUSED_ELEMENT;
 
 /**

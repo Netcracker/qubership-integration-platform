@@ -7,8 +7,8 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.springframework.stereotype.Component;
 
 import static org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.XmlBeanConstants.*;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.JMS_SENDER_COMPONENT;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.JMS_TRIGGER_COMPONENT;
+import static org.qubership.integration.platform.library.constants.CamelNames.JMS_SENDER_COMPONENT;
+import static org.qubership.integration.platform.library.constants.CamelNames.JMS_TRIGGER_COMPONENT;
 
 @Component
 public class JmsBeansBuilder implements ElementBeansBuilder {

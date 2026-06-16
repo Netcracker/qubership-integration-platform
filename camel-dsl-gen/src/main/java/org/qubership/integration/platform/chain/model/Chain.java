@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.chain.model;
 
 import java.util.Collection;
+import java.util.Optional;
 
 public interface Chain extends Entity {
     String getBusinessDescription();
@@ -11,5 +12,11 @@ public interface Chain extends Entity {
 
     Collection<Element> getElements();
 
+    Collection<Connection> getConnections();
+
     Collection<Label> getLabels();
+
+    Optional<Element> getDefaultSwimlane();
+
+    Optional<Element> getReuseSwimlane();
 }

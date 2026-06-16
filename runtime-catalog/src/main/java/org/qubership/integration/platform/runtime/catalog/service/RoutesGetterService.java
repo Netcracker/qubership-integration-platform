@@ -2,7 +2,7 @@ package org.qubership.integration.platform.runtime.catalog.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
+import org.qubership.integration.platform.library.constants.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.RouteType;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.DeploymentRoute;
@@ -10,9 +10,9 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
-import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
-import org.qubership.integration.platform.runtime.catalog.util.HashUtils;
-import org.qubership.integration.platform.runtime.catalog.util.SimpleHttpUriUtils;
+import org.qubership.integration.platform.util.ElementUtils;
+import org.qubership.integration.platform.util.HashUtils;
+import org.qubership.integration.platform.io.util.SimpleHttpUriUtils;
 import org.qubership.integration.platform.runtime.catalog.util.TriggerUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,7 +28,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.isNull;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.*;
+import static org.qubership.integration.platform.library.constants.CamelNames.*;
 import static org.qubership.integration.platform.runtime.catalog.util.TriggerUtils.getHttpConnectionTimeout;
 
 @Slf4j

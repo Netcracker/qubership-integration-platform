@@ -20,7 +20,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.service.designgenerator.SequenceDiagramBuilder;
 import org.qubership.integration.platform.runtime.catalog.service.designgenerator.processors.interfaces.DesignProcessor;
 import org.qubership.integration.platform.runtime.catalog.util.DiagramBuilderEscapeUtil;
-import org.qubership.integration.platform.runtime.catalog.util.SimpleHttpUriUtils;
+import org.qubership.integration.platform.io.util.SimpleHttpUriUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;

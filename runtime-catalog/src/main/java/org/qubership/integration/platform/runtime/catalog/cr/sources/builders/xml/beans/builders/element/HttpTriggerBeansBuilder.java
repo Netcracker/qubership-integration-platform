@@ -7,7 +7,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.springframework.stereotype.Component;
 
-import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.HTTP_TRIGGER_ELEMENT;
+import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.HTTP_TRIGGER_ELEMENT;
 import static org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.XmlBeanConstants.*;
 
 @Component

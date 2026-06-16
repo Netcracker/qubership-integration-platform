@@ -26,7 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.library.components.LibraryElementsService;
 import org.qubership.integration.platform.library.components.LibraryResourceLoader;
 import org.qubership.integration.platform.library.configuration.DescriptorPropertiesConfiguration;
-import org.qubership.integration.platform.runtime.catalog.builder.templates.helpers.MapperInterpretatorHelper;
+import org.qubership.integration.platform.io.writers.camel.xml.templates.helpers.MapperInterpreterHelper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -63,7 +63,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mockStatic;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.CONTAINER;
+import static org.qubership.integration.platform.library.constants.CamelNames.CONTAINER;
 import static org.qubership.integration.platform.runtime.catalog.service.migration.element.MigrationContext.*;
 
 @DisplayName("Element migration")
@@ -89,7 +89,7 @@ public class ElementMigrationTest {
     private static final String NEW_TEST_TYPE = "test-element-2";
 
     @MockBean
-    MapperInterpretatorHelper mapperInterpretatorHelper;
+    MapperInterpreterHelper mapperInterpreterHelper;
 
     @Autowired
     private YAMLMapper defaultYamlMapper;

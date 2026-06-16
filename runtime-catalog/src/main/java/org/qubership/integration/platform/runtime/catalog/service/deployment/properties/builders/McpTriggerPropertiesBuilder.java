@@ -10,7 +10,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.*;
+import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.*;
 
 @Component
 public class McpTriggerPropertiesBuilder implements ElementPropertiesBuilder {

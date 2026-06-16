@@ -28,7 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.library.components.LibraryElementsService;
 import org.qubership.integration.platform.library.components.LibraryResourceLoader;
 import org.qubership.integration.platform.library.configuration.DescriptorPropertiesConfiguration;
-import org.qubership.integration.platform.runtime.catalog.builder.templates.helpers.MapperInterpretatorHelper;
+import org.qubership.integration.platform.io.writers.camel.xml.templates.helpers.MapperInterpreterHelper;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DependencyValidationException;
 import org.qubership.integration.platform.runtime.catalog.model.ChainDiff;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
@@ -42,7 +42,7 @@ import org.qubership.integration.platform.runtime.catalog.testutils.configuratio
 import org.qubership.integration.platform.runtime.catalog.testutils.dto.ChainImportDTO;
 import org.qubership.integration.platform.runtime.catalog.testutils.mapper.ChainElementsMapper;
 import org.qubership.integration.platform.runtime.catalog.testutils.mapper.ChainMapper;
-import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
+import org.qubership.integration.platform.util.ElementUtils;
 import org.qubership.integration.platform.runtime.catalog.util.OldContainerUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -129,7 +129,7 @@ public class DependencyServiceTest {
     @MockBean
     EnvironmentService environmentService;
     @MockBean
-    MapperInterpretatorHelper mapperInterpretatorHelper;
+    MapperInterpreterHelper mapperInterpreterHelper;
     @MockBean
     SystemEnvironmentsGenerator systemEnvironmentsGenerator;
     @MockBean

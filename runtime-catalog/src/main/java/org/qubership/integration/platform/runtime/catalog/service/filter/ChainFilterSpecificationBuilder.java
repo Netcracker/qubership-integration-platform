@@ -33,8 +33,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.*;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.*;
+import static org.qubership.integration.platform.library.constants.CamelNames.*;
+import static org.qubership.integration.platform.library.constants.CamelOptions.*;
 
 
 @Component

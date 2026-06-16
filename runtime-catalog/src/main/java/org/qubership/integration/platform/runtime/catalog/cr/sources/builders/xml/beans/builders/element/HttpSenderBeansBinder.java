@@ -10,9 +10,9 @@ import org.springframework.stereotype.Component;
 import java.util.Optional;
 
 import static org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.XmlBeanConstants.*;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.*;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.CONTEXT_PATH;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.OPERATION_PATH;
+import static org.qubership.integration.platform.library.constants.CamelNames.*;
+import static org.qubership.integration.platform.library.constants.CamelOptions.CONTEXT_PATH;
+import static org.qubership.integration.platform.library.constants.CamelOptions.OPERATION_PATH;
 
 @Component
 public class HttpSenderBeansBinder implements ElementBeansBuilder {

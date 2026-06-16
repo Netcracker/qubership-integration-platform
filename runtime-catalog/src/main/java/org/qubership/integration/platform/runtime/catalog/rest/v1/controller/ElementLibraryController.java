@@ -32,7 +32,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.CONTAINER;
+import static org.qubership.integration.platform.library.constants.CamelNames.CONTAINER;
 
 @Slf4j
 @RestController

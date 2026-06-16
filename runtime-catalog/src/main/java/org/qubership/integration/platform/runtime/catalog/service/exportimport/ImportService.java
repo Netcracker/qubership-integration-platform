@@ -74,8 +74,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import static java.util.Objects.nonNull;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.CONTEXT_SYSTEM_ID;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.SYSTEM_ID;
+import static org.qubership.integration.platform.library.constants.CamelOptions.CONTEXT_SYSTEM_ID;
+import static org.qubership.integration.platform.library.constants.CamelOptions.SYSTEM_ID;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
 
 

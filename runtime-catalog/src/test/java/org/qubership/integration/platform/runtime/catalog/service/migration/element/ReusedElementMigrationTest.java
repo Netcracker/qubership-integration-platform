@@ -33,7 +33,7 @@ import org.qubership.integration.platform.library.components.LibraryElementsServ
 import org.qubership.integration.platform.library.components.LibraryResourceLoader;
 import org.qubership.integration.platform.library.configuration.DescriptorPropertiesConfiguration;
 import org.qubership.integration.platform.library.model.ElementDescriptor;
-import org.qubership.integration.platform.runtime.catalog.builder.templates.helpers.MapperInterpretatorHelper;
+import org.qubership.integration.platform.io.writers.camel.xml.templates.helpers.MapperInterpreterHelper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -90,7 +90,7 @@ public class ReusedElementMigrationTest {
     private static MockedStatic<UUID> mockedUUID;
 
     @MockBean
-    MapperInterpretatorHelper mapperInterpretatorHelper;
+    MapperInterpreterHelper mapperInterpreterHelper;
 
     @Autowired
     private YAMLMapper defaultYamlMapper;

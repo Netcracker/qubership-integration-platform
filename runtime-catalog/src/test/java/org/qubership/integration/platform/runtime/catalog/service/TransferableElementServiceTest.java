@@ -32,12 +32,12 @@ import org.qubership.integration.platform.library.components.LibraryElementsServ
 import org.qubership.integration.platform.library.components.LibraryResourceLoader;
 import org.qubership.integration.platform.library.configuration.DescriptorPropertiesConfiguration;
 import org.qubership.integration.platform.library.model.ElementDescriptor;
-import org.qubership.integration.platform.runtime.catalog.builder.templates.helpers.MapperInterpretatorHelper;
+import org.qubership.integration.platform.io.writers.camel.xml.templates.helpers.MapperInterpreterHelper;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementCreationException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementTransferException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementValidationException;
 import org.qubership.integration.platform.runtime.catalog.model.ChainDiff;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
+import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -51,7 +51,7 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.Tr
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.qubership.integration.platform.runtime.catalog.testutils.TestElementUtils;
 import org.qubership.integration.platform.runtime.catalog.testutils.configuration.TestConfig;
-import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
+import org.qubership.integration.platform.util.ElementUtils;
 import org.qubership.integration.platform.runtime.catalog.util.OldContainerUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -114,7 +114,7 @@ public class TransferableElementServiceTest {
     @MockBean
     EnvironmentService environmentService;
     @MockBean
-    MapperInterpretatorHelper mapperInterpretatorHelper;
+    MapperInterpreterHelper mapperInterpreterHelper;
     @MockBean
     SystemEnvironmentsGenerator systemEnvironmentsGenerator;
     @MockBean
