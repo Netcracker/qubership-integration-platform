@@ -111,14 +111,9 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
             getSchemaNodeProperties(componentsNode, result, schemaNode.get(ANY_OF), modelType, refList);
             getSchemaNodeProperties(componentsNode, result, schemaNode.get(ONE_OF), modelType, refList);
         } else if (schemaNode.has(ITEMS_FIELD_NAME)) {
-            JsonNode itemsNode = schemaNode.get(ITEMS_FIELD_NAME);
-            if (itemsNode.has(REF_FIELD_NAME)) {
-                String refKey = getNewRef(itemsNode.get(REF_FIELD_NAME).asText());
-                JsonNode newRefNode = new TextNode(refKey);
-                schemaNode.replace(REF_FIELD_NAME, newRefNode);
-                getSchemaNodeProperties(componentsNode, result, schemaNode, modelType, refList);
-                result.put(refKey.replace(DEFINITIONS_PREFIX, EMPTY_STRING_REPLACEMENT), schemaNode);
-            }
+            // Top-level array: resolve refs under `items`, inlining each referenced component and
+            // rewriting its $ref to #/definitions/... while the array node stays a plain array.
+            getSchemaNodeProperties(componentsNode, result, schemaNode, modelType, refList);
         } else if (schemaNode.has(REF_FIELD_NAME)) {
             String refKey = getNewRef(schemaNode.get(REF_FIELD_NAME).asText());
             JsonNode newRefNode = new TextNode(refKey);
@@ -149,7 +144,10 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
     }
 
     private Map<String, ObjectNode> getRefs(ObjectNode property, JsonNode componentsNode, String modelType) {
-        ObjectNode iterableProperties = property.has(ITEMS_FIELD_NAME) ? (ObjectNode) property.get(ITEMS_FIELD_NAME) : property;
+        // JSON Schema 2020-12 (OpenAPI 3.1) allows boolean schemas such as `items: false`;
+        // they carry no $ref, so treat non-object positions as having nothing to resolve.
+        ObjectNode iterableProperties = property.has(ITEMS_FIELD_NAME) && property.get(ITEMS_FIELD_NAME).isObject()
+                ? (ObjectNode) property.get(ITEMS_FIELD_NAME) : property;
         Map<String, ObjectNode> iterablePropertiesRefs = getIterablePropertyRefs(iterableProperties, componentsNode, modelType);
         if (iterablePropertiesRefs != null) {
             return iterablePropertiesRefs;
@@ -165,7 +163,7 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
             JsonNode newRefNode = new TextNode(refKeyNew);
             property.replace(REF_FIELD_NAME, newRefNode);
         }
-        if (property.has(ITEMS_FIELD_NAME)) {
+        if (property.has(ITEMS_FIELD_NAME) && property.get(ITEMS_FIELD_NAME).isObject()) {
             ObjectNode items = (ObjectNode) property.get(ITEMS_FIELD_NAME);
             if (items.has(REF_FIELD_NAME)) {
                 refKey = items.get(REF_FIELD_NAME).asText();
@@ -178,7 +176,7 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
         }
         if (!refKey.equals(refKeyNew)) {
             JsonNode componentJsonNode = componentsNode.at(refKey);
-            if (componentJsonNode.isMissingNode()) {
+            if (!componentJsonNode.isObject()) {
                 componentJsonNode = OBJECT_MAPPER.createObjectNode();
             }
             ObjectNode componentNode = (ObjectNode) componentJsonNode;
@@ -211,8 +209,10 @@ public abstract class CommonSchemaResolver implements SchemaResolver {
             JsonNode nestedProperties = property.get(fieldName);
             Iterator<JsonNode> propertiesIterator = nestedProperties.elements();
             while (propertiesIterator.hasNext()) {
-                ObjectNode nestedProperty = (ObjectNode) propertiesIterator.next();
-                result.putAll(getRefs(nestedProperty, componentsNode, modelType));
+                JsonNode nestedProperty = propertiesIterator.next();
+                if (nestedProperty.isObject()) {
+                    result.putAll(getRefs((ObjectNode) nestedProperty, componentsNode, modelType));
+                }
             }
             return result;
         }

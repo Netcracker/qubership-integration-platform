@@ -46,13 +46,13 @@ public class FileSchemaProcessor extends DefaultSchemaProcessor implements Schem
     }
 
     @Override
-    public MutablePair<String, String> process(Schema<?> schema) {
+    public MutablePair<String, String> process(Schema<?> schema, ObjectMapper mapper) {
         FileSchema fileSchema = (FileSchema) schema;
-        ObjectNode schemaAsNode = objectMapper.convertValue(fileSchema, ObjectNode.class);
+        ObjectNode schemaAsNode = mapper.convertValue(fileSchema, ObjectNode.class);
         schemaAsNode.set(TYPE_NODE_NAME, STRING_TYPE_NODE);
         schemaAsNode.set(FORMAT_NODE_NAME, BINARY_TYPE_NODE);
         try {
-            String schemaAsString = objectMapper.writeValueAsString(schemaAsNode);
+            String schemaAsString = mapper.writeValueAsString(schemaAsNode);
             return new MutablePair<>(fileSchema.get$ref(), schemaAsString);
         } catch (JsonProcessingException e) {
             log.error("Error during converting content string schema to JSON", e);
