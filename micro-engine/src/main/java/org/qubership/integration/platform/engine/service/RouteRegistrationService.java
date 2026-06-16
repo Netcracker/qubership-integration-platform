@@ -19,7 +19,7 @@ import java.util.List;
 import static java.util.Objects.nonNull;
 
 @ApplicationScoped
-@IfBuildProperty(name = "qip.control-plane.enabled", stringValue = "true")
+@IfBuildProperty(name = "qip.control-plane.routes.registration.enabled", stringValue = "true", enableIfMissing = true)
 public class RouteRegistrationService {
     private final VariablesService variablesService;
     private final ControlPlaneService controlPlaneService;
