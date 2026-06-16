@@ -17,8 +17,8 @@
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties.builders;
 
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
+import org.qubership.integration.platform.library.constants.CamelNames;
+import org.qubership.integration.platform.library.constants.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.model.constant.ConnectionSourceType;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;

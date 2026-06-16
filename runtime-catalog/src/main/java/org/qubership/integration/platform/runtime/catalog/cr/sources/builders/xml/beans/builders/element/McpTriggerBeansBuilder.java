@@ -10,7 +10,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.MCP_TRIGGER_ELEMENT;
+import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.MCP_TRIGGER_ELEMENT;
 
 @Component
 public class McpTriggerBeansBuilder implements ElementBeansBuilder {

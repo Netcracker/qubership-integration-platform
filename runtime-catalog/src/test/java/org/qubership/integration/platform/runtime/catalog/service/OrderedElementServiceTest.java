@@ -28,12 +28,12 @@ import org.qubership.integration.platform.library.components.LibraryElementsServ
 import org.qubership.integration.platform.library.components.LibraryResourceLoader;
 import org.qubership.integration.platform.library.configuration.DescriptorPropertiesConfiguration;
 import org.qubership.integration.platform.library.model.ElementDescriptor;
-import org.qubership.integration.platform.runtime.catalog.builder.templates.helpers.MapperInterpretatorHelper;
+import org.qubership.integration.platform.io.writers.camel.xml.templates.helpers.MapperInterpreterHelper;
 import org.qubership.integration.platform.runtime.catalog.model.ChainDiff;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.runtime.catalog.testutils.configuration.TestConfig;
-import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
+import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ContextConfiguration;
@@ -76,7 +76,7 @@ public class OrderedElementServiceTest {
     private OrderedElementService orderedElementService;
 
     @MockBean
-    MapperInterpretatorHelper mapperInterpretatorHelper;
+    MapperInterpreterHelper mapperInterpreterHelper;
 
     private ContainerChainElement parentElement;
     private Map<String, ChainElement> elements;

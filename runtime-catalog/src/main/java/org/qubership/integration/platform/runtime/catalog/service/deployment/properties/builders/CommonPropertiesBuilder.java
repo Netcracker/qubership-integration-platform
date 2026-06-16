@@ -25,7 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.*;
+import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.*;
 
 @Component
 public class CommonPropertiesBuilder implements ElementPropertiesBuilder {

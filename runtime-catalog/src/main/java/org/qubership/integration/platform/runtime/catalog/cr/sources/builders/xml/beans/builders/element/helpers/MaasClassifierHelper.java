@@ -1,9 +1,9 @@
 package org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.builders.element.helpers;
 
 import org.codehaus.stax2.XMLStreamWriter2;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
-import org.qubership.integration.platform.runtime.catalog.model.constant.ConnectionSourceType;
-import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
+import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
+import org.qubership.integration.platform.library.constants.CamelOptions;
+import org.qubership.integration.platform.library.constants.ConnectionSourceType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
@@ -14,10 +14,10 @@ import java.util.Map;
 import java.util.Optional;
 import javax.xml.stream.XMLStreamException;
 
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.MAAS_CLASSIFIER_NAME_PROP;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.OPERATION_ASYNC_PROPERTIES;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.DEFAULT_VHOST_CLASSIFIER_NAME;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.SYSTEM_ID;
+import static org.qubership.integration.platform.library.constants.CamelNames.MAAS_CLASSIFIER_NAME_PROP;
+import static org.qubership.integration.platform.library.constants.CamelNames.OPERATION_ASYNC_PROPERTIES;
+import static org.qubership.integration.platform.library.constants.CamelOptions.DEFAULT_VHOST_CLASSIFIER_NAME;
+import static org.qubership.integration.platform.library.constants.CamelOptions.SYSTEM_ID;
 
 @Component
 public class MaasClassifierHelper {

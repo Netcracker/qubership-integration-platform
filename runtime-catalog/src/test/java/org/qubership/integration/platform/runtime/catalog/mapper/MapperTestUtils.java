@@ -24,7 +24,7 @@ import io.atlasmap.api.AtlasSession;
 import io.atlasmap.core.DefaultAtlasContextFactory;
 import io.atlasmap.v2.AtlasMapping;
 import org.apache.commons.text.StringEscapeUtils;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.MappingDescription;
+import org.qubership.integration.platform.mapper.model.mapping.MappingDescription;
 
 import java.io.File;
 import java.io.IOException;

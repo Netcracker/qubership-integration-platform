@@ -4,8 +4,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.codehaus.stax2.XMLStreamWriter2;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.SourceBuilderContext;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.ElementBeansBuilder;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
+import org.qubership.integration.platform.library.constants.CamelNames;
+import org.qubership.integration.platform.library.constants.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
@@ -15,7 +15,7 @@ import org.qubership.integration.platform.runtime.catalog.service.SystemService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.*;
+import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.*;
 
 @Component
 public class ServiceCallBeansBuilder implements ElementBeansBuilder {
