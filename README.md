@@ -89,7 +89,7 @@ npm -w @netcracker/qip-vscode-extension run build     # builds schemas -> UI lib
 
 Then open the `vscode-extension/` directory in VS Code and press **F5** to launch the extension in debug mode.
 
-Alternatively, run in a browser:
+Alternatively, please run in a browser:
 
 ```bash
 npm -w @netcracker/qip-vscode-extension run run-in-browser
