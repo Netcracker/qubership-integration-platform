@@ -2,14 +2,14 @@ package org.qubership.integration.platform.runtime.catalog.cr.sources.builders.x
 
 import com.ctc.wstx.stax.WstxOutputFactory;
 import org.codehaus.stax2.XMLStreamWriter2;
-import org.qubership.integration.platform.runtime.catalog.builder.ChainRouteBuilder;
-import org.qubership.integration.platform.runtime.catalog.builder.XmlBuilder;
+import org.qubership.integration.platform.io.writers.camel.xml.ChainRouteBuilder;
+import org.qubership.integration.platform.io.writers.camel.xml.XmlBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.IntegrationSourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.SourceBuilderContext;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.ElementBeansBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.ElementBeansBuilderFactory;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.SnapshotBeanBuilder;
-import org.qubership.integration.platform.runtime.catalog.model.ChainRoute;
+import org.qubership.integration.platform.io.writers.camel.xml.model.ChainRoute;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.springframework.beans.factory.annotation.Autowired;

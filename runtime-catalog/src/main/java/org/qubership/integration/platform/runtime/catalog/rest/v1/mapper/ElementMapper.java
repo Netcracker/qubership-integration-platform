@@ -26,10 +26,9 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.El
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.ElementWithChainNameResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.ElementsCodeDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.PatchElementRequest;
-import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
+import org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers.MandatoryPropertyVerificationHelper;
 import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 import org.qubership.integration.platform.runtime.catalog.util.StringTrimmer;
-import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 import java.util.Map;
@@ -44,9 +43,11 @@ import java.util.stream.Collectors;
                 StringTrimmer.class
         })
 public abstract class ElementMapper {
+    private final MandatoryPropertyVerificationHelper mandatoryPropertyVerificationHelper;
 
-    @Autowired
-    private ElementUtils elementUtils;
+    public ElementMapper(MandatoryPropertyVerificationHelper mandatoryPropertyVerificationHelper) {
+        this.mandatoryPropertyVerificationHelper = mandatoryPropertyVerificationHelper;
+    }
 
     @Mapping(source = "parent.id", target = "parentElementId")
     @Mapping(source = "chain.id", target = "chainId")
@@ -80,8 +81,8 @@ public abstract class ElementMapper {
         } else {
             return null;
         }
-        response.setMandatoryChecksPassed(elementUtils.areMandatoryPropertiesPresent(element)
-                && elementUtils.isMandatoryInnerElementPresent(element));
+        response.setMandatoryChecksPassed(mandatoryPropertyVerificationHelper.areMandatoryPropertiesPresent(element)
+                && mandatoryPropertyVerificationHelper.isMandatoryInnerElementPresent(element));
         return response;
     }
 

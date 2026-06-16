@@ -25,7 +25,7 @@ import org.qubership.integration.platform.runtime.catalog.service.SystemService;
 import org.qubership.integration.platform.runtime.catalog.service.designgenerator.SequenceDiagramBuilder;
 import org.qubership.integration.platform.runtime.catalog.service.designgenerator.processors.interfaces.DesignProcessor;
 import org.qubership.integration.platform.runtime.catalog.util.DiagramBuilderEscapeUtil;
-import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
+import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -35,8 +35,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.LINE_WITH_ARROW_SOLID_RIGHT;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.*;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.*;
+import static org.qubership.integration.platform.library.constants.CamelNames.*;
+import static org.qubership.integration.platform.library.constants.CamelOptions.*;
 import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramConstants.EMPTY_PROPERTY_STUB;
 
 

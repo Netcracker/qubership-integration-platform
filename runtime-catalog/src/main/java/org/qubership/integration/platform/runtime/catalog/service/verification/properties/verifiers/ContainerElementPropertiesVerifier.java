@@ -22,7 +22,6 @@ import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.ElementPropertiesVerifier;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
-import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -32,15 +31,18 @@ import java.util.Optional;
 
 @Component
 public class ContainerElementPropertiesVerifier implements ElementPropertiesVerifier {
-
-    private final LibraryElementsService libraryService;
-    private final ElementUtils elementUtils;
     private static final String INNER_ELEMENT_NOT_FOUND_MESSAGE_FORMAT = "Container element '%s' must not be empty.";
 
+    private final LibraryElementsService libraryService;
+    private final MandatoryPropertyVerificationHelper mandatoryPropertyVerificationHelper;
+
     @Autowired
-    public ContainerElementPropertiesVerifier(LibraryElementsService libraryService, ElementUtils elementUtils) {
+    public ContainerElementPropertiesVerifier(
+        LibraryElementsService libraryService,
+        MandatoryPropertyVerificationHelper mandatoryPropertyVerificationHelper
+    ) {
         this.libraryService = libraryService;
-        this.elementUtils = elementUtils;
+        this.mandatoryPropertyVerificationHelper = mandatoryPropertyVerificationHelper;
     }
 
     @Override
@@ -51,7 +53,7 @@ public class ContainerElementPropertiesVerifier implements ElementPropertiesVeri
     @Override
     public Collection<VerificationError> verify(ChainElement element) {
         Collection<VerificationError> verificationErrors = new ArrayList<>();
-        if (!elementUtils.isMandatoryInnerElementPresent(element)) {
+        if (!mandatoryPropertyVerificationHelper.isMandatoryInnerElementPresent(element)) {
             verificationErrors.add(
                     new VerificationError(String.format(
                             INNER_ELEMENT_NOT_FOUND_MESSAGE_FORMAT,

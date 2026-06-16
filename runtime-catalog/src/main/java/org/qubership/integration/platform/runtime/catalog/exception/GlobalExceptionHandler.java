@@ -23,6 +23,7 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.postgresql.util.PSQLException;
 import org.postgresql.util.ServerErrorMessage;
+import org.qubership.integration.platform.io.writers.camel.xml.templates.TemplateInstantiationException;
 import org.qubership.integration.platform.runtime.catalog.consul.exception.ConsulException;
 import org.qubership.integration.platform.runtime.catalog.consul.exception.TxnConflictException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.*;
@@ -66,7 +67,7 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final String NO_STACKTRACE_AVAILABLE_MESSAGE = "No Stacktrace Available, check the logs for more details";
     private static final String GENERIC_DATA_INTEGRITY_ERROR_MESSAGE =
-            "Invalid request content. One or more fields violate data constraints.";
+        "Invalid request content. One or more fields violate data constraints.";
 
     @ExceptionHandler
     public ResponseEntity<ExceptionDTO> handleGeneralException(Exception exception) {
@@ -96,12 +97,23 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(SnapshotCreationException.class)
     public ResponseEntity<ExceptionDTO> handleSnapshotCreationException(SnapshotCreationException exception) {
         Map<String, Object> details = StringUtils.isBlank(exception.getElementId())
-                ? null
-                : Map.of(
-                "chainId", exception.getChainId(),
-                "elementId", exception.getElementId(),
-                "elementName", exception.getElementName()
+            ? null
+            : Map.of(
+            "chainId", exception.getChainId(),
+            "elementId", exception.getElementId(),
+            "elementName", exception.getElementName()
         );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(getExceptionDTO(exception, details));
+    }
+
+    @ExceptionHandler(TemplateInstantiationException.class)
+    public ResponseEntity<ExceptionDTO> handleTemplateInstantiationException(TemplateInstantiationException exception) {
+        Map<String, Object> details = exception.getElement().map(element -> Map.<String, Object>of(
+                "chainId", element.getChain().getId(),
+                "elementId", element.getOriginalId().orElse(element.getId()),
+                "elementName", element.getName()
+            ))
+            .orElse(null);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(getExceptionDTO(exception, details));
     }
 
@@ -163,12 +175,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ExceptionDTO> handleConstraintViolationException(ConstraintViolationException exception) {
         String errorMessage = exception.getConstraintViolations().stream()
-                .map(violation -> violation.getPropertyPath().toString() + " " + violation.getMessage())
-                .collect(Collectors.joining(", ", "Invalid request content: [", "]"));
+            .map(violation -> violation.getPropertyPath().toString() + " " + violation.getMessage())
+            .collect(Collectors.joining(", ", "Invalid request content: [", "]"));
         ExceptionDTO exceptionDTO = ExceptionDTO.builder()
-                .errorMessage(errorMessage)
-                .errorDate(new Timestamp(System.currentTimeMillis()).toString())
-                .build();
+            .errorMessage(errorMessage)
+            .errorDate(new Timestamp(System.currentTimeMillis()).toString())
+            .build();
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(exceptionDTO);
     }
 
@@ -252,12 +264,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         if (exception.getCause() instanceof org.hibernate.exception.ConstraintViolationException constraintException) {
             if (ImportInstructionsService.UNIQUE_OVERRIDE_DB_CONSTRAINT_NAME.equals(constraintException.getConstraintName())) {
                 return handleImportInstructionsExternalException(new ImportInstructionsValidationException(
-                        extractConstraintMessage(constraintException)
+                    extractConstraintMessage(constraintException)
                 ));
             }
             if (ImportInstructionsService.OVERRIDE_ACTION_DB_CONSTRAINT_NAME.equals(constraintException.getConstraintName())) {
                 return handleImportInstructionsExternalException(new ImportInstructionsValidationException(
-                        "Overridden By must not be specified for instruction with non OVERRIDE action"
+                    "Overridden By must not be specified for instruction with non OVERRIDE action"
                 ));
             }
         }
@@ -296,19 +308,19 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
-            MethodArgumentNotValidException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        MethodArgumentNotValidException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
         String errorMessage = ex.getBindingResult().getAllErrors().stream()
-                .map(error -> {
-                    if (error instanceof FieldError fieldError) {
-                        return fieldError.getField() + " " + fieldError.getDefaultMessage();
-                    }
-                    return error.getDefaultMessage();
-                })
-                .collect(Collectors.joining(", ", "Invalid request content: [", "]"));
+            .map(error -> {
+                if (error instanceof FieldError fieldError) {
+                    return fieldError.getField() + " " + fieldError.getDefaultMessage();
+                }
+                return error.getDefaultMessage();
+            })
+            .collect(Collectors.joining(", ", "Invalid request content: [", "]"));
         ExceptionDTO exceptionDTO = ExceptionDTO.builder()
-                .errorMessage(errorMessage)
-                .errorDate(new Timestamp(System.currentTimeMillis()).toString())
-                .build();
+            .errorMessage(errorMessage)
+            .errorDate(new Timestamp(System.currentTimeMillis()).toString())
+            .build();
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(exceptionDTO);
     }
 
@@ -318,19 +330,19 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private ExceptionDTO getExceptionDTO(Exception exception, Map<String, Object> details) {
         return ExceptionDTO
-                .builder()
-                .errorMessage(exception.getMessage())
-                .errorDate(new Timestamp(System.currentTimeMillis()).toString())
-                .details(details)
-                .build();
+            .builder()
+            .errorMessage(exception.getMessage())
+            .errorDate(new Timestamp(System.currentTimeMillis()).toString())
+            .details(details)
+            .build();
     }
 
     private ResponseEntity<ExceptionDTO> sanitizedBadRequestResponse(String message, Exception exception) {
         log.warn("Request rejected: {}", message, exception);
         ExceptionDTO exceptionDTO = ExceptionDTO.builder()
-                .errorMessage(message)
-                .errorDate(new Timestamp(System.currentTimeMillis()).toString())
-                .build();
+            .errorMessage(message)
+            .errorDate(new Timestamp(System.currentTimeMillis()).toString())
+            .build();
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(exceptionDTO);
     }
 
@@ -342,7 +354,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             serverErrorMessage = Optional.ofNullable(psqlException.getServerErrorMessage());
         }
         return serverErrorMessage
-                .map(errorMessage -> errorMessage.getDetail() + " already overrides or overridden by another chain")
-                .orElse("Instruction for the chain already exist");
+            .map(errorMessage -> errorMessage.getDetail() + " already overrides or overridden by another chain")
+            .orElse("Instruction for the chain already exist");
     }
 }

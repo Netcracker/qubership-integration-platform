@@ -9,8 +9,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.JMS_SENDER_ELEMENT;
-import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.JMS_TRIGGER_ELEMENT;
+import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.JMS_SENDER_ELEMENT;
+import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.JMS_TRIGGER_ELEMENT;
 
 @Component
 public class JmsElementPropertiesBuilder implements ElementPropertiesBuilder {

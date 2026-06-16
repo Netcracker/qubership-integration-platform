@@ -23,7 +23,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 
 @TestConfiguration
-@ComponentScan(basePackages = "org.qubership.integration.platform.runtime.catalog.builder.templates.helpers")
+@ComponentScan(basePackages = "org.qubership.integration.platform.io.writers.camel.xml.templates.helpers")
 public class TestConfig {
 
     @Bean("defaultYamlMapper")

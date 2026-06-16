@@ -7,7 +7,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.springframework.stereotype.Component;
 
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.*;
+import static org.qubership.integration.platform.library.constants.CamelNames.*;
 
 @Component
 public class GrpcBeansBuilder implements ElementBeansBuilder {
