@@ -1,0 +1,18 @@
+.wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Reserve room for the badge so it is not clipped by overflow:hidden parents */
+  padding-top: 6px;
+  padding-right: 6px;
+  margin-top: -6px;
+  margin-right: -6px;
+}
+
+.wrapper :global(.ant-badge-count) {
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  border-radius: 9px;
+  box-shadow: 0 0 0 1px var(--vscode-editor-background, #fff);
+}

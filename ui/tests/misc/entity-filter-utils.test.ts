@@ -1,3 +1,8 @@
+jest.mock("../../src/api/rest/vscodeExtensionApi", () => ({
+  isVsCode: false,
+  VSCodeExtensionApi: class MockedVSCode {},
+}));
+
 import { Element } from "../../src/api/apiTypes";
 import { EntityFilterModel } from "../../src/components/table/filter/filterTypes";
 import { applyEntityFiltersToElements } from "../../src/misc/entity-filter-utils";
@@ -28,27 +33,27 @@ describe("applyEntityFiltersToElements", () => {
     expect(applyEntityFiltersToElements(elements, [])).toEqual(elements);
   });
 
-  it("filters elements by NAME CONTAINS condition", () => {
+  it("filters elements by ELEMENT_NAME CONTAINS condition", () => {
     const filters: EntityFilterModel[] = [
-      { column: "NAME", condition: "CONTAINS", value: "script" },
+      { column: "ELEMENT_NAME", condition: "CONTAINS", value: "script" },
     ];
     expect(applyEntityFiltersToElements(elements, filters)).toEqual([
       elements[1],
     ]);
   });
 
-  it("filters elements by ELEMENT IN condition", () => {
+  it("filters elements by ELEMENT_TYPE IN condition", () => {
     const filters: EntityFilterModel[] = [
-      { column: "ELEMENT", condition: "IN", value: "http-trigger" },
+      { column: "ELEMENT_TYPE", condition: "IN", value: "http-trigger" },
     ];
     expect(applyEntityFiltersToElements(elements, filters)).toEqual([
       elements[0],
     ]);
   });
 
-  it("filters elements by ID IS condition", () => {
+  it("filters elements by ELEMENT_NAME IS condition", () => {
     const filters: EntityFilterModel[] = [
-      { column: "ID", condition: "IS", value: "el-2" },
+      { column: "ELEMENT_NAME", condition: "IS", value: "My Script" },
     ];
     expect(applyEntityFiltersToElements(elements, filters)).toEqual([
       elements[1],
