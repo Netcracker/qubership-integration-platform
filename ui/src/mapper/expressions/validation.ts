@@ -1,5 +1,5 @@
 import { AttributeDetail } from "../util/schema.ts";
-import { Constant } from "../model/model.ts";
+import { Constant, MessageSchema } from "../model/model.ts";
 import { parse } from "./parser.ts";
 import { LocationRange } from "pegjs";
 import {
@@ -8,7 +8,7 @@ import {
   ReferenceNode,
 } from "./model.ts";
 import { MappingActions } from "../actions-text/util.ts";
-import { processReferences } from "./references.ts";
+import { getExpressionPathNames, processReferences } from "./references.ts";
 import { isParseError } from "../actions-text/parser.ts";
 
 export type TransformationValidationCallback = (
@@ -16,10 +16,28 @@ export type TransformationValidationCallback = (
   message: string,
 ) => void;
 
+function pathsMatch(
+  attribute: AttributeDetail,
+  expressionPath: string[],
+  sourceSchema?: MessageSchema,
+): boolean {
+  const expected = getExpressionPathNames(
+    attribute.kind,
+    attribute.path,
+    sourceSchema,
+  );
+  const normalized = expressionPath.map((s) => (s === "_" ? "" : s));
+  return (
+    expected.length === normalized.length &&
+    expected.every((name, i) => name === normalized[i])
+  );
+}
+
 export function referenceIsValid(
   node: ReferenceNode,
   attributes: AttributeDetail[],
   constants: Constant[],
+  sourceSchema?: MessageSchema,
 ): boolean {
   return node.kind === "constant"
     ? constants.some(
@@ -28,10 +46,10 @@ export function referenceIsValid(
     : attributes.some(
         (attribute) =>
           attribute.kind === node.kind &&
-          attribute.path.length ===
-            (node as AttributeReferenceNode).path.length &&
-          attribute.path.every(
-            (a, i) => a.name === (node as AttributeReferenceNode).path[i],
+          pathsMatch(
+            attribute,
+            (node as AttributeReferenceNode).path,
+            sourceSchema,
           ),
       );
 }
@@ -41,8 +59,9 @@ export function validateReference(
   attributes: AttributeDetail[],
   constants: Constant[],
   callback: TransformationValidationCallback,
+  sourceSchema?: MessageSchema,
 ) {
-  if (!referenceIsValid(node, attributes, constants)) {
+  if (!referenceIsValid(node, attributes, constants, sourceSchema)) {
     const message = `Unknown ${node.kind === "body" ? "attribute" : node.kind}: ${MappingActions.escapePath(
       node.kind === "constant"
         ? [(node as ConstantReferenceNode).name]
@@ -57,11 +76,18 @@ export function validateExpression(
   attributes: AttributeDetail[],
   constants: Constant[],
   callback: TransformationValidationCallback,
+  sourceSchema?: MessageSchema,
 ): void {
   try {
     const expression = parse(text);
     processReferences(expression, (node) =>
-      validateReference(node, attributes, constants, callback),
+      validateReference(
+        node,
+        attributes,
+        constants,
+        callback,
+        sourceSchema,
+      ),
     );
   } catch (exception) {
     if (isParseError(exception)) {

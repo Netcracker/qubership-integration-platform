@@ -42,6 +42,7 @@ export class TransformationExpressionVerifier extends Verifier<TransformationPar
       attributes,
       constants,
       (_location, message) => errors.push({ message }),
+      entity.mapping.source,
     );
     return errors;
   }
