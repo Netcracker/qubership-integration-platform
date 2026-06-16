@@ -181,21 +181,25 @@ describe("SecuredVariables Component", () => {
     // Default successful API responses
     mockApi.getSecuredVariables.mockResolvedValue({
       success: true,
-      data: [
-        {
-          secretName: "default-secret",
-          variables: [
-            { key: "DB_PASSWORD", value: "secret123" },
-            { key: "API_KEY", value: "key456" },
-          ],
-          isDefaultSecret: true,
-        },
-        {
-          secretName: "app-secret",
-          variables: [{ key: "TOKEN", value: "token789" }],
-          isDefaultSecret: false,
-        },
-      ],
+      data: {
+        secrets: [
+          {
+            secretName: "default-secret",
+            variables: [
+              { key: "DB_PASSWORD", value: "secret123" },
+              { key: "API_KEY", value: "key456" },
+            ],
+            isDefaultSecret: true,
+          },
+          {
+            secretName: "app-secret",
+            variables: [{ key: "TOKEN", value: "token789" }],
+            isDefaultSecret: false,
+          },
+        ],
+        defaultSecretEnabled: true,
+        defaultSecretExistsInEnv: true,
+      },
     });
 
     mockApi.getSecuredVariablesForSecret.mockResolvedValue({
@@ -237,6 +241,64 @@ describe("SecuredVariables Component", () => {
       await screen.findByText("default-secret");
       await screen.findByText("app-secret");
       expect(mockApi.getSecuredVariables).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows deprecation banner when default secret is enabled", async () => {
+      render(<SecuredVariables />);
+
+      await screen.findByText(
+        "Default secured secret is deprecated. Migrate variables to named secrets.",
+      );
+    });
+
+    it("shows deprecation banner when default secret exists but flag is disabled", async () => {
+      mockApi.getSecuredVariables.mockResolvedValueOnce({
+        success: true,
+        data: {
+          secrets: [
+            {
+              secretName: "app-secret",
+              variables: [{ key: "TOKEN", value: "token789" }],
+              isDefaultSecret: false,
+            },
+          ],
+          defaultSecretEnabled: false,
+          defaultSecretExistsInEnv: true,
+        },
+      });
+
+      render(<SecuredVariables />);
+
+      await screen.findByText(
+        "Default secured secret is disabled but still present in this environment. Migrate variables to named secrets.",
+      );
+    });
+
+    it("does not show deprecation banner when default secret is disabled and absent", async () => {
+      mockApi.getSecuredVariables.mockResolvedValueOnce({
+        success: true,
+        data: {
+          secrets: [
+            {
+              secretName: "app-secret",
+              variables: [{ key: "TOKEN", value: "token789" }],
+              isDefaultSecret: false,
+            },
+          ],
+          defaultSecretEnabled: false,
+          defaultSecretExistsInEnv: false,
+        },
+      });
+
+      render(<SecuredVariables />);
+
+      await screen.findByText("app-secret");
+      expect(
+        screen.queryByText(/Default secured secret is deprecated/),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/Default secured secret is disabled but still present/),
+      ).not.toBeInTheDocument();
     });
 
     it('marks the default secret with a "default" tag', async () => {

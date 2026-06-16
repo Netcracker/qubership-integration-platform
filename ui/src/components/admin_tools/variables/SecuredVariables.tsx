@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
+  Alert,
   Button,
   Input,
   Form,
@@ -44,6 +45,8 @@ export const SecuredVariables: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [secrets, setSecrets] = useState<string[]>([]);
   const [defaultSecret, setDefaultSecret] = useState<string>("");
+  const [defaultSecretEnabled, setDefaultSecretEnabled] = useState(false);
+  const [defaultSecretExistsInEnv, setDefaultSecretExistsInEnv] = useState(false);
   const [variables, setVariables] = useState<Record<string, Variable[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [editing, setEditing] = useState<{
@@ -76,6 +79,18 @@ export const SecuredVariables: React.FC = () => {
     [canAddVariableToSecret],
   );
 
+  const showDefaultSecretDeprecationBanner = useMemo(
+    () => defaultSecretEnabled || defaultSecretExistsInEnv,
+    [defaultSecretEnabled, defaultSecretExistsInEnv],
+  );
+
+  const defaultSecretDeprecationBannerMessage = useMemo(() => {
+    if (defaultSecretEnabled) {
+      return "Default secured secret is deprecated. Migrate variables to named secrets.";
+    }
+    return "Default secured secret is disabled but still present in this environment. Migrate variables to named secrets.";
+  }, [defaultSecretEnabled]);
+
   const refreshSecretVariables = useCallback(
     async (secret: string): Promise<boolean> => {
       const response = await api.getSecuredVariablesForSecret(secret);
@@ -107,7 +122,15 @@ export const SecuredVariables: React.FC = () => {
       const response = await api.getSecuredVariables();
 
       if (response.success && response.data) {
-        const secretsWithVariables: SecretWithVariables[] = response.data;
+        const {
+          secrets: secretsWithVariables,
+          defaultSecretEnabled: isDefaultSecretEnabled,
+          defaultSecretExistsInEnv: isDefaultSecretPresentInEnv,
+        } = response.data;
+
+        setDefaultSecretEnabled(isDefaultSecretEnabled);
+        setDefaultSecretExistsInEnv(isDefaultSecretPresentInEnv);
+
         const sorted = [...secretsWithVariables];
         sorted.sort((a: SecretWithVariables, b: SecretWithVariables) => {
           if (a.isDefaultSecret) return -1;
@@ -465,7 +488,14 @@ export const SecuredVariables: React.FC = () => {
   );
 
   return (
-    <Flex vertical className={commonStyles["container"]}>
+    <Flex vertical gap={16} className={commonStyles["container"]}>
+      {showDefaultSecretDeprecationBanner && (
+        <Alert
+          type="warning"
+          showIcon
+          message={defaultSecretDeprecationBannerMessage}
+        />
+      )}
       <AdminToolsHeader
         title="Secured Variables"
         iconName="lock"

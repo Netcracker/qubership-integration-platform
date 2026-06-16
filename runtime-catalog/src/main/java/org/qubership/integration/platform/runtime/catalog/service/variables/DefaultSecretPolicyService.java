@@ -68,4 +68,13 @@ public class DefaultSecretPolicyService {
         }
     }
 
+    public boolean isDefaultSecretPresentInEnv() {
+        String name = secretService.getDefaultSecretName();
+        return name != null && secretService.secretExists(name);
+    }
+
+    public  boolean shouldShowDefaultSecretDeprecationBanner() {
+        return defaultSecretEnabled || isDefaultSecretPresentInEnv();
+    }
+
 }

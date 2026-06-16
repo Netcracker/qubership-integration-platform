@@ -843,6 +843,12 @@ export type SecretResponse = {
   defaultSecret: boolean;
 };
 
+export type SecuredVariablesListResponse = {
+  secrets: SecretWithVariables[];
+  defaultSecretEnabled: boolean;
+  defaultSecretExistsInEnv: boolean;
+};
+
 export type CreateFolderRequest = {
   id?: string;
   parentId?: string;

@@ -10,6 +10,7 @@ import type {
   MCPSystem,
   MCPSystemUpdateRequest,
   SecretWithVariables,
+  SecuredVariablesListResponse,
   Variable,
 } from "../apiTypes.ts";
 import {
@@ -1114,7 +1115,7 @@ export class VSCodeExtensionApi implements Api {
     throw new RestApiError("Not implemented", 501);
   }
 
-  getSecuredVariables(): Promise<ApiResponse<SecretWithVariables[]>> {
+  getSecuredVariables(): Promise<ApiResponse<SecuredVariablesListResponse>> {
     throw new RestApiError("Not implemented", 501);
   }
 

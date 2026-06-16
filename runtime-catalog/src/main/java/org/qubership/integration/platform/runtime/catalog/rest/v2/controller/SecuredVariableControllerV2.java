@@ -24,8 +24,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.runtime.catalog.rest.v2.dto.SecretErrorResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v2.dto.SecretResponse;
+import org.qubership.integration.platform.runtime.catalog.rest.v2.dto.SecuredVariablesListResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v2.dto.SecuredVariablesRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v2.mapper.SecretResponseMapper;
+import org.qubership.integration.platform.runtime.catalog.service.variables.DefaultSecretPolicyService;
 import org.qubership.integration.platform.runtime.catalog.service.variables.SecuredVariableService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -47,22 +49,29 @@ public class SecuredVariableControllerV2 {
 
     private final SecuredVariableService securedVariableService;
     private final SecretResponseMapper secretResponseMapper;
+    private final DefaultSecretPolicyService defaultSecretPolicyService;
 
     @Autowired
-    public SecuredVariableControllerV2(SecuredVariableService securedVariableService, SecretResponseMapper secretResponseMapper) {
+    public SecuredVariableControllerV2(SecuredVariableService securedVariableService, SecretResponseMapper secretResponseMapper, DefaultSecretPolicyService defaultSecretPolicyService) {
         this.securedVariableService = securedVariableService;
         this.secretResponseMapper = secretResponseMapper;
+        this.defaultSecretPolicyService = defaultSecretPolicyService;
     }
 
     @Operation(description = "Get all secured variables names from all secrets")
     @GetMapping()
-    public ResponseEntity<List<SecretResponse>> getVariables() {
+    public ResponseEntity<SecuredVariablesListResponse> getVariables() {
         if (log.isDebugEnabled()) {
             log.debug("Request to get secured variables from all secrets");
         }
 
         Map<String, Set<String>> secrets = securedVariableService.getAllSecretsVariablesNames();
-        return ResponseEntity.ok(secretResponseMapper.asResponse(secrets));
+
+        SecuredVariablesListResponse response = new SecuredVariablesListResponse();
+        response.setSecrets(secretResponseMapper.asResponse(secrets));
+        response.setDefaultSecretEnabled(defaultSecretPolicyService.isDefaultSecretEnabled());
+        response.setDefaultSecretExistsInEnv(defaultSecretPolicyService.isDefaultSecretPresentInEnv());
+        return ResponseEntity.ok(response);
     }
 
     @Operation(description = "Get all secured variables names from specified secret")
