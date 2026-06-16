@@ -2,7 +2,6 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* Reserve room for the badge so it is not clipped by overflow:hidden parents */
   padding-top: 6px;
   padding-right: 6px;
   margin-top: -6px;
