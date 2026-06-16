@@ -3,7 +3,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   ReactElement,
   ReactNode,
@@ -12,7 +11,7 @@ import Sider from "antd/lib/layout/Sider";
 import styles from "../components/elements_library/ElementsLibrarySidebar.module.css";
 import { Flex, Menu, Tabs } from "antd";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
-import { Element } from "../api/apiTypes.ts";
+import { Element, LibraryElement } from "../api/apiTypes.ts";
 import { useModalsContext } from "../Modals.tsx";
 import { useParams, useNavigate } from "react-router-dom";
 import { useLibraryContext } from "../components/LibraryContext.tsx";
@@ -29,8 +28,11 @@ import { useElkDirectionContext } from "./ElkDirectionContext.tsx";
 import { useFocusToElementId } from "../components/graph/ElementFocus.tsx";
 import { UsedPropertiesList } from "../components/UsedPropertiesList.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
-import { SidebarSearch } from "../components/elements_library/SidebarSearch.tsx";
 import { ChainTextViewPanel } from "../components/chains/ChainTextViewPanel.tsx";
+import { CompactSearch } from "../components/table/CompactSearch.tsx";
+import { useChainElementPanelFilters } from "../hooks/useChainElementPanelFilters.ts";
+import { applyEntityFiltersToElements } from "../misc/entity-filter-utils.ts";
+import { matchesByFields } from "../components/table/tableSearch.ts";
 
 const DEFAULT_WIDTH = 240;
 
@@ -46,6 +48,21 @@ export type MenuItem = {
   children?: MenuItem[];
 };
 
+function elementMatchesSearch(
+  element: Element,
+  searchString: string,
+  libraryElements: LibraryElement[] | null,
+): boolean {
+  const libraryElement = getLibraryElement(element, libraryElements);
+  const elementName = element.name || libraryElement.title || element.type;
+  const elementTypeLabel = libraryElement.title || element.type;
+  return matchesByFields(searchString, [
+    elementName,
+    elementTypeLabel,
+    element.type,
+  ]);
+}
+
 export const PageWithRightPanel = ({
   width = DEFAULT_WIDTH,
 }: PageWithRightPanelProps = {}) => {
@@ -53,6 +70,7 @@ export const PageWithRightPanel = ({
 
   const { showModal } = useModalsContext();
   const [activeTab, setActiveTab] = useState<string>("listElements");
+  const [searchString, setSearchString] = useState<string>("");
 
   const params = useParams<{ chainId?: string }>();
   const chainId = params.chainId;
@@ -63,18 +81,27 @@ export const PageWithRightPanel = ({
     chainContext?.chain?.elements ?? [],
   );
 
-  const allItems = useRef<MenuItem[]>([]);
-  const [, setItems] = useState<MenuItem[]>([]);
-  const [openKeysState, setOpenKeysState] = useState<string[]>();
-  const openKeysBeforeSearch = useRef<string[]>();
-  const [isSearch, setIsSearch] = useState(false);
+  const elementTypeValues = useMemo(
+    () =>
+      [...new Set(elements.map((element) => element.type))].map((type) => ({
+        value: type,
+        label:
+          libraryElements?.find(
+            (libraryElement) => libraryElement.name === type,
+          )?.title ?? type,
+      })),
+    [elements, libraryElements],
+  );
+
+  const { filters, filterButton } =
+    useChainElementPanelFilters(elementTypeValues);
 
   let direction: "RIGHT" | "DOWN" = "RIGHT";
   try {
     const elkContext = useElkDirectionContext();
     direction = elkContext.direction;
   } catch {
-    // useElkDirectionContext throws when used outside ElkDirectionProvider
+    direction = "RIGHT";
   }
 
   useEffect(() => {
@@ -102,17 +129,19 @@ export const PageWithRightPanel = ({
     };
   }, [chainContext?.chain?.id]);
 
-  const handleSearch = useCallback(
-    (filtered: MenuItem[], openKeys: string[]) => {
-      if (!isSearch) {
-        setIsSearch(true);
-        openKeysBeforeSearch.current = openKeysState;
-      }
-      setOpenKeysState(openKeys);
-      setItems(filtered);
-    },
-    [isSearch, openKeysState],
-  );
+  const filteredElements = useMemo(() => {
+    const filteredByRules = applyEntityFiltersToElements(
+      elements,
+      filters,
+      libraryElements,
+    );
+    if (!searchString.trim()) {
+      return filteredByRules;
+    }
+    return filteredByRules.filter((element) =>
+      elementMatchesSearch(element, searchString, libraryElements),
+    );
+  }, [elements, filters, libraryElements, searchString]);
 
   const handleElementDoubleClick = useCallback(
     (element: Element) => {
@@ -172,11 +201,11 @@ export const PageWithRightPanel = ({
   );
 
   const elementMenuItems: MenuItem[] = useMemo(() => {
-    if (!elements?.length || !libraryElements) {
+    if (!filteredElements.length || !libraryElements) {
       return [];
     }
 
-    return elements.map((element: Element) => {
+    return filteredElements.map((element: Element) => {
       const libraryElement = getLibraryElement(element, libraryElements);
       const elementName = element.name || libraryElement.title || element.type;
       const elementTypeLabel = libraryElement.title || element.type;
@@ -206,14 +235,7 @@ export const PageWithRightPanel = ({
         title: `${elementName} (${elementTypeLabel})`,
       };
     });
-  }, [elements, libraryElements, handleElementDoubleClick]);
-
-  useEffect(() => {
-    allItems.current = elementMenuItems;
-    if (!isSearch) {
-      setItems(elementMenuItems);
-    }
-  }, [elementMenuItems, isSearch]);
+  }, [filteredElements, libraryElements, handleElementDoubleClick]);
 
   return (
     <Sider
@@ -263,15 +285,20 @@ export const PageWithRightPanel = ({
             style={{ flex: 1, minHeight: 0, overflow: "auto", width: "100%" }}
             gap={4}
           >
-            <SidebarSearch
-              items={elementMenuItems}
-              onSearch={handleSearch}
-              onClear={() => {
-                setItems(allItems.current);
-                setIsSearch(false);
-                setOpenKeysState(openKeysBeforeSearch.current);
-              }}
-            />
+            <div className={styles.sidebarSearchArea}>
+              <Flex align="center" gap={8} style={{ width: "100%" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <CompactSearch
+                    value={searchString}
+                    onChange={setSearchString}
+                    allowClear
+                    onClear={() => setSearchString("")}
+                    style={{ width: "100%" }}
+                  />
+                </div>
+                <span style={{ flexShrink: 0 }}>{filterButton}</span>
+              </Flex>
+            </div>
             <Menu
               className={styles.libraryElements}
               mode="vertical"
