@@ -31,7 +31,7 @@
     <json.version>20231013</json.version>
     <logback-gelf.version>5.0.1</logback-gelf.version>
     <handlebars.version>4.3.1</handlebars.version>
-    <kubernetes-client-java.version>25.0.0</kubernetes-client-java.version>
+    <kubernetes-client-java.version>25.0.0-legacy</kubernetes-client-java.version>
     <atlasmap.version>2.5.2</atlasmap.version>
     <antlr4.version>4.13.2</antlr4.version>
     <google-guava.version>33.4.0-jre</google-guava.version>
