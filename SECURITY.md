@@ -1,8 +1,10 @@
-# Security Reporting Process
+# Security Policy
 
-Please, report any security issue to `plutosdev@gmail.com` where the issue will be triaged appropriately.
+## Reporting a Vulnerability
 
-If you know of a publicly disclosed security vulnerability please IMMEDIATELY email `plutosdev@gmail.com`
+Please, report any security issue to `opensourcegroup@netcracker.com` where the issue will be triaged appropriately.
+
+If you know of a publicly disclosed security vulnerability please IMMEDIATELY email `opensourcegroup@netcracker.com`
 to inform the team about the vulnerability, so we may start the patch, release, and communication process.
 
 ## Security Release Process
