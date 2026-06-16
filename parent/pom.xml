@@ -51,7 +51,7 @@
         <!-- Common plugin versions -->
         <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
         <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
-        <jacoco.plugin.version>0.8.14</jacoco.plugin.version>
+        <jacoco.plugin.version>0.8.15</jacoco.plugin.version>
         <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
         <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
         <maven-javadoc-plugin.version>3.7.0</maven-javadoc-plugin.version>
