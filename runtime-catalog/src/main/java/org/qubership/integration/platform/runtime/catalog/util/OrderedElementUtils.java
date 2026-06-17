@@ -23,6 +23,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.IntPredicate;
 
 public class OrderedElementUtils {
 
@@ -66,12 +67,24 @@ public class OrderedElementUtils {
                 .orElse(-1);
     }
 
-    public Integer getIndexByPriority(List<ChainElement> sortedElements, Integer priority) {
+    private Integer getIndexByPredicate(List<ChainElement> sortedElements, IntPredicate predicate) {
         return sortedElements.stream()
-                .filter(it -> Objects.equals(getPriorityAsInt(it), priority))
+                .filter(it -> predicate.test(getPriorityAsInt(it)))
                 .findFirst()
                 .map(sortedElements::indexOf)
                 .orElse(-1);
+    }
+
+    public Integer getIndexToInsert(List<ChainElement> sortedElements, Integer priority) {
+        Integer targetIndex = getIndexByPredicate(sortedElements,
+                currentPriority -> Objects.equals(currentPriority, priority));
+
+        if (targetIndex == -1) {
+            targetIndex = getIndexByPredicate(sortedElements,
+                    currentPriority -> currentPriority > priority);
+        }
+
+        return targetIndex == -1 ? sortedElements.size() - 1 : targetIndex;
     }
 
     public Integer getPriorityAsInt(ChainElement element) {

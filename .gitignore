@@ -5,6 +5,7 @@ dist-lib/
 .idea/
 *.iml
 .vscode/
+.aider*
 .DS_Store
 Thumbs.db
 .env

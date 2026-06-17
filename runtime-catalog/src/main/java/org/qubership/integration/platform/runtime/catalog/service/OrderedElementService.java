@@ -29,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
+import java.util.stream.IntStream;
 
 @Service
 @Transactional
@@ -68,36 +68,32 @@ public class OrderedElementService {
         if (!currentPriority.equals(newPriority)) {
             List<ChainElement> sortedElements = orderedElementUtils.getSortedChildren(parentElement);
             int currentPriorityIndex = orderedElementUtils.getCurrentElementIndex(sortedElements);
-            int newPriorityIndex = orderedElementUtils.getIndexByPriority(sortedElements, newPriority);
+
+            boolean hasExactPriorityMatch = sortedElements.stream()
+                    .anyMatch(it -> newPriority.equals(orderedElementUtils.getPriorityAsInt(it)));
+
+            int targetIndex = orderedElementUtils.getIndexToInsert(sortedElements, newPriority);
+
             orderedElementUtils.updatePriority(element, newPriority);
 
-            List<ChainElement> elementsToUpdate;
-            Function<Integer, Integer> priorityFunction;
-            if (newPriority > currentPriority) {
-                if (newPriorityIndex == -1) {
-                    if (currentPriorityIndex + 1 >= sortedElements.size()) {
-                        return chainDiff;
-                    }
-                    newPriorityIndex = sortedElements.stream()
-                            .map(orderedElementUtils::getPriorityAsInt)
-                            .filter(it -> it < sortedElements.size())
-                            .max(Integer::compareTo)
-                            .orElse(currentPriorityIndex);
+            // Only shift other elements if we're moving to a position that already has an element with that priority
+            if (hasExactPriorityMatch) {
+                List<ChainElement> elementsToUpdate = List.of();
+                if (targetIndex > currentPriorityIndex) {
+                    elementsToUpdate = IntStream.rangeClosed(currentPriorityIndex + 1, targetIndex)
+                            .mapToObj(sortedElements::get)
+                            .toList();
+                } else if (targetIndex < currentPriorityIndex) {
+                    elementsToUpdate = IntStream.range(targetIndex, currentPriorityIndex)
+                            .mapToObj(sortedElements::get)
+                            .toList();
                 }
-                elementsToUpdate = sortedElements.subList(currentPriorityIndex + 1, newPriorityIndex + 1);
-                priorityFunction = (priority) -> priority - 1;
-            } else {
-                if (newPriorityIndex == -1) {
-                    return chainDiff;
-                }
-                elementsToUpdate = sortedElements.subList(newPriorityIndex, currentPriorityIndex);
-                priorityFunction = (priority) -> priority + 1;
-            }
 
-            for (ChainElement elementToUpdate : elementsToUpdate) {
-                Integer priority = orderedElementUtils.getPriorityAsInt(elementToUpdate);
-                if (priority < sortedElements.size()) {
-                    orderedElementUtils.updatePriority(elementToUpdate, priorityFunction.apply(priority));
+                for (ChainElement elementToUpdate : elementsToUpdate) {
+                    Integer priority = orderedElementUtils.getPriorityAsInt(elementToUpdate);
+                    orderedElementUtils.updatePriority(elementToUpdate,
+                            targetIndex > currentPriorityIndex ? priority - 1 : priority + 1);
+
                     chainDiff.addUpdatedElement(elementToUpdate);
                 }
             }
