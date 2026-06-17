@@ -91,6 +91,7 @@ public class CustomResourceBuildContextFactory {
                 .getIntegrationResources(context.getBuildInfo().getOptions().getName())
                 .ifPresent(resources -> {
                     updateIntegrationResources(context, resources.integration());
+                    updateIntegrationEmptyDirs(context, resources.integration());
                     putIntegrationsConfigurationToBuildCache(context, resources.integrationsConfiguration());
                     putSourceConfigMapNamesToBuildCache(context, resources);
                 });
@@ -134,5 +135,15 @@ public class CustomResourceBuildContextFactory {
         Set<String> resources = new HashSet<>(integration.getSpec().getTraits().getMount().getResources());
         resources.addAll(options.getResources());
         options.setResources(resources);
+    }
+
+    private void updateIntegrationEmptyDirs(
+        ResourceBuildContext<List<Snapshot>> context,
+        CamelKIntegration integration
+    ) {
+        ResourceBuildOptions options = context.getBuildInfo().getOptions();
+        Set<String> emptyDirs = new HashSet<>(integration.getSpec().getTraits().getMount().getEmptyDirs());
+        emptyDirs.addAll(options.getEmptyDirs());
+        options.setEmptyDirs(emptyDirs);
     }
 }
