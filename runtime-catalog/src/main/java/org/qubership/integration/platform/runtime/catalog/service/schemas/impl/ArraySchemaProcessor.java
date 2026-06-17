@@ -61,31 +61,32 @@ public class ArraySchemaProcessor extends DefaultSchemaProcessor implements Sche
     }
 
     @Override
-    public MutablePair<String, String> process(Schema<?> schema) {
+    public MutablePair<String, String> process(Schema<?> schema, ObjectMapper mapper) {
         ArraySchema arraySchema = (ArraySchema) schema;
-        String ref = arraySchema.getItems().get$ref();
         Schema<?> itemsSchema = arraySchema.getItems();
+        if (itemsSchema == null) {
+            // OpenAPI 3.1 arrays may omit `items` (e.g. prefixItems/contains); serialize as-is.
+            return super.process(schema, mapper);
+        }
+        String ref = itemsSchema.get$ref();
         if (ref != null) {
-            return new MutablePair<>(arraySchema.getItems().get$ref(), arraySchema.getItems().toString());
+            return new MutablePair<>(ref, itemsSchema.toString());
         }
-        if (itemsSchema != null) {
-            SchemaProcessor schemaProcessor = schemaProcessorMap.getOrDefault(itemsSchema.getClass().getSimpleName(),
-                    schemaProcessorMap.get(DEFAULT_SCHEMA_CLASS));
-            ObjectNode arraySchemaNode = objectMapper.createObjectNode();
+        SchemaProcessor schemaProcessor = schemaProcessorMap.getOrDefault(itemsSchema.getClass().getSimpleName(),
+                schemaProcessorMap.get(DEFAULT_SCHEMA_CLASS));
+        ObjectNode arraySchemaNode = mapper.createObjectNode();
 
-            MutablePair<String, String> processedSchemaPair = schemaProcessor.process(itemsSchema);
-            arraySchemaNode.set(TYPE_NODE_NAME, ARRAY_TYPE_NODE);
+        MutablePair<String, String> processedSchemaPair = schemaProcessor.process(itemsSchema, mapper);
+        arraySchemaNode.set(TYPE_NODE_NAME, ARRAY_TYPE_NODE);
 
-            try {
-                arraySchemaNode.set(ITEMS_NODE_NAME, objectMapper.readTree(processedSchemaPair.getRight()));
-                processedSchemaPair.setRight(objectMapper.writeValueAsString(arraySchemaNode));
-            } catch (JsonProcessingException e) {
-                log.error("Error during converting content string schema to JSON", e);
-            }
-
-            return processedSchemaPair;
+        try {
+            arraySchemaNode.set(ITEMS_NODE_NAME, mapper.readTree(processedSchemaPair.getRight()));
+            processedSchemaPair.setRight(mapper.writeValueAsString(arraySchemaNode));
+        } catch (JsonProcessingException e) {
+            log.error("Error during converting content string schema to JSON", e);
         }
-        return new MutablePair<>();
+
+        return processedSchemaPair;
     }
 
     @Override

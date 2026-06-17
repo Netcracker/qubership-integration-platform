@@ -42,6 +42,7 @@ import org.qubership.integration.platform.runtime.catalog.model.system.Environme
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBaseService;
+import org.qubership.integration.platform.runtime.catalog.service.parsers.OpenApiMapperResolver;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.Parser;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.ParserUtils;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.SpecificationParser;
@@ -49,7 +50,6 @@ import org.qubership.integration.platform.runtime.catalog.service.resolvers.swag
 import org.qubership.integration.platform.runtime.catalog.service.schemas.Processor;
 import org.qubership.integration.platform.runtime.catalog.service.schemas.SchemaProcessor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
@@ -73,10 +73,12 @@ public class SwaggerSpecificationParser implements SpecificationParser {
     private static final String INVALID_SWAGGER_FILE_ERROR_MESSAGE = "Error during processing file";
     private static final String PARAMETERS_NODE = "parameters";
     private static final String ERROR_CONVERTING_OPERATION_MESSAGE = "Error during converting Operation to JSON";
+    private static final String OPENAPI_32_VERSION_PREFIX = "3.2";
+    private static final String OPENAPI_31_FALLBACK_VERSION = "3.1.0";
 
     private final SystemModelRepository systemModelRepository;
     private final SwaggerSchemaResolver swaggerSchemaResolver;
-    private final ObjectMapper objectMapper;
+    private final OpenApiMapperResolver openApiMapperResolver;
     private final ParserUtils parserUtils;
     private final EnvironmentBaseService environmentBaseService;
 
@@ -87,13 +89,13 @@ public class SwaggerSpecificationParser implements SpecificationParser {
             SystemModelRepository systemModelRepository,
             SwaggerSchemaResolver swaggerSchemaResolver,
             List<SchemaProcessor> schemaProcessors,
-            @Qualifier("openApiObjectMapper") ObjectMapper objectMapper,
+            OpenApiMapperResolver openApiMapperResolver,
             ParserUtils parserUtils,
             EnvironmentBaseService environmentBaseService
     ) {
         this.systemModelRepository = systemModelRepository;
         this.swaggerSchemaResolver = swaggerSchemaResolver;
-        this.objectMapper = objectMapper;
+        this.openApiMapperResolver = openApiMapperResolver;
         this.parserUtils = parserUtils;
         this.environmentBaseService = environmentBaseService;
         for (SchemaProcessor schemaProcessor : schemaProcessors) {
@@ -114,10 +116,16 @@ public class SwaggerSpecificationParser implements SpecificationParser {
         try {
             SystemModel systemModel;
             String specificationText = sources.stream().map(SpecificationSource::getSource).findFirst().orElse("");
-            OpenAPI importedOpenAPI = getSwaggerParser(specificationText).readContents(specificationText, null, new ParseOptions()).getOpenAPI();
+            JsonNode specificationNode = DeserializationUtils.deserializeIntoTree(specificationText, "file");
+            String parseableText = downgradeUnsupportedOpenApiVersion(specificationNode, specificationText, messageHandler.andThen(log::warn));
+            OpenAPI importedOpenAPI = getSwaggerParser(specificationNode).readContents(parseableText, null, new ParseOptions()).getOpenAPI();
+            if (importedOpenAPI == null) {
+                throw new SpecificationImportException(INVALID_SWAGGER_FILE_ERROR_MESSAGE);
+            }
+            ObjectMapper specMapper = openApiMapperResolver.forVersion(importedOpenAPI.getSpecVersion());
             String systemModelName = parserUtils.defineVersionName(group, importedOpenAPI);
             String systemModelId = buildId(group.getId(), systemModelName);
-            List<Operation> operationList = separate(importedOpenAPI, messageHandler.andThen(log::warn));
+            List<Operation> operationList = separate(importedOpenAPI, specMapper, messageHandler.andThen(log::warn));
 
             checkSpecId(oldSystemModelsIds, systemModelId);
 
@@ -142,8 +150,7 @@ public class SwaggerSpecificationParser implements SpecificationParser {
         }
     }
 
-    private SwaggerParserExtension getSwaggerParser(String specificationAsString) {
-        JsonNode node = DeserializationUtils.deserializeIntoTree(specificationAsString, "file");
+    private SwaggerParserExtension getSwaggerParser(JsonNode node) {
         if (node.has(SWAGGER_LABEL)) {
             return new SwaggerConverter();
         } else if (node.has(OPEN_API_LABEL)) {
@@ -153,22 +160,51 @@ public class SwaggerSpecificationParser implements SpecificationParser {
         }
     }
 
-    private List<Operation> separate(OpenAPI importedOpenAPI, Consumer<String> messageHandler) {
-        Map<String, Map<PathItem.HttpMethod, io.swagger.v3.oas.models.Operation>> allOperations = new HashMap<>();
-        if (importedOpenAPI.getPaths() != null) {
-            for (String pathname : importedOpenAPI.getPaths().keySet()) {
-                PathItem pathItem = importedOpenAPI.getPaths().get(pathname);
-                if (!pathItem.readOperations().isEmpty()) {
-                    allOperations.put(pathname, pathItem.readOperationsMap());
-                }
+    /**
+     * Rewrites an OpenAPI 3.2 version field to 3.1 so the specification can be parsed.
+     *
+     * <p>swagger-parser 2.1.x ships no 3.2 deserializer and rejects the version outright.
+     * OpenAPI 3.2 stays backward compatible with 3.1, so 3.2 documents are parsed as 3.1;
+     * 3.2-only constructs (the QUERY method, {@code $self}, extended media-type keys) are
+     * dropped rather than failing the import. Only the text handed to the parser changes —
+     * the stored specification source keeps its original version.
+     */
+    private String downgradeUnsupportedOpenApiVersion(JsonNode specificationNode, String specificationText, Consumer<String> messageHandler) {
+        try {
+            if (specificationNode == null || !specificationNode.has(OPEN_API_LABEL)) {
+                return specificationText;
             }
+            String version = specificationNode.get(OPEN_API_LABEL).asText("");
+            if (!version.startsWith(OPENAPI_32_VERSION_PREFIX)) {
+                return specificationText;
+            }
+            ((ObjectNode) specificationNode).put(OPEN_API_LABEL, OPENAPI_31_FALLBACK_VERSION);
+            messageHandler.accept(String.format(
+                    "OpenAPI %s imported with the 3.1 parser. 3.2-only features may be dropped. ",
+                    version));
+            return specificationNode.toString();
+        } catch (Exception e) {
+            log.warn("Could not normalize the OpenAPI version; passing the specification to the parser unchanged", e);
+            return specificationText;
         }
-        return generateOperationsList(allOperations, importedOpenAPI, messageHandler);
+    }
+
+    private List<Operation> separate(OpenAPI importedOpenAPI, ObjectMapper specMapper, Consumer<String> messageHandler) {
+        Map<String, PathItem> pathItems = new LinkedHashMap<>();
+        if (importedOpenAPI.getPaths() != null) {
+            importedOpenAPI.getPaths().forEach((pathName, pathItem) -> {
+                if (pathItem != null && !pathItem.readOperations().isEmpty()) {
+                    pathItems.put(pathName, pathItem);
+                }
+            });
+        }
+        return generateOperationsList(pathItems, importedOpenAPI, specMapper, messageHandler);
     }
 
     private List<Operation> generateOperationsList(
-            Map<String, Map<PathItem.HttpMethod, io.swagger.v3.oas.models.Operation>> allOperations,
+            Map<String, PathItem> pathItems,
             OpenAPI importedOpenAPI,
+            ObjectMapper specMapper,
             Consumer<String> messageHandler
     ) {
         List<Operation> generatedOperations = new ArrayList<>();
@@ -181,57 +217,56 @@ public class SwaggerSpecificationParser implements SpecificationParser {
             if (importedOpenAPI.getComponents() != null) {
                 importedComponents = importedOpenAPI.getComponents();
             }
-            JsonNode importedComponentsString = objectMapper.readTree(objectMapper.writeValueAsString(importedComponents));
-            for (var path : allOperations.entrySet()) {
-                PathItem pathItem = importedOpenAPI.getPaths().get(path.getKey());
-                ArrayNode pathItemParams = objectMapper.createArrayNode();
+            JsonNode importedComponentsString = specMapper.readTree(specMapper.writeValueAsString(importedComponents));
+            for (var pathEntry : pathItems.entrySet()) {
+                String pathName = pathEntry.getKey();
+                PathItem pathItem = pathEntry.getValue();
+                ArrayNode pathItemParams = specMapper.createArrayNode();
                 if (pathItem.getParameters() != null) {
-                    pathItemParams = (ArrayNode) objectMapper.readTree(objectMapper.writeValueAsString(pathItem.getParameters()));
+                    pathItemParams = (ArrayNode) specMapper.readTree(specMapper.writeValueAsString(pathItem.getParameters()));
                 }
-                for (var method : path.getValue().entrySet()) {
+                for (var method : pathItem.readOperationsMap().entrySet()) {
                     io.swagger.v3.oas.models.Operation operation = method.getValue();
-                    ObjectNode specification = (ObjectNode) objectMapper.readTree(objectMapper.writeValueAsString(operation));
+                    ObjectNode specification = (ObjectNode) specMapper.readTree(specMapper.writeValueAsString(operation));
                     if (!pathItemParams.isEmpty()) {
-                        ArrayNode specificationParameters = objectMapper.createArrayNode();
+                        ArrayNode specificationParameters = specMapper.createArrayNode();
                         if (specification.has(PARAMETERS_NODE)) {
                             specificationParameters.addAll((ArrayNode) specification.get(PARAMETERS_NODE));
                         }
                         specificationParameters.addAll(pathItemParams);
                         specification.set(PARAMETERS_NODE, specificationParameters);
                     }
-                    if (operation != null) {
-                        Operation resultOperation = Operation.builder()
-                                .path(path.getKey())
-                                .name(operation.getOperationId())
-                                .method(method.getKey().name())
-                                .specification(specification)
-                                .requestSchema(generateRequest(operation, importedComponentsString))
-                                .responseSchemas(generateResponsesMap(operation, importedComponentsString))
-                                .build();
+                    Operation resultOperation = Operation.builder()
+                            .path(pathName)
+                            .name(operation.getOperationId())
+                            .method(method.getKey().name())
+                            .specification(specification)
+                            .requestSchema(generateRequest(operation, importedComponentsString, specMapper))
+                            .responseSchemas(generateResponsesMap(operation, importedComponentsString, specMapper))
+                            .build();
 
-                        if (resultOperation.getName() == null) {
-                            StringBuilder operationName = new StringBuilder(generateName(path.getKey(), method.getKey().name(), operation));
-                            warnAboutEmptyOperationId(path.getKey(), method.getKey().name(), messageHandler);
+                    if (resultOperation.getName() == null) {
+                        StringBuilder operationName = new StringBuilder(generateName(pathName, method.getKey().name(), operation));
+                        warnAboutEmptyOperationId(pathName, method.getKey().name(), messageHandler);
 
-                            for (String generatedOperationName : operationNames) {
-                                if (generatedOperationName.equals(operationName.toString())) {
-                                    operationNamesCounter = operationNamesCounter + 1;
-                                }
+                        for (String generatedOperationName : operationNames) {
+                            if (generatedOperationName.contentEquals(operationName)) {
+                                operationNamesCounter = operationNamesCounter + 1;
                             }
-
-                            operationNames.add(operationName.toString());
-
-                            if (operationNamesCounter != 0) {
-                                operationPostfix = ID_SEPARATOR + operationNamesCounter;
-                                operationName.append(operationPostfix);
-                            }
-
-                            operationNamesCounter = 0;
-
-                            resultOperation.setName(operationName.toString());
                         }
-                        generatedOperations.add(resultOperation);
+
+                        operationNames.add(operationName.toString());
+
+                        if (operationNamesCounter != 0) {
+                            operationPostfix = ID_SEPARATOR + operationNamesCounter;
+                            operationName.append(operationPostfix);
+                        }
+
+                        operationNamesCounter = 0;
+
+                        resultOperation.setName(operationName.toString());
                     }
+                    generatedOperations.add(resultOperation);
                 }
             }
         } catch (IOException e) {
@@ -245,19 +280,19 @@ public class SwaggerSpecificationParser implements SpecificationParser {
         messageHandler.accept(message);
     }
 
-    private Map<String, JsonNode> generateRequest(io.swagger.v3.oas.models.Operation operation, JsonNode importedComponents) {
+    private Map<String, JsonNode> generateRequest(io.swagger.v3.oas.models.Operation operation, JsonNode importedComponents, ObjectMapper specMapper) {
         Map<String, JsonNode> result = new HashMap<>();
         if (operation.getRequestBody() != null) {
-            result = generateContentMap(operation.getRequestBody().getContent(), importedComponents);
+            result = generateContentMap(operation.getRequestBody().getContent(), importedComponents, specMapper);
         }
         List<Parameter> parameters = operation.getParameters();
         if (parameters != null && !parameters.isEmpty()) {
-            result.put("parameters", objectMapper.valueToTree(parameters));
+            result.put("parameters", specMapper.valueToTree(parameters));
         }
         return result;
     }
 
-    private Map<String, JsonNode> generateResponsesMap(io.swagger.v3.oas.models.Operation operation, JsonNode importedComponents) {
+    private Map<String, JsonNode> generateResponsesMap(io.swagger.v3.oas.models.Operation operation, JsonNode importedComponents, ObjectMapper specMapper) {
         Map<String, JsonNode> result = new HashMap<>();
         if (operation.getResponses() != null) {
             result = operation.getResponses()
@@ -265,10 +300,10 @@ public class SwaggerSpecificationParser implements SpecificationParser {
                     .stream()
                     .map(responseCode -> {
                         Map responseCodeMap;
-                        JsonNode responseCodeMapNode = objectMapper.createObjectNode();
+                        JsonNode responseCodeMapNode = specMapper.createObjectNode();
                         if (operation.getResponses().get(responseCode).getContent() != null) {
-                            responseCodeMap = generateContentMap(operation.getResponses().get(responseCode).getContent(), importedComponents);
-                            responseCodeMapNode = objectMapper.convertValue(responseCodeMap, JsonNode.class);
+                            responseCodeMap = generateContentMap(operation.getResponses().get(responseCode).getContent(), importedComponents, specMapper);
+                            responseCodeMapNode = specMapper.convertValue(responseCodeMap, JsonNode.class);
                         }
                         return new MutablePair<>(responseCode, responseCodeMapNode);
                     })
@@ -277,18 +312,18 @@ public class SwaggerSpecificationParser implements SpecificationParser {
         return result;
     }
 
-    private Map<String, JsonNode> generateContentMap(Content content, JsonNode importedComponents) {
+    private Map<String, JsonNode> generateContentMap(Content content, JsonNode importedComponents, ObjectMapper specMapper) {
         return content.keySet()
                 .stream()
                 .map(mediaType -> {
                     Schema<?> schema = content.get(mediaType).getSchema();
                     if (schema == null) {
-                        return new MutablePair<>(mediaType, objectMapper.createObjectNode());
+                        return new MutablePair<>(mediaType, specMapper.createObjectNode());
                     }
                     SchemaProcessor schemaProcessor = schemaProcessorMap.getOrDefault(schema.getClass().getSimpleName(),
                             schemaProcessorMap.get(DEFAULT_SCHEMA_CLASS));
 
-                    MutablePair<String, String> processedSchemaPair = schemaProcessor.process(schema);
+                    MutablePair<String, String> processedSchemaPair = schemaProcessor.process(schema, specMapper);
                     String ref = processedSchemaPair.left;
                     String schemaAsString = ref != null
                             ? swaggerSchemaResolver.resolveRef(ref, importedComponents)
@@ -359,7 +394,7 @@ public class SwaggerSpecificationParser implements SpecificationParser {
                     Environment environment = setDefaultProperties(specificationGroup);
                     if (StringUtils.isBlank(environment.getAddress())
                             && !CollectionUtils.isEmpty(importedOpenAPI.getServers())) {
-                        environment.setAddress(getUrlWithoutPlaceHolders(importedOpenAPI.getServers().get(0)));
+                        environment.setAddress(getUrlWithoutPlaceHolders(importedOpenAPI.getServers().getFirst()));
                         environmentBaseService.update(environment);
                     }
                     break;
@@ -371,7 +406,7 @@ public class SwaggerSpecificationParser implements SpecificationParser {
     }
 
     private Environment setDefaultProperties(SpecificationGroup specificationGroup) {
-        Environment environment = specificationGroup.getSystem().getEnvironments().get(0);
+        Environment environment = specificationGroup.getSystem().getEnvironments().getFirst();
         environmentBaseService.setDefaultProperties(environment);
         return environment;
     }
