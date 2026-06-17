@@ -164,6 +164,9 @@ qip:
     build:
       container:
         image: ${ENGINE_CONTAINER_IMAGE:}
+      mount:
+        empty-dirs: ${CR_EMPTY_DIRS:}
+        resources: ${CR_RESOURCES:}
       service-account: ${CR_K8S_SERVICE_ACCOUNT:default}
       service:
         enabled: ${CR_SERVICE_ENABLED:true}

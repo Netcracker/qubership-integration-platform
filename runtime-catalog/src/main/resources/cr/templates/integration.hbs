@@ -21,6 +21,12 @@ spec:
 {{#each resources}}
       - "{{.}}"
 {{/each}}
+{{#if emptyDirs}}
+      emptyDirs:
+{{#each emptyDirs}}
+      - "{{.}}"
+{{/each}}
+{{/if}}
 {{#if propertiesEnabled}}
     camel:
       properties:

@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -35,6 +37,13 @@ public class CustomResourceOptionsProvider {
     @Value("#{${qip.cr.build.environment:{T(java.util.Collections).emptyMap()}}}")
     private Map<String, String> environment;
 
+    @Value("${qip.cr.build.mount.empty-dirs}")
+    private List<String> emptyDirs;
+
+    @Value("${qip.cr.build.mount.resources}")
+    List<String> resources;
+    private List<String> resources;
+
     public ResourceBuildOptions getOptions(ResourceDeployRequest request) {
         return ResourceBuildOptions.builder()
                 .name(request.getName())
@@ -51,6 +60,8 @@ public class CustomResourceOptionsProvider {
                         .camelKSourcesUtilized(false)
                         .build())
                 .environment(getEnvironment())
+                .emptyDirs(new HashSet<>(emptyDirs))
+                .resources(new HashSet<>(resources))
                 .service(ServiceOptions.builder()
                         .enabled(serviceEnabled)
                         .build())

@@ -108,6 +108,9 @@ public class CamelKIntegration implements KubernetesObject {
                 @SerializedName("resources")
                 private List<String> resources;
 
+                @SerializedName("emptyDirs")
+                private List<String> emptyDirs;
+
                 @SerializedName("hotReload")
                 private Boolean hotReload;
             }
