@@ -10,6 +10,11 @@ export type {
 } from "./api/rest/vscodeExtensionApi";
 export type { AppExtensionProps, AppConfig } from "./appConfig";
 export type {
+  ExportImagesConfig,
+  ExportImagesStartupPayload,
+  ExportImagesTarget,
+} from "./appConfig";
+export type {
   IconOverrides,
   IconName,
   IconSource,
@@ -39,6 +44,12 @@ export {
   isDev,
 } from "./appConfig";
 export { isVsCode } from "./api/rest/vscodeExtensionApi";
+// Chain graph image capture — called by external consumers of the extension.
+export {
+  captureGraphImage,
+  captureChainGraphImage,
+} from "./hooks/graph/captureGraphImage";
+export type { ImageFormat } from "./hooks/graph/captureGraphImage";
 export {
   DocumentationService,
   documentationService,
@@ -49,12 +60,9 @@ export {
 } from "./monaco-worker-config";
 export { configureMonacoLoader } from "./monaco-loader-config";
 export type { MonacoLoaderConfig } from "./monaco-loader-config";
-export {
-  ResourceTypes,
-  Operations,
-} from "./permissions/types"
+export { ResourceTypes, Operations } from "./permissions/types";
 export type {
   ResourceType,
   Operation,
   UserPermissions,
- } from "./permissions/types";
+} from "./permissions/types";
