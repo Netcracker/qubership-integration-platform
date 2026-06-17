@@ -33,6 +33,8 @@ module.exports = {
         "<rootDir>/src/web/api-services/**/*.{ts,tsx}",
         "<rootDir>/src/web/response/**/*.{ts,tsx}",
         "<rootDir>/src/web/extension.ts",
+        "<rootDir>/src/web/exportImageUtils.ts",
+        "<rootDir>/src/web/exportImagesHandler.ts",
         "!<rootDir>/src/web/api-services/**/*.d.ts",
         "!<rootDir>/src/web/api-services/**/*.{test,spec}.{ts,tsx}",
         "!<rootDir>/src/web/response/**/*.d.ts",

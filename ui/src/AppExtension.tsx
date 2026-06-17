@@ -14,6 +14,7 @@ import { Content } from "antd/es/layout/layout";
 import { ChainProperties } from "./pages/ChainProperties.tsx";
 import { EventNotification } from "./components/notifications/EventNotification.tsx";
 import DefaultExtensionPage from "./pages/DefaultExtensionPage.tsx";
+import { BatchExportRunner } from "./batch/export/BatchExportRunner.tsx";
 import { NotImplemented } from "./pages/NotImplemented.tsx";
 import { Masking } from "./pages/Masking.tsx";
 import {
@@ -37,6 +38,7 @@ const router = createMemoryRouter(
   createRoutesFromElements(
     <>
       <Route path="/" element={<DefaultExtensionPage />} />
+      <Route path="/batch-export" element={<BatchExportRunner />} />
       <Route path="/chains/diff" element={<ChainDiffViewWebview />} />
       <Route path="/chains/:chainId" element={<ChainPage />}>
         <Route index element={<ChainGraph />} />

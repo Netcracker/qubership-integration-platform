@@ -32,6 +32,16 @@ const DefaultExtensionPage: React.FC = () => {
           setIcons(startupPayload.icons);
         }
 
+        if (
+          startupPayload.operation === "exportImages" &&
+          startupPayload.exportImages
+        ) {
+          void navigate("/batch-export", {
+            state: startupPayload.exportImages,
+          });
+          return;
+        }
+
         if (api instanceof VSCodeExtensionApi) {
           void api.sendMessageToExtension(NAVIGATE_EVENT);
         }

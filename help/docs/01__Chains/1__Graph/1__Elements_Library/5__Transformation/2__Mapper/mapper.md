@@ -264,6 +264,7 @@ Mapper operates with next complex data types for message:
 > * Please, use the unified structure in order to map array of objects. Otherwise, all nested fields are going to be excluded from the resulted structure, due to inability to identify the exact object build set.
 > * Mapping between source and target structures where message root is either primitive(s) or array of primitives is not supported.
 > * Source fields of any data type (both simple and complex) containing **NULL values will be omitted** from the target message.
+> * When the source body root is an array of objects, use the escaped `_` path segment in expressions to access fields of root array items, for example `body.\_.items`.
 
 Mapping types:
 - **one-to-one** - one value maps to another one

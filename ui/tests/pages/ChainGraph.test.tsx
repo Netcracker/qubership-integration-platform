@@ -203,6 +203,7 @@ jest.mock("@xyflow/react", () => ({
   BackgroundVariant: { Dots: "dots" },
   MiniMap: () => null,
   useOnSelectionChange: jest.fn(),
+  useReactFlow: () => ({ getNodes: () => [] }),
 }));
 
 jest.mock("../../src/components/DndContext", () => ({
