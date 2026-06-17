@@ -16,7 +16,7 @@
 services:
   pubsub:
     container_name: pubsub
-    image: google/cloud-sdk
+    image: google/cloud-sdk@sha256:c7bfda100092fb4976fd879ac60afe524f220ccd8e0f0c2cb666f5dd2a7cffda
     ports:
       - '8085:8085'
     command: ["gcloud", "beta", "emulators", "pubsub", "start", "--host-port", "0.0.0.0:8085", "--project=test-project"]

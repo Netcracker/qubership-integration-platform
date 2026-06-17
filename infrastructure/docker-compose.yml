@@ -144,7 +144,7 @@ services:
         condition: service_healthy
 
   ui-proxy:
-    image: nginx:latest
+    image: nginx:latest@sha256:608a100c71651bf5b773c89083b4a1ad7ef4b2bd05d7a7e552271e03123692ad
     container_name: ui-proxy
     ports:
       - 8080:8080
@@ -201,7 +201,7 @@ services:
   ###### 3rd party services
 
   postgres:
-    image: postgres
+    image: postgres@sha256:29ee7bb30d804447dc9a91fd0d74322ae1dc3a4072cc6346f70a5ed6e783b565
     container_name: postgreSQL
     environment:
       - POSTGRES_USER=postgres
@@ -219,7 +219,7 @@ services:
       - ./init-db:/docker-entrypoint-initdb.d
 
   opensearch:
-    image: opensearchproject/opensearch:2.18.0
+    image: opensearchproject/opensearch:2.18.0@sha256:7f6fa1efee8f39e94ca30a0a31f95d866c8a99f25a86e6cf6691142d1eab4f9e
     container_name: opensearch
     ports:
       - 9200:9200
@@ -241,7 +241,7 @@ services:
       - ./opensearch/opensearch.yml:/usr/share/opensearch/config/opensearch.yml
 
   consul:
-    image: hashicorp/consul:1.15.4
+    image: hashicorp/consul:1.15.4@sha256:3687a77458411c20dc099c5b955d221669b0b7c2fc8c8a2673eca4047df2c3cd
     container_name: consul
     volumes:
       - ./consul/server.json:/consul/config/server.json:ro
