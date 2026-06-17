@@ -3,4 +3,8 @@ $id: http://qubership.org/schemas/product/qip/element/properties/simple-expressi
 $schema: http://json-schema.org/draft-07/schema
 type: string
 title: Camel Simple Expression
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
 pattern: "\\$\\{[^}]+\\}"

@@ -6,6 +6,10 @@ allOf:
   - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
 title: Mapper
 description: Performs mapping between two entities.
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
 properties:
   type:
     type: string

@@ -131,7 +131,7 @@ jobs:
             -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
             -Dsonar.projectKey=${{ vars.SONAR_VSCODE_EXTENSION_PROJECT_KEY }}
             -Dsonar.sources=src
-            -Dsonar.tests=src
+            -Dsonar.tests=tests
             -Dsonar.test.inclusions=**/*.test.ts,**/*.spec.ts,**/*.test.tsx,**/*.spec.tsx
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
             -Dsonar.qualitygate.wait=true

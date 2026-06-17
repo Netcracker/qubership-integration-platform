@@ -284,6 +284,26 @@ export type AppExtensionProps = {
   themeOverrides?: Partial<ThemeConfig>;
   documentationBaseUrl?: string;
   dev?: boolean;
+  operation?: "exportImages";
+  exportImages?: ExportImagesStartupPayload;
+};
+
+export type ExportImagesTarget = {
+  chainId: string;
+  filePath?: string;
+  outputName?: string;
+};
+
+export type ExportImagesConfig = {
+  outputDir: string;
+  imageFormat?: "svg" | "png";
+  targets?: ExportImagesTarget[];
+};
+
+export type ExportImagesStartupPayload = {
+  filePath?: string;
+  exportConfig: ExportImagesConfig;
+  targets: ExportImagesTarget[];
 };
 
 export async function configureAppExtension(

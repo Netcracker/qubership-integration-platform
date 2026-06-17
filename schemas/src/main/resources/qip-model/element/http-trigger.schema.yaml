@@ -5,8 +5,11 @@ type: object
 allOf:
   - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
 title: Http Trigger
-description: >
-  HTTP Trigger provides an HTTP endpoint for consuming arriving HTTP requests.
+description: HTTP Trigger provides an HTTP endpoint for consuming arriving HTTP requests.
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
 properties:
   type:
     type: string
