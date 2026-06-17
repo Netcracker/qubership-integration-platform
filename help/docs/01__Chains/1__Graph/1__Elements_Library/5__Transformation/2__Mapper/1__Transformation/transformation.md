@@ -384,7 +384,7 @@ getFirst(body.customers)
 **Example 2: Root array usage**
 
 Get the first object from an array when the source body root is an array.
-Use the escaped `_` segment after `body` to access fields inside root array items.
+Use the escaped `_` segment after `body` to access fields inside root array elements.
 
 **Expression sample:**
 ```text
