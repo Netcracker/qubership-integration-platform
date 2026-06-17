@@ -34,7 +34,7 @@ public class EngineRuntimeException extends RuntimeException {
     }
 
     public EngineRuntimeException(String errorMessage, Exception originalException) {
-        super(errorMessage);
+        super(errorMessage, originalException);
         this.originalException = originalException;
     }
 
