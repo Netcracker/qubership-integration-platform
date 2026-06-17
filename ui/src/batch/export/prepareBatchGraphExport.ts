@@ -59,7 +59,5 @@ export async function prepareBatchGraphExport(params: {
 
   await waitAnimationFrames(2);
 
-  return container.querySelector(
-    ".react-flow__viewport",
-  ) as HTMLElement | null;
+  return container.querySelector<HTMLElement>(".react-flow__viewport");
 }

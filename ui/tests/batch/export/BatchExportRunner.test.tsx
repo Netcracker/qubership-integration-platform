@@ -6,6 +6,10 @@ import "@testing-library/jest-dom";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { BatchExportRunner } from "../../../src/batch/export/BatchExportRunner";
 import type { ExportImagesStartupPayload } from "../../../src/appConfig";
+import {
+  reportExportImagesProgress,
+  saveExportedImageToVsCode,
+} from "../../../src/batch/export/vscodeExportSink";
 
 jest.mock("../../../src/api/rest/vscodeExtensionApi", () => ({
   VSCodeExtensionApi: class VSCodeExtensionApi {},
@@ -36,34 +40,27 @@ jest.mock("../../../src/batch/export/BatchChainGraphExport", () => {
       onSkip: (target: { chainId: string; outputName?: string }) => void;
       onError: (error: unknown) => void;
     }) => {
+      const { onComplete, onSkip, onError } = props;
       mockBatchChainGraphExport(props);
       React.useEffect(() => {
         if (batchExportBehavior === "skip") {
-          props.onSkip({ chainId: "chain-1", outputName: "chain-1" });
+          onSkip({ chainId: "chain-1", outputName: "chain-1" });
           return;
         }
         if (batchExportBehavior === "error") {
-          props.onError(new Error("render failed"));
+          onError(new Error("render failed"));
           return;
         }
-        props.onComplete({
+        onComplete({
           target: { chainId: "chain-1", outputName: "chain-1" },
           fileName: "chain-1.png",
           contentBase64: "abc",
         });
-      }, []);
+      }, [onComplete, onError, onSkip]);
       return <div data-testid="batch-chain-export" />;
     },
   };
 });
-
-const {
-  reportExportImagesProgress,
-  saveExportedImageToVsCode,
-} = jest.requireMock("../../../src/batch/export/vscodeExportSink") as {
-  reportExportImagesProgress: jest.Mock;
-  saveExportedImageToVsCode: jest.Mock;
-};
 
 const request: ExportImagesStartupPayload = {
   exportConfig: {
@@ -78,8 +75,8 @@ describe("BatchExportRunner", () => {
   beforeEach(() => {
     batchExportBehavior = "complete";
     mockBatchChainGraphExport.mockClear();
-    reportExportImagesProgress.mockClear();
-    saveExportedImageToVsCode.mockResolvedValue(undefined);
+    jest.mocked(reportExportImagesProgress).mockClear();
+    jest.mocked(saveExportedImageToVsCode).mockResolvedValue(undefined);
   });
 
   test("shows error when export request state is missing", () => {
@@ -187,7 +184,7 @@ describe("BatchExportRunner", () => {
   });
 
   test("records save failures and still finishes the batch", async () => {
-    saveExportedImageToVsCode.mockRejectedValue(new Error("disk full"));
+    jest.mocked(saveExportedImageToVsCode).mockRejectedValue(new Error("disk full"));
 
     render(
       <MemoryRouter

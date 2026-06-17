@@ -77,10 +77,10 @@ describe("BatchChainGraphExport", () => {
     graphNodes = [{ id: "n1", position: { x: 0, y: 0 }, data: {} }];
     jest.mocked(captureGraphImage).mockReset();
     jest.mocked(prepareBatchGraphExport).mockReset();
-    reportExportImagesProgress.mockReset();
+    jest.mocked(reportExportImagesProgress).mockReset();
     getNodes.mockReturnValue([{ id: "n1", hidden: false }]);
     jest.mocked(prepareBatchGraphExport).mockImplementation(async ({ container }) =>
-      container.querySelector(".react-flow__viewport"),
+      container.querySelector<HTMLElement>(".react-flow__viewport"),
     );
     jest.mocked(captureGraphImage).mockResolvedValue(new Uint8Array([1, 2, 3]).buffer);
   });
