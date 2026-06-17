@@ -120,6 +120,15 @@ public class SecuredVariablesServiceTest {
         verify(defaultSecretPolicyService).filterSecretsForList(allSecrets);
     }
 
+    @DisplayName("deleteVariables should return early when variable name set is empty")
+    @Test
+    void deleteVariablesShouldReturnEarlyWhenVariableNamesEmpty() {
+        securedVariableService.deleteVariables(DEFAULT_SECRET_NAME, Collections.emptySet());
+
+        verify(defaultSecretPolicyService, never()).assertDefaultSecretAccessible(anyString());
+        verify(secretService, never()).removeEntries(anyString(), any());
+    }
+
     @DisplayName("getAllSecretsVariablesNames should return filtered secrets from policy service")
     @Test
     void getAllSecretsVariablesNamesShouldReturnFilteredSecrets() {

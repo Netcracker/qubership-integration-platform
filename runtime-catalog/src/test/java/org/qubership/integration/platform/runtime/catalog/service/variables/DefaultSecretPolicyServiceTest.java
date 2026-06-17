@@ -31,6 +31,9 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -138,5 +141,50 @@ class DefaultSecretPolicyServiceTest {
         assertThrows(
                 DefaultSecretGoneException.class,
                 () -> service.assertCanAddVariables(DEFAULT_SECRET, newVariables, existingVariables));
+    }
+
+    @Test
+    @DisplayName("isDefaultSecretPresentInEnv returns false when default secret name is null")
+    void isDefaultSecretPresentInEnvReturnsFalseWhenNameIsNull() {
+        when(secretService.getDefaultSecretName()).thenReturn(null);
+        DefaultSecretPolicyService service = serviceWithFlag(false);
+        assertThat(service.isDefaultSecretPresentInEnv(), equalTo(false));
+        verify(secretService, never()).secretExists(anyString());
+    }
+
+    @Test
+    @DisplayName("isDefaultSecretPresentInEnv delegates to secretExists when name is set")
+    void isDefaultSecretPresentInEnvDelegatesToSecretExists() {
+        when(secretService.getDefaultSecretName()).thenReturn(DEFAULT_SECRET);
+        when(secretService.secretExists(DEFAULT_SECRET)).thenReturn(true);
+        DefaultSecretPolicyService service = serviceWithFlag(false);
+        assertThat(service.isDefaultSecretPresentInEnv(), equalTo(true));
+        verify(secretService).secretExists(DEFAULT_SECRET);
+    }
+
+    @Test
+    @DisplayName("shouldShowDefaultSecretDeprecationBanner is true when default secret is enabled (short-circuit)")
+    void shouldShowBannerWhenDefaultSecretEnabledWithoutEnvCheck() {
+        DefaultSecretPolicyService service = serviceWithFlag(true);
+        assertThat(service.shouldShowDefaultSecretDeprecationBanner(), equalTo(true));
+        verify(secretService, never()).getDefaultSecretName();
+    }
+
+    @Test
+    @DisplayName("shouldShowDefaultSecretDeprecationBanner is true when secret exists while flag is disabled")
+    void shouldShowBannerWhenSecretPresentWhileDisabled() {
+        when(secretService.getDefaultSecretName()).thenReturn(DEFAULT_SECRET);
+        when(secretService.secretExists(DEFAULT_SECRET)).thenReturn(true);
+        DefaultSecretPolicyService service = serviceWithFlag(false);
+        assertThat(service.shouldShowDefaultSecretDeprecationBanner(), equalTo(true));
+    }
+
+    @Test
+    @DisplayName("shouldShowDefaultSecretDeprecationBanner is false when disabled and secret absent")
+    void shouldHideBannerWhenDisabledAndSecretAbsent() {
+        when(secretService.getDefaultSecretName()).thenReturn(DEFAULT_SECRET);
+        when(secretService.secretExists(DEFAULT_SECRET)).thenReturn(false);
+        DefaultSecretPolicyService service = serviceWithFlag(false);
+        assertThat(service.shouldShowDefaultSecretDeprecationBanner(), equalTo(false));
     }
 }

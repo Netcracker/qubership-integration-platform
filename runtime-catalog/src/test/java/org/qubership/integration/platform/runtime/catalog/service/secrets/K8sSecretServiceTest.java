@@ -28,6 +28,7 @@ import org.mockito.Captor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SecretNotFoundException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.secret.KubeSecretOperator;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
@@ -216,5 +217,28 @@ public class K8sSecretServiceTest {
         Set<String> keys = Set.of("foo", "bar");
         secretService.removeEntriesAsync(SECRET_NAME, keys, null);
         verify(operator, times(1)).removeSecretDataAsync(eq(SECRET_NAME), eq(keys), any());
+    }
+
+    @DisplayName("secretExists should return true when operator returns a secret object")
+    @Test
+    public void secretExistsShouldReturnTrueWhenSecretObjectIsPresent() {
+        doReturn(new V1Secret()).when(operator).getSecretObjectByName(SECRET_NAME);
+        assertThat(secretService.secretExists(SECRET_NAME), is(true));
+        verify(operator).getSecretObjectByName(SECRET_NAME);
+    }
+
+    @DisplayName("secretExists should return false when operator returns null")
+    @Test
+    public void secretExistsShouldReturnFalseWhenSecretObjectIsNull() {
+        doReturn(null).when(operator).getSecretObjectByName(SECRET_NAME);
+        assertThat(secretService.secretExists(SECRET_NAME), is(false));
+    }
+
+    @DisplayName("secretExists should rethrow when operator throws KubeApiException")
+    @Test
+    public void secretExistsShouldRethrowWhenOperatorThrowsKubeApiException() {
+        KubeApiException kubeError = new KubeApiException("kube failure");
+        doThrow(kubeError).when(operator).getSecretObjectByName(SECRET_NAME);
+        assertThrows(KubeApiException.class, () -> secretService.secretExists(SECRET_NAME));
     }
 }
