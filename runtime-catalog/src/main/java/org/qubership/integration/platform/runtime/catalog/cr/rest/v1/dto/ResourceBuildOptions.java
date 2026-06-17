@@ -20,6 +20,9 @@ public class ResourceBuildOptions {
     private ContainerOptions container = new ContainerOptions();
 
     @Builder.Default
+    private JvmOptions jvm = new JvmOptions();
+
+    @Builder.Default
     private MonitoringOptions monitoring = new MonitoringOptions();
 
     @Builder.Default

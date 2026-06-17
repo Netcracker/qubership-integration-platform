@@ -41,8 +41,13 @@ public class CustomResourceOptionsProvider {
     private List<String> emptyDirs;
 
     @Value("${qip.cr.build.mount.resources}")
-    List<String> resources;
     private List<String> resources;
+
+    @Value("${qip.cr.build.jvm.args}")
+    private List<String> jvmArgs;
+
+    @Value("${qip.cr.build.jvm.jar}")
+    private String jvmJar;
 
     public ResourceBuildOptions getOptions(ResourceDeployRequest request) {
         return ResourceBuildOptions.builder()
@@ -51,6 +56,10 @@ public class CustomResourceOptionsProvider {
                 .container(ContainerOptions.builder()
                         .image(containerImage)
                         .imagePoolPolicy(imagePoolPolicy)
+                        .build())
+                .jvm(JvmOptions.builder()
+                        .jar(jvmJar)
+                        .args(jvmArgs)
                         .build())
                 .monitoring(MonitoringOptions.builder()
                         .enabled(monitoringEnabled)

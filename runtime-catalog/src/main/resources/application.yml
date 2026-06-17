@@ -164,6 +164,9 @@ qip:
     build:
       container:
         image: ${ENGINE_CONTAINER_IMAGE:}
+      jvm:
+        args: ${ENGINE_APP_ARGS:}
+        jar: ${ENGINE_APP_JAR:}
       mount:
         empty-dirs: ${CR_EMPTY_DIRS:}
         resources: ${CR_RESOURCES:}

@@ -82,6 +82,9 @@ public class CamelKIntegration implements KubernetesObject {
             @SerializedName("camel")
             private CamelTrait camel;
 
+            @SerializedName("jvm")
+            private JvmTrait jvm;
+
             @Data
             @NoArgsConstructor
             @AllArgsConstructor
@@ -129,6 +132,17 @@ public class CamelKIntegration implements KubernetesObject {
             public static class CamelTrait {
                 @SerializedName("properties")
                 private List<String> properties;
+            }
+
+            @Data
+            @NoArgsConstructor
+            @AllArgsConstructor
+            public static class JvmTrait {
+                @SerializedName("jar")
+                private String jar;
+
+                @SerializedName("options")
+                private List<String> options;
             }
         }
     }
