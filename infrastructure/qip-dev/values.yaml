@@ -13,4 +13,4 @@ global:
         enabled: true
       micro:
         enabled: true
-        image: ghcr.io/netcracker/qubership-integration-micro-engine:main
+        image: ghcr.io/netcracker/qubership-integration-micro-engine:main@sha256:5e7a6277fc2ea15d7e6fae0da5046ff01ba9a81f043c349178d73b599873dc6b

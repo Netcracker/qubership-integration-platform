@@ -1,7 +1,7 @@
 services:
 
   rabbitmq:
-    image: rabbitmq:4-management-alpine
+    image: rabbitmq:4-management-alpine@sha256:c1a9d43038bb6151877e84bb6a488493158ad5c1f21dd5d1872f347caa8053b3
     container_name: rabbitmq
     ports:
       - "5672:5672"

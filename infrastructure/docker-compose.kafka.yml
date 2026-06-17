@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
+    image: confluentinc/cp-zookeeper:7.5.0@sha256:02f6c042bb9a7844382fc4cedc513a44585d8a5acae873fb9e510e3ca9dcabc6
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -9,7 +9,7 @@ services:
       - "2181:2181"
 
   kafka:
-    image: confluentinc/cp-kafka:7.5.0
+    image: confluentinc/cp-kafka:7.5.0@sha256:fbbb6fa11b258a88b83f54d4f0bddfcffbf2279f99d66a843486e3da7bdfbf41
     ports:
       - "9092:9092"
     environment:
@@ -24,7 +24,7 @@ services:
       - zookeeper
 
   akhq:
-    image: tchiotludo/akhq:0.26.0
+    image: tchiotludo/akhq:0.26.0@sha256:833f9c3c32786e06c858589b2b1655a60caf3ca235c840308ad5754414945dd0
     container_name: akhq
     ports:
       - "8099:8080"
