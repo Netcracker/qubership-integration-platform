@@ -10,12 +10,6 @@
       "matchManagers": ["github-actions"],
       "matchUpdateTypes": ["pin", "pinDigest", "digest"],
       "enabled": true
-    },
-    {
-      "description": "Pin container images to digests and keep the pinned digests current",
-      "matchDatasources": ["docker"],
-      "matchUpdateTypes": ["pin", "pinDigest", "digest"],
-      "enabled": true
     }
   ]
 }
