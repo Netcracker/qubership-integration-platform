@@ -2,7 +2,6 @@ package org.qubership.integration.platform.runtime.catalog.cr.k8s;
 
 import com.google.gson.annotations.SerializedName;
 import io.kubernetes.client.common.KubernetesListObject;
-import io.kubernetes.client.common.KubernetesObject;
 import io.kubernetes.client.openapi.models.V1ListMeta;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
@@ -48,7 +47,7 @@ public class CamelKIntegrationList implements KubernetesListObject {
     }
 
     @Override
-    public List<? extends KubernetesObject> getItems() {
+    public List<CamelKIntegration> getItems() {
         return items;
     }
 }

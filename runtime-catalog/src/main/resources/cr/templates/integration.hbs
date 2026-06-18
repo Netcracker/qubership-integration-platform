@@ -5,12 +5,14 @@ metadata:
   name: {{name}}
   labels:
     {{domainLabel}}: {{domainName}}
+    {{bgVersionLabel}}: {{bgVersion}}
 spec:
   serviceAccountName: {{serviceAccountName}}
   traits:
     owner:
       targetLabels:
       - {{domainLabel}}
+      - {{bgVersionLabel}}
     container:
 {{#with container}}      image: "{{image}}"
       imagePullPolicy: {{imagePullPolicy}}

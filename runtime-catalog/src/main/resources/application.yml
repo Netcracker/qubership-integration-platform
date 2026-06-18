@@ -154,6 +154,7 @@ qip:
   cr:
     labels:
       domain: ${app.prefix}-domain
+      bg-version: bg-version
     naming:
       prefix: ${app.prefix}-engine-
       chains-configuration:
