@@ -15,6 +15,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.locations.SourceMou
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ContainerOptions;
+import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.Limits;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +40,8 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
     private static class ContainerData {
         String image;
         String imagePullPolicy;
+        Limits limit;
+        Limits request;
     }
 
     @Data
@@ -47,6 +50,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
         private String name;
         private String domainLabel;
         private String domainName;
+        private Integer replicas;
         private ContainerData container;
         private String jvmJar;
         private List<String> jvmArgs;
@@ -120,6 +124,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
                 .name(integrationResourceNamingStrategy.getName(context))
                 .domainLabel(domainLabel)
                 .domainName(k8sNameValidator.validate(context.getBuildInfo().getOptions().getName()))
+                .replicas(context.getBuildInfo().getOptions().getReplicas())
                 .container(buildContainerData(context.getBuildInfo().getOptions().getContainer()))
                 .jvmJar(context.getBuildInfo().getOptions().getJvm().getJar())
                 .jvmArgs(context.getBuildInfo().getOptions().getJvm().getArgs())
@@ -141,6 +146,8 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
         return ContainerData.builder()
                 .image(image)
                 .imagePullPolicy(containerOptions.getImagePoolPolicy().name())
+                .limit(containerOptions.getLimit())
+                .request(containerOptions.getRequest())
                 .build();
     }
 

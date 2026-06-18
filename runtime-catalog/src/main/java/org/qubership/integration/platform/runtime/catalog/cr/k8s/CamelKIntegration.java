@@ -57,6 +57,9 @@ public class CamelKIntegration implements KubernetesObject {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class IntegrationSpec {
+        @SerializedName("replicas")
+        private Integer replicas;
+
         @SerializedName("serviceAccountName")
         private String serviceAccountName;
 
@@ -94,6 +97,18 @@ public class CamelKIntegration implements KubernetesObject {
 
                 @SerializedName("imagePullPolicy")
                 private String imagePullPolicy;
+
+                @SerializedName("requestCPU")
+                private String requestCPU;
+
+                @SerializedName("requestMemory")
+                private String requestMemory;
+
+                @SerializedName("limitCPU")
+                private String limitCPU;
+
+                @SerializedName("limitMemory")
+                private String limitMemory;
             }
 
             @Data

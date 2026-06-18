@@ -17,6 +17,9 @@ public class ResourceBuildOptions {
     private String namespace;
 
     @Builder.Default
+    private int replicas = 1;
+
+    @Builder.Default
     private ContainerOptions container = new ContainerOptions();
 
     @Builder.Default
