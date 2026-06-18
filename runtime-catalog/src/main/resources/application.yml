@@ -181,11 +181,43 @@ qip:
       mount:
         empty-dirs: ${CR_EMPTY_DIRS:}
         resources: ${CR_RESOURCES:}
+      health:
+        liveness:
+          enabled: ${MICRO_DOMAIN_HEALTH_LIVENESS_ENABLED:false}
+          schema: ${MICRO_DOMAIN_HEALTH_LIVENESS_SCHEMA:}
+          initialDelay: ${MICRO_DOMAIN_HEALTH_LIVENESS_INITIAL_DELAY:0}
+          timeout: ${MICRO_DOMAIN_HEALTH_LIVENESS_TIMEOUT:0}
+          period: ${MICRO_DOMAIN_HEALTH_LIVENESS_PERIOD:0}
+          successThreshold: ${MICRO_DOMAIN_HEALTH_LIVENESS_SUCCESS_THRESHOLD:0}
+          failureThreshold: ${MICRO_DOMAIN_HEALTH_LIVENESS_FAILURE_THRESHOLD:0}
+          probe: ${MICRO_DOMAIN_HEALTH_LIVENESS_PROBE:}
+          port: ${MICRO_DOMAIN_HEALTH_LIVENESS_PORT:8080}
+        readiness:
+          enabled: ${MICRO_DOMAIN_HEALTH_READINESS_ENABLED:false}
+          schema: ${MICRO_DOMAIN_HEALTH_READINESS_SCHEMA:}
+          initialDelay: ${MICRO_DOMAIN_HEALTH_READINESS_INITIAL_DELAY:0}
+          timeout: ${MICRO_DOMAIN_HEALTH_READINESS_TIMEOUT:0}
+          period: ${MICRO_DOMAIN_HEALTH_READINESS_PERIOD:0}
+          successThreshold: ${MICRO_DOMAIN_HEALTH_READINESS_SUCCESS_THRESHOLD:0}
+          failureThreshold: ${MICRO_DOMAIN_HEALTH_READINESS_FAILURE_THRESHOLD:0}
+          probe: ${MICRO_DOMAIN_HEALTH_READINESS_PROBE:}
+          port: ${MICRO_DOMAIN_HEALTH_READINESS_PORT:8080}
+        startup:
+          enabled: ${MICRO_DOMAIN_HEALTH_SETUP_ENABLED:false}
+          schema: ${MICRO_DOMAIN_HEALTH_SETUP_SCHEMA:}
+          initialDelay: ${MICRO_DOMAIN_HEALTH_SETUP_INITIAL_DELAY:0}
+          timeout: ${MICRO_DOMAIN_HEALTH_SETUP_TIMEOUT:0}
+          period: ${MICRO_DOMAIN_HEALTH_SETUP_PERIOD:0}
+          successThreshold: ${MICRO_DOMAIN_HEALTH_SETUP_SUCCESS_THRESHOLD:0}
+          failureThreshold: ${MICRO_DOMAIN_HEALTH_SETUP_FAILURE_THRESHOLD:0}
+          probe: ${MICRO_DOMAIN_HEALTH_SETUP_PROBE:}
+          port: ${MICRO_DOMAIN_HEALTH_SETUP_PORT:8080}
       service-account: ${CR_K8S_SERVICE_ACCOUNT:default}
       service:
         enabled: ${CR_SERVICE_ENABLED:true}
       monitoring:
         enabled: ${CR_MONITORING_ENABLED:false}
+        interval: ${MICRO_DOMAIN_MONITORING_INTERVAL:30s}
       namespace: ${NAMESPACE:default}
       environment: ${CR_ENVIRONMENT:T(java.util.Collections).emptyMap()}
   snapshots:

@@ -68,3 +68,93 @@ spec:
 {{#each environment}}
       - {{.}}
 {{/each}}
+    health:
+{{#with health as | health |}}
+{{#with health.liveness}}
+{{#if enabled}}
+      livenessProbeEnabled: {{enabled}}
+{{#if schema}}
+      livenessScheme: {{schema}}
+{{/if}}
+{{#if initialDelay}}
+      livenessInitialDelay: {{initialDelay}}
+{{/if}}
+{{#if timeout}}
+      livenessTimeout: {{timeout}}
+{{/if}}
+{{#if period}}
+      livenessPeriod: {{period}}
+{{/if}}
+{{#if successThreshold}}
+      livenessSuccessThreshold: {{successThreshold}}
+{{/if}}
+{{#if failureThreshold}}
+      livenessFailureThreshold: {{failureThreshold}}
+{{/if}}
+{{#if probe}}
+      livenessProbe: {{probe}}
+{{/if}}
+{{#if port}}
+      livenessPort: {{port}}
+{{/if}}
+{{/if}}
+{{/with}}
+{{#with health.readiness}}
+{{#if enabled}}
+      readinessProbeEnabled: {{enabled}}
+{{#if schema}}
+      readinessScheme: {{schema}}
+{{/if}}
+{{#if initialDelay}}
+      readinessInitialDelay: {{initialDelay}}
+{{/if}}
+{{#if timeout}}
+      readinessTimeout: {{timeout}}
+{{/if}}
+{{#if period}}
+      readinessPeriod: {{period}}
+{{/if}}
+{{#if successThreshold}}
+      readinessSuccessThreshold: {{successThreshold}}
+{{/if}}
+{{#if failureThreshold}}
+      readinessFailureThreshold: {{failureThreshold}}
+{{/if}}
+{{#if probe}}
+      readinessProbe: {{probe}}
+{{/if}}
+{{#if port}}
+      readinessPort: {{port}}
+{{/if}}
+{{/if}}
+{{/with}}
+{{#with health.startup}}
+{{#if enabled}}
+      startupProbeEnabled: {{enabled}}
+{{#if schema}}
+      startupScheme: {{schema}}
+{{/if}}
+{{#if initialDelay}}
+      startupInitialDelay: {{initialDelay}}
+{{/if}}
+{{#if timeout}}
+      startupTimeout: {{timeout}}
+{{/if}}
+{{#if period}}
+      startupPeriod: {{period}}
+{{/if}}
+{{#if successThreshold}}
+      startupSuccessThreshold: {{successThreshold}}
+{{/if}}
+{{#if failureThreshold}}
+      startupFailureThreshold: {{failureThreshold}}
+{{/if}}
+{{#if probe}}
+      startupProbe: {{probe}}
+{{/if}}
+{{#if port}}
+      startupPort: {{port}}
+{{/if}}
+{{/if}}
+{{/with}}
+{{/with}}

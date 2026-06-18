@@ -15,6 +15,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.locations.SourceMou
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ContainerOptions;
+import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.HealthOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.Limits;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
@@ -59,6 +60,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
         private String bgVersionLabel;
         private String bgVersion;
         private Integer replicas;
+        private HealthOptions health;
         private ContainerData container;
         private String jvmJar;
         private List<String> jvmArgs;
@@ -136,9 +138,10 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
                 .bgVersion(bgVersion)
                 .replicas(context.getBuildInfo().getOptions().getReplicas())
                 .container(buildContainerData(context.getBuildInfo().getOptions().getContainer()))
+                .health(context.getBuildInfo().getOptions().getHealth())
                 .jvmJar(context.getBuildInfo().getOptions().getJvm().getJar())
                 .jvmArgs(context.getBuildInfo().getOptions().getJvm().getArgs())
-                .emptyDirs(context.getBuildInfo().getOptions().getEmptyDirs())
+                .emptyDirs(context.getBuildInfo().getOptions().getMount().getEmptyDirs())
                 .resources(buildResources(context))
                 .propertiesEnabled(!context.getBuildInfo().getOptions()
                         .getIntegrations().isConfigurationConfigMapNeeded())
@@ -184,7 +187,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
                     IntegrationsConfigurationConfigMapBuilder.CONTENT_KEY, QIP_CHAINS_CONFIGURATION_PATH);
             resources.add(resource);
         }
-        Set<String> result = new HashSet<>(context.getBuildInfo().getOptions().getResources());
+        Set<String> result = new HashSet<>(context.getBuildInfo().getOptions().getMount().getResources());
         result.addAll(resources);
         return result;
     }
