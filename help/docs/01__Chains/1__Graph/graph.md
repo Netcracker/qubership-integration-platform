@@ -41,7 +41,7 @@ The next actions are available upper right corner:
   - **Export related services** - if selected, system will also export services and specifications, utilized within chains.
   - **Export all common variables** - if selected, system will also export all common variables, utilized within chains.
 * ![send](img/send.svg) - save and deploy the chain.
-* Label "**Unsaved changes**" - appears near chain name only if there are changes, that are not saved in a snapshot.
+* Label "**Unsaved changes**" - appears above "Save and Deploy" button only if there are changes, that are not saved in a snapshot.
 * **Overridden By** - expandable parameter, that contains a reference to the chain that overrides it.
 
 
