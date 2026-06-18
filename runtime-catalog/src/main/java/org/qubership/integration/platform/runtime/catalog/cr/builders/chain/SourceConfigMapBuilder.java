@@ -40,6 +40,12 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Snapshot> {
     @Value("${qip.cr.labels.domain}")
     String domainLabel;
 
+    @Value("${qip.cr.labels.bg-version}")
+    String bgVersionLabel;
+
+    @Value("${spring.application.deployment_version}")
+    String bgVersion;
+
     @Autowired
     public SourceConfigMapBuilder(
             @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper,
@@ -89,6 +95,7 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Snapshot> {
             labelsNode.set(CHAIN_ID_LABEL, labelsNode.textNode(k8sNameValidator.validate(chain.getId())));
             labelsNode.set(SNAPSHOT_ID_LABEL, labelsNode.textNode(k8sNameValidator.validate(snapshot.getId())));
             labelsNode.set(domainLabel, labelsNode.textNode(k8sNameValidator.validate(context.getBuildInfo().getOptions().getName())));
+            labelsNode.set(bgVersionLabel, labelsNode.textNode(bgVersion));
 
             configMapNode.withObjectProperty("data")
                     .set(CONTENT_KEY, configMapNode.textNode(sourceBuilder.build(snapshot, sourceBuilderContext)));

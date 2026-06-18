@@ -14,7 +14,7 @@ import java.util.List;
 
 @Component("serviceMonitorNamingStrategy")
 public class ServiceMonitorNamingStrategy extends K8sResourceNamingStrategy<ResourceBuildContext<List<Snapshot>>> {
-    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> cloudServiceNamingStrategy;
     private final K8sNameValidator nameValidator;
     private final String suffix;
 
@@ -23,21 +23,21 @@ public class ServiceMonitorNamingStrategy extends K8sResourceNamingStrategy<Reso
         K8sNameVerifier nameVerifier,
         K8sNameValidator nameValidator,
 
-        @Qualifier("integrationResourceNamingStrategy")
-        NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
+        @Qualifier("cloudServiceNamingStrategy")
+        NamingStrategy<ResourceBuildContext<List<Snapshot>>> cloudServiceNamingStrategy,
 
         @Value("${qip.cr.naming.service-monitor.suffix:}")
         String suffix
     ) {
         super(nameVerifier);
-        this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
+        this.cloudServiceNamingStrategy = cloudServiceNamingStrategy;
         this.nameValidator = nameValidator;
         this.suffix = suffix;
     }
 
     @Override
     protected String proposeName(ResourceBuildContext<List<Snapshot>> context) {
-        String name = integrationResourceNamingStrategy.getName(context) + suffix;
+        String name = cloudServiceNamingStrategy.getName(context) + suffix;
         return nameValidator.validate(name);
     }
 }

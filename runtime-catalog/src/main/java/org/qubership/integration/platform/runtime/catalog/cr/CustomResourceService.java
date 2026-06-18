@@ -61,6 +61,15 @@ public class CustomResourceService {
     private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
     private final boolean monitoringEnabled;
 
+    @Value("${qip.cr.labels.domain}")
+    String domainLabel;
+
+    @Value("${qip.cr.labels.bg-version}")
+    String bgVersionLabel;
+
+    @Value("${spring.application.deployment_version}")
+    String bgVersion;
+
     @Autowired
     public CustomResourceService(
             KubeOperator kubeOperator,
@@ -163,7 +172,10 @@ public class CustomResourceService {
 
     public Optional<IntegrationResources> getIntegrationResources(String name) {
         String integrationName = getIntegrationResourceName(name);
-        Optional<CamelKIntegration> integration = kubeOperator.getIntegration(integrationName);
+        Optional<CamelKIntegration> integration = kubeOperator.getIntegrationsByLabels(
+            Map.of(domainLabel, name, bgVersionLabel, bgVersion))
+                .stream()
+                .findFirst();
         if (integration.isEmpty()) {
             return Optional.empty();
         }

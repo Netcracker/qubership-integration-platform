@@ -40,6 +40,12 @@ public class IntegrationsConfigurationConfigMapBuilder implements ResourceBuilde
     @Value("${qip.cr.labels.domain}")
     String domainLabel;
 
+    @Value("${qip.cr.labels.bg-version}")
+    String bgVersionLabel;
+
+    @Value("${spring.application.deployment_version}")
+    String bgVersion;
+
     @Autowired
     public IntegrationsConfigurationConfigMapBuilder(
             @Qualifier("customResourceYamlMapper")
@@ -83,6 +89,7 @@ public class IntegrationsConfigurationConfigMapBuilder implements ResourceBuilde
             ObjectNode labelsNode = metadataNode.withObject("labels");
             labelsNode.set(CAMEL_K_INTEGRATION_LABEL, metadataNode.textNode(integrationName));
             labelsNode.set(domainLabel, metadataNode.textNode(k8sNameValidator.validate(context.getBuildInfo().getOptions().getName())));
+            labelsNode.set(bgVersionLabel, metadataNode.textNode(bgVersion));
 
 
             IntegrationsConfiguration integrationsConfiguration = integrationsConfigurationBuilder.build(context);

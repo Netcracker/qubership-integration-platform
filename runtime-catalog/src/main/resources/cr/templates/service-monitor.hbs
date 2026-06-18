@@ -8,6 +8,7 @@ metadata:
     app.kubernetes.io/processed-by-operator: victoriametrics-operator
     camel.apache.org/integration: {{integrationName}}
     {{domainLabel}}: {{domainName}}
+    {{bgVersionLabel}}: {{bgVersion}}
 spec:
   targetLabels:
   - domain

@@ -286,21 +286,25 @@ public class KubeOperator {
         return isNull(labelValue) ? labelName : String.format("%s=%s", labelName, labelValue);
     }
 
+    private String toSelector(Map<String, String> labelValues) {
+        return labelValues.entrySet().stream()
+            .map(e -> toSelector(e.getKey(), e.getValue()))
+            .collect(Collectors.joining(","));
+    }
+
     private <T> T fromRawObject(Object obj, Type type) {
         return JSON.deserialize(JSON.serialize(obj), type);
     }
 
-    public Optional<CamelKIntegration> getIntegration(String name) throws KubeApiException {
+    public List<CamelKIntegration> getIntegrationsByLabels(Map<String, String> labelValues) throws KubeApiException {
         try {
-            Object rawObj = customObjectsApi.getNamespacedCustomObject("camel.apache.org", "v1", namespace, "integrations", name).execute();
-            CamelKIntegration integration = fromRawObject(rawObj, new TypeToken<CamelKIntegration>() {}.getType());
-            return Optional.ofNullable(integration);
+            Object rawListObj = customObjectsApi.listNamespacedCustomObject("camel.apache.org", "v1", namespace, "integrations")
+                .labelSelector(toSelector(labelValues))
+                .execute();
+            CamelKIntegrationList listObject = fromRawObject(rawListObj, new TypeToken<CamelKIntegrationList>() {}.getType());
+            return listObject.getItems();
         } catch (ApiException exception) {
-            if (exception.getCode() == HttpStatus.NOT_FOUND.value()) {
-                return Optional.empty();
-            } else {
-                throw new KubeApiException("Failed to get Camel K integration: " + name, exception);
-            }
+            throw new KubeApiException("Failed to get Camel K integrations", exception);
         }
     }
 

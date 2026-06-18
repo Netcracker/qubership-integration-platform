@@ -34,6 +34,12 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
     @Value("${qip.cr.labels.domain}")
     String domainLabel;
 
+    @Value("${qip.cr.labels.bg-version}")
+    String bgVersionLabel;
+
+    @Value("${spring.application.deployment_version}")
+    String bgVersion;
+
     @Data
     @Builder
     private static class ContainerData {
@@ -47,6 +53,8 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
         private String name;
         private String domainLabel;
         private String domainName;
+        private String bgVersionLabel;
+        private String bgVersion;
         private ContainerData container;
         private Collection<String> resources;
         private Collection<String> properties;
@@ -57,7 +65,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
 
     private final Handlebars templates;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
-    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> serviceNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> cloudServiceNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<Snapshot>> sourceDslConfigMapNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationsConfigurationConfigMapNamingStrategy;
     private final SourceMountPointGetter sourceMountPointGetter;
@@ -72,8 +80,8 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
             @Qualifier("integrationResourceNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
 
-            @Qualifier("serviceNamingStrategy")
-            NamingStrategy<ResourceBuildContext<List<Snapshot>>> serviceNamingStrategy,
+            @Qualifier("cloudServiceNamingStrategy")
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> cloudServiceNamingStrategy,
 
             @Qualifier("integrationsConfigurationResourceNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationsConfigurationConfigMapNamingStrategy,
@@ -87,7 +95,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
     ) {
         this.templates = templates;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
-        this.serviceNamingStrategy = serviceNamingStrategy;
+        this.cloudServiceNamingStrategy = cloudServiceNamingStrategy;
         this.sourceDslConfigMapNamingStrategy = sourceDslConfigMapNamingStrategy;
         this.integrationsConfigurationConfigMapNamingStrategy = integrationsConfigurationConfigMapNamingStrategy;
         this.sourceMountPointGetter = sourceMountPointGetter;
@@ -117,6 +125,8 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
                 .name(integrationResourceNamingStrategy.getName(context))
                 .domainLabel(domainLabel)
                 .domainName(k8sNameValidator.validate(context.getBuildInfo().getOptions().getName()))
+                .bgVersionLabel(bgVersionLabel)
+                .bgVersion(bgVersion)
                 .container(buildContainerData(context.getBuildInfo().getOptions().getContainer()))
                 .resources(buildResources(context))
                 .propertiesEnabled(!context.getBuildInfo().getOptions()
@@ -186,7 +196,8 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
 
     private Collection<String> buildEnvironmentVars(ResourceBuildContext<List<Snapshot>> context) {
         Map<String, String> environment = new HashMap<>(context.getBuildInfo().getOptions().getEnvironment());
-        environment.put("CLOUD_SERVICE_NAME", serviceNamingStrategy.getName(context));
+        environment.put("CLOUD_SERVICE_NAME", cloudServiceNamingStrategy.getName(context));
+        environment.put("BG_VERSION", bgVersion);
         environment.put("QIP_ENGINE_DOMAIN", context.getBuildInfo().getOptions().getName());
         if (!context.getBuildInfo().getOptions().getIntegrations().isCamelKSourcesUtilized()) {
             String location = context.getBuildInfo().getOptions().getIntegrations().getConfigurationLocation();
