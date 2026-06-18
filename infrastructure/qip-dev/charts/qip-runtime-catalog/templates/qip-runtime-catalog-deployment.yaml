@@ -92,6 +92,11 @@ spec:
                   POSTGRES_PASSWORD: 'secret:{{ .Release.Name }}-postgres-auth/password',
                   ROUTES_REGISTRATION_ENABLED: 'false'
                 }
+            - name: DEFAULT_SECRET_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  key: DEFAULT_SECRET_ENABLED
+                  name: {{ .Release.Name }}-env
             - name: CLASSIC_DEPLOY_ENABLED
               valueFrom:
                 configMapKeyRef:

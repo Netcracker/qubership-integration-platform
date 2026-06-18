@@ -167,4 +167,14 @@ public class K8sSecretService implements SecretService {
                 .build();
         actionLogger.logAction(action);
     }
+
+    @Override
+    public boolean secretExists(String secretName) {
+        try {
+            return nonNull(kubeSecretOperator.getSecretObjectByName(secretName));
+        } catch (KubeApiException exception) {
+            log.error("Failed to check if secret exists", exception);
+            throw exception;
+        }
+    }
 }

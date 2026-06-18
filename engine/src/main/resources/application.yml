@@ -205,6 +205,9 @@ camel:
       name: 'requestFilterHeaderAllowlist'
 
 qip:
+  variables:
+    default-secret:
+      enabled: ${DEFAULT_SECRET_ENABLED:false}
   standalone: true
   camel:
     stream-caching:

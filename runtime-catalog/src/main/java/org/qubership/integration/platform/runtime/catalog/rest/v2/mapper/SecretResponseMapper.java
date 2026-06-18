@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.rest.v2.mapper;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.qubership.integration.platform.runtime.catalog.rest.v2.dto.SecretResponse;
+import org.qubership.integration.platform.runtime.catalog.service.variables.DefaultSecretPolicyService;
 import org.qubership.integration.platform.runtime.catalog.service.variables.secrets.SecretService;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -32,9 +33,13 @@ public abstract class SecretResponseMapper {
     @Autowired
     private SecretService secretService;
 
+    @Autowired
+    private DefaultSecretPolicyService defaultSecretPolicyService;
+
     @Mapping(target = "secretName", source = "key")
     @Mapping(target = "variablesNames", source = "value")
     @Mapping(target = "defaultSecret", expression = "java(isDefaultSecret(secretVariable.getKey()))")
+    @Mapping(target = "disabled", expression = "java(isDefaultSecretDisabled(secretVariable.getKey()))")
     public abstract SecretResponse asResponse(Map.Entry<String, Set<String>> secretVariable);
 
     public List<SecretResponse> asResponse(Map<String, Set<String>> secrets) {
@@ -45,5 +50,12 @@ public abstract class SecretResponseMapper {
 
     public boolean isDefaultSecret(String secretName) {
         return secretService.isDefaultSecret(secretName);
+    }
+
+    protected boolean isDefaultSecretDisabled(String secretName) {
+        if (!secretService.isDefaultSecret(secretName)) {
+            return false;
+        }
+        return !defaultSecretPolicyService.isDefaultSecretEnabled();
     }
 }
