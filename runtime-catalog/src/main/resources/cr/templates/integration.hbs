@@ -7,6 +7,7 @@ metadata:
     {{domainLabel}}: {{domainName}}
     {{bgVersionLabel}}: {{bgVersion}}
 spec:
+  replicas: {{replicas}}
   serviceAccountName: {{serviceAccountName}}
   traits:
     owner:
@@ -16,6 +17,22 @@ spec:
     container:
 {{#with container}}      image: "{{image}}"
       imagePullPolicy: {{imagePullPolicy}}
+{{#with limit as | limit |}}
+{{#if limit.cpu}}
+      limitCPU: {{limit.cpu}}
+{{/if}}
+{{#if limit.memory}}
+      limitMemory: {{limit.memory}}
+{{/if}}
+{{/with}}
+{{#with request as | request |}}
+{{#if request.cpu }}
+      requestCPU: {{request.cpu}}
+{{/if}}
+{{#if request.memory }}
+      requestMemory: {{request.memory}}
+{{/if}}
+{{/with}}
 {{/with}}
     jvm:
 {{#if jvmJar}}

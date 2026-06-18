@@ -15,8 +15,23 @@ import java.util.Map;
 public class CustomResourceOptionsProvider {
     private static final String DEFAULT_SECRET_ENABLED_ENV = "DEFAULT_SECRET_ENABLED";
 
+    @Value("${qip.cr.build.replicas:1}")
+    private int replicas;
+
     @Value("${qip.cr.build.container.image}")
     private String containerImage;
+
+    @Value("${qip.cr.build.container.request.cpu}")
+    private String containerRequestCpu;
+
+    @Value("${qip.cr.build.container.request.memory}")
+    private String containerRequestMemory;
+
+    @Value("${qip.cr.build.container.limit.cpu}")
+    private String containerLimitCpu;
+
+    @Value("${qip.cr.build.container.limit.memory}")
+    private String containerLimitMemory;
 
     @Value("${qip.cr.build.container.image-pool-policy:IfNotPresent}")
     private ImagePoolPolicy imagePoolPolicy;
@@ -58,9 +73,18 @@ public class CustomResourceOptionsProvider {
         return ResourceBuildOptions.builder()
                 .name(request.getName())
                 .namespace(namespace)
+                .replicas(replicas)
                 .container(ContainerOptions.builder()
                         .image(containerImage)
                         .imagePoolPolicy(imagePoolPolicy)
+                        .request(Limits.builder()
+                                .cpu(containerRequestCpu)
+                                .memory(containerRequestMemory)
+                                .build())
+                        .limit(Limits.builder()
+                                .cpu(containerLimitCpu)
+                                .memory(containerLimitMemory)
+                                .build())
                         .build())
                 .jvm(JvmOptions.builder()
                         .jar(jvmJar)
