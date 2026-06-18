@@ -123,8 +123,7 @@ export const SecuredVariables: React.FC = () => {
       const response = await api.getSecuredVariables();
 
       if (response.success && response.data) {
-        const secretsWithVariables = response.data;
-
+        const secretsWithVariables: SecretWithVariables[] = response.data;
         const sorted = [...secretsWithVariables];
         sorted.sort((a: SecretWithVariables, b: SecretWithVariables) => {
           if (a.isDefaultSecret) return -1;

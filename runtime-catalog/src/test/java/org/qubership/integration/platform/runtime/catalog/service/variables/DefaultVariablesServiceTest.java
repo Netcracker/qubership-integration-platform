@@ -32,7 +32,6 @@ import java.util.Set;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -86,11 +85,11 @@ class DefaultVariablesServiceTest {
 
         verify(secretService).createSecret(defaultSecret);
         verify(securedVariableService).deleteVariables(
-                eq(defaultSecret),
-                eq(Set.of(DefaultVariablesService.NAMESPACE_VARIABLE_NAME)),
-                eq(false));
+                defaultSecret,
+                Set.of(DefaultVariablesService.NAMESPACE_VARIABLE_NAME),
+                false);
         verify(commonVariablesService).addVariablesUnlogged(
-                eq(Map.of(DefaultVariablesService.NAMESPACE_VARIABLE_NAME, "ns1")));
+                Map.of(DefaultVariablesService.NAMESPACE_VARIABLE_NAME, "ns1"));
     }
 
     @Test
@@ -116,6 +115,6 @@ class DefaultVariablesServiceTest {
 
         verify(securedVariableService, never()).deleteVariables(anyString(), anySet(), anyBoolean());
         verify(commonVariablesService).addVariablesUnlogged(
-                eq(Map.of(DefaultVariablesService.NAMESPACE_VARIABLE_NAME, "ns1")));
+                Map.of(DefaultVariablesService.NAMESPACE_VARIABLE_NAME, "ns1"));
     }
 }

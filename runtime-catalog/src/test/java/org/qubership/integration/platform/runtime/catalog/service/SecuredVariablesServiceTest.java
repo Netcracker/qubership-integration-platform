@@ -108,11 +108,6 @@ public class SecuredVariablesServiceTest {
     @DisplayName("getAllSecretsVariablesNames should return all variable names by secrets")
     @Test
     public void shouldReturnAllSecretsVariableNames() {
-        Map<String, Map<String, String>> allSecrets = Map.of(
-                DEFAULT_SECRET_NAME, Map.of("foo", "bar", "baz", "qux"),
-                "fiz", Map.of("quux", "gee")
-        );
-
         assertThat(securedVariableService.getAllSecretsVariablesNames(),
                 equalTo(Map.of(DEFAULT_SECRET_NAME, Set.of("foo", "baz"), "fiz", Set.of("quux"))));
         verify(defaultSecretPolicyService, never()).filterSecretsForList(any());
