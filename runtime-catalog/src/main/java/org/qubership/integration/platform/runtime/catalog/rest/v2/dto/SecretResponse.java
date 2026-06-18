@@ -35,4 +35,6 @@ public class SecretResponse {
     private Set<String> variablesNames;
     @Schema(description = "Whether this secret is used as a default one")
     private boolean defaultSecret;
+    @Schema(description = "Whether the default secret is disabled in deployment configuration")
+    private boolean disabled;
 }

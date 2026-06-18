@@ -181,25 +181,22 @@ describe("SecuredVariables Component", () => {
     // Default successful API responses
     mockApi.getSecuredVariables.mockResolvedValue({
       success: true,
-      data: {
-        secrets: [
-          {
-            secretName: "default-secret",
-            variables: [
-              { key: "DB_PASSWORD", value: "secret123" },
-              { key: "API_KEY", value: "key456" },
-            ],
-            isDefaultSecret: true,
-          },
-          {
-            secretName: "app-secret",
-            variables: [{ key: "TOKEN", value: "token789" }],
-            isDefaultSecret: false,
-          },
-        ],
-        defaultSecretEnabled: true,
-        defaultSecretExistsInEnv: true,
-      },
+      data: [
+        {
+          secretName: "default-secret",
+          variables: [
+            { key: "DB_PASSWORD", value: "secret123" },
+            { key: "API_KEY", value: "key456" },
+          ],
+          isDefaultSecret: true,
+          disabled: false,
+        },
+        {
+          secretName: "app-secret",
+          variables: [{ key: "TOKEN", value: "token789" }],
+          isDefaultSecret: false,
+        },
+      ],
     });
 
     mockApi.getSecuredVariablesForSecret.mockResolvedValue({
@@ -247,57 +244,57 @@ describe("SecuredVariables Component", () => {
       render(<SecuredVariables />);
 
       await screen.findByText(
-        "Default secured secret is deprecated. Migrate variables to named secrets.",
+        "Default secret for secured variables is deprecated. Please migrate to named secrets.",
       );
     });
 
-    it("shows deprecation banner when default secret exists but flag is disabled", async () => {
+    it("shows disabled-but-present banner when default secret row is disabled (e.g. toggle off)", async () => {
       mockApi.getSecuredVariables.mockResolvedValueOnce({
         success: true,
-        data: {
-          secrets: [
-            {
-              secretName: "app-secret",
-              variables: [{ key: "TOKEN", value: "token789" }],
-              isDefaultSecret: false,
-            },
-          ],
-          defaultSecretEnabled: false,
-          defaultSecretExistsInEnv: true,
-        },
+        data: [
+          {
+            secretName: "default-secret",
+            variables: [{ key: "LEGACY", value: "x" }],
+            isDefaultSecret: true,
+            disabled: true,
+          },
+          {
+            secretName: "app-secret",
+            variables: [{ key: "TOKEN", value: "token789" }],
+            isDefaultSecret: false,
+          },
+        ],
       });
 
       render(<SecuredVariables />);
 
       await screen.findByText(
-        "Default secured secret is disabled but still present in this environment. Migrate variables to named secrets.",
+        "Default secret for secured variables is disabled but still present in this environment. Please migrate to named secrets.",
       );
     });
 
     it("does not show deprecation banner when default secret is disabled and absent", async () => {
       mockApi.getSecuredVariables.mockResolvedValueOnce({
         success: true,
-        data: {
-          secrets: [
-            {
-              secretName: "app-secret",
-              variables: [{ key: "TOKEN", value: "token789" }],
-              isDefaultSecret: false,
-            },
-          ],
-          defaultSecretEnabled: false,
-          defaultSecretExistsInEnv: false,
-        },
+        data: [
+          {
+            secretName: "app-secret",
+            variables: [{ key: "TOKEN", value: "token789" }],
+            isDefaultSecret: false,
+          },
+        ],
       });
 
       render(<SecuredVariables />);
 
       await screen.findByText("app-secret");
       expect(
-        screen.queryByText(/Default secured secret is deprecated/),
+        screen.queryByText(/Default secret for secured variables is deprecated/),
       ).not.toBeInTheDocument();
       expect(
-        screen.queryByText(/Default secured secret is disabled but still present/),
+        screen.queryByText(
+          /Default secret for secured variables is disabled but still present/,
+        ),
       ).not.toBeInTheDocument();
     });
 
@@ -352,8 +349,6 @@ describe("SecuredVariables Component", () => {
       );
 
       await screen.findByText("app-secret");
-      fireEvent.click(getExpandButtonOnDefaultSecret("app-secret"));
-      await screen.findByTestId("variables-table");
       const row = screen.getByText("app-secret").closest("tr");
       fireEvent.click(within(row!).getByTestId("Add variable"));
       await waitFor(() => {

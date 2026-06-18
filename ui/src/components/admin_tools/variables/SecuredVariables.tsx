@@ -45,8 +45,9 @@ export const SecuredVariables: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [secrets, setSecrets] = useState<string[]>([]);
   const [defaultSecret, setDefaultSecret] = useState<string>("");
-  const [defaultSecretEnabled, setDefaultSecretEnabled] = useState(false);
-  const [defaultSecretExistsInEnv, setDefaultSecretExistsInEnv] = useState(false);
+  const [hasDefaultSecretInList, setHasDefaultSecretInList] = useState(false);
+  const [defaultSecretRowDisabled, setDefaultSecretRowDisabled] =
+    useState(false);
   const [variables, setVariables] = useState<Record<string, Variable[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [editing, setEditing] = useState<{
@@ -80,16 +81,16 @@ export const SecuredVariables: React.FC = () => {
   );
 
   const showDefaultSecretDeprecationBanner = useMemo(
-    () => defaultSecretEnabled || defaultSecretExistsInEnv,
-    [defaultSecretEnabled, defaultSecretExistsInEnv],
+    () => hasDefaultSecretInList,
+    [hasDefaultSecretInList],
   );
 
   const defaultSecretDeprecationBannerMessage = useMemo(() => {
-    if (defaultSecretEnabled) {
-      return "Default secured secret is deprecated. Migrate variables to named secrets.";
+    if (!defaultSecretRowDisabled) {
+      return "Default secret for secured variables is deprecated. Please migrate to named secrets.";
     }
-    return "Default secured secret is disabled but still present in this environment. Migrate variables to named secrets.";
-  }, [defaultSecretEnabled]);
+    return "Default secret for secured variables is disabled but still present in this environment. Please migrate to named secrets.";
+  }, [defaultSecretRowDisabled]);
 
   const refreshSecretVariables = useCallback(
     async (secret: string): Promise<boolean> => {
@@ -122,14 +123,7 @@ export const SecuredVariables: React.FC = () => {
       const response = await api.getSecuredVariables();
 
       if (response.success && response.data) {
-        const {
-          secrets: secretsWithVariables,
-          defaultSecretEnabled: isDefaultSecretEnabled,
-          defaultSecretExistsInEnv: isDefaultSecretPresentInEnv,
-        } = response.data;
-
-        setDefaultSecretEnabled(isDefaultSecretEnabled);
-        setDefaultSecretExistsInEnv(isDefaultSecretPresentInEnv);
+        const secretsWithVariables = response.data;
 
         const sorted = [...secretsWithVariables];
         sorted.sort((a: SecretWithVariables, b: SecretWithVariables) => {
@@ -141,16 +135,24 @@ export const SecuredVariables: React.FC = () => {
         const bySecret: Record<string, Variable[]> = {};
         const secretNames: string[] = [];
         let defaultName = "";
+        let defaultRowDisabled = false;
 
-        sorted.forEach(({ secretName, variables, isDefaultSecret }) => {
-          bySecret[secretName] = variables;
-          secretNames.push(secretName);
-          if (isDefaultSecret) defaultName = secretName;
-        });
+        sorted.forEach(
+          ({ secretName, variables, isDefaultSecret, disabled }) => {
+            bySecret[secretName] = variables;
+            secretNames.push(secretName);
+            if (isDefaultSecret) {
+              defaultName = secretName;
+              defaultRowDisabled = disabled === true;
+            }
+          },
+        );
 
         setSecrets(secretNames);
         setVariables(bySecret);
         setDefaultSecret(defaultName);
+        setHasDefaultSecretInList(defaultName !== "");
+        setDefaultSecretRowDisabled(defaultName !== "" && defaultRowDisabled);
       } else {
         console.error("Failed to load secrets:", response.error);
         notificationService.requestFailed(
@@ -390,6 +392,9 @@ export const SecuredVariables: React.FC = () => {
   const openNewVariableEditor = useCallback(
     (secret: string) => {
       if (!canAddVariableToSecret(secret)) return;
+      setExpandedRowKeys((keys) =>
+        keys.includes(secret) ? keys : [...keys, secret],
+      );
       setNewVariableKeys((prev) => ({
         ...prev,
         [secret]: true,

@@ -101,8 +101,6 @@ public class SecuredVariablesServiceTest {
         doReturn(data.get("fiz"))
                 .when(secretService).getSecretData(eq("fiz"), anyBoolean());
 
-        doAnswer(invocation -> invocation.getArgument(0))
-                .when(defaultSecretPolicyService).filterSecretsForList(any());
         doNothing().when(defaultSecretPolicyService).assertDefaultSecretAccessible(anyString());
         doNothing().when(defaultSecretPolicyService).assertCanAddVariables(anyString(), anyMap(), anyMap());
     }
@@ -117,7 +115,7 @@ public class SecuredVariablesServiceTest {
 
         assertThat(securedVariableService.getAllSecretsVariablesNames(),
                 equalTo(Map.of(DEFAULT_SECRET_NAME, Set.of("foo", "baz"), "fiz", Set.of("quux"))));
-        verify(defaultSecretPolicyService).filterSecretsForList(allSecrets);
+        verify(defaultSecretPolicyService, never()).filterSecretsForList(any());
     }
 
     @DisplayName("deleteVariables should return early when variable name set is empty")
@@ -129,20 +127,18 @@ public class SecuredVariablesServiceTest {
         verify(secretService, never()).removeEntries(anyString(), any());
     }
 
-    @DisplayName("getAllSecretsVariablesNames should return filtered secrets from policy service")
+    @DisplayName("getAllSecretsVariablesNames should include default secret without calling filterSecretsForList")
     @Test
-    void getAllSecretsVariablesNamesShouldReturnFilteredSecrets() {
+    void getAllSecretsVariablesNamesShouldIncludeDefaultSecretWithoutFilter() {
         Map<String, Map<String, String>> allSecrets = Map.of(
                 DEFAULT_SECRET_NAME, Map.of("foo", "bar"),
                 "fiz", Map.of("quux", "gee")
         );
-        Map<String, Map<String, String>> filteredSecrets = Map.of("fiz", Map.of("quux", "gee"));
         doReturn(allSecrets).when(secretService).getAllSecretsData();
-        doReturn(filteredSecrets).when(defaultSecretPolicyService).filterSecretsForList(allSecrets);
 
         assertThat(securedVariableService.getAllSecretsVariablesNames(),
-                equalTo(Map.of("fiz", Set.of("quux"))));
-        verify(defaultSecretPolicyService).filterSecretsForList(allSecrets);
+                equalTo(Map.of(DEFAULT_SECRET_NAME, Set.of("foo"), "fiz", Set.of("quux"))));
+        verify(defaultSecretPolicyService, never()).filterSecretsForList(any());
     }
 
     @DisplayName("getVariablesForSecret should enforce default secret policy before reading secret")

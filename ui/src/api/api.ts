@@ -74,7 +74,7 @@ import type {
   ApiResponse,
   ImportVariablesResult,
   VariableImportPreview,
-  SecuredVariablesListResponse,
+  SecretWithVariables,
   Variable,
   AccessControlSearchRequest,
   AccessControlResponse,
@@ -545,7 +545,7 @@ export interface Api {
     formData: FormData,
   ): Promise<ApiResponse<ImportVariablesResult>>;
 
-  getSecuredVariables(): Promise<ApiResponse<SecuredVariablesListResponse>>;
+  getSecuredVariables(): Promise<ApiResponse<SecretWithVariables[]>>;
 
   getSecuredVariablesForSecret(
     secretName: string,

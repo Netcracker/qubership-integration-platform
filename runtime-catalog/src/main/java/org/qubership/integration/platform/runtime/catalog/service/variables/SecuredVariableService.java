@@ -81,8 +81,7 @@ public class SecuredVariableService {
     public Map<String, Set<String>> getAllSecretsVariablesNames() {
         lock.lock();
         try {
-            Map<String, ? extends Map<String, String>> secrets = defaultSecretPolicyService
-                .filterSecretsForList(secretService.getAllSecretsData());
+            Map<String, ? extends Map<String, String>> secrets = secretService.getAllSecretsData();
             return secrets.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().keySet()));
         } finally {

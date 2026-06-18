@@ -835,24 +835,14 @@ export type SecretWithVariables = {
   secretName: string;
   variables: Variable[];
   isDefaultSecret: boolean;
+  disabled?: boolean;
 };
 
 export type SecretResponse = {
   secretName: string;
   variablesNames: string[];
   defaultSecret: boolean;
-};
-
-export type SecuredVariablesListApiResponse = {
-  secrets: SecretResponse[];
-  defaultSecretEnabled: boolean;
-  defaultSecretExistsInEnv: boolean;
-};
-
-export type SecuredVariablesListResponse = {
-  secrets: SecretWithVariables[];
-  defaultSecretEnabled: boolean;
-  defaultSecretExistsInEnv: boolean;
+  disabled?: boolean;
 };
 
 export type CreateFolderRequest = {
