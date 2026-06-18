@@ -88,6 +88,9 @@ public class CamelKIntegration implements KubernetesObject {
             @SerializedName("jvm")
             private JvmTrait jvm;
 
+            @SerializedName("health")
+            private HealthTrait health;
+
             @Data
             @NoArgsConstructor
             @AllArgsConstructor
@@ -158,6 +161,92 @@ public class CamelKIntegration implements KubernetesObject {
 
                 @SerializedName("options")
                 private List<String> options;
+            }
+
+            @Data
+            @NoArgsConstructor
+            @AllArgsConstructor
+            public static class HealthTrait {
+                @SerializedName("livenessProbeEnabled")
+                private Boolean livenessProbeEnabled;
+
+                @SerializedName("livenessScheme")
+                private String livenessScheme;
+
+                @SerializedName("livenessInitialDelay")
+                private Integer livenessInitialDelay;
+
+                @SerializedName("livenessTimeout")
+                private Integer livenessTimeout;
+
+                @SerializedName("livenessPeriod")
+                private Integer livenessPeriod;
+
+                @SerializedName("livenessSuccessThreshold")
+                private Integer livenessSuccessThreshold;
+
+                @SerializedName("livenessFailureThreshold")
+                private Integer livenessFailureThreshold;
+
+                @SerializedName("livenessProbe")
+                private String livenessProbe;
+
+                @SerializedName("livenessPort")
+                private Integer livenessPort;
+
+                @SerializedName("readinessProbeEnabled")
+                private Boolean readinessProbeEnabled;
+
+                @SerializedName("readinessScheme")
+                private String readinessScheme;
+
+                @SerializedName("readinessInitialDelay")
+                private Integer readinessInitialDelay;
+
+                @SerializedName("readinessTimeout")
+                private Integer readinessTimeout;
+
+                @SerializedName("readinessPeriod")
+                private Integer readinessPeriod;
+
+                @SerializedName("readinessSuccessThreshold")
+                private Integer readinessSuccessThreshold;
+
+                @SerializedName("readinessFailureThreshold")
+                private Integer readinessFailureThreshold;
+
+                @SerializedName("readinessProbe")
+                private String readinessProbe;
+
+                @SerializedName("readinessPort")
+                private Integer readinessPort;
+
+                @SerializedName("startupProbeEnabled")
+                private Boolean startupProbeEnabled;
+
+                @SerializedName("startupScheme")
+                private String startupScheme;
+
+                @SerializedName("startupInitialDelay")
+                private Integer startupInitialDelay;
+
+                @SerializedName("startupTimeout")
+                private Integer startupTimeout;
+
+                @SerializedName("startupPeriod")
+                private Integer startupPeriod;
+
+                @SerializedName("startupSuccessThreshold")
+                private Integer startupSuccessThreshold;
+
+                @SerializedName("startupFailureThreshold")
+                private Integer startupFailureThreshold;
+
+                @SerializedName("startupProbe")
+                private String startupProbe;
+
+                @SerializedName("startupPort")
+                private Integer startupPort;
             }
         }
     }
