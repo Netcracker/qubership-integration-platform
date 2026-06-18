@@ -10,7 +10,11 @@ import {
   Webview,
   WebviewPanel,
 } from "vscode";
-import { CHAIN_DIFF_PATH, getApiResponse, schemaToChain } from "./response";
+import { CHAIN_DIFF_PATH, getApiResponse, listChainExportTargets, schemaToChain } from "./response";
+import {
+  setPendingExportImagesRequest,
+  startExportImagesProgress,
+} from "./response/apiRouter";
 import { setFileApi } from "./response/file";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
 import {
@@ -18,7 +22,12 @@ import {
   initializeContextFromFile,
 } from "./response/file/fileExtensions";
 import { QipExplorerProvider } from "./qipExplorer";
-import { VSCodeMessage, VSCodeResponse } from "@netcracker/qip-ui";
+import {
+  VSCodeMessage,
+  VSCodeResponse,
+  type ExportImagesStartupPayload,
+} from "@netcracker/qip-ui";
+import type { ExportImagesCommandConfig } from "./exportImageTypes";
 import { FileCacheService } from "./services/FileCacheService";
 import {
   ProjectConfigService,
@@ -33,6 +42,11 @@ import {
 } from "./response/navigationUtils";
 import { ContentParser } from "./api-services";
 import { Chain } from "@netcracker/qip-ui";
+import {
+  buildExportImagesStartupPayload,
+  getExportTargetFromFilePath,
+  resolveExportPaths,
+} from "./exportImagesHandler";
 
 type VSCodeMessageWrapper = {
   command: string;
@@ -393,6 +407,57 @@ function openWebviewForElement(
   enrichWebview(panel, context, fileUri);
 }
 
+async function openExportImagesWebview(
+  context: ExtensionContext,
+  startupPayload: ExportImagesStartupPayload,
+) {
+  const panel = vscode.window.createWebviewPanel(
+    "qipWebView",
+    "QIP Export Images",
+    vscode.ViewColumn.One,
+    {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      enableCommandUris: true,
+      localResourceRoots: [context.extensionUri],
+    },
+  );
+
+  setPendingExportImagesRequest(panel, startupPayload);
+  startExportImagesProgress(panel);
+  enrichWebview(panel, context, undefined);
+}
+
+async function exportImagesHandler(
+  context: ExtensionContext,
+  filePath?: string | Uri,
+  config?: ExportImagesCommandConfig,
+) {
+  if (!config?.outputDir) {
+    await vscode.window.showErrorMessage("outputDir is required");
+    return;
+  }
+
+  const paths = resolveExportPaths(filePath, config);
+
+  if (!paths.length) {
+    await vscode.window.showErrorMessage("No chain files to export");
+    return;
+  }
+
+  const targets = await Promise.all(
+    paths.map((path) => getExportTargetFromFilePath(path)),
+  );
+
+  const startupPayload = buildExportImagesStartupPayload(
+    filePath,
+    config,
+    targets,
+  );
+
+  await openExportImagesWebview(context, startupPayload);
+}
+
 async function enrichWebview(
   panel: WebviewPanel,
   context: ExtensionContext,
@@ -434,7 +499,12 @@ async function enrichWebview(
     };
 
     try {
-      response.payload = await getApiResponse(message.data, fileUri, context);
+      response.payload = await getApiResponse(
+        message.data,
+        fileUri,
+        context,
+        panel,
+      );
 
       if (message.data.type === "openChainInNewTab") {
         vscode.commands.executeCommand(
@@ -702,6 +772,61 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
       );
 
       enrichWebview(panel, context, undefined);
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "qip.exportImages",
+      async (filePath?: string | Uri, config?: ExportImagesCommandConfig) => {
+        try {
+          await exportImagesHandler(context, filePath, config);
+        } catch (error) {
+          console.error("Failed to export QIP chain images:", error);
+          await vscode.window.showErrorMessage(
+            `Failed to export QIP chain images: ${error}`,
+          );
+        }
+      },
+    ),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("qip.exportImagesFromExplorer", async () => {
+      try {
+        const folders = await vscode.window.showOpenDialog({
+          canSelectFiles: false,
+          canSelectFolders: true,
+          canSelectMany: false,
+          title: "Select folder for exported chain PNG files",
+          openLabel: "Select output folder",
+        });
+        if (!folders?.[0]) {
+          return;
+        }
+
+        const outputDir = folders[0].toString();
+        const targets = await listChainExportTargets();
+
+        if (targets.length === 0) {
+          await vscode.window.showInformationMessage(
+            "No chain files were found in the workspace.",
+          );
+          return;
+        }
+
+        await vscode.commands.executeCommand("qip.exportImages", undefined, {
+          outputDir,
+          filePaths: targets.flatMap((target) =>
+            target.filePath ? [target.filePath] : [],
+          ),
+        } satisfies ExportImagesCommandConfig);
+      } catch (error) {
+        console.error("QIP export from explorer failed:", error);
+        await vscode.window.showErrorMessage(
+          `QIP export from explorer failed: ${error}`,
+        );
+      }
     }),
   );
 

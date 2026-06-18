@@ -42,6 +42,14 @@ export function isAttributeDetail(obj: unknown): obj is AttributeDetail {
   );
 }
 
+export function isBodyRootArray(schema?: MessageSchema | null): boolean {
+  if (!schema?.body) {
+    return false;
+  }
+  const resolved = DataTypes.resolveType(schema.body, []);
+  return DataTypes.isArrayType(resolved.type);
+}
+
 export class MessageSchemaUtil {
   public static findAttribute(
     schema: MessageSchema,

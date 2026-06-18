@@ -37,7 +37,10 @@ describe("OrderedElementUtils", () => {
     it("should create OrderedElementUtils instance with element and library data", async () => {
       mockGetLibraryElementByType.mockResolvedValue(mockLibraryElement);
 
-      const result = await OrderedElementUtils.create(mockElement);
+      const result = await OrderedElementUtils.create({
+        element: mockElement,
+        parentElementId: "parent-id",
+      });
 
       expect(mockGetLibraryElementByType).toHaveBeenCalledWith({
         name: "test-ordered-type",
@@ -51,7 +54,10 @@ describe("OrderedElementUtils", () => {
         ordered: true,
       } as LibraryElement);
 
-      const result = await OrderedElementUtils.create(mockElement);
+      const result = await OrderedElementUtils.create({
+        element: mockElement,
+        parentElementId: "parent-id",
+      });
 
       expect(getPriorityProperty(result)).toBe("priority");
     });
@@ -60,7 +66,10 @@ describe("OrderedElementUtils", () => {
   describe("getPriority", () => {
     beforeEach(async () => {
       mockGetLibraryElementByType.mockResolvedValue(mockLibraryElement);
-      utils = await OrderedElementUtils.create(mockElement);
+      utils = await OrderedElementUtils.create({
+        element: mockElement,
+        parentElementId: "parent-id",
+      });
     });
 
     it("should return priority from element when called without arguments", () => {
@@ -89,9 +98,10 @@ describe("OrderedElementUtils", () => {
         properties: { customPriority: 3 },
       } as ElementSchema;
 
-      const customUtils = await OrderedElementUtils.create(
-        elementWithCustomPriority,
-      );
+      const customUtils = await OrderedElementUtils.create({
+        element: elementWithCustomPriority,
+        parentElementId: "parent-id",
+      });
       const result = customUtils.getPriority();
 
       expect(result).toBe(3);
@@ -101,7 +111,10 @@ describe("OrderedElementUtils", () => {
   describe("getPriorityOrUndefined", () => {
     beforeEach(async () => {
       mockGetLibraryElementByType.mockResolvedValue(mockLibraryElement);
-      utils = await OrderedElementUtils.create(mockElement);
+      utils = await OrderedElementUtils.create({
+        element: mockElement,
+        parentElementId: "parent-id",
+      });
     });
 
     it("should return priority value when property exists", () => {
@@ -120,7 +133,10 @@ describe("OrderedElementUtils", () => {
   describe("updatePriority", () => {
     beforeEach(async () => {
       mockGetLibraryElementByType.mockResolvedValue(mockLibraryElement);
-      utils = await OrderedElementUtils.create(mockElement);
+      utils = await OrderedElementUtils.create({
+        element: mockElement,
+        parentElementId: "parent-id",
+      });
     });
 
     it("should update priority on the element when called without element argument", () => {
@@ -155,9 +171,10 @@ describe("OrderedElementUtils", () => {
         properties: { customPriority: 1 },
       } as ElementSchema;
 
-      const customUtils = await OrderedElementUtils.create(
-        elementWithCustomPriority,
-      );
+      const customUtils = await OrderedElementUtils.create({
+        element: elementWithCustomPriority,
+        parentElementId: "parent-id",
+      });
       customUtils.updatePriority(2);
 
       expect((elementWithCustomPriority.properties as any).customPriority).toBe(
@@ -169,7 +186,10 @@ describe("OrderedElementUtils", () => {
   describe("getIndex", () => {
     beforeEach(async () => {
       mockGetLibraryElementByType.mockResolvedValue(mockLibraryElement);
-      utils = await OrderedElementUtils.create(mockElement);
+      utils = await OrderedElementUtils.create({
+        element: mockElement,
+        parentElementId: "parent-id",
+      });
     });
 
     it("should find index by element id when priority is undefined", () => {
@@ -241,7 +261,10 @@ describe("OrderedElementUtils", () => {
   describe("extractOtherOrderedElements", () => {
     beforeEach(async () => {
       mockGetLibraryElementByType.mockResolvedValue(mockLibraryElement);
-      utils = await OrderedElementUtils.create(mockElement);
+      utils = await OrderedElementUtils.create({
+        element: mockElement,
+        parentElementId: "parent-id",
+      });
     });
 
     it("should return children with same type excluding current element", () => {
@@ -301,7 +324,10 @@ describe("OrderedElementUtils", () => {
   describe("extractSortedOrderedElements", () => {
     beforeEach(async () => {
       mockGetLibraryElementByType.mockResolvedValue(mockLibraryElement);
-      utils = await OrderedElementUtils.create(mockElement);
+      utils = await OrderedElementUtils.create({
+        element: mockElement,
+        parentElementId: "parent-id",
+      });
     });
 
     it("should sort children by priority ascending", () => {

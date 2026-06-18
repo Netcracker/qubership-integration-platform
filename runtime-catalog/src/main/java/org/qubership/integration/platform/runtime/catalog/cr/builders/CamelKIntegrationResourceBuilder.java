@@ -48,6 +48,9 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
         private String domainLabel;
         private String domainName;
         private ContainerData container;
+        private String jvmJar;
+        private List<String> jvmArgs;
+        private Collection<String> emptyDirs;
         private Collection<String> resources;
         private Collection<String> properties;
         private Collection<String> environment;
@@ -118,6 +121,9 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
                 .domainLabel(domainLabel)
                 .domainName(k8sNameValidator.validate(context.getBuildInfo().getOptions().getName()))
                 .container(buildContainerData(context.getBuildInfo().getOptions().getContainer()))
+                .jvmJar(context.getBuildInfo().getOptions().getJvm().getJar())
+                .jvmArgs(context.getBuildInfo().getOptions().getJvm().getArgs())
+                .emptyDirs(context.getBuildInfo().getOptions().getEmptyDirs())
                 .resources(buildResources(context))
                 .propertiesEnabled(!context.getBuildInfo().getOptions()
                         .getIntegrations().isConfigurationConfigMapNeeded())

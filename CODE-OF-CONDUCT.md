@@ -11,6 +11,7 @@ safe and productive community for all.
 
 The guideline is aimed to support a community where all people should feel safe to participate,
 introduce new ideas and inspire others, regardless of:
+
 * Age
 * Gender
 * Gender identity or expression
@@ -34,6 +35,7 @@ introduce new ideas and inspire others, regardless of:
 ## Our Standards
 
 We are welcoming the following behavior:
+
 * Be respectful for different ideas, opinions and points of view
 * Be constructive and professional
 * Use inclusive language
@@ -41,6 +43,7 @@ We are welcoming the following behavior:
 * Focus on the best results for the community
 
 The following behavior is unacceptable:
+
 * Violence, threats of violence, or inciting others to commit self-harm
 * Personal attacks, trolling, intentionally spreading misinformation, insulting/derogatory comments
 * Public or private harassment
@@ -62,7 +65,7 @@ that they deem inappropriate, threatening, offensive, or harmful.
 ## Reporting
 
 If you believe you’re experiencing unacceptable behavior that will not be tolerated as outlined above,
-please report to `plutosdev@gmail.com`. All complaints will be reviewed and investigated and will result in a response
+please report to `opensourcegroup@netcracker.com`. All complaints will be reviewed and investigated and will result in a response
 that is deemed necessary and appropriate to the circumstances. The project team is obligated to maintain confidentiality
 with regard to the reporter of an incident.
 

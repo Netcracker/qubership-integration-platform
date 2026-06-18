@@ -20,6 +20,21 @@ const mockRequestFailed = jest.fn();
 const mockNavigate = jest.fn();
 const mockFocusToElementId = jest.fn();
 
+let mockPanelFilters: { column: string; condition: string; value?: string }[] =
+  [];
+
+jest.mock("../../src/hooks/useChainElementPanelFilters.ts", () => ({
+  useChainElementPanelFilters: () => ({
+    filters: mockPanelFilters,
+    filterButton: (
+      <button type="button" data-testid="panel-filter-button">
+        Filters
+      </button>
+    ),
+    resetFilters: jest.fn(),
+  }),
+}));
+
 jest.mock("../../src/Modals", () => ({
   useModalsContext: () => ({ showModal: mockShowModal }),
 }));
@@ -196,6 +211,7 @@ describe("PageWithRightPanel", () => {
     (api.getElements as jest.Mock).mockResolvedValue([]);
     mockElementAsCode = { code: "element code" };
     mockElkDirectionThrows = false;
+    mockPanelFilters = [];
   });
 
   afterEach(() => {
@@ -454,6 +470,67 @@ describe("PageWithRightPanel", () => {
       renderWithChain([testElement]);
       await waitFor(() => {
         expect(screen.getByText("My Script")).toBeInTheDocument();
+      });
+    });
+
+    it("filters displayed elements when panel filters are active", async () => {
+      mockPanelFilters = [
+        { column: "ELEMENT_TYPE", condition: "IN", value: "script" },
+      ];
+      const second = {
+        ...testElement,
+        id: "el-2",
+        type: "http-trigger",
+        name: "HTTP Trigger",
+      };
+      (api.getElements as jest.Mock).mockResolvedValue([testElement, second]);
+      renderWithChain();
+      await waitFor(() => {
+        expect(screen.getByText("My Script")).toBeInTheDocument();
+        expect(screen.queryByText("HTTP Trigger")).not.toBeInTheDocument();
+      });
+    });
+
+    it("filters displayed elements when search text is entered", async () => {
+      const second = {
+        ...testElement,
+        id: "el-2",
+        name: "HTTP Trigger",
+        type: "http-trigger",
+      };
+      (api.getElements as jest.Mock).mockResolvedValue([testElement, second]);
+      renderWithChain();
+      await waitFor(() => {
+        expect(screen.getByText("My Script")).toBeInTheDocument();
+        expect(screen.getByText("HTTP Trigger")).toBeInTheDocument();
+      });
+      fireEvent.change(screen.getByRole("textbox"), {
+        target: { value: "HTTP" },
+      });
+      await waitFor(() => {
+        expect(screen.queryByText("My Script")).not.toBeInTheDocument();
+        expect(screen.getByText("HTTP Trigger")).toBeInTheDocument();
+      });
+    });
+
+    it("restores all elements when search text is cleared", async () => {
+      const second = {
+        ...testElement,
+        id: "el-2",
+        name: "HTTP Trigger",
+        type: "http-trigger",
+      };
+      (api.getElements as jest.Mock).mockResolvedValue([testElement, second]);
+      renderWithChain();
+      const input = await screen.findByRole("textbox");
+      fireEvent.change(input, { target: { value: "HTTP" } });
+      await waitFor(() =>
+        expect(screen.queryByText("My Script")).not.toBeInTheDocument(),
+      );
+      fireEvent.change(input, { target: { value: "" } });
+      await waitFor(() => {
+        expect(screen.getByText("My Script")).toBeInTheDocument();
+        expect(screen.getByText("HTTP Trigger")).toBeInTheDocument();
       });
     });
   });

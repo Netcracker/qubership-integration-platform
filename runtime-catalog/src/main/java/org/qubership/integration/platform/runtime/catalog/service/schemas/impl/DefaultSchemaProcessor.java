@@ -46,9 +46,9 @@ public class DefaultSchemaProcessor implements SchemaProcessor {
     }
 
     @Override
-    public MutablePair<String, String> process(Schema<?> schema) {
+    public MutablePair<String, String> process(Schema<?> schema, ObjectMapper mapper) {
         try {
-            return new MutablePair<>(schema.get$ref(), objectMapper.writeValueAsString(schema));
+            return new MutablePair<>(schema.get$ref(), mapper.writeValueAsString(schema));
         } catch (JsonProcessingException e) {
             log.error("Error during converting content string schema to JSON", e);
         }

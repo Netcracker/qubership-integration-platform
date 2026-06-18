@@ -20,7 +20,11 @@ import { useModalContext } from "../../../ModalContextProvider";
 import { api } from "../../../api/api";
 import { getErrorMessage } from "../../../misc/error-utils";
 import { useNotificationService } from "../../../hooks/useNotificationService";
-import type { ElementWithChainName, SpecApiFile } from "../../../api/apiTypes";
+import type {
+  ElementWithChainName,
+  ImportSpecificationResult,
+  SpecApiFile,
+} from "../../../api/apiTypes";
 import {
   ApiSpecificationType,
   ApiSpecificationFormat,
@@ -123,10 +127,8 @@ const ImportSpecificationsModal: React.FC<Props> = ({
       }
       setProgressText("Processing...");
       setPolling(true);
-      await pollStatus(res.id);
-      resetLoadingState();
-      closeContainingModal();
-      onSuccess?.();
+      const result = await pollStatus(res.id);
+      finishImport(result);
     } catch (e: unknown) {
       handleError(e, "Import failed");
     }
@@ -137,9 +139,7 @@ const ImportSpecificationsModal: React.FC<Props> = ({
       try {
         const result = await api.getImportSpecificationResult(importId);
         if (result.done) {
-          setProgressText(
-            result.warningMessage ? result.warningMessage : "Import complete",
-          );
+          setProgressText("Import complete");
           return result;
         }
       } catch (e: unknown) {
@@ -178,6 +178,15 @@ const ImportSpecificationsModal: React.FC<Props> = ({
   const handleError = (e: unknown, fallbackMessage: string) => {
     resetLoadingState();
     notify.requestFailed(getErrorMessage(e, fallbackMessage), e);
+  };
+
+  const finishImport = (result: ImportSpecificationResult) => {
+    resetLoadingState();
+    closeContainingModal();
+    onSuccess?.();
+    if (result.warningMessage) {
+      notify.warning("Import completed with warnings", result.warningMessage);
+    }
   };
 
   const fetchChainsWithHttpTriggers = async (externalOnly: boolean) => {
@@ -275,10 +284,8 @@ const ImportSpecificationsModal: React.FC<Props> = ({
       }
       setProgressText("Processing...");
       setPolling(true);
-      await pollStatus(res.id);
-      resetLoadingState();
-      closeContainingModal();
-      onSuccess?.();
+      const result = await pollStatus(res.id);
+      finishImport(result);
     } catch (e: unknown) {
       handleError(e, "Import from API failed");
     }
@@ -368,15 +375,13 @@ const ImportSpecificationsModal: React.FC<Props> = ({
       );
       setProgressText("Processing import...");
       setPolling(true);
-      await pollStatus(importResult.id);
+      const result = await pollStatus(importResult.id);
       await api.modifyHttpTriggerProperties(
         "any-chain",
         importResult.specificationGroupId,
         httpTriggerIds,
       );
-      resetLoadingState();
-      closeContainingModal();
-      onSuccess?.();
+      finishImport(result);
     } catch (e) {
       resetLoadingState();
       handleError(e, "Failed to generate and import API");

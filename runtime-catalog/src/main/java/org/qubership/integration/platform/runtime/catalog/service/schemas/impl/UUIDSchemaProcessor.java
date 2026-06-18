@@ -46,13 +46,13 @@ public class UUIDSchemaProcessor extends DefaultSchemaProcessor implements Schem
     }
 
     @Override
-    public MutablePair<String, String> process(Schema<?> schema) {
+    public MutablePair<String, String> process(Schema<?> schema, ObjectMapper mapper) {
         UUIDSchema uuidSchema = (UUIDSchema) schema;
-        ObjectNode schemaAsNode = objectMapper.convertValue(uuidSchema, ObjectNode.class);
+        ObjectNode schemaAsNode = mapper.convertValue(uuidSchema, ObjectNode.class);
         schemaAsNode.set(TYPE_NODE_NAME, STRING_TYPE_NODE);
         schemaAsNode.set(FORMAT_NODE_NAME, UUID_TYPE_NODE);
         try {
-           String schemaAsString = objectMapper.writeValueAsString(schemaAsNode);
+           String schemaAsString = mapper.writeValueAsString(schemaAsNode);
            return new MutablePair<>(uuidSchema.get$ref(), schemaAsString);
         } catch (JsonProcessingException e) {
             log.error("Error during converting content uuid schema to JSON", e);

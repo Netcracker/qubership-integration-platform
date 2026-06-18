@@ -55,47 +55,46 @@ export const usePriorityContextMenuItems: ContextMenuItemsHook = ({
       const currentIndex: number = childrenOfTheSameType
         .map((node) => node.id)
         .indexOf(selectedNode.id);
-      const orderedChildrenLength: number = childrenOfTheSameType.filter(
-        (node) =>
-          getPriority(node, priorityProperty) < childrenOfTheSameType.length,
-      ).length;
       const currentPriority: number = getPriority(
         selectedNode,
         priorityProperty,
       );
 
       const items: ContextMenuItem[] = [];
-      if (
-        currentIndex > 0 &&
-        currentPriority > 0 &&
-        currentPriority < orderedChildrenLength
-      ) {
+      if (currentIndex > 0 && currentPriority > 0) {
+        const newPriority = calculateMoveUpPriority(
+          childrenOfTheSameType,
+          currentIndex,
+          priorityProperty,
+        );
         items.push({
           id: uuidv4(),
-          text: "Move up",
+          text: `Move up (New priority: ${newPriority})`,
           handler: () =>
             updateElementPriority(
               chainId!,
               selectedNode,
               priorityProperty,
-              currentPriority - 1,
+              newPriority,
             ),
         });
       }
 
-      if (
-        currentIndex + 1 < childrenOfTheSameType.length &&
-        currentPriority + 1 < orderedChildrenLength
-      ) {
+      if (currentIndex + 1 < childrenOfTheSameType.length) {
+        const newPriority = calculateMoveDownPriority(
+          childrenOfTheSameType,
+          currentIndex,
+          priorityProperty,
+        );
         items.push({
           id: uuidv4(),
-          text: "Move down",
+          text: `Move down (New priority: ${newPriority})`,
           handler: () =>
             updateElementPriority(
               chainId!,
               selectedNode,
               priorityProperty,
-              currentPriority + 1,
+              newPriority,
             ),
         });
       }
@@ -104,6 +103,24 @@ export const usePriorityContextMenuItems: ContextMenuItemsHook = ({
     }
 
     return [];
+  };
+
+  const calculateMoveUpPriority = (
+    elements: Node<ChainGraphNodeData>[],
+    currentIndex: number,
+    priorityProperty: string,
+  ): number => {
+    const prevElement = elements[currentIndex - 1];
+    return getPriority(prevElement, priorityProperty);
+  };
+
+  const calculateMoveDownPriority = (
+    elements: Node<ChainGraphNodeData>[],
+    currentIndex: number,
+    priorityProperty: string,
+  ): number => {
+    const nextElement = elements[currentIndex + 1];
+    return getPriority(nextElement, priorityProperty);
   };
 
   const updateElementPriority = async (

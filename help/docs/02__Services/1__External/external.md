@@ -135,7 +135,7 @@ To add new information, click on the button ![setting](img/setting.svg) located 
 - ![cloud-download](img/cloud-download.svg) - exports the specification.
 
 In general at the right top the following operations are available:
-- ![cloud-upload](img/cloud-upload.svg) - opens pop-up for the service specification.
+- ![cloud-upload](img/cloud-upload.svg) - opens pop-up for the specification import.
 - ![cloud-download](img/cloud-download.svg) - exports the specification (available only for <ins>Web UI</ins>).
 
 ### View Operations

@@ -31,13 +31,13 @@ jobs:
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ github.ref }}
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: '22.x'
           registry-url: 'https://npm.pkg.github.com'
@@ -68,13 +68,13 @@ jobs:
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ github.ref }}
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: '22.x'
           registry-url: 'https://npm.pkg.github.com'
@@ -107,7 +107,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
@@ -131,7 +131,7 @@ jobs:
             -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
             -Dsonar.projectKey=${{ vars.SONAR_VSCODE_EXTENSION_PROJECT_KEY }}
             -Dsonar.sources=src
-            -Dsonar.tests=src
+            -Dsonar.tests=tests
             -Dsonar.test.inclusions=**/*.test.ts,**/*.spec.ts,**/*.test.tsx,**/*.spec.tsx
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
             -Dsonar.qualitygate.wait=true

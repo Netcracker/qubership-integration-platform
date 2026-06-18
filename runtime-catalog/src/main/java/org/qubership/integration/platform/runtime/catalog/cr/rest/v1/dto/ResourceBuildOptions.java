@@ -2,10 +2,7 @@ package org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto;
 
 import lombok.*;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 @Data
 @NoArgsConstructor
@@ -23,6 +20,9 @@ public class ResourceBuildOptions {
     private ContainerOptions container = new ContainerOptions();
 
     @Builder.Default
+    private JvmOptions jvm = new JvmOptions();
+
+    @Builder.Default
     private MonitoringOptions monitoring = new MonitoringOptions();
 
     @Builder.Default
@@ -30,6 +30,9 @@ public class ResourceBuildOptions {
 
     @Builder.Default
     private Map<String, String> environment = new HashMap<>();
+
+    @Builder.Default
+    private Set<String> emptyDirs = new HashSet<>();
 
     @Builder.Default
     private Set<String> resources = new HashSet<>();

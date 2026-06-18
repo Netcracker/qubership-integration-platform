@@ -189,7 +189,7 @@ describe("usePriorityContextMenuItems", () => {
       const contextMenuItems = result.current.buildItems([nodes[0]]);
 
       expect(contextMenuItems).toHaveLength(1);
-      expect(contextMenuItems[0].text).toBe("Move up");
+      expect(contextMenuItems[0].text).toBe("Move up (New priority: 0)");
     });
 
     it("should return move down item when element can be moved down", () => {
@@ -222,7 +222,7 @@ describe("usePriorityContextMenuItems", () => {
       const contextMenuItems = result.current.buildItems([nodes[0]]);
 
       expect(contextMenuItems).toHaveLength(1);
-      expect(contextMenuItems[0].text).toBe("Move down");
+      expect(contextMenuItems[0].text).toBe("Move down (New priority: 1)");
     });
 
     it("should return both move up and move down items when element is in the middle", () => {
@@ -256,8 +256,8 @@ describe("usePriorityContextMenuItems", () => {
       const contextMenuItems = result.current.buildItems([nodes[1]]);
 
       expect(contextMenuItems).toHaveLength(2);
-      expect(contextMenuItems[0].text).toBe("Move up");
-      expect(contextMenuItems[1].text).toBe("Move down");
+      expect(contextMenuItems[0].text).toBe("Move up (New priority: 0)");
+      expect(contextMenuItems[1].text).toBe("Move down (New priority: 2)");
     });
 
     it("should not show move up item when element is at the top", () => {
@@ -290,7 +290,7 @@ describe("usePriorityContextMenuItems", () => {
       const contextMenuItems = result.current.buildItems([nodes[0]]);
 
       expect(contextMenuItems).toHaveLength(1);
-      expect(contextMenuItems[0].text).toBe("Move down");
+      expect(contextMenuItems[0].text).toBe("Move down (New priority: 1)");
     });
 
     it("should not show move down item when element is at the bottom", () => {
@@ -323,7 +323,7 @@ describe("usePriorityContextMenuItems", () => {
       const contextMenuItems = result.current.buildItems([nodes[1]]);
 
       expect(contextMenuItems).toHaveLength(1);
-      expect(contextMenuItems[0].text).toBe("Move up");
+      expect(contextMenuItems[0].text).toBe("Move up (New priority: 0)");
     });
 
     it("should use default priority property name when library element does not specify one", () => {
@@ -352,7 +352,7 @@ describe("usePriorityContextMenuItems", () => {
       const contextMenuItems = result.current.buildItems([nodes[0]]);
 
       expect(contextMenuItems).toHaveLength(1);
-      expect(contextMenuItems[0].text).toBe("Move down");
+      expect(contextMenuItems[0].text).toBe("Move down (New priority: 1)");
     });
 
     it("should only consider children of the same element type", () => {
@@ -392,7 +392,7 @@ describe("usePriorityContextMenuItems", () => {
       const contextMenuItems = result.current.buildItems([nodes[0]]);
 
       expect(contextMenuItems).toHaveLength(1);
-      expect(contextMenuItems[0].text).toBe("Move down");
+      expect(contextMenuItems[0].text).toBe("Move down (New priority: 1)");
     });
 
     it("should only consider children with the same parent", () => {
@@ -426,7 +426,7 @@ describe("usePriorityContextMenuItems", () => {
       const contextMenuItems = result.current.buildItems([nodes[0]]);
 
       expect(contextMenuItems).toHaveLength(1);
-      expect(contextMenuItems[0].text).toBe("Move down");
+      expect(contextMenuItems[0].text).toBe("Move down (New priority: 1)");
     });
   });
 });

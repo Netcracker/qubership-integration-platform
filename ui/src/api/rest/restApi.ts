@@ -2317,7 +2317,7 @@ export class RestApi implements Api {
 
   getChainSnapshot = async (snapshotId: string): Promise<ChainSnapshot> => {
     const response = await this.instance.get<ChainSnapshot>(
-      `${this.v2()}/catalog/snapshots/${snapshotId}/full`,
+      `${this.v2()}/snapshots/${snapshotId}/full`,
     );
     return response.data;
   };

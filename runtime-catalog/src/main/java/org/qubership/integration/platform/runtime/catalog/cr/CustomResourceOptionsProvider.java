@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -40,6 +42,18 @@ public class CustomResourceOptionsProvider {
     @Value("${qip.variables.default-secret.enabled:false}")
     private boolean defaultSecretEnabled;
 
+    @Value("${qip.cr.build.mount.empty-dirs}")
+    private List<String> emptyDirs;
+
+    @Value("${qip.cr.build.mount.resources}")
+    private List<String> resources;
+
+    @Value("${qip.cr.build.jvm.args}")
+    private List<String> jvmArgs;
+
+    @Value("${qip.cr.build.jvm.jar}")
+    private String jvmJar;
+
     public ResourceBuildOptions getOptions(ResourceDeployRequest request) {
         return ResourceBuildOptions.builder()
                 .name(request.getName())
@@ -47,6 +61,10 @@ public class CustomResourceOptionsProvider {
                 .container(ContainerOptions.builder()
                         .image(containerImage)
                         .imagePoolPolicy(imagePoolPolicy)
+                        .build())
+                .jvm(JvmOptions.builder()
+                        .jar(jvmJar)
+                        .args(jvmArgs)
                         .build())
                 .monitoring(MonitoringOptions.builder()
                         .enabled(monitoringEnabled)
@@ -56,6 +74,8 @@ public class CustomResourceOptionsProvider {
                         .camelKSourcesUtilized(false)
                         .build())
                 .environment(getEnvironment())
+                .emptyDirs(new HashSet<>(emptyDirs))
+                .resources(new HashSet<>(resources))
                 .service(ServiceOptions.builder()
                         .enabled(serviceEnabled)
                         .build())

@@ -16,13 +16,23 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.schemas;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.swagger.v3.oas.models.media.Schema;
 import org.apache.commons.lang3.tuple.MutablePair;
 
 public interface SchemaProcessor {
 
-    MutablePair<String, String> process(Schema<?> schema);
+    /**
+     * Serializes a swagger schema to JSON. The mapper is version-specific: the caller
+     * passes the 3.1 mapper for 3.1+ specs so that multi-type schemas keep their types.
+     */
+    MutablePair<String, String> process(Schema<?> schema, ObjectMapper mapper);
 
+    /**
+     * Re-parses an already-serialized schema string and applies the processor's type/format.
+     * It operates on JSON text rather than a swagger model, so it is version-agnostic — do not
+     * serialize a {@code Schema} object here, or 3.1 multi-type information would be lost.
+     */
     ObjectNode applySchemaType(String schemaAsString);
 }

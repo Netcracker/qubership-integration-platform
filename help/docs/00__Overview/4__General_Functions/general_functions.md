@@ -12,10 +12,10 @@ Notifications ![bell](img/bell.svg) are implemented to communicate interactively
 ![close-circle](img/close-circle.svg) **Error** - error messages (e.g. chain was not deployed or some required parameter is not filled in chain element).
 
 Notification has the next general structure:
-1. **Service name** (optional) - name of the QIP service where the change was occurred.
+1. **Service** (optional) - name of the QIP service where the change was occurred.
 2. **Message** - the main content of the notifications.
 3. **Stack trace** (optional) - in case of technical error provides the ability to check root cause of the error and helps to find the problem root cause.
-4. **Date** - date and time of the notification.
+4. **Occured** - date and time of the notification.
 
 <ins>VS Code Extension</ins>
 

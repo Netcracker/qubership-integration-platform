@@ -34,8 +34,6 @@ properties:
           $ref: "#/definitions/Environment"
     required:
       - integrationSystemType
-      - protocol
-      - environments
 required:
   - content
 definitions:

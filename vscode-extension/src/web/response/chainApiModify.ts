@@ -221,10 +221,11 @@ export async function updateElement(
   }
 
   const chainElements = chain.content.elements as ElementSchema[];
-  let element: ElementSchema | undefined = findElementById(
+  const elementWithParentId = findElementById(
     chainElements,
     elementId,
-  )?.element;
+  );
+  let element: ElementSchema | undefined = elementWithParentId?.element;
 
   if (!element) {
     console.error(`ElementId not found`);
@@ -232,7 +233,7 @@ export async function updateElement(
   }
 
   const isChangeParent =
-    element.parentElementId !== elementRequest.parentElementId;
+    elementWithParentId?.parentId !== elementRequest.parentElementId;
 
   if (isChangeParent) {
     element = findAndRemoveElementById(chainElements, elementId)!;
@@ -256,7 +257,10 @@ export async function updateElement(
     fileUri,
     chainId,
     chainElements,
-  ).updateProperties(element, elementRequest);
+  ).updateProperties(
+    { element, parentElementId: elementWithParentId?.parentId },
+    elementRequest,
+  );
   (element as any).properties = elementRequest.properties;
 
   element.parentElementId = elementRequest.parentElementId;
@@ -587,7 +591,10 @@ export async function createElement(
     mainFolderUri,
     chainId,
     chainElements,
-  ).updatePriority(element);
+  ).updatePriority({
+    element,
+    parentElementId: elementRequest.parentElementId,
+  });
 
   await writeElementProperties(mainFolderUri, element);
   await fileApi.writeMainChain(mainFolderUri, chain);
@@ -781,7 +788,10 @@ export async function deleteElements(
       fileUri,
       chainId,
       chainElements,
-    ).removeElementIfOrderedAndMergeDiff(element, chainDiff);
+    ).removeElementIfOrderedAndMergeDiff(
+      { element, parentElementId },
+      chainDiff,
+    );
 
     const removedElement = findAndRemoveElementById(chainElements, elementId)!;
 

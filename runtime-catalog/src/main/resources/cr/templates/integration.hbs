@@ -15,12 +15,28 @@ spec:
 {{#with container}}      image: "{{image}}"
       imagePullPolicy: {{imagePullPolicy}}
 {{/with}}
+    jvm:
+{{#if jvmJar}}
+      jar: "{{jvmJar}}"
+{{/if}}
+{{#if jvmArgs}}
+      options:
+{{#each jvmArgs}}
+      - "{{.}}"
+{{/each}}
+{{/if}}
     mount:
       hotReload: true
       resources:
 {{#each resources}}
       - "{{.}}"
 {{/each}}
+{{#if emptyDirs}}
+      emptyDirs:
+{{#each emptyDirs}}
+      - "{{.}}"
+{{/each}}
+{{/if}}
 {{#if propertiesEnabled}}
     camel:
       properties:
