@@ -506,7 +506,7 @@ Use when user want to:
 - Concatenate values
 ---
 Verify twice that user mentioned any of the
-above points, if user mentioned, read below Supported Transformations carefully, they are placed in skills and called /mapper-element-skill/mapper-element-transformations-skill
+above points, if user mentioned, read below Supported Transformations carefully, they are placed in skills and called /mapper-element-transformations-skill
 
 # Rules
 
@@ -529,7 +529,7 @@ above points, if user mentioned, read below Supported Transformations carefully,
 
 # Decision Guide
 Verify twice that user mentioned any of the
-above points, if user mentioned, read below Supported Transformations carefully, they are placed in skills /mapper-element-skill/mapper-element-transformations-skill.
+above points, if user mentioned, read below Supported Transformations carefully, they are placed in skills /mapper-element-transformations-skill.
 
 If the user asks to:
 
