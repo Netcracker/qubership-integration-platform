@@ -3,9 +3,6 @@
 # shared _npm-module-release workflow, then optionally cascade to ui (and on to
 # vscode-extension).
 #
-# This is the COMMON case — schemas ships to npm frequently. The rare Maven
-# Central publish (~twice a year, manual) lives in schemas-maven-release.yaml.
-#
 # No workflow-level concurrency: the reusable serialises per module (group
 # includes inputs.module). A wrapper-level group keyed on github.workflow would
 # collide with the nested ui/vscode calls and deadlock.
