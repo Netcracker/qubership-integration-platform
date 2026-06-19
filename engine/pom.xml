@@ -22,7 +22,7 @@
     <relativePath>../parent</relativePath>
   </parent>
   <properties>
-    <revision>0.5.6</revision>
+    <revision>1.0.0</revision>
     <changelist>-SNAPSHOT</changelist>
 
     <generated-sources>target/generated-sources/java</generated-sources>
