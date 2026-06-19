@@ -57,10 +57,10 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
         private String name;
         private String domainLabel;
         private String domainName;
-        private String bgVersionLabel;
-        private String bgVersion;
         private Integer replicas;
         private HealthOptions health;
+        private String bgVersionLabel;
+        private String bgVersion;
         private ContainerData container;
         private String jvmJar;
         private List<String> jvmArgs;
@@ -134,9 +134,9 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
                 .name(integrationResourceNamingStrategy.getName(context))
                 .domainLabel(domainLabel)
                 .domainName(k8sNameValidator.validate(context.getBuildInfo().getOptions().getName()))
+                .replicas(context.getBuildInfo().getOptions().getReplicas())
                 .bgVersionLabel(bgVersionLabel)
                 .bgVersion(bgVersion)
-                .replicas(context.getBuildInfo().getOptions().getReplicas())
                 .container(buildContainerData(context.getBuildInfo().getOptions().getContainer()))
                 .health(context.getBuildInfo().getOptions().getHealth())
                 .jvmJar(context.getBuildInfo().getOptions().getJvm().getJar())
