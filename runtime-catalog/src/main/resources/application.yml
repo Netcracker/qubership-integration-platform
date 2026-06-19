@@ -166,21 +166,60 @@ qip:
       chain:
         suffix-length: 7
     build:
+      replicas: ${MICRO_DOMAIN_REPLICAS:1}
       container:
-        image: ${ENGINE_CONTAINER_IMAGE:}
+        image: ${MICRO_DOMAIN_CONTAINER_IMAGE:}
+        request:
+          cpu: ${MICRO_DOMAIN_CONTAINER_REQUEST_CPU:}
+          memory: ${MICRO_DOMAIN_CONTAINER_REQUEST_MEMORY:}
+        limit:
+          cpu: ${MICRO_DOMAIN_CONTAINER_LIMIT_CPU:}
+          memory: ${MICRO_DOMAIN_CONTAINER_LIMIT_MEMORY:}
       jvm:
-        args: ${ENGINE_APP_ARGS:}
-        jar: ${ENGINE_APP_JAR:}
+        args: ${MICRO_DOMAIN_JVM_ARGS:}
+        jar: ${MICRO_DOMAIN_JVM_JAR:}
       mount:
-        empty-dirs: ${CR_EMPTY_DIRS:}
-        resources: ${CR_RESOURCES:}
-      service-account: ${CR_K8S_SERVICE_ACCOUNT:default}
+        empty-dirs: ${MICRO_DOMAIN_EMPTY_DIRS:}
+        resources: ${MICRO_DOMAIN_RESOURCES:}
+      health:
+        liveness:
+          enabled: ${MICRO_DOMAIN_HEALTH_LIVENESS_ENABLED:false}
+          schema: ${MICRO_DOMAIN_HEALTH_LIVENESS_SCHEMA:}
+          initialDelay: ${MICRO_DOMAIN_HEALTH_LIVENESS_INITIAL_DELAY:0}
+          timeout: ${MICRO_DOMAIN_HEALTH_LIVENESS_TIMEOUT:0}
+          period: ${MICRO_DOMAIN_HEALTH_LIVENESS_PERIOD:0}
+          successThreshold: ${MICRO_DOMAIN_HEALTH_LIVENESS_SUCCESS_THRESHOLD:0}
+          failureThreshold: ${MICRO_DOMAIN_HEALTH_LIVENESS_FAILURE_THRESHOLD:0}
+          probe: ${MICRO_DOMAIN_HEALTH_LIVENESS_PROBE:}
+          port: ${MICRO_DOMAIN_HEALTH_LIVENESS_PORT:8080}
+        readiness:
+          enabled: ${MICRO_DOMAIN_HEALTH_READINESS_ENABLED:false}
+          schema: ${MICRO_DOMAIN_HEALTH_READINESS_SCHEMA:}
+          initialDelay: ${MICRO_DOMAIN_HEALTH_READINESS_INITIAL_DELAY:0}
+          timeout: ${MICRO_DOMAIN_HEALTH_READINESS_TIMEOUT:0}
+          period: ${MICRO_DOMAIN_HEALTH_READINESS_PERIOD:0}
+          successThreshold: ${MICRO_DOMAIN_HEALTH_READINESS_SUCCESS_THRESHOLD:0}
+          failureThreshold: ${MICRO_DOMAIN_HEALTH_READINESS_FAILURE_THRESHOLD:0}
+          probe: ${MICRO_DOMAIN_HEALTH_READINESS_PROBE:}
+          port: ${MICRO_DOMAIN_HEALTH_READINESS_PORT:8080}
+        startup:
+          enabled: ${MICRO_DOMAIN_HEALTH_SETUP_ENABLED:false}
+          schema: ${MICRO_DOMAIN_HEALTH_SETUP_SCHEMA:}
+          initialDelay: ${MICRO_DOMAIN_HEALTH_SETUP_INITIAL_DELAY:0}
+          timeout: ${MICRO_DOMAIN_HEALTH_SETUP_TIMEOUT:0}
+          period: ${MICRO_DOMAIN_HEALTH_SETUP_PERIOD:0}
+          successThreshold: ${MICRO_DOMAIN_HEALTH_SETUP_SUCCESS_THRESHOLD:0}
+          failureThreshold: ${MICRO_DOMAIN_HEALTH_SETUP_FAILURE_THRESHOLD:0}
+          probe: ${MICRO_DOMAIN_HEALTH_SETUP_PROBE:}
+          port: ${MICRO_DOMAIN_HEALTH_SETUP_PORT:8080}
+      service-account: ${MICRO_DOMAIN_SERVICE_ACCOUNT:default}
       service:
-        enabled: ${CR_SERVICE_ENABLED:true}
+        enabled: ${MICRO_DOMAIN_SERVICE_ENABLED:true}
       monitoring:
-        enabled: ${CR_MONITORING_ENABLED:false}
+        enabled: ${MICRO_DOMAIN_MONITORING_ENABLED:false}
+        interval: ${MICRO_DOMAIN_MONITORING_INTERVAL:30s}
       namespace: ${NAMESPACE:default}
-      environment: ${CR_ENVIRONMENT:T(java.util.Collections).emptyMap()}
+      environment: ${MICRO_DOMAIN_ENVIRONMENT:T(java.util.Collections).emptyMap()}
   snapshots:
     cleanup:
       interval: ${SNAPSHOTS_CLEANUP_INTERVAL:14} # snapshots older than an interval will be deleted

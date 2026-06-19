@@ -133,8 +133,8 @@ public class CustomResourceBuildContextFactory {
     ) {
         ResourceBuildOptions options = context.getBuildInfo().getOptions();
         Set<String> resources = new HashSet<>(integration.getSpec().getTraits().getMount().getResources());
-        resources.addAll(options.getResources());
-        options.setResources(resources);
+        resources.addAll(options.getMount().getResources());
+        options.getMount().setResources(resources);
     }
 
     private void updateIntegrationEmptyDirs(
@@ -143,7 +143,7 @@ public class CustomResourceBuildContextFactory {
     ) {
         ResourceBuildOptions options = context.getBuildInfo().getOptions();
         Set<String> emptyDirs = new HashSet<>(integration.getSpec().getTraits().getMount().getEmptyDirs());
-        emptyDirs.addAll(options.getEmptyDirs());
-        options.setEmptyDirs(emptyDirs);
+        emptyDirs.addAll(options.getMount().getEmptyDirs());
+        options.getMount().setEmptyDirs(emptyDirs);
     }
 }

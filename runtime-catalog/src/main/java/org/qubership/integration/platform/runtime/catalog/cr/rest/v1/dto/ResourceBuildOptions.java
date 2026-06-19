@@ -17,7 +17,13 @@ public class ResourceBuildOptions {
     private String namespace;
 
     @Builder.Default
+    private int replicas = 1;
+
+    @Builder.Default
     private ContainerOptions container = new ContainerOptions();
+
+    @Builder.Default
+    private HealthOptions health = new HealthOptions();
 
     @Builder.Default
     private JvmOptions jvm = new JvmOptions();
@@ -29,13 +35,10 @@ public class ResourceBuildOptions {
     private ServiceOptions service = new ServiceOptions();
 
     @Builder.Default
+    private MountOptions mount = new MountOptions();
+
+    @Builder.Default
     private Map<String, String> environment = new HashMap<>();
-
-    @Builder.Default
-    private Set<String> emptyDirs = new HashSet<>();
-
-    @Builder.Default
-    private Set<String> resources = new HashSet<>();
 
     @Builder.Default
     private IntegrationsConfigurationOptions integrations = new IntegrationsConfigurationOptions();

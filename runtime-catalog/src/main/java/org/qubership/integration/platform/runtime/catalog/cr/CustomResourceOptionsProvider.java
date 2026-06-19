@@ -2,12 +2,13 @@ package org.qubership.integration.platform.runtime.catalog.cr;
 
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -15,20 +16,11 @@ import java.util.Map;
 public class CustomResourceOptionsProvider {
     private static final String DEFAULT_SECRET_ENABLED_ENV = "DEFAULT_SECRET_ENABLED";
 
-    @Value("${qip.cr.build.container.image}")
-    private String containerImage;
-
-    @Value("${qip.cr.build.container.image-pool-policy:IfNotPresent}")
-    private ImagePoolPolicy imagePoolPolicy;
+    @Value("${qip.cr.build.replicas:1}")
+    private int replicas;
 
     @Value("${qip.cr.build.monitoring.enabled:false}")
     private boolean monitoringEnabled;
-
-    @Value("${qip.cr.build.monitoring.interval:30s}")
-    private String interval;
-
-    @Value("${qip.cr.build.service.enabled:true}")
-    private boolean serviceEnabled;
 
     @Value("${qip.cr.build.service-account:default}")
     private String serviceAccount;
@@ -42,43 +34,37 @@ public class CustomResourceOptionsProvider {
     @Value("${qip.variables.default-secret.enabled:false}")
     private boolean defaultSecretEnabled;
 
-    @Value("${qip.cr.build.mount.empty-dirs}")
-    private List<String> emptyDirs;
+    private final Environment propertyResolver;
 
-    @Value("${qip.cr.build.mount.resources}")
-    private List<String> resources;
-
-    @Value("${qip.cr.build.jvm.args}")
-    private List<String> jvmArgs;
-
-    @Value("${qip.cr.build.jvm.jar}")
-    private String jvmJar;
+    @Autowired
+    public CustomResourceOptionsProvider(Environment propertyResolver) {
+        this.propertyResolver = propertyResolver;
+    }
 
     public ResourceBuildOptions getOptions(ResourceDeployRequest request) {
         return ResourceBuildOptions.builder()
                 .name(request.getName())
                 .namespace(namespace)
-                .container(ContainerOptions.builder()
-                        .image(containerImage)
-                        .imagePoolPolicy(imagePoolPolicy)
-                        .build())
-                .jvm(JvmOptions.builder()
-                        .jar(jvmJar)
-                        .args(jvmArgs)
-                        .build())
-                .monitoring(MonitoringOptions.builder()
-                        .enabled(monitoringEnabled)
-                        .interval(interval)
-                        .build())
+                .replicas(replicas)
+                .container(Binder.get(propertyResolver)
+                    .bind("qip.cr.build.container", ContainerOptions.class)
+                    .orElseGet(ContainerOptions::new))
+                .jvm(Binder.get(propertyResolver)
+                    .bind("qip.cr.build.jvm", JvmOptions.class)
+                    .orElseGet(JvmOptions::new))
+                .monitoring(Binder.get(propertyResolver)
+                    .bind("qip.cr.build.monitoring", MonitoringOptions.class)
+                    .orElseGet(MonitoringOptions::new))
                 .integrations(IntegrationsConfigurationOptions.builder()
                         .camelKSourcesUtilized(false)
                         .build())
                 .environment(getEnvironment())
-                .emptyDirs(new HashSet<>(emptyDirs))
-                .resources(new HashSet<>(resources))
-                .service(ServiceOptions.builder()
-                        .enabled(serviceEnabled)
-                        .build())
+                .mount(Binder.get(propertyResolver)
+                    .bind("qip.cr.build.mount", MountOptions.class)
+                    .orElseGet(MountOptions::new))
+                .service(Binder.get(propertyResolver)
+                    .bind("qip.cr.build.service", ServiceOptions.class)
+                    .orElseGet(ServiceOptions::new))
                 .serviceAccount(serviceAccount)
                 .build();
     }

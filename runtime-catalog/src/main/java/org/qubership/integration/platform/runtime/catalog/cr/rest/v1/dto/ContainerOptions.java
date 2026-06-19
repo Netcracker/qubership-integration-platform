@@ -11,4 +11,8 @@ public class ContainerOptions {
 
     @Builder.Default
     private ImagePoolPolicy imagePoolPolicy = ImagePoolPolicy.IfNotPresent;
+
+    private Limits request;
+
+    private Limits limit;
 }
