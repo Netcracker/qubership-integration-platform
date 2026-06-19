@@ -43,7 +43,7 @@ Required response:
 - Mapper source
 - Mapper target
 - Mapping actions (optional)
-Please provide them."
+  Please provide them."
 
 **Forbidden behavior:**
 - Creating a mapper with assumed source.
@@ -51,17 +51,17 @@ Please provide them."
 - Generating placeholder mappings.
 - Modifying files before receiving all mandatory inputs.
 
-## Step 2: Mapping rules — Provided Design Markdown (SKIP IF USER HAVE NOT PROVIDED ANY ATTACHED DESIGN MD) 
+## Step 2: Mapping rules — Provided Design Markdown (SKIP IF USER HAVE NOT PROVIDED ANY ATTACHED DESIGN MD)
 If user have NOT provided attached Design Markdown, skip reading STEP 2 and go to the STEP 3.
-Else: 
+Else:
 ### A. User provided Markdown mapping table
 Format: `Source field | Target field | Transformation Logic`
 1. Parse rows into `source`, `target`,`actions`, `constants`, `transformation`
 2. Build/extend source and target schemas from referenced paths
 3. Apply transformation keywords:
-   - copy / direct → no transformation (single source)
-   - expression, conditional, dictionary, defaultValue, formatDateTime, replaceAll, trim
-   - constant / generated → `constants` + `type: constant` source
+    - copy / direct → no transformation (single source)
+    - expression, conditional, dictionary, defaultValue, formatDateTime, replaceAll, trim
+    - constant / generated → `constants` + `type: constant` source
 
 
 ## Step 3: Learn `mappingDescription` JSON Creation Rules (Start this Step ONLY IF YOU DID STEP 1 [ASKED USER INPUT])
@@ -474,11 +474,11 @@ Before adding actions, constants, transformation logic part in mappingDescriptio
 
 **Prerequisites:**
 - mappingDescription.source is defined
-- mappingDescription.target is defined 
+- mappingDescription.target is defined
 
 **Actions / constants / transformation (transformation logic) information may include:**
 - Field mapping table — Source field | Target field | Transformation Logic (contains mapping description logic)
-- 1:1 occurrence rules — which source fields map to which target fields
+- 1:1 occurence rules — which source fields map to which target fields
 - Cross-bucket mappings — body, header, properties
 - Constants - literal values or generated values (generateUUID, currentDate, currentTime, currentDateTime)
 - Transformations (Mapping description)
@@ -486,13 +486,76 @@ Before adding actions, constants, transformation logic part in mappingDescriptio
 - Nested paths — parent/child field chains (e.g body.customer.id → body.order.customerId)
 - Required target fields - list of mandatory fields that must have actions
 
-If mapping rules are not present, incomplete, or cannot be understandable from provided source/target schemas, before adding actions, constants, or transformation, ask:
+If mapping rules are not present, incomplete, or cannot be undestandable from provided source/target schemas, before adding actions, constants, or transformation, ask:
 ""How should fields be mapped from source to target? Please provide a mapping table or describe transformations."
 
 **IMPORTANT**
 If user have not provided mapping logic, constants, transformations, you can create this fields empty.
 
+# Transformation Expressions
 
+## Purpose
 
+Use when user want to:
 
+- Change mapper output values
+- Transform input fields
+- Build expressions inside Mapper
+- Add conditions
+- Perform arithmetic calculations
+- Concatenate values
+---
+Verify twice that user mentioned any of the
+above points, if user mentioned, read below Supported Transformations carefully, they are placed in skills and called /mapper-element-transformations-skill
 
+# Rules
+
+- Use `body.<fieldName>` to reference input fields.
+- Arithmetic operators can be used inside expressions and conditions.
+- Conditions must use the `if(condition, trueValue, falseValue)` format.
+- String literals must be wrapped in single quotes.
+- Transformation expressions are defined using:
+
+```json
+{
+  "transformation": {
+    "name": "expression",
+    "parameters": [
+      "<expression>"
+    ]
+  }
+}
+```
+
+# Decision Guide
+Verify twice that user mentioned any of the
+above points, if user mentioned, read below Supported Transformations carefully, they are placed in skills /mapper-element-transformations-skill.
+
+If the user asks to:
+
+| Request | Transformation |
+|----------|---------------|
+| Join fields | Concatenation |
+| Add, subtract, multiply, divide | Arithmetic Expression |
+| Compare values | IF Condition |
+| Validate odd/even numbers | IF + Modulo |
+| Build custom formula | Expression |
+| Check if a field is empty | IsEmpty Condition |
+| Convert string to lowercase | toLower Expression |
+| Filter array items by condition | filterBy |
+| Get first element from array | getFirst |
+| Get first element matching a condition | getFirst + filterBy |
+| Get first element from filtered array and extract a field | getFirst + map + filterBy |
+| Remove leading/trailing spaces from string | trim |
+| Replace parts of a string using a pattern | replaceAll |
+| Transform each element in an array | map |
+| Sort array in ascending order | sort (ascending) |
+| Sort array in descending order | sort (descending) |
+| Pick all field names (keys) from object | getKeys |
+| Pick all field values from object | getValues |
+| Build a date/time from fields or constants | formatDateTime |
+| Build a date/time with timezone and locale | formatDateTime with constants |
+| Build a date/time skipping time components | formatDateTime with null |
+| Build a key/value object from primitives | makeObject |
+| Merge multiple objects or arrays into one object | mergeObjects |
+| Build a list (array) from primitives, objects, or arrays | list |
