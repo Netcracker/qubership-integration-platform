@@ -24,9 +24,9 @@ public class MetadataUtil {
     }
 
     public static <T> Optional<T> lookupBean(Route route, Class<T> cls) {
-        String groudId  = route.getGroup();
+        String groupId  = route.getGroup();
         CamelContext context = route.getCamelContext();
-        String beanName = getBeanName(cls, groudId);
+        String beanName = getBeanName(cls, groupId);
         T bean = context.getRegistry().lookupByNameAndType(beanName, cls);
         return Optional.ofNullable(bean);
     }
