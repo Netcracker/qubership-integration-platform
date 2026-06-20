@@ -23,21 +23,21 @@ import static org.mockito.Mockito.verify;
 class CustomGooglePubSubConsumerTest {
 
     @Test
-    void shouldSubmitSubscriberWrapperForEachConcurrentConsumerWhenStarted() throws Exception {
-        CustomGooglePubSubEndpoint endpoint = spy(PubSubTestUtils.newEndpointWithConcurrentConsumers(3));
+    void shouldSubmitSubscriberWrapperForEachConcurrentConsumerWhenStarted() {
+        CustomGooglePubSubEndpoint customGooglePubSubEndpoint = spy(PubSubTestUtils.newEndpointWithConcurrentConsumers(3));
         Processor processor = mock(Processor.class);
-        CustomGooglePubSubConsumer consumer = new CustomGooglePubSubConsumer(endpoint, processor);
+        CustomGooglePubSubConsumer consumer = new CustomGooglePubSubConsumer(customGooglePubSubEndpoint, processor);
         ExecutorService executor = mock(ExecutorService.class);
         Future<?> submittedTask = mock(Future.class);
 
-        doReturn(executor).when(endpoint).createExecutor(consumer);
+        doReturn(executor).when(customGooglePubSubEndpoint).createExecutor(consumer);
         doReturn(submittedTask).when(executor).submit(any(Runnable.class));
 
         consumer.start();
-        doReturn(null).when(endpoint).getCamelContext();
+        doReturn(null).when(customGooglePubSubEndpoint).getCamelContext();
 
         try {
-            verify(endpoint).createExecutor(consumer);
+            verify(customGooglePubSubEndpoint).createExecutor(consumer);
             verify(executor, times(3)).submit(any(Runnable.class));
         } finally {
             consumer.stop();

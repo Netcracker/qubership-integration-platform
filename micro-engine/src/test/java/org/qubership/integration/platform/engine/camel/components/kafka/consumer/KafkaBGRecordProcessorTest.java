@@ -61,7 +61,7 @@ class KafkaBGRecordProcessorTest {
                 .add("blocked", bytes("blocked-value"));
         ConsumerRecord<Object, Object> consumerRecord = consumerRecord(TOPIC, 2, 7L, "key-a", "value-a", headers);
         CommitMarker marker = commitMarker(TOPIC_PARTITION, 8L);
-        Record<Object, Object> record = new Record<>(consumerRecord, marker);
+        Record<Object, Object> objectRecord = new Record<>(consumerRecord, marker);
         Exchange exchange = MockExchanges.defaultExchange();
         configuration.setHeaderFilterStrategy(headerFilterStrategy);
         configuration.setHeaderDeserializer(headerDeserializer);
@@ -72,7 +72,7 @@ class KafkaBGRecordProcessorTest {
         when(headerDeserializer.deserialize("allowed", bytes("raw-value"))).thenReturn("decoded-value");
 
         KafkaBGRecordProcessor.ProcessResult result = recordProcessor()
-                .processExchange(exchange, record, KafkaBGRecordProcessor.ProcessResult.newUnprocessed(), exceptionHandler);
+                .processExchange(exchange, objectRecord, KafkaBGRecordProcessor.ProcessResult.newUnprocessed(), exceptionHandler);
 
         assertFalse(result.isBreakOnErrorHit());
         assertSame(marker, result.getPartitionLastOffset());

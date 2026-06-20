@@ -88,8 +88,8 @@ class BGKafkaConsumerExtendedImplTest {
     @Test
     void shouldInitializeKafkaConsumerWithPlainGroupIdAndReturnPolledRecords() {
         AtomicReference<Map<String, Object>> capturedProperties = new AtomicReference<>();
-        ConsumerRecord<String, String> record = new ConsumerRecord<>(TOPIC, 0, 10L, "key", "value");
-        when(kafkaConsumer.poll(Duration.ZERO)).thenReturn(records(record));
+        ConsumerRecord<String, String> consumerRecord = new ConsumerRecord<>(TOPIC, 0, 10L, "key", "value");
+        when(kafkaConsumer.poll(Duration.ZERO)).thenReturn(consumerRecords(consumerRecord));
 
         consumer = newConsumer(activeState(), props -> {
             capturedProperties.set(new HashMap<>(props));
@@ -102,7 +102,7 @@ class BGKafkaConsumerExtendedImplTest {
 
         RecordsBatch<String, String> batch = result.get();
         assertEquals(1, batch.getBatch().size());
-        assertSame(record, batch.getBatch().get(0).getConsumerRecord());
+        assertSame(consumerRecord, batch.getBatch().get(0).getConsumerRecord());
         assertEquals(activeState().getCurrent(), batch.getCommitMarker().getVersion());
         assertEquals(11L, batch.getCommitMarker().getPosition().get(TOPIC_PARTITION).offset());
         assertEquals(batch.getCommitMarker(), batch.getBatch().get(0).getCommitMarker());
@@ -214,7 +214,7 @@ class BGKafkaConsumerExtendedImplTest {
         return properties;
     }
 
-    private static ConsumerRecords<String, String> records(ConsumerRecord<String, String> record) {
+    private static ConsumerRecords<String, String> consumerRecords(ConsumerRecord<String, String> record) {
         return new ConsumerRecords<>(Map.of(TOPIC_PARTITION, List.of(record)));
     }
 

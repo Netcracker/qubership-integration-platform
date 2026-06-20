@@ -24,12 +24,10 @@ import org.qubership.integration.platform.engine.camel.components.kafka.factory.
 import org.qubership.integration.platform.engine.camel.components.kafka.producer.KafkaCustomProducer;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import javax.security.auth.callback.Callback;
-import javax.security.auth.callback.UnsupportedCallbackException;
 import javax.security.auth.login.AppConfigurationEntry;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -97,22 +95,22 @@ class KafkaCustomEndpointTest {
 
     @Test
     void shouldReturnDelegateProducerWhenSynchronousDisabled() throws Exception {
-        TestKafkaCustomEndpoint endpoint = endpointWithProducer(false, producer);
+        TestKafkaCustomEndpoint endpointWithProducer = endpointWithProducer(false, producer);
 
-        Producer actual = endpoint.createProducer();
+        Producer actual = endpointWithProducer.createProducer();
 
         assertSame(producer, actual);
-        assertSame(endpoint, endpoint.capturedEndpoint);
+        assertSame(endpointWithProducer, endpointWithProducer.capturedEndpoint);
     }
 
     @Test
     void shouldWrapProducerWhenSynchronousEnabled() throws Exception {
-        TestKafkaCustomEndpoint endpoint = endpointWithProducer(true, producer);
+        TestKafkaCustomEndpoint endpointWithProducer = endpointWithProducer(true, producer);
 
-        Producer actual = endpoint.createProducer();
+        Producer actual = endpointWithProducer.createProducer();
 
         assertInstanceOf(SynchronousDelegateProducer.class, actual);
-        assertSame(endpoint, endpoint.capturedEndpoint);
+        assertSame(endpointWithProducer, endpointWithProducer.capturedEndpoint);
     }
 
     @Test
@@ -137,11 +135,11 @@ class KafkaCustomEndpointTest {
 
     @Test
     void shouldKeepPropertiesWhenCamelContextMissing() {
-        KafkaCustomEndpoint endpoint = new KafkaCustomEndpoint();
+        KafkaCustomEndpoint kafkaCustomEndpoint = new KafkaCustomEndpoint();
         Properties props = new Properties();
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, TestSerializer.class.getName());
 
-        endpoint.updateClassProperties(props);
+        kafkaCustomEndpoint.updateClassProperties(props);
 
         assertEquals(TestSerializer.class.getName(), props.get(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG));
     }
@@ -200,6 +198,7 @@ class KafkaCustomEndpointTest {
 
         @Override
         public void configure(Map<String, ?> configs) {
+            // no-op
         }
 
         @Override
@@ -211,6 +210,7 @@ class KafkaCustomEndpointTest {
 
         @Override
         public void close() {
+            // no-op
         }
     }
 
@@ -223,11 +223,13 @@ class KafkaCustomEndpointTest {
         }
 
         @Override
-        public void handle(Callback[] callbacks) throws IOException, UnsupportedCallbackException {
+        public void handle(Callback[] callbacks) {
+            // no-op
         }
 
         @Override
         public void close() {
+            // no-op
         }
     }
 }
