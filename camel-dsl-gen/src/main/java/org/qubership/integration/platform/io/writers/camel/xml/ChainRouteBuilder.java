@@ -31,7 +31,7 @@ public class ChainRouteBuilder {
         this.compositeTriggerHelper = compositeTriggerHelper;
     }
 
-    public List<ChainRoute> build(List<Element> elements) {
+    public List<ChainRoute> build(List<? extends Element> elements) {
         List<Element> startElements = compositeTriggerHelper.splitCompositeTriggers(elements)
                 .stream()
                 .filter(element -> {

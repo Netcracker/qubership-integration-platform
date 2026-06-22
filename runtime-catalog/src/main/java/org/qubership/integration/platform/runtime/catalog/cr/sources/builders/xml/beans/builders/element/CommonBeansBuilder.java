@@ -1,10 +1,10 @@
 package org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.builders.element;
 
 import org.codehaus.stax2.XMLStreamWriter2;
+import org.qubership.integration.platform.io.writers.camel.xml.BuilderConstants;
 import org.qubership.integration.platform.library.components.LibraryElementsService;
 import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.library.model.ElementType;
-import org.qubership.integration.platform.io.writers.camel.xml.BuilderConstants;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.SourceBuilderContext;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.ElementBeansBuilder;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;

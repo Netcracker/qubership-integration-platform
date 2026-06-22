@@ -1,7 +1,8 @@
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties.builders;
 
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
+import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -22,20 +23,20 @@ public class JmsElementPropertiesBuilder implements ElementPropertiesBuilder {
     public static final String JMS_PASSWORD = "password";
 
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         String type = element.getType();
         return JMS_SENDER_ELEMENT.equals(type) || JMS_TRIGGER_ELEMENT.equals(type);
     }
 
     @Override
-    public Map<String, String> build(ChainElement element) {
+    public Map<String, String> build(Element element) {
         return Stream.of(
                 JMS_PROVIDER_URL,
                 JMS_INITIAL_CONTEXT_FACTORY,
                 JMS_CONNECTION_FACTORY_NAME,
                 JMS_USERNAME,
                 JMS_PASSWORD).map(key -> {
-                    String value = element.getPropertyAsString(key);
+                    String value = ElementUtils.getPropertyAsString(element, key);
                     return value != null ? Map.entry(key, value) : null;
                 })
                 .filter(Objects::nonNull)

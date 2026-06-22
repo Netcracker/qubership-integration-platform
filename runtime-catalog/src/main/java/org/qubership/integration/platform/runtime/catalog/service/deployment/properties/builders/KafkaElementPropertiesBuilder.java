@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties.builders;
 
+import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.library.constants.CamelOptions;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.AdditionalPropertiesBuilder;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.AdditionalPropertiesBuilderProvider;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
@@ -29,6 +29,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
+import static org.qubership.integration.platform.util.ElementUtils.getPropertyAsString;
 
 @Component
 public class KafkaElementPropertiesBuilder implements ElementPropertiesBuilder {
@@ -41,7 +43,7 @@ public class KafkaElementPropertiesBuilder implements ElementPropertiesBuilder {
     }
 
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         return Set.of(
                 CamelNames.KAFKA_TRIGGER_COMPONENT,
                 CamelNames.KAFKA_SENDER_COMPONENT,
@@ -51,14 +53,14 @@ public class KafkaElementPropertiesBuilder implements ElementPropertiesBuilder {
     }
 
     @Override
-    public Map<String, String> build(ChainElement element) {
+    public Map<String, String> build(Element element) {
         Map<String, String> elementProperties = buildKafkaConnectionProperties(
-                element.getPropertyAsString(CamelOptions.TOPICS),
-                element.getPropertyAsString(CamelOptions.BROKERS),
-                element.getPropertyAsString(CamelOptions.SECURITY_PROTOCOL),
-                element.getPropertyAsString(CamelOptions.SASL_MECHANISM),
-                element.getPropertyAsString(CamelOptions.SASL_JAAS_CONFIG),
-                element.getPropertyAsString(CamelOptions.CONNECTION_SOURCE_TYPE_PROP)
+                getPropertyAsString(element, CamelOptions.TOPICS),
+                getPropertyAsString(element, CamelOptions.BROKERS),
+                getPropertyAsString(element, CamelOptions.SECURITY_PROTOCOL),
+                getPropertyAsString(element, CamelOptions.SASL_MECHANISM),
+                getPropertyAsString(element, CamelOptions.SASL_JAAS_CONFIG),
+                getPropertyAsString(element, CamelOptions.CONNECTION_SOURCE_TYPE_PROP)
         );
         enrichWithAdditionalProperties(element, elementProperties);
         return elementProperties;
@@ -83,7 +85,7 @@ public class KafkaElementPropertiesBuilder implements ElementPropertiesBuilder {
         return properties;
     }
 
-    public void enrichWithAdditionalProperties(ChainElement element, Map<String, String> elementProperties) {
+    public void enrichWithAdditionalProperties(Element element, Map<String, String> elementProperties) {
         additionalPropertiesBuilders.forEach(builder -> elementProperties.putAll(builder.build(element)));
     }
 }

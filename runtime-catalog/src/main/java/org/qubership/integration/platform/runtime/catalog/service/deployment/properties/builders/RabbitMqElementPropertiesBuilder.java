@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties.builders;
 
+import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.library.constants.CamelOptions;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.AdditionalPropertiesBuilder;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.AdditionalPropertiesBuilderProvider;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
@@ -29,6 +29,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.qubership.integration.platform.util.ElementUtils.getPropertyAsString;
 
 
 @Component
@@ -42,7 +44,7 @@ public class RabbitMqElementPropertiesBuilder implements ElementPropertiesBuilde
     }
 
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         return List.of(
                 CamelNames.RABBITMQ_TRIGGER_COMPONENT,
                 CamelNames.RABBITMQ_SENDER_COMPONENT,
@@ -52,16 +54,16 @@ public class RabbitMqElementPropertiesBuilder implements ElementPropertiesBuilde
     }
 
     @Override
-    public Map<String, String> build(ChainElement element) {
+    public Map<String, String> build(Element element) {
         Map<String, String> elementProperties = buildAmqpConnectionProperties(
-                element.getPropertyAsString(CamelOptions.SSL),
-                element.getPropertyAsString(CamelOptions.ADDRESSES),
-                element.getPropertyAsString(CamelOptions.QUEUES),
-                element.getPropertyAsString(CamelOptions.EXCHANGE),
-                element.getPropertyAsString(CamelOptions.USERNAME),
-                element.getPropertyAsString(CamelOptions.PASSWORD),
-                element.getPropertyAsString(CamelOptions.CONNECTION_SOURCE_TYPE_PROP),
-                element.getPropertyAsString(CamelOptions.VHOST)
+                getPropertyAsString(element, CamelOptions.SSL),
+                getPropertyAsString(element, CamelOptions.ADDRESSES),
+                getPropertyAsString(element, CamelOptions.QUEUES),
+                getPropertyAsString(element, CamelOptions.EXCHANGE),
+                getPropertyAsString(element, CamelOptions.USERNAME),
+                getPropertyAsString(element, CamelOptions.PASSWORD),
+                getPropertyAsString(element, CamelOptions.CONNECTION_SOURCE_TYPE_PROP),
+                getPropertyAsString(element, CamelOptions.VHOST)
         );
         enrichWithAdditionalProperties(element, elementProperties);
         return elementProperties;
@@ -90,7 +92,7 @@ public class RabbitMqElementPropertiesBuilder implements ElementPropertiesBuilde
         return properties;
     }
 
-    public void enrichWithAdditionalProperties(ChainElement element, Map<String, String> elementProperties) {
+    public void enrichWithAdditionalProperties(Element element, Map<String, String> elementProperties) {
         additionalPropertiesBuilders.forEach(builder -> elementProperties.putAll(builder.build(element)));
     }
 }
