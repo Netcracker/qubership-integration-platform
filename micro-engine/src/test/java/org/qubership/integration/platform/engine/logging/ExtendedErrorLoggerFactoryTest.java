@@ -14,12 +14,10 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.engine.util.log;
+package org.qubership.integration.platform.engine.logging;
 
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.engine.logging.ExtendedErrorLogger;
-import org.qubership.integration.platform.engine.logging.ExtendedErrorLoggerFactory;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
