@@ -19,7 +19,8 @@ package org.qubership.integration.platform.runtime.catalog.service.deployment.pr
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.chain.impl.ElementBuilder;
+import org.qubership.integration.platform.chain.model.Element;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -42,21 +43,21 @@ class McpTriggerPropertiesBuilderTest {
     @Test
     @DisplayName("applicableTo returns true for mcp-trigger element type")
     void applicableToMcpTriggerTypeReturnsTrue() {
-        ChainElement element = ChainElement.builder().type("mcp-trigger").build();
+        Element element = ElementBuilder.createNew().type("mcp-trigger").build();
         assertTrue(builder.applicableTo(element));
     }
 
     @Test
     @DisplayName("applicableTo returns false for non-mcp-trigger element type")
     void applicableToOtherTypeReturnsFalse() {
-        ChainElement element = ChainElement.builder().type("http-trigger").build();
+        Element element = ElementBuilder.createNew().type("http-trigger").build();
         assertFalse(builder.applicableTo(element));
     }
 
     @Test
     @DisplayName("applicableTo returns false for null element type")
     void applicableToNullTypeReturnsFalse() {
-        ChainElement element = ChainElement.builder().build();
+        Element element = ElementBuilder.createNew().build();
         assertFalse(builder.applicableTo(element));
     }
 
@@ -65,7 +66,7 @@ class McpTriggerPropertiesBuilderTest {
     @Test
     @DisplayName("build returns all expected keys")
     void buildAllExpectedKeysPresent() {
-        ChainElement element = ChainElement.builder().type("mcp-trigger").build();
+        Element element = ElementBuilder.createNew().type("mcp-trigger").build();
 
         Map<String, String> result = builder.build(element);
 
@@ -92,7 +93,7 @@ class McpTriggerPropertiesBuilderTest {
         properties.put("openWorld", false);
         properties.put("requiresLocal", true);
 
-        ChainElement element = ChainElement.builder()
+        Element element = ElementBuilder.createNew()
                 .type("mcp-trigger")
                 .properties(properties)
                 .build();
@@ -117,7 +118,7 @@ class McpTriggerPropertiesBuilderTest {
     @Test
     @DisplayName("build returns empty string for missing properties")
     void buildWithNoPropertiesReturnsEmptyStrings() {
-        ChainElement element = ChainElement.builder().type("mcp-trigger").build();
+        Element element = ElementBuilder.createNew().type("mcp-trigger").build();
 
         Map<String, String> result = builder.build(element);
 
@@ -130,7 +131,7 @@ class McpTriggerPropertiesBuilderTest {
         Map<String, Object> properties = new HashMap<>();
         properties.put("name", null);
 
-        ChainElement element = ChainElement.builder()
+        Element element = ElementBuilder.createNew()
                 .type("mcp-trigger")
                 .properties(properties)
                 .build();
@@ -146,7 +147,7 @@ class McpTriggerPropertiesBuilderTest {
         Map<String, Object> properties = new HashMap<>();
         properties.put("mcpServiceIds", 42);
 
-        ChainElement element = ChainElement.builder()
+        Element element = ElementBuilder.createNew()
                 .type("mcp-trigger")
                 .properties(properties)
                 .build();
@@ -159,7 +160,7 @@ class McpTriggerPropertiesBuilderTest {
     @Test
     @DisplayName("build returns exactly 11 entries")
     void buildReturnsExactly11Entries() {
-        ChainElement element = ChainElement.builder().type("mcp-trigger").build();
+        Element element = ElementBuilder.createNew().type("mcp-trigger").build();
 
         Map<String, String> result = builder.build(element);
 

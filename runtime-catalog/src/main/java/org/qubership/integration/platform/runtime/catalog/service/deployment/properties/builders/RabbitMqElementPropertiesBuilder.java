@@ -16,9 +16,12 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties.builders;
 
+import org.qubership.integration.platform.chain.model.Element;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.library.constants.CamelOptions;
+import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.AdditionalPropertiesBuilder;
+import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.AdditionalPropertiesBuilderProvider;
 import org.qubership.integration.platform.runtime.catalog.model.constant.ConnectionSourceType;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -34,6 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.qubership.integration.platform.util.ElementUtils.getPropertyAsString;
+
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.MAAS_CLASSIFIER_NAME_PROP;
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.*;
 
@@ -48,7 +53,7 @@ public class RabbitMqElementPropertiesBuilder implements ElementPropertiesBuilde
     }
 
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         return List.of(
                 CamelNames.RABBITMQ_TRIGGER_COMPONENT,
                 CamelNames.RABBITMQ_SENDER_COMPONENT,
@@ -58,16 +63,16 @@ public class RabbitMqElementPropertiesBuilder implements ElementPropertiesBuilde
     }
 
     @Override
-    public Map<String, String> build(ChainElement element) {
+    public Map<String, String> build(Element element) {
         Map<String, String> elementProperties = buildAmqpConnectionProperties(
-                element.getPropertyAsString(CamelOptions.SSL),
-                element.getPropertyAsString(CamelOptions.ADDRESSES),
-                element.getPropertyAsString(CamelOptions.QUEUES),
-                element.getPropertyAsString(CamelOptions.EXCHANGE),
-                element.getPropertyAsString(CamelOptions.USERNAME),
-                element.getPropertyAsString(CamelOptions.PASSWORD),
-                element.getPropertyAsString(CamelOptions.CONNECTION_SOURCE_TYPE_PROP),
-                element.getPropertyAsString(CamelOptions.VHOST)
+                getPropertyAsString(element, CamelOptions.SSL),
+                getPropertyAsString(element, CamelOptions.ADDRESSES),
+                getPropertyAsString(element, CamelOptions.QUEUES),
+                getPropertyAsString(element, CamelOptions.EXCHANGE),
+                getPropertyAsString(element, CamelOptions.USERNAME),
+                getPropertyAsString(element, CamelOptions.PASSWORD),
+                getPropertyAsString(element, CamelOptions.CONNECTION_SOURCE_TYPE_PROP),
+                getPropertyAsString(element, CamelOptions.VHOST)
         );
         enrichWithAdditionalProperties(element, elementProperties);
         return elementProperties;
@@ -96,7 +101,7 @@ public class RabbitMqElementPropertiesBuilder implements ElementPropertiesBuilde
         return properties;
     }
 
-    public void enrichWithAdditionalProperties(ChainElement element, Map<String, String> elementProperties) {
+    public void enrichWithAdditionalProperties(Element element, Map<String, String> elementProperties) {
         String elementOriginalId = element.getOriginalId();
 
         if (isMaasRabbitTriggerOrSender(element)) {
@@ -143,7 +148,7 @@ public class RabbitMqElementPropertiesBuilder implements ElementPropertiesBuilde
         maasPropertiesUtils.enrichWithMaasEnvProperties(element, elementProperties);
     }
 
-    private boolean isMaasRabbitTriggerOrSender(ChainElement element) {
+    private boolean isMaasRabbitTriggerOrSender(Element element) {
         String elementType = element.getType();
         return (
                 StringUtils.equalsIgnoreCase(elementType, CamelNames.RABBITMQ_SENDER_2_COMPONENT)
@@ -152,13 +157,13 @@ public class RabbitMqElementPropertiesBuilder implements ElementPropertiesBuilde
                 && ConnectionSourceType.MAAS.toString().equalsIgnoreCase(element.getPropertyAsString(CONNECTION_SOURCE_TYPE_PROP));
     }
 
-    private boolean isAsyncElement(ChainElement element) {
+    private boolean isAsyncElement(Element element) {
         String type = element.getType();
         return CamelNames.ASYNC_API_TRIGGER_COMPONENT.equals(type)
                 || CamelNames.SERVICE_CALL_COMPONENT.equals(type);
     }
 
-    private boolean isMaasEnvParameterEnabled(ChainElement element) {
+    private boolean isMaasEnvParameterEnabled(Element element) {
         return Optional.ofNullable(element.getEnvironment())
                 .map(environment -> environment.getSourceType() == EnvironmentSourceType.MAAS_BY_CLASSIFIER)
                 .orElse(false);

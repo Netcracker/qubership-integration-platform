@@ -78,7 +78,7 @@ public class ElementService extends ElementBaseService {
     protected final SystemBaseService systemBaseService;
     protected final SystemModelBaseService systemModelBaseService;
     protected final MandatoryPropertyVerificationHelper mandatoryPropertyVerificationHelper;
-    protected final PropertyPlaceholderHelper propertyPlaceholderHelper;
+    protected final PropertyPlaceholderService propertyPlaceholderService;
 
     @Autowired
     public ElementService(
@@ -93,7 +93,7 @@ public class ElementService extends ElementBaseService {
             SystemBaseService systemBaseService,
             SystemModelBaseService systemModelBaseService,
             MandatoryPropertyVerificationHelper mandatoryPropertyVerificationHelper,
-            PropertyPlaceholderHelper propertyPlaceholderHelper
+            PropertyPlaceholderService propertyPlaceholderService
     ) {
         super(elementRepository);
         this.auditingHandler = jpaAuditingHandler;
@@ -106,7 +106,7 @@ public class ElementService extends ElementBaseService {
         this.systemBaseService = systemBaseService;
         this.systemModelBaseService = systemModelBaseService;
         this.mandatoryPropertyVerificationHelper = mandatoryPropertyVerificationHelper;
-        this.propertyPlaceholderHelper = propertyPlaceholderHelper;
+        this.propertyPlaceholderService = propertyPlaceholderService;
     }
 
     public List<ChainElement> findAllBySnapshotIdAndType(String snapshotId, String type) {
@@ -240,7 +240,7 @@ public class ElementService extends ElementBaseService {
     @ChainModification
     public ChainElement clone(String elementId, String parentId) {
         ChainElement copy = recursiveClone(findById(elementId));
-        propertyPlaceholderHelper.updateResetOnCopyProperties(copy);
+        propertyPlaceholderService.updateResetOnCopyProperties(copy);
 
         if (parentId != null) {
             ContainerChainElement parent = findById(parentId, ContainerChainElement.class);
@@ -503,7 +503,7 @@ public class ElementService extends ElementBaseService {
                 .collect(Collectors.toMap(
                         ElementProperty::getName,
                         prop -> PropertyValueType.STRING.equals(prop.getType())
-                                ? PropertyPlaceholderHelper.replaceDefaultValuePlaceholders(prop.getDefaultValue(), elementId, chainId)
+                                ? PropertyPlaceholderService.replaceDefaultValuePlaceholders(prop.getDefaultValue(), elementId, chainId)
                                 : prop.defaultValue()
                 )));
     }

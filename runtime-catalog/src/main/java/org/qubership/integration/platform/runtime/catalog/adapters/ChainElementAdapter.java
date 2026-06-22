@@ -33,8 +33,8 @@ public class ChainElementAdapter implements Element {
 
     @Override
     public Collection<Element> getChildren() {
-        return chainElement instanceof ContainerChainElement container ?
-            Optional.ofNullable(container.getElements())
+        return chainElement instanceof ContainerChainElement container
+            ? Optional.ofNullable(container.getElements())
                 .orElse(Collections.emptyList())
                 .stream()
                 .<Element>map(ChainElementAdapter::new)
