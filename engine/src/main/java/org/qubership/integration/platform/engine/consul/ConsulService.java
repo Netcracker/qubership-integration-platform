@@ -132,8 +132,13 @@ public class ConsulService {
             if (activeSessionId == null) {
                 log.debug("Create consul session");
                 if (previousSessionId != null) {
-                    client.deleteSession(previousSessionId);
-                    previousSessionId = null;
+                    try {
+                        client.deleteSession(previousSessionId);
+                        previousSessionId = null;
+                    } catch (Exception e) {
+                        log.warn("Failed to delete previous consul session {}, will retry", previousSessionId, e);
+                        return;
+                    }
                 }
                 activeSessionId = client.createSession(SESSION_PREFIX + UUID.randomUUID(),
                     SESSION_BEHAVIOR, SESSION_TTL_STRING);
@@ -142,10 +147,16 @@ public class ConsulService {
                 log.debug("Renew consul session");
                 client.renewSession(activeSessionId);
             }
-        } catch (Exception e) {
-            log.error("Failed to create/renew consul session", e);
+        } catch (InvalidConsulSessionException e) {
+            log.warn("Consul session expired, scheduling destroy and creating a new one: {}", activeSessionId);
             previousSessionId = activeSessionId;
             activeSessionId = null;
+        } catch (Exception e) {
+            if (activeSessionId != null) {
+                log.warn("Failed to renew consul session, will retry with the same session id", e);
+            } else {
+                log.error("Failed to create consul session", e);
+            }
         }
     }
 
