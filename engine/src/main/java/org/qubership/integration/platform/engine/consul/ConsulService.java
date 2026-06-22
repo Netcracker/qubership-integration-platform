@@ -132,11 +132,7 @@ public class ConsulService {
             if (activeSessionId == null) {
                 log.debug("Create consul session");
                 if (previousSessionId != null) {
-                    try {
-                        client.deleteSession(previousSessionId);
-                        previousSessionId = null;
-                    } catch (Exception e) {
-                        log.warn("Failed to delete previous consul session {}, will retry", previousSessionId, e);
+                    if (!deletePreviousSession()) {
                         return;
                     }
                 }
@@ -357,5 +353,24 @@ public class ConsulService {
     private static boolean filterL1NonEmptyPaths(String pathPrefix, String path) {
         String[] split = path.substring(pathPrefix.length()).split("/");
         return split.length == 1 && StringUtils.isNotEmpty(split[0]);
+    }
+
+    private boolean deletePreviousSession() {
+        if (previousSessionId == null) {
+            return true;
+        }
+
+        try {
+            client.deleteSession(previousSessionId);
+            previousSessionId = null;
+            return true;
+        } catch (Exception e) {
+            log.warn(
+                "Failed to delete previous consul session {}, will retry",
+                previousSessionId,
+                e
+            );
+            return false;
+        }
     }
 }
