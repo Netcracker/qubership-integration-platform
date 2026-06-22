@@ -103,6 +103,7 @@ jobs:
       MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
       MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
       MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
   release-micro-engine:
     needs: prepare
@@ -117,6 +118,8 @@ jobs:
     with:
       release-type: ${{ inputs.release-type }}
       build-docker: ${{ inputs.build-docker }}
+    secrets:
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
   release-runtime-catalog:
     needs: prepare
@@ -134,6 +137,7 @@ jobs:
       MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
       MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
       MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
   release-sessions-management:
     needs: prepare
@@ -151,6 +155,7 @@ jobs:
       MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
       MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
       MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
   release-ui:
     needs: prepare
@@ -161,6 +166,8 @@ jobs:
     uses: ./.github/workflows/ui-release.yaml
     with:
       release-type: ${{ inputs.release-type }}
+    secrets:
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
   release-vscode-extension:
     needs: [prepare, release-ui]
@@ -171,6 +178,8 @@ jobs:
     uses: ./.github/workflows/vscode-extension-release.yaml
     with:
       release-type: ${{ inputs.release-type }}
+    secrets:
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
   # ---------------------------------------------------------------------------
   # Bill of Materials: snapshot the released version of every module (derived
@@ -223,14 +232,31 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
+    env:
+      # Gate the app-token step on the App key being present (secrets are not
+      # allowed in `if:`, env derived from them is).
+      APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
     steps:
+      # Mint a GitHub App token so the platform-version bump push can bypass
+      # branch protection. Skipped when the App key is unset; checkout then falls
+      # back to GITHUB_TOKEN.
+      - name: Prepare app token
+        id: app-token
+        if: ${{ env.APP_KEY != '' }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.GH_BUMP_VERSION_APP_ID }}
+          private-key: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
+
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
-          # The platform-version bump commit is pushed back at the end.
+          # Persist credentials: the platform-version bump commit is pushed back
+          # at the end via the App token (or GITHUB_TOKEN if the App is unset).
           persist-credentials: true
+          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
       - name: Create platform drop release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

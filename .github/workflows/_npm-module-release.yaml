@@ -16,9 +16,12 @@
 # in the CALLER: the wrapper adds a job that calls the next module's release
 # workflow with release-type=patch.
 #
-# PREREQUISITE: the runner's GITHUB_TOKEN must be allowed to push to the target
-# branch (bypass branch protection). Without it the version-bump push fails;
-# recovery then re-applies it on the next run once the bypass is in place.
+# PREREQUISITE: the version-bump push targets a protected branch, so it goes
+# through a GitHub App token (vars.GH_BUMP_VERSION_APP_ID +
+# secrets.GH_BUMP_VERSION_APP_KEY) whose App is on the branch-protection bypass
+# list. Without the App key it falls back to GITHUB_TOKEN, which cannot bypass:
+# the push fails and recovery re-applies the bump on the next run once the App
+# is configured.
 
 name: NPM Module Release (reusable)
 
@@ -60,6 +63,10 @@ on:
         type: boolean
         default: false
         description: "Build @netcracker/qip-schemas (workspace dep) before the module build. Needed by ui."
+    secrets:
+      GH_BUMP_VERSION_APP_KEY:
+        required: false
+        description: "Private key of the GitHub App that bypasses branch protection for the version-bump push. Falls back to GITHUB_TOKEN if unset."
 
 concurrency:
   # Literal prefix (NOT github.workflow): inside a reusable, github.workflow is
@@ -119,14 +126,30 @@ jobs:
       DIST_TAG: ${{ inputs.npm-dist-tag }}
       RELEASE_VERSION: ${{ needs.check-version.outputs.release-version }}
       RELEASE_TAG: ${{ needs.check-version.outputs.release-tag }}
+      # Gate the app-token step on the App key being present (secrets are not
+      # allowed in `if:`, env derived from them is).
+      APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
     steps:
+      # Mint a GitHub App token so the version-bump push can bypass branch
+      # protection. Skipped when the App key is unset; checkout then falls back
+      # to GITHUB_TOKEN.
+      - name: Prepare app token
+        id: app-token
+        if: ${{ env.APP_KEY != '' }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.GH_BUMP_VERSION_APP_ID }}
+          private-key: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
+
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
-          # Tag and the version-bump commit are pushed at the end via GITHUB_TOKEN.
+          # Persist credentials: the tag and the version-bump commit are pushed
+          # at the end via the App token (or GITHUB_TOKEN if the App is unset).
           persist-credentials: true
+          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
