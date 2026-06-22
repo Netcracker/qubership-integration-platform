@@ -47,28 +47,18 @@ describe("FolderEdit", () => {
     ).toBeInTheDocument();
   });
 
-  it("submits name and description from initialValues and fields", async () => {
+  it("should submit name from initial values and fields", async () => {
     const onSubmit = jest.fn();
-    render(
-      <FolderEdit
-        onSubmit={onSubmit}
-        mode="update"
-        name="N0"
-        description="D0"
-      />,
-    );
+    render(<FolderEdit onSubmit={onSubmit} mode="update" name="N0" />);
 
     fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
       target: { value: "N1" },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: /description/i }), {
-      target: { value: "D1" },
     });
 
     fireEvent.submit(document.getElementById("folderEditForm")!);
 
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith("N1", "D1", undefined, undefined);
+      expect(onSubmit).toHaveBeenCalledWith("N1", undefined, undefined);
     });
     expect(mockCloseContainingModal).toHaveBeenCalled();
   });
@@ -85,7 +75,7 @@ describe("FolderEdit", () => {
     fireEvent.submit(document.getElementById("folderEditForm")!);
 
     await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalledWith("F", "", true, true);
+      expect(onSubmit).toHaveBeenCalledWith("F", true, true);
     });
   });
 });

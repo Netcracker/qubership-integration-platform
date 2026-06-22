@@ -463,8 +463,13 @@ public class ImportService {
                 Chain currentChainState = chainFinderService.tryFindById(chainExternalEntity.getId()).orElse(null);
                 ImportEntityStatus importStatus = currentChainState != null ? ImportEntityStatus.UPDATED : ImportEntityStatus.CREATED;
                 Folder existingFolder = null;
-                if (chainExternalEntity.getContent().getFolder() != null) {
-                    existingFolder = folderService.findFirstByName(chainExternalEntity.getContent().getFolder().getName(), null);
+                String rootFolderName = ChainImportService.resolveRootFolderName(chainExternalEntity);
+                if (rootFolderName != null) {
+                    existingFolder = folderService.findFirstByName(rootFolderName, null);
+                    if (existingFolder == null) {
+                        existingFolder = Folder.builder().name(rootFolderName).build();
+                        existingFolder = folderService.save(existingFolder, (String) null);
+                    }
                 }
                 Chain chain = chainExternalEntityMapper.toInternalEntity(ChainExternalMapperEntity.builder()
                         .chainExternalEntity(chainExternalEntity)

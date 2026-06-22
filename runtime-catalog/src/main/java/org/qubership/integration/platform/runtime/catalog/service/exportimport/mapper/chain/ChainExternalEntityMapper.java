@@ -18,12 +18,14 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.codehaus.plexus.util.StringUtils;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.MetaInfoExternalEntity;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequestAction;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.GroupPathUtils;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil;
@@ -101,8 +103,10 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
         resultChain.addMaskedFields(mergedResultMaskedFields);
         resultChain.addMaskedFields(mergedExternalMaskedFields);
 
-        if (externalChain.getContent().getFolder() != null) {
-            Folder newFolder = createFolderInternalEntity(externalChain.getContent().getFolder(), externalMapperEntity.getExistingFolder());
+        MetaInfoExternalEntity metaInfo = externalChain.getMetaInfo();
+        List<String> groupSegments = GroupPathUtils.parseSegments(metaInfo == null ? null : metaInfo.getGroup());
+        if (!groupSegments.isEmpty()) {
+            Folder newFolder = createFolderInternalEntity(groupSegments, externalMapperEntity.getExistingFolder());
             resultChain.setParentFolder(newFolder);
         } else {
             resultChain.setParentFolder(null);
@@ -133,6 +137,7 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
                 .schema(chainSchemaUri)
                 .id(chain.getId())
                 .name(chain.getName())
+                .metaInfo(buildMetaInfo(chain))
                 .content(ChainExternalContentEntity.builder()
                         .description(chain.getDescription())
                         .businessDescription(chain.getBusinessDescription())
@@ -140,7 +145,6 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
                         .outOfScope(chain.getOutOfScope())
                         .labels(chain.getLabels().stream().filter(label -> !label.isTechnical())
                                 .map(ChainLabel::getName).toList())
-                        .folder(createFolderExternalEntity(chain))
                         .maskedFields(createMaskedFieldExternalEntities(chain.getMaskedFields()))
                         .defaultSwimlaneId(
                                 Optional.ofNullable(chain.getDefaultSwimlane())
@@ -244,28 +248,24 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
                 .collect(Collectors.toList());
     }
 
-    private Folder createFolderInternalEntity(FolderExternalEntity folderExternalEntity, Folder existingRootFolder) {
+    private Folder createFolderInternalEntity(List<String> groupSegments, Folder existingRootFolder) {
         Folder resultFolder = null;
-        FolderExternalEntity currentFolderExternalEntity = folderExternalEntity;
-        while (currentFolderExternalEntity != null) {
+        for (int i = 0; i < groupSegments.size(); i++) {
+            String segmentName = groupSegments.get(i);
             Folder newFolder;
 
             if (existingRootFolder != null) {
                 newFolder = existingRootFolder;
-                newFolder.setName(currentFolderExternalEntity.getName());
-                newFolder.setDescription(currentFolderExternalEntity.getDescription());
+                newFolder.setName(segmentName);
 
-                String subfolderName = Optional.ofNullable(currentFolderExternalEntity.getSubfolder())
-                        .map(FolderExternalEntity::getName)
-                        .orElse("");
+                String subfolderName = i + 1 < groupSegments.size() ? groupSegments.get(i + 1) : "";
                 existingRootFolder = existingRootFolder.getFolderList().stream()
                         .filter(folder -> subfolderName.equals(folder.getName()))
                         .findFirst()
                         .orElse(null);
             } else {
                 newFolder = Folder.builder()
-                        .name(currentFolderExternalEntity.getName())
-                        .description(currentFolderExternalEntity.getDescription())
+                        .name(segmentName)
                         .build();
 
                 if (resultFolder != null) {
@@ -274,23 +274,24 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
             }
 
             resultFolder = newFolder;
-            currentFolderExternalEntity = currentFolderExternalEntity.getSubfolder();
         }
 
         return resultFolder;
     }
 
-    private FolderExternalEntity createFolderExternalEntity(FoldableEntity folder) {
-        FolderExternalEntity folderExternalEntity = null;
-        while (folder.getParentFolder() != null) {
-            folder = folder.getParentFolder();
-            folderExternalEntity = FolderExternalEntity.builder()
-                    .name(folder.getName())
-                    .description(folder.getDescription())
-                    .subfolder(folderExternalEntity)
-                    .build();
+    private MetaInfoExternalEntity buildMetaInfo(Chain chain) {
+        String group = buildGroupPath(chain);
+        return group == null ? null : MetaInfoExternalEntity.builder().group(group).build();
+    }
+
+    private String buildGroupPath(FoldableEntity entity) {
+        Deque<String> names = new ArrayDeque<>();
+        FoldableEntity current = entity;
+        while (current.getParentFolder() != null) {
+            current = current.getParentFolder();
+            names.addFirst(GroupPathUtils.sanitizeSegment(current.getName()));
         }
-        return folderExternalEntity;
+        return names.isEmpty() ? null : String.join("/", names);
     }
 
     private Set<ChainLabel> createMissingChainLabels(List<String> labels, Chain resultChain) {

@@ -4,7 +4,6 @@ import {
   Element,
   EntityLabel,
   ExportImagesTarget,
-  Folder,
   LibraryData,
   LibraryElement,
   MaskedField,
@@ -302,7 +301,9 @@ export async function parseElement(
         fileUri,
         beforeAfterBlock.propertiesFilename,
       );
-      const properties: any = fileContent?.trim() ? JSON.parse(fileContent) : {};
+      const properties: any = fileContent?.trim()
+        ? JSON.parse(fileContent)
+        : {};
       for (const key in properties) {
         beforeAfterBlock[key] = properties[key];
       }
@@ -325,7 +326,9 @@ export async function parseElement(
               return item.trim();
             });
         const fileContent = await fileApi.readFile(fileUri, propertiesFilename);
-        const properties: any = fileContent?.trim() ? JSON.parse(fileContent) : {};
+        const properties: any = fileContent?.trim()
+          ? JSON.parse(fileContent)
+          : {};
         if (propertyNames) {
           for (const propertyName of propertyNames) {
             elementProperties[propertyName] = properties[propertyName];
@@ -449,11 +452,11 @@ export async function schemaToChain(
     : [];
 
   const navigationPath: [string, string][] = [];
-  let currentFolder = chain.content.folder as Folder;
-
-  while (currentFolder) {
-    navigationPath.push([currentFolder.name, currentFolder.name]);
-    currentFolder = currentFolder.subfolder as Folder;
+  const group = chain.metaInfo?.group ?? "";
+  for (const segment of group.split("/")) {
+    if (segment) {
+      navigationPath.push([segment, segment]);
+    }
   }
 
   return {
