@@ -27,7 +27,7 @@ public class CompositeTriggerHelper {
     /**
      * Create a copy of elements with separated composite triggers
      */
-    public List<Element> splitCompositeTriggers(List<Element> elements) {
+    public List<Element> splitCompositeTriggers(List<? extends Element> elements) {
         List<Element> newElements = new ArrayList<>(elements);
         for (Element element : elements) {
             ElementDescriptor descriptor = libraryService.lookupElementDescriptor(element.getType()).orElse(null);

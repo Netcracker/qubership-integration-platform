@@ -25,9 +25,9 @@ import org.qubership.integration.platform.runtime.catalog.service.designgenerato
 import java.util.*;
 import java.util.regex.Matcher;
 
-import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.*;
 import static org.qubership.integration.platform.library.constants.CamelOptions.AFTER;
 import static org.qubership.integration.platform.library.constants.CamelOptions.LABEL;
+import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.*;
 
 public class DiagramBuilderEscapeUtil {
     private DiagramBuilderEscapeUtil() {

@@ -79,7 +79,7 @@ public class ChainService extends ChainBaseService {
     private final ChainFilterSpecificationBuilder chainFilterSpecificationBuilder;
     private final AuditingHandler auditingHandler;
     private final ChainFinderService chainFinderService;
-    private final PropertyPlaceholderHelper propertyPlaceholderHelper;
+    private final PropertyPlaceholderService propertyPlaceholderService;
 
     @Autowired
     public ChainService(
@@ -98,7 +98,7 @@ public class ChainService extends ChainBaseService {
             AuditingHandler auditingHandler,
             ChainFinderService chainFinderService,
             ContextBaseService contextBaseService,
-            PropertyPlaceholderHelper propertyPlaceholderHelper
+            PropertyPlaceholderService propertyPlaceholderService
     ) {
         super(chainRepository, elementService, contextBaseService);
         this.chainRepository = chainRepository;
@@ -115,7 +115,7 @@ public class ChainService extends ChainBaseService {
         this.chainFilterSpecificationBuilder = chainFilterSpecificationBuilder;
         this.auditingHandler = auditingHandler;
         this.chainFinderService = chainFinderService;
-        this.propertyPlaceholderHelper = propertyPlaceholderHelper;
+        this.propertyPlaceholderService = propertyPlaceholderService;
     }
 
     public Boolean exists(String chainId) {
@@ -452,7 +452,7 @@ public class ChainService extends ChainBaseService {
         for (ChainElement element : originalElements) {
             String newId = elementIdMap.computeIfAbsent(element.getId(), key -> UUID.randomUUID().toString());
             element.setId(newId);
-            propertyPlaceholderHelper.updateResetOnCopyProperties(element, chainId);
+            propertyPlaceholderService.updateResetOnCopyProperties(element, chainId);
             if (MigrationContext.REUSE_REFERENCE_ELEMENT_TYPE.equals(element.getType())) {
                 String reuseElementId = element.getPropertyAsString(MigrationContext.REUSE_ELEMENT_ID);
                 String newReuseElementId = elementIdMap.computeIfAbsent(reuseElementId, value -> UUID.randomUUID().toString());

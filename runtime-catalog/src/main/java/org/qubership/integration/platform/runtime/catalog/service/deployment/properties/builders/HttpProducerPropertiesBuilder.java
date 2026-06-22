@@ -18,10 +18,12 @@ package org.qubership.integration.platform.runtime.catalog.service.deployment.pr
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.chain.model.ServiceEnvironment;
 import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.library.constants.CamelOptions;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
+import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
@@ -37,7 +39,7 @@ public class HttpProducerPropertiesBuilder  implements ElementPropertiesBuilder 
     public static final String REUSE_CONN_DEFAULT_VALUE = "true";
 
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         return Set.of(
                 CamelNames.SERVICE_CALL_COMPONENT,
                 CamelNames.HTTP_SENDER_COMPONENT,
@@ -46,7 +48,7 @@ public class HttpProducerPropertiesBuilder  implements ElementPropertiesBuilder 
     }
 
     @Override
-    public Map<String, String> build(ChainElement element) {
+    public Map<String, String> build(Element element) {
         Map<String, String> properties = new HashMap<>();
         String type = element.getType();
         String reuseConn = null;
@@ -63,16 +65,17 @@ public class HttpProducerPropertiesBuilder  implements ElementPropertiesBuilder 
                     if (additionalParams != null && additionalParams.containsKey(CamelNames.REUSE_ESTABLISHED_CONN)) {
                         reuseConn = additionalParams.get(CamelNames.REUSE_ESTABLISHED_CONN);
                     } else { // get prop from ENV
-                        if (element.getEnvironment() != null && element.getEnvironment().getProperties() != null) {
-                            reuseConn = (String) element.getEnvironment().getProperties().get(CamelNames.REUSE_ESTABLISHED_CONN);
-                        }
+                        Map<String, Object> props = element.getEnvironment()
+                            .map(ServiceEnvironment::getProperties)
+                            .orElse(Collections.emptyMap());
+                        reuseConn = (String) props.get(CamelNames.REUSE_ESTABLISHED_CONN);
                     }
                 } else {
                     return Collections.emptyMap();
                 }
             }
             case CamelNames.HTTP_SENDER_COMPONENT, CamelNames.GRAPHQL_SENDER_COMPONENT -> {
-                reuseConn = element.getPropertyAsString(CamelNames.REUSE_ESTABLISHED_CONN);
+                reuseConn = ElementUtils.getPropertyAsString(element, CamelNames.REUSE_ESTABLISHED_CONN);
                 if (element.getProperties().containsKey(URI)) {
                     properties.put(CamelNames.OPERATION_PATH_EXCHANGE, element.getProperties().get(URI).toString());
                 }
