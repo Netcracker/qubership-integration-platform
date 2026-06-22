@@ -1,0 +1,12 @@
+---
+# Local override of the shared netcracker/.github zizmor config. super-linter
+# copies the shared config with `cp --update=none`, so this file wins instead.
+# It must stay valid for the zizmor pinned in super-linter v8.1.0 (1.12.1),
+# which supports only `ignore`/`config` per rule. `rules.<id>.disable` (used by
+# the shared config for secrets-outside-env) arrived in 1.13.0 and fails to load
+# here; that rule reports nothing on these workflows, so it needs no entry.
+rules:
+  dangerous-triggers:
+    ignore:
+      - cla.yaml
+      - pr-assigner.yaml

@@ -5,10 +5,20 @@ dist-lib/
 .idea/
 *.iml
 .vscode/
-.cursor/
+.aider*
 .DS_Store
 Thumbs.db
 .env
 .env.local
 .flattened-pom.xml
 *.tgz
+
+# maven-release-plugin scratch files (deprecated in favor of CI-friendly versions)
+release.properties
+pom.xml.releaseBackup
+pom.xml.tag
+pom.xml.next
+
+
+# APM dependencies
+apm_modules/
