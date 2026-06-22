@@ -29,6 +29,7 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.Pa
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers.MandatoryPropertyVerificationHelper;
 import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 import org.qubership.integration.platform.runtime.catalog.util.StringTrimmer;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 import java.util.Map;
@@ -43,11 +44,8 @@ import java.util.stream.Collectors;
                 StringTrimmer.class
         })
 public abstract class ElementMapper {
-    private final MandatoryPropertyVerificationHelper mandatoryPropertyVerificationHelper;
-
-    public ElementMapper(MandatoryPropertyVerificationHelper mandatoryPropertyVerificationHelper) {
-        this.mandatoryPropertyVerificationHelper = mandatoryPropertyVerificationHelper;
-    }
+    @Autowired
+    private MandatoryPropertyVerificationHelper mandatoryPropertyVerificationHelper;
 
     @Mapping(source = "parent.id", target = "parentElementId")
     @Mapping(source = "chain.id", target = "chainId")

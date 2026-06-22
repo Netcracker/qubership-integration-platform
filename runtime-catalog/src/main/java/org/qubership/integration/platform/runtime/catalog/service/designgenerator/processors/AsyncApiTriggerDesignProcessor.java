@@ -34,9 +34,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.LINE_WITH_ARROW_SOLID_RIGHT;
 import static org.qubership.integration.platform.library.constants.CamelNames.*;
 import static org.qubership.integration.platform.library.constants.CamelOptions.*;
+import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.LINE_WITH_ARROW_SOLID_RIGHT;
 import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramConstants.EMPTY_PROPERTY_STUB;
 
 

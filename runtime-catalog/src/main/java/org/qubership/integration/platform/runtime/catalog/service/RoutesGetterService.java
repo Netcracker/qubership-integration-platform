@@ -1,8 +1,10 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
+import org.qubership.integration.platform.io.util.SimpleHttpUriUtils;
 import org.qubership.integration.platform.library.constants.CamelOptions;
+import org.qubership.integration.platform.runtime.catalog.adapters.ChainElementAdapter;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.RouteType;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.DeploymentRoute;
@@ -10,10 +12,9 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
+import org.qubership.integration.platform.runtime.catalog.util.TriggerUtils;
 import org.qubership.integration.platform.util.ElementUtils;
 import org.qubership.integration.platform.util.HashUtils;
-import org.qubership.integration.platform.io.util.SimpleHttpUriUtils;
-import org.qubership.integration.platform.runtime.catalog.util.TriggerUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.jpa.domain.Specification;
@@ -94,7 +95,7 @@ public class RoutesGetterService {
 
                         DeploymentRoute.DeploymentRouteBuilder builder = DeploymentRoute.builder()
                                 .path(targetURL)
-                                .variableName(ElementUtils.buildRouteVariableName(sender))
+                                .variableName(ElementUtils.buildRouteVariableName(new ChainElementAdapter(sender)))
                                 .gatewayPrefix(gatewayPrefix)
                                 .type(RouteType.EXTERNAL_SENDER);
 
@@ -152,7 +153,7 @@ public class RoutesGetterService {
                         .type(routeType)
                         .path(path)
                         .gatewayPrefix(gatewayPrefix)
-                        .variableName(ElementUtils.buildRouteVariableName(element))
+                        .variableName(ElementUtils.buildRouteVariableName(new ChainElementAdapter(element)))
                         .connectTimeout(connectionTimeout)
                         .build());
             }

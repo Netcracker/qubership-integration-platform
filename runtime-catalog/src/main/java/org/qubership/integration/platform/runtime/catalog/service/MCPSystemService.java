@@ -1,8 +1,8 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
 import jakarta.persistence.EntityNotFoundException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SystemDeleteException;
 import org.qubership.integration.platform.library.constants.CamelNames;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SystemDeleteException;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;

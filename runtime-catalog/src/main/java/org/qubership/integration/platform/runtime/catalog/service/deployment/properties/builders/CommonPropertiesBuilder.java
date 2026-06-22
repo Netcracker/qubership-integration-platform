@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties.builders;
 
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.chain.model.Connection;
+import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
 import org.springframework.stereotype.Component;
 
@@ -30,31 +30,31 @@ import static org.qubership.integration.platform.library.constants.Configuration
 @Component
 public class CommonPropertiesBuilder implements ElementPropertiesBuilder {
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         return true;
     }
 
     @Override
-    public Map<String, String> build(ChainElement element) {
+    public Map<String, String> build(Element element) {
         Map<String, String> properties = new HashMap<>();
         properties.put(ELEMENT_NAME, element.getName());
         properties.put(ELEMENT_TYPE, element.getType());
-        properties.put(ELEMENT_ID, element.getOriginalId());
+        properties.put(ELEMENT_ID, element.getOriginalId().orElse(""));
         if (isAsyncSplitElement(element)) {
             properties.put(WIRE_TAP_ID, getWireTapId(element));
         }
         return properties;
     }
 
-    public String getWireTapId(ChainElement element) {
-        return element.getInputDependencies().stream()
-                .map(dependency -> dependency.getElementFrom().getId())
+    public String getWireTapId(Element element) {
+        return element.getInputConnections().stream()
+                .map(dependency -> dependency.getFrom().getId())
                 .collect(Collectors.joining(","));
     }
 
-    public boolean isAsyncSplitElement(ChainElement element) {
-        for (Dependency dependency : element.getInputDependencies()) {
-            ChainElement previousElement = dependency.getElementFrom();
+    public boolean isAsyncSplitElement(Element element) {
+        for (Connection connection : element.getInputConnections()) {
+            Element previousElement = connection.getFrom();
             if (ASYNC_SPLIT_ELEMENT.equals(previousElement.getType())) {
                 return true;
             }

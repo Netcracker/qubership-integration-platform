@@ -30,9 +30,9 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 import java.util.Set;
 
+import static org.qubership.integration.platform.library.constants.CamelOptions.*;
 import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.LINE_WITH_ARROW_DOTTED_RIGHT;
 import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.LINE_WITH_ARROW_SOLID_RIGHT;
-import static org.qubership.integration.platform.library.constants.CamelOptions.*;
 import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramConstants.DEFAULT_RESPONSE_TITLE;
 import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramConstants.EMPTY_PROPERTY_STUB;
 

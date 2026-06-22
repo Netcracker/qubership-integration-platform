@@ -14,6 +14,13 @@
  * limitations under the License.
  */
 
+package org.qubership.integration.platform.runtime.catalog.service.deployment.properties;
+
+import org.qubership.integration.platform.chain.model.Element;
+
+import java.util.Map;
+
+public interface AdditionalPropertiesBuilder {
 package org.qubership.integration.platform.engine.consul;
 
 public class ConsulOperationTimeoutException extends RuntimeException {
