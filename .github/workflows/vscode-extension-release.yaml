@@ -22,6 +22,9 @@ on:
         required: false
         type: string
         default: "latest"
+    secrets:
+      GH_BUMP_VERSION_APP_KEY:
+        required: false
   workflow_dispatch:
     inputs:
       release-type:
@@ -57,3 +60,5 @@ jobs:
       release-type: ${{ inputs.release-type }}
       version: ${{ inputs.version }}
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
+    secrets:
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}

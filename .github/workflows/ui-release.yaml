@@ -31,6 +31,9 @@ on:
         type: boolean
         default: false
         description: "After publish, trigger vscode-extension release with an auto patch-bump"
+    secrets:
+      GH_BUMP_VERSION_APP_KEY:
+        required: false
   workflow_dispatch:
     inputs:
       release-type:
@@ -72,6 +75,8 @@ jobs:
       version: ${{ inputs.version }}
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
       build-schemas: true
+    secrets:
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
   # Cascade: release vscode-extension with an auto patch-bump (its package.json
   # is the source of truth). Gated on the ui publish job. Calls the reusable
@@ -88,3 +93,5 @@ jobs:
       module: vscode-extension
       release-type: patch
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
+    secrets:
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
