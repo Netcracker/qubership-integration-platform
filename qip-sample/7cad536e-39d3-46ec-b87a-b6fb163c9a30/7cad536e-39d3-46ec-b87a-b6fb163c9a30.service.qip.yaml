@@ -1,0 +1,13 @@
+$schema: http://qubership.org/schemas/product/qip/service
+id: 7cad536e-39d3-46ec-b87a-b6fb163c9a30
+name: Qip-Service
+content:
+  description: ""
+  activeEnvironmentId: ""
+  integrationSystemType: EXTERNAL
+  protocol: ""
+  extendedProtocol: ""
+  specification: ""
+  environments: []
+  labels: []
+  migrations: []

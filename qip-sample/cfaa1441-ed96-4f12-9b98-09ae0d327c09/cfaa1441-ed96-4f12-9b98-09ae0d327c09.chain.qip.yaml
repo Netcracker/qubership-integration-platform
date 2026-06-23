@@ -1,0 +1,25 @@
+$schema: http://qubership.org/schemas/product/qip/chain
+id: cfaa1441-ed96-4f12-9b98-09ae0d327c09
+name: Test chain
+content:
+  elements:
+    - description: ""
+      id: 77acea97-3084-4fed-b176-167755fa1b4e
+      mandatoryChecksPassed: false
+      name: HTTP Trigger
+      properties:
+        chunked: true
+        externalRoute: true
+        privateRoute: false
+        connectTimeout: 120000
+        killSessionOnTimeout: false
+        enableIdempotency: false
+        idempotencyKeyExpiry: 600
+        actionOnDuplicate: ignore
+        chainCallTimeout: 30000
+        accessControlType: NONE
+        httpBinding: handlingHttpBinding
+        rejectRequestIfNonNullBodyGetDelete: true
+        handleValidationAction: default
+        handleChainFailureAction: default
+      type: http-trigger
