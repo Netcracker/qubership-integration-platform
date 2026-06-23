@@ -10,7 +10,7 @@ import {
   Webview,
   WebviewPanel,
 } from "vscode";
-import { CHAIN_DIFF_PATH, getApiResponse, listChainExportTargets, schemaToChain } from "./response";
+import { getApiResponse, listChainExportTargets } from "./response";
 import {
   setPendingExportImagesRequest,
   startExportImagesProgress,
@@ -40,13 +40,19 @@ import {
   initNavigationState,
   updateNavigationStateValue,
 } from "./response/navigationUtils";
-import { ContentParser } from "./api-services";
-import { Chain } from "@netcracker/qip-ui";
 import {
   buildExportImagesStartupPayload,
   getExportTargetFromFilePath,
   resolveExportPaths,
 } from "./exportImagesHandler";
+import {
+  getChainDiffUri,
+  registerChainDiffMessageHandlers,
+} from "./chainDiffEditor";
+import {
+  getEditorViewTypeForUri,
+  openDocumentInEditor,
+} from "./editorViewTypes";
 
 type VSCodeMessageWrapper = {
   command: string;
@@ -331,56 +337,14 @@ class ChainFileEditorProvider extends BaseFileEditorProvider {
         enableCommandUris: true,
       };
 
-      panel.webview.onDidReceiveMessage(
-        async (message: VSCodeMessageWrapper) => {
-          if (message.data.type === "comparedDocumentsRequest") {
-            const getDocument = async (d: vscode.TextDocument) => {
-              return schemaToChain(
-                d.uri,
-                ContentParser.parseContent(d.getText()),
-              );
-            };
-            const response: VSCodeResponse<{
-              original: Chain;
-              modified: Chain;
-            }> = {
-              requestId: message.data.requestId,
-              type: "comparedDocumentsResponse",
-              payload: {
-                original: await getDocument(documents.original),
-                modified: await getDocument(documents.modified),
-              },
-            };
-            panel.webview.postMessage(response);
-          } else if (message.data.type === "navigateComparedDocumentInNewTab") {
-            const { type, path } = message.data.payload;
-            const uri =
-              type === "left" ? documents.original.uri : documents.modified.uri;
+      const diffListener = registerChainDiffMessageHandlers({
+        context: this.context,
+        panel,
+        documents,
+      });
+      panel.onDidDispose(() => diffListener.dispose());
 
-            try {
-              const documentUri =
-                uri.scheme === "git"
-                  ? uri
-                  : await getApiResponse(
-                      {
-                        type: "navigateInNewTab",
-                        requestId: crypto.randomUUID(),
-                        payload: path,
-                      },
-                      uri,
-                      this.context,
-                    );
-              await updateNavigationStateValue(this.context, documentUri, path);
-              await openDocumentInEditor(documentUri);
-              return;
-            } catch (e) {
-              console.error("Failed to fetch data for QIP Extension API", e);
-            }
-          }
-        },
-      );
-
-      await enrichWebview(panel, this.context, Uri.parse(CHAIN_DIFF_PATH));
+      await enrichWebview(panel, this.context, getChainDiffUri());
     } catch (error) {
       throw error;
     }
@@ -510,7 +474,7 @@ async function enrichWebview(
         vscode.commands.executeCommand(
           "vscode.openWith",
           response.payload,
-          "qip.chainFile.editor",
+          getEditorViewTypeForUri(response.payload),
         );
         return;
       } else if (message.data.type === "navigateInNewTab") {
@@ -531,30 +495,6 @@ async function enrichWebview(
     }
     panel.webview.postMessage(response);
   });
-}
-
-function getEditorByExtension(uri: Uri): string {
-  const fileExtensions = getExtensionsForUri();
-  let editor = undefined;
-  if (uri.path.endsWith(fileExtensions.chain)) {
-    editor = "qip.chainFile.editor";
-  } else if (uri.path.endsWith(fileExtensions.service)) {
-    editor = "qip.serviceFile.editor";
-  } else if (uri.path.endsWith(fileExtensions.contextService)) {
-    editor = "qip.contextServiceFile.editor";
-  } else if (uri.path.endsWith(fileExtensions.mcpService)) {
-    editor = "qip.mcpServiceFile.editor";
-  }
-
-  if (!editor) {
-    throw new Error(`Unable to find an editor for document: ${uri}`);
-  }
-  return editor;
-}
-
-async function openDocumentInEditor(uri: Uri) {
-  const editor = getEditorByExtension(uri);
-  await vscode.commands.executeCommand("vscode.openWith", uri, editor);
 }
 
 async function deleteServiceWithRelatedFiles(
@@ -903,16 +843,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
       async (item: any) => {
         if (item && item.fileUri) {
           try {
-            // Determine the correct editor based on file type
-            const fileName = item.fileUri.fsPath;
-            let editorType = "qip.chainFile.editor"; // default
-
-            const fileExtensions = getExtensionsForUri({ path: fileName });
-            if (fileName.endsWith(fileExtensions.service)) {
-              editorType = "qip.serviceFile.editor";
-            } else if (fileName.endsWith(fileExtensions.chain)) {
-              editorType = "qip.chainFile.editor";
-            }
+            const editorType = getEditorViewTypeForUri(item.fileUri);
 
             // Open the file with custom editor
             await vscode.commands.executeCommand(
