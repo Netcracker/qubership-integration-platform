@@ -197,7 +197,9 @@ To add API specification into existing specification group:
 1. Select ![cloud-upload](img/cloud-upload.svg) "**Import Specification**" option for desired group.
 2. There are two options to add API Specification:
     - **Import File** - on this tab you can import file with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
-    > ℹ️ **Note:** API Specification **version must be unique inside of API Specification group for any type of service**. Import of API Specification with non-unique version will result in version duplication error.
+    > ℹ️ **Note:**
+    > - API Specification **version must be unique inside of API Specification group for any type of service**. Import of API Specification with non-unique version will result in version duplication error.
+    > - OpenAPI 3.2.0 specifications are imported using the OpenAPI 3.1 parser. Features available only in OpenAPI 3.2.0 are not supported and will be dropped during import; the system shows a warning notification after such import.
 
     - **Import from Chains** - on this tab, it is possible to select existing [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) endpoint, configured within a particular chain and create API Specification from it.
     > ℹ️ **Note:** Checked _**"External routes only"**_ parameter allows to create specification only from chains with external [HTTP Triggers](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md).

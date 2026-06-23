@@ -208,6 +208,7 @@ To add API specification into existing specification group:
 2. **Upload** file or archive with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
 > ℹ️ **Note:**
 > - **API Specification version must be unique inside of API Specification group for any type of service**. Import of API Specification with non-unique version will result in version duplication error.
+> - OpenAPI 3.2.0 specifications are imported using the OpenAPI 3.1 parser. Features available only in OpenAPI 3.2.0 are not supported and will be dropped during import; the system shows a warning notification after such import.
 > - For service with _**grpc**_ protocol, import archive could contain more than one `.proto` file.
 > - Only for **WSDL**, **GraphQL**, **Protobuf** specifications, system will generate the name by autoincrement (e.g. 1.0.0 -> 2.0.0), rename if required.
 3. Confirm operation with **"Import File"** button.
