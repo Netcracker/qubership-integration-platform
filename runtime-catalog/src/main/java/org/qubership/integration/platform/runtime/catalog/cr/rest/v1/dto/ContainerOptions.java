@@ -15,4 +15,21 @@ public class ContainerOptions {
     private Limits request;
 
     private Limits limit;
+
+    @Builder.Default
+    private boolean readOnlyRootFilesystem = true;
+
+    private int runAsUser;
+
+    private int runAsGroup;
+
+    @Builder.Default
+    private boolean runAsNonRoot = true;
+
+    @Builder.Default
+    private SeccompProfileType seccompProfileType = SeccompProfileType.RuntimeDefault;
+
+    private boolean allowPrivilegeEscalation;
+
+    private CapabilitiesOptions capabilities;
 }

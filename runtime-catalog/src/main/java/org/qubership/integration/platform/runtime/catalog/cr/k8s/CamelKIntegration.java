@@ -2,10 +2,11 @@ package org.qubership.integration.platform.runtime.catalog.cr.k8s;
 
 import com.google.gson.annotations.SerializedName;
 import io.kubernetes.client.common.KubernetesObject;
-import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.*;
 import lombok.*;
 
 import java.util.List;
+import java.util.Map;
 
 public class CamelKIntegration implements KubernetesObject {
     public static final String SERIALIZED_NAME_API_VERSION = "apiVersion";
@@ -66,6 +67,9 @@ public class CamelKIntegration implements KubernetesObject {
         @SerializedName("traits")
         private Traits traits;
 
+        @SerializedName("template")
+        private PodSpecTemplate template;
+
         @Data
         @NoArgsConstructor
         @AllArgsConstructor
@@ -112,6 +116,24 @@ public class CamelKIntegration implements KubernetesObject {
 
                 @SerializedName("limitMemory")
                 private String limitMemory;
+
+                @SerializedName("runAsUser")
+                private Integer runAsUser;
+
+                @SerializedName("runAsNonRoot")
+                private Boolean runAsNonRoot;
+
+                @SerializedName("seccompProfileType")
+                private String seccompProfileType;
+
+                @SerializedName("allowPrivilegeEscalation")
+                private Boolean allowPrivilegeEscalation;
+
+                @SerializedName("capabilitiesDrop")
+                private List<String> capabilitiesDrop;
+
+                @SerializedName("capabilitiesAdd")
+                private List<String> capabilitiesAdd;
             }
 
             @Data
@@ -247,6 +269,49 @@ public class CamelKIntegration implements KubernetesObject {
 
                 @SerializedName("startupPort")
                 private Integer startupPort;
+            }
+        }
+
+        @Data
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public static class PodSpecTemplate {
+            @SerializedName("spec")
+            private PodSpec spec;
+
+            @Data
+            @NoArgsConstructor
+            @AllArgsConstructor
+            public static class PodSpec {
+                @SerializedName("automountServiceAccountToken")
+                private boolean automountServiceAccountToken;
+
+                @SerializedName("volumes")
+                private List<V1Volume> volumes;
+
+                @SerializedName("initContainers")
+                private List<V1Container> initContainers;
+
+                @SerializedName("containers")
+                private List<V1Container> containers;
+
+                @SerializedName("ephemeralContainers")
+                private List<V1EphemeralContainer> ephemeralContainers;
+
+                @SerializedName("terminationGracePeriodSeconds")
+                private Long terminationGracePeriodSeconds;
+
+                @SerializedName("activeDeadlineSeconds")
+                private Long activeDeadlineSeconds;
+
+                @SerializedName("nodeSelector")
+                private Map<String, String> nodeSelector;
+
+                @SerializedName("topologySpreadConstraints")
+                private List<V1TopologySpreadConstraint> topologySpreadConstraints;
+
+                @SerializedName("securityContext")
+                private V1PodSecurityContext securityContext;
             }
         }
     }
