@@ -10,7 +10,7 @@ import {
   Webview,
   WebviewPanel,
 } from "vscode";
-import { getApiResponse, listChainExportTargets } from "./response";
+import { CHAIN_DIFF_PATH, getApiResponse, listChainExportTargets } from "./response";
 import {
   setPendingExportImagesRequest,
   startExportImagesProgress,
@@ -45,14 +45,8 @@ import {
   getExportTargetFromFilePath,
   resolveExportPaths,
 } from "./exportImagesHandler";
-import {
-  getChainDiffUri,
-  registerChainDiffMessageHandlers,
-} from "./chainDiffEditor";
-import {
-  getEditorViewTypeForUri,
-  openDocumentInEditor,
-} from "./editorViewTypes";
+import {registerChainDiffMessageHandlers} from "./chainDiffEditor";
+import {openDocumentInEditor} from "./editorViewTypes";
 
 type VSCodeMessageWrapper = {
   command: string;
@@ -344,7 +338,7 @@ class ChainFileEditorProvider extends BaseFileEditorProvider {
       });
       panel.onDidDispose(() => diffListener.dispose());
 
-      await enrichWebview(panel, this.context, getChainDiffUri());
+      await enrichWebview(panel, this.context, Uri.parse(CHAIN_DIFF_PATH));
     } catch (error) {
       throw error;
     }
@@ -474,7 +468,7 @@ async function enrichWebview(
         vscode.commands.executeCommand(
           "vscode.openWith",
           response.payload,
-          getEditorViewTypeForUri(response.payload),
+          "qip.chainFile.editor",
         );
         return;
       } else if (message.data.type === "navigateInNewTab") {
@@ -843,7 +837,16 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
       async (item: any) => {
         if (item && item.fileUri) {
           try {
-            const editorType = getEditorViewTypeForUri(item.fileUri);
+            // Determine the correct editor based on file type
+            const fileName = item.fileUri.fsPath;
+            let editorType = "qip.chainFile.editor"; // default
+
+            const fileExtensions = getExtensionsForUri({ path: fileName });
+            if (fileName.endsWith(fileExtensions.service)) {
+              editorType = "qip.serviceFile.editor";
+            } else if (fileName.endsWith(fileExtensions.chain)) {
+              editorType = "qip.chainFile.editor";
+            }
 
             // Open the file with custom editor
             await vscode.commands.executeCommand(

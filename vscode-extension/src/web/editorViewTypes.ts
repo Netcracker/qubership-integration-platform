@@ -18,18 +18,6 @@ const DEFAULT_EDITOR_VIEW_TYPES: EditorViewTypes = {
 
 let editorViewTypes: EditorViewTypes = { ...DEFAULT_EDITOR_VIEW_TYPES };
 
-export function configureEditorViewTypes(types: Partial<EditorViewTypes>): void {
-  editorViewTypes = { ...editorViewTypes, ...types };
-}
-
-export function getEditorViewTypes(): Readonly<EditorViewTypes> {
-  return editorViewTypes;
-}
-
-export function resetEditorViewTypesForTests(): void {
-  editorViewTypes = { ...DEFAULT_EDITOR_VIEW_TYPES };
-}
-
 export function getEditorViewTypeForUri(uri: Uri): string {
   const fileExtensions = getExtensionsForUri(uri);
   const filePath = uri.path;

@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { ExtensionContext, TextDocument, Uri, WebviewPanel } from "vscode";
 import { Chain, VSCodeMessage, VSCodeResponse } from "@netcracker/qip-ui";
 import { ContentParser } from "./api-services";
-import { CHAIN_DIFF_PATH, getApiResponse } from "./response/apiRouter";
+import { getApiResponse } from "./response/apiRouter";
 import { schemaToChain } from "./response/chainApiRead";
 import { updateNavigationStateValue } from "./response/navigationUtils";
 import { openDocumentInEditor } from "./editorViewTypes";
@@ -19,10 +19,6 @@ export type ChainDiffEditorOptions = {
   openDocumentInEditor?: (uri: Uri) => Promise<void>;
 };
 
-export function getChainDiffUri(): Uri {
-  return Uri.parse(CHAIN_DIFF_PATH);
-}
-
 export function registerChainDiffMessageHandlers(
   options: ChainDiffEditorOptions,
 ): vscode.Disposable {
@@ -35,20 +31,17 @@ export function registerChainDiffMessageHandlers(
 
   return panel.webview.onDidReceiveMessage(
     async (message: VSCodeMessageWrapper) => {
-      if (!message?.data) {
-        return;
-      }
-
       if (message.data.type === "comparedDocumentsRequest") {
-        const getDocument = async (document: TextDocument) => {
-          const text = document.getText().trim();
+        const getDocument = async (d: vscode.TextDocument) => {
           return schemaToChain(
-            document.uri,
-            ContentParser.parseContent(text),
+            d.uri,
+            ContentParser.parseContent(d.getText()),
           );
         };
-
-        const response: VSCodeResponse<{ original: Chain; modified: Chain }> = {
+        const response: VSCodeResponse<{
+          original: Chain;
+          modified: Chain;
+        }> = {
           requestId: message.data.requestId,
           type: "comparedDocumentsResponse",
           payload: {
@@ -57,10 +50,7 @@ export function registerChainDiffMessageHandlers(
           },
         };
         panel.webview.postMessage(response);
-        return;
-      }
-
-      if (message.data.type === "navigateComparedDocumentInNewTab") {
+      } else if (message.data.type === "navigateComparedDocumentInNewTab") {
         const { type, path } = message.data.payload as {
           type: string;
           path: string;
@@ -73,18 +63,18 @@ export function registerChainDiffMessageHandlers(
             uri.scheme === "git"
               ? uri
               : await getApiResponse(
-                  {
-                    type: "navigateInNewTab",
-                    requestId: crypto.randomUUID(),
-                    payload: path,
-                  },
-                  uri,
-                  context,
-                );
+                {
+                  type: "navigateInNewTab",
+                  requestId: crypto.randomUUID(),
+                  payload: path,
+                },
+                uri,
+                context,
+              );
           await updateNavigationStateValue(context, documentUri, path);
-          await openEditor(documentUri);
+          await openDocumentInEditor(documentUri);
         } catch (e) {
-          console.error("Failed to open compared document in new tab", e);
+          console.error("Failed to fetch data for QIP Extension API", e);
         }
       }
     },
