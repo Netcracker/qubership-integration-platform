@@ -56,7 +56,7 @@ public class XmlBuilder {
         this.libraryService = libraryService;
     }
 
-    public String build(List<Element> elements) throws XMLStreamException, IOException {
+    public String build(Collection<Element> elements) throws XMLStreamException, IOException {
         StringWriter result = new StringWriter();
         XMLStreamWriter2 streamWriter = (XMLStreamWriter2) new WstxOutputFactory().createXMLStreamWriter(result);
         streamWriter.writeStartDocument();

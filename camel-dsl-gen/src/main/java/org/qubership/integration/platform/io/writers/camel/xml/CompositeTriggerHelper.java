@@ -10,10 +10,7 @@ import org.qubership.integration.platform.library.model.ElementType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 @Component
 public class CompositeTriggerHelper {
@@ -27,7 +24,7 @@ public class CompositeTriggerHelper {
     /**
      * Create a copy of elements with separated composite triggers
      */
-    public List<Element> splitCompositeTriggers(List<? extends Element> elements) {
+    public List<Element> splitCompositeTriggers(Collection<? extends Element> elements) {
         List<Element> newElements = new ArrayList<>(elements);
         for (Element element : elements) {
             ElementDescriptor descriptor = libraryService.lookupElementDescriptor(element.getType()).orElse(null);
