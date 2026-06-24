@@ -187,25 +187,25 @@ describe("ChainProperties", () => {
     expect(mockChainUpdate).not.toHaveBeenCalled();
   });
 
-  it("should label the path field Group", () => {
+  it("should label the path field Path", () => {
     render(<ChainProperties />);
 
-    expect(screen.getByRole("textbox", { name: /group/i })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /path/i })).toBeInTheDocument();
     expect(
-      screen.queryByRole("textbox", { name: /^path$/i }),
+      screen.queryByRole("textbox", { name: /^group$/i }),
     ).not.toBeInTheDocument();
   });
 
-  it("should block submit and show an error when a group segment has a forbidden character", async () => {
+  it("should block submit and show an error when a path segment has a forbidden character", async () => {
     render(<ChainProperties />);
 
-    fireEvent.change(screen.getByRole("textbox", { name: /group/i }), {
+    fireEvent.change(screen.getByRole("textbox", { name: /path/i }), {
       target: { value: "a:b" },
     });
     fireEvent.submit(document.getElementById("chain-properties-form")!);
 
     expect(
-      await screen.findByText(/Group segments must not contain/i),
+      await screen.findByText(/Path segments must not contain/i),
     ).toBeInTheDocument();
     expect(mockChainUpdate).not.toHaveBeenCalled();
   });

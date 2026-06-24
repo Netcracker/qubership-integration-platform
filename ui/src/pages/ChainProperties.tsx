@@ -219,7 +219,7 @@ export const ChainProperties: React.FC = () => {
             <Input />
           </Form.Item>
           <Form.Item
-            label="Group"
+            label="Path"
             name="path"
             rules={[
               {
@@ -230,7 +230,7 @@ export const ChainProperties: React.FC = () => {
                   return invalid
                     ? Promise.reject(
                         new Error(
-                          'Group segments must not contain: / : * ? " < > | , ; \\',
+                          'Path segments must not contain: / : * ? " < > | , ; \\',
                         ),
                       )
                     : Promise.resolve();
