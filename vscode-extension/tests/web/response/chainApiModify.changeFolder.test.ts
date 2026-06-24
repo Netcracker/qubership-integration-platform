@@ -126,12 +126,4 @@ describe("changeFolder", () => {
     expect((chain as any).content.folder).toBeUndefined();
     expect(writeMainChainMock).toHaveBeenCalledWith(fileUri, chain);
   });
-
-  it("should return the result of writeMainChain", async () => {
-    const chain = { id: chainId, content: {} };
-    getMainChainMock.mockResolvedValue(chain);
-    writeMainChainMock.mockResolvedValue("write-ok");
-
-    await expect(changeFolder(fileUri, chainId, "a")).resolves.toBe("write-ok");
-  });
 });

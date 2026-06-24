@@ -20,8 +20,10 @@ const getMainChainMock = getMainChain as jest.Mock;
 const writeMainChainMock = fileApi.writeMainChain as jest.Mock;
 
 // changeFolder writes metaInfo.group; schemaToChain reads it back into navigationPath.
-// These tests pin the two functions as each other's inverse for the group field.
-describe("group round-trip: changeFolder -> schemaToChain", () => {
+// writeMainChain is mocked, so this is an in-memory consistency check on the chain
+// object (the group write-format matches the read-format, including sanitization) —
+// it does not exercise YAML serialization/persistence.
+describe("group format consistency: changeFolder <-> schemaToChain", () => {
   const fileUri = Uri.file("/workspace/chain-1.chain.qip.yaml");
 
   const newChain = () => ({
@@ -36,7 +38,7 @@ describe("group round-trip: changeFolder -> schemaToChain", () => {
     writeMainChainMock.mockImplementation((_uri, chain) => chain);
   });
 
-  it("reads back the same path that was written", async () => {
+  it("schemaToChain derives navigationPath from the group changeFolder set", async () => {
     const chain = newChain();
     getMainChainMock.mockResolvedValue(chain);
 

@@ -95,7 +95,6 @@ public class ImportService {
     protected final SnapshotService snapshotService;
     private final EngineService engineService;
     private final ChainFinderService chainFinderService;
-    private final FolderService folderService;
     private final ImportSessionService importProgressService;
     private final ChainImportService chainImportService;
     protected final ChainRepository chainRepository;
@@ -118,7 +117,6 @@ public class ImportService {
                          SnapshotService snapshotService,
                          EngineService engineService,
                          ChainFinderService chainFinderService,
-                         FolderService folderService,
                          ChainRepository chainRepository,
                          ImportSessionService importProgressService,
                          ChainImportService chainImportService,
@@ -134,7 +132,6 @@ public class ImportService {
         this.snapshotService = snapshotService;
         this.engineService = engineService;
         this.chainFinderService = chainFinderService;
-        this.folderService = folderService;
         this.chainRepository = chainRepository;
         this.importProgressService = importProgressService;
         this.chainImportService = chainImportService;
@@ -462,15 +459,7 @@ public class ImportService {
                 ChainExternalEntity chainExternalEntity = yamlMapper.readValue(migratedYaml, ChainExternalEntity.class);
                 Chain currentChainState = chainFinderService.tryFindById(chainExternalEntity.getId()).orElse(null);
                 ImportEntityStatus importStatus = currentChainState != null ? ImportEntityStatus.UPDATED : ImportEntityStatus.CREATED;
-                Folder existingFolder = null;
-                String rootFolderName = ChainImportService.resolveRootFolderName(chainExternalEntity);
-                if (rootFolderName != null) {
-                    existingFolder = folderService.findFirstByName(rootFolderName, null);
-                    if (existingFolder == null) {
-                        existingFolder = Folder.builder().name(rootFolderName).build();
-                        existingFolder = folderService.save(existingFolder, (String) null);
-                    }
-                }
+                Folder existingFolder = chainImportService.resolveOrCreateRootFolder(chainExternalEntity);
                 Chain chain = chainExternalEntityMapper.toInternalEntity(ChainExternalMapperEntity.builder()
                         .chainExternalEntity(chainExternalEntity)
                         .existingChain(currentChainState)

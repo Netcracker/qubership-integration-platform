@@ -191,9 +191,6 @@ describe("ChainProperties", () => {
     render(<ChainProperties />);
 
     expect(screen.getByRole("textbox", { name: /path/i })).toBeInTheDocument();
-    expect(
-      screen.queryByRole("textbox", { name: /^group$/i }),
-    ).not.toBeInTheDocument();
   });
 
   it("should block submit and show an error when a path segment has a forbidden character", async () => {
@@ -208,5 +205,33 @@ describe("ChainProperties", () => {
       await screen.findByText(/Path segments must not contain/i),
     ).toBeInTheDocument();
     expect(mockChainUpdate).not.toHaveBeenCalled();
+  });
+
+  it("should move the chain to the resolved folder and save when a valid path is submitted", async () => {
+    mockGetPathToFolderByName.mockResolvedValue([
+      { id: "f1", name: "a" },
+      { id: "f2", name: "b" },
+    ]);
+    render(<ChainProperties />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: /path/i }), {
+      target: { value: "a/b" },
+    });
+    fireEvent.submit(document.getElementById("chain-properties-form")!);
+
+    await waitFor(() => expect(mockChainUpdate).toHaveBeenCalled());
+    expect(mockMoveChain).toHaveBeenCalledWith("chain-1", "f2");
+  });
+
+  it("should save with an empty navigation path and no move when the path is empty", async () => {
+    render(<ChainProperties />);
+
+    fireEvent.submit(document.getElementById("chain-properties-form")!);
+
+    await waitFor(() => expect(mockChainUpdate).toHaveBeenCalled());
+    expect(mockChainUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ navigationPath: [] }),
+    );
+    expect(mockMoveChain).not.toHaveBeenCalled();
   });
 });

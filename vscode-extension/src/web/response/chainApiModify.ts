@@ -1058,7 +1058,7 @@ export async function changeFolder(
     .join("/");
 
   if (group) {
-    chain.metaInfo = { ...(chain.metaInfo ?? {}), group };
+    chain.metaInfo = { ...chain.metaInfo, group };
   } else if (chain.metaInfo) {
     // Clear only the group, keep any other metaInfo fields.
     delete chain.metaInfo.group;

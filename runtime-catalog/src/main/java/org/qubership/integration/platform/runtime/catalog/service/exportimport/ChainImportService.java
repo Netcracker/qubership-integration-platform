@@ -420,19 +420,24 @@ public class ChainImportService {
         return segments.isEmpty() ? null : segments.get(0);
     }
 
+    Folder resolveOrCreateRootFolder(ChainExternalEntity chainExternalEntity) {
+        String rootFolderName = resolveRootFolderName(chainExternalEntity);
+        if (rootFolderName == null) {
+            return null;
+        }
+        Folder existingFolder = folderService.findFirstByName(rootFolderName, null);
+        if (existingFolder == null) {
+            existingFolder = Folder.builder().name(rootFolderName).build();
+            existingFolder = folderService.save(existingFolder, (String) null);
+        }
+        return existingFolder;
+    }
+
     public ImportChainResult saveImportedChain(ChainExternalEntity chainExternalEntity, File chainFilesDir, Set<String> technicalLabels) {
         Chain currentChainState = chainFinderService.tryFindById(chainExternalEntity.getId()).orElse(null);
         ImportEntityStatus importStatus = currentChainState != null ? ImportEntityStatus.UPDATED : ImportEntityStatus.CREATED;
 
-        Folder existingFolder = null;
-        String rootFolderName = resolveRootFolderName(chainExternalEntity);
-        if (rootFolderName != null) {
-            existingFolder = folderService.findFirstByName(rootFolderName, null);
-            if (existingFolder == null) {
-                existingFolder = Folder.builder().name(rootFolderName).build();
-                existingFolder = folderService.save(existingFolder, (String) null);
-            }
-        }
+        Folder existingFolder = resolveOrCreateRootFolder(chainExternalEntity);
 
         Chain newChainState = chainExternalEntityMapper.toInternalEntity(ChainExternalMapperEntity.builder()
                 .chainExternalEntity(chainExternalEntity)
