@@ -132,8 +132,12 @@ public class CustomResourceBuildContextFactory {
             CamelKIntegration integration
     ) {
         ResourceBuildOptions options = context.getBuildInfo().getOptions();
-        Set<String> resources = new HashSet<>(integration.getSpec().getTraits().getMount().getResources());
-        resources.addAll(options.getMount().getResources());
+        Set<String> resources = new HashSet<>(Optional.ofNullable(integration.getSpec())
+                .map(CamelKIntegration.IntegrationSpec::getTraits)
+                .map(CamelKIntegration.IntegrationSpec.Traits::getMount)
+                .map(CamelKIntegration.IntegrationSpec.Traits.MountTrait::getResources)
+                .orElse(Collections.emptyList()));
+        resources.addAll(Optional.ofNullable(options.getMount().getResources()).orElse(Collections.emptySet()));
         options.getMount().setResources(resources);
     }
 
@@ -142,7 +146,11 @@ public class CustomResourceBuildContextFactory {
         CamelKIntegration integration
     ) {
         ResourceBuildOptions options = context.getBuildInfo().getOptions();
-        Set<String> emptyDirs = new HashSet<>(integration.getSpec().getTraits().getMount().getEmptyDirs());
+        Set<String> emptyDirs = new HashSet<>(Optional.ofNullable(integration.getSpec())
+                .map(CamelKIntegration.IntegrationSpec::getTraits)
+                .map(CamelKIntegration.IntegrationSpec.Traits::getMount)
+                .map(CamelKIntegration.IntegrationSpec.Traits.MountTrait::getEmptyDirs)
+                .orElse(Collections.emptyList()));
         emptyDirs.addAll(options.getMount().getEmptyDirs());
         options.getMount().setEmptyDirs(emptyDirs);
     }
