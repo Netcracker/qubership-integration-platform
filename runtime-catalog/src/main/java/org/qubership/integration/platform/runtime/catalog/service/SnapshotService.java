@@ -20,7 +20,7 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.time.DurationFormatUtils;
-import org.qubership.integration.platform.io.factories.ChainWriterFactory;
+import org.qubership.integration.platform.io.factories.SnapshotWriterFactory;
 import org.qubership.integration.platform.io.model.DataFormat;
 import org.qubership.integration.platform.runtime.catalog.adapters.SnapshotAdapter;
 import org.qubership.integration.platform.runtime.catalog.context.RequestIdContext;
@@ -79,7 +79,7 @@ public class SnapshotService {
     private final MaskedFieldsService maskedFieldsService;
     private final TransactionHandler transactionHandler;
     private final SnapshotService self;
-    private final ChainWriterFactory chainWriterFactory;
+    private final SnapshotWriterFactory snapshotWriterFactory;
 
     @Autowired
     public SnapshotService(SnapshotRepository snapshotRepository,
@@ -94,7 +94,7 @@ public class SnapshotService {
                            ElementPropertiesVerificationService elementPropertiesVerificationService,
                            MaskedFieldsService maskedFieldsService,
                            TransactionHandler transactionHandler,
-                           ChainWriterFactory chainWriterFactory) {
+                           SnapshotWriterFactory snapshotWriterFactory) {
         this.snapshotRepository = snapshotRepository;
         this.elementRepository = elementRepository;
         this.chainRepository = chainRepository;
@@ -107,7 +107,7 @@ public class SnapshotService {
         this.maskedFieldsService = maskedFieldsService;
         this.transactionHandler = transactionHandler;
         this.self = self;
-        this.chainWriterFactory = chainWriterFactory;
+        this.snapshotWriterFactory = snapshotWriterFactory;
     }
 
     public Snapshot findById(String snapshotId) {
@@ -190,7 +190,7 @@ public class SnapshotService {
 
     private String buildConfigurationXml(Snapshot snapshot) {
         try {
-            var writer = chainWriterFactory.getWriter(DataFormat.CAMEL_XML).orElseThrow(() -> {
+            var writer = snapshotWriterFactory.getWriter(DataFormat.CAMEL_XML).orElseThrow(() -> {
                 String message = String.format("Failed to get writer for %s format.", DataFormat.CAMEL_XML);
                 return new RuntimeException(message);
             });
