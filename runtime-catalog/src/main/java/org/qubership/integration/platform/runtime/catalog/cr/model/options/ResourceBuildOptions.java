@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto;
+package org.qubership.integration.platform.runtime.catalog.cr.model.options;
 
 import lombok.*;
 
