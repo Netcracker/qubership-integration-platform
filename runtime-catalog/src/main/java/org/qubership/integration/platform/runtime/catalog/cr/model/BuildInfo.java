@@ -1,8 +1,8 @@
-package org.qubership.integration.platform.runtime.catalog.cr;
+package org.qubership.integration.platform.runtime.catalog.cr.model;
 
 import lombok.Builder;
 import lombok.Getter;
-import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
+import org.qubership.integration.platform.runtime.catalog.cr.model.options.ResourceBuildOptions;
 
 import java.time.Instant;
 

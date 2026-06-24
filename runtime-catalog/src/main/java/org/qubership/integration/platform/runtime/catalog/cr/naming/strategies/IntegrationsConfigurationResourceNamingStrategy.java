@@ -1,6 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.cr.naming.strategies;
 
-import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameVerifier;

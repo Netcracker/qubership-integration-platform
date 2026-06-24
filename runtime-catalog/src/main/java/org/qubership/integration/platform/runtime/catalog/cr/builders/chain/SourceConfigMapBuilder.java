@@ -3,12 +3,12 @@ package org.qubership.integration.platform.runtime.catalog.cr.builders.chain;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceBuildError;
-import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
-import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuilder;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildContext;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildError;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuilder;
+import org.qubership.integration.platform.runtime.catalog.cr.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
-import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.IntegrationSourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.IntegrationSourceBuilderFactory;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.SourceBuilderContext;
@@ -110,7 +110,7 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Snapshot> {
                     chain.getId()
             );
             log.error(message, e);
-            throw new CustomResourceBuildError(message, e);
+            throw new ResourceBuildError(message, e);
         }
     }
 
