@@ -2,6 +2,9 @@ package org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto;
 
 import lombok.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -32,4 +35,7 @@ public class ContainerOptions {
     private boolean allowPrivilegeEscalation;
 
     private CapabilitiesOptions capabilities;
+
+    @Builder.Default
+    private List<String> args = new ArrayList<>();
 }

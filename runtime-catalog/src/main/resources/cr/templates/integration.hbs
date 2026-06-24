@@ -188,4 +188,10 @@ spec:
           runAsGroup: {{runAsGroup}}
 {{/if}}
         name: integration
+{{#if args}}
+        args:
+{{#each args}}
+        - "{{.}}"
+{{/each}}
+{{/if}}
 {{/with}}
