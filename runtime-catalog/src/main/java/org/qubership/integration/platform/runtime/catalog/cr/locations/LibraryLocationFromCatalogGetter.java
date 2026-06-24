@@ -1,6 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.cr.locations;
 
-import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 

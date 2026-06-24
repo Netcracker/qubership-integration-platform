@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto;
+package org.qubership.integration.platform.runtime.catalog.cr.model.options;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder(toBuilder = true)
-public class ServiceOptions {
-    @Builder.Default
-    private boolean enabled = true;
+public class Limits {
+    private String cpu;
+    private String memory;
 }

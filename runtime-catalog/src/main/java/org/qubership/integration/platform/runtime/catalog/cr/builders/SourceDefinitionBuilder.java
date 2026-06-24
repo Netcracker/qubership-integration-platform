@@ -1,8 +1,8 @@
 package org.qubership.integration.platform.runtime.catalog.cr.builders;
 
-import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.SourceDefinition;
 import org.qubership.integration.platform.runtime.catalog.cr.locations.SourceLocationGetterProvider;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

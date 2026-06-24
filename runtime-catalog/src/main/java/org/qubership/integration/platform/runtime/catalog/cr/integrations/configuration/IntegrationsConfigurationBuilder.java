@@ -2,9 +2,9 @@ package org.qubership.integration.platform.runtime.catalog.cr.integrations.confi
 
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.library.constants.CamelOptions;
-import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.cr.builders.SourceDefinitionBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.locations.LibraryLocationGetterProvider;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.springframework.beans.factory.annotation.Autowired;

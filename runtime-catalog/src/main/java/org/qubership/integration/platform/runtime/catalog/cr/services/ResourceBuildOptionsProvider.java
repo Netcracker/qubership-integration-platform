@@ -1,6 +1,8 @@
-package org.qubership.integration.platform.runtime.catalog.cr;
+package org.qubership.integration.platform.runtime.catalog.cr.services;
 
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildOptionsCustomizer;
+import org.qubership.integration.platform.runtime.catalog.cr.model.options.*;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,7 +16,7 @@ import java.util.Map;
 
 @Slf4j
 @Service
-public class CustomResourceOptionsProvider {
+public class ResourceBuildOptionsProvider {
     private static final String DEFAULT_SECRET_ENABLED_ENV = "DEFAULT_SECRET_ENABLED";
 
     @Value("${qip.cr.build.replicas:1}")
@@ -39,7 +41,7 @@ public class CustomResourceOptionsProvider {
     private final List<ResourceBuildOptionsCustomizer> customizers;
 
     @Autowired
-    public CustomResourceOptionsProvider(
+    public ResourceBuildOptionsProvider(
         Environment propertyResolver,
         List<ResourceBuildOptionsCustomizer> customizers
     ) {

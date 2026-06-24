@@ -3,12 +3,12 @@ package org.qubership.integration.platform.runtime.catalog.cr.builders;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceBuildError;
-import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
-import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfiguration;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfigurationBuilder;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildContext;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildError;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
@@ -107,7 +107,7 @@ public class IntegrationsConfigurationConfigMapBuilder implements ResourceBuilde
         } catch (Exception e) {
             String message = "Failed to build integration source ConfigMap for chains configuration";
             log.error(message, e);
-            throw new CustomResourceBuildError(message, e);
+            throw new ResourceBuildError(message, e);
         }
     }
 }
