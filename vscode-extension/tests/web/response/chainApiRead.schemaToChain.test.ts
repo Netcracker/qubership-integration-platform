@@ -56,4 +56,29 @@ describe("schemaToChain", () => {
       ["b", "b"],
     ]);
   });
+
+  it("should trim leading and trailing slashes in the group", async () => {
+    const chain = baseChain({ metaInfo: { group: "/a/b/" } });
+
+    const result = await schemaToChain(fileUri, chain, false);
+
+    expect(result.navigationPath).toEqual([
+      ["a", "a"],
+      ["b", "b"],
+    ]);
+  });
+
+  it("should ignore the deprecated content.folder structure", async () => {
+    const chain = {
+      ...baseChain(),
+      content: {
+        dependencies: [],
+        folder: { name: "a", subfolder: { name: "b" } },
+      },
+    } as unknown as ChainSchema;
+
+    const result = await schemaToChain(fileUri, chain, false);
+
+    expect(result.navigationPath).toEqual([]);
+  });
 });

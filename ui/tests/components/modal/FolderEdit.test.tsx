@@ -78,4 +78,20 @@ describe("FolderEdit", () => {
       expect(onSubmit).toHaveBeenCalledWith("F", true, true);
     });
   });
+
+  it("should block submit and show an error when the name has a forbidden character", async () => {
+    const onSubmit = jest.fn();
+    render(<FolderEdit onSubmit={onSubmit} mode="create" />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: "a:b" },
+    });
+
+    fireEvent.submit(document.getElementById("folderEditForm")!);
+
+    expect(
+      await screen.findByText(/Name must not contain/i),
+    ).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
 });

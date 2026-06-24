@@ -96,4 +96,42 @@ describe("changeFolder", () => {
     expect((chain as any).content.folder).toBeUndefined();
     expect((chain as any).metaInfo).toEqual({ group: "a/b" });
   });
+
+  it("should merge the group into existing metaInfo fields", async () => {
+    const chain = { id: chainId, content: {}, metaInfo: { application: "QIP" } };
+    getMainChainMock.mockResolvedValue(chain);
+
+    await changeFolder(fileUri, chainId, "x/y");
+
+    expect((chain as any).metaInfo).toEqual({ application: "QIP", group: "x/y" });
+  });
+
+  it("should sanitize every forbidden character in a segment", async () => {
+    const chain = { id: chainId, content: {} };
+    getMainChainMock.mockResolvedValue(chain);
+
+    // Every forbidden char except '/' (the segment separator) maps to '-'.
+    await changeFolder(fileUri, chainId, 'a:*?"<>|,;\\b');
+
+    expect((chain as any).metaInfo).toEqual({ group: "a----------b" });
+  });
+
+  it("should leave metaInfo undefined when the path is empty and metaInfo is absent", async () => {
+    const chain = { id: chainId, content: { folder: { name: "legacy" } } };
+    getMainChainMock.mockResolvedValue(chain);
+
+    await changeFolder(fileUri, chainId, "   ");
+
+    expect((chain as any).metaInfo).toBeUndefined();
+    expect((chain as any).content.folder).toBeUndefined();
+    expect(writeMainChainMock).toHaveBeenCalledWith(fileUri, chain);
+  });
+
+  it("should return the result of writeMainChain", async () => {
+    const chain = { id: chainId, content: {} };
+    getMainChainMock.mockResolvedValue(chain);
+    writeMainChainMock.mockResolvedValue("write-ok");
+
+    await expect(changeFolder(fileUri, chainId, "a")).resolves.toBe("write-ok");
+  });
 });

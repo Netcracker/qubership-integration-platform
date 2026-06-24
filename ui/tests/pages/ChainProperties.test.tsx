@@ -137,8 +137,7 @@ describe("ChainProperties", () => {
     render(<ChainProperties />);
 
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
-    const modal = mockShowModal.mock.calls[0][0]
-      .component;
+    const modal = mockShowModal.mock.calls[0][0].component;
     render(modal);
 
     fireEvent.click(screen.getByRole("button", { name: "Yes" }));
@@ -158,8 +157,7 @@ describe("ChainProperties", () => {
     render(<ChainProperties />);
 
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
-    const modal = mockShowModal.mock.calls[0][0]
-      .component;
+    const modal = mockShowModal.mock.calls[0][0].component;
     render(modal);
 
     fireEvent.click(screen.getByRole("button", { name: "No" }));
@@ -179,14 +177,36 @@ describe("ChainProperties", () => {
     render(<ChainProperties />);
 
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
-    const modal = mockShowModal.mock.calls[0][0]
-      .component;
+    const modal = mockShowModal.mock.calls[0][0].component;
     render(modal);
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
 
     expect(mockReset).toHaveBeenCalled();
     expect(mockProceed).not.toHaveBeenCalled();
+    expect(mockChainUpdate).not.toHaveBeenCalled();
+  });
+
+  it("should label the path field Group", () => {
+    render(<ChainProperties />);
+
+    expect(screen.getByRole("textbox", { name: /group/i })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: /^path$/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should block submit and show an error when a group segment has a forbidden character", async () => {
+    render(<ChainProperties />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: /group/i }), {
+      target: { value: "a:b" },
+    });
+    fireEvent.submit(document.getElementById("chain-properties-form")!);
+
+    expect(
+      await screen.findByText(/Group segments must not contain/i),
+    ).toBeInTheDocument();
     expect(mockChainUpdate).not.toHaveBeenCalled();
   });
 });
