@@ -259,7 +259,7 @@ export class AsyncApiV3Normalizer {
     );
 
     const channel = v3Channels[channelKey];
-    if (!channel || !channel.messages) {
+    if (!channel?.messages) {
       return null;
     }
     const msgValue = channel.messages[messageName];

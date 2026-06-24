@@ -575,7 +575,7 @@ export class SpecificationProcessorService {
             specificationId,
           );
 
-        case ApiSpecificationType.HTTP:
+        case ApiSpecificationType.HTTP: {
           // For OpenAPI, use OpenApiSpecificationParser directly
           const openApiData =
             await OpenApiSpecificationParser.parseOpenApiContent(
@@ -586,14 +586,16 @@ export class SpecificationProcessorService {
             openApiData,
             specificationId,
           );
+        }
 
-        case ApiSpecificationType.ASYNC:
+        case ApiSpecificationType.ASYNC: {
           const asyncApiData =
             await AsyncApiSpecificationParser.parseAsyncApiContent(content);
           return AsyncApiSpecificationParser.createOperationsFromAsyncApi(
             asyncApiData,
             specificationId,
           );
+        }
 
         default:
           throw new Error(

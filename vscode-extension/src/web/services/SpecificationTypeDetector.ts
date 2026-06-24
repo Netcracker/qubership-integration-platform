@@ -25,7 +25,7 @@ export class SpecificationTypeDetector {
   };
 
   /** Parse content as JSON, then YAML. Returns null if both fail. */
-  static parse(content: string): any | null {
+  static parse(content: string): any {
     try {
       return parseStructuredContent(content);
     } catch {
