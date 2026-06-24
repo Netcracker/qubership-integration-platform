@@ -18,6 +18,8 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 @Component
 public class V108RevertMigration implements RevertMigration {
 
+    private static final String META_INFO_FIELD = "metaInfo";
+
     @Override
     public int getVersion() {
         return 108;
@@ -25,7 +27,7 @@ public class V108RevertMigration implements RevertMigration {
 
     @Override
     public boolean supportsDocument(ObjectNode node) {
-        return node.get("metaInfo") instanceof ObjectNode
+        return node.get(META_INFO_FIELD) instanceof ObjectNode
                 && node.get("content") instanceof ObjectNode;
     }
 
@@ -33,7 +35,7 @@ public class V108RevertMigration implements RevertMigration {
     public ObjectNode revert(ObjectNode node) {
         ObjectNode result = node.deepCopy();
 
-        if (!(result.get("metaInfo") instanceof ObjectNode metaInfo)
+        if (!(result.get(META_INFO_FIELD) instanceof ObjectNode metaInfo)
                 || !(result.get("content") instanceof ObjectNode content)) {
             return result;
         }
@@ -52,7 +54,7 @@ public class V108RevertMigration implements RevertMigration {
         // Keep any other metaInfo fields; drop the node only once it is empty.
         metaInfo.remove("group");
         if (metaInfo.isEmpty()) {
-            result.remove("metaInfo");
+            result.remove(META_INFO_FIELD);
         }
         return result;
     }

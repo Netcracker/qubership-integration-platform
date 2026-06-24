@@ -17,6 +17,8 @@ import java.util.List;
 @Component
 public class V108ChainImportFileMigration implements ChainImportFileMigration {
 
+    private static final String FOLDER_FIELD = "folder";
+
     @Override
     public int getVersion() {
         return 108;
@@ -31,12 +33,12 @@ public class V108ChainImportFileMigration implements ChainImportFileMigration {
         if (!(result.get("content") instanceof ObjectNode contentNode)) {
             return result;
         }
-        if (!(contentNode.get("folder") instanceof ObjectNode)) {
+        if (!(contentNode.get(FOLDER_FIELD) instanceof ObjectNode)) {
             return result;
         }
 
         List<String> segments = new ArrayList<>();
-        JsonNode current = contentNode.get("folder");
+        JsonNode current = contentNode.get(FOLDER_FIELD);
         while (current instanceof ObjectNode folder) {
             JsonNode nameNode = folder.get("name");
             if (nameNode != null && !nameNode.asText().isBlank()) {
@@ -50,7 +52,7 @@ public class V108ChainImportFileMigration implements ChainImportFileMigration {
                     ? existing
                     : result.putObject("metaInfo");
             metaInfo.put("group", String.join("/", segments));
-            contentNode.remove("folder");
+            contentNode.remove(FOLDER_FIELD);
         }
 
         return result;
