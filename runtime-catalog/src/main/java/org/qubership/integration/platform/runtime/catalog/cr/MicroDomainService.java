@@ -15,8 +15,10 @@ import org.qubership.integration.platform.runtime.catalog.cr.integrations.config
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfiguration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrationList;
+import org.qubership.integration.platform.runtime.catalog.cr.model.BuildInfo;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildContext;
+import org.qubership.integration.platform.runtime.catalog.cr.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
-import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
@@ -36,7 +38,7 @@ import static org.qubership.integration.platform.runtime.catalog.kubernetes.Kube
 
 @Slf4j
 @Service
-public class CustomResourceService {
+public class MicroDomainService {
     public record IntegrationResources(
             CamelKIntegration integration,
             V1ServiceMonitor serviceMonitor,
@@ -71,7 +73,7 @@ public class CustomResourceService {
     String bgVersion;
 
     @Autowired
-    public CustomResourceService(
+    public MicroDomainService(
             KubeOperator kubeOperator,
             @Qualifier("integrationResourceNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
@@ -93,7 +95,7 @@ public class CustomResourceService {
         ModelMapper.addModelMap("monitoring.coreos.com", "v1", "ServiceMonitor", "ServiceMonitors", V1ServiceMonitor.class, V1ServiceMonitorList.class);
     }
 
-    public void deploy(String resourceText) throws CustomResourceDeployError {
+    public void deploy(String resourceText) throws MicroDomainDeployError {
         try {
             List<Object> resources = Yaml.loadAll(resourceText);
             for (Object resource : resources) {
@@ -101,7 +103,7 @@ public class CustomResourceService {
             }
         } catch (Exception exception) {
             log.error("Failed to create or update resource", exception);
-            throw new CustomResourceDeployError("Failed to deploy resources", exception);
+            throw new MicroDomainDeployError("Failed to deploy resources", exception);
         }
     }
 

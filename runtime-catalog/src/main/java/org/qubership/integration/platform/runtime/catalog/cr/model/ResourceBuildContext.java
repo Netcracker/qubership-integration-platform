@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.runtime.catalog.cr;
+package org.qubership.integration.platform.runtime.catalog.cr.model;
 
 import lombok.Getter;
 

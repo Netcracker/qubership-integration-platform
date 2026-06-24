@@ -4,10 +4,12 @@ import io.kubernetes.client.openapi.models.V1ConfigMap;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfiguration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
+import org.qubership.integration.platform.runtime.catalog.cr.model.BuildInfo;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildContext;
+import org.qubership.integration.platform.runtime.catalog.cr.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.BuildNamingContext;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.SourceDslConfigMapNamingStrategy;
-import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
@@ -25,31 +27,27 @@ import static org.qubership.integration.platform.runtime.catalog.cr.builders.cha
 import static org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil.getName;
 
 @Component
-public class CustomResourceBuildContextFactory {
+public class MicroDomainResourceBuildContextFactory {
     private final SnapshotRepository snapshotRepository;
     private final NamingStrategy<BuildNamingContext> buildNamingStrategy;
-    private final CustomResourceService customResourceService;
+    private final MicroDomainService microDomainService;
     private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
-    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
     private final SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy;
 
     @Autowired
-    public CustomResourceBuildContextFactory(
+    public MicroDomainResourceBuildContextFactory(
             SnapshotRepository snapshotRepository,
             NamingStrategy<BuildNamingContext> buildNamingStrategy,
-            CustomResourceService customResourceService,
+            MicroDomainService microDomainService,
             IntegrationConfigurationSerdes integrationConfigurationSerdes,
-            @Qualifier("integrationResourceNamingStrategy")
-            NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
 
             @Qualifier("sourceDslConfigMapNamingStrategy")
             SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy
     ) {
         this.snapshotRepository = snapshotRepository;
         this.buildNamingStrategy = buildNamingStrategy;
-        this.customResourceService = customResourceService;
+        this.microDomainService = microDomainService;
         this.integrationConfigurationSerdes = integrationConfigurationSerdes;
-        this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
         this.sourceDslConfigMapNamingStrategy = sourceDslConfigMapNamingStrategy;
     }
 
@@ -87,7 +85,7 @@ public class CustomResourceBuildContextFactory {
     }
 
     private void addAppendConfigurationToContext(ResourceBuildContext<List<Snapshot>> context) {
-        customResourceService
+        microDomainService
                 .getIntegrationResources(context.getBuildInfo().getOptions().getName())
                 .ifPresent(resources -> {
                     updateIntegrationResources(context, resources.integration());
@@ -111,7 +109,7 @@ public class CustomResourceBuildContextFactory {
 
     private void putSourceConfigMapNamesToBuildCache(
             ResourceBuildContext<List<Snapshot>> context,
-            CustomResourceService.IntegrationResources resources
+            MicroDomainService.IntegrationResources resources
     ) {
         Map<String, V1ConfigMap> sourceBySnapshotId = resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL);
         Map<String, V1ConfigMap> sourceByChainId = resources.getSourceByLabelMap(CHAIN_ID_LABEL);

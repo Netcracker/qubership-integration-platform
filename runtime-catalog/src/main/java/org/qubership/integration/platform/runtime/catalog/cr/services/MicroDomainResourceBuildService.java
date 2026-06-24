@@ -1,6 +1,10 @@
-package org.qubership.integration.platform.runtime.catalog.cr;
+package org.qubership.integration.platform.runtime.catalog.cr.services;
 
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainResourceBuildContextFactory;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildContext;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildError;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,16 +14,16 @@ import java.util.List;
 
 @Slf4j
 @Service
-public class CustomResourceBuildService {
+public class MicroDomainResourceBuildService {
     private final List<ResourceBuilder<Snapshot>> chainResourceBuilders;
     private final List<ResourceBuilder<List<Snapshot>>> commonResourceBuilders;
-    private final CustomResourceBuildContextFactory buildContextFactory;
+    private final MicroDomainResourceBuildContextFactory buildContextFactory;
 
     @Autowired
-    public CustomResourceBuildService(
+    public MicroDomainResourceBuildService(
             List<ResourceBuilder<Snapshot>> chainResourceBuilders,
             List<ResourceBuilder<List<Snapshot>>> commonResourceBuilders,
-            CustomResourceBuildContextFactory buildContextFactory
+            MicroDomainResourceBuildContextFactory buildContextFactory
     ) {
         this.chainResourceBuilders = chainResourceBuilders;
         this.commonResourceBuilders = commonResourceBuilders;
@@ -48,7 +52,7 @@ public class CustomResourceBuildService {
             return stringBuilder.toString();
         } catch (Exception e) {
             log.error("Failed to build custom resource", e);
-            throw new CustomResourceBuildError("Failed to build custom resource", e);
+            throw new ResourceBuildError("Failed to build custom resource", e);
         }
     }
 

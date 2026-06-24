@@ -6,17 +6,17 @@ import com.github.jknack.handlebars.Template;
 import lombok.Builder;
 import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceBuildError;
-import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
-import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.builders.chain.SourceConfigMapBuilder;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.SourceDefinition;
 import org.qubership.integration.platform.runtime.catalog.cr.locations.SourceMountPointGetter;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildContext;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildError;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuilder;
+import org.qubership.integration.platform.runtime.catalog.cr.model.options.ContainerOptions;
+import org.qubership.integration.platform.runtime.catalog.cr.model.options.HealthOptions;
+import org.qubership.integration.platform.runtime.catalog.cr.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
-import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ContainerOptions;
-import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.HealthOptions;
-import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -110,7 +110,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
     @Override
     public String build(ResourceBuildContext<List<Snapshot>> context) throws Exception {
         if (context.getData().isEmpty()) {
-            throw new CustomResourceBuildError("Chain list is empty");
+            throw new ResourceBuildError("Chain list is empty");
         }
 
         TemplateData templateData = buildTemplateData(context);

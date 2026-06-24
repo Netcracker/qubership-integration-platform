@@ -1,8 +1,8 @@
 package org.qubership.integration.platform.runtime.catalog.cr.naming.strategies;
 
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.runtime.catalog.cr.BuildInfo;
-import org.qubership.integration.platform.runtime.catalog.cr.ResourceBuildContext;
+import org.qubership.integration.platform.runtime.catalog.cr.model.BuildInfo;
+import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildContext;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameVerifier;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
