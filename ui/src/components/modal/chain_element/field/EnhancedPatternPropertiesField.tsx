@@ -314,7 +314,14 @@ function toOperationSpecFragment(
   return {
     topic: typeof record.topic === "string" ? record.topic : undefined,
     channel: typeof record.channel === "string" ? record.channel : undefined,
-    exchange: typeof record.exchange === "string" ? record.exchange : undefined,
+    // Catalog AMQP specifications carry the exchange under `exchangeName`
+    // (runtime-catalog and the offline import); accept `exchange` as well.
+    exchange:
+      typeof record.exchange === "string"
+        ? record.exchange
+        : typeof record.exchangeName === "string"
+          ? record.exchangeName
+          : undefined,
     queues: typeof record.queues === "string" ? record.queues : undefined,
     queue: typeof record.queue === "string" ? record.queue : undefined,
     maasClassifierName:

@@ -9,7 +9,7 @@ import {
 } from "./parsers";
 import { ContentParser } from "./parsers/ContentParser";
 import { normalizePath } from "./pathUtils";
-import * as yaml from "yaml";
+import { SpecificationTypeDetector } from "../services/SpecificationTypeDetector";
 
 export interface EnvironmentCandidate {
   name?: string;
@@ -29,21 +29,20 @@ export class SpecificationProcessorService {
     files: File[],
     systemId?: string,
     contentCache?: Map<string, Promise<string>>,
-  ): Promise<void> {
+  ): Promise<string[]> {
     const cache = contentCache ?? new Map<string, Promise<string>>();
+    const warnings: string[] = [];
     for (const file of files) {
-      try {
-        await this.processSpecificationFile(
-          file,
-          specificationGroup,
-          systemId,
-          files,
-          cache,
-        );
-      } catch (error) {
-        throw error;
-      }
+      await this.processSpecificationFile(
+        file,
+        specificationGroup,
+        systemId,
+        files,
+        cache,
+        warnings,
+      );
     }
+    return warnings;
   }
 
   /**
@@ -55,6 +54,7 @@ export class SpecificationProcessorService {
     systemId?: string,
     allFiles?: File[],
     contentCache?: Map<string, Promise<string>>,
+    warnings?: string[],
   ): Promise<void> {
     const fileExtension = this.getFileExtension(file.name);
     const specificationType = await this.detectSpecificationType(
@@ -86,6 +86,7 @@ export class SpecificationProcessorService {
       specificationId,
       allFiles,
       contentCache,
+      warnings,
     );
     if (
       specificationType === ApiSpecificationType.GRPC &&
@@ -144,15 +145,7 @@ export class SpecificationProcessorService {
       return null;
     }
 
-    if (parsedContent.asyncapi) {
-      return ApiSpecificationType.ASYNC;
-    }
-
-    if (parsedContent.openapi || parsedContent.swagger) {
-      return ApiSpecificationType.HTTP;
-    }
-
-    return null;
+    return SpecificationTypeDetector.detectStructuredType(parsedContent);
   }
 
   /**
@@ -494,50 +487,9 @@ export class SpecificationProcessorService {
       // If not found in filename, try to extract from content
       if (file.text) {
         const content = await file.text();
-
-        // Try to parse as JSON
-        try {
-          const json = JSON.parse(content);
-
-          // For Swagger 2.0
-          if (json.swagger && json.info && json.info.version) {
-            return json.info.version;
-          }
-
-          // For OpenAPI 3.x
-          if (json.openapi && json.info && json.info.version) {
-            return json.info.version;
-          }
-
-          // For AsyncAPI
-          if (json.asyncapi && json.info && json.info.version) {
-            return json.info.version;
-          }
-        } catch (jsonError) {
-          // If not JSON, try as YAML
-          try {
-            const yamlData = ContentParser.parseContent(content);
-
-            // For AsyncAPI YAML
-            if (yamlData.asyncapi && yamlData.info && yamlData.info.version) {
-              return yamlData.info.version;
-            }
-
-            // For OpenAPI YAML
-            if (yamlData.openapi && yamlData.info && yamlData.info.version) {
-              return yamlData.info.version;
-            }
-
-            // For Swagger YAML
-            if (yamlData.swagger && yamlData.info && yamlData.info.version) {
-              return yamlData.info.version;
-            }
-          } catch (yamlError) {
-            console.log(
-              "Error parsing file content as both JSON and YAML for version extraction:",
-              { jsonError, yamlError },
-            );
-          }
+        const parsed = SpecificationTypeDetector.parse(content);
+        if (parsed) {
+          return SpecificationTypeDetector.extractSpecVersion(parsed);
         }
       }
     } catch (error) {
@@ -557,6 +509,7 @@ export class SpecificationProcessorService {
     specificationId: string,
     allFiles?: File[],
     contentCache?: Map<string, Promise<string>>,
+    warnings?: string[],
   ): Promise<any[]> {
     try {
       const content = await this.getFileContentWithCache(file, contentCache);
@@ -625,7 +578,10 @@ export class SpecificationProcessorService {
         case ApiSpecificationType.HTTP:
           // For OpenAPI, use OpenApiSpecificationParser directly
           const openApiData =
-            await OpenApiSpecificationParser.parseOpenApiContent(content);
+            await OpenApiSpecificationParser.parseOpenApiContent(
+              content,
+              warnings,
+            );
           return OpenApiSpecificationParser.createOperationsFromOpenApi(
             openApiData,
             specificationId,
@@ -688,14 +644,6 @@ export class SpecificationProcessorService {
   }
 
   private tryParseStructuredContent(content: string): any | null {
-    try {
-      return JSON.parse(content);
-    } catch {
-      try {
-        return yaml.parse(content, { maxAliasCount: -1 });
-      } catch {
-        return null;
-      }
-    }
+    return SpecificationTypeDetector.parse(content);
   }
 }

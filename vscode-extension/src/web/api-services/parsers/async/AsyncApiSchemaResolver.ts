@@ -1,3 +1,5 @@
+import { deepClone, isObject } from "./asyncJsonUtils";
+
 type JsonValue = Record<string, any>;
 
 const COMPONENTS_PREFIX = "#/components";
@@ -21,17 +23,6 @@ const SCHEMA_ID_NODE_NAME = "$id";
 const SCHEMA_HEADER_NODE_NAME = "$schema";
 const EMPTY_REF = "#/";
 const JSON_SCHEMA_DRAFT_URL = "http://json-schema.org/draft-07/schema#";
-
-function isObject(value: unknown): value is Record<string, any> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function deepClone<T>(value: T): T {
-  if (value === undefined || value === null) {
-    return value as T;
-  }
-  return JSON.parse(JSON.stringify(value));
-}
 
 export interface ResolvedSchema {
   name: string;
@@ -163,13 +154,14 @@ export class AsyncApiSchemaResolver {
         isObject(itemsNode) &&
         typeof itemsNode[REF_FIELD_NAME] === "string"
       ) {
-        const refKey = this.rewriteRef(itemsNode[REF_FIELD_NAME] as string);
+        const originalRef = itemsNode[REF_FIELD_NAME] as string;
+        const refKey = this.rewriteRef(originalRef);
         itemsNode[REF_FIELD_NAME] = refKey;
         const definitionKey = refKey.replace(DEFINITIONS_PREFIX, "");
         if (!visited.has(definitionKey)) {
           visited.add(definitionKey);
           const refNode = this.getSchemaNodeFromComponents(
-            itemsNode[REF_FIELD_NAME] as string,
+            originalRef,
             componentsNode,
           );
           this.convertPayloadToSchemaNode(refNode);
@@ -183,13 +175,14 @@ export class AsyncApiSchemaResolver {
         }
       }
     } else if (typeof schemaNode[REF_FIELD_NAME] === "string") {
-      const refKey = this.rewriteRef(schemaNode[REF_FIELD_NAME] as string);
+      const originalRef = schemaNode[REF_FIELD_NAME] as string;
+      const refKey = this.rewriteRef(originalRef);
       schemaNode[REF_FIELD_NAME] = refKey;
       const definitionKey = refKey.replace(DEFINITIONS_PREFIX, "");
       if (!visited.has(definitionKey)) {
         visited.add(definitionKey);
         const refNode = this.getSchemaNodeFromComponents(
-          refKey,
+          originalRef,
           componentsNode,
         );
         this.convertPayloadToSchemaNode(refNode);
@@ -327,7 +320,7 @@ export class AsyncApiSchemaResolver {
       if (!visited.has(definitionKey)) {
         visited.add(definitionKey);
         const componentNode = this.getSchemaNodeFromComponents(
-          rewritten,
+          refKey,
           componentsNode,
         );
         this.convertPayloadToSchemaNode(componentNode);
@@ -344,13 +337,14 @@ export class AsyncApiSchemaResolver {
     if (property[ITEMS_FIELD_NAME]) {
       const items = property[ITEMS_FIELD_NAME];
       if (isObject(items) && typeof items[REF_FIELD_NAME] === "string") {
-        const rewritten = this.rewriteRef(items[REF_FIELD_NAME] as string);
+        const originalRef = items[REF_FIELD_NAME] as string;
+        const rewritten = this.rewriteRef(originalRef);
         items[REF_FIELD_NAME] = rewritten;
         const definitionKey = rewritten.replace(DEFINITIONS_PREFIX, "");
         if (!visited.has(definitionKey)) {
           visited.add(definitionKey);
           const componentNode = this.getSchemaNodeFromComponents(
-            rewritten,
+            originalRef,
             componentsNode,
           );
           this.convertPayloadToSchemaNode(componentNode);
@@ -372,6 +366,8 @@ export class AsyncApiSchemaResolver {
     ref: string,
     componentsNode: JsonValue,
   ): JsonValue {
+    // Resolve against the original `#/components/...` path so a messages ref and
+    // a same-named schema do not collide, and nested segments still navigate.
     const sanitizedRef = ref.replace(COMPONENTS_PREFIX, "");
     const segments = sanitizedRef.split("/").filter(Boolean);
     let current: any = componentsNode;
