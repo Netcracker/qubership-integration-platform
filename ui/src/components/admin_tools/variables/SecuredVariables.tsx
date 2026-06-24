@@ -138,8 +138,11 @@ export const SecuredVariables: React.FC = () => {
 
         sorted.forEach(
           ({ secretName, variables, isDefaultSecret, disabled }) => {
-            bySecret[secretName] = variables;
-            secretNames.push(secretName);
+            const isDisabledDefault = isDefaultSecret && disabled === true;
+            if (!isDisabledDefault) {
+              bySecret[secretName] = variables;
+              secretNames.push(secretName);
+            }
             if (isDefaultSecret) {
               defaultName = secretName;
               defaultRowDisabled = disabled === true;
