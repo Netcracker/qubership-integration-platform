@@ -36,7 +36,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.SourceConfigMapBuilder.SNAPSHOT_ID_LABEL;
-import static org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKConstants.CAMEL_K_INTEGRATION_LABEL;
+import static org.qubership.integration.platform.camelk.k8s.CamelKConstants.CAMEL_K_INTEGRATION_LABEL;
 import static org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil.getName;
 
 @Slf4j

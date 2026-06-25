@@ -19,6 +19,7 @@ package org.qubership.integration.platform.util;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.library.constants.CamelNames;
+import org.qubership.integration.platform.library.constants.CamelOptions;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -37,7 +38,6 @@ public class ElementUtils {
     public static Map<String, Object> extractServiceCallProperties(Map<String, Object> properties) {
         return (Map<String, Object>) properties.getOrDefault(CamelNames.SERVICE_CALL_ADDITIONAL_PARAMETERS, Collections.emptyMap());
     }
-
 
     /**
      * @param primary - overrides secondary parameters in case of conflict and if value non-empty
