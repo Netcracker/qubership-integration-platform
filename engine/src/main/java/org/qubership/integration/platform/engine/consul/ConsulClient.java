@@ -62,14 +62,21 @@ public class ConsulClient {
     }
 
     public void renewSession(String activeSessionId) {
-        HttpEntity<Object> entity = new HttpEntity<>(buildCommonHeaders());
-        ResponseEntity<String> response = restTemplate.exchange(consulUrl + RENEW_SESSION_PATH + "/" + activeSessionId,
-            HttpMethod.PUT, entity, String.class);
+        try {
+            HttpEntity<Object> entity = new HttpEntity<>(buildCommonHeaders());
+            ResponseEntity<String> response = restTemplate.exchange(consulUrl + RENEW_SESSION_PATH + "/" + activeSessionId,
+                HttpMethod.PUT, entity, String.class);
 
-        if (response.getStatusCode() != HttpStatus.OK) {
-            log.error("Failed to renew session in consul, code: {}, body: {}",
-                response.getStatusCode(), response.getBody());
-            throw new RuntimeException("Failed to renew session in consul, response with non 2xx code");
+            if (response.getStatusCode() != HttpStatus.OK) {
+                log.error("Failed to renew session in consul, code: {}, body: {}",
+                    response.getStatusCode(), response.getBody());
+                throw new RuntimeException("Failed to renew session in consul, response with non 2xx code");
+            }
+        } catch (HttpClientErrorException hcee) {
+            if (hcee.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new InvalidConsulSessionException(activeSessionId, hcee);
+            }
+            throw hcee;
         }
     }
 
@@ -99,6 +106,11 @@ public class ConsulClient {
             log.error("Failed to delete session from consul, code: {}, body: {}",
                 response.getStatusCode(), response.getBody());
             throw new RuntimeException("Failed to delete session from consul, response with non 2xx code");
+        }
+
+        if ("false".equalsIgnoreCase(response.getBody())) {
+            log.debug("Consul session already gone: {}", previousSessionId);
+            return;
         }
 
         if (!"true".equalsIgnoreCase(response.getBody())) {
