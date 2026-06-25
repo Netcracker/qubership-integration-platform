@@ -31,6 +31,10 @@ export function registerChainDiffMessageHandlers(
 
   return panel.webview.onDidReceiveMessage(
     async (message: VSCodeMessageWrapper) => {
+      if (!message?.data) {
+        return;
+      }
+
       if (message.data.type === "comparedDocumentsRequest") {
         const getDocument = async (d: vscode.TextDocument) => {
           return schemaToChain(
@@ -72,7 +76,7 @@ export function registerChainDiffMessageHandlers(
                 context,
               );
           await updateNavigationStateValue(context, documentUri, path);
-          await openDocumentInEditor(documentUri);
+          await openEditor(documentUri);
         } catch (e) {
           console.error("Failed to fetch data for QIP Extension API", e);
         }
@@ -80,5 +84,3 @@ export function registerChainDiffMessageHandlers(
     },
   );
 }
-
-
