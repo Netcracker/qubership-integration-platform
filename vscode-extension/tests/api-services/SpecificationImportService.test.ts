@@ -45,7 +45,7 @@ jest.mock("../../src/web/api-services/SpecificationGroupService", () => ({
 }));
 jest.mock("../../src/web/api-services/SpecificationProcessorService", () => ({
   SpecificationProcessorService: jest.fn().mockImplementation(() => ({
-    processSpecificationFiles: jest.fn(),
+    processSpecificationFiles: jest.fn().mockResolvedValue([]),
     extractEnvironmentCandidates: jest.fn().mockReturnValue([]),
   })),
 }));

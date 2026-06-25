@@ -1,14 +1,9 @@
 import { ProjectConfigService } from "./ProjectConfigService";
-import { AsyncApiOperationResolver } from "../api-services/parsers/async/AsyncApiOperationResolver";
-import {
-  ProtoOperationResolver,
-  buildProtoOperationSpecification,
-} from "../api-services/parsers/proto/ProtoOperationResolver";
-import type { ProtoData } from "../api-services/parsers/proto/ProtoTypes";
-import type { WsdlParseResult } from "../api-services/parsers/soap/WsdlTypes";
-import { SoapSpecificationParser } from "../api-services/parsers/SoapSpecificationParser";
 
 export class QipSpecificationGenerator {
+  // OpenAPI 3.0/3.1 path-item methods. `trace` matches the backend
+  // (`PathItem.readOperations()`). `query` is omitted on purpose: it is a
+  // 3.2-only method that the backend drops via swagger-parser 2.1.x.
   private static readonly HTTP_METHODS = [
     "get",
     "post",
@@ -17,6 +12,7 @@ export class QipSpecificationGenerator {
     "patch",
     "head",
     "options",
+    "trace",
   ];
 
   private static buildSpecification(
@@ -640,201 +636,6 @@ export class QipSpecificationGenerator {
     const operationName =
       pathParts.length > 0 ? pathParts[pathParts.length - 1] : "operation";
     return `${method.toLowerCase()}${operationName.charAt(0).toUpperCase()}${operationName.slice(1)}`;
-  }
-
-  /**
-   * Creates QIP specification from SOAP/WSDL data
-   */
-  static createQipSpecificationFromSoap(
-    wsdlData: WsdlParseResult,
-    fileName: string,
-  ): any {
-    const specId = this.generateId();
-    const operations = SoapSpecificationParser.createOperationsFromWsdl(
-      wsdlData,
-      specId,
-    );
-    const specName = wsdlData.serviceNames[0] || fileName;
-
-    return this.buildSpecification(
-      specId,
-      specName,
-      "1.0.0",
-      operations,
-      fileName,
-      wsdlData,
-    );
-  }
-
-  /**
-   * Creates QIP specification from Proto data
-   */
-  static createQipSpecificationFromProto(
-    protoData: ProtoData,
-    fileName: string,
-  ): any {
-    const operations: any[] = [];
-    const specId = this.generateId();
-    const resolver = new ProtoOperationResolver(protoData);
-    const resolvedOperations = resolver.resolve();
-
-    for (const operation of resolvedOperations) {
-      const requestSchema = this.cloneSchema(operation.requestSchema);
-      const responseSchema = this.cloneSchema(operation.responseSchema);
-
-      operations.push({
-        id: `${specId}-${operation.operationId}`,
-        name: operation.operationId,
-        method: operation.rpcName,
-        path: operation.path,
-        specification: buildProtoOperationSpecification(
-          operation,
-          requestSchema,
-          responseSchema,
-        ),
-        requestSchema: {
-          "application/json": requestSchema,
-        },
-        responseSchemas: {
-          "200": {
-            "application/json": responseSchema,
-          },
-        },
-      });
-    }
-
-    return this.buildSpecification(
-      specId,
-      protoData.packageName || fileName,
-      "1.0.0",
-      operations,
-      fileName,
-      protoData,
-    );
-  }
-
-  private static cloneSchema<T>(schema: T): T {
-    return JSON.parse(JSON.stringify(schema));
-  }
-
-  /**
-   * Creates QIP specification from GraphQL data
-   */
-  static createQipSpecificationFromGraphQL(
-    graphqlData: any,
-    fileName: string,
-  ): any {
-    const operations: any[] = [];
-    const specId = this.generateId();
-
-    if (graphqlData.queries) {
-      for (const query of graphqlData.queries) {
-        operations.push({
-          id: `${specId}-query-${query.name}`,
-          name: query.name,
-          method: "query",
-          path: query.name,
-          specification: {
-            operation: query.sdl,
-          },
-        });
-      }
-    }
-
-    if (graphqlData.mutations) {
-      for (const mutation of graphqlData.mutations) {
-        operations.push({
-          id: `${specId}-mutation-${mutation.name}`,
-          name: mutation.name,
-          method: "mutation",
-          path: mutation.name,
-          specification: {
-            operation: mutation.sdl,
-          },
-        });
-      }
-    }
-
-    const schema = graphqlData.schema || "";
-
-    return this.buildSpecification(
-      specId,
-      "1.0.0",
-      "1.0.0",
-      operations,
-      fileName,
-      {
-        ...graphqlData,
-        schema,
-      },
-    );
-  }
-
-  /**
-   * Creates QIP specification from AsyncAPI
-   */
-  static createQipSpecificationFromAsyncApi(
-    asyncApiData: any,
-    fileName: string,
-  ): any {
-    const operations: any[] = [];
-    const specId = this.generateId();
-    const operationResolver = new AsyncApiOperationResolver();
-
-    if (asyncApiData.channels) {
-      Object.entries(asyncApiData.channels).forEach(
-        ([channelName, channel]: [string, any]) => {
-          const protocol = asyncApiData.info?.["x-protocol"] || "unknown";
-          const buildAsyncOperation = (
-            opType: "publish" | "subscribe",
-            channelNameLocal: string,
-            op: any,
-          ) => {
-            const operationId =
-              op.operationId || `${opType}-${channelNameLocal}`;
-            const resolvedData = operationResolver.resolve(
-              protocol,
-              channelNameLocal,
-              operationId,
-              channel,
-              op,
-              asyncApiData.components,
-            );
-            return {
-              id: `${specId}-${operationId}`,
-              name: operationId,
-              method: opType.toUpperCase(),
-              path: channelNameLocal,
-              specification: resolvedData.specification,
-              requestSchema: resolvedData.requestSchemas,
-              responseSchemas: resolvedData.responseSchemas,
-            };
-          };
-
-          if (channel.publish) {
-            operations.push(
-              buildAsyncOperation("publish", channelName, channel.publish),
-            );
-          }
-
-          if (channel.subscribe) {
-            operations.push(
-              buildAsyncOperation("subscribe", channelName, channel.subscribe),
-            );
-          }
-        },
-      );
-    }
-
-    return this.buildSpecification(
-      specId,
-      asyncApiData.info?.title || fileName,
-      asyncApiData.info?.version || "1.0.0",
-      operations,
-      fileName,
-      asyncApiData,
-      { parentId: "" },
-    );
   }
 
   /**

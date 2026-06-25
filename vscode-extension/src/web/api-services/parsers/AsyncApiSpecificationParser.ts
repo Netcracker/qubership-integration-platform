@@ -1,10 +1,16 @@
-import { ContentParser } from "./ContentParser";
-import { AsyncApiOperationResolver } from "./async/AsyncApiOperationResolver";
-import { AsyncApiData } from "./parserTypes";
+import {ContentParser} from "./ContentParser";
+import {AsyncApiData, AsyncApiV3Data} from "./parserTypes";
+import {detectAsyncApiVersion} from "./async/asyncApiVersion";
+import {AsyncApiV3Normalizer} from "./async/AsyncApiV3Normalizer";
+import {AsyncApiSpecificationResolver, selectAsyncResolver,} from "./async/AsyncApiSpecificationResolvers";
+import {SpecificationTypeDetector} from "../../services/SpecificationTypeDetector";
 
 export class AsyncApiSpecificationParser {
   /**
-   * Parse AsyncAPI content
+   * Parse AsyncAPI content. AsyncAPI 3.0 documents are normalized into the
+   * canonical 2.x model (channels with publish/subscribe), as the
+   * runtime-catalog backend does. Methods differ by source: 3.0 keeps the
+   * `send`/`receive` action, 2.x uses `publish`/`subscribe`.
    */
   static async parseAsyncApiContent(content: string): Promise<AsyncApiData> {
     const specData = ContentParser.parseContentWithErrorHandling(
@@ -16,11 +22,18 @@ export class AsyncApiSpecificationParser {
       throw new Error("Not a valid AsyncAPI specification");
     }
 
+    if (detectAsyncApiVersion(specData.asyncapi) === "V3") {
+      return AsyncApiV3Normalizer.normalize(specData as AsyncApiV3Data);
+    }
+
     return specData as AsyncApiData;
   }
 
   /**
-   * Create operations from AsyncAPI data
+   * Create operations from (already-normalized) AsyncAPI data. Selects the
+   * protocol resolver (kafka/amqp), then for each channel operation produces an
+   * operation with an empty request schema and the message payload(s) under
+   * `responseSchemas`. The output matches the backend.
    */
   static createOperationsFromAsyncApi(
     asyncApiData: AsyncApiData,
@@ -28,66 +41,85 @@ export class AsyncApiSpecificationParser {
   ): any[] {
     const operations: any[] = [];
 
-    if (!asyncApiData.channels) {
+    const channels = asyncApiData.channels;
+    if (!channels) {
       return operations;
     }
 
     const protocol = this.resolveProtocol(asyncApiData);
+    const resolver = selectAsyncResolver(protocol);
+    if (!resolver) {
+      throw new Error(
+        `Unsupported AsyncAPI protocol: ${protocol || "unknown"}. Supported protocols: kafka, amqp.`,
+      );
+    }
 
-    const operationResolver = new AsyncApiOperationResolver();
+    const isAmqp = this.isAmqpProtocol(protocol);
+    const components = asyncApiData.components;
 
-    // Process each channel
-    Object.entries(asyncApiData.channels).forEach(([channelName, channel]) => {
-      // Publish operations
-      if (channel.publish) {
-        const operationId =
-          channel.publish.operationId || `publish-${channelName}`;
-        const resolvedData = operationResolver.resolve(
-          protocol,
-          channelName,
-          operationId,
-          channel,
-          channel.publish,
-          asyncApiData.components,
+    Object.entries(channels).forEach(([channelName, channel]) => {
+      const operationObjects = resolver.getOperationObjects(channel);
+      for (const operationObject of operationObjects) {
+        // AMQP renames the operation after its channel (backend parity), which
+        // can repeat across a channel's send+receive. Keep the original
+        // operationId for the unique id so the two directions don't collide.
+        const operationKey = operationObject.operationId;
+        if (isAmqp) {
+          operationObject.operationId = channelName;
+        }
+        operations.push(
+          this.buildOperation(
+            resolver,
+            specificationId,
+            channelName,
+            channel,
+            operationObject,
+            components,
+            operationKey,
+          ),
         );
-        const operation = {
-          id: `${specificationId}-${operationId}`,
-          name: operationId,
-          method: "publish",
-          path: channelName,
-          specification: resolvedData.specification,
-          requestSchema: resolvedData.requestSchemas,
-          responseSchemas: resolvedData.responseSchemas,
-        };
-        operations.push(operation);
-      }
-
-      // Subscribe operations
-      if (channel.subscribe) {
-        const operationId =
-          channel.subscribe.operationId || `subscribe-${channelName}`;
-        const resolvedData = operationResolver.resolve(
-          protocol,
-          channelName,
-          operationId,
-          channel,
-          channel.subscribe,
-          asyncApiData.components,
-        );
-        const operation = {
-          id: `${specificationId}-${operationId}`,
-          name: operationId,
-          method: "subscribe",
-          path: channelName,
-          specification: resolvedData.specification,
-          requestSchema: resolvedData.requestSchemas,
-          responseSchemas: resolvedData.responseSchemas,
-        };
-        operations.push(operation);
       }
     });
 
     return operations;
+  }
+
+  private static buildOperation(
+    resolver: AsyncApiSpecificationResolver,
+    specificationId: string,
+    channelName: string,
+    channel: AsyncApiData["channels"][string],
+    operationObject: NonNullable<
+      AsyncApiData["channels"][string]["publish"]
+    >,
+    components: AsyncApiData["components"],
+    operationKey?: string,
+  ): any {
+    const specification = resolver.getSpecificationJsonNode(
+      channelName,
+      channel,
+      operationObject,
+    );
+    const method = resolver.getMethod(channel, operationObject);
+    const { requestSchema, responseSchemas } = resolver.setUpOperationMessages(
+      operationObject,
+      components,
+    );
+    const name = operationObject.operationId ?? channelName;
+    // Use the original operationId for the id so the display name (which AMQP
+    // sets to the channel) can repeat without producing duplicate ids; fall
+    // back to method+channel when no operationId was declared.
+    const idKey = operationKey ?? `${method}-${channelName}`;
+
+    return {
+      id: `${specificationId}-${idKey}`,
+      name,
+      method,
+      path: channelName,
+      specification,
+      requestSchema,
+      responseSchemas,
+    };
   }
 
   /**
@@ -97,7 +129,7 @@ export class AsyncApiSpecificationParser {
     asyncApiData: AsyncApiData,
   ): string | null {
     // Check x-protocol first (priority over servers)
-    let protocol = asyncApiData.info?.["x-protocol"];
+    const protocol = asyncApiData.info?.["x-protocol"];
 
     if (protocol) {
       // Convert protocol to URL format
@@ -110,9 +142,7 @@ export class AsyncApiSpecificationParser {
         "custom-protocol": "custom-protocol://localhost",
       };
 
-      const url =
-        protocolUrls[protocol.toLowerCase()] || `${protocol}://localhost`;
-      return url;
+      return protocolUrls[protocol.toLowerCase()] || `${protocol}://localhost`;
     }
 
     // Check servers if no x-protocol
@@ -138,27 +168,18 @@ export class AsyncApiSpecificationParser {
   }
 
   private static resolveProtocol(asyncApiData: AsyncApiData): string {
-    const infoProtocol = asyncApiData.info?.["x-protocol"];
-    if (infoProtocol) {
-      return infoProtocol.toLowerCase();
-    }
+    return (
+      SpecificationTypeDetector.extractAsyncProtocolName(asyncApiData) ??
+      "unknown"
+    ).toLowerCase();
+  }
 
-    const servers = asyncApiData.servers;
-    if (servers) {
-      const mainServer = (servers as Record<string, { protocol?: string }>)
-        .main;
-      if (mainServer?.protocol) {
-        return mainServer.protocol.toLowerCase();
-      }
-
-      const serverEntries = Object.values(servers) as Array<{
-        protocol?: string;
-      }>;
-      if (serverEntries.length > 0 && serverEntries[0]?.protocol) {
-        return serverEntries[0].protocol!.toLowerCase();
-      }
-    }
-
-    return "unknown";
+  private static isAmqpProtocol(protocol: string): boolean {
+    const normalized = protocol.toLowerCase();
+    return (
+      normalized === "amqp" ||
+      normalized === "rabbit" ||
+      normalized === "rabbitmq"
+    );
   }
 }
