@@ -1,9 +1,9 @@
 // jsdom does not implement MessageChannel, which antd v6's form engine
 // (@rc-component/form) uses to defer field-watch notifications to a macro task.
-// Provide a minimal macro-task-based polyfill so form-rendering tests run under
-// jsdom. The consumer only uses `port1.onmessage` and `port2.postMessage`.
-// A macro task — not a microtask — avoids the notify -> watch -> notify loop
-// that would starve a single task.
+// Provide a minimal macro-task polyfill so form-rendering tests run under jsdom.
+// The consumer only uses `port1.onmessage` and `port2.postMessage`. Delivery
+// must stay a macro task (not a microtask): rc-form relies on React re-rendering
+// between notifications, so a microtask would loop until the queue overflows.
 
 type MessageListener = ((event: { data: unknown }) => void) | null;
 

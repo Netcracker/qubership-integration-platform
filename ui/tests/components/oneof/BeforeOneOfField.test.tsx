@@ -18,6 +18,7 @@ Object.defineProperty(window, "matchMedia", {
 
 import { describe, it, expect, beforeEach } from "@jest/globals";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { openSelect, querySelectOption } from "../../helpers/antdSelect.ts";
 import "@testing-library/jest-dom";
 import type { FieldProps, RJSFSchema } from "@rjsf/utils";
 import type { FormContext } from "../../../src/components/modal/chain_element/ChainElementModificationContext";
@@ -165,12 +166,9 @@ describe("BeforeOneOfField", () => {
 
   describe("switching options", () => {
     async function switchTo(container: HTMLElement, title: string) {
-      const selectEl = container.querySelector(".ant-select-content")!;
-      fireEvent.mouseDown(selectEl);
+      openSelect(container);
       await waitFor(() => {
-        const option = document.querySelector(
-          `.ant-select-item[title="${title}"]`,
-        );
+        const option = querySelectOption(title);
         expect(option).not.toBeNull();
         fireEvent.click(option!);
       });

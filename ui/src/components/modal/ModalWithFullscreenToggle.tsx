@@ -20,6 +20,15 @@ export const ModalWithFullscreenToggle: React.FC<ModalProps> = ({
   const baseClassNames =
     typeof classNames === "function" ? undefined : classNames;
 
+  // Keep a caller-provided slot class when it is a plain string (v6 also allows
+  // per-slot objects/functions, which this component does not forward).
+  const callerClass = (slot: string): string | undefined => {
+    const value = (baseClassNames as Record<string, unknown> | undefined)?.[
+      slot
+    ];
+    return typeof value === "string" ? value : undefined;
+  };
+
   const addClass = useCallback(
     (
       classes: string | undefined,
@@ -81,11 +90,11 @@ export const ModalWithFullscreenToggle: React.FC<ModalProps> = ({
       className={addClass(className, "modal")}
       classNames={{
         ...baseClassNames,
-        container: addClass(undefined, "modal-content"),
-        header: addClass(undefined, "modal-header"),
-        footer: addClass(undefined, "modal-footer"),
-        body: addClass(undefined, "modal-body"),
-        wrapper: addClass(undefined, "modal-wrapper"),
+        container: addClass(callerClass("container"), "modal-content"),
+        header: addClass(callerClass("header"), "modal-header"),
+        footer: addClass(callerClass("footer"), "modal-footer"),
+        body: addClass(callerClass("body"), "modal-body"),
+        wrapper: addClass(callerClass("wrapper"), "modal-wrapper"),
       }}
       {...rest}
       closable={false}

@@ -81,7 +81,8 @@ const RootLayout = () => {
 const RootLayoutInner = () => {
   const fullscreenCtx = useChainFullscreenContext();
   return (
-    <Layout className={styles.layout}>
+    // hasSider={false}: keep the root a column; a nested Sider would otherwise flip it to a row.
+    <Layout className={styles.layout} hasSider={false}>
       {!fullscreenCtx?.fullscreen && (
         <Header className={styles.header}>
           <Navigation />

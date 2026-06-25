@@ -30,6 +30,10 @@
   font-size: 12px;
 }
 
+.themeSection {
+  padding: 10px 16px 12px;
+}
+
 .actions {
   padding: 6px;
 }

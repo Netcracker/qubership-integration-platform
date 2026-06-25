@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useModalContext } from "../../ModalContextProvider";
 import { XmlNamespace } from "../../mapper/model/metadata";
-import { Button, Flex, message, Modal, Table, TableProps } from "antd";
+import { Button, Flex, Modal, Table, TableProps } from "antd";
+import { message } from "../../misc/antd-app.ts";
 import type { ColumnsType } from "antd/es/table";
 import { InlineEdit } from "../InlineEdit";
 import { TextValueEdit } from "../table/TextValueEdit";
@@ -22,7 +23,6 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
   onSubmit,
 }) => {
   const { closeContainingModal } = useModalContext();
-  const [messageApi, contextHolder] = message.useMessage();
   const [tableData, setTableData] = useState<
     TableProps<XmlNamespace>["dataSource"]
   >([]);
@@ -84,7 +84,7 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
               initialActive={value === ""}
               onSubmit={({ value }) => {
                 if (tableData?.some((r) => r.alias === value)) {
-                  messageApi.error(`Already exists: ${value}`);
+                  message.error(`Already exists: ${value}`);
                 } else {
                   updateRecord(index, { alias: value });
                 }
@@ -134,7 +134,7 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
         },
       },
     ],
-    [tableData, messageApi, updateRecord, deleteRecord],
+    [tableData, updateRecord, deleteRecord],
   );
 
   const namespaceColumnResize = useTableColumnResize({
@@ -188,7 +188,6 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
       ]}
     >
       <>
-        {contextHolder}
         <Flex style={{ height: "60vh" }} vertical gap={8}>
           <Flex wrap="wrap" vertical={false} gap={8}>
             <Button

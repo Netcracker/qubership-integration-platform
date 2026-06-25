@@ -139,7 +139,7 @@ export const ChainDetailsDrawer: React.FC<ChainDetailsDrawerProps> = ({
     <Drawer
       title="Chain Details"
       placement="right"
-      width={350}
+      size={350}
       open={open}
       onClose={onClose}
       destroyOnHidden

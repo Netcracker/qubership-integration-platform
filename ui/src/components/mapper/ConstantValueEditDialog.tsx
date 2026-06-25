@@ -16,7 +16,7 @@ import {
 import React, { useEffect, useState } from "react";
 import { getGeneratorsForType } from "../../mapper/model/generators";
 import { TransformationInfo } from "../../mapper/model/transformations";
-import { CheckboxChangeEvent } from "antd/lib/checkbox/Checkbox";
+import type { CheckboxChangeEvent } from "antd";
 
 export type ConstantValueEditDialogProps = {
   type: DataType;

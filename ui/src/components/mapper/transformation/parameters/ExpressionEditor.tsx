@@ -22,10 +22,7 @@ import {
   Uri,
   IMarkdownString,
 } from "monaco-editor";
-import {
-  Constant,
-  MessageSchema,
-} from "../../../../mapper/model/model.ts";
+import { Constant, MessageSchema } from "../../../../mapper/model/model.ts";
 import { validateExpression } from "../../../../mapper/expressions/validation.ts";
 import { MappingUtil } from "../../../../mapper/util/mapping.ts";
 import { AttributeDetail } from "../../../../mapper/util/schema.ts";

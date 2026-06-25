@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Badge } from "antd";
 import { ExecutionStatus } from "../../api/apiTypes";
 import { formatSnakeCased } from "../../misc/format-utils.ts";
@@ -30,11 +30,7 @@ export const SessionStatus: React.FC<SessionStatusProps> = ({
   status,
   suffix,
 }) => {
-  const [color, setColor] = useState<PresetStatusColor | undefined>(undefined);
-
-  useEffect(() => {
-    setColor(getStatusColor(status));
-  }, [status]);
+  const color = getStatusColor(status);
 
   return (
     <Badge

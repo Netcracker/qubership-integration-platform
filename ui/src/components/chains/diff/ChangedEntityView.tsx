@@ -14,7 +14,10 @@ import styles from "./ChangedEntityView.module.css";
 import { traverseElementsDepthFirst } from "../../../misc/tree-utils.ts";
 import { api } from "../../../api/api.ts";
 import { VSCodeExtensionApi } from "../../../api/rest/vscodeExtensionApi.ts";
-import { DiffDocumentContext, DiffDocumentType } from "./DiffDocumentContext.tsx";
+import {
+  DiffDocumentContext,
+  DiffDocumentType,
+} from "./DiffDocumentContext.tsx";
 
 export function getElement(
   elementId: string,

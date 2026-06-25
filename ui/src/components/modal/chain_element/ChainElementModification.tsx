@@ -7,7 +7,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { Button, Tabs, Flex } from "antd";
+import { Button, Tabs, Flex, Typography } from "antd";
 import { useModalContext } from "../../../ModalContextProvider.tsx";
 import styles from "./ChainElementModification.module.css";
 import {
@@ -935,9 +935,19 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
       maskClosable={false}
       loading={libraryElementIsLoading}
       footer={
-        <Flex justify="space-between" align="center" gap={24}>
-          <span>{elementDescription}</span>
-          <Flex gap={8}>
+        <Flex
+          justify="space-between"
+          align="center"
+          gap={24}
+          style={{ width: "100%" }}
+        >
+          <Typography.Text
+            ellipsis={{ tooltip: elementDescription }}
+            style={{ flex: 1, minWidth: 0 }}
+          >
+            {elementDescription}
+          </Typography.Text>
+          <Flex gap={8} style={{ flexShrink: 0 }}>
             <Button
               key="submit"
               type="primary"

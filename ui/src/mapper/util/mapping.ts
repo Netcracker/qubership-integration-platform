@@ -16,7 +16,7 @@ export type Predicate<T> = (value: T) => boolean;
 
 export class MappingUtil {
   public static generateUUID(): string {
-    return (uuidv4)().replace(/-/g, "");
+    return uuidv4().replace(/-/g, "");
   }
 
   public static emptyMapping(): MappingDescription {

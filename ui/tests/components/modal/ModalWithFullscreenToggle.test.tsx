@@ -190,6 +190,16 @@ describe("ModalWithFullscreenToggle", () => {
     expect(classNames.wrapper).toContain("modal-wrapper");
   });
 
+  it("should merge a caller-supplied slot class with the module class", () => {
+    render(
+      <ModalWithFullscreenToggle title="T" classNames={{ body: "nokey" }} />,
+    );
+    const classNames = getLastModalClassNames();
+
+    expect(classNames.body).toContain("nokey");
+    expect(classNames.body).toContain("modal-body");
+  });
+
   it("should add fullscreen module classes to classNames slots when fullscreen mode is entered", () => {
     render(<ModalWithFullscreenToggle title="T" />);
     fireEvent.click(screen.getByTestId("fullscreen-btn"));

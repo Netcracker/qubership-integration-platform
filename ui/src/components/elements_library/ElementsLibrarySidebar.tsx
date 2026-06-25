@@ -29,7 +29,7 @@ export type MenuItem = {
 const DEFAULT_WIDTH = 230;
 
 export type ElementsLibrarySidebarProps = {
-  width?: number;
+  width?: number | string;
 };
 
 export const ElementsLibrarySidebar = ({

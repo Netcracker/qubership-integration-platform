@@ -5,6 +5,20 @@
   overflow: hidden;
 }
 
+/* Theme the Splitter resize bar to the IDE/app border instead of antd defaults,
+   so it matches all four themes (incl. VS Code webview). */
+.graph-wrapper :global(.ant-splitter-bar-dragger)::before,
+.graph-wrapper :global(.ant-splitter-bar-dragger)::after {
+  background: var(--vscode-border) !important;
+}
+
+.graph-wrapper :global(.ant-splitter-bar-dragger):hover::before,
+.graph-wrapper :global(.ant-splitter-bar-dragger):hover::after,
+.graph-wrapper :global(.ant-splitter-bar-dragger-active)::before,
+.graph-wrapper :global(.ant-splitter-bar-dragger-active)::after {
+  background: var(--vscode-textLink-foreground) !important;
+}
+
 .sequenceDiagramIcon {
   font-family:
     "Segoe UI Symbol", "Apple Symbols", "Noto Sans Symbols", Symbola, sans-serif;

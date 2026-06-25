@@ -212,14 +212,14 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
 
   const apiGateway =
     (import.meta.env.VITE_API_GATEWAY as string | undefined) ||
-    (import.meta.env.VITE_GATEWAY);
+    import.meta.env.VITE_GATEWAY;
   if (apiGateway) {
     config.apiGateway = apiGateway;
   }
 
   const appName =
     (import.meta.env.VITE_APP_NAME as string | undefined) ||
-    (import.meta.env.VITE_API_APP);
+    import.meta.env.VITE_API_APP;
   if (appName) {
     config.appName = appName;
   }

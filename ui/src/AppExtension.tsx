@@ -129,7 +129,7 @@ const AppExtension = () => {
         <AntdApp>
           <AntdAppBridge />
           <IconProvider>
-            <Layout className={styles.layout}>
+            <Layout className={styles.layout} hasSider={false}>
               <EventNotification>
                 <Modals>
                   <Content className={styles.content}>

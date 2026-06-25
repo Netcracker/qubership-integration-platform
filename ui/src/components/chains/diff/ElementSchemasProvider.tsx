@@ -1,8 +1,4 @@
-import React, {
-  createContext,
-  PropsWithChildren,
-  useCallback,
-} from "react";
+import React, { createContext, PropsWithChildren, useCallback } from "react";
 import { getSchemaModules } from "../../modal/chain_element/chainElementSchemaModules.ts";
 import { JSONSchema7 } from "json-schema";
 import yaml from "js-yaml";

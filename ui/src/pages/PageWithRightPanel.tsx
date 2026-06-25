@@ -38,7 +38,7 @@ const { Sider } = Layout;
 const DEFAULT_WIDTH = 240;
 
 export type PageWithRightPanelProps = {
-  width?: number;
+  width?: number | string;
 };
 
 export type MenuItem = {

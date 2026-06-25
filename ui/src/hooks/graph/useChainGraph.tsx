@@ -81,9 +81,7 @@ type StructureChangedOptions = {
 const RELAYOUT_OVERLAP_GAP = 40;
 const MAX_OVERLAP_RESOLVE_PASSES = 8;
 
-const requestHoverVisualsFrame = (
-  callback: FrameRequestCallback,
-): number => {
+const requestHoverVisualsFrame = (callback: FrameRequestCallback): number => {
   if (
     typeof window !== "undefined" &&
     typeof window.requestAnimationFrame === "function"
@@ -91,7 +89,10 @@ const requestHoverVisualsFrame = (
     return window.requestAnimationFrame(callback);
   }
 
-  return globalThis.setTimeout(() => callback(Date.now()), 16) as unknown as number;
+  return globalThis.setTimeout(
+    () => callback(Date.now()),
+    16,
+  ) as unknown as number;
 };
 
 const cancelHoverVisualsFrame = (frameId: number): void => {
@@ -261,20 +262,20 @@ const resolveSiblingOverlapsAfterResize = (
 
       const orderedSiblings = [...siblings].sort((left, right) => {
         const leftMain = isHorizontal
-          ? left.position?.x ?? 0
-          : left.position?.y ?? 0;
+          ? (left.position?.x ?? 0)
+          : (left.position?.y ?? 0);
         const rightMain = isHorizontal
-          ? right.position?.x ?? 0
-          : right.position?.y ?? 0;
+          ? (right.position?.x ?? 0)
+          : (right.position?.y ?? 0);
 
         if (leftMain !== rightMain) return leftMain - rightMain;
 
         const leftSecondary = isHorizontal
-          ? left.position?.y ?? 0
-          : left.position?.x ?? 0;
+          ? (left.position?.y ?? 0)
+          : (left.position?.x ?? 0);
         const rightSecondary = isHorizontal
-          ? right.position?.y ?? 0
-          : right.position?.x ?? 0;
+          ? (right.position?.y ?? 0)
+          : (right.position?.x ?? 0);
 
         if (leftSecondary !== rightSecondary) {
           return leftSecondary - rightSecondary;
@@ -297,17 +298,17 @@ const resolveSiblingOverlapsAfterResize = (
 
           const orthogonalOverlap = isHorizontal
             ? overlaps1D(
-              currentBounds.minY,
-              currentBounds.maxY,
-              previousBounds.minY,
-              previousBounds.maxY,
-            )
+                currentBounds.minY,
+                currentBounds.maxY,
+                previousBounds.minY,
+                previousBounds.maxY,
+              )
             : overlaps1D(
-              currentBounds.minX,
-              currentBounds.maxX,
-              previousBounds.minX,
-              previousBounds.maxX,
-            );
+                currentBounds.minX,
+                currentBounds.maxX,
+                previousBounds.minX,
+                previousBounds.maxX,
+              );
 
           if (!orthogonalOverlap) continue;
 
@@ -499,13 +500,7 @@ export const useChainGraph = () => {
     reapplyEdgesVisibility,
     expandAllContainers,
     collapseAllContainers,
-  } = useExpandCollapse(
-    nodes,
-    setNodes,
-    edges,
-    setEdges,
-    structureChanged,
-  );
+  } = useExpandCollapse(nodes, setNodes, edges, setEdges, structureChanged);
 
   useEffect(() => {
     const directionChanged =
@@ -534,7 +529,10 @@ export const useChainGraph = () => {
         let arrangedNodes: ChainGraphNode[];
 
         const layoutSourceNodes = reapplyNodesVisibility(nodes);
-        const layoutSourceEdges = reapplyEdgesVisibility(layoutSourceNodes, edges);
+        const layoutSourceEdges = reapplyEdgesVisibility(
+          layoutSourceNodes,
+          edges,
+        );
 
         if (parentIds && parentIds.length) {
           const nodeMap = new Map(
@@ -558,23 +556,29 @@ export const useChainGraph = () => {
 
           arrangedNodes = current;
         } else {
-          arrangedNodes = await arrangeNodes(layoutSourceNodes, layoutSourceEdges);
+          arrangedNodes = await arrangeNodes(
+            layoutSourceNodes,
+            layoutSourceEdges,
+          );
         }
 
         const overlapResolvedNodes =
           shouldResolveOverlaps && parentIds && parentIds.length
             ? resolveSiblingOverlapsAfterResize(
-              arrangedNodes,
-              parentIds,
-              direction,
-            )
+                arrangedNodes,
+                parentIds,
+                direction,
+              )
             : arrangedNodes;
 
         const withToggle = attachToggle(overlapResolvedNodes);
         const visibleNodes = reapplyNodesVisibility(withToggle);
         const withCounts = setNestedUnitCounts(visibleNodes);
         const orderedVisibleNodes = sortParentsBeforeChildren(withCounts);
-        const visibleEdges = reapplyEdgesVisibility(visibleNodes, layoutSourceEdges);
+        const visibleEdges = reapplyEdgesVisibility(
+          visibleNodes,
+          layoutSourceEdges,
+        );
 
         setNodes(orderedVisibleNodes);
         setEdges(visibleEdges);
@@ -789,7 +793,14 @@ export const useChainGraph = () => {
         notificationService.requestFailed("Failed to create connection", error);
       }
     },
-    [nodes, notificationService, setEdges, structureChanged, onChainUpdate, chainContext?.chain],
+    [
+      nodes,
+      notificationService,
+      setEdges,
+      structureChanged,
+      onChainUpdate,
+      chainContext?.chain,
+    ],
   );
 
   const onDragOver = useCallback(
@@ -960,7 +971,10 @@ export const useChainGraph = () => {
           const visibleNodes = reapplyNodesVisibility(withToggle);
           const withCount = setNestedUnitCounts(visibleNodes);
           const ordered = sortParentsBeforeChildren(withCount);
-          const visibleEdges = reapplyEdgesVisibility(visibleNodes, currentEdges);
+          const visibleEdges = reapplyEdgesVisibility(
+            visibleNodes,
+            currentEdges,
+          );
 
           setNodes(ordered);
           setEdges(visibleEdges);
@@ -1154,7 +1168,8 @@ export const useChainGraph = () => {
 
         const draftNodes = nodes
           .filter(
-            (node) => !deletedNodeIds.has(node.id) && !updatedNodeIds.has(node.id),
+            (node) =>
+              !deletedNodeIds.has(node.id) && !updatedNodeIds.has(node.id),
           )
           .concat(updatedNodes);
 

@@ -5,7 +5,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Flex, message, Table } from "antd";
+import { Flex, Table } from "antd";
+import { message } from "../misc/antd-app.ts";
 import { useNavigate, useParams } from "react-router";
 import {
   Checkpoint,
@@ -159,7 +160,6 @@ export const Sessions: React.FC<SessionsProps> = ({
     filterRequestList: [],
     searchString: "",
   });
-  const [messageApi, contextHolder] = message.useMessage();
   const notificationService = useNotificationService();
   const tableWrapperRef = useRef<HTMLDivElement>(null);
 
@@ -328,17 +328,19 @@ export const Sessions: React.FC<SessionsProps> = ({
     async (chainId: string, sessionId: string) => {
       try {
         await api.retrySessionFromCheckpoint(chainId, sessionId);
-        messageApi.info(
+        message.info(
           "Session was retried successfully. Please update table to see session result.",
         );
       } catch (error) {
         notificationService.requestFailed("Failed to retry session", error);
       }
     },
-    [messageApi, notificationService],
+    [notificationService],
   );
 
-  const tableColumnDefinitions = useMemo<ColumnsTypeWithSettings<SessionTableItem>>(
+  const tableColumnDefinitions = useMemo<
+    ColumnsTypeWithSettings<SessionTableItem>
+  >(
     () => [
       {
         title: "ID",
@@ -728,7 +730,6 @@ export const Sessions: React.FC<SessionsProps> = ({
 
   return (
     <>
-      {contextHolder}
       {variant === "admin-page" ? (
         <Flex vertical className={commonStyles.container}>
           <AdminToolsHeader

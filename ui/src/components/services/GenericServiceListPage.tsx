@@ -85,7 +85,9 @@ export const GenericServiceListPage: React.FC<GenericServiceListPageProps> = ({
               setDebouncedSearch(v);
             }}
           />
-          {extraActions.map((extraAction) => extraAction)}
+          {extraActions.map((extraAction, index) => (
+            <React.Fragment key={index}>{extraAction}</React.Fragment>
+          ))}
           <ProtectedButton
             require={{ service: ["export"] }}
             tooltipProps={{

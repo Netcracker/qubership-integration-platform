@@ -1,5 +1,5 @@
 import { formatSnakeCased } from "../../misc/format-utils.ts";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Tag, Tooltip } from "antd";
 import {
   BulkDeploymentStatus,
@@ -56,11 +56,7 @@ export const StatusTag: React.FC<{
   status?: CombinedStatus;
   message?: string;
 }> = ({ status, message }) => {
-  const [color, setColor] = useState<PresetStatusColor>("default");
-
-  useEffect(() => {
-    setColor(status ? getStatusColor(status) : "default");
-  }, [status]);
+  const color = status ? getStatusColor(status) : "default";
 
   const statusNode = (
     <Tag variant="solid" color={color}>

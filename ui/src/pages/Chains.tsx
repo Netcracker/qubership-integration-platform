@@ -1,5 +1,5 @@
-import { Breadcrumb, Button, Flex, message, Table } from "antd";
-import { modal } from "../misc/antd-app.ts";
+import { Breadcrumb, Button, Flex, Table } from "antd";
+import { message, modal } from "../misc/antd-app.ts";
 import { useNavigate, useSearchParams } from "react-router";
 import { useModalsContext } from "../Modals.tsx";
 import {
@@ -126,11 +126,11 @@ type Operation = {
 
 const chainExpandIcon = treeExpandIcon<ChainTableItem>();
 
-// antd's checkbox / expand button / dropdown trigger don't stop click
-// propagation, so row onClick fires on them too. Filter those targets out
-// so row click only opens the details drawer on empty row area.
+// A row click opens the details drawer, except on interactive controls and the
+// table's own selection/expand cells. The portaled actions menu stops its own
+// click (see the menu onClick below).
 const ROW_CLICK_IGNORE_SELECTOR =
-  "a, button, input, label, .ant-checkbox, .ant-dropdown-trigger, .ant-table-row-expand-icon, .ant-table-selection-column";
+  "a, button, input, label, .ant-table-selection-column, .ant-table-row-expand-icon";
 
 function shouldIgnoreRowClick(target: EventTarget | null): boolean {
   return (
@@ -141,7 +141,6 @@ function shouldIgnoreRowClick(target: EventTarget | null): boolean {
 const Chains = () => {
   const navigate = useNavigate();
   const { showModal } = useModalsContext();
-  const [messageApi, contextHolder] = message.useMessage();
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [folderItems, setFolderItems] = useState<FolderItem[]>([]);
   const [tableItems, setTableItems] = useState<ChainTableItem[]>([]);
@@ -873,13 +872,13 @@ const Chains = () => {
         return copyToClipboard(
           `${window.location.origin}/chains?folder=${item.id}`,
         ).then(() =>
-          messageApi.info("Link to a folder was copied to the clipboard"),
+          message.info("Link to a folder was copied to the clipboard"),
         );
       case "copyChainLink":
         return copyToClipboard(
           `${window.location.origin}/chains/${item.id}`,
         ).then(() =>
-          messageApi.info("Link to a chain was copied to the clipboard"),
+          message.info("Link to a chain was copied to the clipboard"),
         );
       case "deleteFolder":
         return modal.confirm({
@@ -1086,8 +1085,11 @@ const Chains = () => {
                   ? folderMenuItems
                   : chainMenuItems,
               // @ts-expect-error Some mistake with types: onClick presents in menu props.
-              onClick: ({ key }: MenuInfo) =>
-                void onContextMenuItemClick(item, key),
+              onClick: (info: MenuInfo) => {
+                // Stop the click bubbling through the portal to the row handler.
+                info.domEvent.stopPropagation();
+                void onContextMenuItemClick(item, info.key);
+              },
             }}
             trigger={["click"]}
             placement="bottomRight"
@@ -1168,7 +1170,6 @@ const Chains = () => {
 
   return (
     <>
-      {contextHolder}
       <Flex vertical gap={16} className={styles.container}>
         <TableToolbar
           leading={
