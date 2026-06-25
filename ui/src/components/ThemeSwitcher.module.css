@@ -1,0 +1,27 @@
+/* Scoped to the theme switcher: an inset track with a raised, surface-colored
+   selected thumb (the Ant Design Segmented look), instead of the app-wide
+   gray track and solid-blue selection. */
+.themeSegmented:global(.ant-segmented) {
+  background-color: rgba(127, 127, 127, 0.14) !important;
+  border: 1px solid var(--vscode-border) !important;
+}
+
+.themeSegmented :global(.ant-segmented-item-selected) {
+  background-color: var(--vscode-editor-background) !important;
+  color: var(--vscode-foreground) !important;
+  /* Outline (not a drop shadow) so the selected tile reads in every theme,
+     including dark and high-contrast where a black shadow is invisible. */
+  box-shadow: 0 0 0 1px var(--vscode-border);
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  line-height: 1.1;
+}
+
+.optionText {
+  font-size: 12px;
+}
