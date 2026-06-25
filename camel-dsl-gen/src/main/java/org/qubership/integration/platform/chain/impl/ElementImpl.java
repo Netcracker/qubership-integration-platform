@@ -1,10 +1,7 @@
 package org.qubership.integration.platform.chain.impl;
 
 import lombok.Setter;
-import org.qubership.integration.platform.chain.model.Chain;
-import org.qubership.integration.platform.chain.model.Connection;
-import org.qubership.integration.platform.chain.model.Element;
-import org.qubership.integration.platform.chain.model.ServiceEnvironment;
+import org.qubership.integration.platform.chain.model.*;
 
 import java.util.*;
 
@@ -35,6 +32,8 @@ public class ElementImpl implements Element {
     private ServiceEnvironment serviceEnvironment;
     @Setter
     private boolean container;
+    @Setter
+    private Snapshot snapshot;
 
     @Override
     public String getType() {
@@ -99,5 +98,10 @@ public class ElementImpl implements Element {
     @Override
     public String getDescription() {
         return description;
+    }
+
+    @Override
+    public Optional<Snapshot> getSnapshot() {
+        return Optional.ofNullable(snapshot);
     }
 }

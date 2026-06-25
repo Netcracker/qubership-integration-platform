@@ -23,7 +23,7 @@ import jakarta.persistence.criteria.Predicate;
 import lombok.Data;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.util.TriggerUtils;
+import org.qubership.integration.platform.util.TriggerUtils;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.util.ArrayList;

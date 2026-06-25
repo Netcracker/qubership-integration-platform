@@ -53,7 +53,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.operations.OperationRepository;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelService;
-import org.qubership.integration.platform.runtime.catalog.util.TriggerUtils;
+import org.qubership.integration.platform.util.TriggerUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.util.Pair;
@@ -74,7 +74,7 @@ import java.util.stream.Stream;
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
-import static org.qubership.integration.platform.runtime.catalog.util.TriggerUtils.*;
+import static org.qubership.integration.platform.util.TriggerUtils.*;
 
 @Slf4j
 @Transactional
