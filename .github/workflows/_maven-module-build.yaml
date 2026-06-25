@@ -1,0 +1,158 @@
+---
+# Reusable PR build workflow for a Maven module.
+#
+# To block PR merge on red Sonar Quality Gate, mark the `sonar` job
+# as a required status check in the branch protection rule.
+
+name: Maven Module Build (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      module:
+        required: true
+        type: string
+        description: "Module directory name (e.g. engine, runtime-catalog)"
+      sonar-project-key:
+        required: false
+        type: string
+        default: ""
+        description: "Sonar project key for this module. Leave empty to skip the Sonar scan."
+      force-update:
+        required: false
+        type: boolean
+        default: false
+        description: >-
+          Pass -U to Maven (force re-check of release/snapshot resolution).
+          Enable for modules with private GitHub Packages deps (micro-engine):
+          the OWNER/* wildcard repo intermittently fails under load, and Maven
+          negative-caches the miss across runs (cache: maven). -U defeats that.
+    secrets:
+      SONAR_TOKEN:
+        required: false
+        description: "SonarCloud token. Required when sonar-project-key is set."
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.module }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Read-only: PR builds resolve deps (e.g. qip-checkstyle) from GitHub
+      # Packages but publish nothing. SNAPSHOTs are released on demand via the
+      # snapshot-publish workflow.
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          # Authenticated GitHub Packages reads (e.g. qip-checkstyle).
+          server-id: github
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          cache: "maven"
+
+      - name: Build and verify (no publish)
+        working-directory: ${{ inputs.module }}
+        env:
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_UPDATE: ${{ inputs.force-update }}
+        run: |
+          set -eu
+          # Run from the module dir so Maven reads only this module + parent (via
+          # relativePath), never siblings — micro-engine pulls private
+          # com.netcracker.cloud artifacts this token can't read. Publishes nothing.
+          UPDATE_FLAG=""
+          if [ "$FORCE_UPDATE" = "true" ]; then UPDATE_FLAG="-U"; fi
+          mvn --batch-mode verify $UPDATE_FLAG -Dgpg.skip=true
+
+      - name: Upload Sonar inputs
+        if: ${{ inputs.sonar-project-key != '' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ inputs.module }}-target
+          # Sonar only needs compiled classes, generated sources, and the
+          # JaCoCo / Surefire reports — not the shaded -exec.jar (~200 MB).
+          path: |
+            ${{ inputs.module }}/target/classes
+            ${{ inputs.module }}/target/test-classes
+            ${{ inputs.module }}/target/generated-sources
+            ${{ inputs.module }}/target/generated-test-sources
+            ${{ inputs.module }}/target/site
+            ${{ inputs.module }}/target/surefire-reports
+            ${{ inputs.module }}/target/jacoco.exec
+          if-no-files-found: ignore
+          retention-days: 1
+
+  sonar:
+    needs: build
+    if: ${{ inputs.sonar-project-key != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Sonar must build the project model before scanning. micro-engine imports
+      # private com.netcracker.cloud BOMs (dependencyManagement, scope=import)
+      # that have to be resolved from GitHub Packages just to read its POM.
+      # Other modules' only private dep (qip-checkstyle) is a plugin dependency
+      # the sonar-only run never triggers, so this is a no-op for them.
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # Sonar uses git blame for new-code detection.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          # Authenticated GitHub Packages reads (mirrors the build job) so the
+          # effective POM can be assembled — micro-engine needs the private BOMs.
+          server-id: github
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          cache: "maven"
+
+      - name: Download Sonar inputs
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: ${{ inputs.module }}-target
+          path: ${{ inputs.module }}/target
+
+      - name: Sonar scan (blocks on red Quality Gate)
+        working-directory: ${{ inputs.module }}
+        env:
+          # GitHub Packages creds for the github server in settings.xml — needed
+          # to resolve micro-engine's private BOM imports while building the model.
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PLUGIN_VERSION: ${{ vars.SONAR_PLUGIN_VERSION }}
+          SONAR_PROJECT_KEY: ${{ inputs.sonar-project-key }}
+          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+        run: |
+          mvn --batch-mode \
+            "org.sonarsource.scanner.maven:sonar-maven-plugin:${SONAR_PLUGIN_VERSION}:sonar" \
+            -Dsonar.token="$SONAR_TOKEN" \
+            -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
+            -Dsonar.organization="$SONAR_ORGANIZATION" \
+            -Dsonar.host.url="$SONAR_HOST_URL" \
+            -Dsonar.qualitygate.wait=true
