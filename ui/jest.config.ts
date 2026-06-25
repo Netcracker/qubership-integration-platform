@@ -154,6 +154,7 @@ const config: Config = {
     "jest-expect-message",
     "<rootDir>/tests/setup/message-channel.ts",
     "<rootDir>/tests/setup/resize-observer.ts",
+    "<rootDir>/tests/setup/testing-library-config.ts",
     "<rootDir>/tests/setup/jest-dom.ts",
     "<rootDir>/tests/setup/jsdom-navigation.ts",
     "<rootDir>/tests/setup/intersection-observer.ts",

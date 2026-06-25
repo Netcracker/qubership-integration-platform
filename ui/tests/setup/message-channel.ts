@@ -2,6 +2,8 @@
 // (@rc-component/form) uses to defer field-watch notifications to a macro task.
 // Provide a minimal macro-task-based polyfill so form-rendering tests run under
 // jsdom. The consumer only uses `port1.onmessage` and `port2.postMessage`.
+// A macro task — not a microtask — avoids the notify -> watch -> notify loop
+// that would starve a single task.
 
 type MessageListener = ((event: { data: unknown }) => void) | null;
 
@@ -15,9 +17,7 @@ class PolyfillMessagePort {
 
   postMessage(data: unknown): void {
     const { target } = this;
-    // Deliver on a microtask so the notification fires deterministically,
-    // unaffected by timer starvation or a prior test's fake timers.
-    queueMicrotask(() => target?.onmessage?.({ data }));
+    setTimeout(() => target?.onmessage?.({ data }), 0);
   }
 
   start(): void {}
