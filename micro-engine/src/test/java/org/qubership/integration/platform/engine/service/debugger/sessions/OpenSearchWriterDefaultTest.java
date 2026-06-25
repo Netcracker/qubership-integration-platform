@@ -228,7 +228,7 @@ class OpenSearchWriterDefaultTest {
     }
 
     @Test
-    void shouldCacheElementWhenSchedulingWithCacheEnabled() throws Exception {
+    void shouldCacheElementWhenSchedulingWithCacheEnabled() {
         writer = createWriter(100);
         SessionElementElastic element = sessionElement("element-1");
 
