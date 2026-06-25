@@ -19,4 +19,6 @@ public interface Chain extends Entity {
     Optional<Element> getDefaultSwimlane();
 
     Optional<Element> getReuseSwimlane();
+
+    Collection<MaskedField> getMaskedFields();
 }

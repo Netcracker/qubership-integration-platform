@@ -70,7 +70,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.runtime.catalog.util.TriggerUtils.*;
+import static org.qubership.integration.platform.util.TriggerUtils.*;
 
 @Slf4j
 @Service
@@ -86,7 +86,7 @@ public class DeploymentService {
     private final ActionsLogService actionLogger;
     private final DeploymentBuilderService deploymentBuilderService;
     private final TransactionHandler transactionHandler;
-    private final RoutesGetterService routesGetterService;
+    private final org.qubership.integration.platform.camelk.services.RoutesGetterService routesGetterService;
 
     @Value("${qip.chains.triggers.check.enabled}")
     private boolean triggersCheckEnabled;
@@ -132,7 +132,7 @@ public class DeploymentService {
                              ActionsLogService actionLogger,
                              DeploymentBuilderService deploymentBuilderService,
                              TransactionHandler transactionHandler,
-                             RoutesGetterService routesGetterService
+                             org.qubership.integration.platform.camelk.services.RoutesGetterService routesGetterService
     ) {
         this.deploymentRepository = deploymentRepository;
         this.elementRepository = elementRepository;
@@ -449,15 +449,15 @@ public class DeploymentService {
                 elementRepository.findAllBySnapshotIdAndType(snapshotId, getHttpTriggerTypeName());
 
         return triggers.stream().noneMatch(trigger ->
-                TriggerUtils.isExternalHttpTrigger(trigger) || TriggerUtils.isPrivateHttpTrigger(trigger));
+                org.qubership.integration.platform.util.TriggerUtils.isExternalHttpTrigger(trigger) || org.qubership.integration.platform.util.TriggerUtils.isPrivateHttpTrigger(trigger));
     }
 
     private List<ElementRoute> mapHttpTriggerRoutes(Collection<ChainElement> listOfObjects) {
-        return listOfObjects.stream().map(TriggerUtils::getHttpTriggerRoute).toList();
+        return listOfObjects.stream().map(org.qubership.integration.platform.util.TriggerUtils::getHttpTriggerRoute).toList();
     }
 
     private List<String> mapSdsTriggerJobIds(Collection<ChainElement> listOfObjects) {
-        return listOfObjects.stream().map(TriggerUtils::getSdsTriggerJobId).toList();
+        return listOfObjects.stream().map(org.qubership.integration.platform.util.TriggerUtils::getSdsTriggerJobId).toList();
     }
 
     private Set<String> findSameHttpTriggerPaths(List<ElementRoute> pendingRoutes, List<ElementRoute> existingRoutes, boolean checkGatewayOnly) {

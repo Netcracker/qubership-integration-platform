@@ -2,10 +2,7 @@ package org.qubership.integration.platform.chain.impl;
 
 import lombok.Data;
 import lombok.Setter;
-import org.qubership.integration.platform.chain.model.Chain;
-import org.qubership.integration.platform.chain.model.Connection;
-import org.qubership.integration.platform.chain.model.Element;
-import org.qubership.integration.platform.chain.model.Label;
+import org.qubership.integration.platform.chain.model.*;
 
 import java.util.Collection;
 import java.util.Optional;
@@ -21,6 +18,7 @@ public class ChainImpl implements Chain {
     private Collection<Element> elements;
     private Collection<Label> labels;
     private Collection<Connection> connections;
+    private Collection<MaskedField> maskedFields;
 
     @Setter
     private Element defaultSwimlane;
