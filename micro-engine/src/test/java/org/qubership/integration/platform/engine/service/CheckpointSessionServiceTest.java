@@ -71,6 +71,7 @@ class CheckpointSessionServiceTest {
     @BeforeEach
     void setUp() {
         checkpointSessionService = new CheckpointSessionService(sessionRepo, checkpointRepo, rest, mapper, idempotencyRecordService);
+        checkpointSessionService.idempotencyKeyTTL = "PT1H";
     }
 
     @Test
@@ -196,6 +197,44 @@ class CheckpointSessionServiceTest {
     }
 
     @Test
+    void shouldHandleRetryCheckpointSuccessCallback() {
+        when(rest.retryCheckpoint(
+                anyString(), anyString(), anyString(),
+                org.mockito.ArgumentMatchers.anyMap(),
+                org.mockito.ArgumentMatchers.any()
+        )).thenReturn(Uni.createFrom().item(Buffer.buffer()));
+
+        Checkpoint checkpoint = checkpoint();
+
+        when(checkpointRepo.findFirstBySessionIdAndSessionChainIdAndCheckpointElementId("session", "chain", "el-1"))
+                .thenReturn(checkpoint);
+
+        assertDoesNotThrow(() ->
+                checkpointSessionService.retryFromCheckpoint("chain", "session", "el-1", "{}", () -> null, false));
+
+        verify(rest).retryCheckpoint(eq("chain"), eq("session"), eq("el-1"), anyMap(), any());
+    }
+
+    @Test
+    void shouldHandleRetryCheckpointFailureCallback() {
+        when(rest.retryCheckpoint(
+                anyString(), anyString(), anyString(),
+                org.mockito.ArgumentMatchers.anyMap(),
+                org.mockito.ArgumentMatchers.any()
+        )).thenReturn(Uni.createFrom().failure(new RuntimeException("boom")));
+
+        Checkpoint checkpoint = checkpoint();
+
+        when(checkpointRepo.findFirstBySessionIdAndSessionChainIdAndCheckpointElementId("session", "chain", "el-1"))
+                .thenReturn(checkpoint);
+
+        assertDoesNotThrow(() ->
+                checkpointSessionService.retryFromCheckpoint("chain", "session", "el-1", "{}", () -> null, false));
+
+        verify(rest).retryCheckpoint(eq("chain"), eq("session"), eq("el-1"), anyMap(), any());
+    }
+
+    @Test
     void shouldReturnNullWhenFindLastCheckpointAndRepositoryReturnsNullOrEmpty() {
         when(checkpointRepo.findAllBySessionChainIdAndSessionId(anyString(), anyString(), any(Page.class), any(Sort.class)))
                 .thenReturn(null);
@@ -225,6 +264,38 @@ class CheckpointSessionServiceTest {
         when(sessionRepo.findAllByChainIdAndExecutionStatus("c", ExecutionStatus.COMPLETED_WITH_ERRORS)).thenReturn(list);
 
         assertSame(list, checkpointSessionService.findAllFailedChainSessionsInfo("c"));
+    }
+
+    @Test
+    void shouldDelegateFindCheckpoint() {
+        Checkpoint checkpoint = mock(Checkpoint.class);
+        when(checkpointRepo.findFirstBySessionIdAndSessionChainIdAndCheckpointElementId("session", "chain", "element"))
+                .thenReturn(checkpoint);
+
+        Checkpoint result = checkpointSessionService.findCheckpoint("session", "chain", "element");
+
+        assertSame(checkpoint, result);
+    }
+
+    @Test
+    void shouldDelegateFindSessions() {
+        List<String> sessionIds = List.of("session-1", "session-2");
+        List<SessionInfo> sessions = List.of(mock(SessionInfo.class), mock(SessionInfo.class));
+        when(sessionRepo.findAllById(sessionIds)).thenReturn(sessions);
+
+        List<SessionInfo> result = checkpointSessionService.findSessions(sessionIds);
+
+        assertSame(sessions, result);
+    }
+
+    @Test
+    void shouldDelegateFindOriginalSessionInfo() {
+        Optional<SessionInfo> session = Optional.of(mock(SessionInfo.class));
+        when(sessionRepo.findOriginalSessionInfo("session")).thenReturn(session);
+
+        Optional<SessionInfo> result = checkpointSessionService.findOriginalSessionInfo("session");
+
+        assertSame(session, result);
     }
 
     @Test
@@ -305,6 +376,35 @@ class CheckpointSessionServiceTest {
         checkpointSessionService.deleteOldRecordsByInterval("P30D");
 
         verify(sessionRepo).deleteOldRecordsByInterval("P30D");
+    }
+
+    @Test
+    void shouldReturnUniqueIdempotencyKey() {
+        String result = checkpointSessionService.getUniqueKeyForIdempotency("retry-1", "session-1");
+
+        assertEquals("session-retries:session-1:retry-1", result);
+    }
+
+    @Test
+    void shouldInsertIdempotencyKeyAndReturnFalseWhenKeyDoesNotExist() {
+        String uniqueKey = "session-retries:session-1:retry-1";
+        when(idempotencyRecordService.exists(uniqueKey)).thenReturn(false);
+
+        boolean result = checkpointSessionService.verifyAndInsertIfNotExistIdempotencyKey("retry-1", "session-1");
+
+        assertFalse(result);
+        verify(idempotencyRecordService).insertIfNotExists(uniqueKey, "PT1H");
+    }
+
+    @Test
+    void shouldReturnTrueAndSkipInsertWhenIdempotencyKeyExists() {
+        String uniqueKey = "session-retries:session-1:retry-1";
+        when(idempotencyRecordService.exists(uniqueKey)).thenReturn(true);
+
+        boolean result = checkpointSessionService.verifyAndInsertIfNotExistIdempotencyKey("retry-1", "session-1");
+
+        assertTrue(result);
+        verify(idempotencyRecordService, never()).insertIfNotExists(anyString(), anyString());
     }
 
     private Uni mockUni() {
