@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Button, message, Modal, Table } from "antd";
+import { Button, Table } from "antd";
+import { message, modal } from "../../../misc/antd-app.ts";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../../api/api";
 import { IntegrationSystemType } from "../../../api/apiTypes";
@@ -37,7 +38,11 @@ export const ContextServiceList: React.FC = () => {
   const navigate = useNavigate();
   const { filters, filterButton } = useContextServiceFilters();
 
-  const { errorObject: loadingError, loading, execute: loadServices } = useAsyncRequest(
+  const {
+    errorObject: loadingError,
+    loading,
+    execute: loadServices,
+  } = useAsyncRequest(
     async () => {
       const hasSearch = searchString.trim().length > 0;
       const hasFilters = filters.length > 0;
@@ -66,7 +71,10 @@ export const ContextServiceList: React.FC = () => {
 
   useEffect(() => {
     if (loadingError) {
-      notificationService.requestFailed("Failed to load context services", loadingError);
+      notificationService.requestFailed(
+        "Failed to load context services",
+        loadingError,
+      );
     }
   }, [loadingError, notificationService]);
 
@@ -182,7 +190,7 @@ export const ContextServiceList: React.FC = () => {
                 label: "Delete",
                 icon: <OverridableIcon name={"delete"} />,
                 onClick: () => {
-                  Modal.confirm({
+                  modal.confirm({
                     title: "Are you sure you want to delete this service?",
                     okText: "Delete",
                     cancelText: "Cancel",

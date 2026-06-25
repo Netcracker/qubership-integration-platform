@@ -152,6 +152,8 @@ const config: Config = {
   // A list of paths to modules that run some code to configure or set up the testing framework before each test
   setupFilesAfterEnv: [
     "jest-expect-message",
+    "<rootDir>/tests/setup/message-channel.ts",
+    "<rootDir>/tests/setup/resize-observer.ts",
     "<rootDir>/tests/setup/jest-dom.ts",
     "<rootDir>/tests/setup/jsdom-navigation.ts",
     "<rootDir>/tests/setup/intersection-observer.ts",

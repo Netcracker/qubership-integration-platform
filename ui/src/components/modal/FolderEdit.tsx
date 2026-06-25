@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Button, Flex, Form, Input, InputRef, Modal } from "antd";
+import { Button, Checkbox, Flex, Form, Input, InputRef, Modal } from "antd";
 import { useModalContext } from "../../ModalContextProvider.tsx";
-import TextArea from "antd/lib/input/TextArea";
-import Checkbox from "antd/lib/checkbox";
-import { FieldData } from "rc-field-form/lib/interface";
+import type { FieldData } from "../../types/antd.ts";
+
+const { TextArea } = Input;
 
 export type FolderEditMode = "create" | "update";
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Form, Input, Flex, message } from "antd";
-import { useForm } from "antd/lib/form/Form";
+import { Form, Input, Flex } from "antd";
+import { message } from "../../../misc/antd-app.ts";
 import { api } from "../../../api/api.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { downloadFile } from "../../../misc/download-utils.ts";
@@ -16,6 +16,8 @@ import {
 } from "./types.ts";
 import sharedStyles from "../DevTools.module.css";
 import styles from "./Maas.module.css";
+
+const { useForm } = Form;
 
 export const KafkaMaasPage: React.FC = () => {
   const [form] = useForm<KafkaMaasFormData>();

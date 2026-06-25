@@ -1,6 +1,6 @@
 import { RequiredPermissions } from "./types.ts";
 import { TooltipProps } from "antd/es/tooltip";
-import { ButtonProps } from "antd/es/button/button";
+import type { ButtonProps } from "antd";
 import React, { ReactNode } from "react";
 import { Require } from "./Require.tsx";
 import { Button, Tooltip } from "antd";

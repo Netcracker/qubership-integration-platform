@@ -1,7 +1,7 @@
 import { Button, Modal, UploadFile } from "antd";
+import Dragger from "antd/es/upload/Dragger";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import React, { useState } from "react";
-import Dragger from "antd/es/upload/Dragger";
 import styles from "./ImportSessions.module.css";
 import { api } from "../../api/api.ts";
 import { Session } from "../../api/apiTypes.ts";

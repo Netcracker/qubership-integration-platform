@@ -45,7 +45,7 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
   const { setToolbar } = useServiceParametersToolbar() ?? {};
   const [form] = Form.useForm();
   const { technicalLabels, userLabels, setUserLabels, onSetLabelsAndForm } =
-      useLabelsForm(form);
+    useLabelsForm(form);
   const [system, setSystem] = useState<IntegrationSystem | null>(null);
   const { hasChanges, setHasChanges } = useUnsavedChangesWithModal({
     system,
@@ -184,17 +184,17 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
             name="type"
             rules={[{ required: true, message: "Select service type" }]}
           >
-            <Select onChange={() => setHasChanges(true)}>
-              <Select.Option value={IntegrationSystemType.INTERNAL}>
-                Internal
-              </Select.Option>
-              <Select.Option value={IntegrationSystemType.EXTERNAL}>
-                External
-              </Select.Option>
-              <Select.Option value={IntegrationSystemType.IMPLEMENTED}>
-                Implemented
-              </Select.Option>
-            </Select>
+            <Select
+              onChange={() => setHasChanges(true)}
+              options={[
+                { value: IntegrationSystemType.INTERNAL, label: "Internal" },
+                { value: IntegrationSystemType.EXTERNAL, label: "External" },
+                {
+                  value: IntegrationSystemType.IMPLEMENTED,
+                  label: "Implemented",
+                },
+              ]}
+            />
           </Form.Item>
         )}
         <Form.Item label="Labels" name="labels">

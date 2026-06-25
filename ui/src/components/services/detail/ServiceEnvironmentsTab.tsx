@@ -5,7 +5,8 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
-import { Flex, message, Modal, Radio, Spin, Table, Tag } from "antd";
+import { Flex, Radio, Spin, Table, Tag } from "antd";
+import { message, modal } from "../../../misc/antd-app.ts";
 import {
   Environment,
   EnvironmentRequest,
@@ -165,7 +166,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
 
   const handleSwitchEnvironment = useCallback(
     (env: Environment) => {
-      Modal.confirm({
+      modal.confirm({
         title: "Are you sure you want to switch to this Environment?",
         onOk: async () => {
           setSwitchingEnvId(env.id);
@@ -240,7 +241,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
 
   const handleDelete = useCallback(
     (envId: string) => {
-      Modal.confirm({
+      modal.confirm({
         title: "Are you sure you want to delete this Environment?",
         onOk: async () => {
           try {

@@ -1,4 +1,5 @@
-import { Breadcrumb, Button, Flex, message, Modal, Table } from "antd";
+import { Breadcrumb, Button, Flex, message, Table } from "antd";
+import { modal } from "../misc/antd-app.ts";
 import { useNavigate, useSearchParams } from "react-router";
 import { useModalsContext } from "../Modals.tsx";
 import {
@@ -48,7 +49,7 @@ import {
   ProtectedDropdown,
   ProtectedMenuItem,
 } from "../permissions/ProtectedDropdown.tsx";
-import { MenuInfo } from "rc-menu/lib/interface";
+import type { MenuInfo } from "../types/antd.ts";
 import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
@@ -740,7 +741,7 @@ const Chains = () => {
 
   const onDeleteBtnClick = () => {
     if (selectedRowKeys.length > 0) {
-      Modal.confirm({
+      modal.confirm({
         title: "Delete selected",
         content: `Are you sure you want to delete selected folders and chains?`,
         onOk: async () => deleteSelectedFoldersAndChains(),
@@ -881,13 +882,13 @@ const Chains = () => {
           messageApi.info("Link to a chain was copied to the clipboard"),
         );
       case "deleteFolder":
-        return Modal.confirm({
+        return modal.confirm({
           title: "Delete Folder",
           content: `Are you sure you want to delete "${item.name}" folder?`,
           onOk: async () => deleteFolder(item.id),
         });
       case "deleteChain":
-        return Modal.confirm({
+        return modal.confirm({
           title: "Delete Chain",
           content: `Are you sure you want to delete "${item.name}" chain?`,
           onOk: async () => deleteChain(item.id),
@@ -905,7 +906,7 @@ const Chains = () => {
       case "generateDDS":
         return showGenerateDdsModal(item.id);
       default:
-        return Modal.error({ title: "Not implemented yet" });
+        return modal.error({ title: "Not implemented yet" });
     }
   };
 

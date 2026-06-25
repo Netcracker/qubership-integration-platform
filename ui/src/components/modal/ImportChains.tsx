@@ -19,6 +19,7 @@ import {
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Button,
+  Checkbox,
   Dropdown,
   Flex,
   Modal,
@@ -37,7 +38,6 @@ import { TableProps } from "antd/lib/table";
 import { InlineEdit } from "../InlineEdit.tsx";
 import { capitalize } from "../../misc/format-utils.ts";
 import { SelectEdit } from "../table/SelectEdit.tsx";
-import Checkbox from "antd/lib/checkbox";
 import { StatusTag } from "../labels/StatusTag.tsx";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";

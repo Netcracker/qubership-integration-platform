@@ -1,6 +1,5 @@
 import React, { useContext, useRef } from "react";
-import { Form, Select, SelectProps } from "antd";
-import { BaseSelectRef } from "rc-select";
+import { Form, Select, SelectProps, RefSelectProps } from "antd";
 import { InlineEditContext } from "../InlineEdit.tsx";
 
 export type SelectEditProps<ValueType = unknown> = {
@@ -23,7 +22,7 @@ export function SelectEdit<ValueType = unknown>({
 }: Readonly<SelectEditProps<ValueType>>): React.ReactNode {
   const inlineEditContext = useContext(InlineEditContext);
   const form = Form.useFormInstance();
-  const ref = useRef<BaseSelectRef>(null);
+  const ref = useRef<RefSelectProps>(null);
 
   return (
     <Form.Item name={name} style={{ marginBottom: 0 }}>

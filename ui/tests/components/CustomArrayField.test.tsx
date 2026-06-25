@@ -412,7 +412,7 @@ describe("CustomArrayField", () => {
       const { container } = render(<CustomArrayField {...props} />);
 
       // Open the Select dropdown and choose "2xx"
-      const select = container.querySelector(".ant-select-selector")!;
+      const select = container.querySelector(".ant-select-content")!;
       fireEvent.mouseDown(select);
 
       await waitFor(() => {
@@ -450,7 +450,7 @@ describe("CustomArrayField", () => {
       const { container } = render(<CustomArrayField {...props} />);
 
       // Try to select "2xx" again — it should be filtered from available codes
-      const select = container.querySelector(".ant-select-selector")!;
+      const select = container.querySelector(".ant-select-content")!;
       fireEvent.mouseDown(select);
 
       await waitFor(() => {
@@ -577,7 +577,7 @@ describe("CustomArrayField", () => {
       const { container } = render(<CustomArrayField {...props} />);
 
       // Find the Action select (second select on the page, after the code select)
-      const selects = container.querySelectorAll(".ant-select-selector");
+      const selects = container.querySelectorAll(".ant-select-content");
       // selects[0] = code select in toolbar, selects[1] = action select
       const actionSelect = selects[1];
       expect(actionSelect).toBeTruthy();

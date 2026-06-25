@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ButtonProps } from "antd/es/button/button";
+import type { ButtonProps } from "antd";
 import { Button } from "antd";
 
 type LongActionButtonProps = {

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { Modal, Upload, Table, Button, message, Typography, Tag } from "antd";
+import { Modal, Upload, Table, Button, Typography, Tag } from "antd";
+import { message } from "../../../misc/antd-app.ts";
 import type { ColumnsType } from "antd/es/table";
 import type { RcFile } from "antd/es/upload";
 import { useModalContext } from "../../../ModalContextProvider";

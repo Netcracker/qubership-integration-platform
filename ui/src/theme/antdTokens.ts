@@ -180,6 +180,9 @@ export function getAntdThemeConfig(
   );
 
   const baseConfig: ThemeConfig = {
+    // Antd v6 keeps CSS variables on by default, so a runtime theme switch
+    // (light / dark / high-contrast / webview) only swaps `--ant-*` values
+    // instead of regenerating the whole stylesheet.
     algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
     token: tokens,
     components: {

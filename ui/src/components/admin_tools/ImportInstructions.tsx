@@ -9,8 +9,9 @@ import {
   Table,
   UploadFile,
 } from "antd";
-import type { TableProps } from "antd";
 import Dragger from "antd/es/upload/Dragger";
+import type { TableProps } from "antd";
+import { modal } from "../../misc/antd-app.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { treeExpandIcon } from "../table/TreeExpandIcon.tsx";
 import commonStyles from "./CommonStyle.module.css";
@@ -699,7 +700,7 @@ export const ImportInstructions: React.FC = () => {
               disabled: selectedRowKeys.length === 0,
               onClick: () => {
                 if (selectedRowKeys.length > 0) {
-                  Modal.confirm({
+                  modal.confirm({
                     title: "Delete instructions",
                     content: `Are you sure you want to delete ${selectedRowKeys.length} instruction(s)?`,
                     onOk: handleDelete,

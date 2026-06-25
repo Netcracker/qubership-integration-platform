@@ -4,7 +4,6 @@ import {
   Button,
   Input,
   Form,
-  message,
   Modal,
   Table,
   Tag,
@@ -12,6 +11,7 @@ import {
   Tooltip,
   type TableProps,
 } from "antd";
+import { message, modal } from "../../../misc/antd-app.ts";
 import commonStyles from "../CommonStyle.module.css";
 import styles from "./SecuredVariables.module.css";
 import VariablesTable from "./VariablesTable";
@@ -527,7 +527,7 @@ export const SecuredVariables: React.FC = () => {
                     iconName: "delete",
                     onClick: () => {
                       if (!hasSelected) return;
-                      Modal.confirm({
+                      modal.confirm({
                         title: `Delete selected variable(s)?`,
                         content: `Are you sure you want to delete variables(s)?`,
                         onOk: handleDeleteSelected,

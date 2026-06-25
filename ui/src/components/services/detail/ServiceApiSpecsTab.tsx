@@ -12,7 +12,7 @@ import {
   ActionConfig,
 } from "../ServicesTreeTable";
 import { getActionsColumn } from "../ServicesTreeTable";
-import { message } from "antd";
+import { message } from "../../../misc/antd-app.ts";
 import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 import { downloadFile } from "../../../misc/download-utils";
 import { invalidateServiceCache, prepareFile } from "../utils.tsx";

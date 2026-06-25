@@ -2,14 +2,14 @@ import React, { useEffect, useState } from "react";
 import { Badge } from "antd";
 import { ExecutionStatus } from "../../api/apiTypes";
 import { formatSnakeCased } from "../../misc/format-utils.ts";
-import type { PresetStatusColorType } from "antd/es/_util/colors";
+import type { PresetStatusColor } from "../../types/antd.ts";
 
 type SessionStatusProps = {
   status: ExecutionStatus;
   suffix?: string;
 };
 
-function getStatusColor(status: ExecutionStatus): PresetStatusColorType {
+function getStatusColor(status: ExecutionStatus): PresetStatusColor {
   switch (status) {
     case ExecutionStatus.IN_PROGRESS:
       return "processing";
@@ -30,9 +30,7 @@ export const SessionStatus: React.FC<SessionStatusProps> = ({
   status,
   suffix,
 }) => {
-  const [color, setColor] = useState<PresetStatusColorType | undefined>(
-    undefined,
-  );
+  const [color, setColor] = useState<PresetStatusColor | undefined>(undefined);
 
   useEffect(() => {
     setColor(getStatusColor(status));

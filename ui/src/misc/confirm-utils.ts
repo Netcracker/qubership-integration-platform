@@ -1,5 +1,5 @@
-import { Modal } from "antd";
 import type { ReactNode } from "react";
+import { modal } from "./antd-app.ts";
 
 type ConfirmAndRunOptions = {
   title: ReactNode;
@@ -8,7 +8,7 @@ type ConfirmAndRunOptions = {
 };
 
 export function confirmAndRun(options: ConfirmAndRunOptions) {
-  Modal.confirm({
+  modal.confirm({
     title: options.title,
     content: options.content,
     onOk: async () => options.onOk(),

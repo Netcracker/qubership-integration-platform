@@ -9,8 +9,8 @@ import ChainPage from "./pages/ChainPage.tsx";
 import { App as AntdApp, ConfigProvider, Layout } from "antd";
 import styles from "./App.module.css";
 import { Modals } from "./Modals.tsx";
+import { AntdAppBridge } from "./misc/antd-app.ts";
 import { ChainGraph } from "./pages/ChainGraph.tsx";
-import { Content } from "antd/es/layout/layout";
 import { ChainProperties } from "./pages/ChainProperties.tsx";
 import { EventNotification } from "./components/notifications/EventNotification.tsx";
 import DefaultExtensionPage from "./pages/DefaultExtensionPage.tsx";
@@ -33,6 +33,8 @@ import { reapplyCssVariables } from "./config/initConfig.ts";
 import { UserPermissionsProvider } from "./permissions/UserPermissionsProvider.tsx";
 import { McpServiceParametersPage } from "./components/services/mcp/McpServiceParametersPage.tsx";
 import { ChainDiffViewWebview } from "./components/chains/diff/ChainDiffViewWebview.tsx";
+
+const { Content } = Layout;
 
 const router = createMemoryRouter(
   createRoutesFromElements(
@@ -125,6 +127,7 @@ const AppExtension = () => {
     <ConfigProvider theme={antdConfig}>
       <UserPermissionsProvider>
         <AntdApp>
+          <AntdAppBridge />
           <IconProvider>
             <Layout className={styles.layout}>
               <EventNotification>

@@ -61,7 +61,9 @@ const beforeSchema: RJSFSchema = {
   ],
 };
 
-function makeProps(overrides: { formData?: Record<string, unknown> } = {}): Props {
+function makeProps(
+  overrides: { formData?: Record<string, unknown> } = {},
+): Props {
   const { formData = {} } = overrides;
   return {
     name: "before",
@@ -95,9 +97,7 @@ describe("BeforeOneOfField", () => {
 
     it("picks Mapper by explicit type discriminator", () => {
       render(
-        <BeforeOneOfField
-          {...makeProps({ formData: { type: "mapper-2" } })}
-        />,
+        <BeforeOneOfField {...makeProps({ formData: { type: "mapper-2" } })} />,
       );
       const passed = MockSchemaField.mock.calls[0][0].schema;
       expect(passed.title).toBe("Mapper");
@@ -165,7 +165,7 @@ describe("BeforeOneOfField", () => {
 
   describe("switching options", () => {
     async function switchTo(container: HTMLElement, title: string) {
-      const selectEl = container.querySelector(".ant-select-selector")!;
+      const selectEl = container.querySelector(".ant-select-content")!;
       fireEvent.mouseDown(selectEl);
       await waitFor(() => {
         const option = document.querySelector(

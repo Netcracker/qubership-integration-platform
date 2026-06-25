@@ -1,9 +1,10 @@
 import React from "react";
 import { Diagnostic } from "./Diagnostic";
-import { Flex } from "antd";
-import Title from "antd/lib/typography/Title";
+import { Flex, Typography } from "antd";
 import { OverridableIcon } from "../../icons/IconProvider";
 import styles from "./DevTools.module.css";
+
+const { Title } = Typography;
 
 export const DiagnosticValidationPage: React.FC = () => {
   return (

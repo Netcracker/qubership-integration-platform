@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { GenericServiceListPage } from "../GenericServiceListPage.tsx";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
-import { Button, message, Table } from "antd";
+import { Button, Table } from "antd";
+import { message } from "../../../misc/antd-app.ts";
 import {
   IntegrationSystemType,
   MCPSystem,
@@ -197,8 +198,9 @@ export const McpServiceList: React.FC = () => {
       dataIndex: "usedBy",
       key: "usedBy",
       width: 120,
-      render: (_: unknown, system) =>
-        <ChainColumn chains={system.chains ?? []} />,
+      render: (_: unknown, system) => (
+        <ChainColumn chains={system.chains ?? []} />
+      ),
     },
     {
       title: "Created At",

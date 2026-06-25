@@ -1,4 +1,4 @@
-import { ModalProps } from "antd/es/modal/interface";
+import type { ModalProps } from "antd";
 import { Button, Flex, Modal } from "antd";
 import React, { useCallback, useState } from "react";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
@@ -15,6 +15,10 @@ export const ModalWithFullscreenToggle: React.FC<ModalProps> = ({
   ...rest
 }): React.ReactNode => {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // Antd v6 allows `classNames` to be a function; merge only the object form.
+  const baseClassNames =
+    typeof classNames === "function" ? undefined : classNames;
 
   const addClass = useCallback(
     (
@@ -61,7 +65,9 @@ export const ModalWithFullscreenToggle: React.FC<ModalProps> = ({
             />
             <Button
               icon={<OverridableIcon name="close" />}
-              onClick={onCancel}
+              onClick={(e) =>
+                onCancel?.(e as React.MouseEvent<HTMLButtonElement>)
+              }
               type="text"
               title="Close"
               size="small"
@@ -74,12 +80,12 @@ export const ModalWithFullscreenToggle: React.FC<ModalProps> = ({
       height={isFullscreen ? "100vh" : (height ?? "90vh")}
       className={addClass(className, "modal")}
       classNames={{
-        ...classNames,
-        content: addClass(classNames?.content, "modal-content"),
-        header: addClass(classNames?.header, "modal-header"),
-        footer: addClass(classNames?.footer, "modal-footer"),
-        body: addClass(classNames?.body, "modal-body"),
-        wrapper: addClass(classNames?.wrapper, "modal-wrapper"),
+        ...baseClassNames,
+        container: addClass(undefined, "modal-content"),
+        header: addClass(undefined, "modal-header"),
+        footer: addClass(undefined, "modal-footer"),
+        body: addClass(undefined, "modal-body"),
+        wrapper: addClass(undefined, "modal-wrapper"),
       }}
       {...rest}
       closable={false}

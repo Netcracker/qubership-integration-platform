@@ -1,8 +1,6 @@
 import { Form, Input, Select } from "antd";
 import React, { useCallback, useContext, useEffect, useState } from "react";
-import TextArea from "antd/lib/input/TextArea";
 import { Chain } from "../api/apiTypes.ts";
-import { useForm } from "antd/lib/form/Form";
 import { ChainContext } from "./ChainPage.tsx";
 import {
   ChainExtensionProperties,
@@ -21,6 +19,9 @@ import { ApplyFormButton } from "../components/ApplyFormButton.tsx";
 import { usePermissions } from "../permissions/usePermissions.tsx";
 import { hasPermissions } from "../permissions/funcs.ts";
 import { Require } from "../permissions/Require.tsx";
+
+const { TextArea } = Input;
+const { useForm } = Form;
 
 export type FormData = {
   name: string;

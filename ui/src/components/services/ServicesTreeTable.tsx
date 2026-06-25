@@ -5,7 +5,8 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { Table, Button, Modal } from "antd";
+import { Table, Button } from "antd";
+import { modal } from "../../misc/antd-app.ts";
 import type {
   FilterDropdownProps,
   TableRowSelection,
@@ -504,7 +505,7 @@ function ActionMenu<T>({
       require: action.require,
       onClick: () => {
         if (action.confirm) {
-          Modal.confirm({
+          modal.confirm({
             title: action.confirm.title,
             okText: action.confirm.okText || "OK",
             cancelText: action.confirm.cancelText || "Cancel",

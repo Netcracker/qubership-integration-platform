@@ -1,4 +1,5 @@
-import { Flex, Modal, Table, Tag } from "antd";
+import { Flex, Table, Tag } from "antd";
+import { modal } from "../../../misc/antd-app.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService";
 import commonStyles from "../CommonStyle.module.css";
 import React, { useEffect, useMemo, useState } from "react";
@@ -258,7 +259,7 @@ export const DesignTemplates: React.FC = () => {
                     disabled: !isDeleteEnabled(),
                     iconName: "delete",
                     onClick: () => {
-                      Modal.confirm({
+                      modal.confirm({
                         title: `Delete template?`,
                         content: `Are you sure you want to permanently delete selected templates?`,
                         onOk: () => void handleDelete(),

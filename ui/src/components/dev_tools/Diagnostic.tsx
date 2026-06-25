@@ -188,7 +188,7 @@ export const Diagnostic: React.FC = () => {
           record.severity === ValidationSeverity.ERROR ? "red" : "gold";
         const bordered = isDiagnosticValidation(record);
         return (
-          <Tag color={color} bordered={bordered}>
+          <Tag color={color} variant={bordered ? "outlined" : "filled"}>
             {count}
           </Tag>
         );

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Flex, message, Modal } from "antd";
+import { Flex } from "antd";
+import { message, modal } from "../../../misc/antd-app.ts";
 import styles from "../CommonStyle.module.css";
 import ImportVariablesModal from "./ImportVariablesModal.tsx";
 import { useModalsContext } from "../../../Modals.tsx";
@@ -110,7 +111,7 @@ export const CommonVariables = () => {
                     iconName: "delete",
                     onClick: () => {
                       if (!selectedRowKeys.length) return;
-                      Modal.confirm({
+                      modal.confirm({
                         title: `Delete ${selectedRowKeys.length} selected variable(s)?`,
                         content: `Are you sure you want to delete ${selectedRowKeys.length} variables(s)?`,
                         onOk: onDeleteSelected,

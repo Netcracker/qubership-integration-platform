@@ -32,7 +32,7 @@ import {
   ChainGraphViewControls,
   ChainGraphViewControlsProps,
 } from "../components/graph/ChainGraphViewControls.tsx";
-import { Modal } from "antd";
+import { modal } from "../misc/antd-app.ts";
 import ContextMenu from "../components/graph/ContextMenu.tsx";
 import { useChainGraph } from "../hooks/graph/useChainGraph.tsx";
 import { registerGraphCaptureSource } from "../hooks/graph/graphCaptureBridge.ts";
@@ -252,7 +252,7 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
         (await nonEmptyContainerExists(changes.nodes)) &&
         !isSwimlanesOnly(changes.nodes)
       ) {
-        Modal.confirm({
+        modal.confirm({
           title: "Delete Container",
           content:
             "This container element is not empty. Are you sure you want to delete it? All its content will be also deleted.",

@@ -64,10 +64,12 @@ const httpTriggerSchema: RJSFSchema = {
   ],
 };
 
-function makeProps(overrides: {
-  formData?: Record<string, unknown>;
-  fieldPathId?: { $id?: string; path?: string[] };
-} = {}): Props {
+function makeProps(
+  overrides: {
+    formData?: Record<string, unknown>;
+    fieldPathId?: { $id?: string; path?: string[] };
+  } = {},
+): Props {
   const {
     formData = {},
     fieldPathId = { $id: "root_properties", path: ["properties"] },
@@ -165,7 +167,7 @@ describe("HttpTriggerOneOfField", () => {
     });
     const { container } = render(<HttpTriggerOneOfField {...baseProps} />);
 
-    const selectElement = container.querySelector(".ant-select-selector")!;
+    const selectElement = container.querySelector(".ant-select-content")!;
     fireEvent.mouseDown(selectElement);
     await waitFor(() => {
       const customOption = document.querySelector(
@@ -203,7 +205,7 @@ describe("HttpTriggerOneOfField", () => {
     });
     const { container } = render(<HttpTriggerOneOfField {...baseProps} />);
 
-    const selectElement = container.querySelector(".ant-select-selector")!;
+    const selectElement = container.querySelector(".ant-select-content")!;
     fireEvent.mouseDown(selectElement);
     await waitFor(() => {
       const option = document.querySelector(

@@ -5,18 +5,18 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Menu, Spin } from "antd";
+import { Flex, Layout, Menu, Spin } from "antd";
 import { LibraryElement, LibraryData } from "../../api/apiTypes.ts";
 import DraggableElement from "./DraggableElement.tsx";
-import Sider from "antd/lib/layout/Sider";
 
 import styles from "./ElementsLibrarySidebar.module.css";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { useLibraryContext } from "../LibraryContext.tsx";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { getElementColor } from "../../misc/chain-graph-utils.ts";
-import { Flex } from "antd/lib/index";
 import { SidebarSearch } from "./SidebarSearch.tsx";
+
+const { Sider } = Layout;
 
 export type MenuItem = {
   key: string;
@@ -81,10 +81,7 @@ export const ElementsLibrarySidebar = ({
               ),
               name: child.name,
               icon: (
-                <OverridableIcon
-                  name={child.name}
-                  style={{ fontSize: 18 }}
-                />
+                <OverridableIcon name={child.name} style={{ fontSize: 18 }} />
               ),
             };
             childrenMenuItems.push(childMenuItem);
@@ -94,10 +91,7 @@ export const ElementsLibrarySidebar = ({
             label: <DraggableElement element={element} />,
             name: element.title,
             icon: (
-              <OverridableIcon
-                name={element.name}
-                style={{ fontSize: 18 }}
-              />
+              <OverridableIcon name={element.name} style={{ fontSize: 18 }} />
             ),
           };
           if (childrenMenuItems.length !== 0) {

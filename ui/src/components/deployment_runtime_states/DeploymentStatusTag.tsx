@@ -61,6 +61,7 @@ export const DeploymentStatusTag = React.forwardRef<
     <Tag
       ref={ref}
       icon={icon}
+      variant="solid"
       color={color}
       style={{
         marginInlineEnd: 0,

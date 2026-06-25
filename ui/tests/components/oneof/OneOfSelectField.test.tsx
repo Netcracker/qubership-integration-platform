@@ -131,7 +131,7 @@ describe("OneOfSelectField", () => {
         onSwitch={onSwitch}
       />,
     );
-    const selectElement = container.querySelector(".ant-select-selector")!;
+    const selectElement = container.querySelector(".ant-select-content")!;
     fireEvent.mouseDown(selectElement);
     await waitFor(() => {
       const option = document.querySelector('.ant-select-item[title="Beta"]');

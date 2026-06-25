@@ -6,7 +6,6 @@ import {
   Checkbox,
   Form,
   Input,
-  message,
   Modal,
   Select,
   Space,
@@ -15,6 +14,7 @@ import {
   Typography,
   Upload,
 } from "antd";
+import { message } from "../../../misc/antd-app.ts";
 import type { RcFile } from "antd/es/upload";
 import { useModalContext } from "../../../ModalContextProvider";
 import { api } from "../../../api/api";
