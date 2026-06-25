@@ -622,6 +622,7 @@ class OpenSearchWriterDefaultTest {
 
         @Override
         public void run() {
+            // no-op
         }
 
         void runLoop() {
