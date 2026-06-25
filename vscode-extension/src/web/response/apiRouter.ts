@@ -166,7 +166,7 @@ export async function getApiResponse(
     case "getChain": {
       const payload = message.payload;
       if (typeof payload === "string") {
-        return await getChain(fileUri, payload);
+        return await getChain(fileUri, payload, fileUri);
       }
       const chainFileUri =
         typeof payload?.filePath === "string" && payload.filePath.length > 0
