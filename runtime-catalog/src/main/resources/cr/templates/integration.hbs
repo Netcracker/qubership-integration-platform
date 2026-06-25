@@ -33,6 +33,26 @@ spec:
       requestMemory: {{request.memory}}
 {{/if}}
 {{/with}}
+{{#if runAsUser}}
+      runAsUser: {{runAsUser}}
+{{/if}}
+      runAsNonRoot: {{runAsNonRoot}}
+      seccompProfileType: {{seccompProfileType}}
+      allowPrivilegeEscalation: {{allowPrivilegeEscalation}}
+{{#with capabilities}}
+{{#if drop}}
+      capabilitiesDrop:
+{{#each drop}}
+      - "{{.}}"
+{{/each}}
+{{/if}}
+{{#if add}}
+      capabilitiesAdd:
+{{#each add}}
+      - "{{.}}"
+{{/each}}
+{{/if}}
+{{/with}}
 {{/with}}
     jvm:
 {{#if jvmJar}}
@@ -157,4 +177,21 @@ spec:
 {{/if}}
 {{/if}}
 {{/with}}
+{{/with}}
+{{#with container}}
+  template:
+    spec:
+      containers:
+      - securityContext:
+          readOnlyRootFilesystem: {{readOnlyRootFilesystem}}
+{{#if runAsGroup}}
+          runAsGroup: {{runAsGroup}}
+{{/if}}
+        name: integration
+{{#if args}}
+        args:
+{{#each args}}
+        - "{{.}}"
+{{/each}}
+{{/if}}
 {{/with}}

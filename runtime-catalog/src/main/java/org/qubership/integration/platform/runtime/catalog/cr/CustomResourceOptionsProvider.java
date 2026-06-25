@@ -9,6 +9,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -35,14 +36,19 @@ public class CustomResourceOptionsProvider {
     private boolean defaultSecretEnabled;
 
     private final Environment propertyResolver;
+    private final List<ResourceBuildOptionsCustomizer> customizers;
 
     @Autowired
-    public CustomResourceOptionsProvider(Environment propertyResolver) {
+    public CustomResourceOptionsProvider(
+        Environment propertyResolver,
+        List<ResourceBuildOptionsCustomizer> customizers
+    ) {
         this.propertyResolver = propertyResolver;
+        this.customizers = customizers;
     }
 
     public ResourceBuildOptions getOptions(ResourceDeployRequest request) {
-        return ResourceBuildOptions.builder()
+        ResourceBuildOptions options = ResourceBuildOptions.builder()
                 .name(request.getName())
                 .namespace(namespace)
                 .replicas(replicas)
@@ -67,6 +73,9 @@ public class CustomResourceOptionsProvider {
                     .orElseGet(ServiceOptions::new))
                 .serviceAccount(serviceAccount)
                 .build();
+
+        customizers.forEach(customizer -> customizer.customize(request, options));
+        return options;
     }
 
     private Map<String, String> getEnvironment() {

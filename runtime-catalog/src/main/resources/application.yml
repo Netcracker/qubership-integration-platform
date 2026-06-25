@@ -169,17 +169,25 @@ qip:
       replicas: ${MICRO_DOMAIN_REPLICAS:1}
       container:
         image: ${MICRO_DOMAIN_CONTAINER_IMAGE:}
+        args: ${MICRO_DOMAIN_CONTAINER_ARGS:}
         request:
           cpu: ${MICRO_DOMAIN_CONTAINER_REQUEST_CPU:}
           memory: ${MICRO_DOMAIN_CONTAINER_REQUEST_MEMORY:}
         limit:
           cpu: ${MICRO_DOMAIN_CONTAINER_LIMIT_CPU:}
           memory: ${MICRO_DOMAIN_CONTAINER_LIMIT_MEMORY:}
+        runAsUser: ${MICRO_ENGINE_CONTAINER_RUN_AS_USER:0}
+        runAsNonRoot: ${MICRO_ENGINE_CONTAINER_RUN_AS_NON_ROOT:true}
+        seccompProfileType: ${MICRO_ENGINE_CONTAINER_SECCOMP_PROFILE_TYPE:RuntimeDefault}
+        allowPrivilegeEscalation: ${MICRO_ENGINE_CONTAINER_ALLOW_PRIVILEGE_ESCALATION:false}
+        capabilities:
+          drop: ${MICRO_ENGINE_CONTAINER_CAPABILITIES_DROP:ALL}
+          add: ${MICRO_ENGINE_CONTAINER_CAPABILITIES_ADD:}
       jvm:
         args: ${MICRO_DOMAIN_JVM_ARGS:}
         jar: ${MICRO_DOMAIN_JVM_JAR:}
       mount:
-        empty-dirs: ${MICRO_DOMAIN_EMPTY_DIRS:}
+        emptyDirs: ${MICRO_DOMAIN_EMPTY_DIRS:}
         resources: ${MICRO_DOMAIN_RESOURCES:}
       health:
         liveness:

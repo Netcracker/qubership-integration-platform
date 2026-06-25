@@ -16,7 +16,6 @@ import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrate
 import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ContainerOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.HealthOptions;
-import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.Limits;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,15 +43,6 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
 
     @Data
     @Builder
-    private static class ContainerData {
-        String image;
-        String imagePullPolicy;
-        Limits limit;
-        Limits request;
-    }
-
-    @Data
-    @Builder
     private static class TemplateData {
         private String name;
         private String domainLabel;
@@ -61,7 +51,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
         private HealthOptions health;
         private String bgVersionLabel;
         private String bgVersion;
-        private ContainerData container;
+        private ContainerOptions container;
         private String jvmJar;
         private List<String> jvmArgs;
         private Collection<String> emptyDirs;
@@ -137,7 +127,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
                 .replicas(context.getBuildInfo().getOptions().getReplicas())
                 .bgVersionLabel(bgVersionLabel)
                 .bgVersion(bgVersion)
-                .container(buildContainerData(context.getBuildInfo().getOptions().getContainer()))
+                .container(context.getBuildInfo().getOptions().getContainer())
                 .health(context.getBuildInfo().getOptions().getHealth())
                 .jvmJar(context.getBuildInfo().getOptions().getJvm().getJar())
                 .jvmArgs(context.getBuildInfo().getOptions().getJvm().getArgs())
@@ -148,19 +138,6 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
                 .properties(buildCamelProperties(context))
                 .environment(buildEnvironmentVars(context))
                 .serviceAccountName(buildServiceAccountName(context))
-                .build();
-    }
-
-    private ContainerData buildContainerData(ContainerOptions containerOptions) {
-        String image = containerOptions.getImage();
-        if (StringUtils.isBlank(image)) {
-            image = "{{ .Values.container.image }}";
-        }
-        return ContainerData.builder()
-                .image(image)
-                .imagePullPolicy(containerOptions.getImagePoolPolicy().name())
-                .limit(containerOptions.getLimit())
-                .request(containerOptions.getRequest())
                 .build();
     }
 
