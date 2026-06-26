@@ -8,7 +8,8 @@
   "types": "dist/web/index.d.ts",
   "files": [
     "dist",
-    "configs"
+    "configs",
+    "vscode.proposed.customEditorDiffs.d.ts"
   ],
   "engines": {
     "vscode": "^1.120.0"

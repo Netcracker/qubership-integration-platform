@@ -240,4 +240,42 @@ describe("extension.ts", () => {
       expect(mockWebview.html).toContain("esm.sh/react@18.3.1");
     });
   });
+
+  describe("resolveCustomTextEditorInlineDiff", () => {
+    test("registers chain diff handlers and enriches diff webview", async () => {
+      const provider = activateAndGetProvider();
+      const diffDocuments = {
+        original: {
+          uri: { path: "/original.chain.qip.yaml" },
+          getText: () => "original",
+        },
+        modified: {
+          uri: { path: "/modified.chain.qip.yaml" },
+          getText: () => "modified",
+        },
+      };
+
+      await provider.resolveCustomTextEditorInlineDiff(
+        diffDocuments as any,
+        mockPanel as any,
+        {} as any,
+      );
+
+      expect(mockWebview.onDidReceiveMessage).toHaveBeenCalled();
+      expect(mockPanel.onDidDispose).toHaveBeenCalled();
+      expect(mockWebview.html).toContain("<!DOCTYPE html>");
+    });
+
+    test("throws when panel is missing", async () => {
+      const provider = activateAndGetProvider();
+
+      await expect(
+        provider.resolveCustomTextEditorInlineDiff(
+          { original: validDocument, modified: validDocument } as any,
+          null as any,
+          {} as any,
+        ),
+      ).rejects.toThrow("Invalid parameters for resolveCustomEditorInlineDiff");
+    });
+  });
 });
