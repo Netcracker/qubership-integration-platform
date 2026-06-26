@@ -32,10 +32,14 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * @deprecated 26.3 use {@link org.qubership.integration.platform.runtime.catalog.rest.v2.controller.ActionsLogControllerV2} instead
+ */
 @Slf4j
 @RestController
 @RequestMapping(value = "/v1/catalog/actions-log")
 @CrossOrigin(origins = "*")
+@Deprecated(since = "2026.3")
 @Tag(name = "actions-log-controller", description = "Actions Log Controller")
 public class ActionsLogController {
     private final ActionsLogService actionsLogService;

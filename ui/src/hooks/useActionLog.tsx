@@ -1,27 +1,19 @@
 import { api } from "../api/api.ts";
-import {
-  ActionLog,
-  ActionLogResponse,
-  ActionLogSearchRequest,
-} from "../api/apiTypes.ts";
+import { ActionLog } from "../api/apiTypes.ts";
 import {
   InfiniteData,
   InfiniteQueryObserverResult,
   useInfiniteQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import { useNotificationService } from "./useNotificationService.tsx";
 import { Register } from "react-router";
 
-const RANGE_DEFAULT = 1000 * 60 * 60 * 24; // 1 day in ms
-const RANGE_MIN = 1000 * 60 * 60 * 6; // 6 hours
-const RANGE_MAX = 1000 * 60 * 60 * 48; // 2 days
-const CONTENT_SIZE_THRESHOLD = 200;
+const PAGE_SIZE = 100;
 
 type RequestState = {
-  offset: number;
-  range: number;
+  rowOffset: number;
   stopped: boolean;
 };
 
@@ -44,9 +36,12 @@ export const useActionLog = (): {
 } => {
   const notificationService = useNotificationService();
 
+  useEffect(() => {
+    void refresh();
+  }, []);
+
   const requestStateRef = useRef<RequestState>({
-    offset: Date.now(),
-    range: RANGE_DEFAULT,
+    rowOffset: 0,
     stopped: false,
   });
 
@@ -59,7 +54,7 @@ export const useActionLog = (): {
     );
 
   const actionLogsQuery = useInfiniteQuery({
-    initialPageParam: Date.now(),
+    initialPageParam: 0,
     queryKey: ["actionLogs"],
     queryFn: async () => {
       const state = requestStateRef.current;
@@ -67,46 +62,33 @@ export const useActionLog = (): {
         return getSortedLogs();
       }
 
-      const requestedRange = state.range;
-      const searchRequest: ActionLogSearchRequest = {
-        offsetTime: state.offset,
-        rangeTime: requestedRange,
-      };
-
-      let response: ActionLogResponse;
       try {
-        response = await api.loadCatalogActionsLog(searchRequest);
+        const response = await api.loadCatalogActionsLogV2({
+          offset: state.rowOffset,
+          limit: PAGE_SIZE,
+          filters: [],
+        });
+
+        response.actionLogs.forEach((log) =>
+          allLogsRef.current.set(log.id, log),
+        );
+
+        state.rowOffset = response.offset;
+        if (response.actionLogs.length < PAGE_SIZE) {
+          state.stopped = true;
+        }
       } catch (err) {
         notificationService.requestFailed(
           "Failed to retrieve action logs from Catalog",
           err,
         );
         state.stopped = true;
-        return getSortedLogs();
       }
-
-      const { actionLogs, recordsAfterRange } = response;
-      const hasLogs = actionLogs.length > 0;
-      const hasMore = recordsAfterRange > 0;
-      const logCount = actionLogs.length;
-
-      if (!hasLogs && hasMore) {
-        state.range = Math.min(state.range * 2, RANGE_MAX);
-      } else if (hasLogs) {
-        state.range =
-          logCount > CONTENT_SIZE_THRESHOLD ? RANGE_MIN : RANGE_DEFAULT;
-      }
-
-      // Move window back by the range used in the request.
-      state.offset -= requestedRange;
-      if (!hasMore) state.stopped = true;
-
-      actionLogs.forEach((log) => allLogsRef.current.set(log.id, log));
 
       return getSortedLogs();
     },
     getNextPageParam: () =>
-      requestStateRef.current.stopped ? undefined : Date.now(),
+      requestStateRef.current.stopped ? undefined : requestStateRef.current.rowOffset,
   });
 
   const logsData =
@@ -115,13 +97,12 @@ export const useActionLog = (): {
   const refresh = async () => {
     allLogsRef.current.clear();
     requestStateRef.current = {
-      offset: Date.now(),
-      range: RANGE_DEFAULT,
+      rowOffset: 0,
       stopped: false,
     };
     await queryClient.resetQueries({
       queryKey: ["actionLogs"],
-      exact: true,
+      exact: true
     });
   };
 
