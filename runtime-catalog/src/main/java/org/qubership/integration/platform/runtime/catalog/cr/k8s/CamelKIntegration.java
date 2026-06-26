@@ -284,7 +284,7 @@ public class CamelKIntegration implements KubernetesObject {
             @AllArgsConstructor
             public static class PodSpec {
                 @SerializedName("automountServiceAccountToken")
-                private boolean automountServiceAccountToken;
+                private Boolean automountServiceAccountToken;
 
                 @SerializedName("volumes")
                 private List<V1Volume> volumes;
