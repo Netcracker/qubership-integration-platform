@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -106,7 +107,11 @@ class ActionsLogServiceTest {
                 .thenReturn(Collections.emptyList());
         when(actionsLogMapper.asDTO(Collections.emptyList())).thenReturn(Collections.emptyList());
 
-        actionsLogService.findByPagedSearchRequest(request);
+        ActionLogSearchResponse response = actionsLogService.findByPagedSearchRequest(request);
+
+        verify(actionLogRepository).findActionLogsByFilter(0, 100, Collections.emptyList());
+        assertThat(response.getOffset()).isZero();
+        assertThat(response.getActionLogs()).isEmpty();
     }
 
     @Test
@@ -120,7 +125,11 @@ class ActionsLogServiceTest {
                 .thenReturn(Collections.emptyList());
         when(actionsLogMapper.asDTO(Collections.emptyList())).thenReturn(Collections.emptyList());
 
-        actionsLogService.findByPagedSearchRequest(request);
+        ActionLogSearchResponse response = actionsLogService.findByPagedSearchRequest(request);
+
+        verify(actionLogRepository).findActionLogsByFilter(0, 1000, Collections.emptyList());
+        assertThat(response.getOffset()).isZero();
+        assertThat(response.getActionLogs()).isEmpty();
     }
 
     @Test
@@ -135,7 +144,11 @@ class ActionsLogServiceTest {
                 .thenReturn(Collections.emptyList());
         when(actionsLogMapper.asDTO(Collections.emptyList())).thenReturn(Collections.emptyList());
 
-        actionsLogService.findByPagedSearchRequest(request);
+        ActionLogSearchResponse response = actionsLogService.findByPagedSearchRequest(request);
+
+        verify(actionLogRepository).findActionLogsByFilter(0, 50, Collections.emptyList());
+        assertThat(response.getOffset()).isZero();
+        assertThat(response.getActionLogs()).isEmpty();
     }
 
     @Test
