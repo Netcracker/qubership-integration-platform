@@ -55,15 +55,15 @@ To create any service using VS Code Extension, follow the steps outlined below:
 4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter the identifier, enter some description and click Enter. Next, it opens "Common Parameters" tab of the created service.
 
 ### View Common Parameters
-Common Parameters section contains the following information:
-
-| Parameter    | Mandatory | Data Type | Description                                                                                                                                                               | Sample                         |
-| ------------ | :-------- | :-------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| Name         | M         | String    | Name of the MCP service.                                                                                                                                                  | New MCP service                |
-| Description  | O         | String    | Free text field, that contains description of the MCP service.                                                                                                            | Service for customer MCP tools |
-| Labels       | O         | List      | List of colored labels of the MCP service, unique within particular entity. Custom labels can be added or removed clicking on the field.                                  | customer                       |
-| Identifier   | M         | String    | Unique identifier of the MCP service. This identifier is used when selecting MCP services in [MCP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/10__MCP_Trigger/mcp_trigger.md). | customer-mcp-service          |
-| Instructions | O         | String    | Instructions that describe how MCP clients should use this service.                                                                                                       | Use this service to access customer-related tools. |
+Parameters tab contains the following information:
+- **Name** - mandatory service name.
+- **Description** - description of service.
+- **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
+  It might contain **custom** labels, entered by user via Qubership Integration Platform UI or **technical** labels,
+  populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
+  **Technical** labels cannot be updated manually.
+- **Identifier** - unique identifier of the MCP service. This identifier is used when selecting MCP services in [MCP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/10__MCP_Trigger/mcp_trigger.md).
+- **Instructions** - Instructions that describe how MCP clients should use this service.
 
 For <ins>Web UI</ins> there are some additional information:
 
@@ -100,5 +100,4 @@ System allows to export MCP service with its metadata, labels, identifier, and i
 
 ---
 
-- **Identifier** must be unique within MCP services.
 - **Technical** labels cannot be imported via UI or exported.

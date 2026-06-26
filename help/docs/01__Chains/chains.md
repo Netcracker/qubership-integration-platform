@@ -82,7 +82,7 @@ Each **chain** contains the following parameters on table view:
 
 <ins>VS Code Extension</ins>
 
-All chains configured using VS Code Extension appears under "Chains" folder. The "Chains" folder is located by expanding "QIP" in the left bottom. Under "Chains" folder, a list of created chains is available. Expandinf the chain a list of its elements are available.
+All chains configured using VS Code Extension appears under "Chains" folder. The "Chains" folder is located by expanding "QIP" in the left bottom. Under "Chains" folder, a list of created chains is available. Expanding the chain a list of its elements are available.
 
 ### Chain Details Side Panel
 **`⛔ Not available via VS Code extension`**
