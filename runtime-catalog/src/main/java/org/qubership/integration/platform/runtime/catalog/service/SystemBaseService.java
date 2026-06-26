@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.service;
 
+import jakarta.persistence.EntityNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
@@ -36,6 +37,8 @@ import static java.util.Objects.isNull;
 
 @Service
 public class SystemBaseService {
+
+    private static final String SYSTEM_WITH_ID_NOT_FOUND = "Can't find system with id: ";
 
     private static final Map<IntegrationSystemType, Collection<OperationProtocol>> ALLOWED_PROTOCOL_MAP = Map.of(
             IntegrationSystemType.EXTERNAL, Arrays.stream(OperationProtocol.values())
@@ -110,7 +113,8 @@ public class SystemBaseService {
 
     @Transactional
     public void delete(String systemId) {
-        IntegrationSystem system = systemRepository.getReferenceById(systemId);
+        IntegrationSystem system = systemRepository.findById(systemId)
+                .orElseThrow(() -> new EntityNotFoundException(SYSTEM_WITH_ID_NOT_FOUND + systemId));
         systemRepository.delete(system);
         logSystemAction(system, LogOperation.DELETE);
     }
