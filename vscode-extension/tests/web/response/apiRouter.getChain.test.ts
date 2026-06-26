@@ -74,6 +74,6 @@ describe("apiRouter getChain handler", () => {
       workspaceUri,
     );
 
-    expect(mockGetChain).toHaveBeenCalledWith(workspaceUri, "chain-1");
+    expect(mockGetChain).toHaveBeenCalledWith(workspaceUri, "chain-1", workspaceUri);
   });
 });
