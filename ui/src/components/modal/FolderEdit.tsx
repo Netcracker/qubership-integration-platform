@@ -1,19 +1,17 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Button, Flex, Form, Input, InputRef, Modal } from "antd";
 import { useModalContext } from "../../ModalContextProvider.tsx";
-import TextArea from "antd/lib/input/TextArea";
 import Checkbox from "antd/lib/checkbox";
 import { FieldData } from "rc-field-form/lib/interface";
+import { GROUP_SEGMENT_REGEX } from "../../misc/group-utils.ts";
 
 export type FolderEditMode = "create" | "update";
 
 export type FolderEditProps = {
   mode?: FolderEditMode;
   name?: string;
-  description?: string;
   onSubmit: (
     name: string,
-    description: string,
     openFolder: boolean,
     newTab: boolean,
   ) => void | Promise<void>;
@@ -21,7 +19,6 @@ export type FolderEditProps = {
 
 type FolderEditFormData = {
   name: string;
-  description: string;
   openFolder: boolean;
   newTab: boolean;
 };
@@ -29,7 +26,6 @@ type FolderEditFormData = {
 export const FolderEdit: React.FC<FolderEditProps> = ({
   mode,
   name,
-  description,
   onSubmit,
 }) => {
   const { closeContainingModal } = useModalContext();
@@ -72,7 +68,6 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
         wrapperCol={{ flex: "auto" }}
         initialValues={{
           name,
-          description: description ?? "",
           ...((!mode || mode === "create") && {
             openFolder: true,
             newTab: false,
@@ -91,7 +86,6 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
           try {
             const result = onSubmit?.(
               values.name,
-              values.description,
               values.openFolder,
               values.newTab,
             );
@@ -117,12 +111,15 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
         <Form.Item
           name="name"
           label="Name"
-          rules={[{ required: true, message: "Name is required" }]}
+          rules={[
+            { required: true, message: "Name is required" },
+            {
+              pattern: GROUP_SEGMENT_REGEX,
+              message: 'Name must not contain any of: / : * ? " < > | , ; \\',
+            },
+          ]}
         >
           <Input ref={nameInput} />
-        </Form.Item>
-        <Form.Item name="description" label="Description">
-          <TextArea style={{ height: 120, resize: "none" }} />
         </Form.Item>
         {mode === "create" ? (
           <Flex vertical={false} style={{ marginLeft: 150 }}>

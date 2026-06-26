@@ -49,8 +49,6 @@ public class ChainExternalContentEntity {
     @Builder.Default
     private List<DependencyExternalEntity> dependencies = new ArrayList<>();
 
-    private FolderExternalEntity folder;
-
     @Builder.Default
     private List<DeploymentExternalEntity> deployments = new ArrayList<>();
 

@@ -1,0 +1,10 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "c3b2d1e5-2a3f-44bc-8d9e-6f5a4b3c2d1e"
+name: "Grouped Chain With Forbidden Character"
+metaInfo:
+  group: "a:b"
+content:
+  description: "The group segment contains a forbidden ':' character"
+  modifiedWhen: 1751973966050
+  migrations: "[100, 101, 108]"
