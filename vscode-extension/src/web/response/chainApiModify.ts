@@ -573,6 +573,7 @@ export async function createElement(
       mainFolderUri,
       chain,
       chainElements,
+      undefined,
       element,
       chainDiff,
       elementRequest,
@@ -605,6 +606,7 @@ async function insertElement(
   fileUri: Uri,
   chain: ChainSchema,
   elements: ElementSchema[],
+  parentOfElements: string | undefined,
   newElement: ElementSchema,
   chainDiff: ActionDifference,
   elementRequest: CreateElementRequest,
@@ -632,7 +634,7 @@ async function insertElement(
       newElement.swimlaneId = element.swimlaneId;
       (element.children as ElementSchema[]).push(newElement);
       chainDiff.updatedElements?.push(
-        await parseElement(fileUri, element, chain.id),
+        await parseElement(fileUri, element, chain.id, parentOfElements),
       );
       return true;
     }
@@ -643,6 +645,7 @@ async function insertElement(
         fileUri,
         chain,
         element.children as ElementSchema[],
+        element.id,
         newElement,
         chainDiff,
         elementRequest,
