@@ -6,6 +6,8 @@ import java.util.Optional;
 public interface IntegrationService extends Entity {
     ServiceType getType();
 
+    Protocol getProtocol();
+
     Optional<ServiceEnvironment> getActiveEnvironment();
 
     Collection<ServiceEnvironment> getEnvironments();

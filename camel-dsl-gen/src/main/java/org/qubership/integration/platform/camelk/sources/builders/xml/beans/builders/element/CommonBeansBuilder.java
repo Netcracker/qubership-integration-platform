@@ -1,6 +1,8 @@
 package org.qubership.integration.platform.camelk.sources.builders.xml.beans.builders.element;
 
 import org.codehaus.stax2.XMLStreamWriter2;
+import org.qubership.integration.platform.camelk.sources.SourceBuilderContext;
+import org.qubership.integration.platform.camelk.sources.builders.xml.beans.ElementBeansBuilder;
 import org.qubership.integration.platform.chain.model.Chain;
 import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.chain.model.Snapshot;
@@ -8,14 +10,9 @@ import org.qubership.integration.platform.io.writers.camel.xml.BuilderConstants;
 import org.qubership.integration.platform.library.components.LibraryElementsService;
 import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.library.model.ElementType;
-import org.qubership.integration.platform.camelk.sources.SourceBuilderContext;
-import org.qubership.integration.platform.camelk.sources.builders.xml.beans.ElementBeansBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.Optional;
-
-import static java.util.Objects.nonNull;
 import static org.qubership.integration.platform.library.constants.CamelNames.CONTAINER;
 import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.ELEMENTS_WITH_INTERMEDIATE_CHILDREN;
 
