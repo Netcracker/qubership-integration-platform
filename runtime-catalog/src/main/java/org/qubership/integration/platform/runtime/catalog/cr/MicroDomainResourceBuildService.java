@@ -2,8 +2,6 @@ package org.qubership.integration.platform.runtime.catalog.cr;
 
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
-import org.qubership.integration.platform.camelk.model.ResourceBuildError;
-import org.qubership.integration.platform.camelk.model.ResourceBuilder;
 import org.qubership.integration.platform.camelk.services.ResourceBuildService;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;

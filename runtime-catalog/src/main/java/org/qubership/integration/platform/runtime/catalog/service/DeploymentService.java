@@ -23,10 +23,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.camelk.model.routes.ElementRoute;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
+import org.qubership.integration.platform.chain.model.IntegrationService;
 import org.qubership.integration.platform.library.constants.CamelNames;
+import org.qubership.integration.platform.runtime.catalog.adapters.ChainElementAdapter;
+import org.qubership.integration.platform.runtime.catalog.adapters.IntegrationServiceAdapter;
+import org.qubership.integration.platform.runtime.catalog.adapters.SnapshotAdapter;
 import org.qubership.integration.platform.runtime.catalog.configuration.aspect.DeploymentModification;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
-import org.qubership.integration.platform.runtime.catalog.model.ElementRoute;
 import org.qubership.integration.platform.runtime.catalog.model.MultiConsumer;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineDeploymentsDTO;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentInfo;
@@ -54,9 +59,9 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.event.Gene
 import org.qubership.integration.platform.runtime.catalog.service.deployment.DeploymentBuilderService;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.qubership.integration.platform.runtime.catalog.util.*;
+import org.qubership.integration.platform.util.TriggerUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -87,6 +92,7 @@ public class DeploymentService {
     private final DeploymentBuilderService deploymentBuilderService;
     private final TransactionHandler transactionHandler;
     private final org.qubership.integration.platform.camelk.services.RoutesGetterService routesGetterService;
+    private final SystemService systemService;
 
     @Value("${qip.chains.triggers.check.enabled}")
     private boolean triggersCheckEnabled;
@@ -132,8 +138,8 @@ public class DeploymentService {
                              ActionsLogService actionLogger,
                              DeploymentBuilderService deploymentBuilderService,
                              TransactionHandler transactionHandler,
-                             org.qubership.integration.platform.camelk.services.RoutesGetterService routesGetterService
-    ) {
+                             org.qubership.integration.platform.camelk.services.RoutesGetterService routesGetterService,
+                             SystemService systemService) {
         this.deploymentRepository = deploymentRepository;
         this.elementRepository = elementRepository;
         this.chainFinderService = chainFinderService;
@@ -142,6 +148,7 @@ public class DeploymentService {
         this.deploymentBuilderService = deploymentBuilderService;
         this.transactionHandler = transactionHandler;
         this.routesGetterService = routesGetterService;
+        this.systemService = systemService;
     }
 
     @Transactional
@@ -338,10 +345,28 @@ public class DeploymentService {
     }
 
     private List<DeploymentRoute> buildDeploymentRoutes(Deployment deployment) {
-        String snapshotId = deployment.getSnapshot().getId();
-        Specification<ChainElement> specification = (root, query, criteriaBuilder) ->
-                criteriaBuilder.equal(root.get("snapshot").get("id"), snapshotId);
-        return routesGetterService.getRoutes(specification);
+        return routesGetterService.getRoutes(new SnapshotAdapter(deployment.getSnapshot()), new IntegrationServiceCatalog() {
+            @Override
+            public Optional<IntegrationService> findById(String id) {
+                return Optional.ofNullable(systemService.findById(id)).map(IntegrationServiceAdapter::new);
+            }
+
+            @Override
+            public Collection<IntegrationService> findAllByIds(Collection<String> ids) {
+                return systemService.findAllByIds(ids).stream()
+                    .<IntegrationService>map(IntegrationServiceAdapter::new)
+                    .toList();
+            }
+        }).stream()
+            .map(route -> DeploymentRoute.builder()
+                    .id(route.getId())
+                    .path(route.getPath())
+                    .type(route.getType())
+                    .variableName(route.getVariableName())
+                    .gatewayPrefix(route.getGatewayPrefix())
+                    .connectTimeout(route.getConnectTimeout())
+                    .build())
+            .toList();
     }
 
     public boolean checkRouteExists(ElementRoute route, String excludeChainId) {
@@ -351,7 +376,7 @@ public class DeploymentService {
     public List<Pair<String, Deployment>> findRouteDeployments(ElementRoute route, String excludeChainId) {
         return findElementsThatUseRoute(route, excludeChainId)
                 .flatMap(element -> {
-                    String path = getHttpTriggerPath(element);
+                    String path = getHttpTriggerPath(new ChainElementAdapter(element));
                     return element.getSnapshot().getDeployments().stream().map(deployment -> Pair.of(path, deployment));
                 })
                 .collect(Collectors.toList());
@@ -361,7 +386,7 @@ public class DeploymentService {
         return elementRepository
                 .findElementsForRouteExistenceCheck(List.of(CamelNames.HTTP_TRIGGER_COMPONENT), excludeChainId)
                 .stream()
-                .filter(element -> getHttpTriggerRoute(element).intersectsWith(route));
+                .filter(element -> ElementRouteUtils.intersects(getHttpTriggerRoute(new ChainElementAdapter(element)), route));
     }
 
     private void checkTriggers(String domain, String snapshotId, String chainId, List<Deployment> excludeDeployments) {
@@ -448,16 +473,16 @@ public class DeploymentService {
         List<ChainElement> triggers =
                 elementRepository.findAllBySnapshotIdAndType(snapshotId, getHttpTriggerTypeName());
 
-        return triggers.stream().noneMatch(trigger ->
-                org.qubership.integration.platform.util.TriggerUtils.isExternalHttpTrigger(trigger) || org.qubership.integration.platform.util.TriggerUtils.isPrivateHttpTrigger(trigger));
+        return triggers.stream().map(ChainElementAdapter::new).noneMatch(trigger ->
+                TriggerUtils.isExternalHttpTrigger(trigger) || TriggerUtils.isPrivateHttpTrigger(trigger));
     }
 
     private List<ElementRoute> mapHttpTriggerRoutes(Collection<ChainElement> listOfObjects) {
-        return listOfObjects.stream().map(org.qubership.integration.platform.util.TriggerUtils::getHttpTriggerRoute).toList();
+        return listOfObjects.stream().map(ChainElementAdapter::new).map(TriggerUtils::getHttpTriggerRoute).toList();
     }
 
     private List<String> mapSdsTriggerJobIds(Collection<ChainElement> listOfObjects) {
-        return listOfObjects.stream().map(org.qubership.integration.platform.util.TriggerUtils::getSdsTriggerJobId).toList();
+        return listOfObjects.stream().map(ChainElementAdapter::new).map(TriggerUtils::getSdsTriggerJobId).toList();
     }
 
     private Set<String> findSameHttpTriggerPaths(List<ElementRoute> pendingRoutes, List<ElementRoute> existingRoutes, boolean checkGatewayOnly) {

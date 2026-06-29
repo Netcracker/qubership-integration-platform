@@ -1,18 +1,19 @@
 package org.qubership.integration.platform.runtime.catalog.cr;
 
 import io.kubernetes.client.openapi.models.V1ConfigMap;
+import org.qubership.integration.platform.camelk.integrations.configuration.IntegrationsConfiguration;
+import org.qubership.integration.platform.camelk.model.BuildInfo;
+import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
+import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
+import org.qubership.integration.platform.camelk.naming.NamingStrategy;
+import org.qubership.integration.platform.camelk.naming.strategies.BuildNamingContext;
+import org.qubership.integration.platform.camelk.naming.strategies.SourceDslConfigMapNamingStrategy;
+import org.qubership.integration.platform.chain.model.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.adapters.SnapshotAdapter;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
-import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfiguration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
-import org.qubership.integration.platform.runtime.catalog.cr.model.BuildInfo;
-import org.qubership.integration.platform.runtime.catalog.cr.model.ResourceBuildContext;
-import org.qubership.integration.platform.runtime.catalog.cr.model.options.ResourceBuildOptions;
-import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
-import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.BuildNamingContext;
-import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.SourceDslConfigMapNamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -22,8 +23,8 @@ import java.time.Instant;
 import java.util.*;
 
 import static java.util.Objects.isNull;
-import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.SourceConfigMapBuilder.CHAIN_ID_LABEL;
-import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.SourceConfigMapBuilder.SNAPSHOT_ID_LABEL;
+import static org.qubership.integration.platform.camelk.builders.chain.SourceConfigMapBuilder.CHAIN_ID_LABEL;
+import static org.qubership.integration.platform.camelk.builders.chain.SourceConfigMapBuilder.SNAPSHOT_ID_LABEL;
 import static org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil.getName;
 
 @Component
@@ -55,7 +56,10 @@ public class MicroDomainResourceBuildContextFactory {
             ResourceBuildRequest request,
             boolean appendToExising
     ) {
-        List<Snapshot> snapshots = snapshotRepository.findAllByIdIn(request.getSnapshotIds());
+        List<Snapshot> snapshots = snapshotRepository.findAllByIdIn(request.getSnapshotIds())
+            .stream()
+            .<Snapshot>map(SnapshotAdapter::new)
+            .toList();
 
         ResourceBuildOptions options = request.getOptions().toBuilder().build();
         BuildInfo buildInfo = createBuildInfo(options);
