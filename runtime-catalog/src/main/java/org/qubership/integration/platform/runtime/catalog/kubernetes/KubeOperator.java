@@ -184,21 +184,15 @@ public class KubeOperator {
                     serviceMonitor, new TypeToken<V1ServiceMonitorList>() {
                     }.getType(), true);
         } else if (resource instanceof KubeCustomObject customObject) {
-            String apiVersion = customObject.getApiVersion();
-            int separatorIndex = apiVersion.lastIndexOf('/');
-            String group = separatorIndex < 0 ? "" : apiVersion.substring(0, separatorIndex);
-            String version = separatorIndex < 0 ? apiVersion : apiVersion.substring(separatorIndex + 1);
-            String plural = GenericCustomResources.pluralFor(customObject.getKind());
-            boolean updateIfExists = GenericCustomResources.updateIfExistsFor(customObject.getKind());
-            log.debug("Applying {} ({}{}): name={}, updateIfExists={}",
-                    customObject.getKind(), apiVersion,
-                    customObject.getSubKind() != null ? "/" + customObject.getSubKind() : "",
-                    getName(customObject).orElse("<unnamed>"), updateIfExists);
-            createOrUpdateCustomResource(group, version, plural, customObject,
-                    new TypeToken<KubeCustomObjectList>() {
-                    }.getType(), updateIfExists);
+            GenericCustomResources.CustomResourceDefinition resourceDefinition =
+                GenericCustomResources.definitionFor(customObject.getKind());
+            boolean updateIfExists = resourceDefinition.updateIfExists();
+
+            log.debug("Applying {} name={}, updateIfExists={}",
+                    customObject.getKind(), getName(customObject).orElse(""), updateIfExists);
+            createOrUpdateCustomResource(resourceDefinition.group(), resourceDefinition.version(), resourceDefinition.plural(), customObject,
+                    new TypeToken<KubeCustomObjectList>() {}.getType(), updateIfExists);
         } else if (resource instanceof V1Secret secret) {
-            log.debug("Applying Secret: {}", getName(secret).orElse("<unnamed>"));
             createSecretIfAbsent(secret);
         } else {
             log.error("Unsupported resource type: {}", resource.getClass().getName());
@@ -313,7 +307,6 @@ public class KubeOperator {
                 throw new KubeApiException("Failed to read Secret: " + name, e);
             }
             try {
-                log.debug("Secret {} is being created...", name);
                 coreApi.createNamespacedSecret(namespace, secret).execute();
             } catch (ApiException createException) {
                 throw new KubeApiException("Failed to create Secret: " + name, createException);
@@ -366,6 +359,24 @@ public class KubeOperator {
         }
     }
 
+    public List<KubeCustomObject> getCustomObjectsByLabelAndDefinition(String labelName, String labelValue,
+                                                                       GenericCustomResources.CustomResourceDefinition crDefinition) throws KubeApiException {
+        log.debug("Fetching {} objects with label {}={} (group={}, version={})",
+                crDefinition.kind(), labelName, labelValue, crDefinition.group(), crDefinition.version());
+        try {
+            Object rawListObj = customObjectsApi
+                .listNamespacedCustomObject(crDefinition.group(), crDefinition.version(), namespace, crDefinition.plural())
+                .labelSelector(toSelector(labelName, labelValue))
+                .execute();
+            KubeCustomObjectList listObject = fromRawObject(rawListObj, new TypeToken<KubeCustomObjectList>() {}.getType());
+            List<KubeCustomObject> items = listObject.getItems();
+            log.debug("Found {} {} object(s) with label {}={}", items.size(), crDefinition.kind(), labelName, labelValue);
+            return items;
+        } catch (ApiException exception) {
+            throw new KubeApiException("Failed to get custom objects.", exception);
+        }
+    }
+
     public List<V1Service> getServicesByLabel(String labelName, String labelValue) throws KubeApiException {
         try {
             return coreApi.listNamespacedService(namespace)
@@ -385,6 +396,20 @@ public class KubeOperator {
                     .getItems();
         } catch (ApiException exception) {
             throw new KubeApiException("Failed to get config maps.", exception);
+        }
+    }
+
+    public List<V1Secret> getSecretsByLabel(String labelName, String labelValue) throws KubeApiException {
+        log.debug("Fetching Secrets with label {}={}", labelName, labelValue);
+        try {
+            List<V1Secret> items = coreApi.listNamespacedSecret(namespace)
+                .labelSelector(toSelector(labelName, labelValue))
+                .execute()
+                .getItems();
+            log.debug("Found {} Secret(s) with label {}={}", items.size(), labelName, labelValue);
+            return items;
+        } catch (ApiException exception) {
+            throw new KubeApiException("Failed to get secrets.", exception);
         }
     }
 
@@ -412,6 +437,20 @@ public class KubeOperator {
         }
     }
 
+    public void deleteSecret(String name) throws KubeApiException {
+        log.debug("Deleting Secret '{}'", name);
+        try {
+            coreApi.deleteNamespacedSecret(name, namespace).execute();
+            log.debug("Secret '{}' deleted successfully", name);
+        } catch (ApiException exception) {
+            if (exception.getCode() == HttpStatus.NOT_FOUND.value()) {
+                log.warn("Secret with name {} not found.", name);
+            } else {
+                throw new KubeApiException("Failed to delete secret: " + name, exception);
+            }
+        }
+    }
+
     public void deleteServiceMonitor(String name) throws KubeApiException {
         deleteCustomObject("monitoring.coreos.com", "v1", "servicemonitors", name);
     }
@@ -420,7 +459,7 @@ public class KubeOperator {
         deleteCustomObject("camel.apache.org", "v1", "integrations", name);
     }
 
-    private void deleteCustomObject(String group, String version, String plural, String name) throws KubeApiException {
+    public void deleteCustomObject(String group, String version, String plural, String name) throws KubeApiException {
         try {
             customObjectsApi.deleteNamespacedCustomObject(group, version, namespace, plural, name).execute();
         } catch (ApiException exception) {

@@ -4,6 +4,7 @@ import com.coreos.monitoring.models.V1ServiceMonitor;
 import com.coreos.monitoring.models.V1ServiceMonitorList;
 import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.V1Secret;
 import io.kubernetes.client.openapi.models.V1Service;
 import io.kubernetes.client.util.ModelMapper;
 import io.kubernetes.client.util.Yaml;
@@ -16,6 +17,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.integrations.config
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrationList;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
@@ -43,7 +45,9 @@ public class CustomResourceService {
             V1ServiceMonitor serviceMonitor,
             V1Service service,
             V1ConfigMap integrationsConfiguration,
-            Collection<V1ConfigMap> integrationSources
+            Collection<V1ConfigMap> integrationSources,
+            V1Secret secret,
+            Collection<KubeCustomObject> customResources
     ) {
         public Map<String, V1ConfigMap> getSourceByLabelMap(String label) {
             return integrationSources.stream().collect(Collectors.toMap(
@@ -96,21 +100,19 @@ public class CustomResourceService {
     }
 
     public void deploy(String resourceText) throws CustomResourceDeployError {
-        log.debug("Deploying custom resources. Full YAML:\n{}", resourceText);
         try {
             List<Object> resources = Yaml.loadAll(resourceText);
-            log.debug("Parsed {} resource document(s) from YAML", resources.size());
             for (Object resource : resources) {
                 kubeOperator.createOrUpdateResource(resource);
             }
         } catch (Exception exception) {
-            log.error("Failed to create or update resource. Full YAML:\n{}", resourceText, exception);
             throw new CustomResourceDeployError("Failed to deploy resources", exception);
         }
     }
 
     public void delete(String name) {
-        getIntegrationResources(name).ifPresent(resources -> {
+        log.debug("Deleting all integration resources for domain '{}'", name);
+        getIntegrationResources(name, true).ifPresent(resources -> {
             Optional.ofNullable(resources.integration)
                     .flatMap(KubeUtil::getName)
                     .ifPresent(kubeOperator::deleteCamelKIntegration);
@@ -130,11 +132,31 @@ public class CustomResourceService {
                                     .filter(Optional::isPresent)
                                     .map(Optional::get)
                                     .forEach(kubeOperator::deleteConfigMap));
+            Optional.ofNullable(resources.secret)
+                    .flatMap(KubeUtil::getName)
+                    .ifPresent(secretName -> {
+                        log.debug("Deleting Secret '{}' for domain '{}'", secretName, name);
+                        kubeOperator.deleteSecret(secretName);
+                    });
+            Optional.ofNullable(resources.customResources)
+                    .ifPresent(customResources -> {
+                        log.debug("Deleting {} generic custom resource(s) for domain '{}'", customResources.size(), name);
+                        customResources.forEach(customObject -> {
+                            KubeUtil.getName(customObject).ifPresent(customObjectName -> {
+                                GenericCustomResources.CustomResourceDefinition definition =
+                                        GenericCustomResources.definitionFor(customObject.getKind());
+                                log.debug("Deleting {} '{}' (group={}, version={})",
+                                        definition.kind(), customObjectName, definition.group(), definition.version());
+                                kubeOperator.deleteCustomObject(definition.group(), definition.version(), definition.plural(), customObjectName);
+                            });
+                        });
+                    });
         });
+        log.debug("Finished deleting integration resources for domain '{}'", name);
     }
 
     public void deleteChainSnapshot(String name, String snapshotId) {
-        getIntegrationResources(name).ifPresent(resources -> {
+        getIntegrationResources(name, false).ifPresent(resources -> {
             CamelKIntegration integration = resources.integration();
             String cfgName = Optional.ofNullable(resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL))
                     .map(m -> m.get(snapshotId))
@@ -174,7 +196,7 @@ public class CustomResourceService {
         });
     }
 
-    public Optional<IntegrationResources> getIntegrationResources(String name) {
+    public Optional<IntegrationResources> getIntegrationResources(String name, boolean includeAdditionalResources) {
         String integrationName = getIntegrationResourceName(name);
         Optional<CamelKIntegration> integration = kubeOperator.getIntegrationsByLabels(
             Map.of(domainLabel, name, bgVersionLabel, bgVersion))
@@ -201,12 +223,32 @@ public class CustomResourceService {
         List<V1ConfigMap> integrationSources = configMaps.stream()
                 .filter(cm -> !cfgName.equals(getName(cm).orElse(null)))
                 .toList();
+
+        Optional<V1Secret> secret = Optional.empty();
+        List<KubeCustomObject> customResources = new ArrayList<>();
+        if (includeAdditionalResources) {
+            secret = kubeOperator
+                .getSecretsByLabel(CAMEL_K_INTEGRATION_LABEL, integrationName)
+                .stream()
+                .findFirst();
+            log.debug("Secret for integration '{}': {}", integrationName, secret.flatMap(KubeUtil::getName).orElse("none"));
+
+            GenericCustomResources.getCustomResourceDefinitions().forEach((key, def) -> {
+                List<KubeCustomObject> found = kubeOperator.getCustomObjectsByLabelAndDefinition(
+                        CAMEL_K_INTEGRATION_LABEL, integrationName, def);
+                log.debug("Found {} {}(s) for integration '{}'", found.size(), def.kind(), integrationName);
+                customResources.addAll(found);
+            });
+            log.debug("Total generic custom resources fetched for integration '{}': {}", integrationName, customResources.size());
+        }
         return Optional.of(new IntegrationResources(
                 integration.orElse(null),
                 serviceMonitor.orElse(null),
                 service.orElse(null),
                 integrationsConfiguration.orElse(null),
-                integrationSources
+                integrationSources,
+                secret.orElse(null),
+                customResources
         ));
     }
 
