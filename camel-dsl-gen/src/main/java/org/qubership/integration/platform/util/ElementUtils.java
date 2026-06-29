@@ -19,12 +19,12 @@ package org.qubership.integration.platform.util;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.library.constants.CamelNames;
-import org.qubership.integration.platform.library.constants.CamelOptions;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class ElementUtils {
+public final class ElementUtils {
+    private ElementUtils() {}
 
     public static Map<String, Object> extractOperationAsyncProperties(Map<String, Object> properties) {
         return (Map<String, Object>) properties.getOrDefault(

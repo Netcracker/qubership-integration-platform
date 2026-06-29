@@ -2,16 +2,16 @@ package org.qubership.integration.platform.camelk.sources.builders.xml;
 
 import com.ctc.wstx.stax.WstxOutputFactory;
 import org.codehaus.stax2.XMLStreamWriter2;
-import org.qubership.integration.platform.chain.model.Element;
-import org.qubership.integration.platform.chain.model.Snapshot;
-import org.qubership.integration.platform.io.writers.camel.xml.ChainRouteBuilder;
-import org.qubership.integration.platform.io.writers.camel.xml.XmlBuilder;
-import org.qubership.integration.platform.io.writers.camel.xml.model.ChainRoute;
 import org.qubership.integration.platform.camelk.sources.IntegrationSourceBuilder;
 import org.qubership.integration.platform.camelk.sources.SourceBuilderContext;
 import org.qubership.integration.platform.camelk.sources.builders.xml.beans.ElementBeansBuilder;
 import org.qubership.integration.platform.camelk.sources.builders.xml.beans.ElementBeansBuilderFactory;
 import org.qubership.integration.platform.camelk.sources.builders.xml.beans.SnapshotBeanBuilder;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.chain.model.Snapshot;
+import org.qubership.integration.platform.io.writers.camel.xml.ChainRouteBuilder;
+import org.qubership.integration.platform.io.writers.camel.xml.XmlBuilder;
+import org.qubership.integration.platform.io.writers.camel.xml.model.ChainRoute;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

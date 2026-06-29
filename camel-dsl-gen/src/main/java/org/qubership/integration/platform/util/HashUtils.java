@@ -19,7 +19,8 @@ package org.qubership.integration.platform.util;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.lang.Nullable;
 
-public class HashUtils {
+public final class HashUtils {
+    private HashUtils() {}
 
     @Nullable
     public static String sha256hex(@Nullable String context) {

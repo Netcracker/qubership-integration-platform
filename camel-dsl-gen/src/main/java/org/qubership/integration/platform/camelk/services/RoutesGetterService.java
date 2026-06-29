@@ -1,30 +1,28 @@
 package org.qubership.integration.platform.camelk.services;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.camelk.model.routes.Route;
 import org.qubership.integration.platform.camelk.model.routes.RouteType;
-import org.qubership.integration.platform.chain.model.Element;
-import org.qubership.integration.platform.chain.model.ServiceType;
-import org.qubership.integration.platform.chain.model.Snapshot;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
+import org.qubership.integration.platform.chain.model.*;
 import org.qubership.integration.platform.io.util.SimpleHttpUriUtils;
 import org.qubership.integration.platform.library.constants.CamelOptions;
 import org.qubership.integration.platform.util.ElementUtils;
 import org.qubership.integration.platform.util.HashUtils;
+import org.qubership.integration.platform.util.IntegrationServiceUtils;
 import org.qubership.integration.platform.util.TriggerUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.net.MalformedURLException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.isNull;
 import static org.qubership.integration.platform.library.constants.CamelNames.*;
+import static org.qubership.integration.platform.library.constants.CamelOptions.CONNECT_TIMEOUT;
 import static org.qubership.integration.platform.util.TriggerUtils.getHttpConnectionTimeout;
 
 @Slf4j
@@ -36,7 +34,10 @@ public class RoutesGetterService {
     @Value("${qip.control-plane.chain-routes-registration.ingress-gateways:true}")
     private boolean registerOnIncomingGateways;
 
-    public List<Route> getRoutes(Snapshot snapshot) {
+    public List<Route> getRoutes(
+        Snapshot snapshot,
+        IntegrationServiceCatalog integrationServiceCatalog
+    ) {
         try {
             List<Route> allRoutes = new ArrayList<>();
 
@@ -50,7 +51,7 @@ public class RoutesGetterService {
                 List<Route> senders = buildHttpSendersRoutes(snapshot);
                 allRoutes.addAll(senders);
                 // external services
-                List<Route> serviceRoutes = buildServicesRoutes(snapshot);
+                List<Route> serviceRoutes = buildServicesRoutes(snapshot, integrationServiceCatalog);
                 allRoutes.addAll(serviceRoutes);
             }
 
@@ -77,6 +78,7 @@ public class RoutesGetterService {
                         String gatewayPrefix = String.format("/%s/%s/%s", sender.getType(), sender.getOriginalId(), getEncodedURL(getHttpConnectionTimeout(sender), targetURL));
 
                         Route.RouteBuilder builder = Route.builder()
+                                .id(UUID.randomUUID().toString())
                                 .path(targetURL)
                                 .variableName(ElementUtils.buildRouteVariableName(sender))
                                 .gatewayPrefix(gatewayPrefix)
@@ -99,6 +101,7 @@ public class RoutesGetterService {
                 .filter(element -> HTTP_TRIGGER_COMPONENT.equals(element.getType()))
                 .map(TriggerUtils::getHttpTriggerRoute)
                 .map(route -> Route.builder()
+                        .id(UUID.randomUUID().toString())
                         .path("/" + route.getPath())
                         .type(RouteType.convertTriggerType(route.isExternal(), route.isPrivate()))
                         .connectTimeout(route.getConnectionTimeout())
@@ -106,7 +109,10 @@ public class RoutesGetterService {
                 .collect(Collectors.toList());
     }
 
-    private List<Route> buildServicesRoutes(Snapshot snapshot) {
+    private List<Route> buildServicesRoutes(
+        Snapshot snapshot,
+        IntegrationServiceCatalog integrationServiceCatalog
+    ) {
         List<Element> serviceCallElements = snapshot.getElements().stream().filter(
             element -> SERVICE_CALL_COMPONENT.equals(element.getType())
         ).toList();
@@ -117,21 +123,21 @@ public class RoutesGetterService {
                         Collectors.mapping(Function.identity(), Collectors.toList())
                 ));
 
-        List<IntegrationSystem> systems = systemService.findSystemsRequiredGatewayRoutes(systemsIds.keySet());
+        Collection<IntegrationService> services = IntegrationServiceUtils.filterServicesRequiredGatewayRoutes(
+            integrationServiceCatalog.findAllByIds(systemsIds.keySet()));
         List<Route> routes = new ArrayList<>();
-        for (IntegrationSystem system : systems) {
-            Environment environment = systemService.getActiveEnvironment(system);
+        for (IntegrationService service : services) {
+            String path = getActiveEnvAddress(service);
+            Long connectionTimeout = getConnectionTimeout(service);
 
-            String path = systemService.getActiveEnvAddress(environment);
-            Long connectionTimeout = systemService.getConnectTimeout(environment);
+            RouteType routeType = getRouteTypeForSystemType(service.getType());
 
-            RouteType routeType = getRouteTypeForSystemType(system.getIntegrationSystemType());
-
-            List<Element> elements = systemsIds.get(system.getId());
+            List<Element> elements = systemsIds.get(service.getId());
             for (Element element : elements) {
                 String gatewayPrefix = String.format("/system/%s", element.getOriginalId());
 
                 routes.add(Route.builder()
+                        .id(UUID.randomUUID().toString())
                         .type(routeType)
                         .path(path)
                         .gatewayPrefix(gatewayPrefix)
@@ -142,6 +148,22 @@ public class RoutesGetterService {
         }
 
         return routes;
+    }
+
+    private String getActiveEnvAddress(IntegrationService integrationService) {
+        return integrationService.getActiveEnvironment()
+            .map(ServiceEnvironment::getAddress)
+            .filter(StringUtils::isNotEmpty)
+            .orElseThrow(() -> new RuntimeException("Address is not set"));
+    }
+
+    private Long getConnectionTimeout(IntegrationService integrationService) {
+        return integrationService.getActiveEnvironment()
+            .map(ServiceEnvironment::getProperties)
+            .map(properties -> properties.get(CONNECT_TIMEOUT))
+            .map(Object::toString)
+            .map(Long::valueOf)
+            .orElse(120000L);
     }
 
     private RouteType getRouteTypeForSystemType(ServiceType serviceType) {

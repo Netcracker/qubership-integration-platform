@@ -1,12 +1,12 @@
 package org.qubership.integration.platform.camelk.integrations.configuration;
 
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.chain.model.Element;
-import org.qubership.integration.platform.chain.model.Snapshot;
-import org.qubership.integration.platform.library.constants.CamelOptions;
 import org.qubership.integration.platform.camelk.builders.SourceDefinitionBuilder;
 import org.qubership.integration.platform.camelk.locations.LibraryLocationGetterProvider;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.chain.model.Snapshot;
+import org.qubership.integration.platform.library.constants.CamelOptions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 

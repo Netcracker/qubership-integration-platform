@@ -34,7 +34,8 @@ import java.util.stream.Stream;
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
 
-public class TriggerUtils {
+public final class TriggerUtils {
+    private TriggerUtils() {}
 
     private static final Set<String> ASYNC_TRIGGER_TYPE_NAMES = Set.of(
         CamelNames.ASYNC_API_TRIGGER_COMPONENT,

@@ -1,10 +1,10 @@
 package org.qubership.integration.platform.camelk.sources.builders.xml.beans.builders.element;
 
 import org.codehaus.stax2.XMLStreamWriter2;
-import org.qubership.integration.platform.chain.model.Element;
-import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.camelk.sources.SourceBuilderContext;
 import org.qubership.integration.platform.camelk.sources.builders.xml.beans.ElementBeansBuilder;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.stereotype.Component;
 

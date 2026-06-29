@@ -125,15 +125,6 @@ public class SystemService extends SystemBaseService {
         return Optional.empty();
     }
 
-    private boolean shouldCallControlPlane(IntegrationSystem system) {
-        return StringUtils.isNotEmpty(system.getActiveEnvironmentId())
-               && IntegrationSystemType.EXTERNAL.equals(system.getIntegrationSystemType())
-               && (OperationProtocol.HTTP.equals(system.getProtocol())
-                   || OperationProtocol.SOAP.equals(system.getProtocol())
-                   || OperationProtocol.GRAPHQL.equals(system.getProtocol())
-               );
-    }
-
     protected Environment getActiveEnvironment(IntegrationSystem system) {
         return system.getEnvironments() != null ? system.getEnvironments()
                 .stream()
