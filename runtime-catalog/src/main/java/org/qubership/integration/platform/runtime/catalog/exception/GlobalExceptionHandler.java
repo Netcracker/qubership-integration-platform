@@ -74,8 +74,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     @ExceptionHandler(EntityNotFoundException.class)
-    public ResponseEntity<ExceptionDTO> handleEntityNotFound() {
-        return ResponseEntity.notFound().build();
+    public ResponseEntity<ExceptionDTO> handleEntityNotFound(EntityNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(getExceptionDTO(exception));
     }
 
     @ExceptionHandler(ChainExportException.class)
