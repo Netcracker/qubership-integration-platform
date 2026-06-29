@@ -72,6 +72,11 @@ public class SnapshotAdapter implements Snapshot {
     }
 
     @Override
+    public Collection<MaskedField> getMaskedFields() {
+        return snapshot.getMaskedFields().stream().<MaskedField>map(MaskedFieldAdapter::new).toList();
+    }
+
+    @Override
     public String getId() {
         return snapshot.getId();
     }

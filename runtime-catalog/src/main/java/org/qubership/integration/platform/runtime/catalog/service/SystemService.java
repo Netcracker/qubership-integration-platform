@@ -21,7 +21,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.EnvironmentSetUpException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SystemDeleteException;
-import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractLabel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
@@ -73,14 +72,6 @@ public class SystemService extends SystemBaseService {
         this.systemFilterSpecificationBuilder = systemFilterSpecificationBuilder;
         this.elementHelperService = elementHelperService;
         this.systemLabelsRepository = systemLabelsRepository1;
-    }
-
-    @Transactional
-    public List<IntegrationSystem> findSystemsRequiredGatewayRoutes(Collection<String> systemIds) {
-        return systemRepository.findAllById(systemIds)
-                .stream()
-                .filter(this::shouldCallControlPlane)
-                .collect(Collectors.toList());
     }
 
     @Transactional
@@ -153,6 +144,11 @@ public class SystemService extends SystemBaseService {
     public IntegrationSystem findById(String systemId) {
         return systemRepository.findById(systemId)
                 .orElseThrow(() -> new EntityNotFoundException(SYSTEM_WITH_ID_NOT_FOUND_MESSAGE + systemId));
+    }
+
+    @Transactional
+    public Collection<IntegrationSystem> findAllByIds(Collection<String> ids) {
+        return systemRepository.findAllById(ids);
     }
 
     @Async

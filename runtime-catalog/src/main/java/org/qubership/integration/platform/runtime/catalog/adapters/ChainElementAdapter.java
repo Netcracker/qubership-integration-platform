@@ -1,9 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.adapters;
 
-import org.qubership.integration.platform.chain.model.Chain;
-import org.qubership.integration.platform.chain.model.Connection;
-import org.qubership.integration.platform.chain.model.Element;
-import org.qubership.integration.platform.chain.model.ServiceEnvironment;
+import org.qubership.integration.platform.chain.model.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 
@@ -24,6 +21,11 @@ public class ChainElementAdapter implements Element {
     @Override
     public Optional<Element> getParent() {
         return Optional.ofNullable(chainElement.getParent()).map(ChainElementAdapter::new);
+    }
+
+    @Override
+    public Optional<Snapshot> getSnapshot() {
+        return Optional.ofNullable(chainElement.getSnapshot()).map(SnapshotAdapter::new);
     }
 
     @Override
