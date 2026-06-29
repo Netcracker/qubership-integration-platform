@@ -1,10 +1,7 @@
 package org.qubership.integration.platform.runtime.catalog.adapters;
 
 import org.qubership.integration.platform.chain.impl.LabelImpl;
-import org.qubership.integration.platform.chain.model.Chain;
-import org.qubership.integration.platform.chain.model.Connection;
-import org.qubership.integration.platform.chain.model.Element;
-import org.qubership.integration.platform.chain.model.Label;
+import org.qubership.integration.platform.chain.model.*;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -67,6 +64,11 @@ public class ChainAdapter implements Chain {
     public Optional<Element> getReuseSwimlane() {
         return Optional.ofNullable(chain.getReuseSwimlane())
             .map(ChainElementAdapter::new);
+    }
+
+    @Override
+    public Collection<MaskedField> getMaskedFields() {
+        return chain.getMaskedFields().stream().<MaskedField>map(MaskedFieldAdapter::new).toList();
     }
 
     @Override
