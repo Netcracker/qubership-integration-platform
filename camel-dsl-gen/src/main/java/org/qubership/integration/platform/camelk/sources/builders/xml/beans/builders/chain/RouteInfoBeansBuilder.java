@@ -21,7 +21,7 @@ public class RouteInfoBeansBuilder implements SnapshotBeanBuilder {
 
     @Override
     public void build(XMLStreamWriter2 streamWriter, Snapshot snapshot, SourceBuilderContext context) throws Exception {
-        Collection<Route> routes = routesGetterService.getRoutes(snapshot);
+        Collection<Route> routes = routesGetterService.getRoutes(snapshot, context.getIntegrationServiceCatalog());
         for (Route route : routes) {
             addRouteRegistrationInfoBean(streamWriter, snapshot, route);
         }

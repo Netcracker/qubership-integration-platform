@@ -7,6 +7,7 @@ import lombok.*;
 @NoArgsConstructor
 @Builder(toBuilder = true)
 public class Route {
+    private String id;
     private String path;
     private String gatewayPrefix;
     private String variableName;

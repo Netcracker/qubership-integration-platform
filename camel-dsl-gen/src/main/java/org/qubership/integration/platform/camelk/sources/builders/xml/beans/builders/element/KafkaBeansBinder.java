@@ -2,13 +2,13 @@ package org.qubership.integration.platform.camelk.sources.builders.xml.beans.bui
 
 import org.apache.commons.lang3.StringUtils;
 import org.codehaus.stax2.XMLStreamWriter2;
+import org.qubership.integration.platform.camelk.sources.SourceBuilderContext;
+import org.qubership.integration.platform.camelk.sources.builders.xml.beans.ElementBeansBuilder;
+import org.qubership.integration.platform.camelk.sources.builders.xml.beans.builders.element.helpers.MaasClassifierHelper;
 import org.qubership.integration.platform.chain.model.Chain;
 import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.library.constants.CamelNames;
-import org.qubership.integration.platform.camelk.sources.SourceBuilderContext;
-import org.qubership.integration.platform.camelk.sources.builders.xml.beans.ElementBeansBuilder;
-import org.qubership.integration.platform.camelk.sources.builders.xml.beans.builders.element.helpers.MaasClassifierHelper;
 import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
