@@ -5,12 +5,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.configuration.DomainProperties;
+import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainResourceBuildService;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployMode;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployWithSnapshotCreationRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceDeployRequest;
-import org.qubership.integration.platform.runtime.catalog.cr.services.MicroDomainResourceBuildService;
 import org.qubership.integration.platform.runtime.catalog.cr.services.ResourceBuildOptionsProvider;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
 import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
@@ -75,7 +75,7 @@ public class CustomResourceController {
     public String buildResource(@RequestBody ResourceBuildRequest request) {
         log.debug("Request to build a CR for snapshots: {}", request.getSnapshotIds());
         return verifyMicroDomainEnabled(() ->
-                microDomainResourceBuildService.buildResources(request));
+                microDomainResourceBuildService.buildResources(request, false));
     }
 
     @PostMapping("/deploy-chains")

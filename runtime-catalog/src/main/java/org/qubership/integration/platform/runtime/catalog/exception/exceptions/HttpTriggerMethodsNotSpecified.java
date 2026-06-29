@@ -16,10 +16,10 @@
 
 package org.qubership.integration.platform.runtime.catalog.exception.exceptions;
 
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.chain.model.Element;
 
 public class HttpTriggerMethodsNotSpecified extends ChainElementVerificationException {
-    public HttpTriggerMethodsNotSpecified(ChainElement element) {
+    public HttpTriggerMethodsNotSpecified(Element element) {
         super(element, "HTTP trigger methods not specified.");
     }
 }

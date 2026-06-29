@@ -1,7 +1,7 @@
 package org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto;
 
 import lombok.*;
-import org.qubership.integration.platform.runtime.catalog.cr.model.options.ResourceBuildOptions;
+import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 
 import java.util.Collections;
 import java.util.List;

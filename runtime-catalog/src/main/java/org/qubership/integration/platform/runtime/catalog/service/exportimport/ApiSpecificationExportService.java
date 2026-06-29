@@ -42,14 +42,16 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.camelk.model.routes.ElementRoute;
+import org.qubership.integration.platform.chain.model.Chain;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.chain.model.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.adapters.ChainElementAdapter;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ApiSpecificationExportException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.HttpTriggerMethodsNotSpecified;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.WrongChainElementTypeException;
-import org.qubership.integration.platform.runtime.catalog.model.ElementRoute;
 import org.qubership.integration.platform.runtime.catalog.model.apispec.ApiSpecificationFormat;
 import org.qubership.integration.platform.runtime.catalog.model.apispec.ApiSpecificationType;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.operations.OperationRepository;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelService;
@@ -86,7 +88,7 @@ public class ApiSpecificationExportService {
     @Data
     @Builder
     private static class SpecificationBuildParameters {
-        Collection<ChainElement> elements;
+        Collection<Element> elements;
         boolean externalRoutes;
     }
 
@@ -119,7 +121,7 @@ public class ApiSpecificationExportService {
             ApiSpecificationType apiSpecificationType,
             ApiSpecificationFormat apiSpecificationFormat
     ) {
-        Collection<ChainElement> elements = getTriggerElements(deploymentIds, snapshotIds, chainIds, httpTriggerIds, externalRoutes,
+        Collection<Element> elements = getTriggerElements(deploymentIds, snapshotIds, chainIds, httpTriggerIds, externalRoutes,
                 apiSpecificationType);
         SpecificationBuildParameters buildParameters = SpecificationBuildParameters.builder()
                 .elements(elements).externalRoutes(externalRoutes).build();
@@ -129,7 +131,7 @@ public class ApiSpecificationExportService {
         return Pair.of(specificationFileName, specificationText.getBytes());
     }
 
-    private Collection<ChainElement> getTriggerElements(
+    private Collection<Element> getTriggerElements(
             Collection<String> deploymentIds,
             Collection<String> snapshotIds,
             Collection<String> chainIds,
@@ -138,20 +140,21 @@ public class ApiSpecificationExportService {
             ApiSpecificationType apiSpecificationType
     ) {
         Collection<String> triggerTypes = getTriggerTypes(apiSpecificationType);
-        Predicate<ChainElement> elementFilterPredicate =
+        Predicate<Element> elementFilterPredicate =
                 getElementFilterPredicate(apiSpecificationType, externalRoutes);
 
         if (!chainIds.isEmpty()) {
             elementFilterPredicate = elementFilterPredicate.and(element -> httpTriggerIds.contains(element.getId()));
         }
 
-        Stream<ChainElement> elementStream = (deploymentIds.isEmpty() && snapshotIds.isEmpty() && chainIds.isEmpty())
-                ? elementRepository.findAllDeployedElementsByTypes(triggerTypes).stream()
+        Stream<Element> elementStream = (deploymentIds.isEmpty() && snapshotIds.isEmpty() && chainIds.isEmpty())
+                ? elementRepository.findAllDeployedElementsByTypes(triggerTypes)
+                        .stream().map(ChainElementAdapter::new)
                 : Stream.of(
                 elementRepository.findElementsByTypesAndDeployments(triggerTypes, deploymentIds),
                 elementRepository.findElementsByTypesAndSnapshots(triggerTypes, snapshotIds),
                 elementRepository.findElementsByTypesAndChains(triggerTypes, chainIds)
-        ).flatMap(Collection::stream);
+        ).flatMap(Collection::stream).map(ChainElementAdapter::new);
         return elementStream.filter(elementFilterPredicate).collect(Collectors.toList());
     }
 
@@ -163,7 +166,7 @@ public class ApiSpecificationExportService {
         }
     }
 
-    private Predicate<ChainElement> getElementFilterPredicate(
+    private Predicate<Element> getElementFilterPredicate(
             ApiSpecificationType apiSpecificationType,
             boolean externalRoutes
     ) {
@@ -240,7 +243,7 @@ public class ApiSpecificationExportService {
     }
 
     private JsonNode buildAsyncApiSpecification(SpecificationBuildParameters buildParameters) {
-        Collection<ChainElement> elements = buildParameters.getElements();
+        Collection<Element> elements = buildParameters.getElements();
         if (elements.isEmpty()) {
             throw new ApiSpecificationExportException("No async trigger elements found");
         }
@@ -309,7 +312,7 @@ public class ApiSpecificationExportService {
         });
     }
 
-    private Info buildSpecificationInfo(Collection<ChainElement> elements) {
+    private Info buildSpecificationInfo(Collection<Element> elements) {
         return new Info()
                 .title(buildConfigurationTitle())
                 .description(buildConfigurationDescription(elements))
@@ -325,27 +328,28 @@ public class ApiSpecificationExportService {
         return API_SPECIFICATION_VERSION_PREFIX + dateFormat.format(new Date());
     }
 
-    private String buildConfigurationDescription(Collection<ChainElement> elements) {
+    private String buildConfigurationDescription(Collection<Element> elements) {
         StringBuilder sb = new StringBuilder();
         elements.forEach(element -> {
             sb.append("* ").append(getElementChain(element).getName()).append(" - ").append(element.getName());
-            if (nonNull(element.getSnapshot())) {
-                sb.append(" (").append(element.getSnapshot().getName()).append(")");
-            }
+            element.getSnapshot().ifPresent(snapshot -> {
+                sb.append(" (").append(snapshot.getName()).append(")");
+            });
             sb.append("\n");
         });
         return sb.toString();
     }
 
-    private Chain getElementChain(ChainElement element) {
-        Chain chain = element.getChain();
-        return isNull(chain) ? element.getSnapshot().getChain() : chain;
+    private Chain getElementChain(Element element) {
+        return Optional.ofNullable(element.getChain())
+            .or(() -> element.getSnapshot().map(Snapshot::getChain))
+            .orElse(null);
     }
 
-    private Paths buildPaths(Collection<ChainElement> elements) {
+    private Paths buildPaths(Collection<Element> elements) {
         Paths paths = new Paths();
         // TODO process operations in parallel manner
-        for (ChainElement element : elements) {
+        for (Element element : elements) {
             verifyElement(element);
             ElementRoute route = getHttpTriggerRoute(element);
             PathItem pathItem = paths.computeIfAbsent("/" + route.getPath(), path -> new PathItem());
@@ -356,7 +360,7 @@ public class ApiSpecificationExportService {
         return paths;
     }
 
-    private void verifyElement(ChainElement element) {
+    private void verifyElement(Element element) {
         if (!TriggerUtils.isHttpTrigger(element)) {
             throw new WrongChainElementTypeException(element, Collections.singletonList(getHttpTriggerTypeName()));
         }
@@ -365,7 +369,7 @@ public class ApiSpecificationExportService {
         }
     }
 
-    private Components buildComponents(Collection<ChainElement> elements) {
+    private Components buildComponents(Collection<Element> elements) {
         Stream<Components> implementedServiceTriggerComponents = elements.stream()
                 .filter(TriggerUtils::isImplementedServiceTrigger)
                 .map(TriggerUtils::getImplementedServiceTriggerSpecificationId)
@@ -469,13 +473,13 @@ public class ApiSpecificationExportService {
         return PathItem.HttpMethod.valueOf(method.name());
     }
 
-    private Operation buildOperation(ChainElement element, ElementRoute route, HttpMethod method) {
+    private Operation buildOperation(Element element, ElementRoute route, HttpMethod method) {
         return isImplementedServiceTrigger(element)
                 ? buildOperationForImplementedServiceTrigger(element)
                 : buildOperationForCustomUriTrigger(element, route, method);
     }
 
-    private Operation buildOperationForImplementedServiceTrigger(ChainElement element) {
+    private Operation buildOperationForImplementedServiceTrigger(Element element) {
         String modelId = getImplementedServiceTriggerSpecificationId(element);
         String operationId = getImplementedServiceTriggerOperationId(element);
         String operationSpecificationText = findOperation(operationId).getSpecification().toString();
@@ -491,7 +495,7 @@ public class ApiSpecificationExportService {
         }
     }
 
-    private void updateOperationId(Operation operation, ChainElement element) {
+    private void updateOperationId(Operation operation, Element element) {
         operation.setOperationId(operation.getOperationId() + "-" + element.getId());
     }
 
@@ -700,7 +704,7 @@ public class ApiSpecificationExportService {
         return text.trim().startsWith("{") ? ApiSpecificationFormat.JSON : ApiSpecificationFormat.YAML;
     }
 
-    private Operation buildOperationForCustomUriTrigger(ChainElement element, ElementRoute route, HttpMethod method) {
+    private Operation buildOperationForCustomUriTrigger(Element element, ElementRoute route, HttpMethod method) {
         return new Operation()
                 .operationId(buildOperationId(element, route, method))
                 .summary(buildOperationSummary(element))
@@ -710,11 +714,11 @@ public class ApiSpecificationExportService {
                 .responses(buildCustomUriTriggerResponses());
     }
 
-    private String buildOperationSummary(ChainElement element) {
+    private String buildOperationSummary(Element element) {
         return getElementChain(element).getName() + " - " + element.getName();
     }
 
-    private String buildOperationId(ChainElement element, ElementRoute route, HttpMethod method) {
+    private String buildOperationId(Element element, ElementRoute route, HttpMethod method) {
         return method.name().toLowerCase()
                 + "-" + StringUtils.strip(route.getPath().replaceAll("[^\\w\\d]+", "-").toLowerCase(), "-")
                 + "-" + element.getId();
@@ -741,7 +745,7 @@ public class ApiSpecificationExportService {
         return parameters;
     }
 
-    private RequestBody buildRequestBodyForCustomUriTrigger(ChainElement element) {
+    private RequestBody buildRequestBodyForCustomUriTrigger(Element element) {
         String validationSchemaText = getHttpTriggerValidationSchema(element);
         if (StringUtils.isBlank(validationSchemaText)) {
             return null;
