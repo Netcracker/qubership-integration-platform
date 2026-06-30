@@ -84,6 +84,8 @@ const SpecificationField: React.FC<
   );
 
   useEffect(() => {
+    if (!specIdToGroupIdMap.size) return;
+
     const loadLatestSpecification = async () => {
       if (systemId && !props.formData) {
         const latestSpec: Specification =
@@ -92,7 +94,7 @@ const SpecificationField: React.FC<
       }
     };
     void loadLatestSpecification();
-  }, [handleChange, systemId, props.formData]);
+  }, [handleChange, systemId, props.formData, specIdToGroupIdMap]);
 
   useEffect(() => {
     const loadSpecificationGroups = async () => {
