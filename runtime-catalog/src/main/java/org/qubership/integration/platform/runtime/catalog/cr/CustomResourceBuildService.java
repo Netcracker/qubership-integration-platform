@@ -59,8 +59,16 @@ public class CustomResourceBuildService {
     ) throws Exception {
         for (var builder : builders) {
             if (builder.enabled(context)) {
-                stringBuilder.append(builder.build(context));
+                String built = builder.build(context);
+                stringBuilder.append(built);
+                ensureTrailingNewline(built, stringBuilder);
             }
+        }
+    }
+
+    private static void ensureTrailingNewline(String built, StringBuilder stringBuilder) {
+        if (!built.isEmpty() && built.charAt(built.length() - 1) != '\n') {
+            stringBuilder.append('\n');
         }
     }
 
