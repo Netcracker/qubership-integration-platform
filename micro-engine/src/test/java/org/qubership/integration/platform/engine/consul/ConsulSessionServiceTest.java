@@ -15,7 +15,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
+import java.lang.reflect.Method;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -147,5 +150,118 @@ class ConsulSessionServiceTest {
 
         assertNull(result);
         verify(eventBus, never()).publish(anyString(), any());
+    }
+
+    @Test
+    void shouldNotCreateNewSessionWhenPreviousSessionDeleteFails() {
+        when(consulClient.createSessionWithOptions(any(SessionOptions.class)))
+                .thenReturn(Uni.createFrom().item(FIRST_SESSION_ID));
+        when(consulClient.renewSession(FIRST_SESSION_ID))
+                .thenReturn(Uni.createFrom().failure(
+                        new RuntimeException("Session id " + FIRST_SESSION_ID + " not found")));
+        when(consulClient.destroySession(FIRST_SESSION_ID))
+                .thenReturn(Uni.createFrom().failure(new RuntimeException("Consul unavailable")));
+
+        service.getOrCreateSession();
+        service.createOrRenewSession();
+
+        assertNull(service.getOrCreateSession());
+        service.createOrRenewSession();
+
+        verify(consulClient, times(1)).createSessionWithOptions(any(SessionOptions.class));
+        verify(consulClient, times(2)).destroySession(FIRST_SESSION_ID);
+        verify(eventBus, times(1)).publish(ConsulSessionService.CREATE_SESSION_EVENT, FIRST_SESSION_ID);
+    }
+
+    @Test
+    void shouldKeepSessionWhenRenewFailsWithNonSessionNotFoundError() {
+        when(consulClient.createSessionWithOptions(any(SessionOptions.class)))
+                .thenReturn(Uni.createFrom().item(FIRST_SESSION_ID));
+        when(consulClient.renewSession(FIRST_SESSION_ID))
+                .thenReturn(Uni.createFrom().failure(new RuntimeException("network error")));
+
+        service.getOrCreateSession();
+        service.createOrRenewSession();
+
+        assertEquals(FIRST_SESSION_ID, service.getOrCreateSession());
+        verify(consulClient, times(1)).createSessionWithOptions(any(SessionOptions.class));
+        verify(consulClient, never()).destroySession(anyString());
+        verify(eventBus, times(1)).publish(ConsulSessionService.CREATE_SESSION_EVENT, FIRST_SESSION_ID);
+    }
+
+    @Test
+    void shouldCompleteRecoveryWhenDestroyFindsSessionAlreadyGone() {
+        when(consulClient.createSessionWithOptions(any(SessionOptions.class)))
+                .thenReturn(
+                        Uni.createFrom().item(FIRST_SESSION_ID),
+                        Uni.createFrom().item(SECOND_SESSION_ID)
+                );
+        when(consulClient.renewSession(FIRST_SESSION_ID))
+                .thenReturn(Uni.createFrom().failure(
+                        new RuntimeException("Session id " + FIRST_SESSION_ID + " not found")));
+        when(consulClient.destroySession(FIRST_SESSION_ID))
+                .thenReturn(Uni.createFrom().failure(
+                        new RuntimeException("Session id " + FIRST_SESSION_ID + " not found")));
+
+        service.getOrCreateSession();
+        service.createOrRenewSession();
+        String result = service.getOrCreateSession();
+
+        assertEquals(SECOND_SESSION_ID, result);
+        verify(consulClient).destroySession(FIRST_SESSION_ID);
+        verify(eventBus).publish(ConsulSessionService.CREATE_SESSION_EVENT, FIRST_SESSION_ID);
+        verify(eventBus).publish(ConsulSessionService.CREATE_SESSION_EVENT, SECOND_SESSION_ID);
+    }
+
+    @Test
+    void shouldCreateNewSessionAfterPreviousSessionDeleteEventuallySucceeds() {
+        when(consulClient.createSessionWithOptions(any(SessionOptions.class)))
+                .thenReturn(
+                        Uni.createFrom().item(FIRST_SESSION_ID),
+                        Uni.createFrom().item(SECOND_SESSION_ID)
+                );
+        when(consulClient.renewSession(FIRST_SESSION_ID))
+                .thenReturn(Uni.createFrom().failure(
+                        new RuntimeException("Session id " + FIRST_SESSION_ID + " not found")));
+        when(consulClient.destroySession(FIRST_SESSION_ID))
+                .thenReturn(
+                        Uni.createFrom().failure(new RuntimeException("Consul unavailable")),
+                        Uni.createFrom().voidItem()
+                );
+
+        service.getOrCreateSession();
+        service.createOrRenewSession();
+
+        assertNull(service.getOrCreateSession());
+        String result = service.getOrCreateSession();
+
+        assertEquals(SECOND_SESSION_ID, result);
+        verify(consulClient, times(2)).destroySession(FIRST_SESSION_ID);
+        verify(consulClient, times(2)).createSessionWithOptions(any(SessionOptions.class));
+        verify(eventBus).publish(ConsulSessionService.CREATE_SESSION_EVENT, FIRST_SESSION_ID);
+        verify(eventBus).publish(ConsulSessionService.CREATE_SESSION_EVENT, SECOND_SESSION_ID);
+    }
+
+    @Test
+    void shouldReturnTrueWhenDeletePreviousSessionCalledWithNoPreviousSession() throws Exception {
+        Method deletePreviousSession = ConsulSessionService.class.getDeclaredMethod("deletePreviousSession");
+        deletePreviousSession.setAccessible(true);
+
+        boolean result = (boolean) deletePreviousSession.invoke(service);
+
+        assertTrue(result);
+        verify(consulClient, never()).destroySession(anyString());
+    }
+
+    @Test
+    void shouldDetectSessionNotFoundErrorOnlyForMatchingMessage() throws Exception {
+        Method sessionNotFoundError = ConsulSessionService.class.getDeclaredMethod(
+                "sessionNotFoundError", Throwable.class);
+        sessionNotFoundError.setAccessible(true);
+
+        assertFalse((boolean) sessionNotFoundError.invoke(service, new RuntimeException((String) null)));
+        assertFalse((boolean) sessionNotFoundError.invoke(service, new RuntimeException("network error")));
+        assertTrue((boolean) sessionNotFoundError.invoke(service,
+                new RuntimeException("Session id " + FIRST_SESSION_ID + " not found")));
     }
 }
