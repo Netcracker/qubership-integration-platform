@@ -361,8 +361,6 @@ public class KubeOperator {
 
     public List<KubeCustomObject> getCustomObjectsByLabelAndDefinition(String labelName, String labelValue,
                                                                        GenericCustomResources.CustomResourceDefinition crDefinition) throws KubeApiException {
-        log.debug("Fetching {} objects with label {}={} (group={}, version={})",
-                crDefinition.kind(), labelName, labelValue, crDefinition.group(), crDefinition.version());
         try {
             Object rawListObj = customObjectsApi
                 .listNamespacedCustomObject(crDefinition.group(), crDefinition.version(), namespace, crDefinition.plural())
@@ -400,14 +398,11 @@ public class KubeOperator {
     }
 
     public List<V1Secret> getSecretsByLabel(String labelName, String labelValue) throws KubeApiException {
-        log.debug("Fetching Secrets with label {}={}", labelName, labelValue);
         try {
-            List<V1Secret> items = coreApi.listNamespacedSecret(namespace)
+            return coreApi.listNamespacedSecret(namespace)
                 .labelSelector(toSelector(labelName, labelValue))
                 .execute()
                 .getItems();
-            log.debug("Found {} Secret(s) with label {}={}", items.size(), labelName, labelValue);
-            return items;
         } catch (ApiException exception) {
             throw new KubeApiException("Failed to get secrets.", exception);
         }
@@ -438,10 +433,8 @@ public class KubeOperator {
     }
 
     public void deleteSecret(String name) throws KubeApiException {
-        log.debug("Deleting Secret '{}'", name);
         try {
             coreApi.deleteNamespacedSecret(name, namespace).execute();
-            log.debug("Secret '{}' deleted successfully", name);
         } catch (ApiException exception) {
             if (exception.getCode() == HttpStatus.NOT_FOUND.value()) {
                 log.warn("Secret with name {} not found.", name);
