@@ -66,7 +66,7 @@ public class CustomResourceOptionsProvider {
                         .build())
                 .environment(getEnvironment())
                 .mount(Binder.get(propertyResolver)
-                    .bind("qip.cr.build.mount", MountOptions.class) // here build optns
+                    .bind("qip.cr.build.mount", MountOptions.class)
                     .orElseGet(MountOptions::new))
                 .service(Binder.get(propertyResolver)
                     .bind("qip.cr.build.service", ServiceOptions.class)
