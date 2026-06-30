@@ -111,7 +111,6 @@ public class CustomResourceService {
     }
 
     public void delete(String name) {
-        log.debug("Deleting all integration resources for domain '{}'", name);
         getAllIntegrationResources(name).ifPresent(resources -> {
             Optional.ofNullable(resources.integration)
                     .flatMap(KubeUtil::getName)
@@ -134,25 +133,19 @@ public class CustomResourceService {
                                     .forEach(kubeOperator::deleteConfigMap));
             Optional.ofNullable(resources.secret)
                     .flatMap(KubeUtil::getName)
-                    .ifPresent(secretName -> {
-                        log.debug("Deleting Secret '{}' for domain '{}'", secretName, name);
-                        kubeOperator.deleteSecret(secretName);
-                    });
+                    .ifPresent(kubeOperator::deleteSecret);
             Optional.ofNullable(resources.customResources)
                     .ifPresent(customResources -> {
-                        log.debug("Deleting {} generic custom resource(s) for domain '{}'", customResources.size(), name);
+                        log.info("Deleting {} generic custom resource(s) for domain '{}'", customResources.size(), name);
                         customResources.forEach(customObject -> {
                             KubeUtil.getName(customObject).ifPresent(customObjectName -> {
                                 GenericCustomResources.CustomResourceDefinition definition =
                                         GenericCustomResources.definitionFor(customObject.getKind());
-                                log.debug("Deleting {} '{}' (group={}, version={})",
-                                        definition.kind(), customObjectName, definition.group(), definition.version());
                                 kubeOperator.deleteCustomObject(definition.group(), definition.version(), definition.plural(), customObjectName);
                             });
                         });
                     });
         });
-        log.debug("Finished deleting integration resources for domain '{}'", name);
     }
 
     public void deleteChainSnapshot(String name, String snapshotId) {
@@ -239,15 +232,10 @@ public class CustomResourceService {
                 .getSecretsByLabel(CAMEL_K_INTEGRATION_LABEL, integrationName)
                 .stream()
                 .findFirst();
-            log.debug("Secret for integration '{}': {}", integrationName, secret.flatMap(KubeUtil::getName).orElse("none"));
-
             GenericCustomResources.getCustomResourceDefinitions().forEach((key, def) -> {
-                List<KubeCustomObject> found = kubeOperator.getCustomObjectsByLabelAndDefinition(
-                        CAMEL_K_INTEGRATION_LABEL, integrationName, def);
-                log.debug("Found {} {}(s) for integration '{}'", found.size(), def.kind(), integrationName);
-                customResources.addAll(found);
+                customResources.addAll(kubeOperator.getCustomObjectsByLabelAndDefinition(
+                        CAMEL_K_INTEGRATION_LABEL, integrationName, def));
             });
-            log.debug("Total generic custom resources fetched for integration '{}': {}", integrationName, customResources.size());
         }
         return Optional.of(new IntegrationResources(
                 integration.orElse(null),
