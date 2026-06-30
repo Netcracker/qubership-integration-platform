@@ -273,7 +273,7 @@ Comparison could be done in three different views, that could be switched anytim
   - ![plus](img/plus.svg) ![minus](img/minus.svg) - zoom in /out the graph.
   - ![expand](img/expand.svg) - fit view.
   - ![rotate-right](img/rotate-right.svg) - changes graphs orientation from vertical to horizontal and vice versa.
- - ![arrows-alt](img/arrows-alt.svg) ![shrink](img/shrink.svg) - allows to open widget in full screen and collapse it back.
+  - ![arrows-alt](img/arrows-alt.svg) ![shrink](img/shrink.svg) - allows to open widget in full screen and collapse it back.
 
 Graphs' elements are marked according to the found differences:
   - **Identical (grey)** - no differences were found in the element or dependency.
@@ -295,8 +295,8 @@ Clicking the element in one area makes another area also selecting it, allowing 
 
 - **Text View** - Mark two chains with checkboxes, click ![diff](img/diff.svg) button to open comparison widget and then use **Graph/Table/Text** switcher to change the view option to "**Text**". Compare areas in this view contain text representation of the chains and per line differences, highlighted in next color:
 
-  - <b><font color="Red">Red</font></b> - properties don't exist in the compared chain version.
-  - <b><font color="Green">Green</font></b> - new properties exist in the compared chain version.
+  - **Red** - properties don't exist in the compared chain version.
+  - **Green** - new properties exist in the compared chain version.
 
 Text view is also accessible via double-clicking the element while working with graph view of comparator.
 
