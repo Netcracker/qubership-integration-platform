@@ -23,6 +23,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.runtime.catalog.configuration.KubeOperatorAutoConfiguration;
+import org.qubership.integration.platform.runtime.catalog.configuration.tenant.TenantConfiguration;
 import org.qubership.integration.platform.runtime.catalog.service.variables.secrets.SecretService;
 
 import java.util.Collections;
@@ -55,6 +56,9 @@ class DefaultVariablesServiceTest {
     KubeOperatorAutoConfiguration kubeOperatorAutoConfiguration;
 
     @Mock
+    TenantConfiguration tenantConfiguration;
+
+    @Mock
     DefaultVariablesProvider defaultVariablesProvider;
 
     @BeforeEach
@@ -72,6 +76,7 @@ class DefaultVariablesServiceTest {
         when(defaultVariablesProvider.getDefaultVariableNames()).thenReturn(Collections.emptyList());
         when(defaultVariablesProvider.provide()).thenReturn(Collections.emptyMap());
         when(defaultSecretPolicyService.isDefaultSecretEnabled()).thenReturn(true);
+        when(tenantConfiguration.getDefaultTenant()).thenReturn("11111111111111111111");
 
         DefaultVariablesService service = new DefaultVariablesService(
                 secretService,
@@ -79,6 +84,7 @@ class DefaultVariablesServiceTest {
                 securedVariableService,
                 defaultSecretPolicyService,
                 kubeOperatorAutoConfiguration,
+                tenantConfiguration,
                 defaultVariablesProvider);
 
         service.restoreVariables();
@@ -86,10 +92,11 @@ class DefaultVariablesServiceTest {
         verify(secretService).createSecret(defaultSecret);
         verify(securedVariableService).deleteVariables(
                 defaultSecret,
-                Set.of(DefaultVariablesService.NAMESPACE_VARIABLE_NAME),
+                Set.of(DefaultVariablesService.TENANT_VARIABLE_NAME, DefaultVariablesService.NAMESPACE_VARIABLE_NAME),
                 false);
         verify(commonVariablesService).addVariablesUnlogged(
-                Map.of(DefaultVariablesService.NAMESPACE_VARIABLE_NAME, "ns1"));
+                Map.of(DefaultVariablesService.TENANT_VARIABLE_NAME, "11111111111111111111",
+                    DefaultVariablesService.NAMESPACE_VARIABLE_NAME, "ns1"));
     }
 
     @Test
@@ -102,6 +109,7 @@ class DefaultVariablesServiceTest {
         when(defaultVariablesProvider.getDefaultVariableNames()).thenReturn(Collections.emptyList());
         when(defaultVariablesProvider.provide()).thenReturn(Collections.emptyMap());
         when(defaultSecretPolicyService.isDefaultSecretEnabled()).thenReturn(false);
+        when(tenantConfiguration.getDefaultTenant()).thenReturn("11111111111111111111");
 
         DefaultVariablesService service = new DefaultVariablesService(
                 secretService,
@@ -109,12 +117,14 @@ class DefaultVariablesServiceTest {
                 securedVariableService,
                 defaultSecretPolicyService,
                 kubeOperatorAutoConfiguration,
+                tenantConfiguration,
                 defaultVariablesProvider);
 
         service.restoreVariables();
 
         verify(securedVariableService, never()).deleteVariables(anyString(), anySet(), anyBoolean());
         verify(commonVariablesService).addVariablesUnlogged(
-                Map.of(DefaultVariablesService.NAMESPACE_VARIABLE_NAME, "ns1"));
+                Map.of(DefaultVariablesService.TENANT_VARIABLE_NAME, "11111111111111111111",
+                    DefaultVariablesService.NAMESPACE_VARIABLE_NAME, "ns1"));
     }
 }
