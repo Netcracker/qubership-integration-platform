@@ -137,8 +137,7 @@ describe("ChainProperties", () => {
     render(<ChainProperties />);
 
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
-    const modal = mockShowModal.mock.calls[0][0]
-      .component;
+    const modal = mockShowModal.mock.calls[0][0].component;
     render(modal);
 
     fireEvent.click(screen.getByRole("button", { name: "Yes" }));
@@ -158,8 +157,7 @@ describe("ChainProperties", () => {
     render(<ChainProperties />);
 
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
-    const modal = mockShowModal.mock.calls[0][0]
-      .component;
+    const modal = mockShowModal.mock.calls[0][0].component;
     render(modal);
 
     fireEvent.click(screen.getByRole("button", { name: "No" }));
@@ -179,8 +177,7 @@ describe("ChainProperties", () => {
     render(<ChainProperties />);
 
     await waitFor(() => expect(mockShowModal).toHaveBeenCalled());
-    const modal = mockShowModal.mock.calls[0][0]
-      .component;
+    const modal = mockShowModal.mock.calls[0][0].component;
     render(modal);
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
@@ -188,5 +185,53 @@ describe("ChainProperties", () => {
     expect(mockReset).toHaveBeenCalled();
     expect(mockProceed).not.toHaveBeenCalled();
     expect(mockChainUpdate).not.toHaveBeenCalled();
+  });
+
+  it("should label the path field Path", () => {
+    render(<ChainProperties />);
+
+    expect(screen.getByRole("textbox", { name: /path/i })).toBeInTheDocument();
+  });
+
+  it("should block submit and show an error when a path segment has a forbidden character", async () => {
+    render(<ChainProperties />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: /path/i }), {
+      target: { value: "a:b" },
+    });
+    fireEvent.submit(document.getElementById("chain-properties-form")!);
+
+    expect(
+      await screen.findByText(/Path segments must not contain/i),
+    ).toBeInTheDocument();
+    expect(mockChainUpdate).not.toHaveBeenCalled();
+  });
+
+  it("should move the chain to the resolved folder and save when a valid path is submitted", async () => {
+    mockGetPathToFolderByName.mockResolvedValue([
+      { id: "f1", name: "a" },
+      { id: "f2", name: "b" },
+    ]);
+    render(<ChainProperties />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: /path/i }), {
+      target: { value: "a/b" },
+    });
+    fireEvent.submit(document.getElementById("chain-properties-form")!);
+
+    await waitFor(() => expect(mockChainUpdate).toHaveBeenCalled());
+    expect(mockMoveChain).toHaveBeenCalledWith("chain-1", "f2");
+  });
+
+  it("should save with an empty navigation path and no move when the path is empty", async () => {
+    render(<ChainProperties />);
+
+    fireEvent.submit(document.getElementById("chain-properties-form")!);
+
+    await waitFor(() => expect(mockChainUpdate).toHaveBeenCalled());
+    expect(mockChainUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ navigationPath: [] }),
+    );
+    expect(mockMoveChain).not.toHaveBeenCalled();
   });
 });

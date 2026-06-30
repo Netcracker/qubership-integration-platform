@@ -1,6 +1,8 @@
 # General Functions
 
 ## Notifications
+<ins>Web UI</ins>
+
 Notifications ![bell](img/bell.svg) are implemented to communicate interactively with the user. It makes an ability to track the process of system changes. Notification are divided into 3 types:
 
 ![exclamation-circle-blue](img/info-circle.svg) **Success** - some process or operation was ended without errors and exceptions (e.g. service discovery was completed or chain was deployed successfully).
@@ -10,10 +12,14 @@ Notifications ![bell](img/bell.svg) are implemented to communicate interactively
 ![close-circle](img/close-circle.svg) **Error** - error messages (e.g. chain was not deployed or some required parameter is not filled in chain element).
 
 Notification has the next general structure:
-1. **Service name** (optional) - name of the QIP service where the change was occurred.
+1. **Service** (optional) - name of the QIP service where the change was occurred.
 2. **Message** - the main content of the notifications.
 3. **Stack trace** (optional) - in case of technical error provides the ability to check root cause of the error and helps to find the problem root cause.
-4. **Date** - date and time of the notification.
+4. **Occured** - date and time of the notification.
+
+<ins>VS Code Extension</ins>
+
+The extension uses the standard Visual Studio Code notification structure.
 
 ## Qubership Integration Platform Help
 Qubership Integration Platform Help is embedded to QIP UI detailed guide about how to use QIP. For each UI page or QIP element there is particular help page.
@@ -88,7 +94,6 @@ Project root (git/SVN root, not included in zip-archive)
 </details>
 
 ## Filters
-**`⛔ Not available via VS Code extension`**
 
 There is filtering functionality available for most of the column tables, utilized across different pages. Click button ![filter](img/filter.svg) and enter next data on filter pop-up:
 - Column
@@ -98,14 +103,12 @@ There is filtering functionality available for most of the column tables, utiliz
 It is possible to specify multiple filtering conditions via "**Add filter**" button. When filters are applied, button "**Filter**" will have a small counter indicator, showing quantity of active filters. It is also possible to remove particular filter via ![delete](img/delete.svg) button or remove all filters via "**Clear All**" button.
 
 ## Table Sorting
-**`⛔ Not available via VS Code extension`**
 
 For some table columns the following functions can be available:
 - ![caret-up](img/caret-up.svg) Sort Ascending
 - ![caret-down](img/caret-down.svg) Sort Descending
 
 ## Table Settings
-**`⛔ Not available via VS Code extension`**
 
 Most of the tables in the system can be adjusted not only by extending/shrinking column size, but also by controlling each column's visibility and sequence. To do so, click gear button ![setting](img/setting.svg) on top of the table and adjust properties accordingly. Some of the columns can't be hidden or moved - this is explained for exact columns in respective design articles.
 
@@ -151,4 +154,5 @@ To change the interface theme, click the user icon ![user](img/user.svg) at the 
 - HC – maximizes color contrast for better readability.
 
 <ins>VS Code Extension</ins>
+
 In the VS Code Extension, the interface theme cannot be changed separately. It automatically follows the theme currently selected in the Visual Studio Code.

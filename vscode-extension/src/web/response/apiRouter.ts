@@ -1,6 +1,7 @@
-import vscode, { ExtensionContext, Uri } from "vscode";
+import vscode, {ExtensionContext, Progress, Uri, WebviewPanel} from "vscode";
 import {
   changeFolder,
+  cloneElements,
   createConnection,
   createElement,
   createMaskedField,
@@ -8,23 +9,23 @@ import {
   deleteElements,
   deleteMaskedFields,
   groupElements,
-  ungroupElements,
   transferElement,
+  ungroupElements,
   updateChain,
   updateElement,
   updateMaskedField,
-  cloneElements,
 } from "./chainApiModify";
 import {
+  findChainByElementId,
   getChain,
   getChainFileUri,
+  listChainExportTargets,
   getConnections,
   getElements,
   getElementsByType,
   getLibrary,
   getLibraryElementByType,
   getMaskedFields,
-  findChainByElementId,
 } from "./chainApiRead";
 import {
   getApiSpecifications,
@@ -54,35 +55,77 @@ import {
   updateService,
   updateSpecificationModel,
 } from "./serviceApiModify";
-import { fileApi } from "./file";
-import { getChainUri } from "./chainApiUtils";
+import {fileApi} from "./file";
+import {getChainUri} from "./chainApiUtils";
 import {
+  getContextServiceUri,
+  getMcpServiceUri,
   getServiceOperationsUri,
   getServiceSpecificationsUri,
   getServiceUri,
   handleCreateService,
   handleGetImportSpecificationResult,
+  handleGetSpecApiFiles,
   handleImportSpecification,
   handleImportSpecificationGroup,
-  handleGetSpecApiFiles,
   handleReadSpecificationFileContent,
   QipFileType,
-  getContextServiceUri,
-  getMcpServiceUri,
 } from "./serviceApiUtils";
 import {
-  VSCodeMessage,
   AppExtensionProps,
-  IconOverrides,
+  VSCodeMessage,
+  type ExportImagesStartupPayload,
 } from "@netcracker/qip-ui";
-import { getAndClearNavigationStateValue } from "./navigationUtils";
+import {getAndClearNavigationStateValue} from "./navigationUtils";
+import {
+  decodeBase64,
+  resolveOutputFileUri,
+} from "../exportImageUtils";
 
 let lastWebviewPath: string | undefined = undefined;
+
+const pendingExportImagesByPanel = new WeakMap<
+  WebviewPanel,
+  ExportImagesStartupPayload
+>();
+
+type ExportProgressState = {
+  progress: Progress<{ message?: string; increment?: number }>;
+  resolve: () => void;
+};
+
+const exportProgressByPanel = new WeakMap<WebviewPanel, ExportProgressState>();
+
+export function setPendingExportImagesRequest(
+  panel: WebviewPanel,
+  payload: ExportImagesStartupPayload,
+): void {
+  pendingExportImagesByPanel.set(panel, payload);
+}
+
+export function startExportImagesProgress(panel: WebviewPanel): void {
+  void vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: "Exporting chain PNG files",
+      cancellable: false,
+    },
+    (progress: Progress<{ message?: string; increment?: number }>) =>
+      new Promise<void>((resolve) => {
+        exportProgressByPanel.set(panel, { progress, resolve });
+        panel.onDidDispose(() => {
+          exportProgressByPanel.delete(panel);
+          resolve();
+        });
+      }),
+  );
+}
 
 export async function getApiResponse(
   message: VSCodeMessage<any>,
   openedDocumentFolderUri: Uri | undefined,
   context?: ExtensionContext,
+  panel?: WebviewPanel,
 ): Promise<any> {
   let fileUri: Uri;
   if (openedDocumentFolderUri) {
@@ -97,18 +140,17 @@ export async function getApiResponse(
 
   switch (message.type) {
     case "startup":
-      return getExtensionConfiguration();
+      return getExtensionConfiguration(panel);
     case "navigate":
       if (message.payload?.path) {
         if (lastWebviewPath === message.payload.path) {
           return;
         }
         lastWebviewPath = message.payload.path;
-        const parsedPath = await parseNavigatePath(
+        return await parseNavigatePath(
           message.payload.path,
           fileUri,
         );
-        return parsedPath;
       }
 
       const pathToNavigateFromContext =
@@ -121,8 +163,17 @@ export async function getApiResponse(
       }
     case "navigateInNewTab":
       return await fileApi.findFileByNavigationPath(message.payload);
-    case "getChain":
-      return await getChain(fileUri, message.payload);
+    case "getChain": {
+      const payload = message.payload;
+      if (typeof payload === "string") {
+        return await getChain(fileUri, payload, fileUri);
+      }
+      const chainFileUri =
+        typeof payload?.filePath === "string" && payload.filePath.length > 0
+          ? Uri.parse(payload.filePath)
+          : undefined;
+      return await getChain(fileUri, payload.chainId, chainFileUri);
+    }
     case "openChainInNewTab":
       return await getChainFileUri(message.payload);
     case "getElements":
@@ -369,12 +420,114 @@ export async function getApiResponse(
         message.payload.fileUri,
         message.payload.specificationFilePath,
       );
+
+    case "exportImagesProgress": {
+      const state = panel ? exportProgressByPanel.get(panel) : undefined;
+      const payload = message.payload as
+        | { current?: number; total?: number; fileName?: string }
+        | undefined;
+      if (state && payload?.total && payload.total > 0) {
+        const increment = 100 / payload.total;
+        state.progress.report({
+          message: payload.fileName
+            ? `Exporting ${payload.fileName} (${payload.current ?? 0}/${payload.total})`
+            : undefined,
+          increment,
+        });
+      }
+      return undefined;
+    }
+
+    case "exportImagesComplete":
+    case "exportImagesDone": {
+      const state = panel ? exportProgressByPanel.get(panel) : undefined;
+      if (state) {
+        if (panel) {
+          exportProgressByPanel.delete(panel);
+        }
+        state.resolve();
+      }
+      return undefined;
+    }
+
+    case "exportImagesItemWarning": {
+      const payload = message.payload as
+        | string
+        | { message?: string; target?: { outputName?: string; chainId?: string } }
+        | undefined;
+      let text: string;
+      if (typeof payload === "string") {
+        text = payload;
+      } else if (typeof payload?.message === "string") {
+        text = payload.message;
+      } else if (payload?.target) {
+        text = `Chain "${payload.target.outputName ?? payload.target.chainId}" export warning`;
+      } else {
+        text = "Chain graph export warning";
+      }
+      void vscode.window.showWarningMessage(text);
+      return undefined;
+    }
+
+    case "exportImagesItemFailed": {
+      const payload = message.payload as
+        | {
+            error?: string;
+            target?: { outputName?: string; chainId?: string };
+          }
+        | undefined;
+      const chainLabel =
+        payload?.target?.outputName ?? payload?.target?.chainId;
+      let text: string;
+      if (chainLabel && payload?.error) {
+        text = `Chain "${chainLabel}": ${payload.error}`;
+      } else if (payload?.error) {
+        text = payload.error;
+      } else if (chainLabel) {
+        text = `Chain "${chainLabel}" export failed`;
+      } else {
+        text = "Chain graph export failed";
+      }
+      void vscode.window.showErrorMessage(text);
+      return undefined;
+    }
+
+    case "saveExportedImage": {
+      const payload = message.payload as {
+        outputDir: string;
+        fileName: string;
+        contentBase64: string;
+      };
+      const outputUri = resolveOutputFileUri(
+        payload.outputDir,
+        payload.fileName,
+      );
+      await fileApi.writeFile(outputUri, decodeBase64(payload.contentBase64));
+      return undefined;
+    }
+
+    case "listChainExportTargets":
+      return await listChainExportTargets();
   }
 }
 
-function getExtensionConfiguration(): AppExtensionProps {
+function getExtensionConfiguration(
+  panel?: WebviewPanel,
+): AppExtensionProps & {
+  operation?: "exportImages";
+  exportImages?: ExportImagesStartupPayload;
+} {
+  const exportImages = panel
+    ? pendingExportImagesByPanel.get(panel)
+    : undefined;
+  if (panel && exportImages) {
+    pendingExportImagesByPanel.delete(panel);
+  }
   return {
     appName: "qip",
+    ...(exportImages
+      ? { operation: "exportImages" as const, exportImages }
+      : {}),
   };
 }
 

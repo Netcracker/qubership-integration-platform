@@ -1,6 +1,6 @@
 import { Uri } from "vscode";
-import * as yaml from "yaml";
 import { fileApi } from "../../response/file/fileApiProvider";
+import { parseStructuredContent } from "./structuredContentParser";
 
 /**
  * Utility class for parsing JSON and YAML content
@@ -11,21 +11,7 @@ export class ContentParser {
    * Tries JSON first, then YAML if JSON parsing fails
    */
   static parseContent(content: string): any {
-    try {
-      // Try to parse as JSON first
-      return JSON.parse(content);
-    } catch (jsonError) {
-      try {
-        // If JSON parsing fails, try YAML
-        return yaml.parse(content, { maxAliasCount: -1 });
-      } catch (yamlError) {
-        console.error(
-          "[ContentParser] Error parsing content as both JSON and YAML:",
-          { jsonError, yamlError },
-        );
-        throw new Error("Failed to parse content: not valid JSON or YAML");
-      }
-    }
+    return parseStructuredContent(content);
   }
 
   /**

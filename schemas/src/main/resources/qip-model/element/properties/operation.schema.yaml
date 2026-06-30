@@ -3,6 +3,10 @@ $id: http://qubership.org/schemas/product/qip/element/properties/operation.schem
 $schema: http://json-schema.org/draft-07/schema
 type: object
 title: Operation properties
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
 oneOf:
   - type: object
     properties:

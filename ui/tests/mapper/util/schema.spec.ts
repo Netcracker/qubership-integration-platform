@@ -1,4 +1,7 @@
-import { MessageSchemaUtil } from "../../../src/mapper/util/schema.ts";
+import {
+  isBodyRootArray,
+  MessageSchemaUtil,
+} from "../../../src/mapper/util/schema.ts";
 import {
   Attribute,
   AttributeReference,
@@ -7,6 +10,39 @@ import {
 } from "../../../src/mapper/model/model.ts";
 
 describe("Mapper", () => {
+  describe("isBodyRootArray", () => {
+    it("should return false when schema or body is missing", () => {
+      expect(isBodyRootArray()).toBe(false);
+      expect(isBodyRootArray(null)).toBe(false);
+    });
+
+    it("should return false when body root is an object", () => {
+      expect(
+        isBodyRootArray({
+          headers: [],
+          properties: [],
+          body: {
+            name: "object",
+            schema: { id: "schema1", attributes: [] },
+          },
+        }),
+      ).toBe(false);
+    });
+
+    it("should return true when body root is an array", () => {
+      expect(
+        isBodyRootArray({
+          headers: [],
+          properties: [],
+          body: {
+            name: "array",
+            itemType: { name: "string" },
+          },
+        }),
+      ).toBe(true);
+    });
+  });
+
   describe("MessageSchemaUtil", () => {
     const messageSchema: MessageSchema = {
       headers: [

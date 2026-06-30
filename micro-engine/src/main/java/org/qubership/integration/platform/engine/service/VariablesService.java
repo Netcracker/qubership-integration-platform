@@ -66,6 +66,7 @@ public class VariablesService {
     private final UpdateGetterHelper<Map<String, String>> commonVariablesUpdateGetter;
     private final String kubeSecretV2Name;
     private final Pair<String, String> kubeSecretsLabel;
+    private final boolean defaultSecretEnabled;
     private final StartupErrorHandlingConfiguration startupErrorHandlingConfiguration;
 
     @Inject
@@ -75,6 +76,8 @@ public class VariablesService {
             @Named("commonVariablesUpdateGetter") UpdateGetterHelper<Map<String, String>> commonVariablesUpdateGetter,
             @ConfigProperty(name = "kubernetes.variables-secret.label") String kubeSecretsLabel,
             @ConfigProperty(name = "kubernetes.variables-secret.name") String kubeSecretV2Name,
+            @ConfigProperty(name = "qip.variables.default-secret.enabled", defaultValue = "false")
+            boolean defaultSecretEnabled,
             StartupErrorHandlingConfiguration startupErrorHandlingConfiguration
     ) {
         this.operator = operator;
@@ -82,6 +85,7 @@ public class VariablesService {
         this.applicationConfiguration = applicationConfiguration;
         this.kubeSecretV2Name = kubeSecretV2Name;
         this.kubeSecretsLabel = Pair.of(kubeSecretsLabel, "secured");
+        this.defaultSecretEnabled = defaultSecretEnabled;
         this.startupErrorHandlingConfiguration = startupErrorHandlingConfiguration;
         updateSubstitutors(Collections.emptyMap());
     }
@@ -188,6 +192,9 @@ public class VariablesService {
             for (Map.Entry<String, Map<String, String>> secretEntry : operator.getAllSecretsWithLabel(
                 kubeSecretsLabel).entrySet()) {
                 String secretName = secretEntry.getKey();
+                if (!defaultSecretEnabled && kubeSecretV2Name.equals(secretName)) {
+                    continue;
+                }
                 Map<String, String> variables = secretEntry.getValue();
 
                 for (Map.Entry<String, String> variablesEntry : variables.entrySet()) {

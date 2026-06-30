@@ -381,7 +381,42 @@ getFirst(body.customers)
 }
 ```
 
-**Example 2: Filter by value**
+**Example 2: Root array usage**
+
+Get the first object from an array when the source body root is an array.
+Use the escaped `_` segment after `body` to access fields inside root array elements.
+
+**Expression sample:**
+```text
+getFirst(body.\_.2ndarray)
+```
+**Input data:**
+```json
+[
+   {
+      "2ndarray": [
+         {
+            "name": "John",
+            "surname": "Smith"
+         }
+      ]
+   }
+]
+```
+
+Result:
+```json
+{
+   "firstObject": {
+      "name": "John",
+      "surname": "Smith"
+   }
+}
+```
+
+>**ℹ️Note:**  The `body.\_` path segment is used when the source body root is an array of objects. It points to fields of each root array item.
+
+**Example 3: Filter by value**
 
 Pick first primitive, which is bigger than "4", from the array.
 
@@ -418,7 +453,7 @@ getFirst(
 }
 ```
 
-**Example 3: Build map**
+**Example 4: Build map**
 
 Get first object from array, where id = 100, and return only value(s) placed in "values" (value might be an array of primitives).
 

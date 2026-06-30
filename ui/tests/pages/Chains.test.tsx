@@ -202,6 +202,7 @@ jest.mock("../../src/permissions/ProtectedDropdown", () => ({
     children: React.ReactNode;
     menu: {
       items: Array<{ key: string; label: string; onClick?: () => void }>;
+      onClick?: (info: { key: string }) => void;
     };
   }) => (
     <div data-testid="protected-dropdown">
@@ -213,7 +214,11 @@ jest.mock("../../src/permissions/ProtectedDropdown", () => ({
             <button
               key={item.key}
               data-testid={`menu-item-${item.key}`}
-              onClick={item.onClick}
+              onClick={() =>
+                item.onClick
+                  ? item.onClick()
+                  : menu.onClick?.({ key: item.key })
+              }
             >
               {item.label}
             </button>
@@ -751,5 +756,74 @@ describe("Chains page", () => {
     expect(
       screen.queryByTestId("chain-details-drawer"),
     ).not.toBeInTheDocument();
+  });
+
+  // --- Folder create/update via the FolderEdit modal onSubmit ---
+
+  it("creates a folder via the folder edit modal onSubmit", async () => {
+    mockApi.createFolder.mockResolvedValue({
+      id: "folder-new",
+      name: "New Folder",
+    });
+    render(<Chains />);
+    await waitFor(() => expect(mockApi.listFolder).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId("menu-item-folder"));
+    const onSubmit = mockShowModal.mock.calls.at(-1)![0].component.props
+      .onSubmit as (n: string, o: boolean, t: boolean) => Promise<void>;
+    await onSubmit("New Folder", false, false);
+
+    await waitFor(() =>
+      expect(mockApi.createFolder).toHaveBeenCalledWith({
+        name: "New Folder",
+        parentId: undefined,
+      }),
+    );
+  });
+
+  it("updates a folder via the folder edit modal onSubmit", async () => {
+    mockApi.listFolder.mockResolvedValue([mockFolder]);
+    mockApi.updateFolder.mockResolvedValue({ id: "folder-1", name: "Renamed" });
+    render(<Chains />);
+    await waitFor(() =>
+      expect(screen.getByText("Test Folder")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("menu-item-editFolder"));
+    const onSubmit = mockShowModal.mock.calls.at(-1)![0].component.props
+      .onSubmit as (n: string, o: boolean, t: boolean) => Promise<void>;
+    await onSubmit("Renamed", false, false);
+
+    await waitFor(() =>
+      expect(mockApi.updateFolder).toHaveBeenCalledWith("folder-1", {
+        name: "Renamed",
+      }),
+    );
+  });
+
+  it("opens a create-folder modal from a folder's context menu", async () => {
+    mockApi.listFolder.mockResolvedValue([mockFolder]);
+    render(<Chains />);
+    await waitFor(() =>
+      expect(screen.getByText("Test Folder")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("menu-item-createNewFolder"));
+
+    const call = mockShowModal.mock.calls.at(-1)![0];
+    expect(call.component.props.mode).toBe("create");
+    const onSubmit = call.component.props.onSubmit as (
+      n: string,
+      o: boolean,
+      t: boolean,
+    ) => Promise<void>;
+    await onSubmit("Child", false, false);
+
+    await waitFor(() =>
+      expect(mockApi.createFolder).toHaveBeenCalledWith({
+        name: "Child",
+        parentId: "folder-1",
+      }),
+    );
   });
 });

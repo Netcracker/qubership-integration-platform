@@ -3,7 +3,7 @@
 
 ---
 Chain is an integration configuration which consist of Apache Camel (or customized) modules. Each chain is indented to perform particular integration task.
-Chain can be triggered by any external consumer, so chain configuration starts from some trigger (HTTP Trigger, Kafka Trigger, etc.).
+Chain can be triggered by any external consumer, so chain configuration starts from some trigger (HTTP Trigger, MCP Trigger, Kafka Trigger, etc.).
 When the chain configuration was completed, it should be deployed at least on one [Engine Domain](../03__Admin_Tools/1__Domains/domains.md) (otherwise, the chain cannot be triggered).
 
 ## User Interface
@@ -21,6 +21,7 @@ Screen shows the table of chains (marked with icon ![file](img/file.svg)) and ch
   - Chain elements in [graph](1__Graph/graph.md):
     - Path ([HTTP Trigger](1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md), [Service Call](1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md))
     - Method ([HTTP Trigger](1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md), [Service Call](1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md))
+    - Identifier ([MCP Trigger](1__Graph/1__Elements_Library/6__Triggers/10__MCP_Trigger/mcp_trigger.md))
     - Topic ([Kafka Trigger](1__Graph/1__Elements_Library/6__Triggers/8__Kafka_Trigger/kafka_trigger.md), [Kafka Sender](1__Graph/1__Elements_Library/7__Senders/2__Kafka_Sender/kafka_sender.md),
     [AsyncAPI Trigger](1__Graph/1__Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md), [Service Call](1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md))
     - Exchange ([RabbitMQ Trigger](1__Graph/1__Elements_Library/6__Triggers/6__RabbitMQ_Trigger/rabbitmq_trigger.md), [RabbitMQ Sender](1__Graph/1__Elements_Library/7__Senders/1__RabbitMQ_Sender/rabbitmq_sender.md),
@@ -81,7 +82,7 @@ Each **chain** contains the following parameters on table view:
 
 <ins>VS Code Extension</ins>
 
-All chains configured using VS Code Extension appears under "Chains" folder. The "Chains" folder is located by expanding "QIP" in the left bottom. Under "Chains" folder, a list of created chains is available.
+All chains configured using VS Code Extension appears under "Chains" folder. The "Chains" folder is located by expanding "QIP" in the left bottom. Under "Chains" folder, a list of created chains is available. Expanding the chain a list of its elements are available.
 
 ### Chain Details Side Panel
 **`⛔ Not available via VS Code extension`**
@@ -134,7 +135,7 @@ When all necessary parameters are filled, click **"Submit"** button or use the c
 To create a chain using VS Code Extension, follow the steps outlined below:
 1. Open "VS Code Extension" in Visual Studio Code.
 2. In the left bottom find QIP section and expand it.
-3. Near the "Chain" folder click on appearing button "QIP Create a chain".
+3. Near the "Chain" folder click on appearing button "QIP Create a chain under current directory".
 4. At the top of Visual Studio Code enter the name of the chain and click `Enter`. Next, it opens the QIP Extension UI with the "blueprint-like" environment on the "Graph" tab to design and configure the chain logic.
 
 ### Import Chain(s)
@@ -252,7 +253,7 @@ If a folder is deleted, all chains grouped under that folder will also be delete
 
 <ins>VS Code Extension</ins>
 
-Under "Chains" folder, right-click on the chain name you want to delete. From the available options, click "Delete". A notification appears in the bottom-right corner of the screen to confirm deletion is successful.
+Under "Chains" folder, right-click on the chain name you want to delete. From the available options, click "Delete Chain". A notification appears in the bottom-right corner of the screen to confirm deletion is successful.
 
 ### Constraints
 

@@ -132,8 +132,9 @@ public class ConsulService {
             if (activeSessionId == null) {
                 log.debug("Create consul session");
                 if (previousSessionId != null) {
-                    client.deleteSession(previousSessionId);
-                    previousSessionId = null;
+                    if (!deletePreviousSession()) {
+                        return;
+                    }
                 }
                 activeSessionId = client.createSession(SESSION_PREFIX + UUID.randomUUID(),
                     SESSION_BEHAVIOR, SESSION_TTL_STRING);
@@ -142,10 +143,16 @@ public class ConsulService {
                 log.debug("Renew consul session");
                 client.renewSession(activeSessionId);
             }
-        } catch (Exception e) {
-            log.error("Failed to create/renew consul session", e);
+        } catch (InvalidConsulSessionException e) {
+            log.warn("Consul session expired, scheduling destroy and creating a new one: {}", activeSessionId);
             previousSessionId = activeSessionId;
             activeSessionId = null;
+        } catch (Exception e) {
+            if (activeSessionId != null) {
+                log.warn("Failed to renew consul session, will retry with the same session id", e);
+            } else {
+                log.error("Failed to create consul session", e);
+            }
         }
     }
 
@@ -346,5 +353,24 @@ public class ConsulService {
     private static boolean filterL1NonEmptyPaths(String pathPrefix, String path) {
         String[] split = path.substring(pathPrefix.length()).split("/");
         return split.length == 1 && StringUtils.isNotEmpty(split[0]);
+    }
+
+    private boolean deletePreviousSession() {
+        if (previousSessionId == null) {
+            return true;
+        }
+
+        try {
+            client.deleteSession(previousSessionId);
+            previousSessionId = null;
+            return true;
+        } catch (Exception e) {
+            log.warn(
+                "Failed to delete previous consul session {}, will retry",
+                previousSessionId,
+                e
+            );
+            return false;
+        }
     }
 }

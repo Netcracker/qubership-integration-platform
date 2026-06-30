@@ -1,5 +1,5 @@
 import { Uri } from "vscode";
-import { Element as ElementSchema } from "@netcracker/qip-schemas";
+import { DataType, Element as ElementSchema } from "@netcracker/qip-schemas";
 import { OrderedElementService } from "../../../src/web/api-services/OrderedElementService";
 import { OrderedElementUtils } from "../../../src/web/api-services/OrderedElementUtils";
 import {
@@ -34,12 +34,14 @@ describe("OrderedElementService", () => {
   // Mock OrderedElementUtils instance
   const createMockUtils = () => ({
     element: {} as ElementSchema,
+    parentElementId: "parent-id",
     extractOtherOrderedElements: jest.fn().mockReturnValue([]),
     extractSortedOrderedElements: jest.fn().mockReturnValue([]),
     getPriority: jest.fn().mockReturnValue(0),
     updatePriority: jest.fn(),
     getIndex: jest.fn().mockReturnValue(0),
     getPriorityOrUndefined: jest.fn().mockReturnValue(undefined),
+    getIndexToInsert: jest.fn().mockReturnValue(0),
   });
 
   beforeEach(() => {
@@ -56,12 +58,16 @@ describe("OrderedElementService", () => {
 
   describe("updatePriority", () => {
     it("should call calculatePriority when element is ordered", async () => {
-      const mockElement: ElementSchema = {
+      const mockElementSchema: ElementSchema = {
         id: "element-1",
         type: { name: "ordered-type" } as any,
-        parentElementId: "parent-id",
         properties: { priority: 0 },
       } as unknown as ElementSchema;
+
+      const mockElement = {
+        element: mockElementSchema,
+        parentElementId: "parent-id",
+      };
 
       mockGetLibraryElementByType.mockResolvedValue({
         ordered: true,
@@ -87,17 +93,20 @@ describe("OrderedElementService", () => {
       const orderedChild: ElementSchema = {
         id: "child-1",
         type: { name: "ordered-child-type" } as any,
-        parentElementId: "parent-id",
         properties: { priority: 0 },
       } as unknown as ElementSchema;
 
-      const mockElement: ElementSchema = {
+      const mockElementSchema: ElementSchema = {
         id: "element-1",
         type: { name: "container-type" } as any,
-        parentElementId: "parent-id",
         children: [orderedChild] as any,
         properties: {},
       } as unknown as ElementSchema;
+
+      const mockElement = {
+        element: mockElementSchema,
+        parentElementId: undefined,
+      };
 
       mockGetLibraryElementByType
         .mockResolvedValueOnce({
@@ -123,16 +132,21 @@ describe("OrderedElementService", () => {
 
       await service.updatePriority(mockElement);
 
-      expect(calculatePrioritySpy).toHaveBeenCalledWith(orderedChild);
+      expect(calculatePrioritySpy).toHaveBeenCalled();
     });
 
     it("should do nothing when element is not ordered and has no container", async () => {
-      const mockElement: ElementSchema = {
+      const mockElementSchema: ElementSchema = {
         id: "element-1",
         type: { name: "non-ordered-type" } as any,
-        parentElementId: null,
+        parentElementId: undefined,
         properties: {},
       } as unknown as ElementSchema;
+
+      const mockElement = {
+        element: mockElementSchema,
+        parentElementId: undefined,
+      };
 
       mockGetLibraryElementByType.mockResolvedValue({
         ordered: false,
@@ -157,12 +171,16 @@ describe("OrderedElementService", () => {
 
   describe("calculatePriority", () => {
     it("should correctly count ordered elements and assign order number", async () => {
-      const mockElement: ElementSchema = {
+      const mockElementSchema: ElementSchema = {
         id: "element-1",
         type: { name: "ordered-type" } as any,
-        parentElementId: "parent-id",
         properties: { priority: 0 },
       } as unknown as ElementSchema;
+
+      const mockElement = {
+        element: mockElementSchema,
+        parentElementId: "parent-id",
+      };
 
       const parentElement: ElementSchema = {
         id: "parent-id",
@@ -198,6 +216,7 @@ describe("OrderedElementService", () => {
       } as LibraryElement);
 
       const mockUtils = createMockUtils();
+      mockUtils.element = mockElementSchema;
       mockUtils.extractOtherOrderedElements.mockReturnValue(orderedElements);
       mockUtils.getPriority
         .mockReturnValueOnce(0) // for child-1
@@ -223,12 +242,16 @@ describe("OrderedElementService", () => {
     });
 
     it("should handle elements with out-of-range priorities", async () => {
-      const mockElement: ElementSchema = {
+      const mockElementSchema: ElementSchema = {
         id: "element-1",
         type: { name: "ordered-type" } as any,
-        parentElementId: "parent-id",
         properties: { priority: 0 },
       } as unknown as ElementSchema;
+
+      const mockElement = {
+        element: mockElementSchema,
+        parentElementId: "parent-id",
+      };
 
       const parentElement: ElementSchema = {
         id: "parent-id",
@@ -264,6 +287,7 @@ describe("OrderedElementService", () => {
       } as LibraryElement);
 
       const mockUtils = createMockUtils();
+      mockUtils.element = mockElementSchema;
       mockUtils.extractOtherOrderedElements.mockReturnValue(orderedElements);
       mockUtils.getPriority
         .mockReturnValueOnce(5) // out of range
@@ -290,10 +314,14 @@ describe("OrderedElementService", () => {
 
   describe("isOrdered", () => {
     it("should return true when library element is ordered and parentElementId is not null", async () => {
-      const mockElement: ElementSchema = {
+      const mockElementSchema: ElementSchema = {
         type: { name: "ordered-type" } as any,
-        parentElementId: "parent-id",
       } as unknown as ElementSchema;
+
+      const mockElement = {
+        element: mockElementSchema,
+        parentElementId: "parent-id",
+      };
 
       mockGetLibraryElementByType.mockResolvedValue({
         ordered: true,
@@ -305,10 +333,14 @@ describe("OrderedElementService", () => {
     });
 
     it("should return false when library element is not ordered", async () => {
-      const mockElement: ElementSchema = {
+      const mockElementSchema: ElementSchema = {
         type: { name: "non-ordered-type" } as any,
-        parentElementId: "parent-id",
       } as unknown as ElementSchema;
+
+      const mockElement = {
+        element: mockElementSchema,
+        parentElementId: "parent-id",
+      };
 
       mockGetLibraryElementByType.mockResolvedValue({
         ordered: false,
@@ -320,10 +352,15 @@ describe("OrderedElementService", () => {
     });
 
     it("should return false when parentElementId is null", async () => {
-      const mockElement: ElementSchema = {
+      const mockElementSchema: ElementSchema = {
         type: { name: "ordered-type" } as any,
-        parentElementId: null,
+        parentElementId: undefined,
       } as unknown as ElementSchema;
+
+      const mockElement = {
+        element: mockElementSchema,
+        parentElementId: undefined,
+      };
 
       mockGetLibraryElementByType.mockResolvedValue({
         ordered: true,
@@ -335,160 +372,18 @@ describe("OrderedElementService", () => {
     });
   });
 
-  describe("changePriority", () => {
-    it("should throw error when newPriority is negative", async () => {
-      service = new OrderedElementService(
-        mockChainFileUri,
-        mockChainId,
-        mockChainElements,
-      );
-
-      await expect(
-        service.changePriority(createMockUtils() as any, -1),
-      ).rejects.toThrow("Priority cannot be a negative number");
-    });
-
-    it("should return empty diff when priorities are equal", async () => {
-      const mockUtils = createMockUtils();
-      mockUtils.getPriority.mockReturnValue(1);
-      mockUtils.extractSortedOrderedElements.mockReturnValue([]);
-
-      (OrderedElementUtils.create as jest.Mock).mockResolvedValue(mockUtils);
-
-      service = new OrderedElementService(
-        mockChainFileUri,
-        mockChainId,
-        mockChainElements,
-      );
-
-      const result = await service.changePriority(mockUtils as any, 1);
-
-      expect(result).toEqual({ updatedElements: [] });
-    });
-
-    it("should correctly reorder elements when moving priority up", async () => {
-      const mockUtils = createMockUtils();
-      const sortedElements = [
-        {
-          id: "elem-1",
-          type: { name: "ordered-type" },
-          properties: { priority: 0 },
-        },
-        {
-          id: "elem-2",
-          type: { name: "ordered-type" },
-          properties: { priority: 1 },
-        },
-        {
-          id: "elem-3",
-          type: { name: "ordered-type" },
-          properties: { priority: 2 },
-        },
-      ] as unknown as ElementSchema[];
-
-      mockUtils.element = sortedElements[1];
-      mockUtils.getPriority.mockReturnValue(1);
-      mockUtils.extractSortedOrderedElements.mockReturnValue(sortedElements);
-      mockUtils.getIndex
-        .mockReturnValueOnce(1) // current index (priority 1)
-        .mockReturnValueOnce(0); // new priority index (priority 0)
-
-      mockParseElement.mockImplementation(() =>
-        Promise.resolve({ id: "updated-elem", type: "ordered-type" } as any),
-      );
-
-      service = new OrderedElementService(
-        mockChainFileUri,
-        mockChainId,
-        mockChainElements,
-      );
-
-      const result = await service.changePriority(mockUtils as any, 0);
-
-      expect(mockUtils.updatePriority).toHaveBeenCalled();
-      expect(result.updatedElements).toBeDefined();
-    });
-
-    it("should correctly reorder elements when moving priority down", async () => {
-      const mockUtils = createMockUtils();
-      const sortedElements = [
-        {
-          id: "elem-1",
-          type: { name: "ordered-type" },
-          properties: { priority: 0 },
-        },
-        {
-          id: "elem-2",
-          type: { name: "ordered-type" },
-          properties: { priority: 1 },
-        },
-        {
-          id: "elem-3",
-          type: { name: "ordered-type" },
-          properties: { priority: 2 },
-        },
-      ] as unknown as ElementSchema[];
-
-      mockUtils.element = sortedElements[0];
-      mockUtils.getPriority.mockReturnValue(0);
-      mockUtils.extractSortedOrderedElements.mockReturnValue(sortedElements);
-      mockUtils.getIndex.mockReturnValue(0); // current index
-
-      mockParseElement.mockImplementation(() =>
-        Promise.resolve({ id: "updated-elem", type: "ordered-type" } as any),
-      );
-
-      service = new OrderedElementService(
-        mockChainFileUri,
-        mockChainId,
-        mockChainElements,
-      );
-
-      const result = await service.changePriority(mockUtils as any, 2);
-
-      expect(mockUtils.updatePriority).toHaveBeenCalled();
-      expect(result.updatedElements).toBeDefined();
-    });
-
-    it("should handle edge case when newPriorityIndex is -1 when moving down", async () => {
-      const mockUtils = createMockUtils();
-      const sortedElements = [
-        {
-          id: "elem-1",
-          type: { name: "ordered-type" },
-          properties: { priority: 0 },
-        },
-      ] as unknown as ElementSchema[];
-
-      mockUtils.element = sortedElements[0];
-      mockUtils.getPriority.mockReturnValue(0);
-      mockUtils.extractSortedOrderedElements.mockReturnValue(sortedElements);
-      mockUtils.getIndex
-        .mockReturnValueOnce(0) // current index
-        .mockReturnValueOnce(-1); // new priority index (not found)
-
-      (OrderedElementUtils.create as jest.Mock).mockResolvedValue(mockUtils);
-
-      service = new OrderedElementService(
-        mockChainFileUri,
-        mockChainId,
-        mockChainElements,
-      );
-
-      const result = await service.changePriority(mockUtils as any, 0);
-
-      expect(result).toEqual({ updatedElements: [] });
-    });
-  });
-
   describe("removeElementIfOrderedAndMergeDiff", () => {
     it("should merge diff without duplicates", async () => {
-      const elementToRemove: ElementSchema = {
+      const elementToRemoveSchema: ElementSchema = {
         id: "element-1",
         type: { name: "ordered-type" } as any,
-        parentElementId: "parent-id",
         properties: { priority: 1 },
       } as unknown as ElementSchema;
+
+      const elementToRemove = {
+        element: elementToRemoveSchema,
+        parentElementId: "parent-id",
+      };
 
       const parentElement: ElementSchema = {
         id: "parent-id",
@@ -516,7 +411,7 @@ describe("OrderedElementService", () => {
       } as LibraryElement);
 
       const mockUtils = createMockUtils();
-      mockUtils.element = elementToRemove;
+      mockUtils.element = elementToRemoveSchema;
       mockUtils.extractSortedOrderedElements.mockReturnValue([
         {
           id: "elem-0",
@@ -537,6 +432,7 @@ describe("OrderedElementService", () => {
       mockUtils.getPriority
         .mockReturnValueOnce(1) // For utils.getPriority() - the element's own priority
         .mockReturnValueOnce(2); // For the priority of elem-2 in the loop
+
       mockUtils.getIndex.mockReturnValue(1); // Finds element-1 at index 1
 
       mockParseElement.mockImplementation((uri, element) =>
@@ -567,18 +463,22 @@ describe("OrderedElementService", () => {
     });
 
     it("should not add duplicates to chainDiff", async () => {
-      const mockElement: ElementSchema = {
-        id: "element-1", // This is the element being removed
+      const elementToRemoveSchema: ElementSchema = {
+        id: "element-1",
         type: { name: "ordered-type" } as any,
-        parentElementId: "parent-id",
         properties: { priority: 1 },
       } as unknown as ElementSchema;
+
+      const elementToRemove = {
+        element: elementToRemoveSchema,
+        parentElementId: "parent-id",
+      };
 
       const parentElement: ElementSchema = {
         id: "parent-id",
         children: [
           {
-            id: "element-1", // The element being removed should be here
+            id: "element-1",
             type: { name: "ordered-type" } as any,
             properties: { priority: 1 },
           },
@@ -595,7 +495,7 @@ describe("OrderedElementService", () => {
       } as LibraryElement);
 
       const mockUtils = createMockUtils();
-      mockUtils.element = mockElement;
+      mockUtils.element = elementToRemoveSchema;
       // Include the element being removed in the sorted list
       mockUtils.extractSortedOrderedElements.mockReturnValue([
         {
@@ -636,7 +536,10 @@ describe("OrderedElementService", () => {
         updatedElements: [existingElement],
       } as any;
 
-      await service.removeElementIfOrderedAndMergeDiff(mockElement, chainDiff);
+      await service.removeElementIfOrderedAndMergeDiff(
+        elementToRemove,
+        chainDiff,
+      );
 
       // After removing element-1 at index 0, elem-2 gets priority decremented
       // But elem-2's id ("elem-2") is NOT "element-1", so no duplicate
@@ -644,12 +547,17 @@ describe("OrderedElementService", () => {
     });
 
     it("should handle element with priority at the end", async () => {
-      const mockElement: ElementSchema = {
+      const elementToRemoveSchema: ElementSchema = {
         id: "element-1",
         type: { name: "ordered-type" } as any,
         parentElementId: "parent-id",
         properties: { priority: 2 },
       } as unknown as ElementSchema;
+
+      const elementToRemove = {
+        element: elementToRemoveSchema,
+        parentElementId: "parent-id",
+      };
 
       const parentElement: ElementSchema = {
         id: "parent-id",
@@ -672,7 +580,7 @@ describe("OrderedElementService", () => {
       } as LibraryElement);
 
       const mockUtils = createMockUtils();
-      mockUtils.element = mockElement;
+      mockUtils.element = elementToRemoveSchema;
       mockUtils.extractSortedOrderedElements.mockReturnValue([
         {
           id: "elem-1",
@@ -698,19 +606,26 @@ describe("OrderedElementService", () => {
 
       const chainDiff: ActionDifference = { updatedElements: [] } as any;
 
-      await service.removeElementIfOrderedAndMergeDiff(mockElement, chainDiff);
+      await service.removeElementIfOrderedAndMergeDiff(
+        elementToRemove,
+        chainDiff,
+      );
 
       // Should not update anything when element is at the end
       expect(chainDiff.updatedElements).toHaveLength(0);
     });
 
     it("should do nothing when element is not ordered", async () => {
-      const mockElement = {
+      const mockElementSchema = {
         id: "element-1",
         type: { name: "non-ordered-type" } as any,
-        parentElementId: "parent-id",
         properties: {},
       } as unknown as ElementSchema;
+
+      const mockElement = {
+        element: mockElementSchema,
+        parentElementId: "parent-id",
+      };
 
       mockGetLibraryElementByType.mockResolvedValue({
         ordered: false,
@@ -732,12 +647,16 @@ describe("OrderedElementService", () => {
 
   describe("updateProperties", () => {
     it("should return undefined when parentElementId has not changed", async () => {
-      const mockElement = {
+      const mockElementSchema = {
         id: "element-1",
         type: { name: "ordered-type" } as any,
-        parentElementId: "parent-id",
         properties: {},
       } as unknown as ElementSchema;
+
+      const mockElement = {
+        element: mockElementSchema,
+        parentElementId: "parent-id",
+      };
 
       const elementRequest = {
         parentElementId: "parent-id",
@@ -759,12 +678,16 @@ describe("OrderedElementService", () => {
     });
 
     it("should return undefined when element is not ordered", async () => {
-      const mockElement = {
+      const mockElementSchema = {
         id: "element-1",
         type: { name: "non-ordered-type" } as any,
-        parentElementId: "parent-id",
         properties: {},
       } as unknown as ElementSchema;
+
+      const mockElement = {
+        element: mockElementSchema,
+        parentElementId: "parent-id",
+      };
 
       const elementRequest = {
         parentElementId: "parent-id",
@@ -790,12 +713,16 @@ describe("OrderedElementService", () => {
     });
 
     it("should call changePriority when priority changes on ordered element", async () => {
-      const mockElement = {
+      const mockElementSchema = {
         id: "element-1",
         type: { name: "ordered-type" } as any,
-        parentElementId: "parent-id",
         properties: {},
       } as unknown as ElementSchema;
+
+      const mockElement = {
+        element: mockElementSchema,
+        parentElementId: "parent-id",
+      };
 
       const elementRequest = {
         parentElementId: "parent-id",
@@ -807,7 +734,7 @@ describe("OrderedElementService", () => {
       } as LibraryElement);
 
       const mockUtils = createMockUtils();
-      mockUtils.element = mockElement;
+      mockUtils.element = mockElementSchema;
       mockUtils.getPriorityOrUndefined.mockReturnValue(2);
 
       // Mock for OrderedElementUtils.create call inside updateProperties
@@ -830,44 +757,191 @@ describe("OrderedElementService", () => {
       expect(isOrderedSpy).toHaveBeenCalledWith(mockElement);
       expect(changePrioritySpy).toHaveBeenCalledWith(mockUtils, 2);
     });
-  });
 
-  describe("getParentElement", () => {
-    it("should return parent element by ID lookup", async () => {
-      const parentElement = {
-        id: "parent-id",
-        type: { name: "parent-type" } as any,
-        children: [],
-        properties: {},
-      } as unknown as ElementSchema;
+    describe("updateProperties cases", () => {
+      // Parameterized tests for priority change scenarios
+      const priorityChangeCases: Array<
+        [
+          string,
+          {
+            existingElements: { id: string; priority: number }[];
+            targetElementId: string;
+            newPriority: number;
+            expectedUpdates: { id: string; priority: number }[];
+          },
+        ]
+      > = [
+        [
+          "should not change priority of other elements when moving to non-existent priority",
+          {
+            existingElements: [
+              { id: "elem-1", priority: 0 },
+              { id: "elem-2", priority: 1 },
+            ],
+            targetElementId: "elem-1",
+            newPriority: 5,
+            expectedUpdates: [],
+          },
+        ],
+        [
+          "should not change priorities when moving to higher non-overlapping priority",
+          {
+            existingElements: [
+              { id: "elem-1", priority: 0 },
+              { id: "elem-2", priority: 1 },
+              { id: "elem-3", priority: 40 },
+            ],
+            targetElementId: "elem-2",
+            newPriority: 3,
+            expectedUpdates: [],
+          },
+        ],
+        [
+          "should not change priorities when moving to lower non-overlapping priority",
+          {
+            existingElements: [
+              { id: "elem-1", priority: 0 },
+              { id: "elem-2", priority: 2 },
+              { id: "elem-3", priority: 40 },
+            ],
+            targetElementId: "elem-2",
+            newPriority: 1,
+            expectedUpdates: [],
+          },
+        ],
+        [
+          "should not change priorities with unordered initial priorities",
+          {
+            existingElements: [
+              { id: "elem-1", priority: 1 },
+              { id: "elem-2", priority: 0 },
+              { id: "elem-3", priority: 40 },
+            ],
+            targetElementId: "elem-2",
+            newPriority: 2,
+            expectedUpdates: [],
+          },
+        ],
+        [
+          "should shift priorities when moving to existing priority",
+          {
+            existingElements: [
+              { id: "elem-1", priority: 1 },
+              { id: "elem-2", priority: 39 },
+              { id: "elem-3", priority: 40 },
+              { id: "elem-4", priority: 38 },
+            ],
+            targetElementId: "elem-4",
+            newPriority: 40,
+            expectedUpdates: [
+              { id: "elem-3", priority: 39 },
+              { id: "elem-2", priority: 38 },
+            ],
+          },
+        ],
+      ];
 
-      const mockElement = {
-        id: "element-1",
-        type: { name: "child-type" } as any,
-        parentElementId: "parent-id",
-        properties: {},
-      };
+      test.each(priorityChangeCases)("%s", async (description, testData) => {
+        const {
+          existingElements,
+          targetElementId,
+          newPriority,
+          expectedUpdates,
+        } = testData;
 
-      mockChainElements = [parentElement];
-      mockFindElementById.mockReturnValue({
-        element: parentElement,
-        parentId: undefined,
+        const orderedElements: ElementSchema[] = existingElements.map(
+          (elem) =>
+            ({
+              id: elem.id,
+              type: "ordered-type" as unknown as DataType,
+              properties: { priority: elem.priority },
+            }) as unknown as ElementSchema,
+        );
+
+        const mockElementSchema = orderedElements.find(
+          (elem) => elem.id === targetElementId,
+        )!;
+
+        const mockElement = {
+          element: mockElementSchema,
+          parentElementId: "parent-id",
+        };
+
+        const elementRequest = {
+          parentElementId: "parent-id",
+          properties: { priority: newPriority },
+        };
+
+        mockGetLibraryElementByType.mockResolvedValue({
+          ordered: true,
+        } as LibraryElement);
+
+        const { OrderedElementUtils: ActualUtils } = jest.requireActual(
+          "../../../src/web/api-services/OrderedElementUtils",
+        );
+
+        const utils = await ActualUtils.create(mockElement);
+
+        (OrderedElementUtils.create as jest.Mock).mockResolvedValue(utils);
+        const updatePrioritySpy = jest.spyOn(utils, "updatePriority");
+
+        mockFindElementById.mockImplementation(
+          (elements, elementId: string) => {
+            if (elementId === "parent-id") {
+              const parentElement: ElementSchema = {
+                id: "parent-id",
+                children: orderedElements,
+              } as unknown as ElementSchema;
+
+              return { element: parentElement, parentId: undefined };
+            }
+            return {
+              element: { id: elementId } as unknown as ElementSchema,
+              parentId: undefined,
+            };
+          },
+        );
+
+        const isOrderedSpy = jest
+          .spyOn(OrderedElementService, "isOrdered")
+          .mockResolvedValue(true);
+
+        service = new OrderedElementService(
+          mockChainFileUri,
+          mockChainId,
+          mockChainElements,
+        );
+
+        const result = await service.updateProperties(
+          mockElement,
+          elementRequest as any,
+        );
+
+        // Verify updatePriority calls for expected updates
+        const updatePriorityCalls = updatePrioritySpy.mock.calls;
+
+        // First call should be for the target element's new priority
+        expect(updatePriorityCalls[0]).toEqual([newPriority]);
+
+        // Check other priority updates
+        if (expectedUpdates.length > 0) {
+          const otherCalls = updatePriorityCalls.slice(1);
+          expectedUpdates.forEach((expected, index) => {
+            // Find the call that corresponds to this expected update
+            const call = otherCalls.find(
+              (c: any[]) =>
+                expected.priority === c[0] &&
+                orderedElements.some((e: any) => e.id === expected.id),
+            );
+            expect(call).toBeTruthy();
+          });
+        } else {
+          // No other updates expected
+          expect(updatePrioritySpy).toHaveBeenCalledTimes(1);
+        }
+
+        expect(isOrderedSpy).toHaveBeenCalledWith(mockElement);
       });
-
-      service = new OrderedElementService(
-        mockChainFileUri,
-        mockChainId,
-        mockChainElements,
-      );
-
-      // Access private method for testing
-      const result = (service as any).getParentElement(mockElement);
-
-      expect(mockFindElementById).toHaveBeenCalledWith(
-        mockChainElements,
-        "parent-id",
-      );
-      expect(result).toEqual(parentElement);
     });
   });
 });

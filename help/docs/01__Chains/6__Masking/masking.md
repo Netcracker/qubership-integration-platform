@@ -12,14 +12,10 @@ The table of masking fields consists of the following columns and elements:
 
 #### <ins>Web UI</ins>
 - **Field** - masking field's name, that is going to be masked. For editing, hover the cursor over the name and click on it.
-- **Created By** - field creator's username.
-- **Created At** - shows date and time when a field was created.
-- **Modified By** - name of the user, who last modified the field.
-- **Modified At** - shows date and time when a field was updated.
-
-#### <ins>VS Code Extension</ins>
-- **Field** - masking field's name, that is going to be masked. For editing, hover the cursor over the name and click on it.
-
+- **Created By** - field creator's username (hidden by default for <ins>VS Code Extension</ins>).
+- **Created At** - shows date and time when a field was created (hidden by default for <ins>VS Code Extension</ins>).
+- **Modified By** - name of the user, who last modified the field (hidden by default for <ins>VS Code Extension</ins>).
+- **Modified At** - shows date and time when a field was updated (hidden by default for <ins>VS Code Extension</ins>).
 
 At the top of the table the following options are available:
 - **Search masked field** - search box, provides ability to find respective data in the table.

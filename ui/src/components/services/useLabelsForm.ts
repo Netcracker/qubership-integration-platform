@@ -19,6 +19,7 @@ export function useLabelsForm(form: FormInstance | null) {
         form.setFieldsValue({
           name: data.name,
           description: data.description,
+          type: data.type,
           labels: [
             ...(data.labels?.filter((l) => l.technical).map((l) => l.name) ||
               []),

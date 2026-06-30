@@ -3,9 +3,6 @@
 # shared _npm-module-release workflow, then optionally cascade to ui (and on to
 # vscode-extension).
 #
-# This is the COMMON case — schemas ships to npm frequently. The rare Maven
-# Central publish (~twice a year, manual) lives in schemas-maven-release.yaml.
-#
 # No workflow-level concurrency: the reusable serialises per module (group
 # includes inputs.module). A wrapper-level group keyed on github.workflow would
 # collide with the nested ui/vscode calls and deadlock.
@@ -41,6 +38,9 @@ on:
         type: boolean
         default: false
         description: "Also release vscode-extension after ui (only when cascade-ui is enabled)"
+    secrets:
+      GH_BUMP_VERSION_APP_KEY:
+        required: false
   workflow_dispatch:
     inputs:
       release-type:
@@ -86,6 +86,8 @@ jobs:
       release-type: ${{ inputs.release-type }}
       version: ${{ inputs.version }}
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
+    secrets:
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
 
   # Cascade: release ui (which itself may cascade on to vscode-extension) with an
   # auto patch-bump. Gated on the schemas publish, not on the GitHub release.
@@ -100,3 +102,5 @@ jobs:
       release-type: patch
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
       cascade-vscode-extension: ${{ inputs.cascade-vscode-extension }}
+    secrets:
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}

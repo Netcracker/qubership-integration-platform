@@ -3,7 +3,7 @@ import {
   Dependency,
   Element,
   EntityLabel,
-  Folder,
+  ExportImagesTarget,
   LibraryData,
   LibraryElement,
   MaskedField,
@@ -21,6 +21,37 @@ import {
 } from "./chainApiUtils";
 import { fileApi } from "./file";
 import { getExtensionsForUri } from "./file/fileExtensions";
+import { sanitizeExportOutputName } from "../exportImageUtils";
+
+export async function listChainExportTargets(): Promise<ExportImagesTarget[]> {
+  const extensions = getExtensionsForUri();
+  const files = await fileApi.findFiles(extensions.chain);
+
+  const parsed = await Promise.all(
+    files.map(async (fileUri): Promise<ExportImagesTarget | null> => {
+      const chain = (await fileApi.parseFile(fileUri)) as
+        | ChainSchema
+        | undefined;
+      const chainId = typeof chain?.id === "string" ? chain.id : undefined;
+      if (!chainId) {
+        return null;
+      }
+      return {
+        chainId,
+        filePath: fileUri.toString(),
+        outputName: sanitizeExportOutputName(chainId),
+      };
+    }),
+  );
+
+  const targets = parsed.filter((target) => target !== null);
+
+  return targets.sort((left, right) =>
+    (left.outputName ?? left.chainId).localeCompare(
+      right.outputName ?? right.chainId,
+    ),
+  );
+}
 
 export async function getCurrentChainId(fileUri: Uri): Promise<string> {
   const chain = await getMainChain(fileUri);
@@ -249,77 +280,117 @@ function parseDependencies(dependencies: any[]): Dependency[] {
   return result;
 }
 
+// Inline a service-call before/after block's properties from its sidecar file.
+async function applyServiceCallBlockProperties(
+  fileUri: Uri,
+  beforeAfterBlock: any,
+): Promise<void> {
+  if (beforeAfterBlock.type === "script") {
+    // Empty script content is exported without a file; treat a missing file as
+    // empty rather than leaving the script property undefined.
+    beforeAfterBlock["script"] = beforeAfterBlock.propertiesFilename
+      ? await fileApi.readFile(fileUri, beforeAfterBlock.propertiesFilename)
+      : "";
+    return;
+  }
+  if (!beforeAfterBlock.type?.startsWith("mapper")) {
+    return;
+  }
+  if (!beforeAfterBlock.propertiesFilename) {
+    return;
+  }
+  const fileContent = await fileApi.readFile(
+    fileUri,
+    beforeAfterBlock.propertiesFilename,
+  );
+  const properties: any = fileContent?.trim() ? JSON.parse(fileContent) : {};
+  for (const key in properties) {
+    beforeAfterBlock[key] = properties[key];
+  }
+}
+
+// Inline the properties an element exported to a separate sidecar file.
+async function loadSeparateFileProperties(
+  fileUri: Uri,
+  element: ElementSchema,
+): Promise<void> {
+  const elementProperties = element.properties as any;
+  if (!elementProperties?.propertiesToExportInSeparateFile) {
+    return;
+  }
+  const propertiesFilename = elementProperties.propertiesFilename as
+    | string
+    | undefined;
+  // Mirror runtime-catalog import: empty separate-file content (e.g. a mapper
+  // with empty mappingDescription) is exported without a file or filename.
+  if (!propertiesFilename) {
+    return;
+  }
+  if (elementProperties.exportFileExtension !== "json") {
+    elementProperties[
+      elementProperties.propertiesToExportInSeparateFile as string
+    ] = await fileApi.readFile(fileUri, propertiesFilename);
+    return;
+  }
+  const propertyNames: string[] | undefined =
+    elementProperties.propertiesToExportInSeparateFile
+      ?.split(",")
+      .map((item: string) => item.trim());
+  const fileContent = await fileApi.readFile(fileUri, propertiesFilename);
+  const properties: any = fileContent?.trim() ? JSON.parse(fileContent) : {};
+  if (propertyNames) {
+    for (const propertyName of propertyNames) {
+      elementProperties[propertyName] = properties[propertyName];
+    }
+  }
+}
+
+// Inline service-call before/after block properties from their sidecar files.
+async function loadServiceCallProperties(
+  fileUri: Uri,
+  element: ElementSchema,
+): Promise<void> {
+  const elementProperties = element.properties as any; // WA before fix of schemas compilation missing service call properties
+  if (Array.isArray(elementProperties.after)) {
+    for (const afterBlock of elementProperties.after) {
+      await applyServiceCallBlockProperties(fileUri, afterBlock);
+    }
+  }
+  if (elementProperties.before) {
+    await applyServiceCallBlockProperties(fileUri, elementProperties.before);
+  }
+}
+
+// Recursively parse an element's children, preserving the parent link.
+async function parseChildren(
+  fileUri: Uri,
+  element: ElementSchema,
+  chainId: string,
+): Promise<Element[] | undefined> {
+  const childSchemas = element.children as ElementSchema[];
+  if (!childSchemas?.length) {
+    return undefined;
+  }
+  const children: Element[] = [];
+  for (const child of childSchemas) {
+    children.push(await parseElement(fileUri, child, chainId, element.id));
+  }
+  return children;
+}
+
 export async function parseElement(
   fileUri: Uri,
   element: ElementSchema,
   chainId: string,
   parentId: string | undefined = undefined,
 ): Promise<Element> {
-  async function handleServiceCallProperty(beforeAfterBlock: any) {
-    if (beforeAfterBlock.type === "script") {
-      beforeAfterBlock["script"] = await fileApi.readFile(
-        fileUri,
-        beforeAfterBlock.propertiesFilename,
-      );
-    } else if (beforeAfterBlock.type?.startsWith("mapper")) {
-      const properties: any = JSON.parse(
-        await fileApi.readFile(fileUri, beforeAfterBlock.propertiesFilename),
-      );
-      for (const key in properties) {
-        beforeAfterBlock[key] = properties[key];
-      }
-    }
-  }
-
-  if ((element.properties as any)?.propertiesToExportInSeparateFile) {
-    const elementProperties = element.properties as any;
-    if (elementProperties.exportFileExtension === "json") {
-      const propertyNames: string[] | undefined =
-        elementProperties.propertiesToExportInSeparateFile
-          ?.split(",")
-          .map(function (item: string) {
-            return item.trim();
-          });
-      const properties: any = JSON.parse(
-        await fileApi.readFile(
-          fileUri,
-          elementProperties.propertiesFilename as string,
-        ),
-      );
-      if (propertyNames) {
-        for (const propertyName of propertyNames) {
-          elementProperties[propertyName] = properties[propertyName];
-        }
-      }
-    } else {
-      elementProperties[
-        elementProperties.propertiesToExportInSeparateFile as string
-      ] = await fileApi.readFile(
-        fileUri,
-        elementProperties.propertiesFilename as string,
-      );
-    }
-  }
+  await loadSeparateFileProperties(fileUri, element);
 
   if ((element.type as unknown as string) === "service-call") {
-    const elementProperties = element.properties as any; // WA before fix of schemas compilation missing service call properties
-    if (Array.isArray(elementProperties.after)) {
-      for (const afterBlock of elementProperties.after) {
-        await handleServiceCallProperty(afterBlock);
-      }
-    }
-    if (elementProperties.before) {
-      await handleServiceCallProperty(elementProperties.before);
-    }
+    await loadServiceCallProperties(fileUri, element);
   }
 
-  let children: Element[] | undefined = undefined;
-  if ((element.children as ElementSchema[])?.length) {
-    children = [];
-    for (const child of element.children as ElementSchema[]) {
-      children.push(await parseElement(fileUri, child, chainId, element.id));
-    }
-  }
+  const children = await parseChildren(fileUri, element, chainId);
 
   return {
     id: element.id,
@@ -383,14 +454,19 @@ async function parseElementsForType(
   return result;
 }
 
-export async function getChain(fileUri: Uri, chainId: string): Promise<Chain> {
-  const chain = await getMainChain(fileUri);
+export async function getChain(
+  fileUri: Uri,
+  chainId: string,
+  chainFileUri?: Uri,
+): Promise<Chain> {
+  const resolvedUri = chainFileUri ?? (await getChainFileUri(chainId, fileUri));
+  const chain = (await fileApi.parseFile(resolvedUri)) as ChainSchema;
   if (chain.id !== chainId) {
     console.error(`ChainId mismatch`);
     throw Error("ChainId mismatch");
   }
 
-  return schemaToChain(fileUri, chain);
+  return schemaToChain(resolvedUri, chain);
 }
 
 export async function schemaToChain(
@@ -406,11 +482,11 @@ export async function schemaToChain(
     : [];
 
   const navigationPath: [string, string][] = [];
-  let currentFolder = chain.content.folder as Folder;
-
-  while (currentFolder) {
-    navigationPath.push([currentFolder.name, currentFolder.name]);
-    currentFolder = currentFolder.subfolder as Folder;
+  const group = chain.metaInfo?.group ?? "";
+  for (const segment of group.split("/")) {
+    if (segment) {
+      navigationPath.push([segment, segment]);
+    }
   }
 
   return {

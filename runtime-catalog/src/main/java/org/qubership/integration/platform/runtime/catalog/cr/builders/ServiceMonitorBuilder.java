@@ -25,12 +25,20 @@ public class ServiceMonitorBuilder implements ResourceBuilder<List<Snapshot>> {
     @Value("${qip.cr.labels.domain}")
     String domainLabel;
 
+    @Value("${qip.cr.labels.bg-version}")
+    String bgVersionLabel;
+
+    @Value("${spring.application.deployment_version}")
+    String bgVersion;
+
     @Data
     @Builder
     private static class TemplateData {
         private String name;
         private String domainLabel;
         private String domainName;
+        private String bgVersionLabel;
+        private String bgVersion;
         private String integrationName;
         private String serviceName;
         private String interval;
@@ -82,6 +90,8 @@ public class ServiceMonitorBuilder implements ResourceBuilder<List<Snapshot>> {
         return TemplateData.builder()
                 .domainLabel(domainLabel)
                 .domainName(k8sNameValidator.validate(context.getBuildInfo().getOptions().getName()))
+                .bgVersionLabel(bgVersionLabel)
+                .bgVersion(bgVersion)
                 .name(serviceMonitorNamingStrategy.getName(context))
                 .integrationName(integrationResourceNamingStrategy.getName(context))
                 .serviceName(serviceNamingStrategy.getName(context))

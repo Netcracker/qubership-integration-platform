@@ -15,6 +15,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.locations.SourceMou
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ContainerOptions;
+import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.HealthOptions;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,12 +35,11 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
     @Value("${qip.cr.labels.domain}")
     String domainLabel;
 
-    @Data
-    @Builder
-    private static class ContainerData {
-        String image;
-        String imagePullPolicy;
-    }
+    @Value("${qip.cr.labels.bg-version}")
+    String bgVersionLabel;
+
+    @Value("${spring.application.deployment_version}")
+    String bgVersion;
 
     @Data
     @Builder
@@ -47,7 +47,14 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
         private String name;
         private String domainLabel;
         private String domainName;
-        private ContainerData container;
+        private Integer replicas;
+        private HealthOptions health;
+        private String bgVersionLabel;
+        private String bgVersion;
+        private ContainerOptions container;
+        private String jvmJar;
+        private List<String> jvmArgs;
+        private Collection<String> emptyDirs;
         private Collection<String> resources;
         private Collection<String> properties;
         private Collection<String> environment;
@@ -57,7 +64,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
 
     private final Handlebars templates;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
-    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> serviceNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> cloudServiceNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<Snapshot>> sourceDslConfigMapNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationsConfigurationConfigMapNamingStrategy;
     private final SourceMountPointGetter sourceMountPointGetter;
@@ -72,8 +79,8 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
             @Qualifier("integrationResourceNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
 
-            @Qualifier("serviceNamingStrategy")
-            NamingStrategy<ResourceBuildContext<List<Snapshot>>> serviceNamingStrategy,
+            @Qualifier("cloudServiceNamingStrategy")
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> cloudServiceNamingStrategy,
 
             @Qualifier("integrationsConfigurationResourceNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationsConfigurationConfigMapNamingStrategy,
@@ -87,7 +94,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
     ) {
         this.templates = templates;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
-        this.serviceNamingStrategy = serviceNamingStrategy;
+        this.cloudServiceNamingStrategy = cloudServiceNamingStrategy;
         this.sourceDslConfigMapNamingStrategy = sourceDslConfigMapNamingStrategy;
         this.integrationsConfigurationConfigMapNamingStrategy = integrationsConfigurationConfigMapNamingStrategy;
         this.sourceMountPointGetter = sourceMountPointGetter;
@@ -117,24 +124,20 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
                 .name(integrationResourceNamingStrategy.getName(context))
                 .domainLabel(domainLabel)
                 .domainName(k8sNameValidator.validate(context.getBuildInfo().getOptions().getName()))
-                .container(buildContainerData(context.getBuildInfo().getOptions().getContainer()))
+                .replicas(context.getBuildInfo().getOptions().getReplicas())
+                .bgVersionLabel(bgVersionLabel)
+                .bgVersion(bgVersion)
+                .container(context.getBuildInfo().getOptions().getContainer())
+                .health(context.getBuildInfo().getOptions().getHealth())
+                .jvmJar(context.getBuildInfo().getOptions().getJvm().getJar())
+                .jvmArgs(context.getBuildInfo().getOptions().getJvm().getArgs())
+                .emptyDirs(context.getBuildInfo().getOptions().getMount().getEmptyDirs())
                 .resources(buildResources(context))
                 .propertiesEnabled(!context.getBuildInfo().getOptions()
                         .getIntegrations().isConfigurationConfigMapNeeded())
                 .properties(buildCamelProperties(context))
                 .environment(buildEnvironmentVars(context))
                 .serviceAccountName(buildServiceAccountName(context))
-                .build();
-    }
-
-    private ContainerData buildContainerData(ContainerOptions containerOptions) {
-        String image = containerOptions.getImage();
-        if (StringUtils.isBlank(image)) {
-            image = "{{ .Values.container.image }}";
-        }
-        return ContainerData.builder()
-                .image(image)
-                .imagePullPolicy(containerOptions.getImagePoolPolicy().name())
                 .build();
     }
 
@@ -161,7 +164,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
                     IntegrationsConfigurationConfigMapBuilder.CONTENT_KEY, QIP_CHAINS_CONFIGURATION_PATH);
             resources.add(resource);
         }
-        Set<String> result = new HashSet<>(context.getBuildInfo().getOptions().getResources());
+        Set<String> result = new HashSet<>(context.getBuildInfo().getOptions().getMount().getResources());
         result.addAll(resources);
         return result;
     }
@@ -186,7 +189,8 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
 
     private Collection<String> buildEnvironmentVars(ResourceBuildContext<List<Snapshot>> context) {
         Map<String, String> environment = new HashMap<>(context.getBuildInfo().getOptions().getEnvironment());
-        environment.put("CLOUD_SERVICE_NAME", serviceNamingStrategy.getName(context));
+        environment.put("CLOUD_SERVICE_NAME", cloudServiceNamingStrategy.getName(context));
+        environment.put("BG_VERSION", bgVersion);
         environment.put("QIP_ENGINE_DOMAIN", context.getBuildInfo().getOptions().getName());
         if (!context.getBuildInfo().getOptions().getIntegrations().isCamelKSourcesUtilized()) {
             String location = context.getBuildInfo().getOptions().getIntegrations().getConfigurationLocation();

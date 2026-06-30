@@ -17,18 +17,19 @@ There are next possible service types, supported by the system:
   and [AsyncAPI Trigger](../01__Chains/1__Graph/1__Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md) elements.
 - [Implemented](3__Implemented/implemented.md) - custom services, usually created from [HTTP Trigger](../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md).
 - [Context](4__Context/context.md) - database instance used for storing chain contexts, further enabling creation, retrieval and deletion of context data. Usable in [Context Storage](../01__Chains/1__Graph/1__Elements_Library/4__Services/1__Context_Storage/context_storage.md) element.
+- [MCP](5__MCP/mcp.md) - services that expose chains as tools through the Model Context Protocol. Usable in [MCP Trigger](../01__Chains/1__Graph/1__Elements_Library/6__Triggers/10__MCP_Trigger/mcp_trigger.md) elements.
 
 ### Services data model
 ![Services data model](img/class_diagram.svg)
 
 Services consist of next entities:
-- **API Specification group** - services may have different groups of specifications, differentiated per business or technical logic. For example, one group may contain specifications, required for customer managements and another - for order managements. Not available for Context services.
-- **API Specification** - contains standardized description of available operations. Not available for Context services.
-- **Operation** - describes exact endpoint, related to particular business operation. Not available for Context services.
+- **API Specification group** - services may have different groups of specifications, differentiated per business or technical logic. For example, one group may contain specifications, required for customer managements and another - for order managements. Not available for Context and MCP services.
+- **API Specification** - contains standardized description of available operations. Not available for Context and MCP services.
+- **Operation** - describes exact endpoint, related to particular business operation. Not available for Context and MCP services.
 - **Environment** - Each Dev, QA or Production environment must have specific address by which service will be available for API calling. Depending on its type, service may have specific limitations for quantity of the environments:
   - **one** environment: for **Inner Cloud** and **Implemented services**.
   - **multiple** environments:  for **External services**.
-  - **no** environments: for **Context services**
+  - **no** environments: for **Context** and **MCP services**
 
 > ℹ️ **Note:** Environment's address field for **http**-based services may be inactive, which means that route registration on Egress is globally disabled in CMBD. In this case, registration must be performed manually.
 

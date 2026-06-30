@@ -40,6 +40,8 @@ public interface SecretService {
 
     String getDefaultSecretName();
 
+    boolean secretExists(String secretName);
+
     default boolean isDefaultSecret(String secretName) {
         String defaultSecretName = getDefaultSecretName();
         return (defaultSecretName == null && secretName == null)

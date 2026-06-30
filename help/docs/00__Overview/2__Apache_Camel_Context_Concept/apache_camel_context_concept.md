@@ -36,6 +36,7 @@ as most of the available functionality is wrapped up into human-understandable e
 | HTTP Trigger     | Path Parameters            | - Headers<br>- Query Parameters                   | HTTP Message's Body                                 |
 | JMS Trigger      | -                          | - Headers<br>- JMS Properties                     | JMS Message's Body                                  |
 | Kafka Trigger    | -                          | Kafka Headers                                     | Kafka Message's Body                                |
+| MCP Trigger      |     -   |                  -              | MCP Input schema                                    |
 | PubSub Trigger   | -                          | PubSub Headers                                    | PubSub Message's Body                               |
 | RabbitMQ Trigger | -                          | RabbitMQ Headers                                  | RabbitMQ Message's Body                             |
 | Scheduler        | -                          | - Scheduler's Headers<br>- Scheduler's Properties | -                                                   |

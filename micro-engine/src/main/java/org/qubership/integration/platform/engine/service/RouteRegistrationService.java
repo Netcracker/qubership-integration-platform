@@ -19,7 +19,7 @@ import java.util.List;
 import static java.util.Objects.nonNull;
 
 @ApplicationScoped
-@IfBuildProperty(name = "qip.control-plane.enabled", stringValue = "true")
+@IfBuildProperty(name = "qip.control-plane.routes.registration.enabled", stringValue = "true", enableIfMissing = true)
 public class RouteRegistrationService {
     private final VariablesService variablesService;
     private final ControlPlaneService controlPlaneService;
@@ -71,12 +71,20 @@ public class RouteRegistrationService {
 
     private Collection<RouteRegistrationInfo> resolveVariablesInRoutes(Collection<RouteRegistrationInfo> routes) {
         return routes.stream()
-                .filter(route -> nonNull(route.getVariableName())
-                        && (RouteType.EXTERNAL_SENDER == route.getType()
-                        || RouteType.EXTERNAL_SERVICE == route.getType()))
-                .filter(route -> variablesService.hasVariableReferences(route.getPath()))
-                .map(route -> route.toBuilder().path(variablesService.injectVariables(route.getPath())).build())
+                .map(route ->
+                    isVariableResolutionRequired(route)
+                        ? route.toBuilder()
+                            .path(variablesService.injectVariables(route.getPath()))
+                            .build()
+                        : route)
                 .toList();
+    }
+
+    private boolean isVariableResolutionRequired(RouteRegistrationInfo route) {
+        return nonNull(route.getVariableName())
+            && (RouteType.EXTERNAL_SENDER == route.getType()
+                    || RouteType.EXTERNAL_SERVICE == route.getType())
+            && variablesService.hasVariableReferences(route.getPath());
     }
 
     public static @NotNull RouteRegistrationInfo formatServiceRoutes(RouteRegistrationInfo route) {

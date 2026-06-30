@@ -28,6 +28,7 @@ import org.mockito.Captor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SecretNotFoundException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.secret.KubeSecretOperator;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
@@ -88,7 +89,7 @@ public class K8sSecretServiceTest {
 
     @DisplayName("Creating a secret should do nothing and return false when the secret already exists")
     @Test
-    public void creatingASecretShouldDoNothingAndReturnFalseWhenSecretExists() {
+    void creatingASecretShouldDoNothingAndReturnFalseWhenSecretExists() {
         doReturn(new V1Secret()).when(operator).getSecretObjectByName(SECRET_NAME);
         assertThat(secretService.createSecret(SECRET_NAME), is(false));
         verify(operator, never()).createSecret(any(), any(), any());
@@ -97,7 +98,7 @@ public class K8sSecretServiceTest {
 
     @DisplayName("Should call a corresponding KubeOperator method when creating an empty secret")
     @Test
-    public void creatingASecretShouldCallKubeOperatorMethod() {
+    void creatingASecretShouldCallKubeOperatorMethod() {
         secretService.createSecret(SECRET_NAME);
         verify(operator, times(1)).createSecret(
                 eq(SECRET_NAME), eq(Pair.of(SECRET_LABEL_NAME, "secured")), isNull());
@@ -105,7 +106,7 @@ public class K8sSecretServiceTest {
 
     @DisplayName("Should log action for secret when creating a secret")
     @Test
-    public void shouldLogActionForSecretWhenCreatingSecret() {
+    void shouldLogActionForSecretWhenCreatingSecret() {
         secretService.createSecret(SECRET_NAME);
 
         verify(actionLogger, times(1)).logAction(actionLogCaptor.capture());
@@ -118,7 +119,7 @@ public class K8sSecretServiceTest {
 
     @DisplayName("Should return secrets' data from KubeOperator for specific label when getting all secrets data")
     @Test
-    public void shouldReturnSecretsDataFromKubeOperatorWhenGettingAllSecrets() {
+    void shouldReturnSecretsDataFromKubeOperatorWhenGettingAllSecrets() {
         Map<String, Map<String, String>> data = Map.of("foo", Map.of("bar", "baz"));
         Pair<String, String> label = Pair.of(SECRET_LABEL_NAME, "secured");
         doReturn(data).when(operator).getAllSecretsWithLabel(eq(label));
@@ -128,7 +129,7 @@ public class K8sSecretServiceTest {
 
     @DisplayName("Should throw SecretNotFoundException exception when getting a secret's data for non-existing secret and fail flag is set")
     @Test
-    public void shouldThrowSecretNotFoundExceptionWhenGettingASecretDataForNonExistingSecretAndFailFlagIsSet() {
+    void shouldThrowSecretNotFoundExceptionWhenGettingASecretDataForNonExistingSecretAndFailFlagIsSet() {
         doThrow(KubeApiNotFoundException.class).when(operator).getSecretByName(eq(SECRET_NAME), eq(true));
         Exception exception = assertThrows(SecretNotFoundException.class, () -> secretService.getSecretData(SECRET_NAME, true));
         assertThat(exception.getMessage(), containsString(SECRET_NAME));
@@ -136,7 +137,7 @@ public class K8sSecretServiceTest {
 
     @DisplayName("Should return an empty map when getting a secret's data for non-existing secret and fail flag is unset")
     @Test
-    public void shouldReturnAnEmptyMapWhenGettingASecretDataForNonExistingSecretAndFailFlagIsUnset() {
+    void shouldReturnAnEmptyMapWhenGettingASecretDataForNonExistingSecretAndFailFlagIsUnset() {
         doReturn(Collections.emptyMap()).when(operator).getSecretByName(eq(SECRET_NAME), eq(false));
         Map<String, String> result = secretService.getSecretData(SECRET_NAME, false);
         assertThat(result, notNullValue());
@@ -145,7 +146,7 @@ public class K8sSecretServiceTest {
 
     @DisplayName("Should return data from KubeOperator when getting a secret's data")
     @Test
-    public void shouldReturnSecretDataFromKubeOperatorWhenGettingASecretData() {
+    void shouldReturnSecretDataFromKubeOperatorWhenGettingASecretData() {
         Map<String, String> data = Map.of("foo", "bar");
         doReturn(data).when(operator).getSecretByName(eq(SECRET_NAME), eq(true));
         assertThat(secretService.getSecretData(SECRET_NAME, true), equalTo(data));
@@ -153,25 +154,25 @@ public class K8sSecretServiceTest {
 
     @DisplayName("getDefaultSecretName should return k8s secret name")
     @Test
-    public void getDefaultSecretNameShouldReturnK8sSecretName() {
+    void getDefaultSecretNameShouldReturnK8sSecretName() {
         assertThat(secretService.getDefaultSecretName(), equalTo(KUBE_SECRET_NAME));
     }
 
     @DisplayName("isDefaultSecret method should return true for k8s secret name")
     @Test
-    public void isDefaultSecretShouldReturnTrueForK8sSecretName() {
+    void isDefaultSecretShouldReturnTrueForK8sSecretName() {
         assertThat(secretService.isDefaultSecret(KUBE_SECRET_NAME), is(true));
     }
 
     @DisplayName("isDefaultSecret method should return false when name doesn't equal to k8s secret name")
     @Test
-    public void isDefaultSecretShouldReturnFalseWhenDefaultSecretNameDoesNotEqualToK8sSecretName() {
+    void isDefaultSecretShouldReturnFalseWhenDefaultSecretNameDoesNotEqualToK8sSecretName() {
         assertThat(secretService.isDefaultSecret("foo"), is(false));
     }
 
     @DisplayName("Should throw an exception when trying to get a secret template and the secret doesn't exists")
     @Test
-    public void shouldThrowAnExceptionWhenTryingToGetSecretTemplateAndTheSecretDoesNotExists() {
+    void shouldThrowAnExceptionWhenTryingToGetSecretTemplateAndTheSecretDoesNotExists() {
         doReturn(null).when(operator).getSecretObjectByName(eq(SECRET_NAME));
         Exception exception = assertThrows(SecretNotFoundException.class, () -> secretService.getSecretTemplate(SECRET_NAME));
         assertThat(exception.getMessage(), containsString(SECRET_NAME));
@@ -179,7 +180,7 @@ public class K8sSecretServiceTest {
 
     @DisplayName("Should return secret template when secret exists")
     @Test
-    public void shouldReturnSecretTemplateWhenSecretExists() throws JsonProcessingException {
+    void shouldReturnSecretTemplateWhenSecretExists() throws JsonProcessingException {
         V1Secret secret = new V1Secret();
         secret.setKind("Secret");
         doReturn(secret).when(operator).getSecretObjectByName(eq(SECRET_NAME));
@@ -188,7 +189,7 @@ public class K8sSecretServiceTest {
 
     @DisplayName("addEntries should delegate work to KubeOperator")
     @Test
-    public void addEntriesShouldDelegateWorkToKubeOperator() {
+    void addEntriesShouldDelegateWorkToKubeOperator() {
         Map<String, String> data = Map.of("foo", "bar");
         secretService.addEntries(SECRET_NAME, data, true);
         verify(operator, times(1)).addSecretData(eq(SECRET_NAME), eq(data), eq(true));
@@ -196,7 +197,7 @@ public class K8sSecretServiceTest {
 
     @DisplayName("updateEntries should delegate work to KubeOperator")
     @Test
-    public void updateEntriesShouldDelegateWorkToKubeOperator() {
+    void updateEntriesShouldDelegateWorkToKubeOperator() {
         Map<String, String> data = Map.of("foo", "bar");
         secretService.updateEntries(SECRET_NAME, data);
         verify(operator, times(1)).updateSecretData(eq(SECRET_NAME), eq(data));
@@ -204,7 +205,7 @@ public class K8sSecretServiceTest {
 
     @DisplayName("removeEntries should pass keys to KubeOperator")
     @Test
-    public void removeEntriesShouldDelegateWorkToKubeOperator() {
+    void removeEntriesShouldDelegateWorkToKubeOperator() {
         Set<String> keys = Set.of("foo", "bar");
         secretService.removeEntries(SECRET_NAME, keys);
         verify(operator, times(1)).removeSecretData(eq(SECRET_NAME), eq(keys));
@@ -212,9 +213,32 @@ public class K8sSecretServiceTest {
 
     @DisplayName("removeEntriesAsync should delegate work to KubeOperator")
     @Test
-    public void removeEntriesAsyncShouldDelegateWorkToKubeOperator() {
+    void removeEntriesAsyncShouldDelegateWorkToKubeOperator() {
         Set<String> keys = Set.of("foo", "bar");
         secretService.removeEntriesAsync(SECRET_NAME, keys, null);
         verify(operator, times(1)).removeSecretDataAsync(eq(SECRET_NAME), eq(keys), any());
+    }
+
+    @DisplayName("secretExists should return true when operator returns a secret object")
+    @Test
+    void secretExistsShouldReturnTrueWhenSecretObjectIsPresent() {
+        doReturn(new V1Secret()).when(operator).getSecretObjectByName(SECRET_NAME);
+        assertThat(secretService.secretExists(SECRET_NAME), is(true));
+        verify(operator).getSecretObjectByName(SECRET_NAME);
+    }
+
+    @DisplayName("secretExists should return false when operator returns null")
+    @Test
+    void secretExistsShouldReturnFalseWhenSecretObjectIsNull() {
+        doReturn(null).when(operator).getSecretObjectByName(SECRET_NAME);
+        assertThat(secretService.secretExists(SECRET_NAME), is(false));
+    }
+
+    @DisplayName("secretExists should rethrow when operator throws KubeApiException")
+    @Test
+    void secretExistsShouldRethrowWhenOperatorThrowsKubeApiException() {
+        KubeApiException kubeError = new KubeApiException("kube failure");
+        doThrow(kubeError).when(operator).getSecretObjectByName(SECRET_NAME);
+        assertThrows(KubeApiException.class, () -> secretService.secretExists(SECRET_NAME));
     }
 }

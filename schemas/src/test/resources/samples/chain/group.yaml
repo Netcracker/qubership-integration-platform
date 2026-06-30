@@ -1,0 +1,12 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+id: "b2a1c0d4-1f2e-43ab-9c8d-7e6f5a4b3c2d"
+name: "Grouped Chain"
+metaInfo:
+  group: "a/b/c"
+content:
+  description: "A chain placed into a group path"
+  modifiedWhen: 1751973966050
+  labels:
+  - "test"
+  migrations: "[100, 101, 108]"

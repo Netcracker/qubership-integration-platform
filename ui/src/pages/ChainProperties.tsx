@@ -18,6 +18,10 @@ import { useModalsContext } from "../Modals.tsx";
 import { UnsavedChangesModal } from "../components/modal/UnsavedChangesModal.tsx";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { ApplyFormButton } from "../components/ApplyFormButton.tsx";
+import {
+  GROUP_SEGMENT_REGEX,
+  parseGroupSegments,
+} from "../misc/group-utils.ts";
 import { usePermissions } from "../permissions/usePermissions.tsx";
 import { hasPermissions } from "../permissions/funcs.ts";
 import { Require } from "../permissions/Require.tsx";
@@ -135,9 +139,7 @@ export const ChainProperties: React.FC = () => {
       outOfScope: values.outOfScope,
     };
 
-    const uiFoldersPath = values.path.startsWith("/")
-      ? values.path.slice(1).split("/")
-      : values.path.split("/");
+    const uiFoldersPath = parseGroupSegments(values.path ?? "");
 
     if (isVsCode) {
       await moveChain(String(chainContext.chain.id), uiFoldersPath.join("/"));
@@ -216,7 +218,26 @@ export const ChainProperties: React.FC = () => {
           <Form.Item label="Name" name="name" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item label="Path" name="path">
+          <Form.Item
+            label="Path"
+            name="path"
+            rules={[
+              {
+                validator: (_, value: string) => {
+                  const invalid = parseGroupSegments(value ?? "").some(
+                    (segment) => !GROUP_SEGMENT_REGEX.test(segment),
+                  );
+                  return invalid
+                    ? Promise.reject(
+                        new Error(
+                          'Path segments must not contain: / : * ? " < > | , ; \\',
+                        ),
+                      )
+                    : Promise.resolve();
+                },
+              },
+            ]}
+          >
             <Input />
           </Form.Item>
           <Form.Item label="Labels" name="labels">

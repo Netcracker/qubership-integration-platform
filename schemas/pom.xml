@@ -4,7 +4,7 @@
 
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-schemas</artifactId>
-    <version>0.0.17-SNAPSHOT</version>
+    <version>${revision}${changelist}</version>
 
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Schemas definition for QIP</description>
@@ -34,6 +34,10 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
 
+        <!-- Maven release version line, bumped by schemas-maven-release.yaml. Independent of the npm version in package.json (0.2.x). -->
+        <revision>0.0.20</revision>
+        <changelist>-SNAPSHOT</changelist>
+
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
     </properties>
@@ -60,7 +64,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
-                        <version>3.2.7</version>
+                        <version>3.2.8</version>
                         <executions>
                             <execution>
                                 <id>sign-artifacts</id>
@@ -138,6 +142,32 @@
             </testResource>
         </testResources>
         <plugins>
+            <!-- Resolve ${revision} in the installed/deployed pom (no parent to inherit it from). -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>1.5.0</version>
+                <configuration>
+                    <updatePomFile>true</updatePomFile>
+                    <flattenMode>ossrh</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <executions>
@@ -159,7 +189,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.5.3</version>
+                <version>3.5.6</version>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -251,7 +281,7 @@
         <dependency>
             <groupId>com.networknt</groupId>
             <artifactId>json-schema-validator</artifactId>
-            <version>1.5.8</version>
+            <version>1.5.9</version>
             <scope>test</scope>
         </dependency>
         <dependency>

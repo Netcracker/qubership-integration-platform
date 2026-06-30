@@ -74,8 +74,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     @ExceptionHandler(EntityNotFoundException.class)
-    public ResponseEntity<ExceptionDTO> handleEntityNotFound() {
-        return ResponseEntity.notFound().build();
+    public ResponseEntity<ExceptionDTO> handleEntityNotFound(EntityNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(getExceptionDTO(exception));
     }
 
     @ExceptionHandler(ChainExportException.class)
@@ -287,6 +287,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(DomainTypeDisabledException.class)
     public ResponseEntity<ExceptionDTO> handleDomainTypeDisabledException(DomainTypeDisabledException exception) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(getExceptionDTO(exception));
+    }
+
+    @ExceptionHandler(DefaultSecretGoneException.class)
+    public ResponseEntity<ExceptionDTO> handleDefaultSecretGoneException(DefaultSecretGoneException exception) {
+        return ResponseEntity.status(HttpStatus.GONE).body(getExceptionDTO(exception));
     }
 
     @Override

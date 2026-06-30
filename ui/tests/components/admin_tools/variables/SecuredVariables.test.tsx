@@ -189,6 +189,7 @@ describe("SecuredVariables Component", () => {
             { key: "API_KEY", value: "key456" },
           ],
           isDefaultSecret: true,
+          disabled: false,
         },
         {
           secretName: "app-secret",
@@ -239,6 +240,64 @@ describe("SecuredVariables Component", () => {
       expect(mockApi.getSecuredVariables).toHaveBeenCalledTimes(1);
     });
 
+    it("shows deprecation banner when default secret is enabled", async () => {
+      render(<SecuredVariables />);
+
+      await screen.findByText(
+        "Default secret for secured variables is deprecated. Please migrate to named secrets.",
+      );
+    });
+
+    it("shows disabled-but-present banner when default secret row is disabled (e.g. toggle off)", async () => {
+      mockApi.getSecuredVariables.mockResolvedValueOnce({
+        success: true,
+        data: [
+          {
+            secretName: "default-secret",
+            variables: [{ key: "LEGACY", value: "x" }],
+            isDefaultSecret: true,
+            disabled: true,
+          },
+          {
+            secretName: "app-secret",
+            variables: [{ key: "TOKEN", value: "token789" }],
+            isDefaultSecret: false,
+          },
+        ],
+      });
+
+      render(<SecuredVariables />);
+
+      await screen.findByText(
+        "Default secret for secured variables is disabled but still present in this environment. Please migrate to named secrets.",
+      );
+    });
+
+    it("does not show deprecation banner when default secret is disabled and absent", async () => {
+      mockApi.getSecuredVariables.mockResolvedValueOnce({
+        success: true,
+        data: [
+          {
+            secretName: "app-secret",
+            variables: [{ key: "TOKEN", value: "token789" }],
+            isDefaultSecret: false,
+          },
+        ],
+      });
+
+      render(<SecuredVariables />);
+
+      await screen.findByText("app-secret");
+      expect(
+        screen.queryByText(/Default secret for secured variables is deprecated/),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          /Default secret for secured variables is disabled but still present/,
+        ),
+      ).not.toBeInTheDocument();
+    });
+
     it('marks the default secret with a "default" tag', async () => {
       render(<SecuredVariables />);
 
@@ -277,9 +336,20 @@ describe("SecuredVariables Component", () => {
     it("enables adding new variable when Add variable is clicked on secret row", async () => {
       render(<SecuredVariables />);
       await screen.findByText("default-secret");
-      fireEvent.click(getExpandButtonOnDefaultSecret());
-      await screen.findByTestId("variables-table");
-      const row = screen.getByText("default-secret").closest("tr");
+      const defaultRow = screen.getByText("default-secret").closest("tr");
+      expect(
+        within(defaultRow!).getByTestId(
+          "Adding new variables to default secret is not allowed",
+        ),
+      ).toBeDisabled();
+      fireEvent.click(
+        within(defaultRow!).getByTestId(
+          "Adding new variables to default secret is not allowed",
+        ),
+      );
+
+      await screen.findByText("app-secret");
+      const row = screen.getByText("app-secret").closest("tr");
       fireEvent.click(within(row!).getByTestId("Add variable"));
       await waitFor(() => {
         expect(screen.getByTestId("is-adding-new")).toHaveTextContent("true");
@@ -405,12 +475,17 @@ describe("SecuredVariables Component", () => {
     });
 
     it("adds a new variable to a secret", async () => {
-      const addButton = screen.getByTestId("mock-add-variable");
+      fireEvent.click(screen.getByTestId("mock-add-variable"));
+      expect(mockApi.createSecuredVariables).not.toHaveBeenCalled();
+
+      fireEvent.click(getExpandButtonOnDefaultSecret("app-secret"));
+      const tables = await screen.findAllByTestId("variables-table");
+      const addButton = within(tables[1]).getByTestId("mock-add-variable");
       fireEvent.click(addButton);
 
       await waitFor(() => {
         expect(mockApi.createSecuredVariables).toHaveBeenCalledWith(
-          "default-secret",
+          "app-secret",
           [{ key: "mock-key", value: "mock-value" }],
         );
       });
@@ -455,23 +530,27 @@ describe("SecuredVariables Component", () => {
         error: { responseBody: { errorMessage: "Validation failed" } },
       });
 
-      const addButton = screen.getByTestId("mock-add-variable");
+      fireEvent.click(getExpandButtonOnDefaultSecret("app-secret"));
+      const tables = await screen.findAllByTestId("variables-table");
+      const addButton = within(tables[1]).getByTestId("mock-add-variable");
       fireEvent.click(addButton);
 
       await waitFor(() => {
         expect(mockNotificationService.requestFailed).toHaveBeenCalledWith(
           "Validation failed",
-          null,
+          expect.anything(),
         );
       });
     });
   });
 });
 
-function getExpandButtonOnDefaultSecret(): HTMLElement {
-  const row = screen.getByText("default-secret").closest("tr");
+function getExpandButtonOnDefaultSecret(
+  secretName = "default-secret",
+): HTMLElement {
+  const row = screen.getByText(secretName).closest("tr");
   if (!row) {
-    throw new Error("default-secret row not found");
+    throw new Error(`${secretName} row not found`);
   }
   const fromAntCell = row.querySelector<HTMLElement>(
     ".ant-table-row-expand-icon-cell button",
@@ -484,7 +563,7 @@ function getExpandButtonOnDefaultSecret(): HTMLElement {
     within(row).queryByTestId("icon-down");
   const btn = icon?.closest("button");
   if (!btn) {
-    throw new Error("expand button not found for default-secret row");
+    throw new Error(`expand button not found for ${secretName} row`);
   }
   return btn;
 }

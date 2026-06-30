@@ -5,7 +5,6 @@ import {
   CreateElementRequest,
   Dependency,
   Element,
-  Folder,
   LibraryElement,
   LibraryElementProperty,
   MaskedField,
@@ -221,10 +220,8 @@ export async function updateElement(
   }
 
   const chainElements = chain.content.elements as ElementSchema[];
-  let element: ElementSchema | undefined = findElementById(
-    chainElements,
-    elementId,
-  )?.element;
+  const elementWithParentId = findElementById(chainElements, elementId);
+  let element: ElementSchema | undefined = elementWithParentId?.element;
 
   if (!element) {
     console.error(`ElementId not found`);
@@ -232,7 +229,7 @@ export async function updateElement(
   }
 
   const isChangeParent =
-    element.parentElementId !== elementRequest.parentElementId;
+    elementWithParentId?.parentId !== elementRequest.parentElementId;
 
   if (isChangeParent) {
     element = findAndRemoveElementById(chainElements, elementId)!;
@@ -256,7 +253,10 @@ export async function updateElement(
     fileUri,
     chainId,
     chainElements,
-  ).updateProperties(element, elementRequest);
+  ).updateProperties(
+    { element, parentElementId: elementWithParentId?.parentId },
+    elementRequest,
+  );
   (element as any).properties = elementRequest.properties;
 
   element.parentElementId = elementRequest.parentElementId;
@@ -573,6 +573,7 @@ export async function createElement(
       mainFolderUri,
       chain,
       chainElements,
+      undefined,
       element,
       chainDiff,
       elementRequest,
@@ -587,7 +588,10 @@ export async function createElement(
     mainFolderUri,
     chainId,
     chainElements,
-  ).updatePriority(element);
+  ).updatePriority({
+    element,
+    parentElementId: elementRequest.parentElementId,
+  });
 
   await writeElementProperties(mainFolderUri, element);
   await fileApi.writeMainChain(mainFolderUri, chain);
@@ -602,6 +606,7 @@ async function insertElement(
   fileUri: Uri,
   chain: ChainSchema,
   elements: ElementSchema[],
+  parentOfElements: string | undefined,
   newElement: ElementSchema,
   chainDiff: ActionDifference,
   elementRequest: CreateElementRequest,
@@ -629,7 +634,7 @@ async function insertElement(
       newElement.swimlaneId = element.swimlaneId;
       (element.children as ElementSchema[]).push(newElement);
       chainDiff.updatedElements?.push(
-        await parseElement(fileUri, element, chain.id),
+        await parseElement(fileUri, element, chain.id, parentOfElements),
       );
       return true;
     }
@@ -640,6 +645,7 @@ async function insertElement(
         fileUri,
         chain,
         element.children as ElementSchema[],
+        element.id,
         newElement,
         chainDiff,
         elementRequest,
@@ -781,7 +787,10 @@ export async function deleteElements(
       fileUri,
       chainId,
       chainElements,
-    ).removeElementIfOrderedAndMergeDiff(element, chainDiff);
+    ).removeElementIfOrderedAndMergeDiff(
+      { element, parentElementId },
+      chainDiff,
+    );
 
     const removedElement = findAndRemoveElementById(chainElements, elementId)!;
 
@@ -1030,6 +1039,9 @@ export async function createMaskedField(
   return parseMaskedField(chain, id);
 }
 
+// Characters forbidden in a group segment (mirrors the schema `metaInfo.group` pattern).
+const FORBIDDEN_SEGMENT_CHARS = /[/:*?"<>|,;\\]/g;
+
 export async function changeFolder(
   fileUri: Uri,
   chainId: string,
@@ -1041,30 +1053,29 @@ export async function changeFolder(
     throw Error("ChainId mismatch");
   }
 
-  chain.content = {
-    ...chain.content,
-    folder: getFoldersFromStringPath(trimSlashes(folders.trim()).split("/")),
-  };
+  const group = trimSlashes(folders.trim())
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0)
+    .map((segment) => segment.replace(FORBIDDEN_SEGMENT_CHARS, "-"))
+    .join("/");
 
-  if (!chain.content.folder) {
+  if (group) {
+    chain.metaInfo = { ...chain.metaInfo, group };
+  } else if (chain.metaInfo) {
+    // Clear only the group, keep any other metaInfo fields.
+    delete chain.metaInfo.group;
+    if (Object.keys(chain.metaInfo).length === 0) {
+      delete chain.metaInfo;
+    }
+  }
+
+  // Drop the deprecated nested folder structure if a legacy file still carries it.
+  if (chain.content?.folder) {
     delete chain.content.folder;
   }
 
   return await fileApi.writeMainChain(fileUri, chain);
-}
-
-function getFoldersFromStringPath(parts: string[]): Folder {
-  let current: any = null;
-  for (let i = parts.length - 1; i >= 0; i--) {
-    if (parts[i] === "") {
-      continue;
-    }
-    current = {
-      name: parts[i].trim(),
-      ...(current ? { subfolder: current } : {}),
-    };
-  }
-  return current;
 }
 
 function trimSlashes(value: string): string {

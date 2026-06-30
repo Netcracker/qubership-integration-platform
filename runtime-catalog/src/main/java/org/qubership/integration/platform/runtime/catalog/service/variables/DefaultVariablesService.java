@@ -40,6 +40,7 @@ public class DefaultVariablesService {
     private final SecretService secretService;
     private final CommonVariablesService commonVariablesService;
     private final SecuredVariableService securedVariableService;
+    private final DefaultSecretPolicyService defaultSecretPolicyService;
     private final KubeOperatorAutoConfiguration kubeOperatorAutoConfiguration;
     private final TenantConfiguration tenantConfiguration;
     private final DefaultVariablesProvider defaultVariablesProvider;
@@ -48,6 +49,7 @@ public class DefaultVariablesService {
             SecretService secretService,
             CommonVariablesService commonVariablesService,
             SecuredVariableService securedVariableService,
+            DefaultSecretPolicyService defaultSecretPolicyService,
             KubeOperatorAutoConfiguration kubeOperatorAutoConfiguration,
             TenantConfiguration tenantConfiguration,
             DefaultVariablesProvider defaultVariablesProvider
@@ -55,6 +57,7 @@ public class DefaultVariablesService {
         this.secretService = secretService;
         this.commonVariablesService = commonVariablesService;
         this.securedVariableService = securedVariableService;
+        this.defaultSecretPolicyService = defaultSecretPolicyService;
         this.kubeOperatorAutoConfiguration = kubeOperatorAutoConfiguration;
         this.tenantConfiguration = tenantConfiguration;
         this.defaultVariablesProvider = defaultVariablesProvider;
@@ -73,7 +76,10 @@ public class DefaultVariablesService {
 
             Map<String, String> defaultCommonVariables = getDefaultCommonVariables();
 
-            securedVariableService.deleteVariables(secretService.getDefaultSecretName(), defaultCommonVariables.keySet(), false);
+            if (defaultSecretPolicyService.isDefaultSecretEnabled()) {
+                securedVariableService.deleteVariables(
+                        secretService.getDefaultSecretName(), defaultCommonVariables.keySet(), false);
+            }
 
             commonVariablesService.addVariablesUnlogged(defaultCommonVariables);
             log.debug("Restore variables finished");

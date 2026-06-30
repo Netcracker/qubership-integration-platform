@@ -1,18 +1,20 @@
 import { Element as ElementSchema } from "@netcracker/qip-schemas";
 import { LibraryElement } from "@netcracker/qip-ui";
 import { getLibraryElementByType } from "../response/chainApiRead";
-import { getType } from "./elementUtils";
+import { ElementWithParentId, getType } from "./elementUtils";
 
 export class OrderedElementUtils {
   private constructor(
     public element: ElementSchema,
+    public parentElementId: string,
     private readonly libraryElement: LibraryElement,
   ) {}
 
-  static async create(element: ElementSchema): Promise<OrderedElementUtils> {
+  static async create(elementWithParentId: ElementWithParentId): Promise<OrderedElementUtils> {
     return new OrderedElementUtils(
-      element,
-      await getLibraryElementByType(getType(element)),
+      elementWithParentId.element,
+      elementWithParentId.parentElementId!,
+      await getLibraryElementByType(getType(elementWithParentId.element)),
     );
   }
 
@@ -40,6 +42,31 @@ export class OrderedElementUtils {
         ? element.id === this.element.id
         : this.getPriority(element) === priority,
     );
+  }
+
+  private getIndexByPredicate(
+    sortedElements: ElementSchema[],
+    predicate: (currentPriority: number) => boolean,
+  ): number {
+    return sortedElements.findIndex((element) =>
+      predicate(this.getPriority(element)),
+    );
+  }
+
+  getIndexToInsert(sortedElements: ElementSchema[], priority: number): number {
+    let targetIndex = this.getIndexByPredicate(
+      sortedElements,
+      (currentPriority) => currentPriority === priority,
+    );
+
+    if (targetIndex === -1) {
+      targetIndex = this.getIndexByPredicate(
+        sortedElements,
+        (currentPriority) => currentPriority > priority,
+      );
+    }
+
+    return targetIndex === -1 ? sortedElements.length - 1 : targetIndex;
   }
 
   extractOtherOrderedElements(parentElement: ElementSchema): ElementSchema[] {

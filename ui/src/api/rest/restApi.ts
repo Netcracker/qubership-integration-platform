@@ -420,13 +420,14 @@ export class RestApi implements Api {
           `${this.v2()}/secured-variables`,
         );
         return response.data.map(
-          ({ secretName, variablesNames, defaultSecret }) => ({
-            secretName,
-            variables: variablesNames.map((key: string) => ({
+          (secret: SecretResponse): SecretWithVariables => ({
+            secretName: secret.secretName,
+            variables: secret.variablesNames.map((key) => ({
               key,
               value: "******",
             })),
-            isDefaultSecret: defaultSecret,
+            isDefaultSecret: secret.defaultSecret,
+            disabled: secret.disabled === true,
           }),
         );
       },
@@ -2316,7 +2317,7 @@ export class RestApi implements Api {
 
   getChainSnapshot = async (snapshotId: string): Promise<ChainSnapshot> => {
     const response = await this.instance.get<ChainSnapshot>(
-      `${this.v2()}/catalog/snapshots/${snapshotId}/full`,
+      `${this.v2()}/snapshots/${snapshotId}/full`,
     );
     return response.data;
   };

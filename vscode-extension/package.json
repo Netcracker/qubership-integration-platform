@@ -3,12 +3,13 @@
   "publisher": "qubership",
   "displayName": "QIP VS Code Extension",
   "description": "Qubership Integration Platform - Visual Studio Code Extension",
-  "version": "0.0.34",
+  "version": "1.0.1",
   "main": "dist/node/index.js",
   "types": "dist/web/index.d.ts",
   "files": [
     "dist",
-    "configs"
+    "configs",
+    "vscode.proposed.customEditorDiffs.d.ts"
   ],
   "engines": {
     "vscode": "^1.120.0"
@@ -25,7 +26,9 @@
     "qip.createChain",
     "qip.createChainParent",
     "qip.createService",
-    "qip.openInTextEditor"
+    "qip.openInTextEditor",
+    "qip.exportImages",
+    "qip.exportImagesFromExplorer"
   ],
   "browser": "./dist/web/extension.js",
   "contributes": {
@@ -65,6 +68,15 @@
       {
         "command": "qip.openInTextEditor",
         "title": "Open in Text Editor"
+      },
+      {
+        "command": "qip.exportImages",
+        "title": "QIP Export Chain Images"
+      },
+      {
+        "command": "qip.exportImagesFromExplorer",
+        "title": "Export All Chain Graphs as PNG",
+        "category": "QIP"
       }
     ],
     "views": {
@@ -122,6 +134,11 @@
           "command": "qip.refreshExplorer",
           "when": "view == qip-main",
           "group": "navigation"
+        },
+        {
+          "command": "qip.exportImagesFromExplorer",
+          "when": "view == qip-main",
+          "group": "overflow"
         }
       ],
       "view/item/context": [
@@ -190,7 +207,7 @@
     "@types/yauzl": "^2.10.3",
     "@typescript-eslint/eslint-plugin": "^8.31.1",
     "@typescript-eslint/parser": "^8.31.1",
-    "@vscode/test-web": "^0.0.69",
+    "@vscode/test-web": "^0.0.80",
     "assert": "^2.1.0",
     "copy-webpack-plugin": "^13.0.1",
     "eslint": "^9.25.1",
@@ -208,7 +225,7 @@
   "dependencies": {
     "@apidevtools/swagger-parser": "^12.0.0",
     "@asyncapi/parser": "^3.4.0",
-    "@netcracker/qip-ui": "~0.0.56",
+    "@netcracker/qip-ui": "^1.0.0",
     "@types/js-yaml": "^4.0.9",
     "@vscode/dts": "^0.4.1",
     "@xmldom/xmldom": "^0.8.11",

@@ -1,6 +1,7 @@
 import * as path from "path";
 import { ApiSpecificationType } from "../api-services/importApiTypes";
 import { FileParserService } from "./FileParserService";
+import { SpecificationTypeDetector } from "./SpecificationTypeDetector";
 
 export class ProtocolDetectorService {
   private static readonly ARCHIVE_EXTENSIONS = [
@@ -160,82 +161,21 @@ export class ProtocolDetectorService {
    * Checks if content is OpenAPI/Swagger specification
    */
   private static isOpenApiSpec(content: any): boolean {
-    if (!content || typeof content !== "object") {
-      return false;
-    }
-
-    // Check for Swagger 2.0
-    if (content.swagger && typeof content.swagger === "string") {
-      const version = content.swagger;
-      if (version.startsWith("2.") || version === "2.0") {
-        return true;
-      }
-    }
-
-    // Check for OpenAPI 3.x
-    if (content.openapi && typeof content.openapi === "string") {
-      const version = content.openapi;
-      if (version.startsWith("3.")) {
-        return true;
-      }
-    }
-
-    return false;
+    return SpecificationTypeDetector.isOpenApiOrSwagger(content);
   }
 
   /**
    * Checks if content is AsyncAPI specification
    */
   private static isAsyncApiSpec(content: any): boolean {
-    if (!content || typeof content !== "object") {
-      return false;
-    }
-
-    return content.asyncapi && typeof content.asyncapi === "string";
+    return SpecificationTypeDetector.isAsyncApi(content);
   }
 
   /**
    * Determines specific AsyncAPI protocol
    */
   private static determineAsyncProtocol(content: any): ApiSpecificationType {
-    const map = (proto: string | undefined): ApiSpecificationType | null => {
-      if (!proto) {
-        return null;
-      }
-      const p = String(proto).toLowerCase();
-      const protocolMap: Record<string, ApiSpecificationType> = {
-        kafka: ApiSpecificationType.KAFKA,
-        amqp: ApiSpecificationType.AMQP,
-        mqtt: ApiSpecificationType.MQTT,
-        redis: ApiSpecificationType.REDIS,
-        nats: ApiSpecificationType.NATS,
-      };
-      return protocolMap[p] ?? null;
-    };
-
-    // 1) info.x-protocol
-    const fromX = map(content?.info?.["x-protocol"]);
-    if (fromX) {
-      return fromX;
-    }
-
-    // 2) servers.main.protocol
-    const fromMain = map(content?.servers?.main?.protocol);
-    if (fromMain) {
-      return fromMain;
-    }
-
-    // 3) first servers[*].protocol
-    if (content?.servers && typeof content.servers === "object") {
-      for (const server of Object.values(content.servers)) {
-        const candidate = map((server as any)?.protocol);
-        if (candidate) {
-          return candidate;
-        }
-      }
-    }
-
-    return ApiSpecificationType.ASYNC;
+    return SpecificationTypeDetector.detectAsyncProtocol(content);
   }
 
   /**

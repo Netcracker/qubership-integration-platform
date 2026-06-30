@@ -1,8 +1,8 @@
 cloud:
   microservice:
-    name: ${CAMEL_K_INTEGRATION:default}
+    name: ${CLOUD_SERVICE_NAME:default}
     namespace: ${NAMESPACE:local}
-    bg_version: ""
+    bg_version: ${BG_VERSION:v1}
 
 tenant:
   default:
@@ -77,6 +77,9 @@ camel:
       name: 'requestFilterHeaderAllowlist'
 
 qip:
+  variables:
+    default-secret:
+      enabled: ${DEFAULT_SECRET_ENABLED:false}
   control-plane:
     egress:
       name: egress-gateway

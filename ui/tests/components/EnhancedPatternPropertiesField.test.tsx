@@ -434,6 +434,32 @@ describe("EnhancedPatternPropertiesField", () => {
       });
     });
 
+    it("should auto-fill integrationOperationPath from the exchangeName key when the spec uses the backend AMQP shape", async () => {
+      setOperationSpec({
+        exchangeName: "auto-exchange-name",
+        queues: null,
+        maasClassifierName: null,
+      });
+      const props = makeProps({
+        formContext: {
+          integrationOperationProtocolType: "amqp",
+          integrationOperationPath: "",
+          integrationOperationId: "op-1",
+        },
+      });
+      const updateContext = props.registry.formContext.updateContext!;
+
+      act(() => {
+        render(<EnhancedPatternPropertiesField {...props} />);
+      });
+
+      await waitFor(() => {
+        expect(updateContext).toHaveBeenCalledWith({
+          integrationOperationPath: "auto-exchange-name",
+        });
+      });
+    });
+
     it("should not overwrite existing integrationOperationPath on auto-fill", async () => {
       setOperationSpec({
         topic: "new-topic-from-spec",
@@ -491,7 +517,8 @@ describe("EnhancedPatternPropertiesField", () => {
 
       await waitFor(() => {
         expect(props.onChange).toHaveBeenCalled();
-        const mockCalls = (props.onChange as jest.Mock).mock.calls as unknown[][];
+        const mockCalls = (props.onChange as jest.Mock).mock
+          .calls as unknown[][];
         const formDataArg = mockCalls.at(-1)?.[0] as Record<string, string>;
         expect(formDataArg).toHaveProperty("groupId", "auto-group");
         // topic should NOT be in formData

@@ -10,7 +10,11 @@ import {
   Webview,
   WebviewPanel,
 } from "vscode";
-import { CHAIN_DIFF_PATH, getApiResponse, schemaToChain } from "./response";
+import { CHAIN_DIFF_PATH, getApiResponse, listChainExportTargets } from "./response";
+import {
+  setPendingExportImagesRequest,
+  startExportImagesProgress,
+} from "./response/apiRouter";
 import { setFileApi } from "./response/file";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
 import {
@@ -18,7 +22,12 @@ import {
   initializeContextFromFile,
 } from "./response/file/fileExtensions";
 import { QipExplorerProvider } from "./qipExplorer";
-import { VSCodeMessage, VSCodeResponse } from "@netcracker/qip-ui";
+import {
+  VSCodeMessage,
+  VSCodeResponse,
+  type ExportImagesStartupPayload,
+} from "@netcracker/qip-ui";
+import type { ExportImagesCommandConfig } from "./exportImageTypes";
 import { FileCacheService } from "./services/FileCacheService";
 import {
   ProjectConfigService,
@@ -31,8 +40,13 @@ import {
   initNavigationState,
   updateNavigationStateValue,
 } from "./response/navigationUtils";
-import { ContentParser } from "./api-services";
-import { Chain } from "@netcracker/qip-ui";
+import {
+  buildExportImagesStartupPayload,
+  getExportTargetFromFilePath,
+  resolveExportPaths,
+} from "./exportImagesHandler";
+import {registerChainDiffMessageHandlers} from "./chainDiffEditor";
+import {openDocumentInEditor} from "./editorViewTypes";
 
 type VSCodeMessageWrapper = {
   command: string;
@@ -317,54 +331,12 @@ class ChainFileEditorProvider extends BaseFileEditorProvider {
         enableCommandUris: true,
       };
 
-      panel.webview.onDidReceiveMessage(
-        async (message: VSCodeMessageWrapper) => {
-          if (message.data.type === "comparedDocumentsRequest") {
-            const getDocument = async (d: vscode.TextDocument) => {
-              return schemaToChain(
-                d.uri,
-                ContentParser.parseContent(d.getText()),
-              );
-            };
-            const response: VSCodeResponse<{
-              original: Chain;
-              modified: Chain;
-            }> = {
-              requestId: message.data.requestId,
-              type: "comparedDocumentsResponse",
-              payload: {
-                original: await getDocument(documents.original),
-                modified: await getDocument(documents.modified),
-              },
-            };
-            panel.webview.postMessage(response);
-          } else if (message.data.type === "navigateComparedDocumentInNewTab") {
-            const { type, path } = message.data.payload;
-            const uri =
-              type === "left" ? documents.original.uri : documents.modified.uri;
-
-            try {
-              const documentUri =
-                uri.scheme === "git"
-                  ? uri
-                  : await getApiResponse(
-                      {
-                        type: "navigateInNewTab",
-                        requestId: crypto.randomUUID(),
-                        payload: path,
-                      },
-                      uri,
-                      this.context,
-                    );
-              await updateNavigationStateValue(this.context, documentUri, path);
-              await openDocumentInEditor(documentUri);
-              return;
-            } catch (e) {
-              console.error("Failed to fetch data for QIP Extension API", e);
-            }
-          }
-        },
-      );
+      const diffListener = registerChainDiffMessageHandlers({
+        context: this.context,
+        panel,
+        documents,
+      });
+      panel.onDidDispose(() => diffListener.dispose());
 
       await enrichWebview(panel, this.context, Uri.parse(CHAIN_DIFF_PATH));
     } catch (error) {
@@ -391,6 +363,57 @@ function openWebviewForElement(
   );
 
   enrichWebview(panel, context, fileUri);
+}
+
+async function openExportImagesWebview(
+  context: ExtensionContext,
+  startupPayload: ExportImagesStartupPayload,
+) {
+  const panel = vscode.window.createWebviewPanel(
+    "qipWebView",
+    "QIP Export Images",
+    vscode.ViewColumn.One,
+    {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      enableCommandUris: true,
+      localResourceRoots: [context.extensionUri],
+    },
+  );
+
+  setPendingExportImagesRequest(panel, startupPayload);
+  startExportImagesProgress(panel);
+  enrichWebview(panel, context, undefined);
+}
+
+async function exportImagesHandler(
+  context: ExtensionContext,
+  filePath?: string | Uri,
+  config?: ExportImagesCommandConfig,
+) {
+  if (!config?.outputDir) {
+    await vscode.window.showErrorMessage("outputDir is required");
+    return;
+  }
+
+  const paths = resolveExportPaths(filePath, config);
+
+  if (!paths.length) {
+    await vscode.window.showErrorMessage("No chain files to export");
+    return;
+  }
+
+  const targets = await Promise.all(
+    paths.map((path) => getExportTargetFromFilePath(path)),
+  );
+
+  const startupPayload = buildExportImagesStartupPayload(
+    filePath,
+    config,
+    targets,
+  );
+
+  await openExportImagesWebview(context, startupPayload);
 }
 
 async function enrichWebview(
@@ -434,7 +457,12 @@ async function enrichWebview(
     };
 
     try {
-      response.payload = await getApiResponse(message.data, fileUri, context);
+      response.payload = await getApiResponse(
+        message.data,
+        fileUri,
+        context,
+        panel,
+      );
 
       if (message.data.type === "openChainInNewTab") {
         vscode.commands.executeCommand(
@@ -461,30 +489,6 @@ async function enrichWebview(
     }
     panel.webview.postMessage(response);
   });
-}
-
-function getEditorByExtension(uri: Uri): string {
-  const fileExtensions = getExtensionsForUri();
-  let editor = undefined;
-  if (uri.path.endsWith(fileExtensions.chain)) {
-    editor = "qip.chainFile.editor";
-  } else if (uri.path.endsWith(fileExtensions.service)) {
-    editor = "qip.serviceFile.editor";
-  } else if (uri.path.endsWith(fileExtensions.contextService)) {
-    editor = "qip.contextServiceFile.editor";
-  } else if (uri.path.endsWith(fileExtensions.mcpService)) {
-    editor = "qip.mcpServiceFile.editor";
-  }
-
-  if (!editor) {
-    throw new Error(`Unable to find an editor for document: ${uri}`);
-  }
-  return editor;
-}
-
-async function openDocumentInEditor(uri: Uri) {
-  const editor = getEditorByExtension(uri);
-  await vscode.commands.executeCommand("vscode.openWith", uri, editor);
 }
 
 async function deleteServiceWithRelatedFiles(
@@ -702,6 +706,61 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
       );
 
       enrichWebview(panel, context, undefined);
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "qip.exportImages",
+      async (filePath?: string | Uri, config?: ExportImagesCommandConfig) => {
+        try {
+          await exportImagesHandler(context, filePath, config);
+        } catch (error) {
+          console.error("Failed to export QIP chain images:", error);
+          await vscode.window.showErrorMessage(
+            `Failed to export QIP chain images: ${error}`,
+          );
+        }
+      },
+    ),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("qip.exportImagesFromExplorer", async () => {
+      try {
+        const folders = await vscode.window.showOpenDialog({
+          canSelectFiles: false,
+          canSelectFolders: true,
+          canSelectMany: false,
+          title: "Select folder for exported chain PNG files",
+          openLabel: "Select output folder",
+        });
+        if (!folders?.[0]) {
+          return;
+        }
+
+        const outputDir = folders[0].toString();
+        const targets = await listChainExportTargets();
+
+        if (targets.length === 0) {
+          await vscode.window.showInformationMessage(
+            "No chain files were found in the workspace.",
+          );
+          return;
+        }
+
+        await vscode.commands.executeCommand("qip.exportImages", undefined, {
+          outputDir,
+          filePaths: targets.flatMap((target) =>
+            target.filePath ? [target.filePath] : [],
+          ),
+        } satisfies ExportImagesCommandConfig);
+      } catch (error) {
+        console.error("QIP export from explorer failed:", error);
+        await vscode.window.showErrorMessage(
+          `QIP export from explorer failed: ${error}`,
+        );
+      }
     }),
   );
 

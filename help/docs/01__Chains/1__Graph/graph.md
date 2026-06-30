@@ -14,6 +14,7 @@ On the "**Graph**" tab user can view and edit a particular chain by adding, upda
 > - If **deprecated container elements (the presence of deprecated simple elements has no impact) are detected** in the chain, the system recommends migrating them to their latest versions.
 > After confirmation, the system first attempts to save the current chain state as a new snapshot and then updates the chain with the latest versions of container elements. A notification message will indicate the migration process results.
 > - If **overridden chain** is opened, the system displays notification panel explaining that the current chain can't be deployed with a reference to the chain that overrides it.
+
 ### Tool Panel
 
 Please find the description for all available tools below:
@@ -40,6 +41,8 @@ The next actions are available upper right corner:
   - **Export related services** - if selected, system will also export services and specifications, utilized within chains.
   - **Export all common variables** - if selected, system will also export all common variables, utilized within chains.
 * ![send](img/send.svg) - save and deploy the chain.
+* Label "**Unsaved changes**" - appears above "Save and Deploy" button only if there are changes, that are not saved in a snapshot.
+* **Overridden By** - expandable parameter, that contains a reference to the chain that overrides it.
 
 
 #### <ins>VS Code Extension</ins>

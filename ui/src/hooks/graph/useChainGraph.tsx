@@ -1,4 +1,4 @@
-﻿import {
+import {
   addEdge,
   applyEdgeChanges,
   applyNodeChanges,
@@ -390,6 +390,19 @@ export const useChainGraph = () => {
   const structureChangedResolveOverlapsRef = useRef<boolean>(true);
 
   const layoutRequestIdRef = useRef(0);
+  type LayoutIdleWaiter = {
+    resolve: () => void;
+    reject: (reason?: unknown) => void;
+  };
+  const layoutIdleWaitersRef = useRef<LayoutIdleWaiter[]>([]);
+
+  const waitForNextAutoArrange = useCallback(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        layoutIdleWaitersRef.current.push({ resolve, reject });
+      }),
+    [],
+  );
 
   const onChainUpdate = useCallback(async () => {
     if (chainContext?.refresh) {
@@ -508,63 +521,85 @@ export const useChainGraph = () => {
 
       structureChangedRef.current = false;
 
-      const shouldResolveOverlaps =
-        structureChangedResolveOverlapsRef.current && !shouldRunForDirection;
+      let hadArrangeFailure = false;
+      let arrangeError: unknown;
+      try {
+        const shouldResolveOverlaps =
+          structureChangedResolveOverlapsRef.current && !shouldRunForDirection;
 
-      const parentIds = shouldRunForDirection
-        ? null
-        : structureChangedParentIdsRef.current;
+        const parentIds = shouldRunForDirection
+          ? null
+          : structureChangedParentIdsRef.current;
 
-      let arrangedNodes: ChainGraphNode[];
+        let arrangedNodes: ChainGraphNode[];
 
-      const layoutSourceNodes = reapplyNodesVisibility(nodes);
-      const layoutSourceEdges = reapplyEdgesVisibility(layoutSourceNodes, edges);
+        const layoutSourceNodes = reapplyNodesVisibility(nodes);
+        const layoutSourceEdges = reapplyEdgesVisibility(layoutSourceNodes, edges);
 
-      if (parentIds && parentIds.length) {
-        const nodeMap = new Map(
-          layoutSourceNodes.map((node) => [node.id, node]),
-        );
+        if (parentIds && parentIds.length) {
+          const nodeMap = new Map(
+            layoutSourceNodes.map((node) => [node.id, node]),
+          );
 
-        const sorted = [...new Set(parentIds)].sort(
-          (left, right) => depthOf(right, nodeMap) - depthOf(left, nodeMap),
-        );
+          const sorted = [...new Set(parentIds)].sort(
+            (left, right) => depthOf(right, nodeMap) - depthOf(left, nodeMap),
+          );
 
-        let current = layoutSourceNodes;
+          let current = layoutSourceNodes;
 
-        for (const parentId of sorted) {
-          const subNodes = collectSubgraphByParents([parentId], current);
-          const subEdges = edgesForSubgraph(layoutSourceEdges, subNodes);
-          const laidSubset = await arrangeNodes(subNodes, subEdges);
+          for (const parentId of sorted) {
+            const subNodes = collectSubgraphByParents([parentId], current);
+            const subEdges = edgesForSubgraph(layoutSourceEdges, subNodes);
+            const laidSubset = await arrangeNodes(subNodes, subEdges);
 
-          const pinned = new Set(expandWithParent([parentId], current));
-          current = mergeWithPinnedPositions(current, laidSubset, pinned);
+            const pinned = new Set(expandWithParent([parentId], current));
+            current = mergeWithPinnedPositions(current, laidSubset, pinned);
+          }
+
+          arrangedNodes = current;
+        } else {
+          arrangedNodes = await arrangeNodes(layoutSourceNodes, layoutSourceEdges);
         }
 
-        arrangedNodes = current;
-      } else {
-        arrangedNodes = await arrangeNodes(layoutSourceNodes, layoutSourceEdges);
+        const overlapResolvedNodes =
+          shouldResolveOverlaps && parentIds && parentIds.length
+            ? resolveSiblingOverlapsAfterResize(
+              arrangedNodes,
+              parentIds,
+              direction,
+            )
+            : arrangedNodes;
+
+        const withToggle = attachToggle(overlapResolvedNodes);
+        const visibleNodes = reapplyNodesVisibility(withToggle);
+        const withCounts = setNestedUnitCounts(visibleNodes);
+        const orderedVisibleNodes = sortParentsBeforeChildren(withCounts);
+        const visibleEdges = reapplyEdgesVisibility(visibleNodes, layoutSourceEdges);
+
+        setNodes(orderedVisibleNodes);
+        setEdges(visibleEdges);
+
+        structureChangedParentIdsRef.current = null;
+        structureChangedResolveOverlapsRef.current = true;
+      } catch (err) {
+        hadArrangeFailure = true;
+        arrangeError = err;
+      } finally {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const waiters = layoutIdleWaitersRef.current.splice(0);
+            if (hadArrangeFailure) {
+              for (const { reject } of waiters) {
+                reject(arrangeError);
+              }
+            } else {
+              for (const { resolve } of waiters) {
+                resolve();
+              }
+            }
+          });
+        });
       }
-
-      const overlapResolvedNodes =
-        shouldResolveOverlaps && parentIds && parentIds.length
-          ? resolveSiblingOverlapsAfterResize(
-            arrangedNodes,
-            parentIds,
-            direction,
-          )
-          : arrangedNodes;
-
-      const withToggle = attachToggle(overlapResolvedNodes);
-      const visibleNodes = reapplyNodesVisibility(withToggle);
-      const withCounts = setNestedUnitCounts(visibleNodes);
-      const orderedVisibleNodes = sortParentsBeforeChildren(withCounts);
-      const visibleEdges = reapplyEdgesVisibility(visibleNodes, layoutSourceEdges);
-
-      setNodes(orderedVisibleNodes);
-      setEdges(visibleEdges);
-
-      structureChangedParentIdsRef.current = null;
-      structureChangedResolveOverlapsRef.current = true;
     };
 
     void autoArrange();
@@ -1404,5 +1439,6 @@ export const useChainGraph = () => {
     expandAllContainers,
     collapseAllContainers,
     structureChanged,
+    waitForNextAutoArrange,
   };
 };

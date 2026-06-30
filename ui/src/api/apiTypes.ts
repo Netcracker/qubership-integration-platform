@@ -835,12 +835,14 @@ export type SecretWithVariables = {
   secretName: string;
   variables: Variable[];
   isDefaultSecret: boolean;
+  disabled?: boolean;
 };
 
 export type SecretResponse = {
   secretName: string;
   variablesNames: string[];
   defaultSecret: boolean;
+  disabled?: boolean;
 };
 
 export type CreateFolderRequest = {

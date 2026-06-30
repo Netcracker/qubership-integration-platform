@@ -1,12 +1,21 @@
-import { QipSpecificationGenerator } from "../../services/QipSpecificationGenerator";
-import { ContentParser } from "./ContentParser";
-import { OpenApiData } from "./parserTypes";
+import {QipSpecificationGenerator} from "../../services/QipSpecificationGenerator";
+import {ContentParser} from "./ContentParser";
+import {OpenApiData} from "./parserTypes";
 
 export class OpenApiSpecificationParser {
+  private static readonly OPENAPI_32_VERSION_PREFIX = "3.2";
+  private static readonly OPENAPI_31_FALLBACK_VERSION = "3.1.0";
+
   /**
-   * Parse OpenAPI/Swagger content and extract operations
+   * Parse OpenAPI/Swagger content and extract operations.
+   *
+   * Optional warnings sink collects non-fatal import notices (e.g. the
+   * OpenAPI 3.2 bridge) so the import flow can surface them to the user.
    */
-  static async parseOpenApiContent(content: string): Promise<OpenApiData> {
+  static async parseOpenApiContent(
+    content: string,
+    warnings?: string[],
+  ): Promise<OpenApiData> {
     const specData = ContentParser.parseContentWithErrorHandling(
       content,
       "OpenApiSpecificationParser",
@@ -17,10 +26,35 @@ export class OpenApiSpecificationParser {
       throw new Error("Not a valid OpenAPI or Swagger specification");
     }
 
+    this.normalizeUnsupportedOpenApiVersion(specData, warnings);
+
     // Basic validation
     this.validateOpenApiSpec(specData);
 
     return specData as OpenApiData;
+  }
+
+  /**
+   * Bridges OpenAPI 3.2 onto the 3.1 import path: rewrites the `openapi`
+   * version to 3.1.0 and records a warning. Mirrors the runtime-catalog
+   * backend (SwaggerSpecificationParser) so offline imports stay byte-compatible
+   * with the online import. 3.2-only constructs (the QUERY method, `$self`,
+   * extended mediaType keys) degrade gracefully: the QUERY method is dropped
+   * because it is absent from `QipSpecificationGenerator.HTTP_METHODS`.
+   */
+  private static normalizeUnsupportedOpenApiVersion(
+    spec: any,
+    warnings?: string[],
+  ): void {
+    const version =
+      typeof spec?.openapi === "string" ? (spec.openapi as string) : "";
+    if (!version.startsWith(this.OPENAPI_32_VERSION_PREFIX)) {
+      return;
+    }
+    spec.openapi = this.OPENAPI_31_FALLBACK_VERSION;
+    warnings?.push(
+      `OpenAPI ${version} imported with the 3.1 parser. 3.2-only features may be dropped.`,
+    );
   }
 
   /**
@@ -101,8 +135,7 @@ export class OpenApiSpecificationParser {
       const scheme = schemes[0];
 
       if (host) {
-        const address = `${scheme}://${host}${basePath}`;
-        return address;
+        return `${scheme}://${host}${basePath}`;
       }
     }
 
@@ -110,8 +143,7 @@ export class OpenApiSpecificationParser {
     if (openApiData.openapi) {
       const servers = openApiData.servers;
       if (servers && servers.length > 0) {
-        const address = servers[0].url;
-        return address;
+        return servers[0].url;
       }
     }
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
+  Alert,
   Button,
   Input,
   Form,
@@ -44,6 +45,9 @@ export const SecuredVariables: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [secrets, setSecrets] = useState<string[]>([]);
   const [defaultSecret, setDefaultSecret] = useState<string>("");
+  const [hasDefaultSecretInList, setHasDefaultSecretInList] = useState(false);
+  const [defaultSecretRowDisabled, setDefaultSecretRowDisabled] =
+    useState(false);
   const [variables, setVariables] = useState<Record<string, Variable[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [editing, setEditing] = useState<{
@@ -62,6 +66,31 @@ export const SecuredVariables: React.FC = () => {
   const notificationService = useNotificationService();
   const permissions = usePermissions();
   const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
+
+  const canAddVariableToSecret = useCallback(
+    (secret: string) => secret !== defaultSecret,
+    [defaultSecret],
+  );
+
+  const getAddVariableTooltipTitle = useCallback(
+    (secret: string) =>
+      canAddVariableToSecret(secret)
+        ? "Add variable"
+        : "Adding new variables to default secret is not allowed",
+    [canAddVariableToSecret],
+  );
+
+  const showDefaultSecretDeprecationBanner = useMemo(
+    () => hasDefaultSecretInList,
+    [hasDefaultSecretInList],
+  );
+
+  const defaultSecretDeprecationBannerMessage = useMemo(() => {
+    if (!defaultSecretRowDisabled) {
+      return "Default secret for secured variables is deprecated. Please migrate to named secrets.";
+    }
+    return "Default secret for secured variables is disabled but still present in this environment. Please migrate to named secrets.";
+  }, [defaultSecretRowDisabled]);
 
   const refreshSecretVariables = useCallback(
     async (secret: string): Promise<boolean> => {
@@ -105,16 +134,27 @@ export const SecuredVariables: React.FC = () => {
         const bySecret: Record<string, Variable[]> = {};
         const secretNames: string[] = [];
         let defaultName = "";
+        let defaultRowDisabled = false;
 
-        sorted.forEach(({ secretName, variables, isDefaultSecret }) => {
-          bySecret[secretName] = variables;
-          secretNames.push(secretName);
-          if (isDefaultSecret) defaultName = secretName;
-        });
+        sorted.forEach(
+          ({ secretName, variables, isDefaultSecret, disabled }) => {
+            const isDisabledDefault = isDefaultSecret && disabled === true;
+            if (!isDisabledDefault) {
+              bySecret[secretName] = variables;
+              secretNames.push(secretName);
+            }
+            if (isDefaultSecret) {
+              defaultName = secretName;
+              defaultRowDisabled = disabled === true;
+            }
+          },
+        );
 
         setSecrets(secretNames);
         setVariables(bySecret);
         setDefaultSecret(defaultName);
+        setHasDefaultSecretInList(defaultName !== "");
+        setDefaultSecretRowDisabled(defaultName !== "" && defaultRowDisabled);
       } else {
         console.error("Failed to load secrets:", response.error);
         notificationService.requestFailed(
@@ -157,6 +197,9 @@ export const SecuredVariables: React.FC = () => {
   const handleAddVariable = useCallback(
     async (secret: string, key: string, value: string) => {
       if (!key) return;
+      if (!canAddVariableToSecret(secret)) {
+        return;
+      }
       const response = await api.createSecuredVariables(secret, [
         { key, value },
       ]);
@@ -170,11 +213,11 @@ export const SecuredVariables: React.FC = () => {
         notificationService.requestFailed(
           response.error?.responseBody.errorMessage ||
             "Failed to add variable.",
-          null,
+          response.error,
         );
       }
     },
-    [refreshSecretVariables, notificationService],
+    [canAddVariableToSecret, refreshSecretVariables, notificationService],
   );
 
   const handleUpdateVariable = useCallback(
@@ -348,12 +391,19 @@ export const SecuredVariables: React.FC = () => {
     [notificationService],
   );
 
-  const openNewVariableEditor = useCallback((secret: string) => {
-    setNewVariableKeys((prev) => ({
-      ...prev,
-      [secret]: true,
-    }));
-  }, []);
+  const openNewVariableEditor = useCallback(
+    (secret: string) => {
+      if (!canAddVariableToSecret(secret)) return;
+      setExpandedRowKeys((keys) =>
+        keys.includes(secret) ? keys : [...keys, secret],
+      );
+      setNewVariableKeys((prev) => ({
+        ...prev,
+        [secret]: true,
+      }));
+    },
+    [canAddVariableToSecret],
+  );
 
   const secretListColumnResize = useTableColumnResize({
     secret: 520,
@@ -400,12 +450,13 @@ export const SecuredVariables: React.FC = () => {
                 require={{ securedVariable: ["create"] }}
                 tooltipProps={{
                   placement: "topRight",
-                  title: "Add variable",
+                  title: getAddVariableTooltipTitle(secret),
                 }}
                 buttonProps={{
                   iconName: "plus",
                   size: "small",
                   type: "text",
+                  disabled: !canAddVariableToSecret(secret),
                   onClick: () => openNewVariableEditor(secret),
                 }}
               />
@@ -414,7 +465,13 @@ export const SecuredVariables: React.FC = () => {
         ),
       },
     ],
-    [defaultSecret, exportHelmChart, openNewVariableEditor],
+    [
+      defaultSecret,
+      exportHelmChart,
+      openNewVariableEditor,
+      getAddVariableTooltipTitle,
+      canAddVariableToSecret,
+    ],
   );
 
   const secretListColumnsResized = useMemo(
@@ -438,7 +495,14 @@ export const SecuredVariables: React.FC = () => {
   );
 
   return (
-    <Flex vertical className={commonStyles["container"]}>
+    <Flex vertical gap={16} className={commonStyles["container"]}>
+      {showDefaultSecretDeprecationBanner && (
+        <Alert
+          type="warning"
+          showIcon
+          message={defaultSecretDeprecationBannerMessage}
+        />
+      )}
       <AdminToolsHeader
         title="Secured Variables"
         iconName="lock"
