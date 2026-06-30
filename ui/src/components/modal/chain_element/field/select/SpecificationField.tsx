@@ -84,6 +84,8 @@ const SpecificationField: React.FC<
   );
 
   useEffect(() => {
+    if (!specIdToGroupIdMap.size) return;
+
     const loadLatestSpecification = async () => {
       if (systemId && !props.formData) {
         const latestSpec: Specification =
@@ -92,7 +94,7 @@ const SpecificationField: React.FC<
       }
     };
     void loadLatestSpecification();
-  }, [handleChange, systemId, props.formData]);
+  }, [handleChange, systemId, props.formData, specIdToGroupIdMap]);
 
   useEffect(() => {
     const loadSpecificationGroups = async () => {
@@ -130,30 +132,6 @@ const SpecificationField: React.FC<
 
     void loadSpecificationGroups();
   }, [systemId, notificationService]);
-
-  // Backfill group id when spec id exists but the hidden group-id field was lost.
-  useEffect(() => {
-    const specId = props.formData;
-    const existingGroupId =
-      props.registry.formContext?.integrationSpecificationGroupId;
-    if (!specId || existingGroupId || specIdToGroupIdMap.size === 0) {
-      return;
-    }
-
-    const groupId = specIdToGroupIdMap.get(specId);
-    if (!groupId) return;
-
-    setSpecificationGroupId(groupId);
-    updateContext?.({
-      integrationSpecificationId: specId,
-      integrationSpecificationGroupId: groupId,
-    });
-  }, [
-    props.formData,
-    props.registry.formContext?.integrationSpecificationGroupId,
-    specIdToGroupIdMap,
-    updateContext,
-  ]);
 
   const title = props.uiSchema?.["ui:title"] ?? props.schema?.title ?? "";
 
