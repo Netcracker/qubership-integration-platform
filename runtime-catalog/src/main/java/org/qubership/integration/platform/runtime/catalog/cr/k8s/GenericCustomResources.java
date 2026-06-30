@@ -2,6 +2,7 @@ package org.qubership.integration.platform.runtime.catalog.cr.k8s;
 
 import io.kubernetes.client.util.ModelMapper;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -10,10 +11,11 @@ import java.util.stream.Stream;
 /**
  * Single source of truth for custom resources handled through the generic {@link KubeCustomObject}
  * model
+ * Supports only one version per kind
  */
 public final class GenericCustomResources {
 
-    public record Definition(
+    public record CustomResourceDefinition(
             String group,
             String version,
             String kind,
@@ -25,17 +27,17 @@ public final class GenericCustomResources {
         }
     }
 
-    private static final Map<String, Definition> DEFINITIONS_BY_KIND = Stream.of(
-            new Definition("netcracker.com", "v1alpha", "FacadeService", "facadeservices", false),
-            new Definition("core.netcracker.com", "v1", "Mesh", "meshes", true),
-            new Definition("core.netcracker.com", "v1", "DBaaS", "dbaases", false)
-    ).collect(Collectors.toMap(Definition::kind, Function.identity()));
+    private static final Map<String, CustomResourceDefinition> DEFINITIONS_BY_KIND = Stream.of(
+            new CustomResourceDefinition("netcracker.com", "v1alpha", "FacadeService", "facadeservices", false),
+            new CustomResourceDefinition("core.netcracker.com", "v1", "Mesh", "meshes", true),
+            new CustomResourceDefinition("core.netcracker.com", "v1", "DBaaS", "dbaases", false)
+    ).collect(Collectors.toMap(CustomResourceDefinition::kind, Function.identity()));
 
     private GenericCustomResources() {
     }
 
     public static void registerModelMaps() {
-        for (Definition definition : DEFINITIONS_BY_KIND.values()) {
+        for (CustomResourceDefinition definition : DEFINITIONS_BY_KIND.values()) {
             ModelMapper.addModelMap(
                     definition.group(),
                     definition.version(),
@@ -46,16 +48,12 @@ public final class GenericCustomResources {
         }
     }
 
-    public static String pluralFor(String kind) {
-        return definitionFor(kind).plural();
+    public static Map<String, CustomResourceDefinition> getCustomResourceDefinitions() {
+        return Collections.unmodifiableMap(DEFINITIONS_BY_KIND);
     }
 
-    public static boolean updateIfExistsFor(String kind) {
-        return definitionFor(kind).updateIfExists();
-    }
-
-    private static Definition definitionFor(String kind) {
-        Definition definition = DEFINITIONS_BY_KIND.get(kind);
+    public static CustomResourceDefinition definitionFor(String kind) {
+        CustomResourceDefinition definition = DEFINITIONS_BY_KIND.get(kind);
         if (definition == null) {
             throw new IllegalArgumentException("No generic custom resource definition for kind " + kind);
         }
