@@ -40,9 +40,9 @@ import org.qubership.integration.platform.runtime.catalog.testutils.mapper.Eleme
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.IOException;
@@ -88,7 +88,7 @@ public class ElementMigrationTest {
     private static final String OLD_TEST_TYPE = "test-element";
     private static final String NEW_TEST_TYPE = "test-element-2";
 
-    @MockBean
+    @MockitoBean
     MapperInterpreterHelper mapperInterpreterHelper;
 
     @Autowired
