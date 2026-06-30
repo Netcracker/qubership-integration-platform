@@ -102,7 +102,7 @@ class ConsulSessionServiceTest {
                         Uni.createFrom().item(SECOND_SESSION_ID)
                 );
         when(consulClient.renewSession(FIRST_SESSION_ID))
-                .thenReturn(Uni.createFrom().failure(new RuntimeException("Renew failed")));
+                .thenReturn(Uni.createFrom().failure(new RuntimeException("Session id " + FIRST_SESSION_ID + " not found")));
         when(consulClient.destroySession(FIRST_SESSION_ID))
                 .thenReturn(Uni.createFrom().voidItem());
 
@@ -117,7 +117,7 @@ class ConsulSessionServiceTest {
     }
 
     @Test
-    void shouldCreateNewSessionWithoutDeletingPreviousWhenRenewFailsWithSessionNotFoundMessage() {
+    void shouldAttemptToDestroyPreviousSessionWhenRenewFailsWithSessionNotFoundMessage() {
         when(consulClient.createSessionWithOptions(any(SessionOptions.class)))
                 .thenReturn(
                         Uni.createFrom().item(FIRST_SESSION_ID),
@@ -133,7 +133,7 @@ class ConsulSessionServiceTest {
         String result = service.getOrCreateSession();
 
         assertEquals(SECOND_SESSION_ID, result);
-        verify(consulClient, never()).destroySession(anyString());
+        verify(consulClient, times(1)).destroySession(anyString());
         verify(eventBus).publish(ConsulSessionService.CREATE_SESSION_EVENT, FIRST_SESSION_ID);
         verify(eventBus).publish(ConsulSessionService.CREATE_SESSION_EVENT, SECOND_SESSION_ID);
     }
