@@ -112,7 +112,7 @@ public class CustomResourceService {
 
     public void delete(String name) {
         log.debug("Deleting all integration resources for domain '{}'", name);
-        getIntegrationResources(name, true).ifPresent(resources -> {
+        getAllIntegrationResources(name).ifPresent(resources -> {
             Optional.ofNullable(resources.integration)
                     .flatMap(KubeUtil::getName)
                     .ifPresent(kubeOperator::deleteCamelKIntegration);
@@ -156,7 +156,7 @@ public class CustomResourceService {
     }
 
     public void deleteChainSnapshot(String name, String snapshotId) {
-        getIntegrationResources(name, false).ifPresent(resources -> {
+        getMainIntegrationResources(name).ifPresent(resources -> {
             CamelKIntegration integration = resources.integration();
             String cfgName = Optional.ofNullable(resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL))
                     .map(m -> m.get(snapshotId))
@@ -196,7 +196,15 @@ public class CustomResourceService {
         });
     }
 
-    public Optional<IntegrationResources> getIntegrationResources(String name, boolean includeAdditionalResources) {
+    public Optional<IntegrationResources> getMainIntegrationResources(String name) {
+        return getIntegrationResources(name, false);
+    }
+
+    public Optional<IntegrationResources> getAllIntegrationResources(String name) {
+        return getIntegrationResources(name, true);
+    }
+
+    private Optional<IntegrationResources> getIntegrationResources(String name, boolean includeAdditionalResources) {
         String integrationName = getIntegrationResourceName(name);
         Optional<CamelKIntegration> integration = kubeOperator.getIntegrationsByLabels(
             Map.of(domainLabel, name, bgVersionLabel, bgVersion))
