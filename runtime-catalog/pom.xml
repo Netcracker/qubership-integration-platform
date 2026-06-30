@@ -5,25 +5,26 @@
   <artifactId>qip-runtime-catalog</artifactId>
   <version>${revision}${changelist}</version>
   <name>QIP Runtime Catalog</name>
-  <description>Managing integration flows (so-called integration chains), services, snapshots and deployments.
-    </description>
-    <url>https://github.com/Netcracker/qubership-integration-platform</url>
-    <scm>
-        <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
-        <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
-        <url>https://github.com/Netcracker/qubership-integration-platform</url>
-        <tag>HEAD</tag>
-    </scm>
-    <parent>
-        <groupId>org.qubership.integration.platform</groupId>
-        <artifactId>qip-monorepo-parent</artifactId>
-        <version>0.5.1-SNAPSHOT</version>
-        <relativePath>../parent</relativePath>
-    </parent>
+  <description>
+    Managing integration flows (so-called integration chains), services, snapshots and deployments.
+  </description>
+  <url>https://github.com/Netcracker/qubership-integration-platform</url>
+  <scm>
+      <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
+      <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
+      <url>https://github.com/Netcracker/qubership-integration-platform</url>
+      <tag>HEAD</tag>
+  </scm>
+  <parent>
+      <groupId>org.qubership.integration.platform</groupId>
+      <artifactId>qip-monorepo-parent</artifactId>
+      <version>0.5.1-SNAPSHOT</version>
+      <relativePath>../parent</relativePath>
+  </parent>
 
-    <properties>
-        <revision>1.0.0</revision>
-        <changelist>-1-core-deps-SNAPSHOT</changelist>
+  <properties>
+    <revision>1.0.0</revision>
+    <changelist>-1-core-deps-SNAPSHOT</changelist>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
