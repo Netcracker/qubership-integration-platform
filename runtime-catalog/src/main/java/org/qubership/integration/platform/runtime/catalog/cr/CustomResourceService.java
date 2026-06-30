@@ -15,6 +15,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.integrations.config
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfiguration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrationList;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
@@ -91,16 +92,19 @@ public class CustomResourceService {
     public void init() {
         ModelMapper.addModelMap("camel.apache.org", "v1", "Integration", "Integrations", CamelKIntegration.class, CamelKIntegrationList.class);
         ModelMapper.addModelMap("monitoring.coreos.com", "v1", "ServiceMonitor", "ServiceMonitors", V1ServiceMonitor.class, V1ServiceMonitorList.class);
+        GenericCustomResources.registerModelMaps();
     }
 
     public void deploy(String resourceText) throws CustomResourceDeployError {
+        log.debug("Deploying custom resources. Full YAML:\n{}", resourceText);
         try {
             List<Object> resources = Yaml.loadAll(resourceText);
+            log.debug("Parsed {} resource document(s) from YAML", resources.size());
             for (Object resource : resources) {
                 kubeOperator.createOrUpdateResource(resource);
             }
         } catch (Exception exception) {
-            log.error("Failed to create or update resource", exception);
+            log.error("Failed to create or update resource. Full YAML:\n{}", resourceText, exception);
             throw new CustomResourceDeployError("Failed to deploy resources", exception);
         }
     }
