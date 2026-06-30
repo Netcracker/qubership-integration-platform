@@ -43,9 +43,9 @@ import org.qubership.integration.platform.runtime.catalog.testutils.mapper.Chain
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.IOException;
@@ -78,7 +78,7 @@ public class SimpleContainerMigrationTest {
     private static MockedStatic<Dependency> mockedDependency;
     private static MockedStatic<UUID> mockedUUID;
 
-    @MockBean
+    @MockitoBean
     MapperInterpreterHelper mapperInterpreterHelper;
 
     @Autowired

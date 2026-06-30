@@ -50,10 +50,10 @@ import org.qubership.integration.platform.runtime.catalog.testutils.mapper.Chain
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.IOException;
@@ -96,17 +96,17 @@ public class ChainMigrationServiceTest {
     private ChainMapper chainMapper;
     @Autowired
     private ChainMigrationService chainMigrationService;
-    @MockBean
+    @MockitoBean
     private ChainRepository chainRepository;
-    @MockBean
+    @MockitoBean
     private ElementRepository elementRepository;
-    @MockBean
+    @MockitoBean
     private DependencyRepository dependencyRepository;
-    @MockBean
+    @MockitoBean
     private ActionsLogService actionsLogService;
-    @MockBean
+    @MockitoBean
     private AuditingHandler jpaAuditingHandler;
-    @MockBean
+    @MockitoBean
     MapperInterpreterHelper mapperInterpreterHelper;
 
     @Autowired

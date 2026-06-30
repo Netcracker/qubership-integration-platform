@@ -35,8 +35,8 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.testutils.configuration.TestConfig;
 import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.util.*;
@@ -75,7 +75,7 @@ public class OrderedElementServiceTest {
     @Autowired
     private OrderedElementService orderedElementService;
 
-    @MockBean
+    @MockitoBean
     MapperInterpreterHelper mapperInterpreterHelper;
 
     private ContainerChainElement parentElement;

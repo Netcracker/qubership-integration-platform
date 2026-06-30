@@ -46,9 +46,9 @@ import org.qubership.integration.platform.runtime.catalog.testutils.mapper.Chain
 import org.qubership.integration.platform.runtime.catalog.util.OldContainerUtils;
 import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.IOException;
@@ -117,29 +117,29 @@ public class DependencyServiceTest {
 
     private static MockedStatic<UUID> mockedUUID;
 
-    @MockBean
+    @MockitoBean
     ElementRepository elementRepository;
-    @MockBean
+    @MockitoBean
     ChainService chainService;
-    @MockBean
+    @MockitoBean
     SwimlaneService swimlaneService;
-    @MockBean
+    @MockitoBean
     ActionsLogService actionsLogService;
-    @MockBean
+    @MockitoBean
     AuditingHandler jpaAuditingHandler;
-    @MockBean
+    @MockitoBean
     DependencyRepository dependencyRepository;
-    @MockBean
+    @MockitoBean
     EnvironmentService environmentService;
-    @MockBean
+    @MockitoBean
     MapperInterpreterHelper mapperInterpreterHelper;
-    @MockBean
+    @MockitoBean
     SystemEnvironmentsGenerator systemEnvironmentsGenerator;
-    @MockBean
+    @MockitoBean
     ChainFinderService chainFinderService;
-    @MockBean
+    @MockitoBean
     private SystemBaseService systemBaseService;
-    @MockBean
+    @MockitoBean
     private SystemModelBaseService systemModelBaseService;
 
 
