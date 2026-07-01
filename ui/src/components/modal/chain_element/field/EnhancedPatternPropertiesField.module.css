@@ -136,6 +136,7 @@
   display: flex;
   gap: 4px;
   justify-content: flex-end;
+
   /* The narrow action column fits one button; when the rare restore button also
      shows, let the pair stack vertically instead of spilling over the Value cell. */
   flex-wrap: wrap;

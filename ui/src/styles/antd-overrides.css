@@ -405,43 +405,53 @@ pre[class*="language-"] .token.punctuation {
    from methodTagStyle, so their contrast must not depend on the background's
    rgb digits matching one of the light-preset values below. */
 [data-theme="dark"]
-  .ant-tag:not(.qip-method-tag):not(
+  .ant-tag:not(
+    .qip-method-tag,
     .qip-solid-tag
   )[style*="background:"][style*="217"],
 [data-theme="dark"]
-  .ant-tag:not(.qip-method-tag):not(
+  .ant-tag:not(
+    .qip-method-tag,
     .qip-solid-tag
   )[style*="background:"][style*="245"],
 [data-theme="dark"]
-  .ant-tag:not(.qip-method-tag):not(
+  .ant-tag:not(
+    .qip-method-tag,
     .qip-solid-tag
   )[style*="background:"][style*="240"],
 [data-theme="dark"]
-  .ant-tag:not(.qip-method-tag):not(
+  .ant-tag:not(
+    .qip-method-tag,
     .qip-solid-tag
   )[style*="background:"][style*="250"],
 [data-theme="dark"]
-  .ant-tag:not(.qip-method-tag):not(
+  .ant-tag:not(
+    .qip-method-tag,
     .qip-solid-tag
   )[style*="background:"][style*="232"],
 .vscode-webview[data-theme="dark"]
-  .ant-tag:not(.qip-method-tag):not(
+  .ant-tag:not(
+    .qip-method-tag,
     .qip-solid-tag
   )[style*="background:"][style*="217"],
 .vscode-webview[data-theme="dark"]
-  .ant-tag:not(.qip-method-tag):not(
+  .ant-tag:not(
+    .qip-method-tag,
     .qip-solid-tag
   )[style*="background:"][style*="245"],
 .vscode-webview[data-theme="dark"]
-  .ant-tag:not(.qip-method-tag):not(
+  .ant-tag:not(
+    .qip-method-tag,
     .qip-solid-tag
   )[style*="background:"][style*="240"],
 .vscode-webview[data-theme="dark"]
-  .ant-tag:not(.qip-method-tag):not(
+  .ant-tag:not(
+    .qip-method-tag,
     .qip-solid-tag
   )[style*="background:"][style*="250"],
 .vscode-webview[data-theme="dark"]
-  .ant-tag:not(.qip-method-tag):not(
+  .ant-tag:not(
+    .qip-method-tag,
     .qip-solid-tag
   )[style*="background:"][style*="232"] {
   color: rgb(0 0 0 / 88%) !important;

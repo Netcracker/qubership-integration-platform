@@ -6,6 +6,7 @@
   gap: 8px;
   min-width: 0;
   max-width: 100%;
+
   /* antd makes the selected option bold; keep the composite value at a normal
      weight so coloured tags (protocol) and names never render bold. */
   font-weight: 400;

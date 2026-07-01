@@ -6,7 +6,7 @@
      evenly across that width. */
   flex: 1;
   padding: 2px;
-  background-color: rgba(127, 127, 127, 0.14) !important;
+  background-color: rgb(127 127 127 / 14%) !important;
 }
 
 /* Center each icon in its tile; an inline icon otherwise sits on the text

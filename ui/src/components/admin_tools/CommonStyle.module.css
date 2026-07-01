@@ -1,6 +1,7 @@
 .container {
   min-height: 0;
   height: 100%;
+
   /* The table inside scrolls on its own (flex-table), so the page must not add a
      second scrollbar — clip the sub-pixel rounding it would otherwise reveal. */
   overflow: hidden;
