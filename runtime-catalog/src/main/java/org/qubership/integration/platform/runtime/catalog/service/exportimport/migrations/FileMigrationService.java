@@ -38,15 +38,17 @@ public class FileMigrationService {
 
     private final YAMLMapper yamlMapper;
     private final VersionsGetterService versionsGetterService;
-    private final List<RevertMigration> revertMigration;
+    private final List<RevertMigration> revertMigrations;
 
     @Autowired
     public FileMigrationService(YAMLMapper yamlMapper,
                                 VersionsGetterService versionsGetterService,
-                                List<RevertMigration> revertMigration) {
+                                List<RevertMigration> revertMigrations) {
         this.yamlMapper = yamlMapper;
         this.versionsGetterService = versionsGetterService;
-        this.revertMigration = revertMigration;
+        this.revertMigrations = revertMigrations.stream()
+                .sorted(Comparator.comparingInt(RevertMigration::getVersion).reversed())
+                .toList();
     }
 
     Collection<Integer> getMigrationVersions(Collection<ImportFileMigration> migrations) {
@@ -116,11 +118,13 @@ public class FileMigrationService {
         }
 
         if (isLegacyExport) {
-            return revertMigration.stream()
-                    .filter(m -> m.getVersion() == 101)
-                    .findFirst()
-                    .map(m -> m.revert(node))
-                    .orElse(node);
+            ObjectNode result = node;
+            for (RevertMigration migration : revertMigrations) {
+                if (migration.supportsDocument(result)) {
+                    result = migration.revert(result);
+                }
+            }
+            return result;
         }
 
         return node;

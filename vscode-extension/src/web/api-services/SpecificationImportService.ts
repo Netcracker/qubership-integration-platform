@@ -1,5 +1,6 @@
 import { Uri, window } from "vscode";
 import * as yaml from "yaml";
+import { SpecificationTypeDetector } from "../services/SpecificationTypeDetector";
 import {
   ImportSpecificationResult,
   ImportSpecificationGroupRequest,
@@ -182,12 +183,13 @@ export class SpecificationImportService {
 
       const contentCache = new Map<string, Promise<string>>();
 
-      await this.specificationProcessorService.processSpecificationFiles(
-        specificationGroup,
-        extractedFiles,
-        params.systemId,
-        contentCache,
-      );
+      const importWarnings =
+        await this.specificationProcessorService.processSpecificationFiles(
+          specificationGroup,
+          extractedFiles,
+          params.systemId,
+          contentCache,
+        );
 
       await this.saveSpecificationFiles(
         params.systemId,
@@ -204,10 +206,15 @@ export class SpecificationImportService {
         await params.afterImport(specificationGroup, extractedFiles);
       }
 
+      // A successful import may still carry warnings (e.g. the OpenAPI 3.2 -> 3.1
+      // bridge). Return them on the result; the import modal surfaces them.
+      const warningMessage = importWarnings.join("\n").trim();
+
       const result: ImportSpecificationResult = {
         id: importId,
         specificationGroupId,
         done: true,
+        ...(warningMessage ? { warningMessage } : {}),
       };
 
       this.progressTracker.completeImportSession(importId, result);
@@ -969,7 +976,7 @@ export class SpecificationImportService {
 
     const specData = parsed as Record<string, unknown>;
 
-    if (specData.openapi || specData.swagger) {
+    if (SpecificationTypeDetector.isOpenApiOrSwagger(specData)) {
       return ApiSpecificationType.HTTP;
     }
 
@@ -977,77 +984,15 @@ export class SpecificationImportService {
       return ApiSpecificationType.SOAP;
     }
 
-    if (specData.asyncapi) {
-      const asyncProtocol = this.extractAsyncProtocol(specData);
-      return this.resolveAsyncProtocol(asyncProtocol);
+    if (SpecificationTypeDetector.isAsyncApi(specData)) {
+      return SpecificationTypeDetector.detectAsyncProtocol(specData);
     }
 
     return null;
   }
 
-  private extractAsyncProtocol(
-    specData: Record<string, unknown>,
-  ): string | undefined {
-    const infoProtocol = (
-      specData.info as Record<string, unknown> | undefined
-    )?.["x-protocol"];
-    if (typeof infoProtocol === "string") {
-      return infoProtocol;
-    }
-
-    const servers = specData.servers;
-    if (servers && typeof servers === "object") {
-      const serverList = Object.values(servers as Record<string, unknown>);
-      for (const server of serverList) {
-        const protocol = (server as Record<string, unknown>)?.protocol;
-        if (typeof protocol === "string") {
-          return protocol;
-        }
-      }
-    }
-
-    return undefined;
-  }
-
-  private resolveAsyncProtocol(
-    protocol: string | undefined,
-  ): ApiSpecificationType {
-    if (!protocol) {
-      return ApiSpecificationType.ASYNC;
-    }
-    const normalized = protocol.trim().toUpperCase();
-    switch (normalized) {
-      case "AMQP":
-      case "RABBITMQ":
-        return ApiSpecificationType.AMQP;
-      case "MQTT":
-        return ApiSpecificationType.MQTT;
-      case "KAFKA":
-        return ApiSpecificationType.KAFKA;
-      case "REDIS":
-        return ApiSpecificationType.REDIS;
-      case "NATS":
-        return ApiSpecificationType.NATS;
-      case "SOAP":
-        return ApiSpecificationType.SOAP;
-      case "HTTP":
-      case "HTTPS":
-        return ApiSpecificationType.HTTP;
-      default:
-        return ApiSpecificationType.ASYNC;
-    }
-  }
-
   private safeParseContent(content: string): any | null {
-    try {
-      return JSON.parse(content);
-    } catch {
-      try {
-        return yaml.parse(content, { maxAliasCount: -1 });
-      } catch {
-        return null;
-      }
-    }
+    return SpecificationTypeDetector.parse(content);
   }
 
   private getFileExtension(fileName: string): string {

@@ -1,5 +1,6 @@
 import { SerializedFile, ApiSpecificationType } from "./importApiTypes";
 import { FileConversionService } from "../services/FileConversionService";
+import { SpecificationTypeDetector } from "../services/SpecificationTypeDetector";
 import { ProtoSpecificationParser } from "./parsers/ProtoSpecificationParser";
 import { ProtoOperationResolver } from "./parsers/proto/ProtoOperationResolver";
 import type {
@@ -156,7 +157,7 @@ export class SpecificationParserService {
     file: SerializedFile,
   ): Promise<ParsedSpecification> {
     try {
-      const spec = JSON.parse(content);
+      const spec = SpecificationTypeDetector.parse(content);
       const operations: ParsedOperation[] = [];
 
       // Extract operations from paths
@@ -230,7 +231,7 @@ export class SpecificationParserService {
     file: SerializedFile,
   ): Promise<ParsedSpecification> {
     try {
-      const spec = JSON.parse(content);
+      const spec = SpecificationTypeDetector.parse(content);
       const operations: ParsedOperation[] = [];
 
       // Extract operations from channels
@@ -307,7 +308,6 @@ export class SpecificationParserService {
     try {
       const operations: ParsedOperation[] = [];
       const lines = content.split("\n");
-      let currentOperation: any = null;
 
       for (const line of lines) {
         const trimmed = line.trim();

@@ -72,7 +72,7 @@ export function buildExportImagesStartupPayload(
     filePath: typeof filePath === "string" ? filePath : filePath?.toString(),
     exportConfig: {
       outputDir: config.outputDir,
-      imageFormat: "png",
+      imageFormat: config.imageFormat ?? "png",
       targets,
     },
     targets,

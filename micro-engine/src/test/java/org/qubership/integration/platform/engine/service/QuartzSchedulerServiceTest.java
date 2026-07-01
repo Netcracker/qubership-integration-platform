@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.engine.service;
 
+import org.apache.camel.Route;
 import org.apache.camel.component.file.remote.SftpConsumer;
 import org.apache.camel.component.quartz.QuartzEndpoint;
 import org.apache.camel.pollconsumer.quartz.QuartzScheduledPollConsumerScheduler;
@@ -60,6 +61,21 @@ class QuartzSchedulerServiceTest {
         assertDoesNotThrow(() -> service.removeSchedulerJobs(jobs));
 
         verify(scheduler).deleteJobs(jobs);
+    }
+
+    @Test
+    void shouldDeleteRouteSchedulerJobsFromQuartzEndpointAndSftpConsumer() throws Exception {
+        JobKey endpointJobKey = JobKey.jobKey("endpoint-trigger", "endpoint-group");
+        JobKey consumerJobKey = JobKey.jobKey("consumer-job", "consumer-group");
+        QuartzEndpoint endpoint = quartzEndpointWithTrigger(endpointJobKey.getName(), endpointJobKey.getGroup());
+        SftpConsumer consumer = sftpConsumerWithQuartzSchedulerJob(consumerJobKey);
+        Route route = mock(Route.class);
+        when(route.getEndpoint()).thenReturn(endpoint);
+        when(route.getConsumer()).thenReturn(consumer);
+
+        service.removeSchedulerJobs(route);
+
+        verify(scheduler).deleteJobs(List.of(endpointJobKey, consumerJobKey));
     }
 
     @Test
@@ -128,7 +144,7 @@ class QuartzSchedulerServiceTest {
         SftpConsumer consumer = mock(SftpConsumer.class);
 
         QuartzScheduledPollConsumerScheduler quartzScheduler = new QuartzScheduledPollConsumerScheduler();
-        setPrivateField(quartzScheduler, "job", job(jobKey.getName(), jobKey.getGroup()));
+        setPrivateField(quartzScheduler, job(jobKey.getName(), jobKey.getGroup()));
 
         when(consumer.getScheduler()).thenReturn(quartzScheduler);
         return consumer;
@@ -138,8 +154,8 @@ class QuartzSchedulerServiceTest {
         return JobBuilder.newJob(DummyJob.class).withIdentity(name, group).build();
     }
 
-    private void setPrivateField(Object target, String fieldName, Object value) throws Exception {
-        Field f = target.getClass().getDeclaredField(fieldName);
+    private void setPrivateField(Object target, Object value) throws Exception {
+        Field f = target.getClass().getDeclaredField("job");
         f.setAccessible(true);
         f.set(target, value);
     }

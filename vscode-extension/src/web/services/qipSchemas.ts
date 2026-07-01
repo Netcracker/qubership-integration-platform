@@ -78,27 +78,14 @@ export const QIP_SCHEMAS = {
               properties: {
                 id: { type: "string" },
                 name: { type: "string" },
-                method: {
-                  type: "string",
-                  enum: [
-                    "GET",
-                    "POST",
-                    "PUT",
-                    "DELETE",
-                    "PATCH",
-                    "HEAD",
-                    "OPTIONS",
-                  ],
-                },
+                // Methods vary by protocol: HTTP verbs, AsyncAPI
+                // publish/subscribe/send/receive, GraphQL query/mutation, gRPC.
+                // The canonical specification.schema.yaml does not restrict this.
+                method: { type: "string" },
                 path: { type: "string" },
-                specification: {
-                  type: "object",
-                  properties: {
-                    name: { type: "string" },
-                    input: { type: "string" },
-                    output: { type: "string" },
-                  },
-                },
+                // Shape varies by protocol (HTTP operation, Kafka {topic}, AMQP
+                // bindings, etc.), so do not constrain it here.
+                specification: { type: "object" },
               },
             },
           },

@@ -338,6 +338,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 
       const initialFormData = {
         ...node.data,
+        type: node.data.elementType,
         name: node.data.label,
         id: node.id,
       };

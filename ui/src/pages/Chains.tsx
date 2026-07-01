@@ -691,7 +691,6 @@ const Chains = () => {
   const showEditFolderModal = (
     mode: FolderEditMode,
     name?: string,
-    description?: string,
     parentOrItemId?: string,
   ) => {
     showModal({
@@ -699,15 +698,14 @@ const Chains = () => {
         <FolderEdit
           mode={mode}
           name={name}
-          description={description}
-          onSubmit={async (name, description, openFolder, newTab) => {
+          onSubmit={async (name, openFolder, newTab) => {
             return mode === "create"
               ? createFolder(
-                  { name, description, parentId: parentOrItemId },
+                  { name, parentId: parentOrItemId },
                   openFolder,
                   newTab,
                 )
-              : updateFolder(parentOrItemId ?? "", { name, description });
+              : updateFolder(parentOrItemId ?? "", { name });
           }}
         />
       ),
@@ -715,7 +713,7 @@ const Chains = () => {
   };
 
   const onCreateFolderBtnClick = (parentId?: string) => {
-    showEditFolderModal("create", undefined, undefined, parentId);
+    showEditFolderModal("create", undefined, parentId);
   };
 
   const onCreateChainBtnClick = (parentId?: string) => {
@@ -842,16 +840,11 @@ const Chains = () => {
   const onContextMenuItemClick = async (item: FolderItem, key: React.Key) => {
     switch (key) {
       case "createNewFolder":
-        return showEditFolderModal("create", undefined, undefined, item.id);
+        return showEditFolderModal("create", undefined, item.id);
       case "createNewChain":
         return onCreateChainBtnClick(item.id);
       case "editFolder":
-        return showEditFolderModal(
-          "update",
-          item.name,
-          item.description,
-          item.id,
-        );
+        return showEditFolderModal("update", item.name, item.id);
       case "editChain":
         return showModal({
           component: (
@@ -1006,7 +999,8 @@ const Chains = () => {
       title: "Description",
       key: "description",
       dataIndex: "description",
-      sorter: (a, b) => a.description.localeCompare(b.description),
+      sorter: (a, b) =>
+        (a.description ?? "").localeCompare(b.description ?? ""),
     },
     {
       title: "Status",
