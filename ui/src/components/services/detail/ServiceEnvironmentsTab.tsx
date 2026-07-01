@@ -6,7 +6,8 @@ import React, {
   useCallback,
 } from "react";
 import { Flex, Radio, Spin, Table, Tag } from "antd";
-import { message, modal } from "../../../misc/antd-app.ts";
+import { message } from "../../../misc/antd-app.ts";
+import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 import {
   Environment,
   EnvironmentRequest,
@@ -37,11 +38,7 @@ import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
 import { usePermissions } from "../../../permissions/usePermissions.tsx";
 import { hasPermissions } from "../../../permissions/funcs.ts";
 import { useColumnSettingsBasedOnColumnsType } from "../../table/useColumnSettingsButton.tsx";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
 import { createActionsSizing } from "../../table/actionsColumn.ts";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
@@ -166,7 +163,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
 
   const handleSwitchEnvironment = useCallback(
     (env: Environment) => {
-      modal.confirm({
+      confirmAndRun({
         title: "Are you sure you want to switch to this Environment?",
         onOk: async () => {
           setSwitchingEnvId(env.id);
@@ -241,7 +238,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
 
   const handleDelete = useCallback(
     (envId: string) => {
-      modal.confirm({
+      confirmAndRun({
         title: "Are you sure you want to delete this Environment?",
         onOk: async () => {
           try {
@@ -438,29 +435,19 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
       columns,
     );
 
-  const environmentsColumnResize = useTableColumnResize({
-    name: 160,
-    address: 200,
-    sourceType: 100,
-    modifiedWhen: 160,
-    labels: 200,
-    usedBy: 120,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        orderedColumns,
-        environmentsColumnResize.columnWidths,
-        environmentsColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(
       orderedColumns,
-      environmentsColumnResize.columnWidths,
-      environmentsColumnResize.createResizeHandlers,
-    ],
-  );
+      {
+        name: 160,
+        address: 200,
+        sourceType: 100,
+        modifiedWhen: 160,
+        labels: 200,
+        usedBy: 120,
+      },
+      { applyDisableResizeBeforeActions: false },
+    );
 
   const [tableAreaRef, tableAreaHeight] = useResizeHeight<HTMLDivElement>();
 
@@ -473,15 +460,6 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
       tableAreaHeight - SERVICE_ENVIRONMENTS_TABLE_HEAD_RESERVE_PX,
     );
   }, [tableAreaHeight]);
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        columnsWithResize,
-        environmentsColumnResize.columnWidths,
-      ),
-    [columnsWithResize, environmentsColumnResize.columnWidths],
-  );
 
   const tableScroll = useMemo(
     () =>
@@ -603,7 +581,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
             }}
             columns={columnsWithResize}
             scroll={tableScroll}
-            components={environmentsColumnResize.resizableHeaderComponents}
+            components={components}
           />
         </div>
       </TablePageLayout>

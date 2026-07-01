@@ -6,12 +6,9 @@ import { message } from "../../misc/antd-app.ts";
 import type { ColumnsType } from "antd/es/table";
 import { InlineEdit } from "../InlineEdit";
 import { TextValueEdit } from "../table/TextValueEdit";
+import { tableScroll } from "../table/tableScroll.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
 
 export type NamespacesEditDialogProps = {
   namespaces: XmlNamespace[];
@@ -137,34 +134,15 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
     [tableData, updateRecord, deleteRecord],
   );
 
-  const namespaceColumnResize = useTableColumnResize({
-    alias: 160,
-    uri: 360,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        namespaceColumns,
-        namespaceColumnResize.columnWidths,
-        namespaceColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(
       namespaceColumns,
-      namespaceColumnResize.columnWidths,
-      namespaceColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        columnsWithResize,
-        namespaceColumnResize.columnWidths,
-      ),
-    [columnsWithResize, namespaceColumnResize.columnWidths],
-  );
+      {
+        alias: 160,
+        uri: 360,
+      },
+      { applyDisableResizeBeforeActions: false },
+    );
 
   return (
     <Modal
@@ -208,12 +186,12 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
           <Table
             className="flex-table"
             size="small"
-            scroll={{ x: scrollX, y: "" }}
+            scroll={tableScroll(scrollX, tableData?.length ?? 0)}
             columns={columnsWithResize}
             dataSource={tableData}
             pagination={false}
             rowKey={(record) => record.alias}
-            components={namespaceColumnResize.resizableHeaderComponents}
+            components={components}
           />
         </Flex>
       </>

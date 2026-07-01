@@ -11,11 +11,8 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton.tsx";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { tableScroll } from "../../table/tableScroll.ts";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
@@ -148,37 +145,19 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
       columns,
     );
 
-  const domainsColumnResize = useTableColumnResize({
-    name: 200,
-    version: 120,
-    replicas: 140,
-    namespace: 220,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        orderedColumns,
-        domainsColumnResize.columnWidths,
-        domainsColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(
       orderedColumns,
-      domainsColumnResize.columnWidths,
-      domainsColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        columnsWithResize,
-        domainsColumnResize.columnWidths,
-        { expandColumnWidth: DOMAINS_EXPAND_COLUMN_WIDTH },
-      ),
-    [columnsWithResize, domainsColumnResize.columnWidths],
-  );
+      {
+        name: 200,
+        version: 120,
+        replicas: 140,
+        namespace: 220,
+      },
+      {
+        expandColumnWidth: DOMAINS_EXPAND_COLUMN_WIDTH,
+      },
+    );
 
   const [expandedRowKeys, setExpandedRowKeys] = React.useState<React.Key[]>([]);
 
@@ -209,10 +188,8 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
           dataSource={filteredData}
           loading={isLoading}
           pagination={false}
-          scroll={
-            filteredData.length > 0 ? { x: scrollX, y: "" } : { x: scrollX }
-          }
-          components={domainsColumnResize.resizableHeaderComponents}
+          scroll={tableScroll(scrollX, filteredData.length)}
+          components={components}
           expandable={{
             expandIcon: treeExpandIcon(),
             expandedRowRender: (record) => (

@@ -1,5 +1,5 @@
 import { Flex, Table, Tag } from "antd";
-import { modal } from "../../../misc/antd-app.ts";
+import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService";
 import commonStyles from "../CommonStyle.module.css";
 import React, { useEffect, useMemo, useState } from "react";
@@ -14,10 +14,8 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton";
-import {
-  attachResizeToColumns,
-  useTableColumnResize,
-} from "../../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { tableScroll } from "../../table/tableScroll.ts";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
@@ -100,30 +98,16 @@ export const DesignTemplates: React.FC = () => {
       columns,
     );
 
-  const designTemplatesColumnResize = useTableColumnResize({
-    name: 280,
-    type: 160,
-    createdWhen: 180,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        orderedColumns,
-        designTemplatesColumnResize.columnWidths,
-        designTemplatesColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
+  const { columnsWithResize, components, scrollX } =
+    useColumnsWithResizeAndScroll(
       orderedColumns,
-      designTemplatesColumnResize.columnWidths,
-      designTemplatesColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const scrollX =
-    designTemplatesColumnResize.totalColumnsWidth +
-    DESIGN_TEMPLATES_SELECTION_COLUMN_WIDTH;
+      {
+        name: 280,
+        type: 160,
+        createdWhen: 180,
+      },
+      { selectionColumnWidth: DESIGN_TEMPLATES_SELECTION_COLUMN_WIDTH },
+    );
 
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
     setSelectedRowKeys(newSelectedRowKeys);
@@ -259,7 +243,7 @@ export const DesignTemplates: React.FC = () => {
                     disabled: !isDeleteEnabled(),
                     iconName: "delete",
                     onClick: () => {
-                      modal.confirm({
+                      confirmAndRun({
                         title: `Delete template?`,
                         content: `Are you sure you want to permanently delete selected templates?`,
                         onOk: () => void handleDelete(),
@@ -303,7 +287,7 @@ export const DesignTemplates: React.FC = () => {
           display: "flex",
           flexDirection: "column",
           borderRadius: "8px",
-          overflowY: "auto",
+          overflow: "hidden",
         }}
       >
         <Table<DetailedDesignTemplate>
@@ -315,8 +299,8 @@ export const DesignTemplates: React.FC = () => {
           pagination={false}
           rowKey="id"
           loading={isLoading}
-          scroll={{ x: scrollX }}
-          components={designTemplatesColumnResize.resizableHeaderComponents}
+          scroll={tableScroll(scrollX, filteredTableData.length)}
+          components={components}
         />
       </Flex>
     </Flex>

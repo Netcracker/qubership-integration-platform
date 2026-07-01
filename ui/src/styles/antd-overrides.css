@@ -15,7 +15,8 @@
 .ant-input-number:focus-within,
 .ant-input-number-focused {
   border-color: var(--vscode-focusBorder, #1677ff) !important;
-  box-shadow: 0 0 0 2px rgb(22 119 255 / 15%) !important;
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--vscode-focusBorder, #1677ff) 15%, transparent) !important;
 }
 
 .ant-select-selector {
@@ -26,7 +27,8 @@
 
 .ant-select-focused .ant-select-selector {
   border-color: var(--vscode-focusBorder, #1677ff) !important;
-  box-shadow: 0 0 0 2px rgb(22 119 255 / 15%) !important;
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--vscode-focusBorder, #1677ff) 15%, transparent) !important;
 }
 
 /* Validation error state: red border */
@@ -46,12 +48,14 @@
 .ant-form-item-has-error .ant-input-number:focus-within,
 .ant-form-item-has-error .ant-input-number-focused {
   border-color: var(--vscode-errorForeground, #ff4d4f) !important;
-  box-shadow: 0 0 0 2px rgb(255 77 79 / 15%) !important;
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--vscode-errorForeground, #ff4d4f) 15%, transparent) !important;
 }
 
 .ant-form-item-has-error .ant-select-focused .ant-select-selector {
   border-color: var(--vscode-errorForeground, #ff4d4f) !important;
-  box-shadow: 0 0 0 2px rgb(255 77 79 / 15%) !important;
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--vscode-errorForeground, #ff4d4f) 15%, transparent) !important;
 }
 
 .ant-select-selection-placeholder,
@@ -84,12 +88,7 @@
   background: var(--vscode-editor-background) !important;
 }
 
-/* Drawer theming */
-.ant-drawer-content {
-  background-color: var(--vscode-editor-background) !important;
-  color: var(--vscode-foreground) !important;
-}
-
+/* Drawer theming (content bg/text come from Drawer.colorBgElevated/colorText tokens) */
 .ant-drawer-header {
   background-color: var(--vscode-editor-background) !important;
   color: var(--vscode-foreground) !important;
@@ -101,21 +100,13 @@
   color: var(--vscode-foreground) !important;
 }
 
-/* List theming in Drawer */
-.ant-list {
-  color: var(--vscode-foreground) !important;
-}
-
+/* List theming in Drawer (root text color comes from List.colorText token) */
 .ant-list-item {
   border-bottom-color: var(--vscode-border) !important;
 }
 
 .ant-list-item-meta-title {
   color: var(--vscode-foreground) !important;
-}
-
-.ant-list-item-meta-description {
-  color: var(--vscode-descriptionForeground) !important;
 }
 
 /* SyntaxHighlighter (react-syntax-highlighter) theming */
@@ -361,15 +352,7 @@ pre[class*="language-"] .token.punctuation {
   border-color: var(--vscode-focusBorder) !important;
 }
 
-/* Fix form label colors - keep them bright and readable in dark theme */
-[data-theme="dark"] .ant-form-item-label > label,
-[data-theme="high-contrast"] .ant-form-item-label > label {
-  color: rgb(255 255 255 / 85%) !important;
-}
-
-[data-theme="light"] .ant-form-item-label > label {
-  color: rgb(0 0 0 / 88%) !important;
-}
+/* Form label color comes from the Form.labelColor token (theme-correct in webview too). */
 
 /* Fix Tag text color for colored tags with inline styles (like Source tags) */
 [data-theme="light"] .ant-tag[style*="background:"],
@@ -384,18 +367,48 @@ pre[class*="language-"] .token.punctuation {
   color: var(--vscode-foreground, rgb(255 255 255 / 90%)) !important;
 }
 
-/* Light-background tags need dark text for readability in dark theme */
-[data-theme="dark"] .ant-tag[style*="background:"][style*="217"],
-[data-theme="dark"] .ant-tag[style*="background:"][style*="245"],
-[data-theme="dark"] .ant-tag[style*="background:"][style*="240"],
-[data-theme="dark"] .ant-tag[style*="background:"][style*="250"],
-[data-theme="dark"] .ant-tag[style*="background:"][style*="232"],
-.vscode-webview[data-theme="dark"] .ant-tag[style*="background:"][style*="217"],
-.vscode-webview[data-theme="dark"] .ant-tag[style*="background:"][style*="245"],
-.vscode-webview[data-theme="dark"] .ant-tag[style*="background:"][style*="240"],
-.vscode-webview[data-theme="dark"] .ant-tag[style*="background:"][style*="250"],
+/* HTTP method badges keep a white label in every theme (the rules above would
+   force a dark label in light theme). Lay the tag out as a centered flex row so
+   the close icon sits on the middle line with a little spacing. */
+.qip-method-tag.ant-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.qip-method-tag.ant-tag[style*="background:"] {
+  color: #fff !important;
+}
+
+.qip-method-tag.ant-tag .ant-tag-close-icon {
+  margin-inline-start: 0;
+  color: inherit;
+}
+
+/* Light-background tags need dark text for readability in dark theme.
+   Method badges (.qip-method-tag) are excluded: they always use a white label
+   from methodTagStyle, so their contrast must not depend on the background's
+   rgb digits matching one of the light-preset values below. */
+[data-theme="dark"]
+  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="217"],
+[data-theme="dark"]
+  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="245"],
+[data-theme="dark"]
+  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="240"],
+[data-theme="dark"]
+  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="250"],
+[data-theme="dark"]
+  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="232"],
 .vscode-webview[data-theme="dark"]
-  .ant-tag[style*="background:"][style*="232"] {
+  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="217"],
+.vscode-webview[data-theme="dark"]
+  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="245"],
+.vscode-webview[data-theme="dark"]
+  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="240"],
+.vscode-webview[data-theme="dark"]
+  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="250"],
+.vscode-webview[data-theme="dark"]
+  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="232"] {
   color: rgb(0 0 0 / 88%) !important;
 }
 
@@ -489,14 +502,19 @@ pre[class*="language-"] .token.punctuation {
   overflow: hidden;
 }
 
-/* Table theming */
+/* Table theming.
+   Background, text and row-hover colours come from the ConfigProvider Table
+   tokens (headerBg / colorBgContainer / colorText / colorTextHeading /
+   rowHoverBg in antdTokens.ts), all bound to the same --vscode-* vars, so they
+   are not repeated here. Only the border colour is pinned: the Table border
+   token (colorBorderSecondary = --vscode-border) diverges from
+   --vscode-editorGroup-border in the high-contrast theme, so this override keeps
+   the intended grid colour. */
 .ant-table {
   border-color: var(
     --vscode-editorGroup-border,
     var(--vscode-border)
   ) !important;
-  background-color: var(--vscode-editor-background) !important;
-  color: var(--vscode-foreground) !important;
 }
 
 .ant-table-container {
@@ -504,6 +522,13 @@ pre[class*="language-"] .token.punctuation {
     --vscode-editorGroup-border,
     var(--vscode-border)
   ) !important;
+}
+
+/* Ant Design v6 sets `overflow-y: scroll` inline on a fixed-height table body
+   (scroll.y), so a scrollbar track shows even when the rows fit. Beat the inline
+   style and scroll only on real overflow, matching the v5 behavior. */
+.ant-table-wrapper .ant-table-body {
+  overflow-y: auto !important;
 }
 
 /* Horizontal scroll "ping" gradients on table edges (Ant Design fixed-column / overflow cue) */
@@ -524,8 +549,6 @@ pre[class*="language-"] .token.punctuation {
     --vscode-editorGroup-border,
     var(--vscode-border)
   ) !important;
-  background-color: var(--vscode-editor-background) !important;
-  color: var(--vscode-foreground) !important;
 }
 
 .ant-table-tbody > tr > td {
@@ -533,12 +556,6 @@ pre[class*="language-"] .token.punctuation {
     --vscode-editorGroup-border,
     var(--vscode-border)
   ) !important;
-  background-color: var(--vscode-editor-background) !important;
-  color: var(--vscode-foreground) !important;
-}
-
-.ant-table-tbody > tr:hover > td {
-  background-color: var(--vscode-list-hoverBackground) !important;
 }
 
 .ant-table-tbody > tr.highlight-row > td {
@@ -633,16 +650,12 @@ pre[class*="language-"] .token.punctuation {
   color: inherit !important;
 }
 
-.ant-tabs-tab-active {
-  color: var(--vscode-textLink-foreground, #1677ff) !important;
-}
-
 .ant-tabs-tab-active .ant-tabs-tab-btn {
   color: var(--vscode-textLink-foreground, #1677ff) !important;
 }
 
+/* Ink-bar color comes from the Tabs.inkBarColor token; keep only the height here. */
 .ant-tabs-ink-bar {
-  background: var(--vscode-textLink-foreground, #1677ff) !important;
   height: 2px !important;
 }
 
@@ -654,12 +667,7 @@ pre[class*="language-"] .token.punctuation {
   border-bottom: none !important;
 }
 
-/* Modal theming */
-.ant-modal,
-.ant-modal-content {
-  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
-}
-
+/* Modal theming (modal text/title/close color come from Modal.colorText/titleColor/colorIcon tokens) */
 .ant-modal-header {
   background-color: var(
     --vscode-modal-background,
@@ -667,10 +675,6 @@ pre[class*="language-"] .token.punctuation {
   ) !important;
   color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
   border-bottom-color: var(--vscode-border) !important;
-}
-
-.ant-modal-title {
-  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
 }
 
 .ant-modal-body {
@@ -693,10 +697,6 @@ pre[class*="language-"] .token.punctuation {
     var(--vscode-panel-background)
   ) !important;
   border-top-color: var(--vscode-border) !important;
-}
-
-.ant-modal-close {
-  color: var(--vscode-modal-foreground, var(--vscode-foreground)) !important;
 }
 
 .ant-modal-close:hover {

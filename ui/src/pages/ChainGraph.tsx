@@ -336,9 +336,13 @@ const ChainGraphInner: React.FC = () => {
     <ElementFocusContext.Provider value={fitViewToElementIdRef}>
       <Splitter
         className={styles["graph-wrapper"]}
-        // Commit width once on release: antd resizes panels internally during
-        // drag, so per-tick setState would only re-render the graph for nothing.
-        onResizeEnd={(sizes: number[]) => {
+        // Sizes are controlled: antd's Splitter caches per-index pixel sizes on
+        // drag and never reconciles a later-added panel, so an uncontrolled
+        // (defaultSize) flex graph panel would leave 0 width for a right panel
+        // opened after a resize. Controlled `size` keeps antd reading fresh props;
+        // the graph stays flex via an undefined size. ChainGraphView is memoized
+        // so per-tick resize updates don't re-render the graph.
+        onResize={(sizes: number[]) => {
           if (showLeftPanel) {
             setLeftPanelWidth(sizes[0]);
           }
@@ -349,7 +353,7 @@ const ChainGraphInner: React.FC = () => {
       >
         {showLeftPanel && (
           <Splitter.Panel
-            defaultSize={leftPanelWidth}
+            size={leftPanelWidth}
             min={MIN_PANEL_WIDTH}
             max={MAX_PANEL_WIDTH}
           >
@@ -365,7 +369,7 @@ const ChainGraphInner: React.FC = () => {
         </Splitter.Panel>
         {rightPanelVisible && (
           <Splitter.Panel
-            defaultSize={rightPanelWidth}
+            size={rightPanelWidth}
             min={MIN_PANEL_WIDTH}
             max={MAX_PANEL_WIDTH}
           >

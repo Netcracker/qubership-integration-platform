@@ -4,7 +4,6 @@ import type { ResizeCallbackData, ResizableProps } from "react-resizable";
 import "react-resizable/css/styles.css";
 import { ResizableTitle } from "./ResizableTitle.tsx";
 import type { ColumnType, ColumnsType } from "antd/lib/table";
-import { ACTIONS_COLUMN_KEY } from "./actionsColumn.ts";
 
 export type ColumnWidthsState = Record<string, number>;
 
@@ -30,15 +29,9 @@ function applyEastResizeWithCompensation(
   nextKey: string | undefined,
   requestedWidth: number,
   minW: number,
-): { nextState: ColumnWidthsState; saturatedNextMin: boolean } {
+): ColumnWidthsState {
   if (nextKey == null) {
-    return {
-      nextState: {
-        ...prev,
-        [columnKey]: Math.max(minW, requestedWidth),
-      },
-      saturatedNextMin: false,
-    };
+    return { ...prev, [columnKey]: Math.max(minW, requestedWidth) };
   }
   const oldK = prev[columnKey];
   const oldNext = prev[nextKey];
@@ -49,28 +42,7 @@ function applyEastResizeWithCompensation(
     newK = oldK + (oldNext - newNext);
     newK = Math.max(minW, newK);
   }
-
-  const saturatedNextMin = newNext === minW;
-  return {
-    nextState: { ...prev, [columnKey]: newK, [nextKey]: newNext },
-    saturatedNextMin,
-  };
-}
-
-function buildResizeUpdater(
-  columnKey: string,
-  nextColumnKey: string | undefined,
-  minColumnWidth: number,
-  requestedWidth: number,
-) {
-  return (prev: ColumnWidthsState) =>
-    applyEastResizeWithCompensation(
-      prev,
-      columnKey,
-      nextColumnKey,
-      requestedWidth,
-      minColumnWidth,
-    );
+  return { ...prev, [columnKey]: newK, [nextKey]: newNext };
 }
 
 function findNextManagedColumnKey<T>(
@@ -85,24 +57,6 @@ function findNextManagedColumnKey<T>(
     }
   }
   return undefined;
-}
-
-function hasFixedActionsColumnToRight<T>(
-  columns: ColumnsType<T>,
-  fromIndex: number,
-  columnWidths: ColumnWidthsState,
-): boolean {
-  for (let i = fromIndex + 1; i < columns.length; i++) {
-    const key = columns[i]?.key as string | undefined;
-    if (!key) continue;
-    if (key in columnWidths) {
-      return false;
-    }
-    if (key === ACTIONS_COLUMN_KEY) {
-      return true;
-    }
-  }
-  return false;
 }
 
 function stripResizeHeaderProps(headerCell: unknown): Record<string, unknown> {
@@ -178,18 +132,16 @@ export function useTableColumnResize(initialWidths: ColumnWidthsState): {
   const createResizeHandlers = useCallback<CreateColumnResizeHandlers>(
     (columnKey, nextColumnKey, minColumnWidth) => {
       const run = (_event: SyntheticEvent, data: ResizeCallbackData) => {
-        const updateWidths = buildResizeUpdater(
-          columnKey,
-          nextColumnKey,
-          minColumnWidth,
-          data.size.width,
-        );
-        const applyUpdate = (prev: ColumnWidthsState): ColumnWidthsState => {
-          const { nextState } = updateWidths(prev);
-          return nextState;
-        };
         flushSync(() => {
-          setColumnWidths(applyUpdate);
+          setColumnWidths((prev) =>
+            applyEastResizeWithCompensation(
+              prev,
+              columnKey,
+              nextColumnKey,
+              data.size.width,
+              minColumnWidth,
+            ),
+          );
         });
       };
       return { onResize: run, onResizeStop: run };
@@ -238,10 +190,13 @@ export function attachResizeToColumns<T>(
     const width = columnWidths[key];
     const prevOnHeaderCell = col.onHeaderCell;
     const nextKey = findNextManagedColumnKey(columns, colIndex, columnWidths);
-    const disableRightEdgeHandle =
-      nextKey == null &&
-      hasFixedActionsColumnToRight(columns, colIndex, columnWidths);
-    if (disableRightEdgeHandle) {
+    // Drop the east handle only on the table's rightmost column, where it juts
+    // ~5px past the table edge and forces a permanent horizontal scrollbar. A
+    // column with any column to its right keeps its handle and stays resizable;
+    // the column before a fixed actions column is stripped separately by
+    // disableResizeBeforeActions.
+    const isLastColumn = colIndex === columns.length - 1;
+    if (isLastColumn) {
       return {
         ...col,
         width,

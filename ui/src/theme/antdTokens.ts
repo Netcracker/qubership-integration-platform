@@ -417,8 +417,8 @@ export function getAntdThemeConfig(
           isDark ? "#69b1ff" : "#1677ff",
         ),
         inkBarColor: getCSSVariable(
-          "--vscode-editorGroup-border",
-          isDark ? "#303030" : "#d9d9d9",
+          "--vscode-textLink-foreground",
+          isDark ? "#69b1ff" : "#1677ff",
         ),
         cardBg: getCSSVariable(
           "--vscode-editor-background",

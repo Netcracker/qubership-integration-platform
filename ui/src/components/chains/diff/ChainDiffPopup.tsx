@@ -22,7 +22,6 @@ export const ChainDiffPopup: React.FC<ChainDiffProps> = ({
   return (
     <ModalWithFullscreenToggle
       title={"Chain compare"}
-      centered
       open={true}
       onCancel={closeContainingModal}
       footer={null}

@@ -9,6 +9,9 @@ export const ModalWithFullscreenToggle: React.FC<ModalProps> = ({
   title,
   height,
   width,
+  // Default to centered: this wrapper renders a large (90vh) modal, which antd's
+  // default top positioning would push past the bottom of the viewport.
+  centered = true,
   onCancel,
   className,
   classNames,
@@ -87,6 +90,7 @@ export const ModalWithFullscreenToggle: React.FC<ModalProps> = ({
       onCancel={onCancel}
       width={isFullscreen ? "100vw" : (width ?? "90vw")}
       height={isFullscreen ? "100vh" : (height ?? "90vh")}
+      centered={centered}
       className={addClass(className, "modal")}
       classNames={{
         ...baseClassNames,

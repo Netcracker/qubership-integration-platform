@@ -41,11 +41,7 @@ import { SelectEdit } from "../table/SelectEdit.tsx";
 import { StatusTag } from "../labels/StatusTag.tsx";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
 import { ChainDiffPopup } from "../chains/diff/ChainDiffPopup.tsx";
 import { useModalsContext } from "../../Modals.tsx";
 
@@ -585,187 +581,78 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
       [contextServiceIds],
     );
 
-  const previewChainColumnResize = useTableColumnResize({
+  const {
+    columnsWithResize: previewChainColumnsResized,
+    scrollX: previewChainScrollX,
+    components: previewChainComponents,
+  } = useColumnsWithResizeAndScroll(previewChainTableColumns, {
     name: 180,
     id: 220,
     domains: 220,
     instructionAction: 160,
     deployAction: 170,
   });
-  const previewServiceColumnResize = useTableColumnResize({
-    name: 240,
-    id: 280,
-  });
-  const previewVariablesColumnResize = useTableColumnResize({
-    name: 200,
-    value: 200,
-    currentValue: 200,
-  });
-  const resultChainColumnResize = useTableColumnResize({
+
+  const {
+    columnsWithResize: previewServiceColumnsResized,
+    scrollX: previewServiceScrollX,
+    components: previewServiceComponents,
+  } = useColumnsWithResizeAndScroll(
+    PREVIEW_IMPORT_SERVICE_TABLE_COLUMNS,
+    {
+      name: 240,
+      id: 280,
+    },
+    {
+      selectionColumnWidth: IMPORT_PREVIEW_SELECTION_COLUMN_WIDTH,
+    },
+  );
+
+  const {
+    columnsWithResize: previewVariablesColumnsResized,
+    scrollX: previewVariablesScrollX,
+    components: previewVariablesComponents,
+  } = useColumnsWithResizeAndScroll(
+    PREVIEW_IMPORT_COMMON_VARIABLES_TABLE_COLUMNS,
+    {
+      name: 200,
+      value: 200,
+      currentValue: 200,
+    },
+    {
+      selectionColumnWidth: IMPORT_PREVIEW_SELECTION_COLUMN_WIDTH,
+    },
+  );
+
+  const {
+    columnsWithResize: resultChainColumnsResized,
+    scrollX: resultChainScrollX,
+    components: resultChainComponents,
+  } = useColumnsWithResizeAndScroll(resultChainTableColumns, {
     name: 220,
     id: 260,
     status: 180,
   });
-  const resultServiceColumnResize = useTableColumnResize({
+
+  const {
+    columnsWithResize: resultServiceColumnsResized,
+    scrollX: resultServiceScrollX,
+    components: resultServiceComponents,
+  } = useColumnsWithResizeAndScroll(resultServiceTableColumns, {
     name: 220,
     id: 260,
     status: 180,
   });
-  const resultVariablesColumnResize = useTableColumnResize({
+
+  const {
+    columnsWithResize: resultVariablesColumnsResized,
+    scrollX: resultVariablesScrollX,
+    components: resultVariablesComponents,
+  } = useColumnsWithResizeAndScroll(RESULT_COMMON_VARIABLES_TABLE_COLUMNS, {
     name: 200,
     value: 200,
     status: 180,
   });
-
-  const previewChainColumnsResized = useMemo(
-    () =>
-      attachResizeToColumns(
-        previewChainTableColumns,
-        previewChainColumnResize.columnWidths,
-        previewChainColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
-      previewChainTableColumns,
-      previewChainColumnResize.columnWidths,
-      previewChainColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const previewServiceColumnsResized = useMemo(
-    () =>
-      attachResizeToColumns(
-        PREVIEW_IMPORT_SERVICE_TABLE_COLUMNS,
-        previewServiceColumnResize.columnWidths,
-        previewServiceColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
-      PREVIEW_IMPORT_SERVICE_TABLE_COLUMNS,
-      previewServiceColumnResize.columnWidths,
-      previewServiceColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const previewVariablesColumnsResized = useMemo(
-    () =>
-      attachResizeToColumns(
-        PREVIEW_IMPORT_COMMON_VARIABLES_TABLE_COLUMNS,
-        previewVariablesColumnResize.columnWidths,
-        previewVariablesColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
-      PREVIEW_IMPORT_COMMON_VARIABLES_TABLE_COLUMNS,
-      previewVariablesColumnResize.columnWidths,
-      previewVariablesColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const resultChainColumnsResized = useMemo(
-    () =>
-      attachResizeToColumns(
-        resultChainTableColumns,
-        resultChainColumnResize.columnWidths,
-        resultChainColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
-      resultChainTableColumns,
-      resultChainColumnResize.columnWidths,
-      resultChainColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const resultServiceColumnsResized = useMemo(
-    () =>
-      attachResizeToColumns(
-        resultServiceTableColumns,
-        resultServiceColumnResize.columnWidths,
-        resultServiceColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
-      resultServiceTableColumns,
-      resultServiceColumnResize.columnWidths,
-      resultServiceColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const resultVariablesColumnsResized = useMemo(
-    () =>
-      attachResizeToColumns(
-        RESULT_COMMON_VARIABLES_TABLE_COLUMNS,
-        resultVariablesColumnResize.columnWidths,
-        resultVariablesColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
-      RESULT_COMMON_VARIABLES_TABLE_COLUMNS,
-      resultVariablesColumnResize.columnWidths,
-      resultVariablesColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const previewChainScrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        previewChainColumnsResized,
-        previewChainColumnResize.columnWidths,
-      ),
-    [previewChainColumnsResized, previewChainColumnResize.columnWidths],
-  );
-
-  const previewServiceScrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        previewServiceColumnsResized,
-        previewServiceColumnResize.columnWidths,
-        {
-          selectionColumnWidth: IMPORT_PREVIEW_SELECTION_COLUMN_WIDTH,
-        },
-      ),
-    [previewServiceColumnsResized, previewServiceColumnResize.columnWidths],
-  );
-
-  const previewVariablesScrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        previewVariablesColumnsResized,
-        previewVariablesColumnResize.columnWidths,
-        {
-          selectionColumnWidth: IMPORT_PREVIEW_SELECTION_COLUMN_WIDTH,
-        },
-      ),
-    [previewVariablesColumnsResized, previewVariablesColumnResize.columnWidths],
-  );
-
-  const resultChainScrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        resultChainColumnsResized,
-        resultChainColumnResize.columnWidths,
-      ),
-    [resultChainColumnsResized, resultChainColumnResize.columnWidths],
-  );
-
-  const resultServiceScrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        resultServiceColumnsResized,
-        resultServiceColumnResize.columnWidths,
-      ),
-    [resultServiceColumnsResized, resultServiceColumnResize.columnWidths],
-  );
-
-  const resultVariablesScrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        resultVariablesColumnsResized,
-        resultVariablesColumnResize.columnWidths,
-      ),
-    [resultVariablesColumnsResized, resultVariablesColumnResize.columnWidths],
-  );
 
   return (
     <Modal
@@ -872,9 +759,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                           x: previewChainScrollX,
                           y: "",
                         }}
-                        components={
-                          previewChainColumnResize.resizableHeaderComponents
-                        }
+                        components={previewChainComponents}
                       />
                     </Flex>
                   ),
@@ -902,9 +787,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                         x: previewServiceScrollX,
                         y: "",
                       }}
-                      components={
-                        previewServiceColumnResize.resizableHeaderComponents
-                      }
+                      components={previewServiceComponents}
                     />
                   ),
                 },
@@ -931,9 +814,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                         x: previewVariablesScrollX,
                         y: "",
                       }}
-                      components={
-                        previewVariablesColumnResize.resizableHeaderComponents
-                      }
+                      components={previewVariablesComponents}
                     />
                   ),
                 },
@@ -985,9 +866,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                         x: resultChainScrollX,
                         y: "",
                       }}
-                      components={
-                        resultChainColumnResize.resizableHeaderComponents
-                      }
+                      components={resultChainComponents}
                     />
                   ),
                 },
@@ -1007,9 +886,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                         x: resultServiceScrollX,
                         y: "",
                       }}
-                      components={
-                        resultServiceColumnResize.resizableHeaderComponents
-                      }
+                      components={resultServiceComponents}
                     />
                   ),
                 },
@@ -1029,9 +906,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                         x: resultVariablesScrollX,
                         y: "",
                       }}
-                      components={
-                        resultVariablesColumnResize.resizableHeaderComponents
-                      }
+                      components={resultVariablesComponents}
                     />
                   ),
                 },

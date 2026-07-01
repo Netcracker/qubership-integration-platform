@@ -1,16 +1,26 @@
 import type { ReactNode } from "react";
+import type { ModalFuncProps } from "antd";
 import { modal } from "./antd-app.ts";
 
-type ConfirmAndRunOptions = {
+type ConfirmAndRunOptions = Pick<
+  ModalFuncProps,
+  | "content"
+  | "okText"
+  | "cancelText"
+  | "okType"
+  | "okButtonProps"
+  | "cancelButtonProps"
+  | "icon"
+  | "width"
+> & {
   title: ReactNode;
-  content?: ReactNode;
+  /** Runs on confirm. A returned promise keeps the dialog in its loading state. */
   onOk: () => void | Promise<void>;
 };
 
-export function confirmAndRun(options: ConfirmAndRunOptions) {
+export function confirmAndRun({ onOk, ...props }: ConfirmAndRunOptions) {
   modal.confirm({
-    title: options.title,
-    content: options.content,
-    onOk: async () => options.onOk(),
+    ...props,
+    onOk: async () => onOk(),
   });
 }

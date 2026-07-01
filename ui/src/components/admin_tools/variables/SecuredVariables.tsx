@@ -11,7 +11,8 @@ import {
   Tooltip,
   type TableProps,
 } from "antd";
-import { message, modal } from "../../../misc/antd-app.ts";
+import { message } from "../../../misc/antd-app.ts";
+import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 import commonStyles from "../CommonStyle.module.css";
 import styles from "./SecuredVariables.module.css";
 import VariablesTable from "./VariablesTable";
@@ -21,15 +22,13 @@ import { useNotificationService } from "../../../hooks/useNotificationService.ts
 import { LongActionButton } from "../../LongActionButton.tsx";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { treeExpandIcon } from "../../table/TreeExpandIcon.tsx";
+import { tableScroll } from "../../table/tableScroll.ts";
 import { api } from "../../../api/api.ts";
 import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
 import { Require } from "../../../permissions/Require.tsx";
 import { usePermissions } from "../../../permissions/usePermissions.tsx";
 import { hasPermissions } from "../../../permissions/funcs.ts";
-import {
-  attachResizeToColumns,
-  useTableColumnResize,
-} from "../../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 
@@ -405,10 +404,6 @@ export const SecuredVariables: React.FC = () => {
     [canAddVariableToSecret],
   );
 
-  const secretListColumnResize = useTableColumnResize({
-    secret: 520,
-  });
-
   const secretListColumns = useMemo<TableProps<SecretRow>["columns"]>(
     () => [
       {
@@ -423,7 +418,6 @@ export const SecuredVariables: React.FC = () => {
                 <Tag
                   color="green"
                   style={{
-                    borderRadius: 12,
                     padding: "0 8px",
                     marginLeft: "8px",
                   }}
@@ -474,20 +468,13 @@ export const SecuredVariables: React.FC = () => {
     ],
   );
 
-  const secretListColumnsResized = useMemo(
-    () =>
-      attachResizeToColumns(
-        secretListColumns,
-        secretListColumnResize.columnWidths,
-        secretListColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
-      secretListColumns,
-      secretListColumnResize.columnWidths,
-      secretListColumnResize.createResizeHandlers,
-    ],
-  );
+  const {
+    columnResize: secretListColumnResize,
+    columnsWithResize: secretListColumnsResized,
+    components: secretListComponents,
+  } = useColumnsWithResizeAndScroll(secretListColumns, {
+    secret: 520,
+  });
 
   const filteredSecrets = useMemo(
     () => secrets.filter((s) => secretNameMatchesSearch(s, searchTerm)),
@@ -527,7 +514,7 @@ export const SecuredVariables: React.FC = () => {
                     iconName: "delete",
                     onClick: () => {
                       if (!hasSelected) return;
-                      modal.confirm({
+                      confirmAndRun({
                         title: `Delete selected variable(s)?`,
                         content: `Are you sure you want to delete variables(s)?`,
                         onOk: handleDeleteSelected,
@@ -613,11 +600,11 @@ export const SecuredVariables: React.FC = () => {
         size="small"
         bordered={false}
         sticky
-        scroll={{
-          x: secretListColumnResize.totalColumnsWidth,
-          y: "",
-        }}
-        components={secretListColumnResize.resizableHeaderComponents}
+        scroll={tableScroll(
+          secretListColumnResize.totalColumnsWidth,
+          filteredSecrets.length,
+        )}
+        components={secretListComponents}
       />
     </Flex>
   );

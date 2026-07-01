@@ -14,7 +14,9 @@
   flex-direction: column;
 }
 
-.modalFocusRoot:focus:not(:focus-visible) {
+/* Managed focus host (tabIndex=-1, focused programmatically on open). It never
+   receives keyboard focus, so it should never show a focus outline. */
+.modalFocusRoot:focus {
   outline: none;
 }
 
@@ -78,6 +80,14 @@
 
 .parameters-form :global(.ant-form-item) {
   margin-bottom: 12px;
+}
+
+/* The auto-height editor (Mapper / Script) is the last field in its form. The
+   bottom margins of its nested RJSF field wrappers would otherwise stack into a
+   tall dead gap below it. Drop them so the editor fills the form area down to
+   the bottom. */
+.parameters-form :global(.ant-form-item:has(.qip-auto-height)) {
+  margin-bottom: 0;
 }
 
 /* Custom tooltip styling for field description popups.

@@ -138,7 +138,6 @@ export const ServiceParametersPage: React.FC = () => {
   }, [systemId, state]);
 
   useEffect(() => {
-    console.log("ServiceParametersPage: URL changed, refreshing service data");
     if (systemId) {
       void api
         .getService(systemId)

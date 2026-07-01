@@ -237,7 +237,7 @@ export const ChainCreate: React.FC<ChainCreateProps> = (props) => {
                       />
                     </Form.Item>
                     <Form.Item label="Description" name="description">
-                      <TextArea style={{ height: 120, resize: "none" }} />
+                      <TextArea className="fixed-textarea" />
                     </Form.Item>
                   </>
                 ),
@@ -251,13 +251,13 @@ export const ChainCreate: React.FC<ChainCreateProps> = (props) => {
                       label="Business Description"
                       name="businessDescription"
                     >
-                      <TextArea style={{ height: 120, resize: "none" }} />
+                      <TextArea className="fixed-textarea" />
                     </Form.Item>
                     <Form.Item label="Assumptions" name="assumptions">
-                      <TextArea style={{ height: 120, resize: "none" }} />
+                      <TextArea className="fixed-textarea" />
                     </Form.Item>
                     <Form.Item label="Out of Scope" name="outOfScope">
-                      <TextArea style={{ height: 120, resize: "none" }} />
+                      <TextArea className="fixed-textarea" />
                     </Form.Item>
                   </>
                 ),

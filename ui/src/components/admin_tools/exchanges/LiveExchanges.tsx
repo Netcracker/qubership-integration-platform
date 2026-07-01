@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Empty, Flex, InputNumber, Space, Table, Tooltip } from "antd";
-import { modal } from "../../../misc/antd-app.ts";
+import { Button, Flex, InputNumber, Space, Table, Tooltip } from "antd";
+import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { treeExpandIcon } from "../../table/TreeExpandIcon.tsx";
 import { LiveExchange, SessionsLoggingLevel } from "../../../api/apiTypes.ts";
@@ -21,15 +21,10 @@ import {
 } from "../../table/useColumnSettingsButton.tsx";
 import { TablePageLayout } from "../../TablePageLayout.tsx";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../../table/useTableColumnResize.tsx";
-import {
-  createActionsColumnBase,
-  disableResizeBeforeActions,
-} from "../../table/actionsColumn.ts";
+import { tableScroll } from "../../table/tableScroll.ts";
+import { createActionsColumnBase } from "../../table/actionsColumn.ts";
+import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { tableEmpty } from "../../table/tableEmpty.tsx";
 
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 
@@ -109,7 +104,7 @@ export const LiveExchanges: React.FC = () => {
 
   const showTerminateExchangeModal = useCallback(
     (liveExchange: LiveExchange) => {
-      modal.confirm({
+      confirmAndRun({
         title: "Terminate Exchange",
         content:
           "Are you sure you want to terminate current exchange? That will cause current session to end with error.",
@@ -248,42 +243,20 @@ export const LiveExchanges: React.FC = () => {
       columns,
     );
 
-  const liveExchangesColumnResize = useTableColumnResize({
-    sessionId: 200,
-    chainName: 200,
-    sessionDuration: 200,
-    duration: 200,
-    sessionStartTime: 200,
-    main: 100,
-    podIp: 100,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      disableResizeBeforeActions(
-        attachResizeToColumns(
-          orderedColumns,
-          liveExchangesColumnResize.columnWidths,
-          liveExchangesColumnResize.createResizeHandlers,
-          { minWidth: 80 },
-        ),
-      ),
-    [
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(
       orderedColumns,
-      liveExchangesColumnResize.columnWidths,
-      liveExchangesColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        columnsWithResize,
-        liveExchangesColumnResize.columnWidths,
-        { expandColumnWidth: LIVE_EXCHANGES_EXPAND_COLUMN_WIDTH },
-      ),
-    [columnsWithResize, liveExchangesColumnResize.columnWidths],
-  );
+      {
+        sessionId: 200,
+        chainName: 200,
+        sessionDuration: 200,
+        duration: 200,
+        sessionStartTime: 200,
+        main: 100,
+        podIp: 100,
+      },
+      { expandColumnWidth: LIVE_EXCHANGES_EXPAND_COLUMN_WIDTH },
+    );
 
   const refresh = useCallback(async () => {
     try {
@@ -347,7 +320,7 @@ export const LiveExchanges: React.FC = () => {
             size="small"
             columns={columnsWithResize}
             dataSource={items}
-            scroll={items.length > 0 ? { x: scrollX, y: "" } : { x: scrollX }}
+            scroll={tableScroll(scrollX, items.length)}
             pagination={false}
             rowKey={liveExchangeRowKey}
             loading={isLoading}
@@ -357,15 +330,8 @@ export const LiveExchanges: React.FC = () => {
               expandIcon: treeExpandIcon(),
               childrenColumnName: "exchanges",
             }}
-            components={liveExchangesColumnResize.resizableHeaderComponents}
-            locale={{
-              emptyText: (
-                <Empty
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description="No running chains available at the moment"
-                />
-              ),
-            }}
+            components={components}
+            locale={{ emptyText: tableEmpty("No running chains") }}
           />
         </TablePageLayout>
       </Flex>

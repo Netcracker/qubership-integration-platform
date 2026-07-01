@@ -65,6 +65,7 @@ jest.mock("../../src/pages/DocumentationPage.module.css", () => ({
 }));
 
 jest.mock("antd", () => ({
+  Skeleton: () => <div data-testid="skeleton" />,
   Spin: ({ size }: { size?: string }) => (
     <div data-testid="spin" data-size={size} />
   ),
@@ -198,10 +199,9 @@ describe("DocumentationPage", () => {
     render(<DocumentationPage />);
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith(
-        "/doc/00__Overview/overview",
-        { replace: true },
-      );
+      expect(mockNavigate).toHaveBeenCalledWith("/doc/00__Overview/overview", {
+        replace: true,
+      });
     });
   });
 

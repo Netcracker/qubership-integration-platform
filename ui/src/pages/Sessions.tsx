@@ -57,11 +57,9 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../components/table/useColumnSettingsButton.tsx";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../components/table/useTableColumnResize.tsx";
+import { tableScroll } from "../components/table/tableScroll.ts";
+import { useColumnsWithResizeAndScroll } from "../components/table/useColumnsWithResizeAndScroll.tsx";
+import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import commonStyles from "../components/admin_tools/CommonStyle.module.css";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import { AdminToolsHeader } from "../components/admin_tools/AdminToolsHeader.tsx";
@@ -474,45 +472,25 @@ export const Sessions: React.FC<SessionsProps> = ({
       tableColumnDefinitions,
     );
 
-  const sessionsColumnResize = useTableColumnResize({
-    id: 220,
-    chainName: 160,
-    executionStatus: 140,
-    started: 168,
-    finished: 168,
-    loggingLevel: 120,
-    duration: 100,
-    snapshotName: 160,
-    engineAddress: 200,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        orderedColumns,
-        sessionsColumnResize.columnWidths,
-        sessionsColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(
       orderedColumns,
-      sessionsColumnResize.columnWidths,
-      sessionsColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        columnsWithResize,
-        sessionsColumnResize.columnWidths,
-        {
-          expandColumnWidth: SESSIONS_EXPAND_COLUMN_WIDTH,
-          selectionColumnWidth: SESSIONS_SELECTION_COLUMN_WIDTH,
-        },
-      ),
-    [columnsWithResize, sessionsColumnResize.columnWidths],
-  );
+      {
+        id: 220,
+        chainName: 160,
+        executionStatus: 140,
+        started: 168,
+        finished: 168,
+        loggingLevel: 120,
+        duration: 100,
+        snapshotName: 110,
+        engineAddress: 150,
+      },
+      {
+        expandColumnWidth: SESSIONS_EXPAND_COLUMN_WIDTH,
+        selectionColumnWidth: SESSIONS_SELECTION_COLUMN_WIDTH,
+      },
+    );
 
   /* Sentinel is appended as a sibling of `<table>` inside `.ant-table-body`
    * (not inside the table) because Antd's sticky table syncs header/body
@@ -720,8 +698,9 @@ export const Sessions: React.FC<SessionsProps> = ({
           rowKey="id"
           sticky
           style={{ flex: 1, minHeight: 0 }}
-          scroll={tableData.length > 0 ? { x: scrollX, y: "" } : { x: scrollX }}
-          components={sessionsColumnResize.resizableHeaderComponents}
+          locale={{ emptyText: tableEmpty("No sessions recorded") }}
+          scroll={tableScroll(scrollX, tableData.length)}
+          components={components}
           onChange={(_, tableFilters) => setTableFilters(tableFilters)}
         />
       </div>

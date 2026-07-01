@@ -1,27 +1,39 @@
-/* Scoped to the theme switcher: an inset track with a raised, surface-colored
-   selected thumb (the Ant Design Segmented look), instead of the app-wide
-   gray track and solid-blue selection. */
+/* Scoped to the theme switcher: a quiet inset track with a raised, surface
+   selected thumb, instead of the app-wide solid-accent fill that reads too
+   heavy for an icon-only control. */
 .themeSegmented:global(.ant-segmented) {
+  /* Fill the row next to the "Theme" label; block spreads the four icon tiles
+     evenly across that width. */
+  flex: 1;
+  padding: 2px;
   background-color: rgba(127, 127, 127, 0.14) !important;
-  border: 1px solid var(--vscode-border) !important;
 }
 
-.themeSegmented :global(.ant-segmented-item-selected) {
+/* Center each icon in its tile; an inline icon otherwise sits on the text
+   baseline and rides high in the empty (label-less) tile. */
+.themeSegmented :global(.ant-segmented-item-label) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The resting selected tile and the sliding thumb share one look: a raised
+   surface tile, outlined so it reads in every theme (a drop shadow is
+   invisible on dark / high-contrast backgrounds). */
+.themeSegmented :global(.ant-segmented-item-selected),
+.themeSegmented :global(.ant-segmented-thumb) {
   background-color: var(--vscode-editor-background) !important;
   color: var(--vscode-foreground) !important;
-  /* Outline (not a drop shadow) so the selected tile reads in every theme,
-     including dark and high-contrast where a black shadow is invisible. */
   box-shadow: 0 0 0 1px var(--vscode-border);
 }
 
-.option {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  line-height: 1.1;
+/* Unselected icons recede so the active theme stands out, and brighten on
+   hover to signal they're clickable. */
+.themeSegmented :global(.ant-segmented-item:not(.ant-segmented-item-selected)) {
+  color: var(--vscode-descriptionForeground) !important;
 }
 
-.optionText {
-  font-size: 12px;
+.themeSegmented
+  :global(.ant-segmented-item:not(.ant-segmented-item-selected):hover) {
+  color: var(--vscode-foreground) !important;
 }

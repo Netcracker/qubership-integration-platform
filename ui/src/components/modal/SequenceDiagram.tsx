@@ -198,7 +198,6 @@ export const SequenceDiagram: React.FC<SequenceDiagramProps> = ({
   return (
     <ModalWithFullscreenToggle
       title={title ?? "Sequence Diagram"}
-      centered
       open={true}
       onCancel={closeContainingModal}
       footer={

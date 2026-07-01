@@ -5,16 +5,27 @@
 import type { GlobalToken } from "antd";
 import { DeploymentStatus } from "../api/apiTypes";
 
-// HTTP Method Colors (from ServicesTreeTable.tsx)
+// HTTP method colors, matching the Swagger/OpenAPI method palette.
 export const METHOD_COLORS: Record<string, string> = {
   GET: "#61affe",
   POST: "#49cc90",
   PUT: "#fca130",
   DELETE: "#f93e3e",
   PATCH: "#50e3c2",
+  HEAD: "#9012fe",
+  OPTIONS: "#0d5aa7",
+  TRACE: "#1f1f1f",
   QUERY: "#1890ff",
   MUTATION: "#52c41a",
   SUBSCRIPTION: "#722ed1",
+  // AsyncAPI operations (asyncapi-react palette, white label). From the
+  // application's perspective: receive/publish are incoming (green),
+  // send/subscribe are outgoing (blue) — so AsyncAPI 2.x publish maps to
+  // green and subscribe to blue, matching the v2→v3 action flip.
+  SEND: "#3182ce",
+  RECEIVE: "#38a169",
+  PUBLISH: "#38a169",
+  SUBSCRIBE: "#3182ce",
 };
 
 // Source/Protocol Colors (from SourceFlagTag.tsx)
@@ -79,6 +90,10 @@ export function parseHex(hex: string): RgbChannels | null {
   };
 }
 
+// Background luminance where 0.88-alpha dark text and pure-white text reach equal
+// WCAG contrast (√0.0525 − 0.05). Above it dark text is more readable; below, white.
+const DARK_TEXT_LUMINANCE_CROSSOVER = 0.179;
+
 /** WCAG relative luminance for #RRGGBB — pick readable text on colored tags (see SourceFlagTag, HttpMethod). */
 export function foregroundForBackground(hex: string): string {
   const channels = parseHex(hex);
@@ -89,7 +104,7 @@ export function foregroundForBackground(hex: string): string {
     0.2126 * lin(channels.r / 255) +
     0.7152 * lin(channels.g / 255) +
     0.0722 * lin(channels.b / 255);
-  return L > 0.45 ? "rgba(0, 0, 0, 0.88)" : "#ffffff";
+  return L > DARK_TEXT_LUMINANCE_CROSSOVER ? "rgba(0, 0, 0, 0.88)" : "#ffffff";
 }
 
 // Deployment status colors (from DeploymentRuntimeState.tsx)

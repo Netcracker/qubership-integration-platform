@@ -17,7 +17,7 @@ interface ThemeSwitcherProps {
   onThemeChange?: (theme: ThemeMode) => void;
 }
 
-const ICON_STYLE = { fontSize: 15 };
+const ICON_STYLE = { fontSize: 16 };
 
 // Static, prop-independent: built once so each render reuses the same nodes.
 const OPTIONS: { label: string; value: ThemeModeWithSystem; icon: IconName }[] =
@@ -28,14 +28,11 @@ const OPTIONS: { label: string; value: ThemeModeWithSystem; icon: IconName }[] =
     { label: "HC", value: "high-contrast", icon: "eye" },
   ];
 
+// Icon-only tiles; the label is kept as the native tooltip for accessibility.
 const SEGMENTED_OPTIONS = OPTIONS.map(({ label, value, icon }) => ({
   value,
-  label: (
-    <span className={styles.option}>
-      <OverridableIcon name={icon} style={ICON_STYLE} />
-      <span className={styles.optionText}>{label}</span>
-    </span>
-  ),
+  title: label,
+  label: <OverridableIcon name={icon} style={ICON_STYLE} />,
 }));
 
 export const ThemeSwitcher = ({

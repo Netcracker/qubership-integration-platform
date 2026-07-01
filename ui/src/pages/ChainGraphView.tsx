@@ -32,7 +32,7 @@ import {
   ChainGraphViewControls,
   ChainGraphViewControlsProps,
 } from "../components/graph/ChainGraphViewControls.tsx";
-import { modal } from "../misc/antd-app.ts";
+import { confirmAndRun } from "../misc/confirm-utils.ts";
 import ContextMenu from "../components/graph/ContextMenu.tsx";
 import { useChainGraph } from "../hooks/graph/useChainGraph.tsx";
 import { registerGraphCaptureSource } from "../hooks/graph/graphCaptureBridge.ts";
@@ -102,7 +102,7 @@ export type ChainGraphViewProps = HTMLAttributes<HTMLDivElement> & {
   ) => void;
 };
 
-export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
+const ChainGraphViewComponent: React.FC<ChainGraphViewProps> = ({
   readOnly,
   controls,
   submitOpenElement,
@@ -252,7 +252,7 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
         (await nonEmptyContainerExists(changes.nodes)) &&
         !isSwimlanesOnly(changes.nodes)
       ) {
-        modal.confirm({
+        confirmAndRun({
           title: "Delete Container",
           content:
             "This container element is not empty. Are you sure you want to delete it? All its content will be also deleted.",
@@ -599,3 +599,7 @@ export const ChainGraphView: React.FC<ChainGraphViewProps> = ({
     </div>
   );
 };
+
+// Memoized so controlled-Splitter resize ticks (panel-width state updates in the
+// parent) don't re-render the graph while its props stay referentially stable.
+export const ChainGraphView = React.memo(ChainGraphViewComponent);

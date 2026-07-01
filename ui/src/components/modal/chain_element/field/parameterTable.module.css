@@ -1,0 +1,27 @@
+/* Shared layout for the key/value parameter tables in the Service Call element
+   fields (PatternProperties / EnhancedPatternProperties / BodyParameters). The
+   35px action column equals the select-row trailing zone (32px button + 4px gap),
+   so the Value input's right edge lines up with the Service/Operation selects
+   above; table-layout:fixed splits the remaining columns evenly. */
+.table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+/* border-box so the column is exactly 35px regardless of cell padding. */
+.actionsCol {
+  width: 35px;
+  box-sizing: border-box;
+}
+
+/* Name input aligns with the selects' left edge; the Value input reaches the
+   right edge, lining up with the selects above. */
+.table td:first-child,
+.table th:first-child {
+  padding-left: 0;
+}
+
+.table td:nth-last-child(2) {
+  padding-right: 0;
+}

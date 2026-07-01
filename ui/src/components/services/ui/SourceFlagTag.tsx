@@ -31,7 +31,6 @@ export const SourceFlagTag: React.FC<{
       style={{
         background: color,
         color: foregroundForBackground(color),
-        borderRadius: 12,
         border: "none",
       }}
     >

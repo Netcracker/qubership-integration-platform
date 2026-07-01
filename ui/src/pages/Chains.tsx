@@ -1,5 +1,6 @@
 import { Breadcrumb, Button, Flex, Table } from "antd";
 import { message, modal } from "../misc/antd-app.ts";
+import { confirmAndRun } from "../misc/confirm-utils.ts";
 import { useNavigate, useSearchParams } from "react-router";
 import { useModalsContext } from "../Modals.tsx";
 import {
@@ -18,6 +19,7 @@ import { formatTimestamp } from "../misc/format-utils.ts";
 import { EntityLabels } from "../components/labels/EntityLabels.tsx";
 import { TableRowSelection } from "antd/lib/table/interface";
 import { CompactSearch } from "../components/table/CompactSearch.tsx";
+import { tableScroll } from "../components/table/tableScroll.ts";
 import type { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
 import { DeploymentsCumulativeState } from "../components/deployment_runtime_states/DeploymentsCumulativeState.tsx";
 import { FolderEdit, FolderEditMode } from "../components/modal/FolderEdit.tsx";
@@ -56,17 +58,11 @@ import {
 } from "../components/table/useColumnSettingsButton.tsx";
 import { useTableDragDrop } from "../hooks/useTableDragDrop.ts";
 import { treeExpandIcon } from "../components/table/TreeExpandIcon.tsx";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../components/table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../components/table/useColumnsWithResizeAndScroll.tsx";
+import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import commonStyles from "../components/admin_tools/CommonStyle.module.css";
-import {
-  createActionsColumnBase,
-  disableResizeBeforeActions,
-} from "../components/table/actionsColumn.ts";
+import { createActionsColumnBase } from "../components/table/actionsColumn.ts";
 import { ChainDetailsDrawer } from "../components/chains/ChainDetailsDrawer.tsx";
 import { useGenerateDds } from "../hooks/useGenerateDds.tsx";
 
@@ -740,7 +736,7 @@ const Chains = () => {
 
   const onDeleteBtnClick = () => {
     if (selectedRowKeys.length > 0) {
-      modal.confirm({
+      confirmAndRun({
         title: "Delete selected",
         content: `Are you sure you want to delete selected folders and chains?`,
         onOk: async () => deleteSelectedFoldersAndChains(),
@@ -881,13 +877,13 @@ const Chains = () => {
           message.info("Link to a chain was copied to the clipboard"),
         );
       case "deleteFolder":
-        return modal.confirm({
+        return confirmAndRun({
           title: "Delete Folder",
           content: `Are you sure you want to delete "${item.name}" folder?`,
           onOk: async () => deleteFolder(item.id),
         });
       case "deleteChain":
-        return modal.confirm({
+        return confirmAndRun({
           title: "Delete Chain",
           content: `Are you sure you want to delete "${item.name}" chain?`,
           onOk: async () => deleteChain(item.id),
@@ -1108,40 +1104,25 @@ const Chains = () => {
   const { orderedColumns, columnSettingsButton } =
     useColumnSettingsBasedOnColumnsType<ChainTableItem>("chainsTable", columns);
 
-  const chainsColumnResize = useTableColumnResize({
-    name: 220,
-    id: 200,
-    description: 240,
-    status: 200,
-    labels: 200,
-    createdBy: 120,
-    createdWhen: 168,
-    modifiedBy: 120,
-    modifiedWhen: 168,
-  });
-
-  const columnsWithResize = useMemo(() => {
-    const columns = attachResizeToColumns(
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(
       orderedColumns,
-      chainsColumnResize.columnWidths,
-      chainsColumnResize.createResizeHandlers,
-      { minWidth: 80 },
-    );
-    return disableResizeBeforeActions(columns);
-  }, [
-    orderedColumns,
-    chainsColumnResize.columnWidths,
-    chainsColumnResize.createResizeHandlers,
-  ]);
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(columnsWithResize, chainsColumnResize.columnWidths, {
+      {
+        name: 220,
+        id: 200,
+        description: 240,
+        status: 200,
+        labels: 200,
+        createdBy: 120,
+        createdWhen: 168,
+        modifiedBy: 120,
+        modifiedWhen: 168,
+      },
+      {
         expandColumnWidth: CHAINS_EXPAND_COLUMN_WIDTH,
         selectionColumnWidth: CHAINS_SELECTION_COLUMN_WIDTH,
-      }),
-    [columnsWithResize, chainsColumnResize.columnWidths],
-  );
+      },
+    );
 
   const rowSelection: TableRowSelection<ChainTableItem> = {
     type: "checkbox",
@@ -1296,8 +1277,9 @@ const Chains = () => {
           columns={columnsWithResize}
           rowSelection={rowSelection}
           pagination={false}
-          scroll={{ x: scrollX, y: "" }}
-          components={chainsColumnResize.resizableHeaderComponents}
+          locale={{ emptyText: tableEmpty("No chains or folders") }}
+          scroll={tableScroll(scrollX, tableItems.length)}
+          components={components}
           rowKey="id"
           rowClassName={(record) =>
             [

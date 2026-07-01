@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { Button, Flex, Spin, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Engine, RunningStatus } from "../../../api/apiTypes.ts";
@@ -6,10 +6,7 @@ import { DeploymentsTable } from "./DeploymentsTable";
 import { treeExpandIcon } from "../../table/TreeExpandIcon";
 import { useDeploymentsForEngine } from "./hooks/useDeploymentsForEngine";
 import { RunningStatusValue } from "./RunningStatusValue.tsx";
-import {
-  attachResizeToColumns,
-  useTableColumnResize,
-} from "../../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
 import layoutStyles from "./DomainsTablesLayout.module.css";
 
 interface Props {
@@ -90,22 +87,14 @@ export const EngineTable: React.FC<Props> = ({
 }) => {
   const [expandedRowKeys, setExpandedRowKeys] = React.useState<React.Key[]>([]);
 
-  const engineColumnResize = useTableColumnResize({
-    name: 220,
-    host: 200,
-    runningStatus: 160,
-    ready: 140,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        columns,
-        engineColumnResize.columnWidths,
-        engineColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [engineColumnResize.columnWidths, engineColumnResize.createResizeHandlers],
+  const { columnsWithResize, components } = useColumnsWithResizeAndScroll(
+    columns,
+    {
+      name: 220,
+      host: 200,
+      runningStatus: 160,
+      ready: 140,
+    },
   );
 
   return (
@@ -119,7 +108,7 @@ export const EngineTable: React.FC<Props> = ({
           pagination={false}
           size="small"
           tableLayout="fixed"
-          components={engineColumnResize.resizableHeaderComponents}
+          components={components}
           expandable={{
             expandIcon: treeExpandIcon(),
             expandedRowRender: (engine) => (

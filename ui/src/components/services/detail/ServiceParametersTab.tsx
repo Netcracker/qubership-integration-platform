@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Form, Input, Button, Select, Descriptions, Spin } from "antd";
+import { Form, Input, Button, Select, Descriptions, Skeleton } from "antd";
 import {
   IntegrationSystem,
   IntegrationSystemType,
@@ -146,7 +146,12 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
     return () => setToolbar(null);
   }, [setToolbar, activeTab, system, systemId, notificationService]);
 
-  if (loadingSystem) return <Spin style={{ margin: 32 }} />;
+  if (loadingSystem)
+    return (
+      <div style={{ margin: 32 }}>
+        <Skeleton active />
+      </div>
+    );
   if (loadError)
     return <div style={{ color: "red", margin: 32 }}>{loadError}</div>;
   if (!system) return null;

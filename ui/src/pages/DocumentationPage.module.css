@@ -39,13 +39,6 @@
   margin: 8px;
 }
 
-.loadingContainer {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-}
-
 .docBody {
   display: flex;
   flex-direction: row;

@@ -25,7 +25,7 @@ export const UsageStatusTag: React.FC<{ element: ServiceEntity }> = ({
   if (status === "Deprecated") color = "red";
   else if (status === "In use") color = "green";
   return (
-    <Tag variant="solid" color={color} style={{ borderRadius: 12 }}>
+    <Tag variant="solid" color={color}>
       {status}
     </Tag>
   );

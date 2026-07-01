@@ -943,7 +943,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         >
           <Typography.Text
             ellipsis={{ tooltip: elementDescription }}
-            style={{ flex: 1, minWidth: 0 }}
+            style={{ flex: 1, minWidth: 0, textAlign: "start" }}
           >
             {elementDescription}
           </Typography.Text>

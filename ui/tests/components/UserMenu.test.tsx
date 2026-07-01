@@ -254,10 +254,11 @@ describe("UserMenu", () => {
     const { container } = renderWithTheme();
     fireEvent.click(container.querySelector('button[aria-label="User menu"]')!);
 
-    expect(await screen.findByText("System")).toBeTruthy();
-    expect(screen.getByText("Light")).toBeTruthy();
-    expect(screen.getByText("Dark")).toBeTruthy();
-    expect(screen.getByText("HC")).toBeTruthy();
+    // Options are icon-only; the label is kept as the native tooltip (title).
+    expect(await screen.findByTitle("System")).toBeTruthy();
+    expect(screen.getByTitle("Light")).toBeTruthy();
+    expect(screen.getByTitle("Dark")).toBeTruthy();
+    expect(screen.getByTitle("HC")).toBeTruthy();
   });
 
   it("reacts to configure() updates after mount", async () => {

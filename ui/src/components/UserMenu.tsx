@@ -67,7 +67,7 @@ export const UserMenu: React.FC = () => {
   };
 
   const themeSection = themeContext ? (
-    <Flex vertical gap={8} className={styles.themeSection}>
+    <Flex align="center" gap={12} className={styles.themeSection}>
       <Text type="secondary" className={styles.label}>
         Theme
       </Text>

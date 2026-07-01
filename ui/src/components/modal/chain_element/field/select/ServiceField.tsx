@@ -10,9 +10,11 @@ import { FormContext } from "../../ChainElementModificationContext.ts";
 import { JSONSchema7 } from "json-schema";
 import { useNotificationService } from "../../../../../hooks/useNotificationService.tsx";
 import { SelectTag } from "./SelectTag.tsx";
+import { SourceFlagTag } from "../../../../services/ui/SourceFlagTag.tsx";
 import { capitalize } from "../../../../../misc/format-utils.ts";
 import { normalizeProtocol } from "../../../../../misc/protocol-utils.ts";
 import { SelectAndNavigateField } from "./SelectAndNavigateField.tsx";
+import styles from "./selectOptionValue.module.css";
 
 const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
   id,
@@ -70,10 +72,15 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
         filteredServices?.map((service: IntegrationSystem) => ({
           labelString: service.name,
           label: (
-            <>
-              <SelectTag value={capitalize(service.type)} />
-              {service.name}
-            </>
+            <span className={styles.row}>
+              <span className={styles.typeCol}>
+                <SelectTag value={capitalize(service.type)} />
+              </span>
+              <span className={styles.protoCol}>
+                <SourceFlagTag source={service.protocol} toUpperCase={true} />
+              </span>
+              <span className={styles.text}>{service.name}</span>
+            </span>
           ),
           value: service.id,
         })) ?? [];

@@ -6,6 +6,7 @@ import {
   getDeploymentStatusColor,
   getDeploymentStatusTone,
   isTokenDark,
+  METHOD_COLORS,
   parseHex,
 } from "../../src/theme/semanticColors";
 
@@ -42,13 +43,14 @@ function makeToken(overrides: Partial<GlobalToken> = {}): GlobalToken {
 }
 
 describe("foregroundForBackground", () => {
-  it("uses white text on dark saturated palette colors", () => {
-    expect(foregroundForBackground("#1677ff")).toBe("#ffffff");
-    expect(foregroundForBackground("#52c41a")).toBe("#ffffff");
+  it("uses white text only on very dark backgrounds", () => {
     expect(foregroundForBackground("#9012fe")).toBe("#ffffff");
+    expect(foregroundForBackground("#722ed1")).toBe("#ffffff");
   });
 
-  it("uses dark text on light backgrounds", () => {
+  it("uses dark text on mid-tone and light backgrounds for higher contrast", () => {
+    expect(foregroundForBackground("#1677ff")).toBe("rgba(0, 0, 0, 0.88)");
+    expect(foregroundForBackground("#52c41a")).toBe("rgba(0, 0, 0, 0.88)");
     expect(foregroundForBackground("#4FC0F8")).toBe("rgba(0, 0, 0, 0.88)");
     expect(foregroundForBackground("#bfbfbf")).toBe("rgba(0, 0, 0, 0.88)");
   });
@@ -122,6 +124,17 @@ describe("getDeploymentStatusTone", () => {
     );
     expect(lightTone.bg).toBe("#fff2f0");
     expect(darkTone.bg).toBe("#2a1215");
+  });
+});
+
+describe("METHOD_COLORS AsyncAPI operations", () => {
+  it("should color outgoing actions blue and incoming actions green", () => {
+    // AsyncAPI 2.x→3.x action flip: subscribe maps to send (outgoing, blue),
+    // publish maps to receive (incoming, green). Keep the pairs in sync.
+    expect(METHOD_COLORS.SEND).toBe("#3182ce");
+    expect(METHOD_COLORS.SUBSCRIBE).toBe(METHOD_COLORS.SEND);
+    expect(METHOD_COLORS.RECEIVE).toBe("#38a169");
+    expect(METHOD_COLORS.PUBLISH).toBe(METHOD_COLORS.RECEIVE);
   });
 });
 

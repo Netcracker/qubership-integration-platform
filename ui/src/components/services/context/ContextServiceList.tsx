@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Button, Table } from "antd";
-import { message, modal } from "../../../misc/antd-app.ts";
+import { message } from "../../../misc/antd-app.ts";
+import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../../api/api";
 import { IntegrationSystemType } from "../../../api/apiTypes";
@@ -15,6 +16,7 @@ import { GenericServiceListPage } from "./../GenericServiceListPage.tsx";
 import { useAsyncRequest } from "../useAsyncRequest.ts";
 import { useContextServiceFilters } from "../../../hooks/useContextServiceFilter.ts";
 import { createActionsColumnBase } from "../../table/actionsColumn.ts";
+import { tableScroll } from "../../table/tableScroll.ts";
 import { Require } from "../../../permissions/Require.tsx";
 import { EntityLabels } from "../../labels/EntityLabels.tsx";
 import { InlineEdit } from "../../InlineEdit.tsx";
@@ -190,7 +192,7 @@ export const ContextServiceList: React.FC = () => {
                 label: "Delete",
                 icon: <OverridableIcon name={"delete"} />,
                 onClick: () => {
-                  modal.confirm({
+                  confirmAndRun({
                     title: "Are you sure you want to delete this service?",
                     okText: "Delete",
                     cancelText: "Cancel",
@@ -224,7 +226,7 @@ export const ContextServiceList: React.FC = () => {
   const { orderedColumns, columnSettingsButton } =
     useColumnSettingsBasedOnColumnsType("contextSystemTable", columns);
 
-  const { columnResize, columnsWithResize, scrollX } =
+  const { columnsWithResize, scrollX, components } =
     useColumnsWithResizeAndScroll(
       orderedColumns,
       {
@@ -236,7 +238,7 @@ export const ContextServiceList: React.FC = () => {
         modifiedBy: 120,
         modifiedWhen: 168,
       },
-      SELECTION_COLUMN_WIDTH,
+      { selectionColumnWidth: SELECTION_COLUMN_WIDTH },
     );
 
   useEffect(() => {
@@ -328,7 +330,7 @@ export const ContextServiceList: React.FC = () => {
         size={"small"}
         columns={columnsWithResize}
         dataSource={services}
-        scroll={{ y: "", x: scrollX }}
+        scroll={tableScroll(scrollX, services?.length ?? 0)}
         loading={loading}
         pagination={false}
         rowSelection={{
@@ -336,7 +338,7 @@ export const ContextServiceList: React.FC = () => {
           selectedRowKeys,
           onChange: (keys) => setSelectedRowKeys(keys),
         }}
-        components={columnResize.resizableHeaderComponents}
+        components={components}
       />
     </GenericServiceListPage>
   );

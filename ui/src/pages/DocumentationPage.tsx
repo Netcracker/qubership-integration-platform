@@ -6,7 +6,7 @@ import React, {
   useRef,
 } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
-import { Spin, Result, Button } from "antd";
+import { Skeleton, Result, Button } from "antd";
 import { DocumentationViewer } from "../components/documentation/DocumentationViewer";
 import { DocumentationOutline } from "../components/documentation/DocumentationOutline";
 import { DocumentationSidebar } from "../components/documentation/DocumentationSidebar";
@@ -136,14 +136,6 @@ export const DocumentationPage: React.FC = () => {
     [handleTOCSelect, handleSearchActiveChange, isSearchActive],
   );
 
-  if (isLoading) {
-    return (
-      <div className={styles.loadingContainer}>
-        <Spin size="large" />
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <Result
@@ -164,6 +156,8 @@ export const DocumentationPage: React.FC = () => {
     );
   }
 
+  // Loading and loaded share the same shell so the skeleton lands exactly where
+  // the content will, with no layout jump when the markdown arrives.
   return (
     <PageWithSidebar
       sidebar={sidebar}
@@ -172,13 +166,19 @@ export const DocumentationPage: React.FC = () => {
     >
       <div className={styles.docBody}>
         <div className={styles.docContent}>
-          <DocumentationViewer
-            ref={viewerRef}
-            content={content}
-            docPath={docPath ?? ""}
-          />
+          {isLoading ? (
+            <Skeleton active paragraph={{ rows: 8 }} />
+          ) : (
+            <DocumentationViewer
+              ref={viewerRef}
+              content={content}
+              docPath={docPath ?? ""}
+            />
+          )}
         </div>
-        <DocumentationOutline viewerRef={viewerRef} content={content} />
+        {!isLoading && (
+          <DocumentationOutline viewerRef={viewerRef} content={content} />
+        )}
       </div>
     </PageWithSidebar>
   );

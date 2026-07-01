@@ -122,7 +122,7 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
           <Input ref={nameInput} />
         </Form.Item>
         <Form.Item name="description" label="Description">
-          <TextArea style={{ height: 120, resize: "none" }} />
+          <TextArea className="fixed-textarea" />
         </Form.Item>
         {mode === "create" ? (
           <Flex vertical={false} style={{ marginLeft: 150 }}>

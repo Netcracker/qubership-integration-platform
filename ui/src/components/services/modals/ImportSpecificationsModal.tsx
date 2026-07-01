@@ -473,7 +473,10 @@ const ImportSpecificationsModal: React.FC<Props> = ({
                                       }}
                                     >
                                       <span>{file.name}</span>
-                                      <SourceFlagTag source={file.protocol} />
+                                      <SourceFlagTag
+                                        source={file.protocol}
+                                        toUpperCase={true}
+                                      />
                                     </div>
                                   </Select.Option>
                                 ))}

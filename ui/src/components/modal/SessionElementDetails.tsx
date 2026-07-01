@@ -226,7 +226,6 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
           />
         </>
       }
-      centered
       open={true}
       onCancel={closeContainingModal}
       footer={null}

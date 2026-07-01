@@ -14,10 +14,7 @@ import { getErrorMessage } from "../../../misc/error-utils";
 import { useNotificationService } from "../../../hooks/useNotificationService";
 import { validateFiles } from "../utils";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
-import {
-  attachResizeToColumns,
-  useTableColumnResize,
-} from "../../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
 
 interface Props {
   onSuccess?: () => void;
@@ -104,24 +101,12 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess, systemType }) => {
     [],
   );
 
-  const importResultColumnResize = useTableColumnResize({
-    name: 180,
-    status: 120,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        importResultColumns,
-        importResultColumnResize.columnWidths,
-        importResultColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
-      importResultColumns,
-      importResultColumnResize.columnWidths,
-      importResultColumnResize.createResizeHandlers,
-    ],
+  const { columnsWithResize, components } = useColumnsWithResizeAndScroll(
+    importResultColumns,
+    {
+      name: 180,
+      status: 120,
+    },
   );
 
   const handleFilesChange = (fileList: RcFile[]) => {
@@ -220,7 +205,7 @@ const ImportServicesModal: React.FC<Props> = ({ onSuccess, systemType }) => {
               pagination={false}
               style={{ marginTop: 8 }}
               size="middle"
-              components={importResultColumnResize.resizableHeaderComponents}
+              components={components}
             />
             <Button
               style={{ marginTop: 24 }}
