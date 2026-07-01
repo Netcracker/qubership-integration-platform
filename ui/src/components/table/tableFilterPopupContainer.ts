@@ -1,4 +1,4 @@
-/** Ant Design overlays: anchor popups to table filter cell parent, else body. */
+/** Anchor nested Ant Design popups to the outer dropdown, or document.body if none exists. */
 export function tableFilterPopupContainer(node: HTMLElement): HTMLElement {
-  return node.parentElement ?? document.body;
+  return node.closest<HTMLElement>(".ant-dropdown") ?? document.body;
 }
