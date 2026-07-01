@@ -513,6 +513,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
   useEffect(() => {
     if (!setToolbar || !isEnvironmentsActive) return;
     setToolbar(
+      "environments",
       <TableToolbar
         variant="admin"
         search={{
@@ -526,7 +527,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
       />,
     );
     return () => {
-      setToolbar(null);
+      setToolbar("environments", null);
     };
     // columnSettingsButton is unstable (new element each render) — including it
     // retriggers this effect after setToolbar → parent re-render → infinite loop.

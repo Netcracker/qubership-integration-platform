@@ -2,7 +2,6 @@ import { describe, it, expect } from "@jest/globals";
 import type { GlobalToken } from "antd";
 import { DeploymentStatus } from "../../src/api/apiTypes";
 import {
-  foregroundForBackground,
   getDeploymentStatusColor,
   getDeploymentStatusTone,
   isTokenDark,
@@ -41,24 +40,6 @@ function makeToken(overrides: Partial<GlobalToken> = {}): GlobalToken {
     ...overrides,
   } as GlobalToken;
 }
-
-describe("foregroundForBackground", () => {
-  it("uses white text only on very dark backgrounds", () => {
-    expect(foregroundForBackground("#9012fe")).toBe("#ffffff");
-    expect(foregroundForBackground("#722ed1")).toBe("#ffffff");
-  });
-
-  it("uses dark text on mid-tone and light backgrounds for higher contrast", () => {
-    expect(foregroundForBackground("#1677ff")).toBe("rgba(0, 0, 0, 0.88)");
-    expect(foregroundForBackground("#52c41a")).toBe("rgba(0, 0, 0, 0.88)");
-    expect(foregroundForBackground("#4FC0F8")).toBe("rgba(0, 0, 0, 0.88)");
-    expect(foregroundForBackground("#bfbfbf")).toBe("rgba(0, 0, 0, 0.88)");
-  });
-
-  it("falls back for invalid hex", () => {
-    expect(foregroundForBackground("not-a-color")).toBe("rgba(0, 0, 0, 0.88)");
-  });
-});
 
 describe("parseHex", () => {
   it("parses 6-digit hex with or without leading #", () => {

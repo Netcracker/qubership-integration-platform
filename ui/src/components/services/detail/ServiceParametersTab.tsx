@@ -142,8 +142,8 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
           }}
         />
       ) : null;
-    setToolbar(toolbar);
-    return () => setToolbar(null);
+    setToolbar("parameters", toolbar);
+    return () => setToolbar("parameters", null);
   }, [setToolbar, activeTab, system, systemId, notificationService]);
 
   if (loadingSystem)
@@ -157,7 +157,7 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
   if (!system) return null;
 
   return (
-    <div style={{ paddingLeft: sidePadding, maxWidth: 900 }}>
+    <div style={{ paddingLeft: sidePadding, maxWidth: 900, width: "100%" }}>
       <Form
         form={form}
         layout="vertical"
@@ -177,7 +177,7 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
         <Descriptions column={1} size="small" style={{ marginBottom: 16 }}>
           <Descriptions.Item label="Protocol">
             {system.protocol ? (
-              <SourceFlagTag source={system.protocol} toUpperCase={true} />
+              <SourceFlagTag source={system.protocol} kind="protocol" />
             ) : (
               "-"
             )}

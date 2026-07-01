@@ -330,7 +330,7 @@ export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
       render: (text) => (
         <SourceFlagTag
           source={typeof text === "string" ? text : ""}
-          toUpperCase={true}
+          kind="protocol"
         />
       ),
     },

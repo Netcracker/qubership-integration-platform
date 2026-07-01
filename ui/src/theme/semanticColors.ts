@@ -59,6 +59,37 @@ export const COLOR_PALETTE: Record<string, string> = {
   lightblue: "#4FC0F8",
 };
 
+// Brand accent tones for solid semantic badges (protocol / source / status tags
+// rendered via qip-solid-tag). Single source of truth so the maps below and
+// STATUS_COLORS (services/utils.tsx) never drift apart.
+export const SOLID_TAG_TONES = {
+  blue: "#0068ff",
+  green: "#20cb64",
+  red: "#ff5260",
+  orange: "#fca130",
+  lightblue: "#4FC0F8",
+  violet: "#9012fe",
+} as const;
+
+// Protocol tag colors (SourceFlagTag with kind="protocol"; rendered lowercase,
+// white label). Distinct from SOURCE_COLORS so protocol and source flags can be
+// tuned independently. Unlisted protocols fall back to getSemanticColor.
+export const PROTOCOL_COLORS: Record<string, string> = {
+  http: SOLID_TAG_TONES.blue,
+  kafka: SOLID_TAG_TONES.green,
+  amqp: SOLID_TAG_TONES.orange,
+  graphql: SOLID_TAG_TONES.red,
+  grpc: SOLID_TAG_TONES.lightblue,
+  metamodel: SOLID_TAG_TONES.violet,
+};
+
+// Source flag tag colors (SourceFlagTag source path; white label). Unlisted
+// sources fall back to getSemanticColor.
+export const SOURCE_FLAG_COLORS: Record<string, string> = {
+  manual: SOLID_TAG_TONES.blue,
+  discovered: SOLID_TAG_TONES.green,
+};
+
 export const SWIMLANE_COLORS: Record<string, string> = {
   Blue: "#bddcf2",
   Green: "#d0e7a1",
@@ -88,23 +119,6 @@ export function parseHex(hex: string): RgbChannels | null {
     g: parseInt(m[2], 16),
     b: parseInt(m[3], 16),
   };
-}
-
-// Background luminance where 0.88-alpha dark text and pure-white text reach equal
-// WCAG contrast (√0.0525 − 0.05). Above it dark text is more readable; below, white.
-const DARK_TEXT_LUMINANCE_CROSSOVER = 0.179;
-
-/** WCAG relative luminance for #RRGGBB — pick readable text on colored tags (see SourceFlagTag, HttpMethod). */
-export function foregroundForBackground(hex: string): string {
-  const channels = parseHex(hex);
-  if (!channels) return "rgba(0, 0, 0, 0.88)";
-  const lin = (c: number) =>
-    c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-  const L =
-    0.2126 * lin(channels.r / 255) +
-    0.7152 * lin(channels.g / 255) +
-    0.0722 * lin(channels.b / 255);
-  return L > DARK_TEXT_LUMINANCE_CROSSOVER ? "rgba(0, 0, 0, 0.88)" : "#ffffff";
 }
 
 // Deployment status colors (from DeploymentRuntimeState.tsx)

@@ -77,7 +77,7 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
                 <SelectTag value={capitalize(service.type)} />
               </span>
               <span className={styles.protoCol}>
-                <SourceFlagTag source={service.protocol} toUpperCase={true} />
+                <SourceFlagTag source={service.protocol} kind="protocol" />
               </span>
               <span className={styles.text}>{service.name}</span>
             </span>

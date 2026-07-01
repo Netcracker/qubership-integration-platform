@@ -380,6 +380,21 @@ pre[class*="language-"] .token.punctuation {
   color: #fff !important;
 }
 
+/* Solid semantic badges (protocol / source flags via SourceFlagTag) keep a
+   white label in every theme, like method badges. Excluded from the
+   light-background heuristic above so their contrast never flips to dark. */
+.qip-solid-tag.ant-tag[style*="background:"] {
+  color: #fff !important;
+}
+
+/* Uniform text size for solid semantic badges (protocol / source / status),
+   matching the facet chip (SelectTag) so every tag reads at one scale. */
+.qip-solid-tag.ant-tag {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
 .qip-method-tag.ant-tag .ant-tag-close-icon {
   margin-inline-start: 0;
   color: inherit;
@@ -390,25 +405,45 @@ pre[class*="language-"] .token.punctuation {
    from methodTagStyle, so their contrast must not depend on the background's
    rgb digits matching one of the light-preset values below. */
 [data-theme="dark"]
-  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="217"],
+  .ant-tag:not(.qip-method-tag):not(
+    .qip-solid-tag
+  )[style*="background:"][style*="217"],
 [data-theme="dark"]
-  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="245"],
+  .ant-tag:not(.qip-method-tag):not(
+    .qip-solid-tag
+  )[style*="background:"][style*="245"],
 [data-theme="dark"]
-  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="240"],
+  .ant-tag:not(.qip-method-tag):not(
+    .qip-solid-tag
+  )[style*="background:"][style*="240"],
 [data-theme="dark"]
-  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="250"],
+  .ant-tag:not(.qip-method-tag):not(
+    .qip-solid-tag
+  )[style*="background:"][style*="250"],
 [data-theme="dark"]
-  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="232"],
+  .ant-tag:not(.qip-method-tag):not(
+    .qip-solid-tag
+  )[style*="background:"][style*="232"],
 .vscode-webview[data-theme="dark"]
-  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="217"],
+  .ant-tag:not(.qip-method-tag):not(
+    .qip-solid-tag
+  )[style*="background:"][style*="217"],
 .vscode-webview[data-theme="dark"]
-  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="245"],
+  .ant-tag:not(.qip-method-tag):not(
+    .qip-solid-tag
+  )[style*="background:"][style*="245"],
 .vscode-webview[data-theme="dark"]
-  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="240"],
+  .ant-tag:not(.qip-method-tag):not(
+    .qip-solid-tag
+  )[style*="background:"][style*="240"],
 .vscode-webview[data-theme="dark"]
-  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="250"],
+  .ant-tag:not(.qip-method-tag):not(
+    .qip-solid-tag
+  )[style*="background:"][style*="250"],
 .vscode-webview[data-theme="dark"]
-  .ant-tag:not(.qip-method-tag)[style*="background:"][style*="232"] {
+  .ant-tag:not(.qip-method-tag):not(
+    .qip-solid-tag
+  )[style*="background:"][style*="232"] {
   color: rgb(0 0 0 / 88%) !important;
 }
 

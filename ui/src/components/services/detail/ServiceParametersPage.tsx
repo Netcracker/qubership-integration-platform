@@ -26,7 +26,7 @@ import {
 const { Title } = Typography;
 
 export const ServiceParametersToolbarContext = createContext<{
-  setToolbar: (node: React.ReactNode) => void;
+  setToolbar: (owner: string, node: React.ReactNode) => void;
 } | null>(null);
 export const useServiceParametersToolbar = () =>
   useContext(ServiceParametersToolbarContext);
@@ -91,9 +91,17 @@ export const ServiceParametersPageHeader: React.FC = () => {
 };
 
 export const ServiceParametersPage: React.FC = () => {
-  const [tabToolbar, setTabToolbar] = useState<React.ReactNode>(null);
-  const setToolbar = useCallback((node: React.ReactNode) => {
-    setTabToolbar(node);
+  // Each tab writes its own toolbar slot, keyed by owner; the parent renders
+  // only the active tab's slot. This keeps an inactive but still-mounted tab
+  // from clearing the active tab's toolbar (root cause of #244).
+  const [tabToolbars, setTabToolbars] = useState<
+    Record<string, React.ReactNode>
+  >({});
+  const setToolbar = useCallback((owner: string, node: React.ReactNode) => {
+    setTabToolbars((prev) => {
+      if (prev[owner] === node) return prev;
+      return { ...prev, [owner]: node };
+    });
   }, []);
 
   const { systemId, groupId, specId } = useParams<{
@@ -291,9 +299,9 @@ export const ServiceParametersPage: React.FC = () => {
                 activeKey={activeTab}
                 onChange={handleTabChange}
                 tabBarExtraContent={
-                  tabToolbar ? (
+                  tabToolbars[activeTab] ? (
                     <Flex gap={4} align="center">
-                      {tabToolbar}
+                      {tabToolbars[activeTab]}
                     </Flex>
                   ) : null
                 }
