@@ -61,6 +61,15 @@ on:
         required: false
         default: ""
         type: string
+      preinstall-catalog-library:
+        description: >-
+          Install the internal, unpublished catalog-library into the local .m2
+          before building. Required for consumers (runtime-catalog,
+          designtime-catalog) that shade it in: the isolated module build can't
+          resolve it from a repository because it is never published.
+        required: false
+        default: false
+        type: boolean
     secrets:
       MAVEN_USER:
         required: false
@@ -171,6 +180,18 @@ jobs:
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
           cache: "maven"
+
+      - name: Pre-install internal catalog-library into .m2
+        if: ${{ inputs.preinstall-catalog-library == true && needs.check-version.outputs.recover != 'true' }}
+        run: |
+          set -eu
+          # catalog-library is never published; the consumer's isolated `deploy`
+          # below shades it in, so it must be resolvable from .m2 first. It keeps
+          # its own fixed <revision> (no -Drevision here). It needs no repo creds:
+          # its checkstyle plugin dependency (qip-checkstyle) is on public
+          # Central, and checkstyle.skip only skips the check itself.
+          mvn --batch-mode -f catalog-library/pom.xml install \
+            -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
 
       - name: Build and deploy module
         if: ${{ needs.check-version.outputs.recover != 'true' }}

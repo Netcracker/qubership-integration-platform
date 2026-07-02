@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'runtime-catalog/**'
+      - 'catalog-library/**'
       - 'pom.xml'
 
 permissions: {}
@@ -18,5 +19,6 @@ jobs:
     with:
       module: runtime-catalog
       sonar-project-key: ${{ vars.SONAR_PROJECT_KEY }}
+      preinstall-catalog-library: true
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

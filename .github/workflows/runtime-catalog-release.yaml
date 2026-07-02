@@ -101,6 +101,7 @@ jobs:
       build-docker: ${{ inputs.build-docker }}
       create-github-release: ${{ inputs.create-github-release }}
       mvn-args: ${{ inputs.mvn-args }}
+      preinstall-catalog-library: true
     secrets:
       MAVEN_USER: ${{ secrets.MAVEN_USER }}
       MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
