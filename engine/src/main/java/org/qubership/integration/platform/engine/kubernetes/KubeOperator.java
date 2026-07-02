@@ -151,7 +151,7 @@ public class KubeOperator {
                     getNotNullNamespace(),
                     request.getResourceNamePlural(),
                     getNotNullCustomResourceName(request)
-            );
+            ).execute();
 
             JsonNode responseNode = objectMapper.convertValue(response, JsonNode.class);
             JsonNode resourceVersion = responseNode.path("metadata").path("resourceVersion");
