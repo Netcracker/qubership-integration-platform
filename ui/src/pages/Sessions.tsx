@@ -315,6 +315,7 @@ export const Sessions: React.FC<SessionsProps> = ({
         setAllSessionsLoaded(reachedEnd);
       } catch (error) {
         notificationService.requestFailed("Failed to fetch sessions", error);
+        setAllSessionsLoaded(true);
       } finally {
         setIsLoading(false);
       }
