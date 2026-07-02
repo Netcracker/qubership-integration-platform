@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.engine.consul;
 
 import io.quarkus.scheduler.Scheduled;
+import io.smallrye.mutiny.Uni;
 import io.vertx.ext.consul.SessionBehavior;
 import io.vertx.ext.consul.SessionOptions;
 import io.vertx.mutiny.core.eventbus.EventBus;
@@ -52,10 +53,8 @@ public class ConsulSessionService {
     private synchronized void doCreateOrRenewSession() {
         try {
             if (isNull(sessionId)) {
-                if (nonNull(previousSessionId)) {
-                    log.info("Delete old consul session: {}", previousSessionId);
-                    deleteSession(previousSessionId);
-                    previousSessionId = null;
+                if (nonNull(previousSessionId) && !deletePreviousSession()) {
+                    return;
                 }
                 log.debug("Create consul session");
                 sessionId = createSession();
@@ -65,10 +64,32 @@ public class ConsulSessionService {
                 log.debug("Renew consul session");
                 renewSession(sessionId);
             }
-        } catch (Exception e) {
-            log.error("Failed to create/renew consul session", e);
-            previousSessionId = sessionNotFoundError(e) ? null : sessionId;
+        } catch (InvalidConsulSessionException e) {
+            log.warn("Consul session expired, scheduling destroy and creating a new one: {}", sessionId);
+            previousSessionId = sessionId;
             sessionId = null;
+        } catch (Exception e) {
+            if (nonNull(sessionId)) {
+                log.warn("Failed to renew consul session, will retry with the same session id", e);
+            } else {
+                log.error("Failed to create consul session", e);
+            }
+        }
+    }
+
+    private boolean deletePreviousSession() {
+        if (isNull(previousSessionId)) {
+            return true;
+        }
+
+        try {
+            log.info("Delete old consul session: {}", previousSessionId);
+            deleteSession(previousSessionId);
+            previousSessionId = null;
+            return true;
+        } catch (Exception e) {
+            log.warn("Failed to delete previous consul session {}, will retry", previousSessionId, e);
+            return false;
         }
     }
 
@@ -80,6 +101,9 @@ public class ConsulSessionService {
         consulClientSupplier.get().renewSession(id)
                 .onFailure()
                 .transform(failure -> {
+                    if (sessionNotFoundError(failure)) {
+                        return new InvalidConsulSessionException(id, failure);
+                    }
                     log.error("Failed to renew session in consul: {}", failure.getMessage());
                     return failure;
                 })
@@ -104,13 +128,21 @@ public class ConsulSessionService {
     }
 
     private void deleteSession(String id) {
-        consulClientSupplier.get().destroySession(id).onFailure().transform(failure -> {
-            log.error("Failed to delete session from consul: {}", failure.getMessage());
-            return failure;
-        }).await().indefinitely();
+        consulClientSupplier.get().destroySession(id)
+                .onFailure()
+                .recoverWithUni(failure -> {
+                    if (sessionNotFoundError(failure)) {
+                        log.debug("Consul session already gone: {}", id);
+                        return Uni.createFrom().voidItem();
+                    }
+                    log.error("Failed to delete session from consul: {}", failure.getMessage());
+                    return Uni.createFrom().failure(failure);
+                })
+                .await()
+                .indefinitely();
     }
 
-    private boolean sessionNotFoundError(Exception e) {
-        return e.getMessage().matches("Session id .* not found");
+    private boolean sessionNotFoundError(Throwable e) {
+        return e.getMessage() != null && e.getMessage().matches("Session id .* not found");
     }
 }
