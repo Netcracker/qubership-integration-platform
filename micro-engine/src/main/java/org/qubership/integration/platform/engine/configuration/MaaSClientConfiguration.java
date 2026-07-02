@@ -12,6 +12,6 @@ public class MaaSClientConfiguration {
     @Produces
     @ApplicationScoped
     public MaaSAPIClient getMaaSAPIClient() {
-        return new MaaSAPIClientImpl(() -> M2MManager.getInstance().getToken().getTokenValue());
+        return new MaaSAPIClientImpl(() -> M2MManager.getInstance().getToken().getTokenValue(), true);
     }
 }
