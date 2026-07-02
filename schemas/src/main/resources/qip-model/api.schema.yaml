@@ -1,0 +1,88 @@
+---
+$id: http://qubership.org/schemas/product/qip/api.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://qubership.org/schemas/product/qip/common-properties/top-level-entity-properties.schema.yaml"
+title: API
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
+  fileExtension: api.qip
+properties:
+  content:
+    type: object
+    properties:
+#      apiProvider:
+#        type: string
+#        subtype: reference
+      specificationType:
+        type: string
+        title: API Specification Type
+        description: >
+          API definition / documentation format
+        enum:
+          - openapi
+          - asyncapi
+          - graphql
+          - protobuf
+          - wsdl
+      specificationVersion:
+        type: string
+        title: API Specification Version
+        description: Version of the API specification standard being used
+      version:
+        type: string
+      specifications:
+        type: array
+        minItems: 1
+        title: Specifications
+        description: >
+          List of files containing the API Specification
+        items:
+          $ref: "#/definitions/specificationResource"
+      operations:
+        type: array
+        title: Operations
+        description: >
+          List of operations extracted from API specification.  Operations are extracted only from API specification files of supported types and versions (OpenAPI 2.x (Swagger 2.x), 3.x.x; AsyncAPI 2.x.x, 3.0.0) in JSON or YAML format, as required by these specifications standards
+        items:
+          $ref: http://qubership.org/schemas/product/qip/api-operation.schema.yaml
+#      apihubPackage:
+#        type: object
+#        title: APIHUB Package
+#        description: Represents a versioned container used to register and organize APIs for a specific Service/Application in APIHUB.
+#        properties:
+#          packageId:
+#            type: string
+#            title: APIHUB Package ID
+#            description: ID of the APIHUB Package that serves as a container for APIs associated with specific Service/Application
+#          name:
+#            type: string
+#            title: APIHUB Package Name
+#            description: Human-readable name of the APIHUB Package
+#        required:
+#          - packageId
+    required:
+      - specificationType
+      - specifications
+definitions:
+  specificationResource:
+    type: object
+    title: Specification Resource
+    description: >
+      Definition of the API Specification resource file stored in the current package
+    properties:
+      filePath:
+        type: string
+        subtype: resourceReference
+        title: File Path
+        description: >
+          Path to the resource file containing the API Specification or its part
+      isRoot:
+        type: boolean
+        title: Is Root
+        description: Indicates whether this API Specification is the root file in a multi-file specification, containing metadata and referencing other API specification files
+    required:
+      - filePath

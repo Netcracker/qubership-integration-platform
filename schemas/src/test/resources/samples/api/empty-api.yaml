@@ -1,0 +1,11 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/api.schema.yaml"
+id: "empty-id"
+name: "Empty API"
+content:
+  specificationType: "openapi"
+  specificationVersion: "3.1.0"
+  version: "1.0.1"
+  specifications:
+    - filePath: "some-resource-name.yaml"
+      isRoot: true
