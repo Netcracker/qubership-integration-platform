@@ -5,12 +5,14 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { Table, Button, Modal } from "antd";
+import { Table, Button } from "antd";
+import { confirmAndRun } from "../../misc/confirm-utils.ts";
 import type {
   FilterDropdownProps,
   TableRowSelection,
 } from "antd/es/table/interface";
 import { treeExpandIcon } from "../table/TreeExpandIcon";
+import { tableScroll } from "../table/tableScroll.ts";
 import { formatTimestamp } from "../../misc/format-utils";
 import { UsageStatusTag } from "./utils";
 import { SourceFlagTag } from "./ui/SourceFlagTag";
@@ -48,12 +50,7 @@ import { ProtectedDropdown } from "../../permissions/ProtectedDropdown.tsx";
 import { ColumnSettingsButton } from "../table/ColumnSettingsButton.tsx";
 import type { ActionConfig } from "./serviceRowActions";
 import type { ColumnsType } from "antd/lib/table";
-import type { SumScrollXExtras } from "../table/useTableColumnResize.tsx";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
 import { DEFAULT_ACTIONS_COLUMN_WIDTH } from "../table/actionsColumn.ts";
 
 /** rc-table expand icon column; not in `columns` but affects horizontal layout. */
@@ -333,7 +330,7 @@ export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
       render: (text) => (
         <SourceFlagTag
           source={typeof text === "string" ? text : ""}
-          toUpperCase={true}
+          kind="protocol"
         />
       ),
     },
@@ -504,7 +501,7 @@ function ActionMenu<T>({
       require: action.require,
       onClick: () => {
         if (action.confirm) {
-          Modal.confirm({
+          confirmAndRun({
             title: action.confirm.title,
             okText: action.confirm.okText || "OK",
             cancelText: action.confirm.cancelText || "Cancel",
@@ -646,38 +643,25 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
     );
   }, [finalColumns, urlColumnTitle]);
 
-  const { columnWidths, createResizeHandlers, resizableHeaderComponents } =
-    useTableColumnResize(serviceTreeResizeWidths);
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        finalColumnsWithUrlTitle as ColumnsType<T>,
-        columnWidths,
-        createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [finalColumnsWithUrlTitle, columnWidths, createResizeHandlers],
-  );
-
-  const mergedScroll = useMemo(() => {
-    const extras: SumScrollXExtras = {};
-    if (expandable) {
-      extras.expandColumnWidth = SERVICES_TREE_EXPAND_COLUMN_WIDTH;
-    }
-    if (enableSelection) {
-      extras.selectionColumnWidth = SERVICES_TREE_SELECTION_COLUMN_WIDTH;
-    }
-    const scrollX = sumScrollXForColumns(
-      columnsWithResize,
-      columnWidths,
-      Object.keys(extras).length > 0 ? extras : undefined,
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(
+      finalColumnsWithUrlTitle as ColumnsType<T>,
+      serviceTreeResizeWidths,
+      {
+        selectionColumnWidth: enableSelection
+          ? SERVICES_TREE_SELECTION_COLUMN_WIDTH
+          : undefined,
+        expandColumnWidth: expandable
+          ? SERVICES_TREE_EXPAND_COLUMN_WIDTH
+          : undefined,
+        applyDisableResizeBeforeActions: false,
+      },
     );
-    return {
-      x: scrollX,
-      y: "",
-    };
-  }, [columnsWithResize, columnWidths, expandable, enableSelection]);
+
+  const mergedScroll = useMemo(
+    () => tableScroll(scrollX, dataSource.length),
+    [scrollX, dataSource],
+  );
 
   const mergedExpandable = useMemo(
     () => ({
@@ -734,7 +718,7 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
         pagination={pagination}
         tableLayout="fixed"
         scroll={mergedScroll}
-        components={resizableHeaderComponents}
+        components={components}
         className={className}
         style={tableStyle}
         rowClassName={rowClassName}
@@ -750,7 +734,7 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
       mergedExpandable,
       pagination,
       mergedScroll,
-      resizableHeaderComponents,
+      components,
       className,
       tableStyle,
       rowClassName,

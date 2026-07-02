@@ -5,14 +5,13 @@ import "../styles/reactflow-theme.css";
 import React, {
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import { ElementsLibrarySidebar } from "../components/elements_library/ElementsLibrarySidebar.tsx";
 import { DnDProvider } from "../components/DndContext.tsx";
-import { Button, Flex } from "antd";
+import { Button, Flex, Splitter } from "antd";
 import { useParams } from "react-router-dom";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import {
@@ -36,7 +35,6 @@ import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { SequenceDiagram } from "../components/modal/SequenceDiagram.tsx";
 import { ChainContext } from "./ChainPage.tsx";
 import { isVsCode } from "../api/rest/vscodeExtensionApi.ts";
-import { PanelResizeHandle } from "../components/PanelResizeHandle.tsx";
 import {
   ExportChainOptions,
   ExportChains,
@@ -45,7 +43,6 @@ import { downloadFile, mergeZipArchives } from "../misc/download-utils.ts";
 import { exportAdditionsForChains } from "../misc/export-additions.ts";
 import { generateSequenceDiagrams } from "../diagrams/main.ts";
 import { Domain } from "../components/SelectDomains.tsx";
-import { Require } from "../permissions/Require.tsx";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { usePermissions } from "../permissions/usePermissions.tsx";
 import { hasPermissions } from "../permissions/funcs.ts";
@@ -64,9 +61,6 @@ const MAX_PANEL_WIDTH = 500;
 const DEFAULT_LEFT_PANEL_WIDTH = 230;
 const DEFAULT_RIGHT_PANEL_WIDTH = 240;
 
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, value));
-
 const ChainGraphInner: React.FC = () => {
   const { chainId, elementId } = useParams<string>();
   const chainContext = useContext(ChainContext);
@@ -79,12 +73,9 @@ const ChainGraphInner: React.FC = () => {
   );
   const notificationService = useNotificationService();
   const permissions = usePermissions();
-  const [readOnly, setReadOnly] = useState<boolean>(false);
+  // Derived synchronously so a no-update user never sees the palette flash.
+  const readOnly = !hasPermissions(permissions, { chain: ["update"] });
   const navigate = useNavigate();
-
-  useEffect(() => {
-    setReadOnly(!hasPermissions(permissions, { chain: ["update"] }));
-  }, [permissions]);
 
   const [leftPanelVisible, setLeftPanelVisible] = useState<boolean>(true);
   const [rightPanelVisible, setRightPanelVisible] = useState<boolean>(false);
@@ -339,56 +330,54 @@ const ChainGraphInner: React.FC = () => {
     ],
   );
 
+  const showLeftPanel = !readOnly && leftPanelVisible;
+
   return (
-    <Flex className={styles["graph-wrapper"]}>
-      <ElementFocusContext.Provider value={fitViewToElementIdRef}>
-        <Require permissions={{ chain: ["update"] }}>
-          {!readOnly && leftPanelVisible && (
-            <>
-              <ElementsLibrarySidebar width={leftPanelWidth} />
-              <PanelResizeHandle
-                direction="left"
-                onResize={(delta) =>
-                  setLeftPanelWidth((w) =>
-                    clamp(w + delta, MIN_PANEL_WIDTH, MAX_PANEL_WIDTH),
-                  )
-                }
-              />
-            </>
-          )}
-        </Require>
-        <ChainGraphView
-          readOnly={readOnly}
-          submitOpenElement={openElementModal}
-          controls={graphControls}
-        />
-        {rightPanelVisible && (
-          <>
-            <PanelResizeHandle
-              direction="right"
-              onResize={(delta) =>
-                setRightPanelWidth((w) =>
-                  clamp(w + delta, MIN_PANEL_WIDTH, MAX_PANEL_WIDTH),
-                )
-              }
-            />
-            <div
-              className="nokey"
-              style={{
-                width: rightPanelWidth,
-                minWidth: MIN_PANEL_WIDTH,
-                flexShrink: 0,
-                height: "100%",
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <PageWithRightPanel width={rightPanelWidth} />
-            </div>
-          </>
+    <ElementFocusContext.Provider value={fitViewToElementIdRef}>
+      <Splitter
+        className={styles["graph-wrapper"]}
+        // Sizes are controlled: antd's Splitter caches per-index pixel sizes on
+        // drag and never reconciles a later-added panel, so an uncontrolled
+        // (defaultSize) flex graph panel would leave 0 width for a right panel
+        // opened after a resize. Controlled `size` keeps antd reading fresh props;
+        // the graph stays flex via an undefined size. ChainGraphView is memoized
+        // so per-tick resize updates don't re-render the graph.
+        onResize={(sizes: number[]) => {
+          if (showLeftPanel) {
+            setLeftPanelWidth(sizes[0]);
+          }
+          if (rightPanelVisible) {
+            setRightPanelWidth(sizes[sizes.length - 1]);
+          }
+        }}
+      >
+        {showLeftPanel && (
+          <Splitter.Panel
+            size={leftPanelWidth}
+            min={MIN_PANEL_WIDTH}
+            max={MAX_PANEL_WIDTH}
+          >
+            <ElementsLibrarySidebar width="100%" />
+          </Splitter.Panel>
         )}
-      </ElementFocusContext.Provider>
-    </Flex>
+        <Splitter.Panel>
+          <ChainGraphView
+            readOnly={readOnly}
+            submitOpenElement={openElementModal}
+            controls={graphControls}
+          />
+        </Splitter.Panel>
+        {rightPanelVisible && (
+          <Splitter.Panel
+            size={rightPanelWidth}
+            min={MIN_PANEL_WIDTH}
+            max={MAX_PANEL_WIDTH}
+          >
+            <PageWithRightPanel width="100%" />
+          </Splitter.Panel>
+        )}
+      </Splitter>
+    </ElementFocusContext.Provider>
   );
 };
 

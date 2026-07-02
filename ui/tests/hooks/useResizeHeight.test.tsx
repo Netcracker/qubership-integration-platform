@@ -8,6 +8,7 @@ let resizeObserverCallback: ResizeObserverCallback | undefined;
 
 class ResizeObserverMock {
   observe = jest.fn();
+  unobserve = jest.fn();
   disconnect = jest.fn();
 
   constructor(callback: ResizeObserverCallback) {

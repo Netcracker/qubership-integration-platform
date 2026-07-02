@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Button, Flex, Form, Input, InputRef, Modal } from "antd";
+import { Button, Checkbox, Flex, Form, Input, InputRef, Modal } from "antd";
 import { useModalContext } from "../../ModalContextProvider.tsx";
-import Checkbox from "antd/lib/checkbox";
-import { FieldData } from "rc-field-form/lib/interface";
+import type { FieldData } from "../../types/antd.ts";
 import { GROUP_SEGMENT_REGEX } from "../../misc/group-utils.ts";
+
+const { TextArea } = Input;
 
 export type FolderEditMode = "create" | "update";
 
@@ -120,6 +121,9 @@ export const FolderEdit: React.FC<FolderEditProps> = ({
           ]}
         >
           <Input ref={nameInput} />
+        </Form.Item>
+        <Form.Item name="description" label="Description">
+          <TextArea className="fixed-textarea" />
         </Form.Item>
         {mode === "create" ? (
           <Flex vertical={false} style={{ marginLeft: 150 }}>

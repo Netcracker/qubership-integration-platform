@@ -202,7 +202,7 @@ jest.mock("../../src/permissions/ProtectedDropdown", () => ({
     children: React.ReactNode;
     menu: {
       items: Array<{ key: string; label: string; onClick?: () => void }>;
-      onClick?: (info: { key: string }) => void;
+      onClick?: (info: { key: string; domEvent: React.MouseEvent }) => void;
     };
   }) => (
     <div data-testid="protected-dropdown">
@@ -214,10 +214,10 @@ jest.mock("../../src/permissions/ProtectedDropdown", () => ({
             <button
               key={item.key}
               data-testid={`menu-item-${item.key}`}
-              onClick={() =>
+              onClick={(e) =>
                 item.onClick
                   ? item.onClick()
-                  : menu.onClick?.({ key: item.key })
+                  : menu.onClick?.({ key: item.key, domEvent: e })
               }
             >
               {item.label}

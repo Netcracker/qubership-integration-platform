@@ -627,14 +627,6 @@
   border: 1px solid var(--vscode-foreground) !important;
 }
 
-[data-theme="dark"] .react-flow__minimap {
-  background-color: #141414 !important;
-}
-
-[data-theme="light"] .react-flow__minimap {
-  background-color: #fff !important;
-}
-
 .react-flow__minimap-mask {
   fill: var(--vscode-panel-background) !important;
 }
@@ -664,21 +656,4 @@
 [class~="react-flow__node"].highlight [class~="react-flow__handle"] {
   box-shadow: none !important;
   border: 2px solid var(--vscode-focusBorder) !important;
-}
-
-/* Tooltips - flat design */
-.trigger-node-input .tooltiptext {
-  visibility: hidden;
-  background-color: var(--vscode-panel-background);
-  color: var(--vscode-foreground);
-  border: 1px solid var(--vscode-border);
-  border-radius: 4px;
-  padding: 5px;
-  position: absolute;
-  z-index: 1000;
-  box-shadow: none;
-}
-
-.trigger-node-input:hover .tooltiptext {
-  visibility: visible;
 }

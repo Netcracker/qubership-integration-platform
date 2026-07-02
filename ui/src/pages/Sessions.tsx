@@ -5,7 +5,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Flex, message, Table } from "antd";
+import { Flex, Table } from "antd";
+import { message } from "../misc/antd-app.ts";
 import { useNavigate, useParams } from "react-router";
 import {
   Checkpoint,
@@ -56,11 +57,9 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../components/table/useColumnSettingsButton.tsx";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../components/table/useTableColumnResize.tsx";
+import { tableScroll } from "../components/table/tableScroll.ts";
+import { useColumnsWithResizeAndScroll } from "../components/table/useColumnsWithResizeAndScroll.tsx";
+import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import commonStyles from "../components/admin_tools/CommonStyle.module.css";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import { AdminToolsHeader } from "../components/admin_tools/AdminToolsHeader.tsx";
@@ -159,7 +158,6 @@ export const Sessions: React.FC<SessionsProps> = ({
     filterRequestList: [],
     searchString: "",
   });
-  const [messageApi, contextHolder] = message.useMessage();
   const notificationService = useNotificationService();
   const tableWrapperRef = useRef<HTMLDivElement>(null);
 
@@ -328,17 +326,19 @@ export const Sessions: React.FC<SessionsProps> = ({
     async (chainId: string, sessionId: string) => {
       try {
         await api.retrySessionFromCheckpoint(chainId, sessionId);
-        messageApi.info(
+        message.info(
           "Session was retried successfully. Please update table to see session result.",
         );
       } catch (error) {
         notificationService.requestFailed("Failed to retry session", error);
       }
     },
-    [messageApi, notificationService],
+    [notificationService],
   );
 
-  const tableColumnDefinitions = useMemo<ColumnsTypeWithSettings<SessionTableItem>>(
+  const tableColumnDefinitions = useMemo<
+    ColumnsTypeWithSettings<SessionTableItem>
+  >(
     () => [
       {
         title: "ID",
@@ -472,45 +472,25 @@ export const Sessions: React.FC<SessionsProps> = ({
       tableColumnDefinitions,
     );
 
-  const sessionsColumnResize = useTableColumnResize({
-    id: 220,
-    chainName: 160,
-    executionStatus: 140,
-    started: 168,
-    finished: 168,
-    loggingLevel: 120,
-    duration: 100,
-    snapshotName: 160,
-    engineAddress: 200,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        orderedColumns,
-        sessionsColumnResize.columnWidths,
-        sessionsColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(
       orderedColumns,
-      sessionsColumnResize.columnWidths,
-      sessionsColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        columnsWithResize,
-        sessionsColumnResize.columnWidths,
-        {
-          expandColumnWidth: SESSIONS_EXPAND_COLUMN_WIDTH,
-          selectionColumnWidth: SESSIONS_SELECTION_COLUMN_WIDTH,
-        },
-      ),
-    [columnsWithResize, sessionsColumnResize.columnWidths],
-  );
+      {
+        id: 220,
+        chainName: 160,
+        executionStatus: 140,
+        started: 168,
+        finished: 168,
+        loggingLevel: 120,
+        duration: 100,
+        snapshotName: 110,
+        engineAddress: 150,
+      },
+      {
+        expandColumnWidth: SESSIONS_EXPAND_COLUMN_WIDTH,
+        selectionColumnWidth: SESSIONS_SELECTION_COLUMN_WIDTH,
+      },
+    );
 
   /* Sentinel is appended as a sibling of `<table>` inside `.ant-table-body`
    * (not inside the table) because Antd's sticky table syncs header/body
@@ -718,8 +698,9 @@ export const Sessions: React.FC<SessionsProps> = ({
           rowKey="id"
           sticky
           style={{ flex: 1, minHeight: 0 }}
-          scroll={tableData.length > 0 ? { x: scrollX, y: "" } : { x: scrollX }}
-          components={sessionsColumnResize.resizableHeaderComponents}
+          locale={{ emptyText: tableEmpty("No sessions recorded") }}
+          scroll={tableScroll(scrollX, tableData.length)}
+          components={components}
           onChange={(_, tableFilters) => setTableFilters(tableFilters)}
         />
       </div>
@@ -728,7 +709,6 @@ export const Sessions: React.FC<SessionsProps> = ({
 
   return (
     <>
-      {contextHolder}
       {variant === "admin-page" ? (
         <Flex vertical className={commonStyles.container}>
           <AdminToolsHeader

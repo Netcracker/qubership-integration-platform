@@ -213,10 +213,7 @@ export function useTableDragDrop<T extends DragDropItem>({
             return;
           }
 
-          const draggedParentId = findParentId(
-            tableItems,
-            draggedId,
-          );
+          const draggedParentId = findParentId(tableItems, draggedId);
 
           // No-op if already in target folder
           if (draggedParentId === record.id) {
@@ -258,10 +255,7 @@ export function useTableDragDrop<T extends DragDropItem>({
           if (draggedId === folderId) {
             return;
           }
-          const draggedParentId = findParentId(
-            tableItems,
-            draggedId,
-          );
+          const draggedParentId = findParentId(tableItems, draggedId);
           // No-op if already in this folder (undefined means root)
           if (draggedParentId === folderId) {
             return;
@@ -291,10 +285,7 @@ export function useTableDragDrop<T extends DragDropItem>({
             resetDrag();
             return;
           }
-          const draggedParentId = findParentId(
-            tableItems,
-            draggedId,
-          );
+          const draggedParentId = findParentId(tableItems, draggedId);
           if (draggedParentId === folderId) {
             resetDrag();
             return;

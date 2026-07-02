@@ -58,6 +58,8 @@ import { ModalWithFullscreenToggle } from "../../../src/components/modal/ModalWi
 const MockModal = Modal as jest.MockedFunction<typeof Modal>;
 const getLastModalProps = (): ModalProps =>
   MockModal.mock.calls[MockModal.mock.calls.length - 1][0];
+const getLastModalClassNames = (): Record<string, string | undefined> =>
+  (getLastModalProps().classNames ?? {}) as Record<string, string | undefined>;
 
 describe("ModalWithFullscreenToggle", () => {
   it("should render the provided title when title prop is given", () => {
@@ -179,23 +181,33 @@ describe("ModalWithFullscreenToggle", () => {
 
   it("should apply module classes to all classNames slots when rendered", () => {
     render(<ModalWithFullscreenToggle title="T" />);
-    const { classNames } = getLastModalProps();
+    const classNames = getLastModalClassNames();
 
-    expect(classNames?.content).toContain("modal-content");
-    expect(classNames?.body).toContain("modal-body");
-    expect(classNames?.header).toContain("modal-header");
-    expect(classNames?.footer).toContain("modal-footer");
-    expect(classNames?.wrapper).toContain("modal-wrapper");
+    expect(classNames.container).toContain("modal-content");
+    expect(classNames.body).toContain("modal-body");
+    expect(classNames.header).toContain("modal-header");
+    expect(classNames.footer).toContain("modal-footer");
+    expect(classNames.wrapper).toContain("modal-wrapper");
+  });
+
+  it("should merge a caller-supplied slot class with the module class", () => {
+    render(
+      <ModalWithFullscreenToggle title="T" classNames={{ body: "nokey" }} />,
+    );
+    const classNames = getLastModalClassNames();
+
+    expect(classNames.body).toContain("nokey");
+    expect(classNames.body).toContain("modal-body");
   });
 
   it("should add fullscreen module classes to classNames slots when fullscreen mode is entered", () => {
     render(<ModalWithFullscreenToggle title="T" />);
     fireEvent.click(screen.getByTestId("fullscreen-btn"));
-    const { classNames } = getLastModalProps();
+    const classNames = getLastModalClassNames();
 
-    expect(classNames?.content).toContain("modal-content-fullscreen");
-    expect(classNames?.body).toContain("modal-body-fullscreen");
-    expect(classNames?.wrapper).toContain("modal-wrapper-fullscreen");
+    expect(classNames.container).toContain("modal-content-fullscreen");
+    expect(classNames.body).toContain("modal-body-fullscreen");
+    expect(classNames.wrapper).toContain("modal-wrapper-fullscreen");
   });
 
   it("should forward extra props to Modal when additional ModalProps are provided", () => {

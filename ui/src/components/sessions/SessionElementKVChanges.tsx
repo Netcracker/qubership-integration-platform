@@ -2,11 +2,8 @@ import React, { ReactNode, useEffect, useMemo, useState } from "react";
 import { Flex, Switch, Table } from "antd";
 import { TableProps } from "antd/lib/table";
 import { PLACEHOLDER } from "../../misc/format-utils.ts";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
+import { tableScroll } from "../table/tableScroll.ts";
 import styles from "./SessionElementKVChanges.module.css";
 
 type ValueRenderer<ValueType = unknown> = (value: ValueType) => ReactNode;
@@ -234,37 +231,14 @@ export const SessionElementKVChanges = <ValueType = unknown,>({
     [addTypeColumns, comparator, onColumnClick, typeRenderer, valueRenderer],
   );
 
-  const kvChangesColumnResize = useTableColumnResize({
-    name: 180,
-    typeBefore: 140,
-    before: 220,
-    typeAfter: 140,
-    after: 220,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        columns,
-        kvChangesColumnResize.columnWidths,
-        kvChangesColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
-      columns,
-      kvChangesColumnResize.columnWidths,
-      kvChangesColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        columnsWithResize,
-        kvChangesColumnResize.columnWidths,
-      ),
-    [columnsWithResize, kvChangesColumnResize.columnWidths],
-  );
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(columns, {
+      name: 180,
+      typeBefore: 140,
+      before: 220,
+      typeAfter: 140,
+      after: 220,
+    });
 
   return (
     <Flex {...rest} vertical gap={16}>
@@ -282,8 +256,8 @@ export const SessionElementKVChanges = <ValueType = unknown,>({
         columns={columnsWithResize}
         dataSource={items}
         className="flex-table"
-        scroll={items.length > 0 ? { x: scrollX, y: "" } : { x: scrollX }}
-        components={kvChangesColumnResize.resizableHeaderComponents}
+        scroll={tableScroll(scrollX, items.length)}
+        components={components}
       ></Table>
     </Flex>
   );

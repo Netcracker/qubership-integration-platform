@@ -139,7 +139,7 @@ const BodyMimeTypeField: React.FC<
                       <th className={styles.th}>File Name</th>
                     )}
                     <th className={styles.th}>Value</th>
-                    <th className={styles.th}></th>
+                    <th className={`${styles.th} ${styles.actionsCol}`}></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -189,7 +189,7 @@ const BodyMimeTypeField: React.FC<
                           placeholder="Value"
                         />
                       </td>
-                      <td className={styles.td}>
+                      <td className={styles.tdAction}>
                         <Button
                           size="small"
                           type="text"

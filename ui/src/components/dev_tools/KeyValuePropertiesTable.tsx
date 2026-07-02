@@ -1,10 +1,7 @@
 import React, { useMemo } from "react";
 import { Badge, Collapse, Table } from "antd";
 import { TableProps } from "antd/lib/table";
-import {
-  attachResizeToColumns,
-  useTableColumnResize,
-} from "../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
 import tableStyles from "../admin_tools/domains/Tables.module.css";
 
 type KeyValuePropertiesTableProps = {
@@ -36,19 +33,11 @@ export const KeyValuePropertiesTable: React.FC<
     [],
   );
 
-  const kvColumnResize = useTableColumnResize({
-    key: 180,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        columns,
-        kvColumnResize.columnWidths,
-        kvColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [columns, kvColumnResize.columnWidths, kvColumnResize.createResizeHandlers],
+  const { columnsWithResize, components } = useColumnsWithResizeAndScroll(
+    columns,
+    {
+      key: 180,
+    },
   );
 
   return (
@@ -68,7 +57,7 @@ export const KeyValuePropertiesTable: React.FC<
               pagination={false}
               columns={columnsWithResize}
               dataSource={rows}
-              components={kvColumnResize.resizableHeaderComponents}
+              components={components}
             />
           ),
         },

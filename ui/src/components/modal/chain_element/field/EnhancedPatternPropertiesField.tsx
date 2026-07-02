@@ -929,7 +929,7 @@ const EnhancedPatternPropertiesField: React.FC<EnhancedFieldProps> = ({
                 <tr>
                   <th className={styles.th}>Name</th>
                   <th className={styles.th}>Value</th>
-                  <th className={styles.th}></th>
+                  <th className={`${styles.th} ${styles.actionsCol}`}></th>
                 </tr>
               </thead>
               <tbody>

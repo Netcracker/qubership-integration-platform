@@ -76,7 +76,8 @@ export class Attributes {
     const result = DataTypes.resolveType(attribute?.type, typeDefinitions);
     const type = result.type ?? undefined;
     return type && DataTypes.isArrayType(type)
-      ? (DataTypes.resolveArrayItemType(type, result.definitions).type ?? undefined)
+      ? (DataTypes.resolveArrayItemType(type, result.definitions).type ??
+          undefined)
       : type;
   }
 

@@ -27,9 +27,10 @@ import { useNotificationService } from "../../../hooks/useNotificationService.ts
 import { api } from "../../../api/api.ts";
 import { useParams } from "react-router";
 import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
-import { useForm } from "antd/lib/form/Form";
 import { formatTimestamp } from "../../../misc/format-utils.ts";
 import { getErrorMessage } from "../../../misc/error-utils.ts";
+
+const { useForm } = Form;
 
 export const McpServiceParametersPage: React.FC = () => {
   const { systemId } = useParams<{

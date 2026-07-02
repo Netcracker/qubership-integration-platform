@@ -1,7 +1,8 @@
-import { Button, Form, Input, Modal, UploadFile, message } from "antd";
+import { Button, Form, Input, Modal, UploadFile } from "antd";
+import Dragger from "antd/es/upload/Dragger";
+import { message } from "../../../misc/antd-app.ts";
 import React, { useState } from "react";
 import { useModalContext } from "../../../ModalContextProvider";
-import Dragger from "antd/es/upload/Dragger";
 import { OverridableIcon } from "../../../icons/IconProvider";
 import { api } from "../../../api/api";
 import { useNotificationService } from "../../../hooks/useNotificationService";

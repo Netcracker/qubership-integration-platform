@@ -187,10 +187,10 @@ const getCachedSource = (
   return buildSource(IconComponent, name);
 };
 
-const OverridableIconImpl: React.FC<OverridableIconProps> = ({
-  name,
-  ...props
-}) => {
+const OverridableIconImpl = (
+  { name, ...props }: OverridableIconProps,
+  ref: React.ForwardedRef<HTMLSpanElement>,
+): React.ReactNode => {
   const icons = useIcons();
   const IconComponent = icons.icons[name];
   if (!IconComponent) {
@@ -205,12 +205,15 @@ const OverridableIconImpl: React.FC<OverridableIconProps> = ({
       <IconWithDomColorNormalize
         IconComponent={source.component}
         props={props}
+        ref={ref}
       />
     );
   }
 
-  return <Icon {...props} component={source.render} />;
+  return <Icon {...props} component={source.render} ref={ref} />;
 };
 
-export const OverridableIcon = React.memo(OverridableIconImpl);
+export const OverridableIcon = React.memo(
+  React.forwardRef(OverridableIconImpl),
+);
 OverridableIcon.displayName = "OverridableIcon";

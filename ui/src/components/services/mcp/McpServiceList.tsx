@@ -1,17 +1,16 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { GenericServiceListPage } from "../GenericServiceListPage.tsx";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
-import { Button, message, Table } from "antd";
+import { Button, Table } from "antd";
+import { message } from "../../../misc/antd-app.ts";
 import {
   IntegrationSystemType,
   MCPSystem,
   MCPSystemCreateRequest,
 } from "../../../api/apiTypes.ts";
 import { formatOptional, formatTimestamp } from "../../../misc/format-utils.ts";
-import {
-  createActionsColumnBase,
-  disableResizeBeforeActions,
-} from "../../table/actionsColumn.ts";
+import { createActionsColumnBase } from "../../table/actionsColumn.ts";
+import { tableScroll } from "../../table/tableScroll.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { api } from "../../../api/api.ts";
 import { useNavigate } from "react-router-dom";
@@ -26,11 +25,7 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton.tsx";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
 import { useFilter } from "../../table/filter/useFilter.tsx";
 import {
   DateFilterConditions,
@@ -197,8 +192,9 @@ export const McpServiceList: React.FC = () => {
       dataIndex: "usedBy",
       key: "usedBy",
       width: 120,
-      render: (_: unknown, system) =>
-        <ChainColumn chains={system.chains ?? []} />,
+      render: (_: unknown, system) => (
+        <ChainColumn chains={system.chains ?? []} />
+      ),
     },
     {
       title: "Created At",
@@ -270,38 +266,21 @@ export const McpServiceList: React.FC = () => {
   const { orderedColumns, columnSettingsButton } =
     useColumnSettingsBasedOnColumnsType("mcpSystemTable", columns);
 
-  const columnResize = useTableColumnResize({
-    name: 200,
-    identifier: 200,
-    usedBy: 120,
-    labels: 200,
-    createdBy: 120,
-    createdWhen: 168,
-    modifiedBy: 120,
-    modifiedWhen: 168,
-  });
-
-  const columnsWithResize = useMemo(() => {
-    const resized = attachResizeToColumns(
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(
       orderedColumns,
-      columnResize.columnWidths,
-      columnResize.createResizeHandlers,
-      { minWidth: 80 },
+      {
+        name: 200,
+        identifier: 200,
+        usedBy: 120,
+        labels: 200,
+        createdBy: 120,
+        createdWhen: 168,
+        modifiedBy: 120,
+        modifiedWhen: 168,
+      },
+      { selectionColumnWidth: SELECTION_COLUMN_WIDTH },
     );
-    return disableResizeBeforeActions(resized);
-  }, [
-    orderedColumns,
-    columnResize.columnWidths,
-    columnResize.createResizeHandlers,
-  ]);
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(columnsWithResize, columnResize.columnWidths, {
-        selectionColumnWidth: SELECTION_COLUMN_WIDTH,
-      }),
-    [columnsWithResize, columnResize.columnWidths],
-  );
 
   return (
     <GenericServiceListPage
@@ -320,7 +299,7 @@ export const McpServiceList: React.FC = () => {
         size={"small"}
         columns={columnsWithResize}
         dataSource={systems}
-        scroll={{ y: "", x: scrollX }}
+        scroll={tableScroll(scrollX, systems?.length ?? 0)}
         loading={isLoading}
         pagination={false}
         rowSelection={{
@@ -328,7 +307,7 @@ export const McpServiceList: React.FC = () => {
           selectedRowKeys,
           onChange: (keys) => setSelectedRowKeys(keys),
         }}
-        components={columnResize.resizableHeaderComponents}
+        components={components}
       />
     </GenericServiceListPage>
   );

@@ -23,6 +23,7 @@ import {
   TableProps,
 } from "antd";
 import { CompactSearch } from "../table/CompactSearch.tsx";
+import { tableScroll } from "../table/tableScroll.ts";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   exportAsMarkdown,
@@ -90,11 +91,7 @@ import {
   hasBreakingChanges,
 } from "../../mapper/util/compare.ts";
 import { LoadConfirmationDialog } from "./LoadConfirmationDialog.tsx";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
 
 export type MappingTableViewProps = Omit<
   React.HTMLAttributes<HTMLElement>,
@@ -1785,38 +1782,22 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
       buildColumns ?? [],
     );
 
-  const mappingColumnResize = useTableColumnResize({
-    name: 200,
-    type: 140,
-    optionality: 110,
-    description: 160,
-    defaultValue: 140,
-    sources: 180,
-    targets: 180,
-    transformation: 180,
-    transformationDescription: 160,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        orderedColumns,
-        mappingColumnResize.columnWidths,
-        mappingColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(
       orderedColumns,
-      mappingColumnResize.columnWidths,
-      mappingColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(columnsWithResize, mappingColumnResize.columnWidths),
-    [columnsWithResize, mappingColumnResize.columnWidths],
-  );
+      {
+        name: 200,
+        type: 140,
+        optionality: 110,
+        description: 160,
+        defaultValue: 140,
+        sources: 180,
+        targets: 180,
+        transformation: 180,
+        transformationDescription: 160,
+      },
+      { applyDisableResizeBeforeActions: false },
+    );
 
   return (
     <>
@@ -1895,10 +1876,8 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
           dataSource={tableItems}
           rowKey="id"
           pagination={false}
-          scroll={
-            tableItems.length > 0 ? { x: scrollX, y: "" } : { x: scrollX }
-          }
-          components={mappingColumnResize.resizableHeaderComponents}
+          scroll={tableScroll(scrollX, tableItems.length)}
+          components={components}
           expandable={{
             expandIcon: treeExpandIcon(),
             defaultExpandedRowKeys: [

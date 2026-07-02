@@ -10,7 +10,10 @@ import {
   sumScrollXForColumns,
   useTableColumnResize,
 } from "../../../src/components/table/useTableColumnResize";
-import { ACTIONS_COLUMN_KEY } from "../../../src/components/table/actionsColumn";
+import {
+  ACTIONS_COLUMN_KEY,
+  disableResizeBeforeActions,
+} from "../../../src/components/table/actionsColumn";
 
 const resizePayload = (w: number): ResizeCallbackData => ({
   node: document.createElement("div"),
@@ -67,23 +70,53 @@ describe("attachResizeToColumns", () => {
     expect(out[1]).toEqual(columns[1]);
   });
 
-  it("strips right-edge resize when only actions column follows (not in widths)", () => {
+  it("keeps right-edge resize when a non-last data column follows", () => {
+    const { result } = renderHook(() => useTableColumnResize({ key: 100 }));
+    const columns = [
+      { key: "key", title: "Key" },
+      { key: "value", title: "Value" },
+    ] as ColumnsType<Record<string, unknown>>;
+    const out = attachResizeToColumns(
+      columns,
+      { key: 100 },
+      result.current.createResizeHandlers,
+    );
+    const cell = out[0].onHeaderCell!(columns[0] as never);
+    expect(typeof (cell as { onResize?: unknown }).onResize).toBe("function");
+  });
+
+  it("strips right-edge resize on the table's last column", () => {
+    const { result } = renderHook(() =>
+      useTableColumnResize({ a: 100, b: 100 }),
+    );
+    const columns = [
+      { key: "a", title: "A" },
+      { key: "b", title: "B" },
+    ] as ColumnsType<Record<string, unknown>>;
+    const out = attachResizeToColumns(
+      columns,
+      { a: 100, b: 100 },
+      result.current.createResizeHandlers,
+    );
+    const cell = out[1].onHeaderCell!(columns[1] as never);
+    expect((cell as { onResize?: unknown }).onResize).toBeUndefined();
+  });
+
+  it("disableResizeBeforeActions strips the column before a fixed actions column", () => {
     const { result } = renderHook(() => useTableColumnResize({ data: 100 }));
     const columns = [
       { key: "data", title: "Data" },
       { key: ACTIONS_COLUMN_KEY, title: "Act", width: 40 },
     ] as ColumnsType<Record<string, unknown>>;
-    const out = attachResizeToColumns(
-      columns,
-      { data: 100 },
-      result.current.createResizeHandlers,
+    const out = disableResizeBeforeActions(
+      attachResizeToColumns(
+        columns,
+        { data: 100 },
+        result.current.createResizeHandlers,
+      ),
     );
-    const col0 = out[0];
-    expect(col0?.onHeaderCell).toBeDefined();
-    const cell = col0.onHeaderCell!(columns[0] as never);
-    expect(cell).toMatchObject({ width: 100 });
+    const cell = out[0].onHeaderCell!(columns[0] as never);
     expect((cell as { onResize?: unknown }).onResize).toBeUndefined();
-    expect((cell as { onResizeStop?: unknown }).onResizeStop).toBeUndefined();
   });
 
   it("forwards options.minWidth to header cell as minResizeWidth", () => {

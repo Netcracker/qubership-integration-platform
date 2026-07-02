@@ -139,7 +139,7 @@ export const ChainDetailsDrawer: React.FC<ChainDetailsDrawerProps> = ({
     <Drawer
       title="Chain Details"
       placement="right"
-      width={350}
+      size={350}
       open={open}
       onClose={onClose}
       destroyOnHidden
@@ -220,7 +220,11 @@ export const ChainDetailsDrawer: React.FC<ChainDetailsDrawerProps> = ({
                   {logPayload.map((item) => (
                     <Tag
                       key={item}
-                      style={{ fontSize: 13, marginInlineEnd: 0 }}
+                      style={{
+                        fontSize: 13,
+                        padding: "3px 8px",
+                        marginInlineEnd: 0,
+                      }}
                     >
                       {capitalize(item)}
                     </Tag>

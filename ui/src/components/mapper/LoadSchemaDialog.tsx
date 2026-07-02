@@ -16,9 +16,9 @@ import {
   SelectProps,
   Tabs,
   Tag,
+  Upload,
 } from "antd";
 import { useModalContext } from "../../ModalContextProvider";
-import Dragger from "antd/lib/upload/Dragger";
 import { Editor } from "@monaco-editor/react";
 import type * as monacoNs from "monaco-editor";
 type Monaco = typeof monacoNs;
@@ -52,6 +52,8 @@ import { api } from "../../api/api.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { normalizeProtocol } from "../../misc/protocol-utils.ts";
 import { MetadataUtil } from "../../mapper/util/metadata.ts";
+
+const { Dragger } = Upload;
 
 function buildGraphQLOperations(schemaText: string, queryText: string) {
   const operations: GraphQLOperationInfo[] = [];

@@ -228,11 +228,11 @@ describe("ServiceParametersTab", () => {
   it("on web registers export toolbar and export success calls downloadFile", async () => {
     renderTab();
     await waitFor(() => {
-      expect(mockSetToolbar.mock.calls.some((c) => c[0] !== null)).toBe(true);
+      expect(mockSetToolbar.mock.calls.some((c) => c[1] !== null)).toBe(true);
     });
     const toolbarCall = mockSetToolbar.mock.calls.find(
-      (c) => c[0] !== null,
-    )?.[0] as React.ReactElement;
+      (c) => c[1] !== null,
+    )?.[1] as React.ReactElement;
     expect(toolbarCall).toBeTruthy();
     render(
       <UserPermissionsContext.Provider value={getAllPermissions()}>
@@ -248,11 +248,11 @@ describe("ServiceParametersTab", () => {
     mockExportServices.mockRejectedValue(new Error("export failed"));
     renderTab();
     await waitFor(() => {
-      expect(mockSetToolbar.mock.calls.some((c) => c[0] !== null)).toBe(true);
+      expect(mockSetToolbar.mock.calls.some((c) => c[1] !== null)).toBe(true);
     });
     const toolbarNode = mockSetToolbar.mock.calls.find(
-      (c) => c[0] !== null,
-    )?.[0] as React.ReactElement | undefined;
+      (c) => c[1] !== null,
+    )?.[1] as React.ReactElement | undefined;
     expect(toolbarNode).toBeTruthy();
     render(
       <UserPermissionsContext.Provider value={getAllPermissions()}>

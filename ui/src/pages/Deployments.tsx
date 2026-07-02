@@ -1,9 +1,7 @@
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../components/table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../components/table/useColumnsWithResizeAndScroll.tsx";
+import { tableEmpty } from "../components/table/tableEmpty.tsx";
+import { tableScroll } from "../components/table/tableScroll.ts";
 import { Flex, Space, Table, Tag, Tooltip } from "antd";
 import { DeploymentStateTag } from "../components/deployment_runtime_states/DeploymentStateTag.tsx";
 import { useDeployments } from "../hooks/useDeployments.tsx";
@@ -31,10 +29,7 @@ import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { TablePageLayout } from "../components/TablePageLayout.tsx";
 import { Require } from "../permissions/Require.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
-import {
-  createActionsColumnBase,
-  disableResizeBeforeActions,
-} from "../components/table/actionsColumn.ts";
+import { createActionsColumnBase } from "../components/table/actionsColumn.ts";
 import { matchesByFields } from "../components/table/tableSearch.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
@@ -182,36 +177,14 @@ export const Deployments: React.FC = () => {
       columns,
     );
 
-  const deploymentsColumnResize = useTableColumnResize({
-    snapshotId: 200,
-    domain: 140,
-    runtime: 260,
-    createdBy: 120,
-    createdWhen: 168,
-  });
-
-  const columnsWithResize = useMemo(() => {
-    const resized = attachResizeToColumns(
-      orderedColumns,
-      deploymentsColumnResize.columnWidths,
-      deploymentsColumnResize.createResizeHandlers,
-      { minWidth: 80 },
-    );
-    return disableResizeBeforeActions(resized);
-  }, [
-    orderedColumns,
-    deploymentsColumnResize.columnWidths,
-    deploymentsColumnResize.createResizeHandlers,
-  ]);
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        columnsWithResize,
-        deploymentsColumnResize.columnWidths,
-      ),
-    [columnsWithResize, deploymentsColumnResize.columnWidths],
-  );
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(orderedColumns, {
+      snapshotId: 200,
+      domain: 140,
+      runtime: 260,
+      createdBy: 120,
+      createdWhen: 168,
+    });
 
   const onDeploymentCreated = useCallback(
     (deployment: Deployment) => {
@@ -299,12 +272,9 @@ export const Deployments: React.FC = () => {
         pagination={false}
         loading={isLoading}
         rowKey="id"
-        scroll={
-          filteredDeployments.length > 0
-            ? { x: scrollX, y: "" }
-            : { x: scrollX }
-        }
-        components={deploymentsColumnResize.resizableHeaderComponents}
+        locale={{ emptyText: tableEmpty("No deployments") }}
+        scroll={tableScroll(scrollX, filteredDeployments.length)}
+        components={components}
         style={{ flex: 1, minHeight: 0 }}
       />
     </TablePageLayout>

@@ -23,7 +23,11 @@ export const useChainElementPanelFilters = (
         conditions: ListFilterConditions,
         allowedValues: elementTypeValues,
       },
-      { id: "ELEMENT_NAME", name: "ElementName", conditions: StringFilterConditions },
+      {
+        id: "ELEMENT_NAME",
+        name: "ElementName",
+        conditions: StringFilterConditions,
+      },
     ],
     [elementTypeValues],
   );

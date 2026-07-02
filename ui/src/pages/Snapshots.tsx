@@ -22,6 +22,7 @@ import {
 } from "../components/table/TimestampColumnFilterDropdown.tsx";
 import { InlineEdit } from "../components/InlineEdit.tsx";
 import { TextValueEdit } from "../components/table/TextValueEdit.tsx";
+import { tableScroll } from "../components/table/tableScroll.ts";
 import { LabelsEdit } from "../components/table/LabelsEdit.tsx";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { SequenceDiagram } from "../components/modal/SequenceDiagram.tsx";
@@ -32,15 +33,9 @@ import { confirmAndRun } from "../misc/confirm-utils.ts";
 import { ProtectedDropdown } from "../permissions/ProtectedDropdown.tsx";
 import { Require } from "../permissions/Require.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../components/table/useTableColumnResize.tsx";
-import {
-  createActionsColumnBase,
-  disableResizeBeforeActions,
-} from "../components/table/actionsColumn.ts";
+import { useColumnsWithResizeAndScroll } from "../components/table/useColumnsWithResizeAndScroll.tsx";
+import { tableEmpty } from "../components/table/tableEmpty.tsx";
+import { createActionsColumnBase } from "../components/table/actionsColumn.ts";
 import { matchesByFields } from "../components/table/tableSearch.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
@@ -383,38 +378,19 @@ export const Snapshots: React.FC = () => {
   const { orderedColumns, columnSettingsButton } =
     useColumnSettingsBasedOnColumnsType<Snapshot>("snapshotsTable", columns);
 
-  const snapshotsColumnResize = useTableColumnResize({
-    name: 200,
-    labels: 200,
-    createdBy: 120,
-    createdWhen: 168,
-    modifiedBy: 120,
-    modifiedWhen: 168,
-  });
-
-  const columnsWithResize = useMemo(() => {
-    const resized = attachResizeToColumns(
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(
       orderedColumns,
-      snapshotsColumnResize.columnWidths,
-      snapshotsColumnResize.createResizeHandlers,
-      { minWidth: 80 },
+      {
+        name: 200,
+        labels: 200,
+        createdBy: 120,
+        createdWhen: 168,
+        modifiedBy: 120,
+        modifiedWhen: 168,
+      },
+      { selectionColumnWidth: SNAPSHOTS_SELECTION_COLUMN_WIDTH },
     );
-    return disableResizeBeforeActions(resized);
-  }, [
-    orderedColumns,
-    snapshotsColumnResize.columnWidths,
-    snapshotsColumnResize.createResizeHandlers,
-  ]);
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        columnsWithResize,
-        snapshotsColumnResize.columnWidths,
-        { selectionColumnWidth: SNAPSHOTS_SELECTION_COLUMN_WIDTH },
-      ),
-    [columnsWithResize, snapshotsColumnResize.columnWidths],
-  );
 
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
     setSelectedRowKeys(newSelectedRowKeys);
@@ -493,10 +469,9 @@ export const Snapshots: React.FC = () => {
         rowKey="id"
         className="flex-table"
         style={{ flex: 1, minHeight: 0 }}
-        scroll={
-          filteredSnapshots.length > 0 ? { x: scrollX, y: "" } : { x: scrollX }
-        }
-        components={snapshotsColumnResize.resizableHeaderComponents}
+        locale={{ emptyText: tableEmpty("No snapshots") }}
+        scroll={tableScroll(scrollX, filteredSnapshots.length)}
+        components={components}
       />
     </TablePageLayout>
   );

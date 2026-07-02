@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Dropdown, Button, Menu } from "antd";
+import { Dropdown, Button } from "antd";
+import type { MenuProps } from "antd";
 import {
   isVsCode,
   VSCodeExtensionApi,
@@ -42,19 +43,15 @@ export const ChainColumn: React.FC<ChainColumnProps> = ({ chains }) => {
     }
   };
 
-  const menu = (
-    <Menu>
-      {chains.map((chain) => (
-        <Menu.Item key={chain.id} onClick={() => handleMenuClick(chain.id)}>
-          {chain.name}
-        </Menu.Item>
-      ))}
-    </Menu>
-  );
+  const items: MenuProps["items"] = chains.map((chain) => ({
+    key: chain.id,
+    label: chain.name,
+    onClick: () => handleMenuClick(chain.id),
+  }));
 
   return (
     <Dropdown
-      overlay={menu}
+      menu={{ items }}
       trigger={["click"]}
       open={open}
       onOpenChange={setOpen}

@@ -20,6 +20,15 @@ interface FieldFormContext {
 const VERTICAL_LABEL_COL = { span: 24 };
 const VERTICAL_WRAPPER_COL = { span: 24 };
 
+// Custom fields that render their own editor/layout (Monaco editors). They must
+// not be wrapped in the description-tooltip block: its `display: contents` rule
+// collapses the editor's height box. They surface the description themselves.
+const SELF_RENDERED_FIELDS = new Set([
+  "jsonField",
+  "scriptField",
+  "jsonAsStringField",
+]);
+
 const tooltipIconStyle: React.CSSProperties = {
   color: "var(--vscode-descriptionForeground, #9ca3af)",
   cursor: "help",
@@ -142,8 +151,15 @@ export default function DescriptionTooltipFieldTemplate(
   const renderInlineTooltip = !!description && !fieldLabel && isBooleanType;
 
   const isStructuralType = schema.type === "object" || schema.type === "array";
+  const uiField = uiSchema?.["ui:field"];
+  const usesSelfRenderedField =
+    typeof uiField === "string" && SELF_RENDERED_FIELDS.has(uiField);
   const renderBlockTooltip =
-    !!description && !fieldLabel && !isBooleanType && !isStructuralType;
+    !!description &&
+    !fieldLabel &&
+    !isBooleanType &&
+    !isStructuralType &&
+    !usesSelfRenderedField;
 
   const renderChildren = () => {
     if (renderInlineTooltip) {

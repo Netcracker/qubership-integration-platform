@@ -1,28 +1,14 @@
-import { Tag, Tooltip } from "antd";
+import { Tooltip } from "antd";
+import styles from "./selectOptionValue.module.css";
 
-type ServiceTagProps = {
+type SelectTagProps = {
   value: string;
 };
 
-export const SelectTag: React.FC<ServiceTagProps> = (
-  props: ServiceTagProps,
-) => {
-  return (
-    <Tooltip title={props.value}>
-      <Tag
-        style={{
-          background: "#d9d9d9",
-          borderRadius: 8,
-          border: "none",
-          width: 200,
-          textAlign: "center",
-          fontWeight: 500,
-        }}
-      >
-        {props.value.length > 32
-          ? props.value.slice(0, 32) + "..."
-          : props.value}
-      </Tag>
-    </Tooltip>
-  );
-};
+// Quiet facet chip shown before a select value (service type / spec group /
+// operation name). Truncation and theming live in the CSS module.
+export const SelectTag: React.FC<SelectTagProps> = (props: SelectTagProps) => (
+  <Tooltip title={props.value}>
+    <span className={styles.chip}>{props.value}</span>
+  </Tooltip>
+);

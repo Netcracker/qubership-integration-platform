@@ -1,12 +1,9 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { Table, Typography, Spin } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import type { ChainDeployment } from "../../../api/apiTypes.ts";
 import { DeploymentRuntimeState } from "../../deployment_runtime_states/DeploymentRuntimeState";
-import {
-  attachResizeToColumns,
-  useTableColumnResize,
-} from "../../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
 import layoutStyles from "./DomainsTablesLayout.module.css";
 
 interface Props {
@@ -53,24 +50,13 @@ export const DeploymentsTable: React.FC<Props> = ({
   deployments,
   isLoading = false,
 }) => {
-  const deploymentColumnResize = useTableColumnResize({
-    chainName: 240,
-    snapshotName: 200,
-    state: 220,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        deploymentColumns,
-        deploymentColumnResize.columnWidths,
-        deploymentColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
-      deploymentColumnResize.columnWidths,
-      deploymentColumnResize.createResizeHandlers,
-    ],
+  const { columnsWithResize, components } = useColumnsWithResizeAndScroll(
+    deploymentColumns,
+    {
+      chainName: 240,
+      snapshotName: 200,
+      state: 220,
+    },
   );
 
   return (
@@ -84,7 +70,7 @@ export const DeploymentsTable: React.FC<Props> = ({
           pagination={false}
           size="small"
           tableLayout="fixed"
-          components={deploymentColumnResize.resizableHeaderComponents}
+          components={components}
         />
       </Spin>
     </div>

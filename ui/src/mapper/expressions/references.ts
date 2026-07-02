@@ -53,7 +53,10 @@ export function buildAttributeReferenceText(
   detail: AttributeDetail,
   sourceSchema?: MessageSchema,
 ): string {
-  return [detail.kind, ...getExpressionPathNames(detail.kind, detail.path, sourceSchema)]
+  return [
+    detail.kind,
+    ...getExpressionPathNames(detail.kind, detail.path, sourceSchema),
+  ]
     .map((segment) =>
       MappingActions.escapeValue(segment, EXPRESSION_PATH_ESCAPE_CHARS),
     )

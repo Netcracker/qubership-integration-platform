@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { describe, it, expect, jest } from "@jest/globals";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
@@ -112,7 +112,11 @@ function makeSystem(): IntegrationSystem {
 }
 
 function ToolbarOutletShell({ children }: { children: React.ReactNode }) {
-  const [toolbar, setToolbar] = useState<React.ReactNode>(null);
+  const [toolbar, setToolbarNode] = useState<React.ReactNode>(null);
+  const setToolbar = useCallback(
+    (_owner: string, node: React.ReactNode) => setToolbarNode(node),
+    [],
+  );
   return (
     <ServiceParametersToolbarContext.Provider value={{ setToolbar }}>
       {children}

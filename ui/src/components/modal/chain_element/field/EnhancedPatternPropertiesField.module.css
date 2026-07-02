@@ -40,9 +40,12 @@
 }
 
 .table {
-  width: 100%;
-  border-collapse: collapse;
+  composes: table from "./parameterTable.module.css";
   background: var(--table-bg, var(--vscode-editor-background, #fff));
+}
+
+.actionsCol {
+  composes: actionsCol from "./parameterTable.module.css";
 }
 
 .th {
@@ -132,6 +135,11 @@
 .actions {
   display: flex;
   gap: 4px;
+  justify-content: flex-end;
+
+  /* The narrow action column fits one button; when the rare restore button also
+     shows, let the pair stack vertically instead of spilling over the Value cell. */
+  flex-wrap: wrap;
 }
 
 .deleteBtn {

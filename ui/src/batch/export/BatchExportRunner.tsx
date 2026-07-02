@@ -12,7 +12,11 @@ import {
   reportExportImagesProgress,
   saveExportedImageToVsCode,
 } from "./vscodeExportSink.ts";
-import type { BatchExportItemError, BatchExportItemSkip, BatchExportSummary } from "./types.ts";
+import type {
+  BatchExportItemError,
+  BatchExportItemSkip,
+  BatchExportSummary,
+} from "./types.ts";
 
 const hiddenRootStyle: React.CSSProperties = {
   position: "fixed",
@@ -174,8 +178,7 @@ export const BatchExportRunner: React.FC = () => {
   if (done) {
     const skippedCount = skipped.length;
     const failedCount = failed.length;
-    const status =
-      failedCount > 0 || skippedCount > 0 ? "warning" : "success";
+    const status = failedCount > 0 || skippedCount > 0 ? "warning" : "success";
     const parts = [`${succeeded} of ${targets.length} image file(s) exported.`];
     if (skippedCount > 0) {
       parts.push(`${skippedCount} empty chain(s) skipped.`);

@@ -1,12 +1,11 @@
 import React, { useContext, useRef } from "react";
 import { InlineEditContext } from "../InlineEdit.tsx";
 import { Form, InputNumber, InputNumberProps } from "antd";
-import { Rule } from "antd/lib/form/index";
-import { InputNumberRef } from "rc-input-number";
+import type { FormRule, GetRef } from "antd";
 
 export type NumberValueEditorProps = {
   name: string;
-  rules?: Rule[];
+  rules?: FormRule[];
   inputProps?: Omit<InputNumberProps<string>, "onBlur" | "onPressEnter">;
 };
 
@@ -17,7 +16,7 @@ export const NumberValueEdit: React.FC<NumberValueEditorProps> = ({
 }) => {
   const inlineEditContext = useContext(InlineEditContext);
   const form = Form.useFormInstance();
-  const ref = useRef<InputNumberRef>(null);
+  const ref = useRef<GetRef<typeof InputNumber>>(null);
 
   return (
     <Form.Item

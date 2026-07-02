@@ -5,12 +5,15 @@
     "selector-class-pattern: CSS Modules classes are camelCase (consumed as styles.x in TSX), plus third-party BEM (.react-flow__node, .ant-*) we cannot rename. Pattern allows camelCase + kebab + BEM __element/--modifier.",
     "custom-property-pattern: --vscode-* names are dictated by the VS Code theming API (exact camelCase); renaming breaks the extension theme. Pattern allows camelCase segments.",
     "selector-pseudo-class-no-unknown: :global is a CSS Modules directive, not a real pseudo-class.",
-    "no-descending-specificity: off for theme/override CSS where cascade source-order is intentional; reordering would risk rendering changes."
+    "no-descending-specificity: off for theme/override CSS where cascade source-order is intentional; reordering would risk rendering changes.",
+    "property-no-unknown / value-keyword-case: 'composes' is a CSS Modules directive (composes: someClass from '...'); the property is unknown to plain CSS and its value is a camelCase class reference, not a lowercase keyword."
   ],
   "rules": {
     "selector-class-pattern": "^[a-z][a-zA-Z0-9]*(-[a-zA-Z0-9]+)*(__[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*)*(--[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*)*$",
     "custom-property-pattern": "^[a-z][a-zA-Z0-9]*(-[a-zA-Z0-9]+)*$",
     "selector-pseudo-class-no-unknown": [true, { "ignorePseudoClasses": ["global"] }],
-    "no-descending-specificity": null
+    "no-descending-specificity": null,
+    "property-no-unknown": [true, { "ignoreProperties": ["composes"] }],
+    "value-keyword-case": ["lower", { "ignoreProperties": ["composes"] }]
   }
 }

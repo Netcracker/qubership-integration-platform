@@ -10,7 +10,7 @@ import {
 } from "./MappingTableView.tsx";
 import React, { useCallback, useContext, useEffect, useState } from "react";
 import { ItemType } from "antd/es/menu/interface";
-import { App, Button, Dropdown } from "antd";
+import { Button, Dropdown } from "antd";
 import { DataTypes } from "../../mapper/util/types.ts";
 import { ChainContext } from "../../pages/ChainPage.tsx";
 import { LoadSchemaDialog } from "./LoadSchemaDialog.tsx";
@@ -19,6 +19,7 @@ import { NamespacesEditDialog } from "./NamespacesEditDialog.tsx";
 import { useModalsContext } from "../../Modals.tsx";
 import { DataType, SchemaKind } from "../../mapper/model/model.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { confirmAndRun } from "../../misc/confirm-utils.ts";
 
 export type MappingTableItemActionButtonProps = {
   elementId: string;
@@ -54,7 +55,6 @@ export const MappingTableItemActionButton: React.FC<
   onDelete,
 }) => {
   const chainContext = useContext(ChainContext);
-  const { modal } = App.useApp();
   const { showModal } = useModalsContext();
   const [items, setItems] = useState<ItemType[]>([]);
 
@@ -158,7 +158,7 @@ export const MappingTableItemActionButton: React.FC<
           label: "Clear",
           icon: <OverridableIcon name="clear" />,
           onClick: () => {
-            modal.confirm({
+            confirmAndRun({
               title: "Clear tree",
               content: "Are you sure you want to clear the whole tree?",
               onOk: () => onClear?.(),
@@ -175,7 +175,7 @@ export const MappingTableItemActionButton: React.FC<
         onClick: () => {
           const title = `Delete ${isConstantItem(item) ? "constant" : "attribute"}`;
           const content = `Are you sure you want to delete this ${isConstantItem(item) ? "constant" : "attribute"} and all related connections?`;
-          modal.confirm({
+          confirmAndRun({
             title,
             content,
             onOk: () => {
@@ -192,7 +192,6 @@ export const MappingTableItemActionButton: React.FC<
     enableEdit,
     enableXmlNamespaces,
     item,
-    modal,
     onAdd,
     onClear,
     onDelete,

@@ -1,15 +1,10 @@
 import React from "react";
 import { Tag } from "antd";
 import {
-  foregroundForBackground,
   getSemanticColor,
+  PROTOCOL_COLORS,
+  SOURCE_FLAG_COLORS,
 } from "../../../theme/semanticColors";
-
-const displayNameOverrides: Record<string, string> = {
-  grpc: "gRPC",
-  graphql: "GraphQL",
-  asyncapi: "AsyncAPI",
-};
 
 function capitalize(str: string) {
   if (!str) return "";
@@ -18,20 +13,22 @@ function capitalize(str: string) {
 
 export const SourceFlagTag: React.FC<{
   source?: string;
-  toUpperCase?: boolean;
-}> = ({ source, toUpperCase }) => {
+  kind?: "source" | "protocol";
+}> = ({ source, kind }) => {
   if (!source) return null;
   const key = source.toLowerCase();
-  const color = getSemanticColor(key);
-  const label = toUpperCase
-    ? source.toUpperCase()
-    : displayNameOverrides[key] || capitalize(source);
+  const isProtocol = kind === "protocol";
+  // Protocol tags always render lowercase with a fixed per-protocol color.
+  const color = isProtocol
+    ? (PROTOCOL_COLORS[key] ?? getSemanticColor(key))
+    : (SOURCE_FLAG_COLORS[key] ?? getSemanticColor(key));
+  const label = isProtocol ? key : capitalize(source);
   return (
     <Tag
+      className="qip-solid-tag"
       style={{
         background: color,
-        color: foregroundForBackground(color),
-        borderRadius: 12,
+        color: "#fff",
         border: "none",
       }}
     >

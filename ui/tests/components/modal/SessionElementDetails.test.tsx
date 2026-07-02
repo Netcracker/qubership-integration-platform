@@ -25,13 +25,19 @@ const mockCloseContainingModal = jest.fn();
 const mockCopyToClipboard = jest.fn().mockResolvedValue(undefined);
 const mockMessageInfo = jest.fn();
 
-/** Stable reference so `message.useMessage()` does not break `useCallback` deps in the modal. */
+/** Mirrors the `message` instance the modal pulls from the antd-app bridge. */
 const stableMessageApi = {
   info: mockMessageInfo,
   success: jest.fn(),
   error: jest.fn(),
   warning: jest.fn(),
 };
+
+jest.mock("../../../src/misc/antd-app.ts", () => ({
+  get message() {
+    return stableMessageApi;
+  },
+}));
 
 jest.mock("../../../src/ModalContextProvider.tsx", () => ({
   useModalContext: () => ({
@@ -105,10 +111,13 @@ jest.mock(
           cmp(same, same);
           cmp({ type: "b", value: "x" }, { type: "a", value: "y" });
           cmp({ type: "a", value: "z" }, { type: "a", value: "x" });
-          cmp({}, {
-            type: "z",
-            value: "v",
-          });
+          cmp(
+            {},
+            {
+              type: "z",
+              value: "v",
+            },
+          );
           cmp({ type: "a", value: undefined }, { type: "a", value: "b" });
           cmp({ value: "m" }, { value: "n" });
           cmp({ type: "a", value: undefined }, { type: "a", value: undefined });

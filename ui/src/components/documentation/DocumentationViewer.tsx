@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useRef } from "react";
+import React, { useContext, useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -21,6 +21,7 @@ import {
 } from "../../services/documentation/documentationUrlUtils";
 import { ThemeContext } from "../../theme/context";
 import { OverridableIcon } from "../../icons/IconProvider";
+import { mergeRefs } from "../../misc/mergeRefs";
 import styles from "./DocumentationViewer.module.css";
 
 /**
@@ -142,15 +143,8 @@ export const DocumentationViewer = React.forwardRef<
   const location = useLocation();
   const viewerRef = useRef<HTMLDivElement | null>(null);
 
-  const setRef = useCallback(
-    (el: HTMLDivElement | null) => {
-      viewerRef.current = el;
-      if (typeof forwardedRef === "function") {
-        forwardedRef(el);
-      } else if (forwardedRef) {
-        forwardedRef.current = el;
-      }
-    },
+  const setRef = useMemo(
+    () => mergeRefs(viewerRef, forwardedRef),
     [forwardedRef],
   );
   const syntaxTheme = useSyntaxHighlighterTheme();

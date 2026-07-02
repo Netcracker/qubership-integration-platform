@@ -1,5 +1,5 @@
 import { formatSnakeCased } from "../../misc/format-utils.ts";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Tag, Tooltip } from "antd";
 import {
   BulkDeploymentStatus,
@@ -8,7 +8,7 @@ import {
   ImportInstructionStatus,
   SystemImportStatus,
 } from "../../api/apiTypes.ts";
-import type { PresetStatusColorType } from "antd/es/_util/colors";
+import type { PresetStatusColor } from "../../types/antd.ts";
 
 type CombinedStatus =
   | ImportEntityStatus
@@ -17,7 +17,7 @@ type CombinedStatus =
   | ImportInstructionAction
   | BulkDeploymentStatus;
 
-function getStatusColor(status: CombinedStatus): PresetStatusColorType {
+function getStatusColor(status: CombinedStatus): PresetStatusColor {
   switch (status) {
     case SystemImportStatus.CREATED:
     case ImportEntityStatus.CREATED:
@@ -56,12 +56,12 @@ export const StatusTag: React.FC<{
   status?: CombinedStatus;
   message?: string;
 }> = ({ status, message }) => {
-  const [color, setColor] = useState<PresetStatusColorType>("default");
+  const color = status ? getStatusColor(status) : "default";
 
-  useEffect(() => {
-    setColor(status ? getStatusColor(status) : "default");
-  }, [status]);
-
-  const statusNode = <Tag color={color}>{formatSnakeCased(status ?? "")}</Tag>;
+  const statusNode = (
+    <Tag variant="solid" color={color}>
+      {formatSnakeCased(status ?? "")}
+    </Tag>
+  );
   return message ? <Tooltip title={message}>{statusNode}</Tooltip> : statusNode;
 };

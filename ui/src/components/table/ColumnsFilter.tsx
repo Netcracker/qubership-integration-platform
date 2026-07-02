@@ -55,7 +55,9 @@ function applyPickerColumnReorder(
 ): void {
   const reordered = newList.map((item) => String(item.id));
   setColumnsOrder((prev) => {
-    const tail = prev.filter((key) => COLUMN_KEYS_EXCLUDED_FROM_PICKER.has(key));
+    const tail = prev.filter((key) =>
+      COLUMN_KEYS_EXCLUDED_FROM_PICKER.has(key),
+    );
     const lockedPrefix = buildOrderLockedPrefix(allColumns, orderLockedKeySet);
     const movable = reordered.filter((key) => !orderLockedKeySet.has(key));
     return [...lockedPrefix, ...movable, ...tail];
@@ -100,7 +102,9 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
 
   const [columnsOrder, setColumnsOrder] = useState<string[]>(() => {
     const stored = localStorage.getItem(getColumnsOrderKey(storageKey));
-    const order = stored ? parseJsonOrDefault<string[]>(stored, []) : allColumns;
+    const order = stored
+      ? parseJsonOrDefault<string[]>(stored, [])
+      : allColumns;
     return normalizePickerColumnOrder(order, allColumns, orderLockedKeySet);
   });
 
@@ -193,48 +197,44 @@ export const ColumnsFilter: React.FC<ColumnFilterProps> = ({
         {columnOrderForPicker.map((key) => {
           const isOrderLocked = orderLockedKeySet.has(key);
           return (
-          <div
-            key={key}
-            className={clsx(
-              styles.row,
-              isOrderLocked && "filtered",
-              isOrderLocked && styles.rowOrderLocked,
-            )}
-          >
-            <span
+            <div
+              key={key}
               className={clsx(
-                styles.grip,
-                isOrderLocked ? "filtered" : "drag-handle",
-                isOrderLocked && styles.gripOrderLocked,
+                styles.row,
+                isOrderLocked && "filtered",
+                isOrderLocked && styles.rowOrderLocked,
               )}
-              aria-hidden={isOrderLocked}
-              tabIndex={isOrderLocked ? -1 : 0}
             >
-              ≡
-            </span>
-            <Checkbox
-              disabled={isVisibilityToggleDisabled(key)}
-              checked={visibleColumns.includes(key)}
-              onChange={(e) => {
-                if (e.target.checked) {
-                  setVisibleColumns((prev) => [...prev, key]);
-                } else {
-                  setVisibleColumns((prev) => prev.filter((k) => k !== key));
-                }
-              }}
-              className={styles.checkbox}
-            >
-              {getLabel(key)}
-            </Checkbox>
-          </div>
+              <span
+                className={clsx(
+                  styles.grip,
+                  isOrderLocked ? "filtered" : "drag-handle",
+                  isOrderLocked && styles.gripOrderLocked,
+                )}
+                aria-hidden={isOrderLocked}
+                tabIndex={isOrderLocked ? -1 : 0}
+              >
+                ≡
+              </span>
+              <Checkbox
+                disabled={isVisibilityToggleDisabled(key)}
+                checked={visibleColumns.includes(key)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setVisibleColumns((prev) => [...prev, key]);
+                  } else {
+                    setVisibleColumns((prev) => prev.filter((k) => k !== key));
+                  }
+                }}
+                className={styles.checkbox}
+              >
+                {getLabel(key)}
+              </Checkbox>
+            </div>
           );
         })}
       </ReactSortable>
-      <Button
-        size="small"
-        onClick={handleReset}
-        className={styles.resetButton}
-      >
+      <Button size="small" onClick={handleReset} className={styles.resetButton}>
         Reset
       </Button>
     </div>

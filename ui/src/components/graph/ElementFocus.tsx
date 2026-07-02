@@ -3,7 +3,10 @@ import { Node, useReactFlow } from "@xyflow/react";
 
 export type FitViewToElementIdFn = (id: string) => void;
 
-const withSingleNodeSelected = <T extends Node>(nodes: T[], selectedId: string): T[] =>
+const withSingleNodeSelected = <T extends Node>(
+  nodes: T[],
+  selectedId: string,
+): T[] =>
   nodes.map((node) => ({
     ...node,
     selected: node.id === selectedId,

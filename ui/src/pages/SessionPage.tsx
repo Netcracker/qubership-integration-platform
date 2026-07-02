@@ -12,11 +12,8 @@ import { SessionElementDetails } from "../components/modal/SessionElementDetails
 import { downloadFile } from "../misc/download-utils.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../components/table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../components/table/useColumnsWithResizeAndScroll.tsx";
+import { tableScroll } from "../components/table/tableScroll.ts";
 import { treeExpandIcon } from "../components/table/TreeExpandIcon.tsx";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
@@ -257,13 +254,20 @@ export const SessionPage: React.FC = () => {
       tableColumnDefinitions,
     );
 
-  const sessionElementsColumnResize = useTableColumnResize({
-    elementName: 280,
-    snapshot: 80,
-    executionStatus: 140,
-    duration: 120,
-    camelName: 160,
-  });
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(
+      orderedColumns,
+      {
+        elementName: 280,
+        snapshot: 80,
+        executionStatus: 140,
+        duration: 120,
+        camelName: 160,
+      },
+      {
+        expandColumnWidth: SESSION_ELEMENT_EXPAND_COLUMN_WIDTH,
+      },
+    );
 
   const expandAllRows = useCallback(() => {
     setExpandedRowKeys(collectAllExpandableRowKeys(session?.sessionElements));
@@ -272,31 +276,6 @@ export const SessionPage: React.FC = () => {
   const collapseAllRows = useCallback(() => {
     setExpandedRowKeys([]);
   }, []);
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        orderedColumns,
-        sessionElementsColumnResize.columnWidths,
-        sessionElementsColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
-      orderedColumns,
-      sessionElementsColumnResize.columnWidths,
-      sessionElementsColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        columnsWithResize,
-        sessionElementsColumnResize.columnWidths,
-        { expandColumnWidth: SESSION_ELEMENT_EXPAND_COLUMN_WIDTH },
-      ),
-    [columnsWithResize, sessionElementsColumnResize.columnWidths],
-  );
 
   const filteredSessionElements = useMemo(
     () =>
@@ -405,8 +384,8 @@ export const SessionPage: React.FC = () => {
         loading={isLoading}
         className="flex-table"
         style={{ flex: 1, minHeight: 0 }}
-        scroll={{ x: scrollX, y: "" }}
-        components={sessionElementsColumnResize.resizableHeaderComponents}
+        scroll={tableScroll(scrollX, filteredSessionElements?.length ?? 0)}
+        components={components}
         expandable={{
           expandIcon: ({ record, ...rest }) => {
             const hideArrow = !record.children?.length;

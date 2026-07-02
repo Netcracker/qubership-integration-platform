@@ -1,16 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useModalContext } from "../../ModalContextProvider";
 import { XmlNamespace } from "../../mapper/model/metadata";
-import { Button, Flex, message, Modal, Table, TableProps } from "antd";
+import { Button, Flex, Modal, Table, TableProps } from "antd";
+import { message } from "../../misc/antd-app.ts";
 import type { ColumnsType } from "antd/es/table";
 import { InlineEdit } from "../InlineEdit";
 import { TextValueEdit } from "../table/TextValueEdit";
+import { tableScroll } from "../table/tableScroll.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
 
 export type NamespacesEditDialogProps = {
   namespaces: XmlNamespace[];
@@ -22,7 +20,6 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
   onSubmit,
 }) => {
   const { closeContainingModal } = useModalContext();
-  const [messageApi, contextHolder] = message.useMessage();
   const [tableData, setTableData] = useState<
     TableProps<XmlNamespace>["dataSource"]
   >([]);
@@ -84,7 +81,7 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
               initialActive={value === ""}
               onSubmit={({ value }) => {
                 if (tableData?.some((r) => r.alias === value)) {
-                  messageApi.error(`Already exists: ${value}`);
+                  message.error(`Already exists: ${value}`);
                 } else {
                   updateRecord(index, { alias: value });
                 }
@@ -134,37 +131,18 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
         },
       },
     ],
-    [tableData, messageApi, updateRecord, deleteRecord],
+    [tableData, updateRecord, deleteRecord],
   );
 
-  const namespaceColumnResize = useTableColumnResize({
-    alias: 160,
-    uri: 360,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        namespaceColumns,
-        namespaceColumnResize.columnWidths,
-        namespaceColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(
       namespaceColumns,
-      namespaceColumnResize.columnWidths,
-      namespaceColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        columnsWithResize,
-        namespaceColumnResize.columnWidths,
-      ),
-    [columnsWithResize, namespaceColumnResize.columnWidths],
-  );
+      {
+        alias: 160,
+        uri: 360,
+      },
+      { applyDisableResizeBeforeActions: false },
+    );
 
   return (
     <Modal
@@ -188,7 +166,6 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
       ]}
     >
       <>
-        {contextHolder}
         <Flex style={{ height: "60vh" }} vertical gap={8}>
           <Flex wrap="wrap" vertical={false} gap={8}>
             <Button
@@ -209,12 +186,12 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
           <Table
             className="flex-table"
             size="small"
-            scroll={{ x: scrollX, y: "" }}
+            scroll={tableScroll(scrollX, tableData?.length ?? 0)}
             columns={columnsWithResize}
             dataSource={tableData}
             pagination={false}
             rowKey={(record) => record.alias}
-            components={namespaceColumnResize.resizableHeaderComponents}
+            components={components}
           />
         </Flex>
       </>
