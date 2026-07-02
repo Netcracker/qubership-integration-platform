@@ -54,8 +54,11 @@ import { usePermissions } from "../../permissions/usePermissions.tsx";
 import { hasPermissions } from "../../permissions/funcs.ts";
 import {
   submitAddInstruction,
+  uploadFileHasDeleteInstructions,
   uploadImportInstructionsFile,
 } from "./importInstructionsHandlers.ts";
+import { useModalsContext } from "../../Modals.tsx";
+import { UploadImportInstructionsWarningModal } from "../modal/UploadImportInstructionsWarningModal.tsx";
 import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
 import {
   ColumnsTypeWithSettings,
@@ -920,6 +923,7 @@ export const UploadInstructionsModal: React.FC<
   const [result, setResult] = useState<ImportInstructionResult[]>([]);
   const [uploaded, setUploaded] = useState(false);
   const notificationService = useNotificationService();
+  const { showModal } = useModalsContext();
 
   const uploadResultColumns = useMemo(
     () => [
@@ -945,7 +949,7 @@ export const UploadInstructionsModal: React.FC<
     status: 200,
   });
 
-  const handleUpload = async () => {
+  const uploadSelectedFile = useCallback(async () => {
     setUploading(true);
     try {
       await uploadImportInstructionsFile(
@@ -960,6 +964,24 @@ export const UploadInstructionsModal: React.FC<
     } finally {
       setUploading(false);
     }
+  }, [fileList, notificationService]);
+
+  const handleUpload = async () => {
+    const requiresConfirmation =
+      await uploadFileHasDeleteInstructions(fileList);
+
+    if (requiresConfirmation) {
+      showModal({
+        component: (
+          <UploadImportInstructionsWarningModal
+            onUpload={() => void uploadSelectedFile()}
+          />
+        ),
+      });
+      return;
+    }
+
+    await uploadSelectedFile();
   };
 
   return (
