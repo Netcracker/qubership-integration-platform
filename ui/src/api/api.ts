@@ -38,6 +38,8 @@ import type {
   ElementFilter,
   ActionLogSearchRequest,
   ActionLogResponse,
+  ActionLogPagedSearchRequest,
+  ActionLogPagedSearchResponse,
   LogExportRequestParams,
   IntegrationSystem,
   SystemRequest,
@@ -316,6 +318,10 @@ export interface Api {
   loadCatalogActionsLog(
     searchRequest: ActionLogSearchRequest,
   ): Promise<ActionLogResponse>;
+
+  loadCatalogActionsLogV2(
+    searchRequest: ActionLogPagedSearchRequest,
+  ): Promise<ActionLogPagedSearchResponse>;
 
   exportCatalogActionsLog(params: LogExportRequestParams): Promise<Blob>;
 

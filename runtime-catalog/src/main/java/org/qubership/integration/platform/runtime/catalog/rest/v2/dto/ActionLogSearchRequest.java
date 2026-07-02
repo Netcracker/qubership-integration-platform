@@ -14,19 +14,29 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.actionlog;
+package org.qubership.integration.platform.runtime.catalog.rest.v2.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.qubership.integration.platform.runtime.catalog.model.dto.actionlog.ActionLogFilterRequestDTO;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 
-import java.sql.Timestamp;
+import java.util.Collections;
 import java.util.List;
 
-public interface ActionLogFilterRepository {
-    List<ActionLog> findActionLogsByFilter(
-            Timestamp offsetTime, long rangeTime, List<ActionLogFilterRequestDTO> filters);
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Schema(description = "Paged search request for audit log")
+public class ActionLogSearchRequest {
+    @Schema(description = "Max rows to return", example = "100")
+    private int limit = 100;
 
-    List<ActionLog> findActionLogsByFilter(int offset, int limit, List<ActionLogFilterRequestDTO> filters);
+    @Schema(description = "Row offset", example = "0")
+    private int offset = 0;
 
-    long getRecordsCountAfterTime(Timestamp timestamp, List<ActionLogFilterRequestDTO> filters);
+    private List<ActionLogFilterRequestDTO> filters = Collections.emptyList();
 }

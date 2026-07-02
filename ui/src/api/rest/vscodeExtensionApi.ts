@@ -16,6 +16,7 @@ import {
   AccessControlResponse,
   ActionDifference,
   ActionLogResponse,
+  ActionLogPagedSearchResponse,
   BaseEntity,
   BulkDeploymentResult,
   Chain,
@@ -753,6 +754,10 @@ export class VSCodeExtensionApi implements Api {
 
   loadCatalogActionsLog(): Promise<ActionLogResponse> {
     throw new Error("Method loadCatalogActionsLog not implemented.");
+  }
+
+  loadCatalogActionsLogV2(): Promise<ActionLogPagedSearchResponse> {
+    throw new Error("Method loadCatalogActionsLogV2 not implemented.");
   }
 
   loadVariablesManagementActionsLog(): Promise<ActionLogResponse> {
