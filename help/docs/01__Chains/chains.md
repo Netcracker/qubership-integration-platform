@@ -275,11 +275,11 @@ Comparison could be done in three different views, that could be switched anytim
   - ![rotate-right](img/rotate-right.svg) - changes graphs orientation from vertical to horizontal and vice versa.
   - ![arrows-alt](img/arrows-alt.svg) ![shrink](img/shrink.svg) - allows to open widget in full screen and collapse it back.
 
-Graphs' elements are marked according to the found differences:
-  - **Identical (grey)** - no differences were found in the element or dependency.
-  - **Changed (yellow)** - the element exists in both chain versions, but its properties differ.
-  - **Removed (red)** - the element or dependency does not exist in the compared chain version.
-  - **Created (green)** - a new element or dependency exists in the compared chain version.
+  Graphs' elements are marked according to the found differences:
+   - **Identical (grey)** - no differences were found in the element or dependency.
+   - **Changed (yellow)** - the element exists in both chain versions, but its properties differ.
+   - **Removed (red)** - the element or dependency does not exist in the compared chain version.
+   - **Created (green)** - a new element or dependency exists in the compared chain version.
 
 Clicking the element in one area makes another area also selecting it, allowing to quickly find comparable elements. Double-clicking the element opens another window with text-based comparator, complied on the basis of the elements' data.
 

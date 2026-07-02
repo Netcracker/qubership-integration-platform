@@ -50,3 +50,41 @@ To revert chain to the particular version, select **"Revert to"** option in acti
 To build the sequence diagram by particular snapshot data, select "**Show Diagram**" option in actions menu. This will open new pop-up window with sequence diagram.
 
 Sequence diagram could be exported via button **"Export"** with 3 output formats supported: **SVG**, **Mermaid** or **PlantUML**.
+
+#### Compare Snapshots
+Mark two snapshots with checkboxes, click ![diff](img/diff.svg) button to open widget with two comparison areas and supplementary elements:
+
+- **Snapshot Name** - dropdown with snapshot versions, available for given chain. When a comparison window is requested, while only a single snapshot is marked with a checkbox, the system compares it with current state of the chain.
+- Switcher **Graph/Table/Text** - allows to switch between three different comparison views.
+- **![caret-up](img/caret-up.svg) (Previous change)** and **![caret-down](img/caret-down.svg) (Next change)** - navigate to the previous or next detected difference. The corresponding element and its changed property are selected in the comparison areas, and the property details are displayed above the graphs.
+
+Comparison could be done in three different views, that could be switched anytime:
+- **Graph View** - Default view for comparison widget. When this type of view is selected, comparison areas show configuration graphs, compiled on the basis of selected snapshots. Next tools are available:
+  - ![plus](img/plus.svg) ![minus](img/minus.svg) - zoom in /out the graph.
+  - ![expand](img/expand.svg) - fit view.
+  - ![rotate-right](img/rotate-right.svg) - changes graphs orientation from vertical to horizontal and vice versa.
+  - ![arrows-alt](img/arrows-alt.svg) ![shrink](img/shrink.svg) - allows to open widget in full screen and collapse it back.
+
+  Graphs' elements are marked according to the found differences:
+   - **Identical (grey)** - no differences were found in the element or dependency.
+   - **Changed (yellow)** - the element exists in both chain versions, but its properties differ.
+   - **Removed (red)** - the element or dependency does not exist in the compared chain version.
+   - **Created (green)** - a new element or dependency exists in the compared chain version.
+
+Clicking the element in one area makes another area also selecting it, allowing to quickly find comparable elements. Double-clicking the element opens another window with text-based comparator, complied on the basis of the elements' data.
+
+- **Table View** - Select **Table** in the **Graph/Table/Text** switcher to display the comparison results as a table. Each row represents a detected difference. The table contains the following columns:
+
+  - **Type** - type of the changed entity.
+  - **Compared snapshot versions** - two columns named after the compared snapshots. Each column shows the data from the corresponding chain version:
+    - **Element** - element whose configuration differs. Click the element name to open its properties in a new browser window.
+    - **Name** - name of the changed property.
+    - **Value** - property value in the corresponding chain version.
+
+  Select a row using the radio button to focus on a particular difference. Use the **Previous change** and **Next change** arrows to move between the detected differences.
+
+- **Text View** - Mark two snapshots with checkboxes, click ![diff](img/diff.svg) button to open comparison widget and then use **Graph/Table/Text** switcher to change the view option to "**Text**". Compare areas in this view contain text representation of the chains and per line differences, highlighted in next color:
+  - **Red** - properties don't exist in the compared chain version.
+  - **Green** - new properties exist in the compared chain version.
+
+Text view is also accessible via double-clicking the element while working with graph view of comparator.
