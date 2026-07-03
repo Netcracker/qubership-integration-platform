@@ -89,4 +89,64 @@ describe("convertTableFiltersToApi", () => {
       }),
     ).toEqual([]);
   });
+
+  it.each([
+    ["not-contains", "DOES_NOT_CONTAIN", "PARENT_NAME", "parentName"],
+    ["starts-with", "STARTS_WITH", "ENTITY_NAME", "entityName"],
+    ["ends-with", "ENDS_WITH", "INITIATOR", "username"],
+    ["is", "IS", "INITIATOR", "username"],
+  ] as const)(
+    "converts %s text filter on %s column",
+    (condition, apiCondition, apiColumn, tableKey) => {
+      expect(
+        convertTableFiltersToApi({
+          [tableKey]: [JSON.stringify({ condition, value: "test" })],
+        }),
+      ).toEqual([
+        {
+          column: apiColumn,
+          condition: apiCondition,
+          value: "test",
+        },
+      ]);
+    },
+  );
+
+  it.each([
+    ["is-before", "IS_BEFORE", "1000"],
+    ["is-after", "IS_AFTER", "2000"],
+  ] as const)(
+    "converts action time %s filter",
+    (condition, apiCondition, timestamp) => {
+      expect(
+        convertTableFiltersToApi({
+          actionTime: [
+            JSON.stringify({
+              condition,
+              value: [Number(timestamp)],
+            }),
+          ],
+        }),
+      ).toEqual([
+        {
+          column: "ACTION_TIME",
+          condition: apiCondition,
+          value: timestamp,
+        },
+      ]);
+    },
+  );
+
+  it("skips timestamp filters with empty values", () => {
+    expect(
+      convertTableFiltersToApi({
+        actionTime: [
+          JSON.stringify({
+            condition: "is-before",
+            value: [],
+          }),
+        ],
+      }),
+    ).toEqual([]);
+  });
 });

@@ -1,7 +1,7 @@
 import { api } from "../api/api.ts";
 import { ActionLog, ActionLogFilterRequest } from "../api/apiTypes.ts";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useEffect } from "react";
 import { useNotificationService } from "./useNotificationService.tsx";
 
 const PAGE_SIZE = 20;
@@ -27,6 +27,10 @@ export const useActionLog = (
 } => {
   const notificationService = useNotificationService();
   const queryClient = useQueryClient();
+
+   useEffect(() => {
+     void refresh();
+   }, []);
 
   const actionLogsQuery = useInfiniteQuery({
     queryKey: ["actionLogs", filters],
