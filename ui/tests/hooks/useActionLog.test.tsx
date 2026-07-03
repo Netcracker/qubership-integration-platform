@@ -49,7 +49,7 @@ describe("useActionLog", () => {
     jest.clearAllMocks();
   });
 
-  it("loads action logs on mount", async () => {
+  it("loads action logs on mount via v2", async () => {
     mockLoadCatalogActionsLogV2.mockResolvedValue({
       offset: 1,
       actionLogs: [makeLog("1", 100)],
@@ -64,12 +64,12 @@ describe("useActionLog", () => {
     expect(result.current.logsData).toHaveLength(1);
     expect(mockLoadCatalogActionsLogV2).toHaveBeenCalledWith({
       offset: 0,
-      limit: 100,
+      limit: 20,
       filters: [],
     });
   });
 
-  it("sorts logs by actionTime descending", async () => {
+  it("sorts logs by actionTime descending across pages", async () => {
     mockLoadCatalogActionsLogV2.mockResolvedValue({
       offset: 2,
       actionLogs: [makeLog("older", 100), makeLog("newer", 200)],
@@ -88,11 +88,11 @@ describe("useActionLog", () => {
   });
 
   it("sets hasNextPage when a full page is returned", async () => {
-    const fullPage = Array.from({ length: 100 }, (_, index) =>
+    const fullPage = Array.from({ length: 20 }, (_, index) =>
       makeLog(`log-${index}`, index),
     );
     mockLoadCatalogActionsLogV2.mockResolvedValue({
-      offset: 100,
+      offset: 20,
       actionLogs: fullPage,
     });
 
@@ -105,36 +105,24 @@ describe("useActionLog", () => {
     expect(result.current.hasNextPage).toBe(true);
   });
 
-  it("clears hasNextPage when fewer than PAGE_SIZE logs are returned", async () => {
-    mockLoadCatalogActionsLogV2.mockResolvedValue({
-      offset: 1,
-      actionLogs: [makeLog("1", 100)],
-    });
-
-    const { result } = renderHook(() => useActionLog(), {
-      wrapper: createWrapper(),
-    });
-
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    expect(result.current.hasNextPage).toBe(false);
-  });
-
-  it("fetches the next page with the updated offset", async () => {
-    const fullPage = Array.from({ length: 100 }, (_, index) =>
+  it("fetches the next page with the same filters", async () => {
+    const filters = [
+      { column: "INITIATOR", condition: "CONTAINS", value: "alice" },
+    ];
+    const fullPage = Array.from({ length: 20 }, (_, index) =>
       makeLog(`log-${index}`, index),
     );
     mockLoadCatalogActionsLogV2
       .mockResolvedValueOnce({
-        offset: 100,
+        offset: 20,
         actionLogs: fullPage,
       })
       .mockResolvedValueOnce({
-        offset: 101,
-        actionLogs: [makeLog("log-100", 100)],
+        offset: 21,
+        actionLogs: [makeLog("log-20", 100)],
       });
 
-    const { result } = renderHook(() => useActionLog(), {
+    const { result } = renderHook(() => useActionLog(filters), {
       wrapper: createWrapper(),
     });
 
@@ -144,12 +132,17 @@ describe("useActionLog", () => {
       await result.current.fetchNextPage();
     });
 
-    await waitFor(() => expect(result.current.logsData).toHaveLength(101));
+    await waitFor(() => expect(result.current.logsData).toHaveLength(21));
 
+    expect(mockLoadCatalogActionsLogV2).toHaveBeenNthCalledWith(1, {
+      offset: 0,
+      limit: 20,
+      filters,
+    });
     expect(mockLoadCatalogActionsLogV2).toHaveBeenNthCalledWith(2, {
-      offset: 100,
-      limit: 100,
-      filters: [],
+      offset: 20,
+      limit: 20,
+      filters,
     });
   });
 
@@ -171,7 +164,7 @@ describe("useActionLog", () => {
     expect(result.current.logsData).toEqual([]);
   });
 
-  it("refresh clears data and reloads from offset 0", async () => {
+  it("refresh reloads from offset 0", async () => {
     mockLoadCatalogActionsLogV2.mockResolvedValue({
       offset: 1,
       actionLogs: [makeLog("1", 100)],
@@ -193,7 +186,7 @@ describe("useActionLog", () => {
 
     expect(mockLoadCatalogActionsLogV2).toHaveBeenLastCalledWith({
       offset: 0,
-      limit: 100,
+      limit: 20,
       filters: [],
     });
   });

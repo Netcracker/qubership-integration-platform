@@ -1,4 +1,9 @@
-import { ActionLog, EntityType, LogOperation } from "../../api/apiTypes.ts";
+import {
+  ActionLog,
+  ActionLogFilterRequest,
+  EntityType,
+  LogOperation,
+} from "../../api/apiTypes.ts";
 import {
   Badge,
   Button,
@@ -17,15 +22,12 @@ import {
 } from "../../misc/format-utils.ts";
 import DateRangePicker from "../modal/DateRangePicker.tsx";
 import { exportActionsLogAsExcel } from "../../misc/log-export-utils.ts";
-import type { FilterDropdownProps } from "antd/lib/table/interface";
-import {
-  getTextColumnFilterFn,
-  TextColumnFilterDropdown,
-} from "../table/TextColumnFilterDropdown.tsx";
-import {
-  getTimestampColumnFilterFn,
-  TimestampColumnFilterDropdown,
-} from "../table/TimestampColumnFilterDropdown.tsx";
+import type {
+  FilterDropdownProps,
+  FilterValue,
+} from "antd/lib/table/interface";
+import { TextColumnFilterDropdown } from "../table/TextColumnFilterDropdown.tsx";
+import { TimestampColumnFilterDropdown } from "../table/TimestampColumnFilterDropdown.tsx";
 import { makeEnumColumnFilterDropdown } from "../EnumColumnFilterDropdown.tsx";
 import { useResizeHeight } from "../../hooks/useResizeHeigth.tsx";
 import commonStyles from "./CommonStyle.module.css";
@@ -41,8 +43,32 @@ import {
   useTableColumnResize,
 } from "../table/useTableColumnResize.tsx";
 import { matchesByFields } from "../table/tableSearch.ts";
+import { convertTableFiltersToApi } from "../../misc/action-log-filter-utils.ts";
 import { TableToolbar } from "../table/TableToolbar.tsx";
 import { AdminToolsHeader } from "./AdminToolsHeader.tsx";
+
+const TextFilterDropdown: React.FC<FilterDropdownProps> = (props) => (
+  <TextColumnFilterDropdown {...props} />
+);
+const TimestampFilterDropdown: React.FC<FilterDropdownProps> = (props) => (
+  <TimestampColumnFilterDropdown {...props} />
+);
+
+const operationFilterOptions = Object.values(LogOperation).map((value) => ({
+  label: formatSnakeCased(capitalize(value)),
+  value,
+}));
+
+const entityTypeFilterOptions = Object.values(EntityType).map((value) => ({
+  label: formatSnakeCased(capitalize(value)),
+  value,
+}));
+
+const { filterDropdown: OPERATION_FILTER_DROPDOWN } =
+  makeEnumColumnFilterDropdown(operationFilterOptions, "operation", true);
+
+const { filterDropdown: ENTITY_TYPE_FILTER_DROPDOWN } =
+  makeEnumColumnFilterDropdown(entityTypeFilterOptions, "entityType", true);
 
 export enum OperationType {
   READ = "read",
@@ -164,6 +190,7 @@ function actionLogMatchesSearch(log: ActionLog, term: string): boolean {
 }
 
 export const ActionsLog: React.FC = () => {
+  const [apiFilters, setApiFilters] = useState<ActionLogFilterRequest[]>([]);
   const {
     logsData,
     fetchNextPage,
@@ -171,7 +198,7 @@ export const ActionsLog: React.FC = () => {
     isFetching,
     isLoading,
     refresh,
-  } = useActionLog();
+  } = useActionLog(apiFilters);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentActionLog, setCurrentActionLog] = useState<ActionLog | null>(
     null,
@@ -197,6 +224,13 @@ export const ActionsLog: React.FC = () => {
     }
   };
 
+  const handleTableChange = (
+    _pagination: unknown,
+    tableFilters: Record<string, FilterValue | null>,
+  ) => {
+    setApiFilters(convertTableFiltersToApi(tableFilters));
+  };
+
   const [containerRef, containerHeight] = useResizeHeight<HTMLElement>();
 
   const actionLogColumnResize = useTableColumnResize({
@@ -211,25 +245,7 @@ export const ActionsLog: React.FC = () => {
     requestId: 200,
   });
 
-  const operationOptions = Object.values(LogOperation).map((value) => ({
-    label: formatSnakeCased(capitalize(value)),
-    value,
-  }));
-
-  const entityTypeOptions = Object.values(EntityType).map((value) => ({
-    label: formatSnakeCased(capitalize(value)),
-    value,
-  }));
-
-  const { filterDropdown: operationFilter, onFilter: operationOnFilter } =
-    makeEnumColumnFilterDropdown(operationOptions, "operation", true);
-
-  const { filterDropdown: entityTypeFilter, onFilter: entityTypeOnFilter } =
-    makeEnumColumnFilterDropdown(entityTypeOptions, "entityType", true);
-
   const [openSidebar, setOpenSidebar] = useState(false);
-
-  const observerRef = useRef<HTMLDivElement | null>(null);
 
   const getTrimmedValue = (value: string, columnWidth: number): string => {
     const maxVisibleChars = Math.floor(columnWidth / 10);
@@ -240,166 +256,6 @@ export const ActionsLog: React.FC = () => {
       : firstLine;
   };
 
-  const columns: ColumnsTypeWithSettings<ActionLog> = [
-    {
-      title: "Action Time",
-      key: "actionTime",
-      dataIndex: "actionTime",
-      settings: {
-        visibilityLocked: true,
-        orderLocked: true,
-      },
-      width: actionLogColumnResize.columnWidths.actionTime,
-      sorter: (a: ActionLog, b: ActionLog) => b.actionTime - a.actionTime,
-      filterDropdown: (props: FilterDropdownProps) => (
-        <TimestampColumnFilterDropdown {...props} />
-      ),
-      onFilter: getTimestampColumnFilterFn((log) => log.actionTime),
-      render: (_, actionLog) => <>{formatTimestamp(actionLog.actionTime)}</>,
-    },
-    {
-      title: "Initiator",
-      key: "username",
-      dataIndex: "username",
-      width: actionLogColumnResize.columnWidths.username,
-      filterDropdown: (props: FilterDropdownProps) => (
-        <TextColumnFilterDropdown {...props} />
-      ),
-      onFilter: getTextColumnFilterFn((log) =>
-        log?.username ? log?.username : "",
-      ),
-    },
-    {
-      title: "Operation",
-      key: "operation",
-      dataIndex: "operation",
-      width: actionLogColumnResize.columnWidths.operation,
-      filterDropdown: operationFilter,
-      onFilter: operationOnFilter,
-      render: (_, actionLog) => (
-        <>
-          <Badge
-            color={OperationTypeColour[OperationTypeMap[actionLog.operation]]}
-            style={{ marginRight: 10 }}
-          />
-          {formatSnakeCased(capitalize(actionLog.operation))}
-        </>
-      ),
-    },
-    {
-      title: "Entity Type",
-      key: "entityType",
-      dataIndex: "entityType",
-      width: actionLogColumnResize.columnWidths.entityType,
-      filterDropdown: entityTypeFilter,
-      onFilter: entityTypeOnFilter,
-      render: (_, actionLog) => (
-        <>
-          {getIconByEntityType(actionLog.entityType)}
-          {formatSnakeCased(capitalize(actionLog.entityType))}
-        </>
-      ),
-    },
-    {
-      title: "Entity Name",
-      key: "entityName",
-      dataIndex: "entityName",
-      width: actionLogColumnResize.columnWidths.entityName,
-      filterDropdown: (props: FilterDropdownProps) => (
-        <TextColumnFilterDropdown {...props} />
-      ),
-      onFilter: getTextColumnFilterFn((log) =>
-        log?.entityName ? log.entityName : "",
-      ),
-      render: (_, actionLog) =>
-        renderEntityLink(
-          actionLog,
-          actionLogColumnResize.columnWidths.entityName,
-        ),
-    },
-    {
-      title: "Parent Name",
-      key: "parentName",
-      dataIndex: "parentName",
-      width: actionLogColumnResize.columnWidths.parentName,
-      filterDropdown: (props: FilterDropdownProps) => (
-        <TextColumnFilterDropdown {...props} />
-      ),
-      onFilter: getTextColumnFilterFn((log) =>
-        log?.parentName ? log.parentName : "",
-      ),
-      render: (_, actionLog) =>
-        renderParentLink(
-          actionLog,
-          actionLogColumnResize.columnWidths.parentName,
-        ),
-    },
-    {
-      title: "ID",
-      dataIndex: "id",
-      hidden: true,
-    },
-    {
-      title: "Entity Id",
-      key: "entityId",
-      dataIndex: "entityId",
-      width: actionLogColumnResize.columnWidths.entityId,
-      hidden: true,
-    },
-    {
-      title: "Parent Id",
-      key: "parentId",
-      dataIndex: "parentId",
-      width: actionLogColumnResize.columnWidths.parentId,
-      hidden: true,
-    },
-    {
-      title: "Request Id",
-      key: "requestId",
-      dataIndex: "requestId",
-      width: actionLogColumnResize.columnWidths.requestId,
-      hidden: true,
-    },
-  ];
-
-  const { orderedColumns, columnSettingsButton } =
-    useColumnSettingsBasedOnColumnsType<ActionLog>("actionsLogTable", columns);
-  const orderedColumnsResized = useMemo(
-    () =>
-      attachResizeToColumns(
-        orderedColumns,
-        actionLogColumnResize.columnWidths,
-        actionLogColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
-      orderedColumns,
-      actionLogColumnResize.columnWidths,
-      actionLogColumnResize.createResizeHandlers,
-    ],
-  );
-
-  // Sum only the visible columns: hidden ones must not inflate scroll.x, or antd
-  // stretches the visible columns to fill the phantom width and overflows.
-  const actionLogScrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        orderedColumnsResized,
-        actionLogColumnResize.columnWidths,
-      ),
-    [orderedColumnsResized, actionLogColumnResize.columnWidths],
-  );
-
-  const showDrawer = (actionLog: ActionLog) => {
-    setCurrentActionLog(actionLog);
-    setOpenSidebar(true);
-  };
-
-  const onClose = () => {
-    setOpenSidebar(false);
-    setCurrentActionLog(null);
-  };
-
   const getEntityLink = (
     entityType?: EntityType,
     entityId?: string,
@@ -408,28 +264,6 @@ export const ActionsLog: React.FC = () => {
   ): string => {
     const resolver = entityType ? entityLinkMap[entityType] : undefined;
     return resolver ? resolver(entityId, parentId, entityName) : "/chains";
-  };
-
-  const renderEntityLink = (actionLog: ActionLog, columnWith?: number) => {
-    return renderLink(
-      actionLog.actionTime,
-      actionLog.entityType,
-      actionLog.entityId,
-      actionLog.parentId,
-      actionLog.entityName,
-      columnWith,
-    );
-  };
-
-  const renderParentLink = (actionLog: ActionLog, columnWith?: number) => {
-    return renderLink(
-      actionLog.actionTime,
-      actionLog.parentType,
-      actionLog.parentId,
-      undefined,
-      actionLog.parentName,
-      columnWith,
-    );
   };
 
   const renderLink = (
@@ -475,6 +309,28 @@ export const ActionsLog: React.FC = () => {
     return displayedName ? link : "—";
   };
 
+  const renderEntityLink = (actionLog: ActionLog, columnWith?: number) => {
+    return renderLink(
+      actionLog.actionTime,
+      actionLog.entityType,
+      actionLog.entityId,
+      actionLog.parentId,
+      actionLog.entityName,
+      columnWith,
+    );
+  };
+
+  const renderParentLink = (actionLog: ActionLog, columnWith?: number) => {
+    return renderLink(
+      actionLog.actionTime,
+      actionLog.parentType,
+      actionLog.parentId,
+      undefined,
+      actionLog.parentName,
+      columnWith,
+    );
+  };
+
   const getIconByEntityType = (type: EntityType): React.ReactNode => {
     const icon = EntityTypeIconsMap[type] ?? (
       <OverridableIcon name="question" />
@@ -482,6 +338,149 @@ export const ActionsLog: React.FC = () => {
     return React.cloneElement(icon as React.ReactElement, {
       style: { marginRight: 10 },
     });
+  };
+
+  const columns: ColumnsTypeWithSettings<ActionLog> = useMemo(
+    () => [
+      {
+        title: "Action Time",
+        key: "actionTime",
+        dataIndex: "actionTime",
+        settings: {
+          visibilityLocked: true,
+          orderLocked: true,
+        },
+        width: actionLogColumnResize.columnWidths.actionTime,
+        sorter: (a: ActionLog, b: ActionLog) => b.actionTime - a.actionTime,
+        filterDropdown: TimestampFilterDropdown,
+        render: (_, actionLog) => <>{formatTimestamp(actionLog.actionTime)}</>,
+      },
+      {
+        title: "Initiator",
+        key: "username",
+        dataIndex: "username",
+        width: actionLogColumnResize.columnWidths.username,
+        filterDropdown: TextFilterDropdown,
+      },
+      {
+        title: "Operation",
+        key: "operation",
+        dataIndex: "operation",
+        width: actionLogColumnResize.columnWidths.operation,
+        filterDropdown: OPERATION_FILTER_DROPDOWN,
+        render: (_, actionLog) => (
+          <>
+            <Badge
+              color={OperationTypeColour[OperationTypeMap[actionLog.operation]]}
+              style={{ marginRight: 10 }}
+            />
+            {formatSnakeCased(capitalize(actionLog.operation))}
+          </>
+        ),
+      },
+      {
+        title: "Entity Type",
+        key: "entityType",
+        dataIndex: "entityType",
+        width: actionLogColumnResize.columnWidths.entityType,
+        filterDropdown: ENTITY_TYPE_FILTER_DROPDOWN,
+        render: (_, actionLog) => (
+          <>
+            {getIconByEntityType(actionLog.entityType)}
+            {formatSnakeCased(capitalize(actionLog.entityType))}
+          </>
+        ),
+      },
+      {
+        title: "Entity Name",
+        key: "entityName",
+        dataIndex: "entityName",
+        width: actionLogColumnResize.columnWidths.entityName,
+        filterDropdown: TextFilterDropdown,
+        render: (_, actionLog) =>
+          renderEntityLink(
+            actionLog,
+            actionLogColumnResize.columnWidths.entityName,
+          ),
+      },
+      {
+        title: "Parent Name",
+        key: "parentName",
+        dataIndex: "parentName",
+        width: actionLogColumnResize.columnWidths.parentName,
+        filterDropdown: TextFilterDropdown,
+        render: (_, actionLog) =>
+          renderParentLink(
+            actionLog,
+            actionLogColumnResize.columnWidths.parentName,
+          ),
+      },
+      {
+        title: "ID",
+        dataIndex: "id",
+        hidden: true,
+      },
+      {
+        title: "Entity Id",
+        key: "entityId",
+        dataIndex: "entityId",
+        width: actionLogColumnResize.columnWidths.entityId,
+        hidden: true,
+      },
+      {
+        title: "Parent Id",
+        key: "parentId",
+        dataIndex: "parentId",
+        width: actionLogColumnResize.columnWidths.parentId,
+        hidden: true,
+      },
+      {
+        title: "Request Id",
+        key: "requestId",
+        dataIndex: "requestId",
+        width: actionLogColumnResize.columnWidths.requestId,
+        hidden: true,
+      },
+    ],
+    [actionLogColumnResize.columnWidths, logsData],
+  );
+
+  const { orderedColumns, columnSettingsButton } =
+    useColumnSettingsBasedOnColumnsType<ActionLog>("actionsLogTable", columns);
+  const orderedColumnsResized = useMemo(
+    () =>
+      attachResizeToColumns(
+        orderedColumns,
+        actionLogColumnResize.columnWidths,
+        actionLogColumnResize.createResizeHandlers,
+        { minWidth: 80 },
+      ),
+    [
+      orderedColumns,
+      actionLogColumnResize.columnWidths,
+      actionLogColumnResize.createResizeHandlers,
+    ],
+  );
+
+  // Sum only the visible columns: hidden ones must not inflate scroll.x, or antd
+  // stretches the visible columns to fill the phantom width and overflows.
+  const actionLogScrollX = useMemo(
+    () =>
+      sumScrollXForColumns(
+        orderedColumnsResized,
+        actionLogColumnResize.columnWidths,
+      ),
+    [orderedColumnsResized, actionLogColumnResize.columnWidths],
+  );
+
+  const showDrawer = (actionLog: ActionLog) => {
+    setCurrentActionLog(actionLog);
+    setOpenSidebar(true);
+  };
+
+  const onClose = () => {
+    setOpenSidebar(false);
+    setCurrentActionLog(null);
   };
 
   const exportActionLogs = async (from: Date, to: Date) => {
@@ -611,6 +610,7 @@ export const ActionsLog: React.FC = () => {
               pagination={false}
               rowKey="id"
               loading={isFetching}
+              onChange={handleTableChange}
               onScroll={(event) => void onScroll(event)}
               components={actionLogColumnResize.resizableHeaderComponents}
               onRow={(row) => {
@@ -621,7 +621,6 @@ export const ActionsLog: React.FC = () => {
                 };
               }}
             />
-            <div ref={observerRef} style={{ height: 1 }} />
           </div>
         </Flex>
       </Flex>
