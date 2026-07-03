@@ -19,7 +19,7 @@
         <maven.compiler.target>21</maven.compiler.target>
 
         <revision>0.1.17</revision>
-        <catalog-library.revision>0.1.15</catalog-library.revision>
+        <catalog-library.revision>0.1.17</catalog-library.revision>
 
         <!-- 3rd party dependencies -->
 
@@ -262,6 +262,37 @@
 
     <build>
         <plugins>
+            <!-- Inline the internal, unpublished catalog-library into this artifact so
+                 downstream consumers get its classes and a self-contained POM (the
+                 qip-catalog-library dependency is stripped, its transitives promoted). -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.6.0</version>
+                <executions>
+                    <execution>
+                        <!-- Explicit id: without one this merges with spring-boot-starter-parent's
+                             own unnamed shade execution (both default to id "default"), silently
+                             inheriting its Spring Boot transformers/filters. -->
+                        <id>shade-catalog-library</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>true</createDependencyReducedPom>
+                            <promoteTransitiveDependencies>true</promoteTransitiveDependencies>
+                            <shadedArtifactAttached>false</shadedArtifactAttached>
+                            <artifactSet>
+                                <includes>
+                                    <include>org.qubership.integration.platform:qip-catalog-library</include>
+                                </includes>
+                            </artifactSet>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
@@ -282,6 +313,13 @@
                         <id>repackage</id>
                         <configuration>
                             <classifier>exec</classifier>
+                            <!-- Already inlined into the main jar by shade; exclude from BOOT-INF/lib to avoid duplication. -->
+                            <excludes>
+                                <exclude>
+                                    <groupId>org.qubership.integration.platform</groupId>
+                                    <artifactId>qip-catalog-library</artifactId>
+                                </exclude>
+                            </excludes>
                         </configuration>
                     </execution>
                 </executions>

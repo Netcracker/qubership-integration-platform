@@ -27,6 +27,15 @@ on:
           Enable for modules with private GitHub Packages deps (micro-engine):
           the OWNER/* wildcard repo intermittently fails under load, and Maven
           negative-caches the miss across runs (cache: maven). -U defeats that.
+      preinstall-catalog-library:
+        required: false
+        type: boolean
+        default: false
+        description: >-
+          Install the internal, unpublished catalog-library into the local .m2
+          before building. Required for consumers (runtime-catalog,
+          designtime-catalog) that shade it in: the isolated module build can't
+          resolve it from a repository because it is never published.
     secrets:
       SONAR_TOKEN:
         required: false
@@ -64,6 +73,17 @@ jobs:
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
           cache: "maven"
+
+      - name: Pre-install internal catalog-library into .m2
+        if: ${{ inputs.preinstall-catalog-library == true }}
+        run: |
+          set -eu
+          # Never published; consumers shade it in, so the isolated build below
+          # can only resolve it from .m2. checkstyle.skip only skips the check
+          # itself (its qip-checkstyle plugin dependency still resolves, but
+          # from public Central, so no repo credentials are needed here).
+          mvn --batch-mode -f catalog-library/pom.xml install \
+            -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
 
       - name: Build and verify (no publish)
         working-directory: ${{ inputs.module }}
@@ -129,6 +149,15 @@ jobs:
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
           cache: "maven"
+
+      - name: Pre-install internal catalog-library into .m2
+        if: ${{ inputs.preinstall-catalog-library == true }}
+        run: |
+          set -eu
+          # The Sonar scan builds the project model, which resolves the
+          # (never-published) catalog-library dependency from .m2.
+          mvn --batch-mode -f catalog-library/pom.xml install \
+            -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
 
       - name: Download Sonar inputs
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0

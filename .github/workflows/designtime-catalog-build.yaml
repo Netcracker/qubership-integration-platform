@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'designtime-catalog/**'
+      - 'catalog-library/**'
 
 permissions:
   contents: read
@@ -18,6 +19,24 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      # designtime-catalog shades in the never-published catalog-library, so the
+      # `-pl designtime-catalog` build below can only resolve it from .m2. The
+      # scan reuses the same runner .m2, so this install stays effective. No
+      # repo creds needed: its checkstyle plugin dependency (qip-checkstyle) is
+      # on public Central, and checkstyle.skip only skips the check itself.
+      - name: Set up Java
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Pre-install internal catalog-library into .m2
+        run: |
+          set -eu
+          mvn --batch-mode -f catalog-library/pom.xml install \
+            -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
 
       - name: Code quality/security scan on SonarQube
         uses: netcracker/qubership-workflow-hub/actions/maven-snapshot-deploy@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
