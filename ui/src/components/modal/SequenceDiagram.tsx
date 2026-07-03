@@ -22,7 +22,7 @@ import {
   ElementsSequenceDiagrams,
 } from "../../api/apiTypes.ts";
 import { downloadFile } from "../../misc/download-utils.ts";
-import { MenuInfo } from "rc-menu/lib/interface";
+import type { MenuInfo } from "../../types/antd.ts";
 import mermaid from "mermaid";
 import styles from "./SequenceDiagram.module.css";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
@@ -198,7 +198,6 @@ export const SequenceDiagram: React.FC<SequenceDiagramProps> = ({
   return (
     <ModalWithFullscreenToggle
       title={title ?? "Sequence Diagram"}
-      centered
       open={true}
       onCancel={closeContainingModal}
       footer={

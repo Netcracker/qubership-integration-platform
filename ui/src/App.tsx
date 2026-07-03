@@ -16,11 +16,11 @@ import "./styles/theme-variables.css";
 import "./index.css";
 import "./styles/reactflow-theme.css";
 import { Modals } from "./Modals.tsx";
+import { AntdAppBridge } from "./misc/antd-app.ts";
 import { Snapshots } from "./pages/Snapshots.tsx";
 import { Deployments } from "./pages/Deployments.tsx";
 import { ChainGraph } from "./pages/ChainGraph.tsx";
 import { NotFound } from "./pages/NotFound.tsx";
-import { Content } from "antd/es/layout/layout";
 import { LoggingSettings } from "./pages/LoggingSettings.tsx";
 import { Sessions } from "./pages/Sessions.tsx";
 import { SessionPage } from "./pages/SessionPage.tsx";
@@ -68,7 +68,7 @@ import {
 } from "./pages/ChainFullscreenContext.tsx";
 import { McpServiceParametersPage } from "./components/services/mcp/McpServiceParametersPage.tsx";
 
-const { Header } = Layout;
+const { Header, Content } = Layout;
 
 const RootLayout = () => {
   return (
@@ -81,7 +81,8 @@ const RootLayout = () => {
 const RootLayoutInner = () => {
   const fullscreenCtx = useChainFullscreenContext();
   return (
-    <Layout className={styles.layout}>
+    // hasSider={false}: keep the root a column; a nested Sider would otherwise flip it to a row.
+    <Layout className={styles.layout} hasSider={false}>
       {!fullscreenCtx?.fullscreen && (
         <Header className={styles.header}>
           <Navigation />
@@ -291,6 +292,7 @@ const App = () => {
     <ConfigProvider theme={antdConfig}>
       <UserPermissionsProvider>
         <AntdApp>
+          <AntdAppBridge />
           <IconProvider>
             <ThemeContext.Provider value={themeContextValue}>
               <EventNotification>

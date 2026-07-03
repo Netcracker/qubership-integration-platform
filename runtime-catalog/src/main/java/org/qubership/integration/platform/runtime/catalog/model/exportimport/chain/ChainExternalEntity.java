@@ -21,6 +21,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.MetaInfoExternalEntity;
 
 import java.net.URI;
 
@@ -30,11 +31,12 @@ import java.net.URI;
 @Jacksonized
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonPropertyOrder({ "id", "schema", "name", "content" })
+@JsonPropertyOrder({ "id", "schema", "name", "metaInfo", "content" })
 public class ChainExternalEntity {
     @JsonProperty(value = "$schema", index = 0)
     private URI schema;
     private String id;
     private String name;
+    private MetaInfoExternalEntity metaInfo;
     ChainExternalContentEntity content;
 }

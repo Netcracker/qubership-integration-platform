@@ -120,5 +120,28 @@ describe("exportImagesHandler", () => {
         targets,
       });
     });
+
+    test("uses svg image format when configured", () => {
+      const targets = [
+        { chainId: "chain-1", filePath: "/a.yaml", outputName: "chain-1" },
+      ];
+      const fileUri = Uri.file("/workspace/chain-1.chain.qip.yaml");
+
+      expect(
+        buildExportImagesStartupPayload(
+          fileUri,
+          { outputDir: "/tmp/export", imageFormat: "svg" },
+          targets,
+        ),
+      ).toEqual({
+        filePath: fileUri.toString(),
+        exportConfig: {
+          outputDir: "/tmp/export",
+          imageFormat: "svg",
+          targets,
+        },
+        targets,
+      });
+    });
   });
 });

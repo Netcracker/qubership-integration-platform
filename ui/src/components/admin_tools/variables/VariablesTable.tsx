@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from "react";
 import { Table, Input, Button, Popconfirm, TableProps } from "antd";
-import type { InputRef } from "antd";
+import type { GetRef, InputRef } from "antd";
 import "./Resizable.css";
 import { NEW_VARIABLE_KEY } from "./useVariablesState";
 import styles from "./VariablesTable.module.css";
@@ -69,7 +69,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
   loading,
 }) => {
   const newKeyInputRef = useRef<InputRef>(null);
-  const newValueInputRef = useRef<HTMLTextAreaElement>(null);
+  const newValueInputRef = useRef<GetRef<typeof Input.TextArea>>(null);
 
   const newRecord = useRef<{ key: string; value: string }>({
     key: "",

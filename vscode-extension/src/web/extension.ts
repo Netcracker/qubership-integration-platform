@@ -10,7 +10,7 @@ import {
   Webview,
   WebviewPanel,
 } from "vscode";
-import { CHAIN_DIFF_PATH, getApiResponse, listChainExportTargets, schemaToChain } from "./response";
+import { CHAIN_DIFF_PATH, getApiResponse, listChainExportTargets } from "./response";
 import {
   setPendingExportImagesRequest,
   startExportImagesProgress,
@@ -40,13 +40,13 @@ import {
   initNavigationState,
   updateNavigationStateValue,
 } from "./response/navigationUtils";
-import { ContentParser } from "./api-services";
-import { Chain } from "@netcracker/qip-ui";
 import {
   buildExportImagesStartupPayload,
   getExportTargetFromFilePath,
   resolveExportPaths,
 } from "./exportImagesHandler";
+import {registerChainDiffMessageHandlers} from "./chainDiffEditor";
+import {openDocumentInEditor} from "./editorViewTypes";
 
 type VSCodeMessageWrapper = {
   command: string;
@@ -331,54 +331,12 @@ class ChainFileEditorProvider extends BaseFileEditorProvider {
         enableCommandUris: true,
       };
 
-      panel.webview.onDidReceiveMessage(
-        async (message: VSCodeMessageWrapper) => {
-          if (message.data.type === "comparedDocumentsRequest") {
-            const getDocument = async (d: vscode.TextDocument) => {
-              return schemaToChain(
-                d.uri,
-                ContentParser.parseContent(d.getText()),
-              );
-            };
-            const response: VSCodeResponse<{
-              original: Chain;
-              modified: Chain;
-            }> = {
-              requestId: message.data.requestId,
-              type: "comparedDocumentsResponse",
-              payload: {
-                original: await getDocument(documents.original),
-                modified: await getDocument(documents.modified),
-              },
-            };
-            panel.webview.postMessage(response);
-          } else if (message.data.type === "navigateComparedDocumentInNewTab") {
-            const { type, path } = message.data.payload;
-            const uri =
-              type === "left" ? documents.original.uri : documents.modified.uri;
-
-            try {
-              const documentUri =
-                uri.scheme === "git"
-                  ? uri
-                  : await getApiResponse(
-                      {
-                        type: "navigateInNewTab",
-                        requestId: crypto.randomUUID(),
-                        payload: path,
-                      },
-                      uri,
-                      this.context,
-                    );
-              await updateNavigationStateValue(this.context, documentUri, path);
-              await openDocumentInEditor(documentUri);
-              return;
-            } catch (e) {
-              console.error("Failed to fetch data for QIP Extension API", e);
-            }
-          }
-        },
-      );
+      const diffListener = registerChainDiffMessageHandlers({
+        context: this.context,
+        panel,
+        documents,
+      });
+      panel.onDidDispose(() => diffListener.dispose());
 
       await enrichWebview(panel, this.context, Uri.parse(CHAIN_DIFF_PATH));
     } catch (error) {
@@ -531,30 +489,6 @@ async function enrichWebview(
     }
     panel.webview.postMessage(response);
   });
-}
-
-function getEditorByExtension(uri: Uri): string {
-  const fileExtensions = getExtensionsForUri();
-  let editor = undefined;
-  if (uri.path.endsWith(fileExtensions.chain)) {
-    editor = "qip.chainFile.editor";
-  } else if (uri.path.endsWith(fileExtensions.service)) {
-    editor = "qip.serviceFile.editor";
-  } else if (uri.path.endsWith(fileExtensions.contextService)) {
-    editor = "qip.contextServiceFile.editor";
-  } else if (uri.path.endsWith(fileExtensions.mcpService)) {
-    editor = "qip.mcpServiceFile.editor";
-  }
-
-  if (!editor) {
-    throw new Error(`Unable to find an editor for document: ${uri}`);
-  }
-  return editor;
-}
-
-async function openDocumentInEditor(uri: Uri) {
-  const editor = getEditorByExtension(uri);
-  await vscode.commands.executeCommand("vscode.openWith", uri, editor);
 }
 
 async function deleteServiceWithRelatedFiles(

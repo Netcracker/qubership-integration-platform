@@ -2,7 +2,13 @@
  * @jest-environment jsdom
  */
 
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { DataTypes } from "../../../src/mapper/util/types.ts";
 import type { Constant } from "../../../src/mapper/model/model.ts";
@@ -34,7 +40,6 @@ jest.mock(
 );
 
 jest.mock("antd", () =>
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return -- jest.mock hoisting
   require("tests/helpers/antdMockWithLightweightTable").antdMockWithLightweightTable(),
 );
 
@@ -46,6 +51,17 @@ function givenConstant(
     valueSupplier: { kind: "given", value: overrides.name },
     ...overrides,
   };
+}
+
+// Antd v6 mirrors form fields on a macro task. Flush a few macro-task rounds
+// (each followed by React's effect flush) so the result is observed
+// deterministically, instead of racing a waitFor wall-clock timeout.
+async function settleForm(): Promise<void> {
+  for (let i = 0; i < 3; i++) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
 }
 
 describe("EditConstantDialog", () => {
@@ -70,10 +86,9 @@ describe("EditConstantDialog", () => {
     const nameInput = screen.getByLabelText("Name");
     fireEvent.change(nameInput, { target: { value: "abc" } });
 
-    await waitFor(() => {
-      const valueInput = screen.getAllByRole("textbox")[1];
-      expect(valueInput).toHaveValue("abc");
-    });
+    await settleForm();
+    const valueInput = screen.getAllByRole("textbox")[1];
+    expect(valueInput).toHaveValue("abc");
   });
 
   test("after value diverges from name, changing name does not overwrite value", async () => {
@@ -95,9 +110,8 @@ describe("EditConstantDialog", () => {
     fireEvent.change(valueInput, { target: { value: "manual-value" } });
     fireEvent.change(nameInput, { target: { value: "renamed" } });
 
-    await waitFor(() => {
-      expect(valueInput).toHaveValue("manual-value");
-    });
+    await settleForm();
+    expect(valueInput).toHaveValue("manual-value");
   });
 
   test("clearing value when name is non-empty does not refill value from name", async () => {
@@ -117,9 +131,8 @@ describe("EditConstantDialog", () => {
     const valueInput = screen.getAllByRole("textbox")[1];
     fireEvent.change(valueInput, { target: { value: "" } });
 
-    await waitFor(() => {
-      expect(valueInput).toHaveValue("");
-    });
+    await settleForm();
+    expect(valueInput).toHaveValue("");
   });
 
   test("Generated toggles generator UI and submit sends generated supplier", async () => {

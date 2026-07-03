@@ -12,7 +12,7 @@ import {
   ActionConfig,
 } from "../ServicesTreeTable";
 import { getActionsColumn } from "../ServicesTreeTable";
-import { message } from "antd";
+import { message } from "../../../misc/antd-app.ts";
 import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 import { downloadFile } from "../../../misc/download-utils";
 import { invalidateServiceCache, prepareFile } from "../utils.tsx";
@@ -731,7 +731,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
     if (!setToolbar) return;
     if (!isApiSpecsActive) {
       toolbarSignatureRef.current = "";
-      setToolbar(null);
+      setToolbar("api-specs", null);
       return;
     }
 
@@ -750,6 +750,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
 
     toolbarSignatureRef.current = signature;
     setToolbar(
+      "api-specs",
       <Flex align="center" gap={8} style={{ flexWrap: "wrap" }}>
         {toolbarContent}
       </Flex>,
@@ -770,7 +771,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
     return () => {
       if (!setToolbar) return;
       toolbarSignatureRef.current = "";
-      setToolbar(null);
+      setToolbar("api-specs", null);
     };
   }, [setToolbar]);
 

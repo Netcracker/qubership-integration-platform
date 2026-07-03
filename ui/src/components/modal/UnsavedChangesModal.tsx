@@ -44,10 +44,11 @@ export const UnsavedChangesModal: React.FC<UnsavedChangesModalProps> = (
         </Button>,
         <Button key="keep" danger onClick={handleCancelQuestion}>
           No
-        </Button>
+        </Button>,
       ]}
     >
-      You have made changes, that haven&#39;t been saved. Are you sure you want to leave the window and discard the changes?
+      You have made changes, that haven&#39;t been saved. Are you sure you want
+      to leave the window and discard the changes?
     </Modal>
   );
 };

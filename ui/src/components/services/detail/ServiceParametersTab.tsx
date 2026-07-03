@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Form, Input, Button, Select, Descriptions, Spin } from "antd";
+import { Form, Input, Button, Select, Descriptions, Skeleton } from "antd";
 import {
   IntegrationSystem,
   IntegrationSystemType,
@@ -45,7 +45,7 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
   const { setToolbar } = useServiceParametersToolbar() ?? {};
   const [form] = Form.useForm();
   const { technicalLabels, userLabels, setUserLabels, onSetLabelsAndForm } =
-      useLabelsForm(form);
+    useLabelsForm(form);
   const [system, setSystem] = useState<IntegrationSystem | null>(null);
   const { hasChanges, setHasChanges } = useUnsavedChangesWithModal({
     system,
@@ -142,17 +142,22 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
           }}
         />
       ) : null;
-    setToolbar(toolbar);
-    return () => setToolbar(null);
+    setToolbar("parameters", toolbar);
+    return () => setToolbar("parameters", null);
   }, [setToolbar, activeTab, system, systemId, notificationService]);
 
-  if (loadingSystem) return <Spin style={{ margin: 32 }} />;
+  if (loadingSystem)
+    return (
+      <div style={{ margin: 32 }}>
+        <Skeleton active />
+      </div>
+    );
   if (loadError)
     return <div style={{ color: "red", margin: 32 }}>{loadError}</div>;
   if (!system) return null;
 
   return (
-    <div style={{ paddingLeft: sidePadding, maxWidth: 900 }}>
+    <div style={{ paddingLeft: sidePadding, maxWidth: 900, width: "100%" }}>
       <Form
         form={form}
         layout="vertical"
@@ -172,7 +177,7 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
         <Descriptions column={1} size="small" style={{ marginBottom: 16 }}>
           <Descriptions.Item label="Protocol">
             {system.protocol ? (
-              <SourceFlagTag source={system.protocol} toUpperCase={true} />
+              <SourceFlagTag source={system.protocol} kind="protocol" />
             ) : (
               "-"
             )}
@@ -184,17 +189,17 @@ export const ServiceParametersTab: React.FC<ServiceParametersTabProps> = ({
             name="type"
             rules={[{ required: true, message: "Select service type" }]}
           >
-            <Select onChange={() => setHasChanges(true)}>
-              <Select.Option value={IntegrationSystemType.INTERNAL}>
-                Internal
-              </Select.Option>
-              <Select.Option value={IntegrationSystemType.EXTERNAL}>
-                External
-              </Select.Option>
-              <Select.Option value={IntegrationSystemType.IMPLEMENTED}>
-                Implemented
-              </Select.Option>
-            </Select>
+            <Select
+              onChange={() => setHasChanges(true)}
+              options={[
+                { value: IntegrationSystemType.INTERNAL, label: "Internal" },
+                { value: IntegrationSystemType.EXTERNAL, label: "External" },
+                {
+                  value: IntegrationSystemType.IMPLEMENTED,
+                  label: "Implemented",
+                },
+              ]}
+            />
           </Form.Item>
         )}
         <Form.Item label="Labels" name="labels">

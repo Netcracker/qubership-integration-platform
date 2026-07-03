@@ -242,8 +242,9 @@ export class VSCodeExtensionApi implements Api {
 
   getChain = async (id: string, filePath?: string): Promise<Chain> => {
     const payload = filePath ? { chainId: id, filePath } : id;
-    return <Chain>(await this.sendMessageToExtension("getChain", payload))
-      .payload;
+    return <Chain>(
+      (await this.sendMessageToExtension("getChain", payload)).payload
+    );
   };
 
   findChainByElementId = async (elementId: string): Promise<Chain> => {

@@ -7,9 +7,8 @@ import {
   ReactElement,
   ReactNode,
 } from "react";
-import Sider from "antd/lib/layout/Sider";
 import styles from "../components/elements_library/ElementsLibrarySidebar.module.css";
-import { Flex, Menu, Tabs } from "antd";
+import { Flex, Layout, Menu, Tabs } from "antd";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { Element, LibraryElement } from "../api/apiTypes.ts";
 import { useModalsContext } from "../Modals.tsx";
@@ -34,10 +33,12 @@ import { useChainElementPanelFilters } from "../hooks/useChainElementPanelFilter
 import { applyEntityFiltersToElements } from "../misc/entity-filter-utils.ts";
 import { matchesByFields } from "../components/table/tableSearch.ts";
 
+const { Sider } = Layout;
+
 const DEFAULT_WIDTH = 240;
 
 export type PageWithRightPanelProps = {
-  width?: number;
+  width?: number | string;
 };
 
 export type MenuItem = {

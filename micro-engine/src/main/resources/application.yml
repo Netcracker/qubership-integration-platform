@@ -128,7 +128,7 @@ qip:
       maas:
         enabled: ${OPENSEARCH_KAFKA_MAAS_ENABLED:false}
         classifier:
-          name: ${OPENSEARCH_KAFKA_MAAS_CLASSIFIER_NAME:opersearch.sessions.queue}
+          name: ${OPENSEARCH_KAFKA_MAAS_CLASSIFIER_NAME:opensearch.sessions.queue}
           namespace: ${cloud.microservice.namespace}
           is-tenant: ${OPENSEARCH_KAFKA_MAAS_CLASSIFIER_IS_TENANT:false}
     write:

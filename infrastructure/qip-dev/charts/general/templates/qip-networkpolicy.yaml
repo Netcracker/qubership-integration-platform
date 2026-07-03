@@ -8,14 +8,6 @@ spec:
     - Ingress
     - Egress
   ingress:
-    - ports:
-        - protocol: TCP
-          port: 80
-        - protocol: TCP
-          port: 443
+    - {}
   egress:
-    - ports:
-        - protocol: TCP
-          port: 80
-        - protocol: TCP
-          port: 443
+    - {}

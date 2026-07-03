@@ -7,10 +7,11 @@ import React, {
   useState,
 } from "react";
 import { Button, Form } from "antd";
-import { useForm } from "antd/lib/form/Form";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { InlineEditContext, InlineEditProps } from "./InlineEdit.tsx";
 import styles from "./InlineEdit.module.css";
+
+const { useForm } = Form;
 
 export type InlineEditWithButtonsRef<Values> = {
   getValuesAndClose: () => Values | null;
@@ -95,7 +96,6 @@ export function InlineEditWithButtons<Values>(
 
   useEffect(() => {
     if (active) {
-      // @ts-expect-error False positive as object of type Values is RecursivePartial<Values>
       form.setFieldsValue(props.values);
       setHasChanges(false);
     }
@@ -107,7 +107,6 @@ export function InlineEditWithButtons<Values>(
         props.onCancel?.();
         return false;
       }
-      // @ts-expect-error False positive
       form.setFieldsValue(props.values);
       return true;
     });

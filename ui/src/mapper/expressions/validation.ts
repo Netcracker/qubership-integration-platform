@@ -81,13 +81,7 @@ export function validateExpression(
   try {
     const expression = parse(text);
     processReferences(expression, (node) =>
-      validateReference(
-        node,
-        attributes,
-        constants,
-        callback,
-        sourceSchema,
-      ),
+      validateReference(node, attributes, constants, callback, sourceSchema),
     );
   } catch (exception) {
     if (isParseError(exception)) {

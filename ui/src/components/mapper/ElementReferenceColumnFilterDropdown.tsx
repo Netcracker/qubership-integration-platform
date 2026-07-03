@@ -13,7 +13,7 @@ import {
   getEnumFilterPredicate,
   isEnumFilter,
 } from "../table/EnumColumnFilterDropdown.tsx";
-import { DefaultOptionType } from "rc-select/lib/Select";
+import type { DefaultOptionType } from "../../types/antd.ts";
 import type { AnyObject } from "antd/lib/_util/type";
 import { parseJson } from "../../misc/json-helper.ts";
 import {

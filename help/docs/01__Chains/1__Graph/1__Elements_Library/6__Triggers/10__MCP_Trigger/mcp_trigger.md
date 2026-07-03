@@ -57,5 +57,4 @@ The following parameters are available on the tab:
 
 ---
 
-- **MCP Trigger** must be the first element in the chain.
 - Can't set input dependency to element.

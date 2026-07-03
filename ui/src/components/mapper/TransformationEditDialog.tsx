@@ -4,7 +4,7 @@ import {
   MappingDescription,
   Transformation,
 } from "../../mapper/model/model";
-import { Button, Flex, Form, Modal, Select } from "antd";
+import { Button, Flex, Form, Input, Modal, Select } from "antd";
 import { useModalContext } from "../../ModalContextProvider";
 import { TRANSFORMATIONS } from "../../mapper/model/transformations";
 import { capitalize } from "../../misc/format-utils";
@@ -16,7 +16,8 @@ import { ExpressionParameters } from "./transformation/parameters/ExpressionPara
 import { ConditionalParameters } from "./transformation/parameters/ConditionalParameters";
 import { DictionaryParameters } from "./transformation/parameters/DictionaryParameters";
 import { MappingUtil } from "../../mapper/util/mapping.ts";
-import TextArea from "antd/lib/input/TextArea";
+
+const { TextArea } = Input;
 
 export type TransformationContextProps = {
   mappingDescription: MappingDescription;

@@ -1,8 +1,6 @@
 import { Form, Input, Select } from "antd";
 import React, { useCallback, useContext, useEffect, useState } from "react";
-import TextArea from "antd/lib/input/TextArea";
 import { Chain } from "../api/apiTypes.ts";
-import { useForm } from "antd/lib/form/Form";
 import { ChainContext } from "./ChainPage.tsx";
 import {
   ChainExtensionProperties,
@@ -18,9 +16,16 @@ import { useModalsContext } from "../Modals.tsx";
 import { UnsavedChangesModal } from "../components/modal/UnsavedChangesModal.tsx";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
 import { ApplyFormButton } from "../components/ApplyFormButton.tsx";
+import {
+  GROUP_SEGMENT_REGEX,
+  parseGroupSegments,
+} from "../misc/group-utils.ts";
 import { usePermissions } from "../permissions/usePermissions.tsx";
 import { hasPermissions } from "../permissions/funcs.ts";
 import { Require } from "../permissions/Require.tsx";
+
+const { TextArea } = Input;
+const { useForm } = Form;
 
 export type FormData = {
   name: string;
@@ -135,13 +140,10 @@ export const ChainProperties: React.FC = () => {
       outOfScope: values.outOfScope,
     };
 
-    const uiFoldersPath = values.path.startsWith("/")
-      ? values.path.slice(1).split("/")
-      : values.path.split("/");
+    const uiFoldersPath = parseGroupSegments(values.path ?? "");
 
     if (isVsCode) {
       await moveChain(String(chainContext.chain.id), uiFoldersPath.join("/"));
-      console.log("Moved chain path", uiFoldersPath);
       changes = {
         ...changes,
         navigationPath: uiFoldersPath.map((path) => [path, path]),
@@ -216,7 +218,26 @@ export const ChainProperties: React.FC = () => {
           <Form.Item label="Name" name="name" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item label="Path" name="path">
+          <Form.Item
+            label="Path"
+            name="path"
+            rules={[
+              {
+                validator: (_, value: string) => {
+                  const invalid = parseGroupSegments(value ?? "").some(
+                    (segment) => !GROUP_SEGMENT_REGEX.test(segment),
+                  );
+                  return invalid
+                    ? Promise.reject(
+                        new Error(
+                          'Path segments must not contain: / : * ? " < > | , ; \\',
+                        ),
+                      )
+                    : Promise.resolve();
+                },
+              },
+            ]}
+          >
             <Input />
           </Form.Item>
           <Form.Item label="Labels" name="labels">
@@ -229,28 +250,16 @@ export const ChainProperties: React.FC = () => {
             />
           </Form.Item>
           <Form.Item label="Description" name="description">
-            <TextArea
-              style={{ height: 120, resize: "none" }}
-              disabled={disabled}
-            />
+            <TextArea className="fixed-textarea" disabled={disabled} />
           </Form.Item>
           <Form.Item label="Business Description" name="businessDescription">
-            <TextArea
-              style={{ height: 120, resize: "none" }}
-              disabled={disabled}
-            />
+            <TextArea className="fixed-textarea" disabled={disabled} />
           </Form.Item>
           <Form.Item label="Assumptions" name="assumptions">
-            <TextArea
-              style={{ height: 120, resize: "none" }}
-              disabled={disabled}
-            />
+            <TextArea className="fixed-textarea" disabled={disabled} />
           </Form.Item>
           <Form.Item label="Out of Scope" name="outOfScope">
-            <TextArea
-              style={{ height: 120, resize: "none" }}
-              disabled={disabled}
-            />
+            <TextArea className="fixed-textarea" disabled={disabled} />
           </Form.Item>
           <ChainExtensionProperties onChange={() => setHasChanges(true)} />
         </Form>

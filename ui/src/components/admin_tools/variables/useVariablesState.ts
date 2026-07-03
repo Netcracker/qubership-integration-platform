@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { message } from "antd";
+import { message } from "../../../misc/antd-app.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService";
 import { ApiResponse, Variable } from "../../../api/apiTypes.ts";
 

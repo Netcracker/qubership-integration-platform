@@ -1,4 +1,5 @@
-import { Modal, Upload, Table, Button, message, Flex } from "antd";
+import { Modal, Upload, Table, Button, Flex } from "antd";
+import { message } from "../../../misc/antd-app.ts";
 import type { ColumnsType } from "antd/es/table";
 import type { RcFile } from "antd/es/upload";
 import React, { useMemo, useState } from "react";
@@ -8,10 +9,8 @@ import { useNotificationService } from "../../../hooks/useNotificationService.ts
 import { VariableImportPreview } from "../../../api/apiTypes.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { api } from "../../../api/api.ts";
-import {
-  attachResizeToColumns,
-  useTableColumnResize,
-} from "../../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { tableScroll } from "../../table/tableScroll.ts";
 
 interface Props {
   onSuccess?: () => void;
@@ -35,26 +34,11 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
     [],
   );
 
-  const {
-    columnWidths,
-    createResizeHandlers,
-    totalColumnsWidth,
-    resizableHeaderComponents,
-  } = useTableColumnResize({
-    name: 220,
-    value: 280,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        previewColumns,
-        columnWidths,
-        createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [previewColumns, columnWidths, createResizeHandlers],
-  );
+  const { columnResize, columnsWithResize, components } =
+    useColumnsWithResizeAndScroll(previewColumns, {
+      name: 220,
+      value: 280,
+    });
 
   const handleCancel = () => {
     closeContainingModal();
@@ -169,8 +153,11 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
             pagination={false}
             size="small"
             sticky
-            scroll={{ x: totalColumnsWidth, y: "" }}
-            components={resizableHeaderComponents}
+            scroll={tableScroll(
+              columnResize.totalColumnsWidth,
+              previewData?.length ?? 0,
+            )}
+            components={components}
           />
         )}
       </Flex>

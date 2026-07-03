@@ -1,14 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Button,
-  Empty,
-  Flex,
-  InputNumber,
-  Modal,
-  Space,
-  Table,
-  Tooltip,
-} from "antd";
+import { Button, Flex, InputNumber, Space, Table, Tooltip } from "antd";
+import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { treeExpandIcon } from "../../table/TreeExpandIcon.tsx";
 import { LiveExchange, SessionsLoggingLevel } from "../../../api/apiTypes.ts";
@@ -29,15 +21,10 @@ import {
 } from "../../table/useColumnSettingsButton.tsx";
 import { TablePageLayout } from "../../TablePageLayout.tsx";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../../table/useTableColumnResize.tsx";
-import {
-  createActionsColumnBase,
-  disableResizeBeforeActions,
-} from "../../table/actionsColumn.ts";
+import { tableScroll } from "../../table/tableScroll.ts";
+import { createActionsColumnBase } from "../../table/actionsColumn.ts";
+import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { tableEmpty } from "../../table/tableEmpty.tsx";
 
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 
@@ -117,7 +104,7 @@ export const LiveExchanges: React.FC = () => {
 
   const showTerminateExchangeModal = useCallback(
     (liveExchange: LiveExchange) => {
-      Modal.confirm({
+      confirmAndRun({
         title: "Terminate Exchange",
         content:
           "Are you sure you want to terminate current exchange? That will cause current session to end with error.",
@@ -127,127 +114,128 @@ export const LiveExchanges: React.FC = () => {
     [terminateExchange],
   );
 
-  const columns = useMemo((): ColumnsTypeWithSettings<LiveExchangeTableItem> => {
-    return [
-      {
-        title: "Session ID",
-        key: "sessionId",
-        dataIndex: "sessionId",
-        settings: {
-          visibilityLocked: true,
-          orderLocked: true,
+  const columns =
+    useMemo((): ColumnsTypeWithSettings<LiveExchangeTableItem> => {
+      return [
+        {
+          title: "Session ID",
+          key: "sessionId",
+          dataIndex: "sessionId",
+          settings: {
+            visibilityLocked: true,
+            orderLocked: true,
+          },
+          sorter: (a: LiveExchangeTableItem, b: LiveExchangeTableItem) =>
+            (b.sessionId ?? "").localeCompare(a.sessionId ?? ""),
+          render: (_, item) =>
+            item.sessionLogLevel === SessionsLoggingLevel.DEBUG ||
+            item.sessionLogLevel === SessionsLoggingLevel.INFO ? (
+              <a
+                onClick={() =>
+                  void navigate(
+                    `/chains/${item.chainId}/sessions/${item.sessionId}`,
+                  )
+                }
+              >
+                {item.sessionId}
+              </a>
+            ) : (
+              item.sessionId
+            ),
         },
-        sorter: (a: LiveExchangeTableItem, b: LiveExchangeTableItem) =>
-          (b.sessionId ?? "").localeCompare(a.sessionId ?? ""),
-        render: (_, item) =>
-          item.sessionLogLevel === SessionsLoggingLevel.DEBUG ||
-          item.sessionLogLevel === SessionsLoggingLevel.INFO ? (
-            <a
-              onClick={() =>
-                void navigate(
-                  `/chains/${item.chainId}/sessions/${item.sessionId}`,
-                )
-              }
-            >
-              {item.sessionId}
+        {
+          title: "Chain",
+          key: "chainName",
+          dataIndex: "chainName",
+          sorter: (a: LiveExchangeTableItem, b: LiveExchangeTableItem) =>
+            (b.chainName ?? b.chainId ?? "").localeCompare(
+              a.chainName ?? a.chainId ?? "",
+            ),
+          render: (_, liveExchange) => (
+            <a onClick={() => void navigate(`/chains/${liveExchange.chainId}`)}>
+              {liveExchange?.chainName ?? liveExchange.chainId}
             </a>
-          ) : (
-            item.sessionId
           ),
-      },
-      {
-        title: "Chain",
-        key: "chainName",
-        dataIndex: "chainName",
-        sorter: (a: LiveExchangeTableItem, b: LiveExchangeTableItem) =>
-          (b.chainName ?? b.chainId ?? "").localeCompare(
-            a.chainName ?? a.chainId ?? "",
+        },
+        {
+          title: "Session Duration",
+          key: "sessionDuration",
+          dataIndex: "sessionDuration",
+          sorter: (a: LiveExchangeTableItem, b: LiveExchangeTableItem) =>
+            (b.sessionDuration ?? 0) - (a.sessionDuration ?? 0),
+          render: (_, liveExchange) => (
+            <>{formatDuration(liveExchange.sessionDuration)}</>
           ),
-        render: (_, liveExchange) => (
-          <a onClick={() => void navigate(`/chains/${liveExchange.chainId}`)}>
-            {liveExchange?.chainName ?? liveExchange.chainId}
-          </a>
-        ),
-      },
-      {
-        title: "Session Duration",
-        key: "sessionDuration",
-        dataIndex: "sessionDuration",
-        sorter: (a: LiveExchangeTableItem, b: LiveExchangeTableItem) =>
-          (b.sessionDuration ?? 0) - (a.sessionDuration ?? 0),
-        render: (_, liveExchange) => (
-          <>{formatDuration(liveExchange.sessionDuration)}</>
-        ),
-      },
-      {
-        title: "Exchange Duration",
-        key: "duration",
-        dataIndex: "duration",
-        sorter: (a: LiveExchangeTableItem, b: LiveExchangeTableItem) =>
-          (isLiveExchangeGroup(b) ? 0 : (b.duration ?? 0)) -
-          (isLiveExchangeGroup(a) ? 0 : (a.duration ?? 0)),
-        render: (_, item) => (
-          <>
-            {isLiveExchangeGroup(item)
-              ? PLACEHOLDER
-              : formatDuration(item.duration)}
-          </>
-        ),
-      },
-      {
-        title: "Session Started",
-        key: "sessionStartTime",
-        dataIndex: "sessionStartTime",
-        sorter: (a: LiveExchangeTableItem, b: LiveExchangeTableItem) =>
-          (b.sessionStartTime ?? 0) - (a.sessionStartTime ?? 0),
-        render: (_, item) => (
-          <>
-            {item.sessionStartTime
-              ? formatTimestamp(item.sessionStartTime, true)
-              : PLACEHOLDER}
-          </>
-        ),
-      },
-      {
-        title: "Main thread",
-        key: "main",
-        dataIndex: "main",
-        sorter: (a: LiveExchangeTableItem, b: LiveExchangeTableItem) =>
-          (!isLiveExchangeGroup(b) && b.main ? 1 : 0) -
-          (!isLiveExchangeGroup(a) && a.main ? 1 : 0),
-        render: (_, item) =>
-          !isLiveExchangeGroup(item) && item.main ? (
-            <OverridableIcon name="check" />
-          ) : (
-            ""
+        },
+        {
+          title: "Exchange Duration",
+          key: "duration",
+          dataIndex: "duration",
+          sorter: (a: LiveExchangeTableItem, b: LiveExchangeTableItem) =>
+            (isLiveExchangeGroup(b) ? 0 : (b.duration ?? 0)) -
+            (isLiveExchangeGroup(a) ? 0 : (a.duration ?? 0)),
+          render: (_, item) => (
+            <>
+              {isLiveExchangeGroup(item)
+                ? PLACEHOLDER
+                : formatDuration(item.duration)}
+            </>
           ),
-      },
-      {
-        title: "Pod IP",
-        key: "podIp",
-        dataIndex: "podIp",
-        sorter: (a: LiveExchangeTableItem, b: LiveExchangeTableItem) =>
-          (b.podIp ?? "").localeCompare(a.podIp ?? ""),
-      },
-      {
-        ...createActionsColumnBase<LiveExchangeTableItem>(),
-        render: (_, item) =>
-          isLiveExchangeGroup(item) ? (
-            <></>
-          ) : (
-            <ProtectedButton
-              require={{ liveExchange: ["execute"] }}
-              tooltipProps={{ title: "Terminate exchange" }}
-              buttonProps={{
-                type: "text",
-                iconName: "stop",
-                onClick: () => void showTerminateExchangeModal(item),
-              }}
-            />
+        },
+        {
+          title: "Session Started",
+          key: "sessionStartTime",
+          dataIndex: "sessionStartTime",
+          sorter: (a: LiveExchangeTableItem, b: LiveExchangeTableItem) =>
+            (b.sessionStartTime ?? 0) - (a.sessionStartTime ?? 0),
+          render: (_, item) => (
+            <>
+              {item.sessionStartTime
+                ? formatTimestamp(item.sessionStartTime, true)
+                : PLACEHOLDER}
+            </>
           ),
-      },
-    ];
-  }, [navigate, showTerminateExchangeModal]);
+        },
+        {
+          title: "Main thread",
+          key: "main",
+          dataIndex: "main",
+          sorter: (a: LiveExchangeTableItem, b: LiveExchangeTableItem) =>
+            (!isLiveExchangeGroup(b) && b.main ? 1 : 0) -
+            (!isLiveExchangeGroup(a) && a.main ? 1 : 0),
+          render: (_, item) =>
+            !isLiveExchangeGroup(item) && item.main ? (
+              <OverridableIcon name="check" />
+            ) : (
+              ""
+            ),
+        },
+        {
+          title: "Pod IP",
+          key: "podIp",
+          dataIndex: "podIp",
+          sorter: (a: LiveExchangeTableItem, b: LiveExchangeTableItem) =>
+            (b.podIp ?? "").localeCompare(a.podIp ?? ""),
+        },
+        {
+          ...createActionsColumnBase<LiveExchangeTableItem>(),
+          render: (_, item) =>
+            isLiveExchangeGroup(item) ? (
+              <></>
+            ) : (
+              <ProtectedButton
+                require={{ liveExchange: ["execute"] }}
+                tooltipProps={{ title: "Terminate exchange" }}
+                buttonProps={{
+                  type: "text",
+                  iconName: "stop",
+                  onClick: () => void showTerminateExchangeModal(item),
+                }}
+              />
+            ),
+        },
+      ];
+    }, [navigate, showTerminateExchangeModal]);
 
   const { orderedColumns, columnSettingsButton } =
     useColumnSettingsBasedOnColumnsType<LiveExchangeTableItem>(
@@ -255,42 +243,20 @@ export const LiveExchanges: React.FC = () => {
       columns,
     );
 
-  const liveExchangesColumnResize = useTableColumnResize({
-    sessionId: 200,
-    chainName: 200,
-    sessionDuration: 200,
-    duration: 200,
-    sessionStartTime: 200,
-    main: 100,
-    podIp: 100,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      disableResizeBeforeActions(
-        attachResizeToColumns(
-          orderedColumns,
-          liveExchangesColumnResize.columnWidths,
-          liveExchangesColumnResize.createResizeHandlers,
-          { minWidth: 80 },
-        ),
-      ),
-    [
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(
       orderedColumns,
-      liveExchangesColumnResize.columnWidths,
-      liveExchangesColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        columnsWithResize,
-        liveExchangesColumnResize.columnWidths,
-        { expandColumnWidth: LIVE_EXCHANGES_EXPAND_COLUMN_WIDTH },
-      ),
-    [columnsWithResize, liveExchangesColumnResize.columnWidths],
-  );
+      {
+        sessionId: 200,
+        chainName: 200,
+        sessionDuration: 200,
+        duration: 200,
+        sessionStartTime: 200,
+        main: 100,
+        podIp: 100,
+      },
+      { expandColumnWidth: LIVE_EXCHANGES_EXPAND_COLUMN_WIDTH },
+    );
 
   const refresh = useCallback(async () => {
     try {
@@ -354,7 +320,7 @@ export const LiveExchanges: React.FC = () => {
             size="small"
             columns={columnsWithResize}
             dataSource={items}
-            scroll={items.length > 0 ? { x: scrollX, y: "" } : { x: scrollX }}
+            scroll={tableScroll(scrollX, items.length)}
             pagination={false}
             rowKey={liveExchangeRowKey}
             loading={isLoading}
@@ -364,15 +330,8 @@ export const LiveExchanges: React.FC = () => {
               expandIcon: treeExpandIcon(),
               childrenColumnName: "exchanges",
             }}
-            components={liveExchangesColumnResize.resizableHeaderComponents}
-            locale={{
-              emptyText: (
-                <Empty
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description="No running chains available at the moment"
-                />
-              ),
-            }}
+            components={components}
+            locale={{ emptyText: tableEmpty("No running chains") }}
           />
         </TablePageLayout>
       </Flex>

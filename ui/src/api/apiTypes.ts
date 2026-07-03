@@ -332,9 +332,9 @@ export enum LogLoggingLevel {
 }
 
 export enum LogPayload {
-  BODY = "Body",
-  HEADERS = "Headers",
-  PROPERTIES = "Properties",
+  BODY = "BODY",
+  HEADERS = "HEADERS",
+  PROPERTIES = "PROPERTIES",
 }
 
 export type MaskedFields = {

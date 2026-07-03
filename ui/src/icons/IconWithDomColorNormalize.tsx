@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef } from "react";
+import React, { useLayoutEffect, useMemo, useRef } from "react";
 import Icon from "@ant-design/icons";
 import type { AntdIconProps } from "@ant-design/icons/lib/components/AntdIcon";
 import {
@@ -6,6 +6,7 @@ import {
   isIgnorablePaint,
   normalizePaintToken,
 } from "./svgColorNormalization.ts";
+import { mergeRefs } from "../misc/mergeRefs.ts";
 
 /**
  * Wraps any icon component and normalizes monochrome SVG fill/stroke
@@ -66,10 +67,18 @@ type IconWithDomColorNormalizeProps = {
   props: AntdIconProps;
 };
 
-const IconWithDomColorNormalizeImpl: React.FC<
-  IconWithDomColorNormalizeProps
-> = ({ IconComponent, props }) => {
-  const containerRef = useRef<HTMLSpanElement>(null);
+const IconWithDomColorNormalizeImpl = (
+  { IconComponent, props }: IconWithDomColorNormalizeProps,
+  forwardedRef: React.ForwardedRef<HTMLSpanElement>,
+): React.ReactNode => {
+  const containerRef = useRef<HTMLSpanElement | null>(null);
+
+  // Keep the internal ref (used for color normalization) and let callers such
+  // as Tooltip/Popover anchor to the same node.
+  const setRef = useMemo(
+    () => mergeRefs(containerRef, forwardedRef),
+    [forwardedRef],
+  );
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -101,7 +110,7 @@ const IconWithDomColorNormalizeImpl: React.FC<
     <Icon
       {...props}
       component={IconComponent as unknown as React.ComponentType<unknown>}
-      ref={containerRef}
+      ref={setRef}
     />
   );
 };
@@ -122,7 +131,7 @@ const shallowEqualProps = (a: AntdIconProps, b: AntdIconProps): boolean => {
 };
 
 export const IconWithDomColorNormalize = React.memo(
-  IconWithDomColorNormalizeImpl,
+  React.forwardRef(IconWithDomColorNormalizeImpl),
   (prev, next) =>
     prev.IconComponent === next.IconComponent &&
     shallowEqualProps(prev.props, next.props),

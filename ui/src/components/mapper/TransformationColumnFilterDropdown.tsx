@@ -13,7 +13,7 @@ import {
   getEnumFilterPredicate,
   isEnumFilter,
 } from "../table/EnumColumnFilterDropdown.tsx";
-import { DefaultOptionType } from "rc-select/lib/Select";
+import type { DefaultOptionType } from "../../types/antd.ts";
 import { TRANSFORMATIONS } from "../../mapper/model/transformations.ts";
 import { capitalize } from "../../misc/format-utils.ts";
 import { Transformation } from "../../mapper/model/model.ts";

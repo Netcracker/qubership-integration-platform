@@ -14,6 +14,7 @@ import { SelectTag } from "./SelectTag.tsx";
 import { normalizeProtocol } from "../../../../../misc/protocol-utils.ts";
 import { SelectAndNavigateField } from "./SelectAndNavigateField.tsx";
 import { OperationPath } from "../../../../services/ui/OperationPath.tsx";
+import styles from "./selectOptionValue.module.css";
 import { isVsCode } from "../../../../../api/rest/vscodeExtensionApi";
 import { JSONSchema7 } from "json-schema";
 import {
@@ -171,27 +172,33 @@ const SystemOperationField: React.FC<
     const operationOptions: SelectProps["options"] =
       operations?.map((operation) => ({
         label: (
-          <>
-            <SelectTag value={operation.name} />
-            <HttpMethod value={operation.method} width={110} />
-            <OperationPath path={operation.path} />
-          </>
+          <span className={styles.row}>
+            <span className={styles.nameCol}>
+              <SelectTag value={operation.name} />
+            </span>
+            <HttpMethod value={operation.method} width={72} />
+            <span className={styles.path}>
+              <OperationPath path={operation.path} />
+            </span>
+          </span>
         ),
         value: operation.id,
         selectedLabel: formData === operation.id && (
-          <>
+          <span className={styles.row}>
             <SelectTag value={operation.name} />
-            <HttpMethod value={operation.method} width={110} />
-            <OperationPath
-              path={operation.path}
-              pathParams={
-                registry.formContext?.integrationOperationPathParameters
-              }
-              queryParams={
-                registry.formContext?.integrationOperationQueryParameters
-              }
-            />
-          </>
+            <HttpMethod value={operation.method} />
+            <span className={styles.path}>
+              <OperationPath
+                path={operation.path}
+                pathParams={
+                  registry.formContext?.integrationOperationPathParameters
+                }
+                queryParams={
+                  registry.formContext?.integrationOperationQueryParameters
+                }
+              />
+            </span>
+          </span>
         ),
       })) ?? [];
     setOptions(operationOptions);

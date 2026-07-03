@@ -42,7 +42,9 @@ export abstract class Verifier<T> {
     })(this);
   }
 
-  public withMessage(messageOrSupplier: string | MessageSupplier<T>): Verifier<T> {
+  public withMessage(
+    messageOrSupplier: string | MessageSupplier<T>,
+  ): Verifier<T> {
     const supplier: MessageSupplier<T> =
       typeof messageOrSupplier === "string"
         ? () => messageOrSupplier

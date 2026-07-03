@@ -54,8 +54,8 @@
 
         <quarkus-mcp-server.version>1.8.0</quarkus-mcp-server.version>
         <cloud-core.version>10.0.1</cloud-core.version>
-        <maas-client.version>12.0.7</maas-client.version>
-        <maas-client-quarkus.version>10.0.7</maas-client-quarkus.version>
+        <maas-client.version>12.2.1</maas-client.version>
+        <maas-client-quarkus.version>11.0.1</maas-client-quarkus.version>
         <blue-green-state-monitor.version>4.0.1</blue-green-state-monitor.version>
 
         <lombok.version>1.18.46</lombok.version>

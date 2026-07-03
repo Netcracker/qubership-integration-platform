@@ -2,7 +2,13 @@
  * @jest-environment jsdom
  */
 import React from "react";
-import { render, screen, fireEvent, within, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  within,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 
 jest.mock("@xyflow/react/dist/style.css", () => ({}));
@@ -128,7 +134,6 @@ jest.mock("../../src/hooks/graph/context_menu/useContextMenu", () => ({
   }),
 }));
 
-
 jest.mock("../../src/components/LibraryContext", () => ({
   LibraryProvider: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
@@ -218,10 +223,6 @@ jest.mock(
     ),
   }),
 );
-
-jest.mock("../../src/components/PanelResizeHandle", () => ({
-  PanelResizeHandle: () => <div data-testid="panel-resize-handle" />,
-}));
 
 jest.mock("../../src/components/graph/ChainGraphViewControls.tsx", () => ({
   ChainGraphViewControls: ({
@@ -398,14 +399,11 @@ describe("ChainGraph", () => {
     expect(screen.getByTestId("elements-library-sidebar")).toBeInTheDocument();
   });
 
-  it("renders PanelResizeHandle", () => {
-    render(<ChainGraph />);
-    expect(screen.getByTestId("panel-resize-handle")).toBeInTheDocument();
-  });
-
   it("renders PageWithRightPanel when Right Panel button is clicked", () => {
     render(<ChainGraph />);
-    expect(screen.queryByTestId("page-with-right-panel")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("page-with-right-panel"),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByTitle("Right Panel"));
     expect(screen.getByTestId("page-with-right-panel")).toBeInTheDocument();
   });
@@ -445,11 +443,15 @@ describe("ChainGraph", () => {
     expect(mockShowModal).toHaveBeenCalled();
     const modalArg = mockShowModal.mock.calls.at(-1)?.[0] as {
       component: React.ReactElement<{
-        onSubmit: (domains: { name: string; type: DomainType }[]) => void | Promise<void>;
+        onSubmit: (
+          domains: { name: string; type: DomainType }[],
+        ) => void | Promise<void>;
       }>;
     };
     expect(modalArg?.component?.props?.onSubmit).toEqual(expect.any(Function));
-    await modalArg.component.props.onSubmit([{ name: "domain-1", type: DomainType.CLASSIC }]);
+    await modalArg.component.props.onSubmit([
+      { name: "domain-1", type: DomainType.CLASSIC },
+    ]);
 
     expect(createSnapshot).toHaveBeenCalledWith("chain-1");
     expect(createDeployment).toHaveBeenCalledWith(
@@ -488,10 +490,14 @@ describe("ChainGraph", () => {
 
     const modalArg = mockShowModal.mock.calls.at(-1)?.[0] as {
       component: React.ReactElement<{
-        onSubmit: (domains: { name: string; type: DomainType }[]) => void | Promise<void>;
+        onSubmit: (
+          domains: { name: string; type: DomainType }[],
+        ) => void | Promise<void>;
       }>;
     };
-    await modalArg.component.props.onSubmit([{ name: "domain-1", type: DomainType.CLASSIC }]);
+    await modalArg.component.props.onSubmit([
+      { name: "domain-1", type: DomainType.CLASSIC },
+    ]);
 
     expect(createSnapshot).toHaveBeenCalledWith("chain-1");
     expect(createDeployment).toHaveBeenCalled();

@@ -1,0 +1,33 @@
+/* Make the Tabs fill the modal body so each tab's content uses the full height. */
+.tabs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tabs :global(.ant-tabs-content-holder) {
+  flex: 1;
+  min-height: 0;
+}
+
+.tabs :global(.ant-tabs-content),
+.tabs :global(.ant-tabs-tabpane) {
+  height: 100%;
+}
+
+/* Code block stretches to the available height and scrolls internally. */
+.codeBlock {
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  overflow: auto;
+  border-radius: 4px;
+  font-size: 14px;
+  padding: 12px !important;
+  background: var(--vscode-editor-background, #fff) !important;
+}
+
+.codeBlock > code {
+  background: transparent !important;
+}

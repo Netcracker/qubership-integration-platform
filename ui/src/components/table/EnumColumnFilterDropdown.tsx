@@ -1,6 +1,6 @@
 import React, { ReactNode, useCallback } from "react";
 import { FilterDropdownProps } from "antd/lib/table/interface";
-import { DefaultOptionType } from "rc-select/lib/Select";
+import type { DefaultOptionType } from "../../types/antd.ts";
 import { Button, Col, Row, Select } from "antd";
 import type { AnyObject } from "antd/lib/_util/type";
 import { parseJson } from "../../misc/json-helper.ts";

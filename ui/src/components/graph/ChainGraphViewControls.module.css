@@ -13,7 +13,11 @@
 }
 
 .button {
-  border: none;
+  /* Reserve a constant 1px border on every state. Ant Design adds a 1px
+     hover/active border at higher specificity; without reserving it here the
+     border-box would shrink on hover and visibly nudge the icon. Transparent by
+     default — the divider colours only the left edge below. */
+  border: 1px solid transparent !important;
   color: var(--vscode-foreground, #000);
   background: transparent;
   transition:
@@ -37,7 +41,9 @@
 }
 
 .button + .button {
-  border-left: 1px solid var(--vscode-border, #d9d9d9);
+  /* Divider: colour only the left edge of the reserved border (width is fixed
+     above, so it stays put across hover/active). */
+  border-left-color: var(--vscode-border, #d9d9d9) !important;
 }
 
 .extraDivider {

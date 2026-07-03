@@ -1,4 +1,6 @@
-import { Breadcrumb, Button, Flex, message, Modal, Table } from "antd";
+import { Breadcrumb, Button, Flex, Table } from "antd";
+import { message, modal } from "../misc/antd-app.ts";
+import { confirmAndRun } from "../misc/confirm-utils.ts";
 import { useNavigate, useSearchParams } from "react-router";
 import { useModalsContext } from "../Modals.tsx";
 import {
@@ -17,6 +19,7 @@ import { formatTimestamp } from "../misc/format-utils.ts";
 import { EntityLabels } from "../components/labels/EntityLabels.tsx";
 import { TableRowSelection } from "antd/lib/table/interface";
 import { CompactSearch } from "../components/table/CompactSearch.tsx";
+import { tableScroll } from "../components/table/tableScroll.ts";
 import type { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
 import { DeploymentsCumulativeState } from "../components/deployment_runtime_states/DeploymentsCumulativeState.tsx";
 import { FolderEdit, FolderEditMode } from "../components/modal/FolderEdit.tsx";
@@ -48,24 +51,18 @@ import {
   ProtectedDropdown,
   ProtectedMenuItem,
 } from "../permissions/ProtectedDropdown.tsx";
-import { MenuInfo } from "rc-menu/lib/interface";
+import type { MenuInfo } from "../types/antd.ts";
 import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../components/table/useColumnSettingsButton.tsx";
 import { useTableDragDrop } from "../hooks/useTableDragDrop.ts";
 import { treeExpandIcon } from "../components/table/TreeExpandIcon.tsx";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../components/table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../components/table/useColumnsWithResizeAndScroll.tsx";
+import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import commonStyles from "../components/admin_tools/CommonStyle.module.css";
-import {
-  createActionsColumnBase,
-  disableResizeBeforeActions,
-} from "../components/table/actionsColumn.ts";
+import { createActionsColumnBase } from "../components/table/actionsColumn.ts";
 import { ChainDetailsDrawer } from "../components/chains/ChainDetailsDrawer.tsx";
 import { useGenerateDds } from "../hooks/useGenerateDds.tsx";
 
@@ -125,11 +122,11 @@ type Operation = {
 
 const chainExpandIcon = treeExpandIcon<ChainTableItem>();
 
-// antd's checkbox / expand button / dropdown trigger don't stop click
-// propagation, so row onClick fires on them too. Filter those targets out
-// so row click only opens the details drawer on empty row area.
+// A row click opens the details drawer, except on interactive controls and the
+// table's own selection/expand cells. The portaled actions menu stops its own
+// click (see the menu onClick below).
 const ROW_CLICK_IGNORE_SELECTOR =
-  "a, button, input, label, .ant-checkbox, .ant-dropdown-trigger, .ant-table-row-expand-icon, .ant-table-selection-column";
+  "a, button, input, label, .ant-table-selection-column, .ant-table-row-expand-icon";
 
 function shouldIgnoreRowClick(target: EventTarget | null): boolean {
   return (
@@ -140,7 +137,6 @@ function shouldIgnoreRowClick(target: EventTarget | null): boolean {
 const Chains = () => {
   const navigate = useNavigate();
   const { showModal } = useModalsContext();
-  const [messageApi, contextHolder] = message.useMessage();
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [folderItems, setFolderItems] = useState<FolderItem[]>([]);
   const [tableItems, setTableItems] = useState<ChainTableItem[]>([]);
@@ -695,7 +691,6 @@ const Chains = () => {
   const showEditFolderModal = (
     mode: FolderEditMode,
     name?: string,
-    description?: string,
     parentOrItemId?: string,
   ) => {
     showModal({
@@ -703,15 +698,14 @@ const Chains = () => {
         <FolderEdit
           mode={mode}
           name={name}
-          description={description}
-          onSubmit={async (name, description, openFolder, newTab) => {
+          onSubmit={async (name, openFolder, newTab) => {
             return mode === "create"
               ? createFolder(
-                  { name, description, parentId: parentOrItemId },
+                  { name, parentId: parentOrItemId },
                   openFolder,
                   newTab,
                 )
-              : updateFolder(parentOrItemId ?? "", { name, description });
+              : updateFolder(parentOrItemId ?? "", { name });
           }}
         />
       ),
@@ -719,7 +713,7 @@ const Chains = () => {
   };
 
   const onCreateFolderBtnClick = (parentId?: string) => {
-    showEditFolderModal("create", undefined, undefined, parentId);
+    showEditFolderModal("create", undefined, parentId);
   };
 
   const onCreateChainBtnClick = (parentId?: string) => {
@@ -740,7 +734,7 @@ const Chains = () => {
 
   const onDeleteBtnClick = () => {
     if (selectedRowKeys.length > 0) {
-      Modal.confirm({
+      confirmAndRun({
         title: "Delete selected",
         content: `Are you sure you want to delete selected folders and chains?`,
         onOk: async () => deleteSelectedFoldersAndChains(),
@@ -846,16 +840,11 @@ const Chains = () => {
   const onContextMenuItemClick = async (item: FolderItem, key: React.Key) => {
     switch (key) {
       case "createNewFolder":
-        return showEditFolderModal("create", undefined, undefined, item.id);
+        return showEditFolderModal("create", undefined, item.id);
       case "createNewChain":
         return onCreateChainBtnClick(item.id);
       case "editFolder":
-        return showEditFolderModal(
-          "update",
-          item.name,
-          item.description,
-          item.id,
-        );
+        return showEditFolderModal("update", item.name, item.id);
       case "editChain":
         return showModal({
           component: (
@@ -872,22 +861,22 @@ const Chains = () => {
         return copyToClipboard(
           `${window.location.origin}/chains?folder=${item.id}`,
         ).then(() =>
-          messageApi.info("Link to a folder was copied to the clipboard"),
+          message.info("Link to a folder was copied to the clipboard"),
         );
       case "copyChainLink":
         return copyToClipboard(
           `${window.location.origin}/chains/${item.id}`,
         ).then(() =>
-          messageApi.info("Link to a chain was copied to the clipboard"),
+          message.info("Link to a chain was copied to the clipboard"),
         );
       case "deleteFolder":
-        return Modal.confirm({
+        return confirmAndRun({
           title: "Delete Folder",
           content: `Are you sure you want to delete "${item.name}" folder?`,
           onOk: async () => deleteFolder(item.id),
         });
       case "deleteChain":
-        return Modal.confirm({
+        return confirmAndRun({
           title: "Delete Chain",
           content: `Are you sure you want to delete "${item.name}" chain?`,
           onOk: async () => deleteChain(item.id),
@@ -905,7 +894,7 @@ const Chains = () => {
       case "generateDDS":
         return showGenerateDdsModal(item.id);
       default:
-        return Modal.error({ title: "Not implemented yet" });
+        return modal.error({ title: "Not implemented yet" });
     }
   };
 
@@ -1010,7 +999,8 @@ const Chains = () => {
       title: "Description",
       key: "description",
       dataIndex: "description",
-      sorter: (a, b) => a.description.localeCompare(b.description),
+      sorter: (a, b) =>
+        (a.description ?? "").localeCompare(b.description ?? ""),
     },
     {
       title: "Status",
@@ -1085,8 +1075,11 @@ const Chains = () => {
                   ? folderMenuItems
                   : chainMenuItems,
               // @ts-expect-error Some mistake with types: onClick presents in menu props.
-              onClick: ({ key }: MenuInfo) =>
-                void onContextMenuItemClick(item, key),
+              onClick: (info: MenuInfo) => {
+                // Stop the click bubbling through the portal to the row handler.
+                info.domEvent.stopPropagation();
+                void onContextMenuItemClick(item, info.key);
+              },
             }}
             trigger={["click"]}
             placement="bottomRight"
@@ -1105,40 +1098,25 @@ const Chains = () => {
   const { orderedColumns, columnSettingsButton } =
     useColumnSettingsBasedOnColumnsType<ChainTableItem>("chainsTable", columns);
 
-  const chainsColumnResize = useTableColumnResize({
-    name: 220,
-    id: 200,
-    description: 240,
-    status: 200,
-    labels: 200,
-    createdBy: 120,
-    createdWhen: 168,
-    modifiedBy: 120,
-    modifiedWhen: 168,
-  });
-
-  const columnsWithResize = useMemo(() => {
-    const columns = attachResizeToColumns(
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(
       orderedColumns,
-      chainsColumnResize.columnWidths,
-      chainsColumnResize.createResizeHandlers,
-      { minWidth: 80 },
-    );
-    return disableResizeBeforeActions(columns);
-  }, [
-    orderedColumns,
-    chainsColumnResize.columnWidths,
-    chainsColumnResize.createResizeHandlers,
-  ]);
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(columnsWithResize, chainsColumnResize.columnWidths, {
+      {
+        name: 220,
+        id: 200,
+        description: 240,
+        status: 200,
+        labels: 200,
+        createdBy: 120,
+        createdWhen: 168,
+        modifiedBy: 120,
+        modifiedWhen: 168,
+      },
+      {
         expandColumnWidth: CHAINS_EXPAND_COLUMN_WIDTH,
         selectionColumnWidth: CHAINS_SELECTION_COLUMN_WIDTH,
-      }),
-    [columnsWithResize, chainsColumnResize.columnWidths],
-  );
+      },
+    );
 
   const rowSelection: TableRowSelection<ChainTableItem> = {
     type: "checkbox",
@@ -1167,7 +1145,6 @@ const Chains = () => {
 
   return (
     <>
-      {contextHolder}
       <Flex vertical gap={16} className={styles.container}>
         <TableToolbar
           leading={
@@ -1294,8 +1271,9 @@ const Chains = () => {
           columns={columnsWithResize}
           rowSelection={rowSelection}
           pagination={false}
-          scroll={{ x: scrollX, y: "" }}
-          components={chainsColumnResize.resizableHeaderComponents}
+          locale={{ emptyText: tableEmpty("No chains or folders") }}
+          scroll={tableScroll(scrollX, tableItems.length)}
+          components={components}
           rowKey="id"
           rowClassName={(record) =>
             [

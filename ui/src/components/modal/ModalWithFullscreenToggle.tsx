@@ -1,4 +1,4 @@
-import { ModalProps } from "antd/es/modal/interface";
+import type { ModalProps } from "antd";
 import { Button, Flex, Modal } from "antd";
 import React, { useCallback, useState } from "react";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
@@ -9,12 +9,28 @@ export const ModalWithFullscreenToggle: React.FC<ModalProps> = ({
   title,
   height,
   width,
+  // Default to centered: this wrapper renders a large (90vh) modal, which antd's
+  // default top positioning would push past the bottom of the viewport.
+  centered = true,
   onCancel,
   className,
   classNames,
   ...rest
 }): React.ReactNode => {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // Antd v6 allows `classNames` to be a function; merge only the object form.
+  const baseClassNames =
+    typeof classNames === "function" ? undefined : classNames;
+
+  // Keep a caller-provided slot class when it is a plain string (v6 also allows
+  // per-slot objects/functions, which this component does not forward).
+  const callerClass = (slot: string): string | undefined => {
+    const value = (baseClassNames as Record<string, unknown> | undefined)?.[
+      slot
+    ];
+    return typeof value === "string" ? value : undefined;
+  };
 
   const addClass = useCallback(
     (
@@ -61,7 +77,9 @@ export const ModalWithFullscreenToggle: React.FC<ModalProps> = ({
             />
             <Button
               icon={<OverridableIcon name="close" />}
-              onClick={onCancel}
+              onClick={(e) =>
+                onCancel?.(e as React.MouseEvent<HTMLButtonElement>)
+              }
               type="text"
               title="Close"
               size="small"
@@ -72,14 +90,15 @@ export const ModalWithFullscreenToggle: React.FC<ModalProps> = ({
       onCancel={onCancel}
       width={isFullscreen ? "100vw" : (width ?? "90vw")}
       height={isFullscreen ? "100vh" : (height ?? "90vh")}
+      centered={centered}
       className={addClass(className, "modal")}
       classNames={{
-        ...classNames,
-        content: addClass(classNames?.content, "modal-content"),
-        header: addClass(classNames?.header, "modal-header"),
-        footer: addClass(classNames?.footer, "modal-footer"),
-        body: addClass(classNames?.body, "modal-body"),
-        wrapper: addClass(classNames?.wrapper, "modal-wrapper"),
+        ...baseClassNames,
+        container: addClass(callerClass("container"), "modal-content"),
+        header: addClass(callerClass("header"), "modal-header"),
+        footer: addClass(callerClass("footer"), "modal-footer"),
+        body: addClass(callerClass("body"), "modal-body"),
+        wrapper: addClass(callerClass("wrapper"), "modal-wrapper"),
       }}
       {...rest}
       closable={false}

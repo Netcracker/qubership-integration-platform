@@ -9,6 +9,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.configuration.tenant.TenantConfiguration;
 import org.qubership.integration.platform.engine.model.opensearch.KafkaQueueElement;
@@ -47,7 +48,9 @@ public class MaasOpensearchKafkaProducer implements OpenSearchKafkaProducer {
                 .orElseThrow(() -> new RuntimeException("Failed to get Kafka topic"));
         producer = new KafkaProducer<>(
                 topicAddress.formatConnectionProperties()
-                        .orElseThrow(() -> new RuntimeException("Failed to get connection Kafka properties"))
+                        .orElseThrow(() -> new RuntimeException("Failed to get connection Kafka properties")),
+                new StringSerializer(),
+                new KafkaQueueElementSerializer()
         );
     }
 

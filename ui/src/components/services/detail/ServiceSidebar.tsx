@@ -26,8 +26,8 @@ const menuItems = [
   {
     key: "mcp",
     icon: <OverridableIcon name="mcp" />,
-    label: "MCP"
-  }
+    label: "MCP",
+  },
 ];
 
 export const ServiceSidebar = ({ collapsed }: { collapsed: boolean }) => {

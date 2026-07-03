@@ -1,9 +1,10 @@
 import React from "react";
-import { Button, Flex, Tooltip } from "antd";
-import Title from "antd/lib/typography/Title";
+import { Button, Flex, Tooltip, Typography } from "antd";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { MaasPageHeaderProps } from "./types.ts";
 import styles from "./Maas.module.css";
+
+const { Title } = Typography;
 
 export const MaasPageHeader: React.FC<MaasPageHeaderProps> = ({
   title,

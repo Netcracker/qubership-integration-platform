@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Form, Select, SelectProps, Spin } from "antd";
+import { Checkbox, Form, Select, SelectProps, Spin } from "antd";
 import { useParams } from "react-router";
-import { useForm } from "antd/lib/form/Form";
-import Checkbox from "antd/lib/checkbox";
 import {
   ChainLoggingProperties,
   ChainLoggingSettings,
@@ -22,6 +20,8 @@ import { ApplyFormButton } from "../components/ApplyFormButton.tsx";
 import { hasPermissions } from "../permissions/funcs.ts";
 import { usePermissions } from "../permissions/usePermissions.tsx";
 import { Require } from "../permissions/Require.tsx";
+
+const { useForm } = Form;
 
 type LogSettingsFormState = ChainLoggingProperties & { custom: boolean };
 

@@ -19,7 +19,9 @@ function waitAnimationFrames(count: number): Promise<void> {
 
 function hasCollapsedContainers(nodes: Node[]): boolean {
   return nodes.some(
-    (node) => node.type === "container" && !!(node.data as { collapsed?: boolean })?.collapsed,
+    (node) =>
+      node.type === "container" &&
+      !!(node.data as { collapsed?: boolean })?.collapsed,
   );
 }
 
@@ -47,7 +49,10 @@ export async function prepareBatchGraphExport(params: {
         waitForNextAutoArrange(),
         new Promise<void>((_, reject) => {
           globalThis.setTimeout(
-            () => reject(new Error(`Layout did not finish within ${LAYOUT_WAIT_MS}ms`)),
+            () =>
+              reject(
+                new Error(`Layout did not finish within ${LAYOUT_WAIT_MS}ms`),
+              ),
             LAYOUT_WAIT_MS,
           );
         }),

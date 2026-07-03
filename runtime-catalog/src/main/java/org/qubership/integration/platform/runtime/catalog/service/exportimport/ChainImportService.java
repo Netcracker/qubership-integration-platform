@@ -26,6 +26,7 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.C
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainDifferenceException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainImportException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ComparisonEntityNotFoundException;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.MetaInfoExternalEntity;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.*;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ChainImportInstructionsConfig;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ChainsIgnoreOverrideResult;
@@ -413,18 +414,30 @@ public class ChainImportService {
         return transactionTemplate.execute(status -> saveImportedChain(chainExternalEntity, chainFilesDir, technicalLabels));
     }
 
+    static String resolveRootFolderName(ChainExternalEntity chainExternalEntity) {
+        MetaInfoExternalEntity metaInfo = chainExternalEntity.getMetaInfo();
+        List<String> segments = GroupPathUtils.parseSegments(metaInfo == null ? null : metaInfo.getGroup());
+        return segments.isEmpty() ? null : segments.get(0);
+    }
+
+    Folder resolveOrCreateRootFolder(ChainExternalEntity chainExternalEntity) {
+        String rootFolderName = resolveRootFolderName(chainExternalEntity);
+        if (rootFolderName == null) {
+            return null;
+        }
+        Folder existingFolder = folderService.findFirstByName(rootFolderName, null);
+        if (existingFolder == null) {
+            existingFolder = Folder.builder().name(rootFolderName).build();
+            existingFolder = folderService.save(existingFolder, (String) null);
+        }
+        return existingFolder;
+    }
+
     public ImportChainResult saveImportedChain(ChainExternalEntity chainExternalEntity, File chainFilesDir, Set<String> technicalLabels) {
         Chain currentChainState = chainFinderService.tryFindById(chainExternalEntity.getId()).orElse(null);
         ImportEntityStatus importStatus = currentChainState != null ? ImportEntityStatus.UPDATED : ImportEntityStatus.CREATED;
 
-        Folder existingFolder = null;
-        if (chainExternalEntity.getContent().getFolder() != null) {
-            existingFolder = folderService.findFirstByName(chainExternalEntity.getContent().getFolder().getName(), null);
-            if (existingFolder == null) {
-                existingFolder = Folder.builder().name(chainExternalEntity.getContent().getFolder().getName()).build();
-                existingFolder = folderService.save(existingFolder, (String) null);
-            }
-        }
+        Folder existingFolder = resolveOrCreateRootFolder(chainExternalEntity);
 
         Chain newChainState = chainExternalEntityMapper.toInternalEntity(ChainExternalMapperEntity.builder()
                 .chainExternalEntity(chainExternalEntity)
@@ -437,7 +450,7 @@ public class ChainImportService {
 
         newChainState.setUnsavedChanges(true);
 
-        setActualChainState(existingFolder, currentChainState, newChainState);
+        setActualChainState(currentChainState, newChainState);
 
         logImportAction(newChainState, LogOperation.CREATE_OR_UPDATE);
 
@@ -587,7 +600,7 @@ public class ChainImportService {
         deploymentService.create(deploymentConfig, snapshot.getChain(), snapshot, excludeDeployments);
     }
 
-    private void setActualChainState(Folder currentFolder, Chain currentChainState, Chain newChainState) {
+    private void setActualChainState(Chain currentChainState, Chain newChainState) {
         //Actualize new entities state in persistence context
         //Dependencies
         dependencyService.setActualizedElementDependencyStates(
@@ -606,13 +619,14 @@ public class ChainImportService {
                 newChainState.getMaskedFields()
         );
 
-        //Chain
-        chainService.setActualizedChainState(currentChainState, newChainState);
-
-        //Chain Folder
-        if (currentFolder == null && newChainState.getParentFolder() != null) {
+        //Chain Folder — persist the (possibly newly built) folder tree before the chain is
+        //merged/persisted, so the chain references only managed folders.
+        if (newChainState.getParentFolder() != null) {
             newChainState.setParentFolder(folderService.setActualizedFolderState(newChainState.getParentFolder()));
         }
+
+        //Chain
+        chainService.setActualizedChainState(currentChainState, newChainState);
     }
 
     private void logImportAction(@NonNull Chain chain, LogOperation operation) {
@@ -641,13 +655,9 @@ public class ChainImportService {
     @Deprecated(since = "2023.4")
     public void saveImportedChainBackward(Chain importedChain) {
         Chain currentChainState = chainFinderService.tryFindById(importedChain.getId()).orElse(null);
-        Folder existingFolder = null;
-        if (importedChain.getParentFolder() != null) {
-            existingFolder = folderService.findEntityByIdOrNull(importedChain.getParentFolder().getId());
-        }
         if (currentChainState != null) {
             ChainUtils.chainPropertiesInitialization(currentChainState);
         }
-        setActualChainState(existingFolder, currentChainState, importedChain);
+        setActualChainState(currentChainState, importedChain);
     }
 }

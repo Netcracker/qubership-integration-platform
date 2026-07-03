@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.service;
 
+import jakarta.persistence.EntityNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
@@ -33,6 +34,8 @@ import java.util.*;
 
 @Service
 public class ContextBaseService {
+
+    private static final String CONTEXT_SYSTEM_WITH_ID_NOT_FOUND = "Can't find context system with id: ";
 
     protected final ContextSystemRepository contextSystemRepository;
     protected final ActionsLogService actionsLogger;
@@ -94,7 +97,8 @@ public class ContextBaseService {
 
     @Transactional
     public void delete(String systemId) {
-        ContextSystem system = contextSystemRepository.getReferenceById(systemId);
+        ContextSystem system = contextSystemRepository.findById(systemId)
+            .orElseThrow(() -> new EntityNotFoundException(CONTEXT_SYSTEM_WITH_ID_NOT_FOUND + systemId));
         contextSystemRepository.delete(system);
         logSystemAction(system, LogOperation.DELETE);
     }

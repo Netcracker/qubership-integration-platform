@@ -82,7 +82,7 @@ Each **chain** contains the following parameters on table view:
 
 <ins>VS Code Extension</ins>
 
-All chains configured using VS Code Extension appears under "Chains" folder. The "Chains" folder is located by expanding "QIP" in the left bottom. Under "Chains" folder, a list of created chains is available. Expandinf the chain a list of its elements are available.
+All chains configured using VS Code Extension appears under "Chains" folder. The "Chains" folder is located by expanding "QIP" in the left bottom. Under "Chains" folder, a list of created chains is available. Expanding the chain a list of its elements are available.
 
 ### Chain Details Side Panel
 **`⛔ Not available via VS Code extension`**
@@ -254,6 +254,55 @@ If a folder is deleted, all chains grouped under that folder will also be delete
 <ins>VS Code Extension</ins>
 
 Under "Chains" folder, right-click on the chain name you want to delete. From the available options, click "Delete Chain". A notification appears in the bottom-right corner of the screen to confirm deletion is successful.
+
+### Compare Chains
+<ins>Web UI</ins>
+
+Mark two chains with checkboxes, click ![diff](img/diff.svg) button to open widget with two comparison areas and supplementary elements. When a comparison window is requested, while only a single snapshot is marked with a checkbox, the system compares it with current state of the chain. Next elements are available on the comparator window:
+
+- **Chain Name** - read only text field, specifies chain name.
+- **Snapshot Name** - dropdown with snapshot versions, available for given chain. Current, unsaved version of the chain can be also selected in this dropdown.
+- Switcher **Graph/Table/Text** - allows to switch between three different comparison views.
+- **![caret-up](img/caret-up.svg) (Previous change)** and **![caret-down](img/caret-down.svg) (Next change)** - navigate to the previous or next detected difference. The corresponding element and its changed property are selected in the comparison areas, and the property details are displayed above the graphs.
+
+> ℹ️ **Note**: Comparison functionality was specifically introduced in order to compare two **similar** chains and quickly identify the differences between them. It won't provide much value when comparing two completely different chains.
+
+Comparison could be done in three different views, that could be switched anytime:
+
+- **Graph View** - Default view for comparison widget. When this type of view is selected, comparison areas show configuration graphs, compiled on the basis of selected chains and their snapshots. Next tools are available:
+  - ![plus](img/plus.svg) ![minus](img/minus.svg) - zoom in /out the graph.
+  - ![expand](img/expand.svg) - fit view.
+  - ![rotate-right](img/rotate-right.svg) - changes graphs orientation from vertical to horizontal and vice versa.
+  - ![arrows-alt](img/arrows-alt.svg) ![shrink](img/shrink.svg) - allows to open widget in full screen and collapse it back.
+
+  Graphs' elements are marked according to the found differences:
+   - **Identical (grey)** - no differences were found in the element or dependency.
+   - **Changed (yellow)** - the element exists in both chain versions, but its properties differ.
+   - **Removed (red)** - the element or dependency does not exist in the compared chain version.
+   - **Created (green)** - a new element or dependency exists in the compared chain version.
+
+Clicking the element in one area makes another area also selecting it, allowing to quickly find comparable elements. Double-clicking the element opens another window with text-based comparator, complied on the basis of the elements' data.
+
+- **Table View** - Select **Table** in the **Graph/Table/Text** switcher to display the comparison results as a table. Each row represents a detected difference. The table contains the following columns:
+
+  - **Type** - type of the changed entity.
+  - **Compared chain versions** - two columns named after the compared chains. Each column shows the data from the corresponding chain version:
+    - **Element** - element whose configuration differs. Click the element name to open its properties in a new browser window.
+    - **Name** - name of the changed property.
+    - **Value** - property value in the corresponding chain version.
+
+  Select a row using the radio button to focus on a particular difference. Use the **Previous change** and **Next change** arrows to move between the detected differences.
+
+- **Text View** - Mark two chains with checkboxes, click ![diff](img/diff.svg) button to open comparison widget and then use **Graph/Table/Text** switcher to change the view option to "**Text**". Compare areas in this view contain text representation of the chains and per line differences, highlighted in next color:
+
+  - **Red** - properties don't exist in the compared chain version.
+  - **Green** - new properties exist in the compared chain version.
+
+Text view is also accessible via double-clicking the element while working with graph view of comparator.
+
+<ins>VS Code Extension</ins>
+
+TBD
 
 ### Constraints
 
