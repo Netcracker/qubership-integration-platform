@@ -147,6 +147,26 @@ class ConsulSessionServiceTest {
     }
 
     @Test
+    void shouldAttemptToDestroyPreviousSessionWhenRenewFailsWithVertxSessionNotFoundMessage() {
+        when(consulClient.createSessionWithOptions(any(SessionOptions.class)))
+                .thenReturn(
+                        Uni.createFrom().item(FIRST_SESSION_ID),
+                        Uni.createFrom().item(SECOND_SESSION_ID)
+                );
+        when(consulClient.renewSession(FIRST_SESSION_ID))
+                .thenReturn(Uni.createFrom().failure(vertxSessionNotFoundError(FIRST_SESSION_ID)));
+
+        service.getOrCreateSession();
+        service.createOrRenewSession();
+        String result = service.getOrCreateSession();
+
+        assertEquals(SECOND_SESSION_ID, result);
+        verify(consulClient, times(1)).destroySession(anyString());
+        verify(eventBus).publish(ConsulSessionService.CREATE_SESSION_EVENT, FIRST_SESSION_ID);
+        verify(eventBus).publish(ConsulSessionService.CREATE_SESSION_EVENT, SECOND_SESSION_ID);
+    }
+
+    @Test
     void shouldReturnNullWhenCreateSessionFails() {
         when(consulClient.createSessionWithOptions(any(SessionOptions.class)))
                 .thenReturn(Uni.createFrom().failure(new RuntimeException("Create failed")));
@@ -303,6 +323,12 @@ class ConsulSessionServiceTest {
         assertFalse((boolean) sessionNotFoundError.invoke(service, new RuntimeException("network error")));
         assertTrue((boolean) sessionNotFoundError.invoke(service,
                 new RuntimeException("Session id " + FIRST_SESSION_ID + " not found")));
+        assertTrue((boolean) sessionNotFoundError.invoke(service, vertxSessionNotFoundError(FIRST_SESSION_ID)));
+    }
+
+    private static RuntimeException vertxSessionNotFoundError(String sessionId) {
+        return new RuntimeException(
+                "Status message: 'Not Found'. Body: 'Session id '" + sessionId + "' not found' ");
     }
 
     private void useShortConsulAwaitTimeout() {

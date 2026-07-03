@@ -167,6 +167,12 @@ public class ConsulSessionService {
     }
 
     private boolean sessionNotFoundError(Throwable e) {
-        return e.getMessage() != null && e.getMessage().matches("Session id .* not found");
+        for (Throwable current = e; current != null; current = current.getCause()) {
+            String message = current.getMessage();
+            if (message != null && message.contains("Session id") && message.contains("not found")) {
+                return true;
+            }
+        }
+        return false;
     }
 }
