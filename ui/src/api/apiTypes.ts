@@ -911,6 +911,23 @@ export type ActionLogSearchRequest = {
   filters?: unknown;
 };
 
+export type ActionLogFilterRequest = {
+  column: string;
+  condition: string;
+  value: string;
+};
+
+export type ActionLogPagedSearchRequest = {
+  offset: number;
+  limit: number;
+  filters?: ActionLogFilterRequest[];
+};
+
+export type ActionLogPagedSearchResponse = {
+  offset: number;
+  actionLogs: ActionLog[];
+};
+
 export enum EntityType {
   FOLDER = "FOLDER",
   CHAIN = "CHAIN",

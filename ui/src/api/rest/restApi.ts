@@ -44,6 +44,8 @@ import {
   ElementFilter,
   ActionLogSearchRequest,
   ActionLogResponse,
+  ActionLogPagedSearchRequest,
+  ActionLogPagedSearchResponse,
   LogExportRequestParams,
   IntegrationSystem,
   SystemRequest,
@@ -1422,6 +1424,16 @@ export class RestApi implements Api {
   ): Promise<ActionLogResponse> => {
     const response = await this.instance.post<ActionLogResponse>(
       `${this.v1()}/catalog/actions-log`,
+      searchRequest,
+    );
+    return response.data;
+  };
+
+  loadCatalogActionsLogV2 = async (
+    searchRequest: ActionLogPagedSearchRequest,
+  ): Promise<ActionLogPagedSearchResponse> => {
+    const response = await this.instance.post<ActionLogPagedSearchResponse>(
+      `${this.v2()}/catalog/actions-log`,
       searchRequest,
     );
     return response.data;
