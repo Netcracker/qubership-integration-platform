@@ -6,7 +6,6 @@ import org.apache.camel.Processor;
 import org.apache.http.HttpHeaders;
 import org.qubership.integration.platform.engine.camel.context.propagation.CamelExchangeContextPropagation;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -15,8 +14,7 @@ import static java.util.Objects.nonNull;
 import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.REQUEST_CONTEXT_PROPAGATION_SNAPSHOT;
 
 @Slf4j
-@Component
-@ConditionalOnMissingBean(ContextRestoreProcessor.class)
+@Component("contextRestoreProcessor")
 public class ContextRestoreProcessor implements Processor {
     private final CamelExchangeContextPropagation camelExchangeContextPropagation;
 
