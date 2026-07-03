@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Form, Input, Button, Descriptions, Spin, Select } from "antd";
+import { Form, Input, Button, Descriptions, Skeleton, Select } from "antd";
 import { ContextSystem } from "../../../api/apiTypes";
 import { api } from "../../../api/api";
 import { useAsyncRequest } from "../useAsyncRequest";
@@ -86,7 +86,12 @@ export const ContextServiceParametersTab: React.FC<
     setHasChanges(false);
   };
 
-  if (loadingSystem) return <Spin style={{ margin: 32 }} />;
+  if (loadingSystem)
+    return (
+      <div style={{ margin: 32 }}>
+        <Skeleton active />
+      </div>
+    );
   if (loadError)
     return <div style={{ color: "red", margin: 32 }}>{loadError}</div>;
   if (!system) return null;

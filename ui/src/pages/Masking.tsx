@@ -10,6 +10,7 @@ import {
 } from "../components/table/TextColumnFilterDropdown.tsx";
 import { TableRowSelection } from "antd/lib/table/interface";
 import { TextValueEdit } from "../components/table/TextValueEdit.tsx";
+import { tableScroll } from "../components/table/tableScroll.ts";
 import { InlineEdit } from "../components/InlineEdit.tsx";
 import { TableProps } from "antd/lib/table";
 import { formatTimestamp } from "../misc/format-utils.ts";
@@ -22,12 +23,8 @@ import { TablePageLayout } from "../components/TablePageLayout.tsx";
 import { filterOutByIds, toStringIds } from "../misc/selection-utils.ts";
 import { Require } from "../permissions/Require.tsx";
 import { useColumnSettingsBasedOnColumnsType } from "../components/table/useColumnSettingsButton.tsx";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../components/table/useTableColumnResize.tsx";
-import { disableResizeBeforeActions } from "../components/table/actionsColumn.ts";
+import { useColumnsWithResizeAndScroll } from "../components/table/useColumnsWithResizeAndScroll.tsx";
+import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import { matchesByFields } from "../components/table/tableSearch.ts";
 import { ProtectedButton } from "../permissions/ProtectedButton.tsx";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
@@ -223,37 +220,18 @@ export const Masking: React.FC = () => {
   const { orderedColumns, columnSettingsButton } =
     useColumnSettingsBasedOnColumnsType<MaskedField>("maskingTable", columns);
 
-  const maskingColumnResize = useTableColumnResize({
-    name: 220,
-    createdBy: 120,
-    createdWhen: 168,
-    modifiedBy: 120,
-    modifiedWhen: 168,
-  });
-
-  const columnsWithResize = useMemo(() => {
-    const resized = attachResizeToColumns(
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(
       orderedColumns,
-      maskingColumnResize.columnWidths,
-      maskingColumnResize.createResizeHandlers,
-      { minWidth: 80 },
+      {
+        name: 220,
+        createdBy: 120,
+        createdWhen: 168,
+        modifiedBy: 120,
+        modifiedWhen: 168,
+      },
+      { selectionColumnWidth: MASKING_SELECTION_COLUMN_WIDTH },
     );
-    return disableResizeBeforeActions(resized);
-  }, [
-    orderedColumns,
-    maskingColumnResize.columnWidths,
-    maskingColumnResize.createResizeHandlers,
-  ]);
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        columnsWithResize,
-        maskingColumnResize.columnWidths,
-        { selectionColumnWidth: MASKING_SELECTION_COLUMN_WIDTH },
-      ),
-    [columnsWithResize, maskingColumnResize.columnWidths],
-  );
 
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
     setSelectedRowKeys(newSelectedRowKeys);
@@ -331,12 +309,9 @@ export const Masking: React.FC = () => {
         rowKey="id"
         className="flex-table"
         style={{ flex: 1, minHeight: 0 }}
-        scroll={
-          filteredMaskedFields.length > 0
-            ? { x: scrollX, y: "" }
-            : { x: scrollX }
-        }
-        components={maskingColumnResize.resizableHeaderComponents}
+        locale={{ emptyText: tableEmpty("No masked fields") }}
+        scroll={tableScroll(scrollX, filteredMaskedFields.length)}
+        components={components}
       />
     </TablePageLayout>
   );

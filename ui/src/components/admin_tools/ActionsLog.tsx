@@ -37,6 +37,7 @@ import {
 } from "../table/useColumnSettingsButton.tsx";
 import {
   attachResizeToColumns,
+  sumScrollXForColumns,
   useTableColumnResize,
 } from "../table/useTableColumnResize.tsx";
 import { matchesByFields } from "../table/tableSearch.ts";
@@ -181,11 +182,17 @@ export const ActionsLog: React.FC = () => {
     [logsData, searchTerm],
   );
 
+  const lastScrollTopRef = useRef(0);
+
   const onScroll = async (event: UIEvent<HTMLDivElement>) => {
     const target = event.target as HTMLDivElement;
+    // The scroll event fires on horizontal scroll too; only react to vertical
+    // movement so sideways scrolling never triggers a page fetch.
+    const movedVertically = target.scrollTop !== lastScrollTopRef.current;
+    lastScrollTopRef.current = target.scrollTop;
     const isScrolledToTheEnd =
       target.scrollTop + target.clientHeight + 1 >= target.scrollHeight;
-    if (hasNextPage && isScrolledToTheEnd) {
+    if (movedVertically && hasNextPage && !isFetching && isScrolledToTheEnd) {
       await fetchNextPage();
     }
   };
@@ -193,15 +200,15 @@ export const ActionsLog: React.FC = () => {
   const [containerRef, containerHeight] = useResizeHeight<HTMLElement>();
 
   const actionLogColumnResize = useTableColumnResize({
-    actionTime: 200,
-    username: 200,
-    operation: 200,
-    entityType: 300,
-    entityName: 500,
-    parentName: 400,
-    entityId: 300,
-    parentId: 300,
-    requestId: 300,
+    actionTime: 180,
+    username: 150,
+    operation: 150,
+    entityType: 160,
+    entityName: 260,
+    parentName: 200,
+    entityId: 200,
+    parentId: 200,
+    requestId: 200,
   });
 
   const operationOptions = Object.values(LogOperation).map((value) => ({
@@ -370,6 +377,17 @@ export const ActionsLog: React.FC = () => {
       actionLogColumnResize.columnWidths,
       actionLogColumnResize.createResizeHandlers,
     ],
+  );
+
+  // Sum only the visible columns: hidden ones must not inflate scroll.x, or antd
+  // stretches the visible columns to fill the phantom width and overflows.
+  const actionLogScrollX = useMemo(
+    () =>
+      sumScrollXForColumns(
+        orderedColumnsResized,
+        actionLogColumnResize.columnWidths,
+      ),
+    [orderedColumnsResized, actionLogColumnResize.columnWidths],
   );
 
   const showDrawer = (actionLog: ActionLog) => {
@@ -587,8 +605,8 @@ export const ActionsLog: React.FC = () => {
               columns={orderedColumnsResized}
               dataSource={filteredLogsData}
               scroll={{
-                x: actionLogColumnResize.totalColumnsWidth,
-                y: containerHeight - 59 || 400,
+                x: actionLogScrollX,
+                y: containerHeight > 59 ? containerHeight - 59 : 400,
               }}
               pagination={false}
               rowKey="id"

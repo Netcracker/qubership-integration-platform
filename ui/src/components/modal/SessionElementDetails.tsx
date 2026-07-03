@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Session, SessionElement } from "../../api/apiTypes.ts";
-import { Button, Flex, message, Tabs, TabsProps, Tag } from "antd";
+import { Button, Flex, Tabs, TabsProps, Tag } from "antd";
+import { message } from "../../misc/antd-app.ts";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import { PLACEHOLDER } from "../../misc/format-utils.ts";
 import { SessionStatus } from "../sessions/SessionStatus.tsx";
@@ -74,7 +75,6 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
   const [elementOrderMap, setElementOrderMap] =
     useState<SessionElementOrderMap>(new Map());
   const [tabItems, setTabItems] = useState<TabsProps["items"]>([]);
-  const [messageApi, contextHolder] = message.useMessage();
 
   useEffect(() => {
     setElementOrderMap(buildElementOrderMap(session.sessionElements));
@@ -94,12 +94,12 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
       const text = getTextToCopy(item, column, typeTextGetter, valueTextGetter);
       if (text) {
         return copyToClipboard(text).then(() => {
-          messageApi.info("Copied to clipboard");
+          message.info("Copied to clipboard");
           return;
         });
       }
     },
-    [messageApi],
+    [],
   );
 
   const buildTabItems = useCallback(
@@ -226,12 +226,10 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
           />
         </>
       }
-      centered
       open={true}
       onCancel={closeContainingModal}
       footer={null}
     >
-      {contextHolder}
       <Flex
         vertical
         style={{ paddingTop: 8, flexGrow: 1, flexShrink: 1, minHeight: 0 }}

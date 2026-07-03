@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Select, Space, Tag } from "antd";
 import { useDomains } from "../hooks/useDomains.tsx";
-import { LabelInValueType } from "rc-select/lib/Select";
-import type { FlattenOptionData } from "rc-select/lib/interface";
+import type { LabelRenderProps, OptionRenderProps } from "../types/antd.ts";
 import { DomainType, EngineDomain } from "../api/apiTypes.ts";
 import { getConfig, onConfigChange } from "../appConfig.ts";
 
@@ -38,7 +37,7 @@ export const SelectDomains: React.FC<SelectDomainsProperties> = ({
   }, []);
 
   const renderOption = useCallback(
-    (props: LabelInValueType | FlattenOptionData<unknown>) => {
+    (props: LabelRenderProps | OptionRenderProps) => {
       const domainType = getDomainType(props.value?.toString() ?? "", domains);
       return domainType === DomainType.MICRO ? (
         <Space size={"small"}>

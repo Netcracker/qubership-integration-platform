@@ -4,10 +4,7 @@ import { VSCodeExtensionApi } from "../api/rest/vscodeExtensionApi.ts";
 import { useCallback, useEffect, useState } from "react";
 import { useNotificationService } from "./useNotificationService.tsx";
 
-export const useChain = (
-  chainId?: string,
-  options?: { filePath?: string },
-) => {
+export const useChain = (chainId?: string, options?: { filePath?: string }) => {
   const [isLoading, setIsLoading] = useState(Boolean(chainId));
   const [chain, setChain] = useState<Chain>();
   const [error, setError] = useState<Error | null>(null);

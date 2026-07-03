@@ -53,7 +53,6 @@ export const SnapshotXmlView: React.FC<SnapshotXmlViewProps> = ({
   return (
     <ModalWithFullscreenToggle
       title="XML Definition"
-      centered
       open={true}
       onCancel={closeContainingModal}
       footer={null}

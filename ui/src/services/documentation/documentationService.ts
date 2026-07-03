@@ -66,7 +66,11 @@ const ELEMENT_ALIASES: Record<string, string[]> = {
 
 export class DocumentationService {
   private readonly MAX_FOUND_DOCUMENT_FRAGMENTS = 5;
-  private readonly ELEMENTS_LIBRARY_PATH = "QIP_Elements_Library";
+  // Matches a whole path segment named "Elements_Library", with or without a
+  // numeric and/or "QIP_" prefix ("1__Elements_Library", "QIP_Elements_Library",
+  // "1__QIP_Elements_Library"), so an unrelated folder that merely embeds the
+  // words is not treated as the library.
+  private readonly ELEMENTS_LIBRARY_SEGMENT = /(^|__)(QIP_)?Elements_Library$/;
   private readonly INDEX_FILENAME = "index";
 
   private pathsPromise: Promise<string[]> | null = null;
@@ -216,9 +220,13 @@ export class DocumentationService {
 
     // Auto-generate mapping from file/folder names
     paths.forEach((path) => {
-      if (!path.includes(this.ELEMENTS_LIBRARY_PATH)) return;
-
       const parts = path.split("/");
+      if (
+        !parts.some((segment) => this.ELEMENTS_LIBRARY_SEGMENT.test(segment))
+      ) {
+        return;
+      }
+
       const fileName = parts[parts.length - 1].replace(".md", "");
       const folderName = parts[parts.length - 2];
 

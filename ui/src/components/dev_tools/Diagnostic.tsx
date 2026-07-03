@@ -9,12 +9,13 @@ import {
   Tooltip,
 } from "antd";
 import { CompactSearch } from "../table/CompactSearch";
+import { tableScroll } from "../table/tableScroll.ts";
 import {
   DiagnosticValidation,
   ValidationSeverity,
   ValidationState,
 } from "../../api/apiTypes";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { TableRowSelection } from "antd/lib/table/interface";
 import { api } from "../../api/api";
 import { useNotificationService } from "../../hooks/useNotificationService";
@@ -28,10 +29,7 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../table/useColumnSettingsButton";
-import {
-  attachResizeToColumns,
-  useTableColumnResize,
-} from "../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
 import commonStyles from "../admin_tools/CommonStyle.module.css";
 
 const DIAGNOSTIC_EXPAND_COLUMN_WIDTH = 48;
@@ -188,7 +186,7 @@ export const Diagnostic: React.FC = () => {
           record.severity === ValidationSeverity.ERROR ? "red" : "gold";
         const bordered = isDiagnosticValidation(record);
         return (
-          <Tag color={color} bordered={bordered}>
+          <Tag color={color} variant={bordered ? "outlined" : "filled"}>
             {count}
           </Tag>
         );
@@ -222,33 +220,21 @@ export const Diagnostic: React.FC = () => {
       columns,
     );
 
-  const diagnosticColumnResize = useTableColumnResize({
-    title: 360,
-    status: 130,
-    alertsCount: 100,
-    hint: 80,
-    startTime: 180,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        orderedColumns,
-        diagnosticColumnResize.columnWidths,
-        diagnosticColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
+  const { columnsWithResize, components, scrollX } =
+    useColumnsWithResizeAndScroll(
       orderedColumns,
-      diagnosticColumnResize.columnWidths,
-      diagnosticColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const scrollX =
-    diagnosticColumnResize.totalColumnsWidth +
-    DIAGNOSTIC_EXPAND_COLUMN_WIDTH +
-    DIAGNOSTIC_SELECTION_COLUMN_WIDTH;
+      {
+        title: 360,
+        status: 130,
+        alertsCount: 100,
+        hint: 80,
+        startTime: 180,
+      },
+      {
+        expandColumnWidth: DIAGNOSTIC_EXPAND_COLUMN_WIDTH,
+        selectionColumnWidth: DIAGNOSTIC_SELECTION_COLUMN_WIDTH,
+      },
+    );
 
   const rowSelection: TableRowSelection<DiagnosticValidationTableItem> = {
     type: "checkbox",
@@ -432,7 +418,14 @@ export const Diagnostic: React.FC = () => {
   };
 
   return (
-    <Flex vertical gap={16} style={{ height: "100%" }}>
+    <Flex
+      vertical
+      gap={16}
+      // minHeight/minWidth: 0 + overflow: hidden bound the flex-table to the
+      // available height and clip its ~1px sub-pixel rounding, so it can't bubble
+      // up as a stray vertical scrollbar (same containment as TablePageLayout).
+      style={{ height: "100%", minHeight: 0, minWidth: 0, overflow: "hidden" }}
+    >
       <Alert
         type="info"
         showIcon
@@ -469,8 +462,8 @@ export const Diagnostic: React.FC = () => {
         loading={isLoading}
         rowKey="itemId"
         sticky
-        scroll={{ x: scrollX, y: "" }}
-        components={diagnosticColumnResize.resizableHeaderComponents}
+        scroll={tableScroll(scrollX, tableData.length)}
+        components={components}
         expandable={{
           expandIcon: treeExpandIcon(),
           expandedRowKeys,

@@ -1,0 +1,105 @@
+/* Layout for a composite select value: a quiet facet chip followed by the value
+   (name / version, or method badge + path), evenly spaced and ellipsized. */
+.row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+
+  /* antd makes the selected option bold; keep the composite value at a normal
+     weight so coloured tags (protocol) and names never render bold. */
+  font-weight: 400;
+}
+
+/* Tags inside a composite value (protocol flag, method badge) are spaced by the
+   row gap alone — drop antd's default trailing margin so columns stay aligned. */
+.row :global(.ant-tag) {
+  margin-inline-end: 0;
+}
+
+/* Fixed facet columns in the service dropdown: the type chip and protocol tag
+   each fill a constant width so every row's service name starts at the same x
+   and the tags read as uniform columns (like the operation dropdown). */
+.typeCol {
+  flex: 0 0 80px;
+  min-width: 0;
+  display: inline-flex;
+}
+
+.typeCol .chip {
+  width: 100%;
+  text-align: center;
+}
+
+.protoCol {
+  flex: 0 0 72px;
+  min-width: 0;
+  display: inline-flex;
+}
+
+.protoCol :global(.ant-tag) {
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* Quiet, theme-aware facet chip (service type / spec group / operation name).
+   Replaces the old fixed-width opaque grey pill. */
+.chip {
+  display: inline-block;
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow: hidden;
+  vertical-align: middle;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  background: rgb(127 127 127 / 16%);
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+}
+
+/* Fixed name column so the method badge and path line up into neat columns in
+   the operation dropdown (Swagger-style). */
+.nameCol {
+  flex: 0 0 200px;
+  min-width: 0;
+}
+
+/* Stretch the chip to fill the column so the name reads as an aligned, centered
+   cell instead of a chip floating with a gap before the method badge. */
+.nameCol .chip {
+  width: 100%;
+  text-align: center;
+}
+
+/* Trailing plain value (service name, spec version). */
+.text {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+}
+
+/* API-spec dropdown group header: lift antd's muted group caption to a legible,
+   full-contrast label so the specification name reads clearly (no bold). */
+.groupLabel {
+  font-size: 13px;
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+}
+
+/* Operation topic / path: plain text in the regular UI font (no monospace). */
+.path {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+}

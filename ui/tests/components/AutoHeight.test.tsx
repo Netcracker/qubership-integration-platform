@@ -46,14 +46,15 @@ describe("AutoHeight", () => {
       expect((container.firstChild as HTMLElement).style.height).toBe("300px");
     });
 
-    it("should forward HTML attributes to the container div", () => {
+    it("should forward HTML attributes and keep the marker class", () => {
       const { container } = render(
         <AutoHeight className="my-class" id="my-id">
           <div>child</div>
         </AutoHeight>,
       );
       const div = container.firstChild as HTMLElement;
-      expect(div.className).toBe("my-class");
+      expect(div.className).toContain("my-class");
+      expect(div.className).toContain("qip-auto-height");
       expect(div.id).toBe("my-id");
     });
 
@@ -122,10 +123,7 @@ describe("AutoHeight", () => {
           { container: modalWrap },
         );
         unmount();
-        expect(spy).toHaveBeenCalledWith(
-          "transitionend",
-          expect.any(Function),
-        );
+        expect(spy).toHaveBeenCalledWith("transitionend", expect.any(Function));
       } finally {
         document.body.removeChild(modalWrap);
       }
@@ -165,56 +163,25 @@ describe("AutoHeight", () => {
   });
 
   describe("height calculation", () => {
-    it("should update height when resize fires and available space exceeds 300", () => {
-      const { container } = render(
-        <AutoHeight>
-          <div>child</div>
-        </AutoHeight>,
-      );
-      const autoHeightDiv = container.firstChild as HTMLElement;
-      const childDiv = autoHeightDiv.children[0] as HTMLElement;
+    // Pin an element's measured geometry so calcHeight is deterministic.
+    // A viewport contributes its visible bottom (top + clientHeight); the form
+    // content contributes its rect bottom (where the content below the editor
+    // ends). The two coincide when there is a single scroll container.
+    function mockBox(
+      el: HTMLElement,
+      rect: Partial<DOMRect>,
+      clientHeight?: number,
+    ): void {
+      jest.spyOn(el, "getBoundingClientRect").mockReturnValue(mockRect(rect));
+      if (clientHeight !== undefined) {
+        Object.defineProperty(el, "clientHeight", {
+          configurable: true,
+          value: clientHeight,
+        });
+      }
+    }
 
-      // scrollParent = el.parentElement = container (no .ant-modal-body ancestor)
-      // available = parentRect.bottom - elRect.top - 60 = 600 - 100 - 60 = 440
-      jest
-        .spyOn(container, "getBoundingClientRect")
-        .mockReturnValue(mockRect({ bottom: 600 }));
-      jest
-        .spyOn(childDiv, "getBoundingClientRect")
-        .mockReturnValue(mockRect({ top: 100 }));
-
-      act(() => {
-        window.dispatchEvent(new Event("resize"));
-      });
-
-      expect(autoHeightDiv.style.height).toBe("440px");
-    });
-
-    it("should not update height when resize fires and available space does not exceed 300", () => {
-      const { container } = render(
-        <AutoHeight>
-          <div>child</div>
-        </AutoHeight>,
-      );
-      const autoHeightDiv = container.firstChild as HTMLElement;
-      const childDiv = autoHeightDiv.children[0] as HTMLElement;
-
-      // available = 400 - 100 - 60 = 240 ≤ 300
-      jest
-        .spyOn(container, "getBoundingClientRect")
-        .mockReturnValue(mockRect({ bottom: 400 }));
-      jest
-        .spyOn(childDiv, "getBoundingClientRect")
-        .mockReturnValue(mockRect({ top: 100 }));
-
-      act(() => {
-        window.dispatchEvent(new Event("resize"));
-      });
-
-      expect(autoHeightDiv.style.height).toBe("300px");
-    });
-
-    it("should use ant-modal-body as the scroll parent when an ancestor with that class exists", () => {
+    it("should size the editor to fill the viewport minus the content below it", () => {
       const modalBody = document.createElement("div");
       modalBody.className = "ant-modal-body";
       document.body.appendChild(modalBody);
@@ -228,20 +195,83 @@ describe("AutoHeight", () => {
         const autoHeightDiv = modalBody.firstChild as HTMLElement;
         const childDiv = autoHeightDiv.children[0] as HTMLElement;
 
-        // scrollParent = el.closest('.ant-modal-body') = modalBody
-        // available = 500 - 50 - 60 = 390
-        jest
-          .spyOn(modalBody, "getBoundingClientRect")
-          .mockReturnValue(mockRect({ bottom: 500 }));
-        jest
-          .spyOn(childDiv, "getBoundingClientRect")
-          .mockReturnValue(mockRect({ top: 50 }));
+        // viewportBottom = 0 + 600 = 600; belowEditor = 620 - 500 = 120
+        // available = 600 - 50 - 120 - 12 = 418
+        mockBox(modalBody, { top: 0, bottom: 620 }, 600);
+        mockBox(autoHeightDiv, { bottom: 500 });
+        mockBox(childDiv, { top: 50 });
 
         act(() => {
           window.dispatchEvent(new Event("resize"));
         });
 
-        expect(autoHeightDiv.style.height).toBe("390px");
+        expect(autoHeightDiv.style.height).toBe("418px");
+      } finally {
+        document.body.removeChild(modalBody);
+      }
+    });
+
+    it("should clamp the height to the minimum when available space is below it", () => {
+      const modalBody = document.createElement("div");
+      modalBody.className = "ant-modal-body";
+      document.body.appendChild(modalBody);
+      try {
+        render(
+          <AutoHeight>
+            <div>child</div>
+          </AutoHeight>,
+          { container: modalBody },
+        );
+        const autoHeightDiv = modalBody.firstChild as HTMLElement;
+        const childDiv = autoHeightDiv.children[0] as HTMLElement;
+
+        // belowEditor = 400 - 300 = 100; available = 400 - 50 - 100 - 12 = 238 ≤ 300
+        mockBox(modalBody, { top: 0, bottom: 400 }, 400);
+        mockBox(autoHeightDiv, { bottom: 300 });
+        mockBox(childDiv, { top: 50 });
+
+        act(() => {
+          window.dispatchEvent(new Event("resize"));
+        });
+
+        expect(autoHeightDiv.style.height).toBe("300px");
+      } finally {
+        document.body.removeChild(modalBody);
+      }
+    });
+
+    it("should bound the editor by the outer scroll area but measure content from the inner one", () => {
+      const modalBody = document.createElement("div");
+      modalBody.className = "ant-modal-body";
+      const formWrapper = document.createElement("div");
+      formWrapper.style.overflowY = "auto";
+      const innerForm = document.createElement("div");
+      innerForm.style.overflowY = "auto";
+      formWrapper.appendChild(innerForm);
+      modalBody.appendChild(formWrapper);
+      document.body.appendChild(modalBody);
+      try {
+        render(
+          <AutoHeight>
+            <div>child</div>
+          </AutoHeight>,
+          { container: innerForm },
+        );
+        const autoHeightDiv = innerForm.firstChild as HTMLElement;
+        const childDiv = autoHeightDiv.children[0] as HTMLElement;
+
+        // viewport = formWrapper (clientHeight 800); content = innerForm (bottom 760).
+        // belowEditor = 760 - 700 = 60; available = 800 - 100 - 60 - 12 = 628
+        mockBox(formWrapper, { top: 0, bottom: 800 }, 800);
+        mockBox(innerForm, { top: 0, bottom: 760 }, 760);
+        mockBox(autoHeightDiv, { bottom: 700 });
+        mockBox(childDiv, { top: 100 });
+
+        act(() => {
+          window.dispatchEvent(new Event("resize"));
+        });
+
+        expect(autoHeightDiv.style.height).toBe("628px");
       } finally {
         document.body.removeChild(modalBody);
       }
@@ -264,21 +294,49 @@ describe("AutoHeight", () => {
         const autoHeightDiv = modalBody.firstChild as HTMLElement;
         const childDiv = autoHeightDiv.children[0] as HTMLElement;
 
-        // available = 700 - 200 - 60 = 440
-        jest
-          .spyOn(modalBody, "getBoundingClientRect")
-          .mockReturnValue(mockRect({ bottom: 700 }));
-        jest
-          .spyOn(childDiv, "getBoundingClientRect")
-          .mockReturnValue(mockRect({ top: 200 }));
+        // viewportBottom = 700; belowEditor = 700 - 600 = 100
+        // available = 700 - 200 - 100 - 12 = 388
+        mockBox(modalBody, { top: 0, bottom: 700 }, 700);
+        mockBox(autoHeightDiv, { bottom: 600 });
+        mockBox(childDiv, { top: 200 });
 
         act(() => {
           modalWrap.dispatchEvent(new Event("transitionend"));
         });
 
-        expect(autoHeightDiv.style.height).toBe("440px");
+        expect(autoHeightDiv.style.height).toBe("388px");
       } finally {
         document.body.removeChild(modalWrap);
+      }
+    });
+
+    it("falls back to the parent element as viewport when there is no modal body", () => {
+      const parent = document.createElement("div");
+      document.body.appendChild(parent);
+      try {
+        render(
+          <AutoHeight>
+            <div>child</div>
+          </AutoHeight>,
+          { container: parent },
+        );
+        const autoHeightDiv = parent.firstChild as HTMLElement;
+        const childDiv = autoHeightDiv.children[0] as HTMLElement;
+
+        // No ant-modal-body or scroll ancestor: the viewport falls back to the
+        // parent. viewportBottom = 0 + 900 = 900; belowEditor = 900 - 800 = 100;
+        // available = 900 - 0 - 100 - 12 = 788.
+        mockBox(parent, { top: 0, bottom: 900 }, 900);
+        mockBox(autoHeightDiv, { bottom: 800 });
+        mockBox(childDiv, { top: 0 });
+
+        act(() => {
+          window.dispatchEvent(new Event("resize"));
+        });
+
+        expect(autoHeightDiv.style.height).toBe("788px");
+      } finally {
+        document.body.removeChild(parent);
       }
     });
   });

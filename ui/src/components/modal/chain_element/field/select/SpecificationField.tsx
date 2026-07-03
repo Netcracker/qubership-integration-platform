@@ -11,6 +11,7 @@ import {
 import { JSONSchema7 } from "json-schema";
 import { SelectAndNavigateField } from "./SelectAndNavigateField.tsx";
 import { SelectTag } from "./SelectTag.tsx";
+import styles from "./selectOptionValue.module.css";
 
 const SpecificationField: React.FC<
   FieldProps<string, JSONSchema7, FormContext>
@@ -41,9 +42,10 @@ const SpecificationField: React.FC<
       specifications?.map((spec) => ({
         label: spec.name,
         selectedLabel: (
-          <>
-            <SelectTag value={groupName} /> {spec.name}
-          </>
+          <span className={styles.row}>
+            <SelectTag value={groupName} />
+            <span className={styles.text}>{spec.name}</span>
+          </span>
         ),
         value: spec.id,
       })) ?? []
@@ -84,6 +86,8 @@ const SpecificationField: React.FC<
   );
 
   useEffect(() => {
+    if (!specIdToGroupIdMap.size) return;
+
     const loadLatestSpecification = async () => {
       if (systemId && !props.formData) {
         const latestSpec: Specification =
@@ -92,7 +96,7 @@ const SpecificationField: React.FC<
       }
     };
     void loadLatestSpecification();
-  }, [handleChange, systemId, props.formData]);
+  }, [handleChange, systemId, props.formData, specIdToGroupIdMap]);
 
   useEffect(() => {
     const loadSpecificationGroups = async () => {
@@ -103,7 +107,7 @@ const SpecificationField: React.FC<
 
           const groupOptions: SelectProps["options"] =
             groups?.map((group) => ({
-              label: <span>{group.name}</span>,
+              label: <span className={styles.groupLabel}>{group.name}</span>,
               title: group.name,
               options: buildSpecificationOptions(
                 group.name,

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import styles from "./Services.module.css";
-import { message } from "antd";
+import { message } from "../../misc/antd-app.ts";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/api";
 import { IntegrationSystemType, Specification } from "../../api/apiTypes";
@@ -103,24 +103,22 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
   }, [tab]);
 
   const buildDataSource = useMemo((): ServiceEntity[] => {
-    return services.map(
-      (service: IntegrationSystem | ContextSystem) => {
-        const groups = specGroupsByService[service.id];
-        return {
-          ...service,
-          children:
-            groups && groups.length > 0
-              ? groups.map((group) => {
-                  const specs = specsByGroup[group.id];
-                  return {
-                    ...group,
-                    children: specs ?? [],
-                  };
-                })
-              : [],
-        };
-      },
-    );
+    return services.map((service: IntegrationSystem | ContextSystem) => {
+      const groups = specGroupsByService[service.id];
+      return {
+        ...service,
+        children:
+          groups && groups.length > 0
+            ? groups.map((group) => {
+                const specs = specsByGroup[group.id];
+                return {
+                  ...group,
+                  children: specs ?? [],
+                };
+              })
+            : [],
+      };
+    });
   }, [services, specGroupsByService, specsByGroup]);
 
   const handleExpand = async (expanded: boolean, record: ServiceEntity) => {
@@ -318,16 +316,10 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
         await api.updateService(record.id, updated);
         await loadServices();
       } else if (isSpecificationGroup(record)) {
-        const res = await api.updateApiSpecificationGroup(
-          record.id,
-          updated,
-        );
+        const res = await api.updateApiSpecificationGroup(record.id, updated);
         setSpecGroupsByService((prev) => updateLabelsInMap(prev, res));
       } else if (isSpecification(record)) {
-        const res = await api.updateSpecificationModel(
-          record.id,
-          updated,
-        );
+        const res = await api.updateSpecificationModel(record.id, updated);
         setSpecsByGroup((prev) => updateLabelsInMap(prev, res));
       }
     },

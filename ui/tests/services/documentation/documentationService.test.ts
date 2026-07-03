@@ -404,6 +404,38 @@ describe("DocumentationService - Element Type Mapping", () => {
       expect(mapping["mapper"]).toContain("mapper");
     });
 
+    test("maps element types from the current Elements_Library structure", async () => {
+      // The help docs dropped the "QIP_" prefix: the folder is now
+      // "1__Elements_Library". The mapping must still resolve these paths.
+      const mockPaths = [
+        "01__Chains/1__Graph/1__Elements_Library/5__Transformation/1__Script/script.md",
+        "01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md",
+      ];
+
+      jest.spyOn(service, "loadPaths").mockResolvedValue(mockPaths);
+
+      const mapping = await service.buildElementTypeMapping();
+
+      expect(mapping["script"]).toContain(
+        "1__Elements_Library/5__Transformation/1__Script/script",
+      );
+      expect(mapping["http-trigger"]).toBeDefined();
+    });
+
+    test("ignores folders that merely embed 'Elements_Library' as a substring", async () => {
+      const mockPaths = [
+        "01__Chains/1__Graph/Custom_Elements_Library_Guide/1__Intro/intro.md",
+        "01__Chains/1__Graph/1__Elements_Library/5__Transformation/1__Script/script.md",
+      ];
+
+      jest.spyOn(service, "loadPaths").mockResolvedValue(mockPaths);
+
+      const mapping = await service.buildElementTypeMapping();
+
+      expect(mapping["intro"]).toBeUndefined();
+      expect(mapping["script"]).toBeDefined();
+    });
+
     test("extracts element types from folder names", async () => {
       const mockPaths = [
         "01__Chains/1__Graph/1__QIP_Elements_Library/1__Routing/5__Condition/condition.md",
@@ -975,7 +1007,6 @@ describe("DocumentationService - Module-level", () => {
     } | null = null;
 
     jest.isolateModules(() => {
-      /* eslint-disable @typescript-eslint/no-require-imports -- require is needed inside jest.isolateModules */
       const appConfig = require("../../../src/appConfig") as {
         onConfigChange: jest.Mock;
       };
@@ -988,7 +1019,6 @@ describe("DocumentationService - Module-level", () => {
           };
         };
       isolatedService = mod.documentationService;
-      /* eslint-enable @typescript-eslint/no-require-imports */
     });
 
     expect(onConfigChangeMock).toHaveBeenCalledTimes(1);

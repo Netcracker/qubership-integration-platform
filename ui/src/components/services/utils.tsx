@@ -7,6 +7,7 @@ import {
   Specification,
 } from "../../api/apiTypes.ts";
 import { RcFile } from "antd/es/upload";
+import { SOLID_TAG_TONES } from "../../theme/semanticColors";
 
 export type UsageStatus = "Deprecated" | "In use" | "New";
 
@@ -16,16 +17,26 @@ export function getUsageStatus(element: Specification): UsageStatus {
   return "New";
 }
 
+const STATUS_COLORS: Record<UsageStatus, string> = {
+  New: SOLID_TAG_TONES.blue,
+  "In use": SOLID_TAG_TONES.green,
+  Deprecated: SOLID_TAG_TONES.red,
+};
+
 export const UsageStatusTag: React.FC<{ element: ServiceEntity }> = ({
   element,
 }) => {
   if (!isSpecification(element)) return null;
   const status = getUsageStatus(element);
-  let color: string = "blue";
-  if (status === "Deprecated") color = "red";
-  else if (status === "In use") color = "green";
   return (
-    <Tag color={color} style={{ borderRadius: 12 }}>
+    <Tag
+      className="qip-solid-tag"
+      style={{
+        background: STATUS_COLORS[status],
+        color: "#fff",
+        border: "none",
+      }}
+    >
       {status}
     </Tag>
   );

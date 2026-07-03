@@ -16,12 +16,10 @@ import {
 
 type MappingFieldProps = FieldProps<unknown, JSONSchema7, FormContext>;
 
-function isNonEmptyMappingDescription(value: unknown): value is MappingDescription {
-  return (
-    !!value &&
-    typeof value === "object" &&
-    Object.keys(value).length > 0
-  );
+function isNonEmptyMappingDescription(
+  value: unknown,
+): value is MappingDescription {
+  return !!value && typeof value === "object" && Object.keys(value).length > 0;
 }
 
 /**

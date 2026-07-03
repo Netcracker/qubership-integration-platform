@@ -9,8 +9,9 @@ import {
   Table,
   UploadFile,
 } from "antd";
-import type { TableProps } from "antd";
 import Dragger from "antd/es/upload/Dragger";
+import type { TableProps } from "antd";
+import { confirmAndRun } from "../../misc/confirm-utils.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { treeExpandIcon } from "../table/TreeExpandIcon.tsx";
 import commonStyles from "./CommonStyle.module.css";
@@ -53,12 +54,12 @@ import { usePermissions } from "../../permissions/usePermissions.tsx";
 import { hasPermissions } from "../../permissions/funcs.ts";
 import {
   submitAddInstruction,
+  uploadFileHasDeleteInstructions,
   uploadImportInstructionsFile,
 } from "./importInstructionsHandlers.ts";
-import {
-  attachResizeToColumns,
-  useTableColumnResize,
-} from "../table/useTableColumnResize.tsx";
+import { useModalsContext } from "../../Modals.tsx";
+import { UploadImportInstructionsWarningModal } from "../modal/UploadImportInstructionsWarningModal.tsx";
+import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
 import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
@@ -645,27 +646,23 @@ export const ImportInstructions: React.FC = () => {
       columns,
     );
 
-  const importInstructionsColumnResize = useTableColumnResize({
-    id: 280,
-    action: 140,
-    overriddenBy: 200,
-    labels: 200,
-    modifiedWhen: 160,
-  });
-
-  const visibleColumnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        orderedColumns,
-        importInstructionsColumnResize.columnWidths,
-        importInstructionsColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
-      orderedColumns,
-      importInstructionsColumnResize.columnWidths,
-      importInstructionsColumnResize.createResizeHandlers,
-    ],
+  const {
+    columnsWithResize: visibleColumnsWithResize,
+    components: importInstructionsComponents,
+    scrollX: importInstructionsScrollX,
+  } = useColumnsWithResizeAndScroll(
+    orderedColumns,
+    {
+      id: 280,
+      action: 140,
+      overriddenBy: 200,
+      labels: 200,
+      modifiedWhen: 160,
+    },
+    {
+      expandColumnWidth: IMPORT_INSTRUCTIONS_EXPAND_COLUMN_WIDTH,
+      selectionColumnWidth: IMPORT_INSTRUCTIONS_SELECTION_COLUMN_WIDTH,
+    },
   );
 
   const rowSelection = useMemo<TableProps<InstructionRow>["rowSelection"]>(
@@ -699,7 +696,7 @@ export const ImportInstructions: React.FC = () => {
               disabled: selectedRowKeys.length === 0,
               onClick: () => {
                 if (selectedRowKeys.length > 0) {
-                  Modal.confirm({
+                  confirmAndRun({
                     title: "Delete instructions",
                     content: `Are you sure you want to delete ${selectedRowKeys.length} instruction(s)?`,
                     onOk: handleDelete,
@@ -762,13 +759,10 @@ export const ImportInstructions: React.FC = () => {
           pagination={false}
           loading={loading}
           scroll={{
-            x:
-              importInstructionsColumnResize.totalColumnsWidth +
-              IMPORT_INSTRUCTIONS_EXPAND_COLUMN_WIDTH +
-              IMPORT_INSTRUCTIONS_SELECTION_COLUMN_WIDTH,
+            x: importInstructionsScrollX,
             y: "100%",
           }}
-          components={importInstructionsColumnResize.resizableHeaderComponents}
+          components={importInstructionsComponents}
           expandable={{
             expandIcon: treeExpandIcon(),
             columnWidth: IMPORT_INSTRUCTIONS_EXPAND_COLUMN_WIDTH,
@@ -929,6 +923,7 @@ export const UploadInstructionsModal: React.FC<
   const [result, setResult] = useState<ImportInstructionResult[]>([]);
   const [uploaded, setUploaded] = useState(false);
   const notificationService = useNotificationService();
+  const { showModal } = useModalsContext();
 
   const uploadResultColumns = useMemo(
     () => [
@@ -945,27 +940,16 @@ export const UploadInstructionsModal: React.FC<
     [],
   );
 
-  const uploadInstructionsColumnResize = useTableColumnResize({
+  const {
+    columnsWithResize: uploadColumnsWithResize,
+    components: uploadInstructionsComponents,
+    scrollX: uploadInstructionsScrollX,
+  } = useColumnsWithResizeAndScroll(uploadResultColumns, {
     id: 280,
     status: 200,
   });
 
-  const uploadColumnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        uploadResultColumns,
-        uploadInstructionsColumnResize.columnWidths,
-        uploadInstructionsColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
-      uploadResultColumns,
-      uploadInstructionsColumnResize.columnWidths,
-      uploadInstructionsColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const handleUpload = async () => {
+  const uploadSelectedFile = useCallback(async () => {
     setUploading(true);
     try {
       await uploadImportInstructionsFile(
@@ -980,6 +964,24 @@ export const UploadInstructionsModal: React.FC<
     } finally {
       setUploading(false);
     }
+  }, [fileList, notificationService]);
+
+  const handleUpload = async () => {
+    const requiresConfirmation =
+      await uploadFileHasDeleteInstructions(fileList);
+
+    if (requiresConfirmation) {
+      showModal({
+        component: (
+          <UploadImportInstructionsWarningModal
+            onUpload={() => void uploadSelectedFile()}
+          />
+        ),
+      });
+      return;
+    }
+
+    await uploadSelectedFile();
   };
 
   return (
@@ -1013,8 +1015,8 @@ export const UploadInstructionsModal: React.FC<
           columns={uploadColumnsWithResize}
           dataSource={result}
           pagination={false}
-          scroll={{ x: uploadInstructionsColumnResize.totalColumnsWidth }}
-          components={uploadInstructionsColumnResize.resizableHeaderComponents}
+          scroll={{ x: uploadInstructionsScrollX }}
+          components={uploadInstructionsComponents}
         />
       ) : (
         <Dragger

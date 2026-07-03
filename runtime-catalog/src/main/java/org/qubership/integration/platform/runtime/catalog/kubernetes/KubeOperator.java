@@ -34,6 +34,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceDeployError;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrationList;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObjectList;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubeDeployment;
 import org.qubership.integration.platform.runtime.catalog.model.kubernetes.operator.KubePod;
@@ -167,6 +170,7 @@ public class KubeOperator {
     }
 
     public void createOrUpdateResource(Object resource) throws KubeApiException {
+        log.debug("Processing resource of type: {}", resource.getClass().getSimpleName());
         if (resource instanceof V1ConfigMap cm) {
             createOrUpdateConfigMap(cm);
         } else if (resource instanceof V1Service service) {
@@ -174,12 +178,24 @@ public class KubeOperator {
         } else if (resource instanceof CamelKIntegration integration) {
             createOrUpdateCustomResource("camel.apache.org", "v1", "integrations",
                     integration, new TypeToken<CamelKIntegrationList>() {
-                    }.getType());
+                    }.getType(), true);
         } else if (resource instanceof V1ServiceMonitor serviceMonitor) {
             createOrUpdateCustomResource("monitoring.coreos.com", "v1", "servicemonitors",
                     serviceMonitor, new TypeToken<V1ServiceMonitorList>() {
-                    }.getType());
+                    }.getType(), true);
+        } else if (resource instanceof KubeCustomObject customObject) {
+            GenericCustomResources.CustomResourceDefinition resourceDefinition =
+                GenericCustomResources.definitionFor(customObject.getKind());
+            boolean updateIfExists = resourceDefinition.updateIfExists();
+
+            log.debug("Applying {} name={}, updateIfExists={}",
+                    customObject.getKind(), getName(customObject).orElse(""), updateIfExists);
+            createOrUpdateCustomResource(resourceDefinition.group(), resourceDefinition.version(), resourceDefinition.plural(), customObject,
+                    new TypeToken<KubeCustomObjectList>() {}.getType(), updateIfExists);
+        } else if (resource instanceof V1Secret secret) {
+            createSecretIfAbsent(secret);
         } else {
+            log.error("Unsupported resource type: {}", resource.getClass().getName());
             throw new CustomResourceDeployError("Unsupported resource type: " + resource);
         }
     }
@@ -239,7 +255,8 @@ public class KubeOperator {
             String version,
             String plural,
             T obj,
-            Type listType
+            Type listType,
+            boolean updateIfExists
     ) throws KubeApiException {
         try {
             Object rawListObj = customObjectsApi.listNamespacedCustomObject(group, version, namespace, plural).execute();
@@ -251,6 +268,10 @@ public class KubeOperator {
                     .map(KubernetesObject::getMetadata)
                     .findAny();
             boolean alreadyExists = existingItemMetadata.isPresent();
+            if (alreadyExists && !updateIfExists) {
+                log.info("Custom object {}/{} already exists, skipping patch as not needed for this kind", obj.getKind(), name.orElse(""));
+                return;
+            }
             if (alreadyExists) {
                 PatchUtils.patch(
                         Object.class,
@@ -273,6 +294,23 @@ public class KubeOperator {
             }
         } catch (ApiException e) {
             throw new KubeApiException("Failed to create or update custom object", e);
+        }
+    }
+
+    private void createSecretIfAbsent(V1Secret secret) throws KubeApiException {
+        String name = getName(secret).orElseThrow(() -> new KubeApiException("Failed to get secret name"));
+        try {
+            coreApi.readNamespacedSecret(name, namespace).execute();
+            log.info("Secret {} already exists, no need to patch it", name);
+        } catch (ApiException e) {
+            if (e.getCode() != HttpStatus.NOT_FOUND.value()) {
+                throw new KubeApiException("Failed to read Secret: " + name, e);
+            }
+            try {
+                coreApi.createNamespacedSecret(namespace, secret).execute();
+            } catch (ApiException createException) {
+                throw new KubeApiException("Failed to create Secret: " + name, createException);
+            }
         }
     }
 
@@ -321,6 +359,22 @@ public class KubeOperator {
         }
     }
 
+    public List<KubeCustomObject> getCustomObjectsByLabelAndDefinition(String labelName, String labelValue,
+                                                                       GenericCustomResources.CustomResourceDefinition crDefinition) throws KubeApiException {
+        try {
+            Object rawListObj = customObjectsApi
+                .listNamespacedCustomObject(crDefinition.group(), crDefinition.version(), namespace, crDefinition.plural())
+                .labelSelector(toSelector(labelName, labelValue))
+                .execute();
+            KubeCustomObjectList listObject = fromRawObject(rawListObj, new TypeToken<KubeCustomObjectList>() {}.getType());
+            List<KubeCustomObject> items = listObject.getItems();
+            log.debug("Found {} {} object(s) with label {}={}", items.size(), crDefinition.kind(), labelName, labelValue);
+            return items;
+        } catch (ApiException exception) {
+            throw new KubeApiException("Failed to get custom objects.", exception);
+        }
+    }
+
     public List<V1Service> getServicesByLabel(String labelName, String labelValue) throws KubeApiException {
         try {
             return coreApi.listNamespacedService(namespace)
@@ -340,6 +394,17 @@ public class KubeOperator {
                     .getItems();
         } catch (ApiException exception) {
             throw new KubeApiException("Failed to get config maps.", exception);
+        }
+    }
+
+    public List<V1Secret> getSecretsByLabel(String labelName, String labelValue) throws KubeApiException {
+        try {
+            return coreApi.listNamespacedSecret(namespace)
+                .labelSelector(toSelector(labelName, labelValue))
+                .execute()
+                .getItems();
+        } catch (ApiException exception) {
+            throw new KubeApiException("Failed to get secrets.", exception);
         }
     }
 
@@ -367,6 +432,18 @@ public class KubeOperator {
         }
     }
 
+    public void deleteSecret(String name) throws KubeApiException {
+        try {
+            coreApi.deleteNamespacedSecret(name, namespace).execute();
+        } catch (ApiException exception) {
+            if (exception.getCode() == HttpStatus.NOT_FOUND.value()) {
+                log.warn("Secret with name {} not found.", name);
+            } else {
+                throw new KubeApiException("Failed to delete secret: " + name, exception);
+            }
+        }
+    }
+
     public void deleteServiceMonitor(String name) throws KubeApiException {
         deleteCustomObject("monitoring.coreos.com", "v1", "servicemonitors", name);
     }
@@ -375,7 +452,7 @@ public class KubeOperator {
         deleteCustomObject("camel.apache.org", "v1", "integrations", name);
     }
 
-    private void deleteCustomObject(String group, String version, String plural, String name) throws KubeApiException {
+    public void deleteCustomObject(String group, String version, String plural, String name) throws KubeApiException {
         try {
             customObjectsApi.deleteNamespacedCustomObject(group, version, namespace, plural, name).execute();
         } catch (ApiException exception) {

@@ -53,8 +53,11 @@
 }
 
 .table {
-  width: 100%;
-  border-collapse: collapse;
+  composes: table from "./parameterTable.module.css";
+}
+
+.actionsCol {
+  composes: actionsCol from "./parameterTable.module.css";
 }
 
 .th {
@@ -67,6 +70,12 @@
 .td {
   border-bottom: 1px solid var(--vscode-input-border, #d9d9d9);
   padding: 4px;
+}
+
+.tdAction {
+  border-bottom: 1px solid var(--vscode-input-border, #d9d9d9);
+  padding: 4px;
+  text-align: right;
 }
 
 .deleteBtn {

@@ -4,15 +4,26 @@
 import { tableFilterPopupContainer } from "../../../src/components/table/tableFilterPopupContainer";
 
 describe("tableFilterPopupContainer", () => {
-  it("returns parent element when present", () => {
-    const parent = document.createElement("div");
+  it("should return the closest Ant Design dropdown when the trigger is nested in a table filter popup", () => {
+    const dropdown = document.createElement("div");
+    dropdown.className = "ant-dropdown";
+    const tableFilterDropdown = document.createElement("div");
+    tableFilterDropdown.className = "ant-table-filter-dropdown";
+    const triggerContainer = document.createElement("div");
     const node = document.createElement("span");
-    parent.appendChild(node);
-    expect(tableFilterPopupContainer(node)).toBe(parent);
+
+    dropdown.appendChild(tableFilterDropdown);
+    tableFilterDropdown.appendChild(triggerContainer);
+    triggerContainer.appendChild(node);
+
+    expect(tableFilterPopupContainer(node)).toBe(dropdown);
   });
 
-  it("falls back to document.body when parentElement is null", () => {
+  it("should fall back to document.body when no Ant Design dropdown is found", () => {
+    const container = document.createElement("div");
     const node = document.createElement("span");
+    container.appendChild(node);
+
     expect(tableFilterPopupContainer(node)).toBe(document.body);
   });
 });

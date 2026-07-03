@@ -1,8 +1,6 @@
 import { Form, Input, Select } from "antd";
 import React, { useCallback, useContext, useEffect, useState } from "react";
-import TextArea from "antd/lib/input/TextArea";
 import { Chain } from "../api/apiTypes.ts";
-import { useForm } from "antd/lib/form/Form";
 import { ChainContext } from "./ChainPage.tsx";
 import {
   ChainExtensionProperties,
@@ -25,6 +23,9 @@ import {
 import { usePermissions } from "../permissions/usePermissions.tsx";
 import { hasPermissions } from "../permissions/funcs.ts";
 import { Require } from "../permissions/Require.tsx";
+
+const { TextArea } = Input;
+const { useForm } = Form;
 
 export type FormData = {
   name: string;
@@ -143,7 +144,6 @@ export const ChainProperties: React.FC = () => {
 
     if (isVsCode) {
       await moveChain(String(chainContext.chain.id), uiFoldersPath.join("/"));
-      console.log("Moved chain path", uiFoldersPath);
       changes = {
         ...changes,
         navigationPath: uiFoldersPath.map((path) => [path, path]),
@@ -250,28 +250,16 @@ export const ChainProperties: React.FC = () => {
             />
           </Form.Item>
           <Form.Item label="Description" name="description">
-            <TextArea
-              style={{ height: 120, resize: "none" }}
-              disabled={disabled}
-            />
+            <TextArea className="fixed-textarea" disabled={disabled} />
           </Form.Item>
           <Form.Item label="Business Description" name="businessDescription">
-            <TextArea
-              style={{ height: 120, resize: "none" }}
-              disabled={disabled}
-            />
+            <TextArea className="fixed-textarea" disabled={disabled} />
           </Form.Item>
           <Form.Item label="Assumptions" name="assumptions">
-            <TextArea
-              style={{ height: 120, resize: "none" }}
-              disabled={disabled}
-            />
+            <TextArea className="fixed-textarea" disabled={disabled} />
           </Form.Item>
           <Form.Item label="Out of Scope" name="outOfScope">
-            <TextArea
-              style={{ height: 120, resize: "none" }}
-              disabled={disabled}
-            />
+            <TextArea className="fixed-textarea" disabled={disabled} />
           </Form.Item>
           <ChainExtensionProperties onChange={() => setHasChanges(true)} />
         </Form>

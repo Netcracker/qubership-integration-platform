@@ -15,7 +15,7 @@ export const ChainDiffViewWebview: React.FC = (): React.ReactNode => {
 
   useEffect(() => {
     const onMessage = (
-      event: MessageEvent<VSCodeResponse<{ original: Chain, modified: Chain }>>,
+      event: MessageEvent<VSCodeResponse<{ original: Chain; modified: Chain }>>,
     ) => {
       if (event.data.type === "comparedDocumentsResponse") {
         setItem1({ kind: "document", content: event.data.payload!.original });

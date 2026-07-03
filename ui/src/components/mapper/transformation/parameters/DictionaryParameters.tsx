@@ -35,11 +35,8 @@ import {
   useMonacoTheme,
   applyVSCodeThemeToMonaco,
 } from "../../../../hooks/useMonacoTheme";
-import {
-  attachResizeToColumns,
-  sumScrollXForColumns,
-  useTableColumnResize,
-} from "../../../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../../../table/useColumnsWithResizeAndScroll.tsx";
+import { tableScroll } from "../../../table/tableScroll.ts";
 
 const MAPPER_DICTIONARY_LANGUAGE_ID = "qip-mapper-dictionary";
 
@@ -242,34 +239,15 @@ const DictionaryTableEditor: React.FC<DictionaryEditorProps> = ({
     [tableData, messageApi, updateRecord, deleteRecord],
   );
 
-  const dictionaryColumnResize = useTableColumnResize({
-    key: 160,
-    value: 220,
-  });
-
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        dictionaryColumns,
-        dictionaryColumnResize.columnWidths,
-        dictionaryColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
+  const { columnsWithResize, scrollX, components } =
+    useColumnsWithResizeAndScroll(
       dictionaryColumns,
-      dictionaryColumnResize.columnWidths,
-      dictionaryColumnResize.createResizeHandlers,
-    ],
-  );
-
-  const scrollX = useMemo(
-    () =>
-      sumScrollXForColumns(
-        columnsWithResize,
-        dictionaryColumnResize.columnWidths,
-      ),
-    [columnsWithResize, dictionaryColumnResize.columnWidths],
-  );
+      {
+        key: 160,
+        value: 220,
+      },
+      { applyDisableResizeBeforeActions: false },
+    );
 
   return (
     <>
@@ -294,12 +272,12 @@ const DictionaryTableEditor: React.FC<DictionaryEditorProps> = ({
         <Table
           className="flex-table"
           size="small"
-          scroll={tableData?.length ? { x: scrollX, y: "" } : { x: scrollX }}
+          scroll={tableScroll(scrollX, tableData?.length ?? 0)}
           columns={columnsWithResize}
           dataSource={tableData}
           pagination={false}
           rowKey={(record) => record.key}
-          components={dictionaryColumnResize.resizableHeaderComponents}
+          components={components}
         />
       </Flex>
     </>

@@ -1,5 +1,6 @@
 import {
   Button,
+  Checkbox,
   Flex,
   Form,
   Input,
@@ -12,11 +13,11 @@ import {
 import React, { useEffect, useRef, useState } from "react";
 import { useModalContext } from "../../ModalContextProvider.tsx";
 import { ChainCreationRequest, EntityLabel } from "../../api/apiTypes.ts";
-import TextArea from "antd/lib/input/TextArea";
-import Checkbox from "antd/lib/checkbox";
-import { FieldData } from "rc-field-form/lib/interface";
+import type { FieldData } from "../../types/antd.ts";
 import { api } from "../../api/api.ts";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
+
+const { TextArea } = Input;
 
 export type ChainMetadataUpdate = {
   name: string;
@@ -236,7 +237,7 @@ export const ChainCreate: React.FC<ChainCreateProps> = (props) => {
                       />
                     </Form.Item>
                     <Form.Item label="Description" name="description">
-                      <TextArea style={{ height: 120, resize: "none" }} />
+                      <TextArea className="fixed-textarea" />
                     </Form.Item>
                   </>
                 ),
@@ -250,13 +251,13 @@ export const ChainCreate: React.FC<ChainCreateProps> = (props) => {
                       label="Business Description"
                       name="businessDescription"
                     >
-                      <TextArea style={{ height: 120, resize: "none" }} />
+                      <TextArea className="fixed-textarea" />
                     </Form.Item>
                     <Form.Item label="Assumptions" name="assumptions">
-                      <TextArea style={{ height: 120, resize: "none" }} />
+                      <TextArea className="fixed-textarea" />
                     </Form.Item>
                     <Form.Item label="Out of Scope" name="outOfScope">
-                      <TextArea style={{ height: 120, resize: "none" }} />
+                      <TextArea className="fixed-textarea" />
                     </Form.Item>
                   </>
                 ),

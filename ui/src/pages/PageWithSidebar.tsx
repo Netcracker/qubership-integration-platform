@@ -64,7 +64,7 @@ export const PageWithSidebar: React.FC<PageWithSidebarProps> = ({
       </Sider>
       {
         <Divider
-          type="vertical"
+          orientation="vertical"
           size="small"
           style={{ height: "100%", margin: 0 }}
         />

@@ -1,7 +1,7 @@
-import {Edge, Node, Position} from "@xyflow/react";
-import {useCallback} from "react";
-import ELK, {ElkNode, LayoutOptions} from "elkjs/lib/elk.bundled";
-import {ElkDirection, useElkDirection} from "./useElkDirection.tsx";
+import { Edge, Node, Position } from "@xyflow/react";
+import { useCallback } from "react";
+import ELK, { ElkNode, LayoutOptions } from "elkjs/lib/elk.bundled";
+import { ElkDirection, useElkDirection } from "./useElkDirection.tsx";
 
 const baseLayoutOptions: LayoutOptions = {
   "elk.algorithm": "layered",
@@ -62,9 +62,7 @@ function overlaps1D(aMin: number, aMax: number, bMin: number, bMax: number) {
   return aMin < bMax && bMin < aMax;
 }
 
-function getVisibleRepresentative<
-  NodeData extends Record<string, unknown>,
->(
+function getVisibleRepresentative<NodeData extends Record<string, unknown>>(
   nodeId: string,
   nodeMap: Map<string, Node<NodeData>>,
 ): string | undefined {
@@ -97,10 +95,7 @@ function getVisibleRepresentative<
 function buildLayoutEdges<
   NodeData extends Record<string, unknown>,
   EdgeData extends Record<string, unknown>,
->(
-  nodes: Node<NodeData>[],
-  edges: Edge<EdgeData>[],
-): Edge<EdgeData>[] {
+>(nodes: Node<NodeData>[], edges: Edge<EdgeData>[]): Edge<EdgeData>[] {
   const nodeMap = new Map(nodes.map((node) => [node.id, node]));
   const visibleIds = new Set(
     nodes.filter((node) => !node.hidden).map((node) => node.id),
@@ -120,9 +115,7 @@ function buildLayoutEdges<
 
     layoutEdges.push({
       ...edge,
-      id: isOriginalEdge
-        ? edge.id
-        : `layout:${edge.id}:${source}->${target}`,
+      id: isOriginalEdge ? edge.id : `layout:${edge.id}:${source}->${target}`,
       source,
       target,
     });

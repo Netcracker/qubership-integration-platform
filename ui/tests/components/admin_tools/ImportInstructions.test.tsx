@@ -25,6 +25,7 @@ import {
   ImportInstructionStatus,
 } from "../../../src/api/apiTypes";
 import { uploadImportInstructionsFile } from "../../../src/components/admin_tools/importInstructionsHandlers";
+import { Modals } from "../../../src/Modals.tsx";
 import { UserPermissionsContext } from "../../../src/permissions/UserPermissionsContext.tsx";
 import { getAllPermissions } from "../../../src/permissions/funcs.ts";
 
@@ -42,6 +43,15 @@ Object.defineProperty(globalThis, "matchMedia", {
   })),
 });
 
+let mockRandomUUIDIndex = 0;
+Object.defineProperty(globalThis, "crypto", {
+  writable: true,
+  value: {
+    ...globalThis.crypto,
+    randomUUID: jest.fn(() => `modal-${++mockRandomUUIDIndex}`),
+  },
+});
+
 jest.mock("react-resizable/css/styles.css", () => ({}));
 
 Object.defineProperty(URL, "createObjectURL", {
@@ -57,6 +67,8 @@ Object.defineProperty(URL, "revokeObjectURL", {
 jest.mock("antd", () =>
   require("tests/helpers/antdMockWithLightweightTable").antdMockWithLightweightTable(),
 );
+
+let mockDraggerFileContent = "yaml";
 
 jest.mock(
   "../../../src/components/admin_tools/importInstructionsHandlers.ts",
@@ -85,7 +97,7 @@ jest.mock("antd/es/upload/Dragger", () => ({
         fileList: [
           {
             uid: "1",
-            originFileObj: new File(["yaml"], "test.yaml", {
+            originFileObj: new File([mockDraggerFileContent], "test.yaml", {
               type: "text/yaml",
             }),
           },
@@ -175,7 +187,7 @@ const sampleInstructions: GeneralImportInstructions = {
 const ContextProviders: React.FC<PropsWithChildren> = ({ children }) => {
   return (
     <UserPermissionsContext.Provider value={getAllPermissions()}>
-      {children}
+      <Modals>{children}</Modals>
     </UserPermissionsContext.Provider>
   );
 };
@@ -193,6 +205,8 @@ describe("ImportInstructions", () => {
     mockApi.exportImportInstructions.mockResolvedValue(
       new File(["content"], "qip-import-instructions.yaml"),
     );
+    mockDraggerFileContent = "yaml";
+    mockRandomUUIDIndex = 0;
   });
 
   afterEach(() => {
@@ -370,7 +384,9 @@ describe("ImportInstructions", () => {
   });
 
   it("UploadInstructionsModal Upload button is disabled when no file selected", () => {
-    render(<UploadInstructionsModal onClose={jest.fn()} />);
+    render(<UploadInstructionsModal onClose={jest.fn()} />, {
+      wrapper: ContextProviders,
+    });
 
     const uploadButton = screen
       .getAllByRole("button", { name: /^upload$/i })
@@ -395,7 +411,9 @@ describe("ImportInstructions", () => {
       },
     );
 
-    render(<UploadInstructionsModal onClose={jest.fn()} />);
+    render(<UploadInstructionsModal onClose={jest.fn()} />, {
+      wrapper: ContextProviders,
+    });
     fireEvent.click(screen.getByTestId("dragger"));
 
     const uploadButton = screen
@@ -413,6 +431,56 @@ describe("ImportInstructions", () => {
       await within(dialog).findByRole("columnheader", { name: "Status" }),
     ).toBeInTheDocument();
   }, 10000);
+
+  it("UploadInstructionsModal shows warning before uploading chain or system delete instructions", async () => {
+    mockDraggerFileContent = `
+chains:
+  delete:
+    - chain-1
+  override: []
+  ignore: []
+services:
+  delete:
+    - system-1
+  ignore: []
+`;
+    mockUploadImportInstructionsFile.mockResolvedValue(undefined);
+
+    render(<UploadInstructionsModal onClose={jest.fn()} />, {
+      wrapper: ContextProviders,
+    });
+    fireEvent.click(screen.getByTestId("dragger"));
+
+    const uploadButton = screen
+      .getAllByRole("button", { name: /^upload$/i })
+      .find((b) => b.closest(".ant-modal-footer"));
+    expect(uploadButton).toBeDefined();
+    fireEvent.click(uploadButton!);
+
+    expect(
+      await screen.findByText("Upload Import Instructions"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /The Delete instruction will be executed immediately and will not be stored\./,
+      ),
+    ).toBeInTheDocument();
+    expect(mockUploadImportInstructionsFile).not.toHaveBeenCalled();
+
+    const warningDialog = screen
+      .getAllByRole("dialog")
+      .find((dialog) =>
+        within(dialog).queryByText("Upload Import Instructions"),
+      );
+    expect(warningDialog).toBeDefined();
+    fireEvent.click(
+      within(warningDialog!).getByRole("button", { name: /^upload$/i }),
+    );
+
+    await waitFor(() =>
+      expect(mockUploadImportInstructionsFile).toHaveBeenCalled(),
+    );
+  });
 
   it("handleExport: URL.createObjectURL is called with the exported file blob", async () => {
     const createObjectURLMock = (URL as unknown as Record<string, jest.Mock>)

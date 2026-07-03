@@ -1,5 +1,6 @@
 import React from "react";
 import { Tag, TagProps } from "antd";
+import { SyncOutlined } from "@ant-design/icons";
 import { capitalize } from "../../misc/format-utils.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
@@ -26,7 +27,7 @@ export function getDeploymentStatusVisuals(status: string): StatusVisuals {
     case "PROCESSING":
       return {
         color: "processing",
-        icon: <OverridableIcon name="deploymentStatusProcessing" spin />,
+        icon: <SyncOutlined spin style={{ animationDuration: "5s" }} />,
       };
     case "FAILED":
       return {
@@ -61,15 +62,15 @@ export const DeploymentStatusTag = React.forwardRef<
     <Tag
       ref={ref}
       icon={icon}
+      variant="solid"
       color={color}
       style={{
         marginInlineEnd: 0,
         fontSize: 13,
-        lineHeight: "22px",
-        padding: "2px 10px",
+        lineHeight: "20px",
         display: "inline-flex",
         alignItems: "center",
-        gap: 6,
+        gap: 4,
         ...style,
       }}
       {...rest}

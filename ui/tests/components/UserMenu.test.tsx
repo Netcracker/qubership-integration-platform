@@ -23,7 +23,6 @@ jest.mock("../../src/misc/confirm-utils.ts", () => ({
   },
 }));
 
-
 const mockOnThemeChange = jest.fn();
 
 function renderWithTheme(ui: React.ReactElement = <UserMenu />) {
@@ -125,9 +124,7 @@ describe("UserMenu", () => {
 
     await screen.findByText("tid-42");
     await waitFor(() => {
-      expect(
-        document.body.querySelector(".ant-typography-copy"),
-      ).toBeTruthy();
+      expect(document.body.querySelector(".ant-typography-copy")).toBeTruthy();
     });
   });
 
@@ -228,41 +225,40 @@ describe("UserMenu", () => {
     expect(renderSpy.mock.calls.length).toBe(initialCalls);
   });
 
-
-  it("hides Theme settings when ThemeContext is not provided", async () => {
+  it("hides the theme switcher when ThemeContext is not provided", async () => {
     const { container } = render(<UserMenu />);
     fireEvent.click(container.querySelector('button[aria-label="User menu"]')!);
 
     await screen.findByText("Reset UI preferences");
-    expect(screen.queryByText("Theme settings")).toBeNull();
+    expect(screen.queryByText("Theme")).toBeNull();
+    expect(screen.queryByText("System")).toBeNull();
   });
 
-  it("shows Theme settings above Reset UI preferences when ThemeContext is provided", async () => {
+  it("shows the theme switcher above Reset UI preferences when ThemeContext is provided", async () => {
     configure({ userInfo: { userName: "Alice" } });
 
     const { container } = renderWithTheme();
     fireEvent.click(container.querySelector('button[aria-label="User menu"]')!);
 
-    const themeSettings = await screen.findByText("Theme settings");
+    const themeLabel = await screen.findByText("Theme");
     const reset = screen.getByText("Reset UI preferences");
     expect(
-      themeSettings.compareDocumentPosition(reset) &
+      themeLabel.compareDocumentPosition(reset) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
-  it("opens theme switcher popover when Theme settings is clicked", async () => {
+  it("shows theme options inline when ThemeContext is provided", async () => {
     configure({ userInfo: { userName: "Alice" } });
 
     const { container } = renderWithTheme();
     fireEvent.click(container.querySelector('button[aria-label="User menu"]')!);
 
-    fireEvent.click(await screen.findByText("Theme settings"));
-
-    expect(await screen.findByText("System")).toBeTruthy();
-    expect(screen.getByText("Light")).toBeTruthy();
-    expect(screen.getByText("Dark")).toBeTruthy();
-    expect(screen.getByText("HC")).toBeTruthy();
+    // Options are icon-only; the label is kept as the native tooltip (title).
+    expect(await screen.findByTitle("System")).toBeTruthy();
+    expect(screen.getByTitle("Light")).toBeTruthy();
+    expect(screen.getByTitle("Dark")).toBeTruthy();
+    expect(screen.getByTitle("HC")).toBeTruthy();
   });
 
   it("reacts to configure() updates after mount", async () => {

@@ -6,9 +6,10 @@ import {
   useMemo,
   useState,
 } from "react";
-import { useForm } from "antd/lib/form/Form";
 import { Flex, Form } from "antd";
 import styles from "./InlineEdit.module.css";
+
+const { useForm } = Form;
 
 export type InlineEditContextProps = {
   toggle: () => void;
@@ -41,7 +42,6 @@ export function InlineEdit<Values>({
 
   useEffect(() => {
     if (active) {
-      // @ts-expect-error False positive as object of type Values is RecursivePartial<Values>
       form.setFieldsValue(values);
     }
   }, [values, active, form]);
@@ -52,7 +52,6 @@ export function InlineEdit<Values>({
         onCancel?.();
         return false;
       }
-      // @ts-expect-error False positive as object of type Values is RecursivePartial<Values>
       form.setFieldsValue(values);
       return true;
     });

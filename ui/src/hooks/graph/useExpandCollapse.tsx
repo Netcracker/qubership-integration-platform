@@ -293,12 +293,12 @@ export function useExpandCollapse(
       const toggledNodes = nodes.map((node) =>
         node.id === toggledContainerId
           ? {
-            ...node,
-            data: {
-              ...node.data,
-              collapsed: nextCollapsed,
-            },
-          }
+              ...node,
+              data: {
+                ...node.data,
+                collapsed: nextCollapsed,
+              },
+            }
           : node,
       );
 

@@ -8,6 +8,7 @@ import {
   Drawer,
   Descriptions,
   Space,
+  Typography,
 } from "antd";
 import { useResizeHeight } from "../../../hooks/useResizeHeigth.tsx";
 import commonStyles from "../CommonStyle.module.css";
@@ -39,10 +40,7 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton.tsx";
-import {
-  attachResizeToColumns,
-  useTableColumnResize,
-} from "../../table/useTableColumnResize.tsx";
+import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
@@ -128,16 +126,6 @@ export const AccessControl: React.FC = () => {
     new Set(),
   );
   const [searchTerm, setSearchTerm] = useState("");
-
-  const accessControlColumnResize = useTableColumnResize({
-    endpoint: 200,
-    type: 100,
-    accessControlType: 160,
-    roles: 100,
-    attributes: 100,
-    chain: 190,
-    chainStatus: 110,
-  });
 
   const filteredRoles = useMemo(
     () =>
@@ -381,8 +369,7 @@ export const AccessControl: React.FC = () => {
             ?.accessControlType === AccessControlType.ABAC
         ) {
           return (
-            <span
-              style={{ cursor: "pointer", color: "#1890ff" }}
+            <Typography.Link
               onClick={(e) => {
                 e.stopPropagation();
                 showModal({
@@ -391,7 +378,7 @@ export const AccessControl: React.FC = () => {
               }}
             >
               Details
-            </span>
+            </Typography.Link>
           );
         } else return <>{"—"}</>;
       },
@@ -499,20 +486,20 @@ export const AccessControl: React.FC = () => {
     return !accessControlData.roles.some((row) => hasUnsavedChanges(row));
   };
 
-  const columnsWithResize = useMemo(
-    () =>
-      attachResizeToColumns(
-        orderedColumns,
-        accessControlColumnResize.columnWidths,
-        accessControlColumnResize.createResizeHandlers,
-        { minWidth: 80 },
-      ),
-    [
+  const { columnsWithResize, components, scrollX } =
+    useColumnsWithResizeAndScroll(
       orderedColumns,
-      accessControlColumnResize.columnWidths,
-      accessControlColumnResize.createResizeHandlers,
-    ],
-  );
+      {
+        endpoint: 200,
+        type: 100,
+        accessControlType: 160,
+        roles: 100,
+        attributes: 100,
+        chain: 190,
+        chainStatus: 110,
+      },
+      { selectionColumnWidth: 48 },
+    );
 
   const accessControlToolbar = (
     <TableToolbar
@@ -778,8 +765,7 @@ export const AccessControl: React.FC = () => {
               <Descriptions.Item label="Attributes">
                 {(currentRecord.properties as unknown as AccessControlProperty)
                   ?.accessControlType === AccessControlType.ABAC ? (
-                  <span
-                    style={{ cursor: "pointer", color: "#1890ff" }}
+                  <Typography.Link
                     onClick={() => {
                       if (currentRecord) {
                         showModal({
@@ -791,7 +777,7 @@ export const AccessControl: React.FC = () => {
                     }}
                   >
                     Details
-                  </span>
+                  </Typography.Link>
                 ) : (
                   "—"
                 )}
@@ -853,8 +839,8 @@ export const AccessControl: React.FC = () => {
               columns={columnsWithResize}
               dataSource={filteredRoles}
               scroll={{
-                x: accessControlColumnResize.totalColumnsWidth,
-                y: containerHeight - 59 || 400,
+                x: scrollX,
+                y: containerHeight > 59 ? containerHeight - 59 : 400,
               }}
               pagination={false}
               rowKey={(record: AccessControlData) => buildRowKey(record)}
@@ -866,7 +852,7 @@ export const AccessControl: React.FC = () => {
                   setSelectedRowKeys(newSelectedRowKeys);
                 },
               }}
-              components={accessControlColumnResize.resizableHeaderComponents}
+              components={components}
               rowClassName={(row) =>
                 hasUnsavedChanges(row) ? "highlight-row" : ""
               }
