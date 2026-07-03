@@ -244,12 +244,12 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ${{ inputs.module }}-jar
-          # Spring Boot modules emit `<artifact>-<version>-exec.jar`; Quarkus
-          # (micro-engine) emits a layered `target/quarkus-app/` tree that
-          # its Dockerfile copies wholesale.
-          path: |
-            ${{ inputs.module }}/target/*-exec.jar
-            ${{ inputs.module }}/target/quarkus-app/**
+          # Upload the whole target/ dir, not selective globs: a single stable
+          # root keeps the artifact's internal layout predictable. With separate
+          # globs, upload-artifact picks a least-common-ancestor that strips the
+          # `target/` (Spring Boot exec jar) or `quarkus-app/` (Quarkus) prefix,
+          # which then breaks the Dockerfiles' `COPY target/...` in publish-image.
+          path: ${{ inputs.module }}/target
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
@@ -263,6 +263,26 @@ jobs:
     permissions:
       packages: write
     steps:
+      - name: Compute image tags
+        id: tags
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          VERSION: ${{ needs.check-version.outputs.release-version }}
+        run: |
+          set -eu
+          # We own every tag here (a custom `tags:` bypasses metadata-action's
+          # auto tagging). The default branch publishes only the moving :latest;
+          # release branches publish the immutable pom version plus a moving
+          # branch tag (e.g. :0.5.7, :release-0.5), never :latest. Strip '/'
+          # (invalid in a docker tag) from the branch ref.
+          if [ "$REF_NAME" = "main" ]; then
+            tags="latest"
+          else
+            branch=$(printf '%s' "$REF_NAME" | tr '/' '-')
+            tags="${VERSION},${branch}"
+          fi
+          echo "list=${tags}" >> "$GITHUB_OUTPUT"
+
       - name: "Docker Build"
         id: docker_build
         uses: netcracker/qubership-workflow-hub/actions/docker-action@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
@@ -270,6 +290,18 @@ jobs:
           ref: ${{ github.ref }}
           download-artifact: true
           download-artifact-name: ${{ inputs.module }}-jar
+          # Reconstruct <module>/target/... so the Dockerfile's `COPY target/...`
+          # resolves against the per-module build context set in `component`.
+          download-artifact-path: ${{ inputs.module }}/target
+          # Per-module image (the action otherwise defaults to the repo name,
+          # colliding). All images are qubership-integration-<module> → derive it.
+          custom-image-name: qubership-integration-${{ inputs.module }}
+          # The default branch publishes only :latest (infra pulls :latest);
+          # release branches publish the immutable version plus their branch
+          # tag (:0.5.7, :release-0.5). The action's metadata-action alone
+          # would emit only the branch tag.
+          tags: ${{ steps.tags.outputs.list }}
+          component: '[{"name": "${{ inputs.module }}", "dockerfile": "./${{ inputs.module }}/Dockerfile", "build_context": "./${{ inputs.module }}"}]'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
