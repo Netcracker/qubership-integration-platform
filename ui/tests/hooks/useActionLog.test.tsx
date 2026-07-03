@@ -87,6 +87,21 @@ describe("useActionLog", () => {
     ]);
   });
 
+  it("clears hasNextPage when fewer than a full page is returned", async () => {
+    mockLoadCatalogActionsLogV2.mockResolvedValue({
+      offset: 5,
+      actionLogs: [makeLog("only-one", 100)],
+    });
+
+    const { result } = renderHook(() => useActionLog(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.hasNextPage).toBe(false);
+  });
+
   it("sets hasNextPage when a full page is returned", async () => {
     const fullPage = Array.from({ length: 20 }, (_, index) =>
       makeLog(`log-${index}`, index),
