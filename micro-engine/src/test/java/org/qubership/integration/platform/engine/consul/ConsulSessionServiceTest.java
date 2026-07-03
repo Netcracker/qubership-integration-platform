@@ -15,11 +15,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -34,6 +36,7 @@ class ConsulSessionServiceTest {
 
     private static final String FIRST_SESSION_ID = "8d4d10b6-9b8c-4ad0-a133-fb85cf9d2865";
     private static final String SECOND_SESSION_ID = "f7f1e7e1-6f8d-4f6e-b74c-d6f0af3df482";
+    private static final int SHORT_CONSUL_TIMEOUT_MS = 10;
 
     private ConsulSessionService service;
 
@@ -47,6 +50,8 @@ class ConsulSessionServiceTest {
         service = new ConsulSessionService();
         service.consulClientSupplier = () -> consulClient;
         service.eventBus = eventBus;
+        service.consulConnectTimeout = 25_000;
+        service.consulTimeout = 25_000;
     }
 
     @Test
@@ -254,6 +259,41 @@ class ConsulSessionServiceTest {
     }
 
     @Test
+    void testCreateSessionTimeoutBehavior() throws Exception {
+        useShortConsulAwaitTimeout();
+        when(consulClient.createSessionWithOptions(any(SessionOptions.class)))
+                .thenReturn(Uni.createFrom().nothing());
+
+        Method awaitConsul = ConsulSessionService.class.getDeclaredMethod("awaitConsul", Uni.class);
+        awaitConsul.setAccessible(true);
+        assertThrows(ConsulOperationTimeoutException.class,
+                () -> invokeReflective(awaitConsul, service, Uni.createFrom().nothing()));
+
+        assertNull(service.getOrCreateSession());
+        verify(eventBus, never()).publish(anyString(), any());
+    }
+
+    @Test
+    void testRenewSessionTimeoutBehavior() throws Exception {
+        useShortConsulAwaitTimeout();
+        when(consulClient.createSessionWithOptions(any(SessionOptions.class)))
+                .thenReturn(Uni.createFrom().item(FIRST_SESSION_ID));
+        when(consulClient.renewSession(FIRST_SESSION_ID))
+                .thenReturn(Uni.createFrom().nothing());
+
+        service.getOrCreateSession();
+
+        Method renewSession = ConsulSessionService.class.getDeclaredMethod("renewSession", String.class);
+        renewSession.setAccessible(true);
+        assertThrows(ConsulOperationTimeoutException.class,
+                () -> invokeReflective(renewSession, service, FIRST_SESSION_ID));
+
+        service.createOrRenewSession();
+
+        assertEquals(FIRST_SESSION_ID, service.getOrCreateSession());
+    }
+
+    @Test
     void shouldDetectSessionNotFoundErrorOnlyForMatchingMessage() throws Exception {
         Method sessionNotFoundError = ConsulSessionService.class.getDeclaredMethod(
                 "sessionNotFoundError", Throwable.class);
@@ -263,5 +303,18 @@ class ConsulSessionServiceTest {
         assertFalse((boolean) sessionNotFoundError.invoke(service, new RuntimeException("network error")));
         assertTrue((boolean) sessionNotFoundError.invoke(service,
                 new RuntimeException("Session id " + FIRST_SESSION_ID + " not found")));
+    }
+
+    private void useShortConsulAwaitTimeout() {
+        service.consulConnectTimeout = SHORT_CONSUL_TIMEOUT_MS;
+        service.consulTimeout = SHORT_CONSUL_TIMEOUT_MS;
+    }
+
+    private static void invokeReflective(Method method, Object target, Object... args) throws Throwable {
+        try {
+            method.invoke(target, args);
+        } catch (InvocationTargetException e) {
+            throw e.getCause();
+        }
     }
 }

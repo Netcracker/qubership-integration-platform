@@ -3,6 +3,7 @@ package org.qubership.integration.platform.engine.state;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.common.annotation.Identifier;
+import io.smallrye.mutiny.TimeoutException;
 import io.vertx.ext.consul.KeyValueOptions;
 import io.vertx.mutiny.ext.consul.ConsulClient;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -14,6 +15,7 @@ import org.qubership.integration.platform.engine.consul.ConsulSessionService;
 import org.qubership.integration.platform.engine.model.engine.EngineInfo;
 import org.qubership.integration.platform.engine.model.engine.EngineState;
 
+import java.time.Duration;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -76,17 +78,20 @@ public class EngineStateService {
                 .setAcquireSession(sessionId);
         try {
             String value = objectMapper.writeValueAsString(state);
+            Duration timeout = consulSessionService.getAwaitTimeout();
             consulClientSupplier.get().putValueWithOptions(key, value, options)
-                    .onFailure()
-                    .transform(failure -> {
-                        log.error("Failed to create or update KV in consul: {}", failure.getMessage());
-                        return failure;
-                    })
+                    .onFailure().invoke(failure -> log.error("Failed to create or update KV in consul: {}", failure.getMessage()))
                     .await()
-                    .indefinitely();
+                    .atMost(timeout);
         } catch (JsonProcessingException e) {
-            log.error("Failed to serialize value: {}", e.getMessage());
+            log.error("Failed to serialize value: {}", e.getMessage(), e);
             throw new RuntimeException(e);
+        } catch (TimeoutException e) {
+            log.error("Timeout while creating or updating KV in consul for key: {}", key, e);
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected error updating engine state in Consul KV for key: {}", key, e);
+            throw e;
         }
     }
 }
