@@ -235,10 +235,9 @@ public class CustomResourceService {
                 .getSecretsByLabel(CAMEL_K_INTEGRATION_LABEL, integrationName)
                 .stream()
                 .findFirst();
-            genericCustomResources.getCustomResourceDefinitions().forEach((key, def) -> {
+            genericCustomResources.getCustomResourceDefinitions().forEach((key, def) ->
                 customResources.addAll(kubeOperator.getCustomObjectsByLabelAndDefinition(
-                        CAMEL_K_INTEGRATION_LABEL, integrationName, def));
-            });
+                        CAMEL_K_INTEGRATION_LABEL, integrationName, def)));
         }
         return Optional.of(new IntegrationResources(
                 integration.orElse(null),
