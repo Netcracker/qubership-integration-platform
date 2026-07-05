@@ -313,17 +313,9 @@ export const Sessions: React.FC<SessionsProps> = ({
             ([domainName, sessions]) => {
               const domainType = sessions[0].domainType;
               const ids = sessions.map((s) => s.id);
-              try {
-                return domainType === DomainType.MICRO
-                  ? api.getCheckpointSessionsForMicroDomain(domainName, ids)
-                  : api.getCheckpointSessions(ids);
-              } catch (error) {
-                notificationService.requestFailed(
-                  "Failed to fetch checkpoint sessions",
-                  error,
-                );
-                return [];
-              }
+              return domainType === DomainType.MICRO
+                ? api.getCheckpointSessionsForMicroDomain(domainName, ids)
+                : api.getCheckpointSessions(ids);
             },
           ),
         );
