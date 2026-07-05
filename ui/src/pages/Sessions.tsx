@@ -11,6 +11,7 @@ import { useNavigate, useParams } from "react-router";
 import {
   Checkpoint,
   CheckpointSession,
+  DomainType,
   ExecutionStatus,
   Session,
   SessionFilterAndSearchRequest,
@@ -129,6 +130,17 @@ function convertTimestampFilter(
 
 function compareTimestamps(s1: string, s2: string): number {
   return Date.parse(s2) - Date.parse(s1);
+}
+
+function groupBy<T, K>(array: T[], getKey: (item: T) => K): Map<K, T[]> {
+  return array.reduce((accumulator, item) => {
+    const key = getKey(item);
+    if (!accumulator.has(key)) {
+      accumulator.set(key, []);
+    }
+    accumulator.get(key)!.push(item);
+    return accumulator;
+  }, new Map<K, T[]>());
 }
 
 /** rc-table expand column when rows have nested `children`. */
@@ -296,9 +308,27 @@ export const Sessions: React.FC<SessionsProps> = ({
           }
         }
 
-        const ids = fetched.map((s) => s.id);
+        const checkpointSessionsLists = await Promise.all(
+          Array.from(groupBy(fetched, (s) => s.domain).entries()).map(
+            ([domainName, sessions]) => {
+              const domainType = sessions[0].domainType;
+              const ids = sessions.map((s) => s.id);
+              try {
+                return domainType === DomainType.MICRO
+                  ? api.getCheckpointSessionsForMicroDomain(domainName, ids)
+                  : api.getCheckpointSessions(ids);
+              } catch (error) {
+                notificationService.requestFailed(
+                  "Failed to fetch checkpoint sessions",
+                  error,
+                );
+                return [];
+              }
+            },
+          ),
+        );
         const checkpointSessions: CheckpointSession[] =
-          ids.length > 0 ? await api.getCheckpointSessions(ids) : [];
+          checkpointSessionsLists.flat();
         const checkpointsById = new Map<string, Checkpoint[]>();
         checkpointSessions.forEach((cs) =>
           checkpointsById.set(cs.id, cs.checkpoints),
@@ -324,9 +354,22 @@ export const Sessions: React.FC<SessionsProps> = ({
   );
 
   const retryFromLastCheckpoint = useCallback(
-    async (chainId: string, sessionId: string) => {
+    async (
+      domainType: DomainType,
+      domainName: string,
+      chainId: string,
+      sessionId: string,
+    ) => {
       try {
-        await api.retrySessionFromCheckpoint(chainId, sessionId);
+        if (domainType === DomainType.MICRO) {
+          await api.retrySessionFromCheckpointForMicroDomain(
+            domainName,
+            chainId,
+            sessionId,
+          );
+        } else {
+          await api.retrySessionFromCheckpoint(chainId, sessionId);
+        }
         message.info(
           "Session was retried successfully. Please update table to see session result.",
         );
@@ -370,7 +413,12 @@ export const Sessions: React.FC<SessionsProps> = ({
                     type: "text",
                     iconName: "redo",
                     onClick: () =>
-                      void retryFromLastCheckpoint(item.chainId, item.id),
+                      void retryFromLastCheckpoint(
+                        item.domainType,
+                        item.domain,
+                        item.chainId,
+                        item.id,
+                      ),
                   }}
                 />
               ) : null}

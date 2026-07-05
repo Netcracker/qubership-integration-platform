@@ -406,6 +406,7 @@ export type Session = AbstractRunnableElement & {
   chainId: string;
   chainName: string;
   domain: string;
+  domainType: DomainType;
   engineAddress: string;
   loggingLevel: SessionsLoggingLevel | string;
   snapshotName: string;

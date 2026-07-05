@@ -28,9 +28,9 @@ export const useActionLog = (
   const notificationService = useNotificationService();
   const queryClient = useQueryClient();
 
-   useEffect(() => {
-     void refresh();
-   }, []);
+  useEffect(() => {
+    void refresh();
+  }, []);
 
   const actionLogsQuery = useInfiniteQuery({
     queryKey: ["actionLogs", filters],
