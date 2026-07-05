@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.engine.rest.v1.controller;
 
-import com.netcracker.cloud.routesregistration.common.annotation.Gateway;
-import com.netcracker.cloud.routesregistration.common.annotation.Route;
-import com.netcracker.cloud.routesregistration.common.gateway.route.RouteType;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
@@ -45,8 +42,6 @@ import java.util.function.Supplier;
 
 @Slf4j
 @Path(RestApiConstants.V1_ROUTE_PREFIX + CheckpointSessionController.CHECKPOINT_SESSION_PATH)
-@Route(RouteType.PUBLIC)
-@Gateway(RestApiConstants.V1_PUBLIC_ROUTE_PREFIX + CheckpointSessionController.CHECKPOINT_SESSION_PATH)
 @Produces(MediaType.APPLICATION_JSON)
 // TODO Enable CORS with origins *
 //@CrossOrigin(origins = "*")
