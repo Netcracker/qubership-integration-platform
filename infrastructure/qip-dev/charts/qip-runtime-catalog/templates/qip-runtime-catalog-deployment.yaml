@@ -25,6 +25,7 @@ spec:
             - -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
             - -Djava.security.egd=file:/dev/./urandom
             - -Dfile.encoding=UTF-8
+            - -Dspring.profiles.active=localdev
             - -jar
             - /app/qip-runtime-catalog.jar
           env:
