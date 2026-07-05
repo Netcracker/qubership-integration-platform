@@ -22,6 +22,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.engine.model.ChainElementType;
+import org.qubership.integration.platform.engine.model.DomainType;
 import org.qubership.integration.platform.engine.model.Session;
 import org.qubership.integration.platform.engine.model.SessionElementProperty;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
@@ -86,6 +87,7 @@ public class SessionsService {
             .externalId(
                 exchange.getMessage().getHeader(Headers.EXTERNAL_SESSION_CIP_ID, String.class))
             .domain(currentDomain)
+            .domainType(DomainType.CLASSIC)
             .engineAddress(currentEngineAddress)
             .chainId(dbgProperties.getDeploymentInfo().getChainId())
             .chainName(dbgProperties.getDeploymentInfo().getChainName())

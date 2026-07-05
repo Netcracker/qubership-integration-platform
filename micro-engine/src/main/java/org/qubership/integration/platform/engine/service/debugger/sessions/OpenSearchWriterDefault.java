@@ -330,6 +330,10 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
             size += calculateElementSize(element.getSessionExecutionStatus().name());
         }
 
+        if (element.getDomainType() != null) {
+            size += calculateElementSize(element.getDomainType().name());
+        }
+
         if (element.getExceptionInfo() != null) {
             size += calculateElementSize(element.getExceptionInfo().toString());
         }
