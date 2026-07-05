@@ -38,6 +38,7 @@ jest.mock("../../../src/appConfig", () => ({
 
 import { RestApi } from "../../../src/api/rest/restApi";
 import type { EntityFilterModel } from "../../../src/components/table/filter/filterTypes";
+import type { CheckpointSession } from "../../../src/api/apiTypes";
 
 describe("RestApi - filterServices and searchServices", () => {
   let restApi: RestApi;
@@ -90,5 +91,85 @@ describe("RestApi - filterServices and searchServices", () => {
 
     const result = await restApi.searchServices("found");
     expect(result).toEqual(mockData);
+  });
+});
+
+describe("RestApi - checkpoint sessions for micro-domain", () => {
+  let restApi: RestApi;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    restApi = new RestApi();
+  });
+
+  it("should return an empty array without calling GET when sessionIds is empty", async () => {
+    const result = await restApi.getCheckpointSessionsForMicroDomain(
+      "domain-1",
+      [],
+    );
+
+    expect(result).toEqual([]);
+    expect(mockGet).not.toHaveBeenCalled();
+  });
+
+  it("should call GET on the domain-scoped sessions endpoint with the ids as params", async () => {
+    const mockData = [{ id: "session-1" }] as unknown as CheckpointSession[];
+    mockGet.mockResolvedValue({ data: mockData });
+
+    const result = await restApi.getCheckpointSessionsForMicroDomain(
+      "domain-1",
+      ["session-1"],
+    );
+
+    expect(mockGet).toHaveBeenCalledWith(
+      expect.stringContaining("/engine/domain-1/sessions"),
+      {
+        params: { ids: ["session-1"] },
+        paramsSerializer: { indexes: null },
+      },
+    );
+    expect(result).toEqual(mockData);
+  });
+
+  it("should split session ids into chunks of 20 and merge the results across chunk requests", async () => {
+    const sessionIds = Array.from({ length: 25 }, (_, i) => `session-${i}`);
+    mockGet
+      .mockResolvedValueOnce({ data: [{ id: "session-0" }] })
+      .mockResolvedValueOnce({ data: [{ id: "session-20" }] });
+
+    const result = await restApi.getCheckpointSessionsForMicroDomain(
+      "domain-1",
+      sessionIds,
+    );
+
+    expect(mockGet).toHaveBeenCalledTimes(2);
+    expect(mockGet).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("/engine/domain-1/sessions"),
+      expect.objectContaining({ params: { ids: sessionIds.slice(0, 20) } }),
+    );
+    expect(mockGet).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("/engine/domain-1/sessions"),
+      expect.objectContaining({ params: { ids: sessionIds.slice(20) } }),
+    );
+    expect(result).toEqual([{ id: "session-0" }, { id: "session-20" }]);
+  });
+
+  it("should send a POST to the domain-scoped retry endpoint with an empty body", async () => {
+    mockPost.mockResolvedValue({});
+
+    await restApi.retrySessionFromCheckpointForMicroDomain(
+      "domain-1",
+      "chain-1",
+      "session-1",
+    );
+
+    expect(mockPost).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "/engine/domain-1/chains/chain-1/sessions/session-1/retry",
+      ),
+      {},
+    );
   });
 });
