@@ -20,6 +20,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.engine.model.engine.DomainType;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
 
 
@@ -46,6 +47,8 @@ public class Session {
     private String chainName;
 
     private String domain;
+
+    private DomainType domainType;
 
     private String engineAddress;
 

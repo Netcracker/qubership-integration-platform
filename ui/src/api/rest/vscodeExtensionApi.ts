@@ -885,12 +885,24 @@ export class VSCodeExtensionApi implements Api {
     throw new Error("Method retryFromLastCheckpoint not implemented.");
   }
 
+  retrySessionFromCheckpointForMicroDomain(): Promise<void> {
+    throw new Error(
+      "Method retrySessionFromCheckpointForMicroDomain not implemented",
+    );
+  }
+
   getSession(): Promise<Session> {
     throw new Error("Method getSession not implemented.");
   }
 
   getCheckpointSessions(): Promise<CheckpointSession[]> {
     throw new Error("Method getCheckpointSessions not implemented.");
+  }
+
+  getCheckpointSessionsForMicroDomain(): Promise<CheckpointSession[]> {
+    throw new Error(
+      "Method getCheckpointSessionsForMicroDomain not implemented.",
+    );
   }
 
   retrySessionFromCheckpoint(): Promise<void> {

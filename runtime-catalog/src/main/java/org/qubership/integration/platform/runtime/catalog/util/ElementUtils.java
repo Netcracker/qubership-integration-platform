@@ -91,7 +91,8 @@ public class ElementUtils {
                 }
 
                 ChainElement trigger = element.copyWithOriginalId();
-                trigger.setId(convertToAnotherUUID(element.getId()));
+                String id = UUID.nameUUIDFromBytes(element.getId().getBytes()).toString();
+                trigger.setId(id);
                 trigger.getOutputDependencies().addAll(element.getOutputDependencies());
                 newElements.add(trigger);
             }

@@ -20,6 +20,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.engine.model.DomainType;
 import org.qubership.integration.platform.engine.model.Session;
 import org.qubership.integration.platform.engine.opensearch.annotation.OpenSearchDocument;
 import org.qubership.integration.platform.engine.opensearch.annotation.OpenSearchField;
@@ -61,6 +62,9 @@ public class SessionElementElastic extends AbstractElementElastic {
 
     @OpenSearchField(type = OpenSearchFieldType.Keyword)
     private String domain;
+
+    @OpenSearchField(type = OpenSearchFieldType.Keyword)
+    private DomainType domainType;
 
     @OpenSearchField(type = OpenSearchFieldType.Keyword)
     private String engineAddress;
@@ -121,6 +125,7 @@ public class SessionElementElastic extends AbstractElementElastic {
             setChainId(session.getChainId());
             setChainName(session.getChainName());
             setDomain(session.getDomain());
+            setDomainType(session.getDomainType());
             setEngineAddress(session.getEngineAddress());
             setLoggingLevel(session.getLoggingLevel());
             setCorrelationId(session.getCorrelationId());

@@ -47,6 +47,8 @@ public class Session {
 
     private String domain;
 
+    private DomainType domainType;
+
     private String engineAddress;
 
     private String loggingLevel;

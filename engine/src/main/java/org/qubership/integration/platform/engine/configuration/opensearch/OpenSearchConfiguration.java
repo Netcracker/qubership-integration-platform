@@ -36,7 +36,7 @@ import org.springframework.context.annotation.Bean;
 public class OpenSearchConfiguration {
     public static final String OPENSEARCH_CLIENT_SUPPLIER_BEAN_NAME = "openSearchClientSupplier";
     public static final String OPENSEARCH_ENTITY_NAME_NORMALIZER_BEAN_NAME = "openSearchEntityNameNormalizer";
-    public static final long TEMPLATE_VERSION = 4L;
+    public static final long TEMPLATE_VERSION = 5L;
 
     @Value("${qip.opensearch.client.host:opensearch}")
     private String host;

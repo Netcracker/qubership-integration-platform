@@ -150,6 +150,18 @@ data:
         proxy_intercept_errors on;
       }
 
+      location ~ ^/api/(v\d+)/.*/engine/(?P<engine_domain>[^/]+)/(sessions|chains|live-exchanges) {
+        # Kubernetes CoreDNS internal service IP
+        resolver 10.96.0.10 valid=5s;
+        resolver_timeout 5s;
+
+        rewrite ^/api/(v\d+)/.*/engine/[^/]+/(.*)$  /$1/engine/$2 break;
+        proxy_pass  http://qip-engine-${engine_domain}-v1.{{ .Release.Namespace }}.svc.cluster.local:8080;
+        proxy_redirect     off;
+        proxy_set_header   Host $host;
+        proxy_intercept_errors on;
+      }
+
       location ~ ^/api/(v\d+)/.*/engine {
         rewrite ^/api/(v\d+)/.*/engine/(.*)$  /$1/engine/$2  break;
         proxy_pass  http://{{ .Release.Name }}-engine:8080;

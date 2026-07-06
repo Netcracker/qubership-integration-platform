@@ -12,6 +12,7 @@ import {
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {
+  DomainType,
   ExecutionStatus,
   type Session,
   type SessionElement,
@@ -333,6 +334,7 @@ function baseSession(elements: SessionElement[]): Session {
     importedSession: false,
     externalSessionCipId: "",
     domain: "d",
+    domainType: DomainType.CLASSIC,
     engineAddress: "",
     loggingLevel: "INFO",
     snapshotName: "snap-alpha",

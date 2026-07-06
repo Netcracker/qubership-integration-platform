@@ -18,4 +18,9 @@ public class AppDefaultTenantStrategy extends DefaultTenantStrategy {
     protected Supplier<TenantContextObject> defaultObjectSupplier() {
         return () -> defaultTenant;
     }
+
+    @Override
+    public TenantContextObject get() {
+        return defaultTenant;
+    }
 }

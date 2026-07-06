@@ -246,7 +246,18 @@ export interface Api {
 
   getCheckpointSessions(sessionIds: string[]): Promise<CheckpointSession[]>;
 
+  getCheckpointSessionsForMicroDomain(
+    domain: string,
+    sessionIds: string[],
+  ): Promise<CheckpointSession[]>;
+
   retrySessionFromCheckpoint(chainId: string, sessionId: string): Promise<void>;
+
+  retrySessionFromCheckpointForMicroDomain(
+    domain: string,
+    chainId: string,
+    sessionId: string,
+  ): Promise<void>;
 
   getFolder(folderId: string): Promise<FolderItem>;
 

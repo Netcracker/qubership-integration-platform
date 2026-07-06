@@ -58,6 +58,7 @@ public class KubeOperator {
     private final CoreV1Api coreApi;
     private final AppsV1Api appsApi;
     private final CustomObjectsApi customObjectsApi;
+    private final GenericCustomResources genericCustomResources;
 
     private final String namespace;
 
@@ -66,9 +67,10 @@ public class KubeOperator {
         appsApi = new AppsV1Api();
         customObjectsApi = new CustomObjectsApi();
         namespace = null;
+        genericCustomResources = null;
     }
 
-    public KubeOperator(ApiClient client, String namespace) {
+    public KubeOperator(ApiClient client, String namespace, GenericCustomResources genericCustomResources) {
         coreApi = new CoreV1Api();
         coreApi.setApiClient(client);
 
@@ -79,6 +81,8 @@ public class KubeOperator {
         customObjectsApi.setApiClient(client);
 
         this.namespace = namespace;
+
+        this.genericCustomResources = genericCustomResources;
     }
 
     public List<KubeDeployment> getDeploymentsByLabel(String labelKey) {
@@ -185,7 +189,9 @@ public class KubeOperator {
                     }.getType(), true);
         } else if (resource instanceof KubeCustomObject customObject) {
             GenericCustomResources.CustomResourceDefinition resourceDefinition =
-                GenericCustomResources.definitionFor(customObject.getKind());
+                Optional.ofNullable(genericCustomResources)
+                    .orElseThrow(() -> new KubeApiException("No generic custom resource definition for kind: " + customObject.getKind()))
+                    .definitionFor(customObject.getKind());
             boolean updateIfExists = resourceDefinition.updateIfExists();
 
             log.debug("Applying {} name={}, updateIfExists={}",
