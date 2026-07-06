@@ -72,6 +72,9 @@ public class CustomResourceOptionsProvider {
                     .bind("qip.cr.build.service", ServiceOptions.class)
                     .orElseGet(ServiceOptions::new))
                 .serviceAccount(serviceAccount)
+                .health(Binder.get(propertyResolver)
+                    .bind("qip.cr.build.health", HealthOptions.class)
+                    .orElseGet(HealthOptions::new))
                 .build();
 
         customizers.forEach(customizer -> customizer.customize(request, options));
