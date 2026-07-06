@@ -72,7 +72,6 @@ public class CheckpointSessionService {
         this.idempotencyRecordService = idempotencyRecordService;
     }
 
-    @Transactional
     public void retryFromLastCheckpoint(String chainId, String sessionId, String body,
         Supplier<Pair<String, String>> authHeaderProvider, boolean traceMe) {
 
@@ -85,7 +84,6 @@ public class CheckpointSessionService {
         retryFromCheckpointAsync(lastCheckpoint, body, authHeaderProvider, traceMe);
     }
 
-    @Transactional
     public void retryFromCheckpoint(
         String chainId,
         String sessionId,
@@ -158,8 +156,9 @@ public class CheckpointSessionService {
 
     @Transactional
     public SessionInfo saveSession(SessionInfo sessionInfo) {
-        sessionInfoRepository.persistAndFlush(sessionInfo); // Calling flush to generate entity ID, if needed
-        return sessionInfo;
+        SessionInfo mergedSessionInfo = sessionInfoRepository.getEntityManager().merge(sessionInfo);
+        sessionInfoRepository.persistAndFlush(mergedSessionInfo); // Calling flush to generate entity ID, if needed
+        return mergedSessionInfo;
     }
 
     @Transactional

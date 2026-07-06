@@ -138,7 +138,7 @@ public class CheckpointSessionService {
         List<Checkpoint> checkpoints = checkpointRepository
             .findAllBySessionChainIdAndSessionId(chainId, sessionId,
                 PageRequest.of(0, 1, Sort.by("timestamp").descending()));
-        return (checkpoints == null || checkpoints.isEmpty()) ? null : checkpoints.get(0);
+        return (checkpoints == null || checkpoints.isEmpty()) ? null : checkpoints.getFirst();
     }
 
     @Transactional("checkpointTransactionManager")

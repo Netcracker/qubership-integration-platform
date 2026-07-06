@@ -6,6 +6,7 @@ import React from "react";
 import { screen, waitFor, within, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {
+  DomainType,
   ExecutionStatus,
   type Session,
   type SessionElement,
@@ -148,6 +149,7 @@ function baseSession(overrides: Partial<Session>): Session {
     importedSession: false,
     externalSessionCipId: "",
     domain: "d",
+    domainType: DomainType.CLASSIC,
     engineAddress: "",
     loggingLevel: "INFO",
     snapshotName: "snap-v1",

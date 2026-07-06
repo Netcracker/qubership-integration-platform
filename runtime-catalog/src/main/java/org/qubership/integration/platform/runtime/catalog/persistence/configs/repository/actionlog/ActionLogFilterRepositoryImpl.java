@@ -60,6 +60,18 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
     }
 
     @Override
+    public List<ActionLog> findActionLogsByFilter(
+        int offset, int limit, List<ActionLogFilterRequestDTO> filters) {
+
+        CriteriaQuery<ActionLog> query = buildFilterOnlyQuery(filters);
+
+        return entityManager.createQuery(query)
+            .setFirstResult(offset)
+            .setMaxResults(limit)
+            .getResultList();
+    }
+
+    @Override
     public long getRecordsCountAfterTime(Timestamp timestamp, List<ActionLogFilterRequestDTO> filters) {
         CriteriaQuery<Long> query = getRecordsCount(timestamp, filters);
         return entityManager.createQuery(query).getSingleResult();
@@ -85,6 +97,25 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
                 : query);
     }
 
+    // without time window
+    private CriteriaQuery<ActionLog> buildFilterOnlyQuery(List<ActionLogFilterRequestDTO> filters) {
+        CriteriaBuilder builder = entityManager.getCriteriaBuilder();
+        CriteriaQuery<ActionLog> query = builder.createQuery(ActionLog.class);
+        Root<ActionLog> actionLog = query.from(ActionLog.class);
+        List<Predicate> predicates = new LinkedList<>();
+
+        List<ActionLogFilterRequestDTO> mutableFilters = new ArrayList<>(filters);
+        removeRedundantFilters(mutableFilters);
+        addFiltersToQuery(mutableFilters, builder, actionLog, predicates);
+
+        query.select(actionLog);
+        if (!predicates.isEmpty()) {
+            query.where(builder.and(predicates.toArray(new Predicate[0])));
+        }
+        return query.orderBy(builder.desc(actionLog.get(ACTION_TIME_COLUMN)));
+    }
+
+    // with time window
     private CriteriaQuery<ActionLog> buildFilterQuery(
             Timestamp offsetTime,
             long rangeTime,

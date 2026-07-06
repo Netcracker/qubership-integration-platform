@@ -34,7 +34,7 @@ public class CheckpointRepository implements PanacheRepositoryBase<Checkpoint, S
             String chainId,
             String checkpointElementId
     ) {
-        return find("sessionId = ?1 and chainId = ?2 and checkpointElementId = ?3",
+        return find("select c from checkpoints c join c.session s where s.id = ?1 and s.chainId = ?2 and c.checkpointElementId = ?3",
                 sessionId, chainId, checkpointElementId).firstResult();
     }
 
@@ -44,7 +44,7 @@ public class CheckpointRepository implements PanacheRepositoryBase<Checkpoint, S
             Page page,
             Sort sort
     ) {
-        return find("chainId = ?1 and sessionId = ?2", sort, chainId, sessionId)
+        return find("select c from checkpoints c left join c.session s where s.chainId = ?1 and s.id = ?2", sort, chainId, sessionId)
                 .page(page).list();
     }
 

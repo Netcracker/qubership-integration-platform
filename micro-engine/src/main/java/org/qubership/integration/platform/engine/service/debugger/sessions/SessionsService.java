@@ -31,6 +31,7 @@ import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
 import org.qubership.integration.platform.engine.model.Session;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
+import org.qubership.integration.platform.engine.model.engine.DomainType;
 import org.qubership.integration.platform.engine.model.engine.EngineInfo;
 import org.qubership.integration.platform.engine.model.logging.Payload;
 import org.qubership.integration.platform.engine.model.logging.SessionsLoggingLevel;
@@ -89,6 +90,7 @@ public class SessionsService {
             .externalId(
                 exchange.getMessage().getHeader(Headers.EXTERNAL_SESSION_CIP_ID, String.class))
             .domain(engineInfo.getDomain())
+            .domainType(DomainType.MICRO)
             .engineAddress(engineInfo.getHost())
             .chainId(chainInfo.getId())
             .chainName(chainInfo.getName())

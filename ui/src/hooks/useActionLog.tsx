@@ -1,41 +1,24 @@
 import { api } from "../api/api.ts";
-import {
-  ActionLog,
-  ActionLogResponse,
-  ActionLogSearchRequest,
-} from "../api/apiTypes.ts";
-import {
-  InfiniteData,
-  InfiniteQueryObserverResult,
-  useInfiniteQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
-import { useRef } from "react";
+import { ActionLog, ActionLogFilterRequest } from "../api/apiTypes.ts";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useEffect } from "react";
 import { useNotificationService } from "./useNotificationService.tsx";
-import { Register } from "react-router";
 
-const RANGE_DEFAULT = 1000 * 60 * 60 * 24; // 1 day in ms
-const RANGE_MIN = 1000 * 60 * 60 * 6; // 6 hours
-const RANGE_MAX = 1000 * 60 * 60 * 48; // 2 days
-const CONTENT_SIZE_THRESHOLD = 200;
+const PAGE_SIZE = 20;
 
-type RequestState = {
-  offset: number;
-  range: number;
-  stopped: boolean;
+type ActionLogPage = {
+  logs: ActionLog[];
+  nextOffset: number;
 };
 
-export const useActionLog = (): {
-  fetchNextPage: () => Promise<
-    InfiniteQueryObserverResult<
-      InfiniteData<ActionLog[]>,
-      Register extends {
-        defaultError: infer TError;
-      }
-        ? TError
-        : Error
-    >
-  >;
+function sortLogsByActionTime(logs: ActionLog[]): ActionLog[] {
+  return [...logs].sort((a, b) => b.actionTime - a.actionTime);
+}
+
+export const useActionLog = (
+  filters: ActionLogFilterRequest[] = [],
+): {
+  fetchNextPage: () => Promise<void>;
   logsData: ActionLog[];
   hasNextPage: boolean;
   isFetching: boolean;
@@ -43,91 +26,55 @@ export const useActionLog = (): {
   refresh: () => Promise<void>;
 } => {
   const notificationService = useNotificationService();
-
-  const requestStateRef = useRef<RequestState>({
-    offset: Date.now(),
-    range: RANGE_DEFAULT,
-    stopped: false,
-  });
-
   const queryClient = useQueryClient();
-  const allLogsRef = useRef(new Map<string, ActionLog>());
 
-  const getSortedLogs = () =>
-    Array.from(allLogsRef.current.values()).sort(
-      (a, b) => b.actionTime - a.actionTime,
-    );
+  useEffect(() => {
+    void refresh();
+  }, []);
 
   const actionLogsQuery = useInfiniteQuery({
-    initialPageParam: Date.now(),
-    queryKey: ["actionLogs"],
-    queryFn: async () => {
-      const state = requestStateRef.current;
-      if (state.stopped) {
-        return getSortedLogs();
-      }
-
-      const requestedRange = state.range;
-      const searchRequest: ActionLogSearchRequest = {
-        offsetTime: state.offset,
-        rangeTime: requestedRange,
-      };
-
-      let response: ActionLogResponse;
+    queryKey: ["actionLogs", filters],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }): Promise<ActionLogPage> => {
       try {
-        response = await api.loadCatalogActionsLog(searchRequest);
+        const response = await api.loadCatalogActionsLogV2({
+          offset: pageParam,
+          limit: PAGE_SIZE,
+          filters,
+        });
+        return {
+          logs: response.actionLogs,
+          nextOffset: response.offset,
+        };
       } catch (err) {
         notificationService.requestFailed(
           "Failed to retrieve action logs from Catalog",
           err,
         );
-        state.stopped = true;
-        return getSortedLogs();
+        return { logs: [], nextOffset: pageParam };
       }
-
-      const { actionLogs, recordsAfterRange } = response;
-      const hasLogs = actionLogs.length > 0;
-      const hasMore = recordsAfterRange > 0;
-      const logCount = actionLogs.length;
-
-      if (!hasLogs && hasMore) {
-        state.range = Math.min(state.range * 2, RANGE_MAX);
-      } else if (hasLogs) {
-        state.range =
-          logCount > CONTENT_SIZE_THRESHOLD ? RANGE_MIN : RANGE_DEFAULT;
-      }
-
-      // Move window back by the range used in the request.
-      state.offset -= requestedRange;
-      if (!hasMore) state.stopped = true;
-
-      actionLogs.forEach((log) => allLogsRef.current.set(log.id, log));
-
-      return getSortedLogs();
     },
-    getNextPageParam: () =>
-      requestStateRef.current.stopped ? undefined : Date.now(),
+    getNextPageParam: (lastPage) =>
+      lastPage.logs.length < PAGE_SIZE ? undefined : lastPage.nextOffset,
   });
 
-  const logsData =
-    actionLogsQuery.data?.pages[actionLogsQuery.data.pages.length - 1] ?? [];
+  const logsData = useMemo(
+    () =>
+      sortLogsByActionTime(
+        actionLogsQuery.data?.pages.flatMap((page) => page.logs) ?? [],
+      ),
+    [actionLogsQuery.data],
+  );
 
-  const refresh = async () => {
-    allLogsRef.current.clear();
-    requestStateRef.current = {
-      offset: Date.now(),
-      range: RANGE_DEFAULT,
-      stopped: false,
-    };
-    await queryClient.resetQueries({
-      queryKey: ["actionLogs"],
-      exact: true,
-    });
-  };
+  const refresh = useCallback(async () => {
+    await queryClient.resetQueries({ queryKey: ["actionLogs", filters] });
+  }, [queryClient, filters]);
 
   return {
     logsData,
-    fetchNextPage: () => actionLogsQuery.fetchNextPage(),
+    fetchNextPage: async () => {
+      await actionLogsQuery.fetchNextPage();
+    },
     hasNextPage: actionLogsQuery.hasNextPage,
     isFetching: actionLogsQuery.isFetching,
     isLoading: actionLogsQuery.isLoading,

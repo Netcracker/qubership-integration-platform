@@ -20,10 +20,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.runtime.catalog.context.RequestIdContext;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.InvalidEnumConstantException;
+import org.qubership.integration.platform.runtime.catalog.model.dto.actionlog.ActionLogFilterRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.model.dto.actionlog.ActionLogSearchCriteria;
+import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.ActionsLogMapper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.User;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.actionlog.ActionLogRepository;
+import org.qubership.integration.platform.runtime.catalog.rest.v2.dto.ActionLogSearchRequest;
+import org.qubership.integration.platform.runtime.catalog.rest.v2.dto.ActionLogSearchResponse;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.AuditorAware;
@@ -42,15 +46,42 @@ import java.util.concurrent.LinkedBlockingQueue;
 @Service
 public class ActionsLogService {
     private final ActionLogRepository actionLogRepository;
+    private final ActionsLogMapper actionsLogMapper;
     private final AuditorAware<User> auditor;
 
     private final BlockingQueue<ActionLog> queue = new LinkedBlockingQueue<>();
 
     @Autowired
-    public ActionsLogService(ActionLogRepository actionLogRepository, AuditorAware<User> auditor) {
+    public ActionsLogService(
+            ActionLogRepository actionLogRepository,
+            ActionsLogMapper actionsLogMapper,
+            AuditorAware<User> auditor) {
         this.actionLogRepository = actionLogRepository;
+        this.actionsLogMapper = actionsLogMapper;
         this.auditor = auditor;
         new ActionWriterThread(actionLogRepository, queue).start();
+    }
+
+    public ActionLogSearchResponse findByPagedSearchRequest(ActionLogSearchRequest request) {
+        int offset = Math.max(request.getOffset(), 0);
+        int limit = normalizeLimit(request.getLimit());
+        List<ActionLogFilterRequestDTO> filters =
+            request.getFilters() != null ? request.getFilters() : Collections.emptyList();
+
+        try {
+            List<ActionLog> rows = actionLogRepository.findActionLogsByFilter(offset, limit, filters);
+            return new ActionLogSearchResponse(offset + rows.size(), actionsLogMapper.asDTO(rows));
+        } catch (InvalidEnumConstantException e) {
+            log.debug(e.getMessage());
+            return new ActionLogSearchResponse(offset, Collections.emptyList());
+        }
+    }
+
+    private int normalizeLimit(int limit) {
+        if (limit <= 0) {
+            return 100;
+        }
+        return Math.min(limit, 1000);
     }
 
     public Pair<Long, List<ActionLog>> findBySearchRequest(ActionLogSearchCriteria request) {

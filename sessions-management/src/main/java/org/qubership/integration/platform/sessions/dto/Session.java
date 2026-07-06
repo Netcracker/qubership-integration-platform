@@ -51,6 +51,9 @@ public class Session extends AbstractRunnableElement {
     @Schema(description = "Domain on which chain was executed")
     private String domain;
 
+    @Schema(description = "Type of the domain on which chain was executed")
+    private String domainType;
+
     @Schema(description = "qubership-integration-platform-engine pod ip address on which chain was executed")
     private String engineAddress;
 

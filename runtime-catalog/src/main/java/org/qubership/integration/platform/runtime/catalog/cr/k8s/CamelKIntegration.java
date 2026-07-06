@@ -189,6 +189,9 @@ public class CamelKIntegration implements KubernetesObject {
             @NoArgsConstructor
             @AllArgsConstructor
             public static class HealthTrait {
+                @SerializedName("enabled")
+                private Boolean enabled;
+
                 @SerializedName("livenessProbeEnabled")
                 private Boolean livenessProbeEnabled;
 
