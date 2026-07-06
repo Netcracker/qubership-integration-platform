@@ -20,11 +20,17 @@ import java.util.List;
 @ApplicationScoped
 @IfBuildProperty(name = "qip.control-plane.routes.registration.enabled", stringValue = "true", enableIfMissing = true)
 public class RoutesRegistrator {
-    @Inject
-    RoutesRestRegistrationProcessor routesRestRegistrationProcessor;
+    private final RoutesRestRegistrationProcessor routesRestRegistrationProcessor;
+    private final EngineInfo engineInfo;
 
     @Inject
-    EngineInfo engineInfo;
+    public RoutesRegistrator(
+        RoutesRestRegistrationProcessor routesRestRegistrationProcessor,
+        EngineInfo engineInfo
+    ) {
+        this.routesRestRegistrationProcessor = routesRestRegistrationProcessor;
+        this.engineInfo = engineInfo;
+    }
 
     @PostConstruct
     public void registerRoutes() {

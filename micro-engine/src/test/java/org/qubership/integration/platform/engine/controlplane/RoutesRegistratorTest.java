@@ -32,13 +32,14 @@ class RoutesRegistratorTest {
     @Mock
     private RoutesRestRegistrationProcessor routesRestRegistrationProcessor;
 
+    private EngineInfo engineInfo;
+
     private RoutesRegistrator routesRegistrator;
 
     @BeforeEach
     void setUp() {
-        routesRegistrator = new RoutesRegistrator();
-        routesRegistrator.routesRestRegistrationProcessor = routesRestRegistrationProcessor;
-        routesRegistrator.engineInfo = EngineInfo.builder().domain(DOMAIN).build();
+        engineInfo = EngineInfo.builder().domain(DOMAIN).build();
+        routesRegistrator = new RoutesRegistrator(routesRestRegistrationProcessor, engineInfo);
     }
 
     @Test
@@ -68,7 +69,7 @@ class RoutesRegistratorTest {
 
     @Test
     void shouldBuildRoutePathsUsingEngineDomainFromEngineInfo() {
-        routesRegistrator.engineInfo = EngineInfo.builder().domain("other-domain").build();
+        engineInfo.setDomain("other-domain");
 
         routesRegistrator.registerRoutes();
 
