@@ -75,6 +75,9 @@ public class SessionsMetricsService {
             executeWith = Scheduled.SIMPLE
     )
     public void processSessionsSizeMetrics() {
+        if (!metricsStore.isMetricsEnabled()) {
+            return;
+        }
 
         ScriptedMetricAggregation sizeMetricAgg = AggregationBuilders.scriptedMetric()
                 .initScript(new Script.Builder().inline(new InlineScript.Builder().lang("painless")
@@ -150,6 +153,9 @@ public class SessionsMetricsService {
             executeWith = Scheduled.SIMPLE
     )
     public void processCheckpointSizeMetrics() {
+        if (!metricsStore.isMetricsEnabled()) {
+            return;
+        }
         try {
             List<ChainDataAllocationSize> chainCheckpointSizes = checkpointRepository.findAllChainCheckpointSize();
             metricsStore.processChainCheckpointsSize(chainCheckpointSizes);
