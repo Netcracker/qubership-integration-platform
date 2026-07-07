@@ -252,10 +252,18 @@ jobs:
           VERSION: ${{ needs.check-version.outputs.release-version }}
         run: |
           set -eu
-          # A custom `tags:` bypasses metadata-action's branch sanitisation, so
-          # strip '/' (invalid in a docker tag) from the branch ref ourselves.
-          branch=$(printf '%s' "$REF_NAME" | tr '/' '-')
-          echo "list=${VERSION},${branch}" >> "$GITHUB_OUTPUT"
+          # We own every tag here (a custom `tags:` bypasses metadata-action's
+          # auto tagging). The default branch publishes only the moving :latest;
+          # release branches publish the immutable pom version plus a moving
+          # branch tag (e.g. :0.5.7, :release-0.5), never :latest. Strip '/'
+          # (invalid in a docker tag) from the branch ref.
+          if [ "$REF_NAME" = "main" ]; then
+            tags="latest"
+          else
+            branch=$(printf '%s' "$REF_NAME" | tr '/' '-')
+            tags="${VERSION},${branch}"
+          fi
+          echo "list=${tags}" >> "$GITHUB_OUTPUT"
 
       - name: "Docker Build"
         id: docker_build
@@ -270,8 +278,10 @@ jobs:
           # Per-module image (the action otherwise defaults to the repo name,
           # colliding). All images are qubership-integration-<module> → derive it.
           custom-image-name: qubership-integration-${{ inputs.module }}
-          # Version + branch tags: infra pulls :<branch> (e.g. :main); the
-          # action's metadata-action alone would emit only the branch tag.
+          # The default branch publishes only :latest (infra pulls :latest);
+          # release branches publish the immutable version plus their branch
+          # tag (:0.5.7, :release-0.5). The action's metadata-action alone
+          # would emit only the branch tag.
           tags: ${{ steps.tags.outputs.list }}
           component: '[{"name": "${{ inputs.module }}", "dockerfile": "./${{ inputs.module }}/Dockerfile", "build_context": "./${{ inputs.module }}"}]'
         env:
