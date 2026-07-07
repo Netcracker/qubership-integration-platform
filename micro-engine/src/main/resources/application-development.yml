@@ -3,6 +3,8 @@ qip:
     emulator:
       enabled: true
       address: pubsub:8085
+  logging:
+    format: ${LOG_FORMAT:text}
   local-truststore:
     store:
       path: /app/truststore/defaulttruststore.jks

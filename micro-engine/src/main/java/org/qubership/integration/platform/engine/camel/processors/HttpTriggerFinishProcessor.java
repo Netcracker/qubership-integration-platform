@@ -30,7 +30,7 @@ import org.qubership.integration.platform.engine.metadata.util.MetadataUtil;
 import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePropertiesService;
-import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
+import org.qubership.integration.platform.engine.service.debugger.logging.AbstractChainLogger;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 
@@ -43,12 +43,12 @@ import java.util.List;
 public class HttpTriggerFinishProcessor implements Processor {
 
     private final ChainRuntimePropertiesService propertiesService;
-    private final ChainLogger chainLogger;
+    private final AbstractChainLogger chainLogger;
     private final MetricsService metricsService;
 
     @Inject
     public HttpTriggerFinishProcessor(ChainRuntimePropertiesService propertiesService,
-                                      ChainLogger chainLogger,
+                                      AbstractChainLogger chainLogger,
                                       MetricsService metricsService) {
         this.propertiesService = propertiesService;
         this.chainLogger = chainLogger;

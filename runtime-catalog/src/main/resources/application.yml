@@ -300,6 +300,8 @@ qip:
   access-control:
     resource-type:
       chain: 'QIP-CHAIN'
+  logging:
+    format: ${LOG_FORMAT:json}
 
 protoc:
   work-directory: /tmp/tmp-data

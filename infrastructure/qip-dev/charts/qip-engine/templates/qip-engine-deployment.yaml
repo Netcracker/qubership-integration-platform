@@ -36,6 +36,7 @@ spec:
             - --add-opens=java.base/java.util=ALL-UNNAMED
             - --add-opens=java.base/java.io=ALL-UNNAMED
             - -Dfile.encoding=UTF-8
+            - -Dspring.profiles.active=development
             - -jar
             - /app/qip-engine.jar
           env:
@@ -115,7 +116,7 @@ spec:
           imagePullPolicy: IfNotPresent
           livenessProbe:
             httpGet:
-              path: /actuator/health
+              path: /actuator/health/readiness
               port: 8080
             failureThreshold: 15
             initialDelaySeconds: 60
