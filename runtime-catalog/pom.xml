@@ -17,7 +17,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <revision>0.1.16</revision>
+        <revision>0.1.15</revision>
         <catalog-library.revision>0.1.17</catalog-library.revision>
 
         <!-- BOMs -->

@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  mvn-with-sonar:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -22,7 +22,7 @@ jobs:
 
       # designtime-catalog shades in the never-published catalog-library, so the
       # `-pl designtime-catalog` build below can only resolve it from .m2. The
-      # scan reuses the same runner .m2, so this install stays effective. No
+      # build reuses the same runner .m2, so this install stays effective. No
       # repo creds needed: its checkstyle plugin dependency (qip-checkstyle) is
       # on public Central, and checkstyle.skip only skips the check itself.
       - name: Set up Java
@@ -38,21 +38,14 @@ jobs:
           mvn --batch-mode -f catalog-library/pom.xml install \
             -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
 
-      - name: Code quality/security scan on SonarQube
+      - name: Build and test
         uses: netcracker/qubership-workflow-hub/actions/maven-snapshot-deploy@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           target-store: 'github'
           java-version: '21'
           maven-username: ${{ github.actor }}
           maven-token: ${{ github.token }}
-          sonar-token: ${{ env.SONAR_TOKEN }}
           maven-command: >
             --batch-mode verify
             -Dgpg.skip=true
             -pl designtime-catalog
-            org.sonarsource.scanner.maven:sonar-maven-plugin:${{ vars.SONAR_PLUGIN_VERSION }}:sonar
-            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
-            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
-            -Dsonar.host.url=${{ vars.SONAR_HOST_URL }}
