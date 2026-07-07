@@ -13,6 +13,7 @@ import {
 import "@testing-library/jest-dom";
 import {
   type CheckpointSession,
+  DomainType,
   ExecutionStatus,
   SessionFilterCondition,
   SessionFilterFeature,
@@ -35,22 +36,32 @@ jest.mock("../../src/api/api.ts", () => ({
   api: {
     getSessions: jest.fn(),
     getCheckpointSessions: jest.fn(),
+    getCheckpointSessionsForMicroDomain: jest.fn(),
     deleteSessions: jest.fn(),
     deleteSessionsByChainId: jest.fn(),
     exportSessions: jest.fn(),
     retrySessionFromCheckpoint: jest.fn(),
+    retrySessionFromCheckpointForMicroDomain: jest.fn(),
   },
 }));
 
 // jest.spyOn references methods by name string — no unbound-method lint issue
 const mockGetSessions = jest.spyOn(api, "getSessions");
 const mockGetCheckpointSessions = jest.spyOn(api, "getCheckpointSessions");
+const mockGetCheckpointSessionsForMicroDomain = jest.spyOn(
+  api,
+  "getCheckpointSessionsForMicroDomain",
+);
 const mockDeleteSessions = jest.spyOn(api, "deleteSessions");
 const mockDeleteSessionsByChainId = jest.spyOn(api, "deleteSessionsByChainId");
 const mockExportSessions = jest.spyOn(api, "exportSessions");
 const mockRetrySessionFromCheckpoint = jest.spyOn(
   api,
   "retrySessionFromCheckpoint",
+);
+const mockRetrySessionFromCheckpointForMicroDomain = jest.spyOn(
+  api,
+  "retrySessionFromCheckpointForMicroDomain",
 );
 const mockDownloadFile = jest.mocked(downloadFile);
 
@@ -213,6 +224,7 @@ function baseSession({
     importedSession: false,
     externalSessionCipId: "",
     domain: "dom",
+    domainType: DomainType.CLASSIC,
     engineAddress: "127.0.0.1",
     loggingLevel: SessionsLoggingLevel.INFO,
     snapshotName: "snap",
@@ -275,6 +287,7 @@ describe("Sessions", () => {
     capturedConfirmOnOk = undefined;
     mockUseParams.mockReturnValue({ chainId: "chain-1" });
     mockGetCheckpointSessions.mockResolvedValue([]);
+    mockGetCheckpointSessionsForMicroDomain.mockResolvedValue([]);
     // Empty default terminates the 2-page initial fetch in tests that
     // only override one page via mockResolvedValueOnce.
     mockGetSessions.mockResolvedValue({ sessions: [], offset: 0 });
@@ -821,6 +834,40 @@ describe("Sessions", () => {
     });
   });
 
+  test("retry from checkpoint for a micro domain calls the micro-domain retry API", async () => {
+    mockGetSessions.mockResolvedValue({
+      sessions: [
+        baseSession({
+          id: "retry-micro",
+          domain: "micro-dom",
+          domainType: DomainType.MICRO,
+        }),
+      ],
+      offset: 1,
+    });
+    mockGetCheckpointSessionsForMicroDomain.mockResolvedValue([
+      baseCheckpointSession("retry-micro", [
+        { id: "cp1", checkpointElementId: "el1", timestamp: "2024-01-01" },
+      ]),
+    ]);
+    mockRetrySessionFromCheckpointForMicroDomain.mockResolvedValue(undefined);
+
+    renderSessions();
+
+    await waitFor(() => {
+      expect(screen.getByText("retry-micro")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("protected-btn-"));
+
+    await waitFor(() => {
+      expect(
+        mockRetrySessionFromCheckpointForMicroDomain,
+      ).toHaveBeenCalledWith("micro-dom", "chain-1", "retry-micro");
+    });
+    expect(mockRetrySessionFromCheckpoint).not.toHaveBeenCalled();
+  });
+
   test("retry failure shows error notification", async () => {
     const error = new Error("retry failed");
     mockGetSessions.mockResolvedValue({
@@ -1340,6 +1387,55 @@ describe("Sessions", () => {
     });
     expect(mockGetSessions).toHaveBeenCalledTimes(1);
     expect(mockGetCheckpointSessions).not.toHaveBeenCalled();
+  });
+
+  test("routes checkpoint fetch per domain group to the classic or micro-domain API", async () => {
+    mockGetCheckpointSessions.mockResolvedValue([
+      baseCheckpointSession("classic-s", [
+        { id: "cp1", checkpointElementId: "el1", timestamp: "2024-01-01" },
+      ]),
+    ]);
+    mockGetCheckpointSessionsForMicroDomain.mockResolvedValue([
+      baseCheckpointSession("micro-s", [
+        { id: "cp2", checkpointElementId: "el2", timestamp: "2024-01-01" },
+      ]),
+    ]);
+
+    await renderWithSessions([
+      baseSession({
+        id: "classic-s",
+        domain: "classic-dom",
+        domainType: DomainType.CLASSIC,
+      }),
+      baseSession({
+        id: "micro-s",
+        domain: "micro-dom",
+        domainType: DomainType.MICRO,
+      }),
+    ]);
+
+    await waitFor(() => {
+      expect(mockGetCheckpointSessions).toHaveBeenCalledWith(["classic-s"]);
+      expect(mockGetCheckpointSessionsForMicroDomain).toHaveBeenCalledWith(
+        "micro-dom",
+        ["micro-s"],
+      );
+    });
+  });
+
+  test("groups checkpoint fetch by domain, calling getCheckpointSessions once per distinct domain", async () => {
+    mockGetCheckpointSessions.mockResolvedValue([]);
+
+    await renderWithSessions([
+      baseSession({ id: "s-domA", domain: "domA" }),
+      baseSession({ id: "s-domB", domain: "domB" }),
+    ]);
+
+    await waitFor(() => {
+      expect(mockGetCheckpointSessions).toHaveBeenCalledTimes(2);
+    });
+    expect(mockGetCheckpointSessions).toHaveBeenCalledWith(["s-domA"]);
+    expect(mockGetCheckpointSessions).toHaveBeenCalledWith(["s-domB"]);
   });
 
   test("scroll-load preserves prior checkpoints and fetches new ones for appended page", async () => {

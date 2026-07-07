@@ -89,10 +89,11 @@ spec:
       - {{.}}
 {{/each}}
     health:
+      enabled: true
 {{#with health as | health |}}
 {{#with health.liveness}}
-{{#if enabled}}
       livenessProbeEnabled: {{enabled}}
+{{#if enabled}}
 {{#if schema}}
       livenessScheme: {{schema}}
 {{/if}}
@@ -120,8 +121,8 @@ spec:
 {{/if}}
 {{/with}}
 {{#with health.readiness}}
-{{#if enabled}}
       readinessProbeEnabled: {{enabled}}
+{{#if enabled}}
 {{#if schema}}
       readinessScheme: {{schema}}
 {{/if}}
@@ -149,8 +150,8 @@ spec:
 {{/if}}
 {{/with}}
 {{#with health.startup}}
-{{#if enabled}}
       startupProbeEnabled: {{enabled}}
+{{#if enabled}}
 {{#if schema}}
       startupScheme: {{schema}}
 {{/if}}

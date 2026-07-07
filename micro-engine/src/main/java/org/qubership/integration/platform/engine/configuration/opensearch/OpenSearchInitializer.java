@@ -60,7 +60,7 @@ import static org.qubership.integration.platform.engine.opensearch.ism.rest.Requ
 @Slf4j
 @ApplicationScoped
 public class OpenSearchInitializer {
-    public static final long TEMPLATE_VERSION = 4L;
+    public static final long TEMPLATE_VERSION = 5L;
 
     @Inject
     OpenSearchProperties properties;

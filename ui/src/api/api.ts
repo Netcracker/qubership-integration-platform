@@ -38,6 +38,8 @@ import type {
   ElementFilter,
   ActionLogSearchRequest,
   ActionLogResponse,
+  ActionLogPagedSearchRequest,
+  ActionLogPagedSearchResponse,
   LogExportRequestParams,
   IntegrationSystem,
   SystemRequest,
@@ -244,7 +246,18 @@ export interface Api {
 
   getCheckpointSessions(sessionIds: string[]): Promise<CheckpointSession[]>;
 
+  getCheckpointSessionsForMicroDomain(
+    domain: string,
+    sessionIds: string[],
+  ): Promise<CheckpointSession[]>;
+
   retrySessionFromCheckpoint(chainId: string, sessionId: string): Promise<void>;
+
+  retrySessionFromCheckpointForMicroDomain(
+    domain: string,
+    chainId: string,
+    sessionId: string,
+  ): Promise<void>;
 
   getFolder(folderId: string): Promise<FolderItem>;
 
@@ -316,6 +329,10 @@ export interface Api {
   loadCatalogActionsLog(
     searchRequest: ActionLogSearchRequest,
   ): Promise<ActionLogResponse>;
+
+  loadCatalogActionsLogV2(
+    searchRequest: ActionLogPagedSearchRequest,
+  ): Promise<ActionLogPagedSearchResponse>;
 
   exportCatalogActionsLog(params: LogExportRequestParams): Promise<Blob>;
 

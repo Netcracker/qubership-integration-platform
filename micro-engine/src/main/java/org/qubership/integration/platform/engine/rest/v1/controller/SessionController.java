@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.engine.rest.v1.controller;
 
-import com.netcracker.cloud.routesregistration.common.annotation.Gateway;
-import com.netcracker.cloud.routesregistration.common.annotation.Route;
-import com.netcracker.cloud.routesregistration.common.gateway.route.RouteType;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
@@ -39,8 +36,6 @@ import java.util.List;
 
 @Slf4j
 @Path(RestApiConstants.V1_ROUTE_PREFIX + SessionController.SESSIONS_PATH)
-@Route(RouteType.PUBLIC)
-@Gateway(RestApiConstants.V1_PUBLIC_ROUTE_PREFIX + SessionController.SESSIONS_PATH)
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "session-controller", description = "Session Controller")
 public class SessionController {

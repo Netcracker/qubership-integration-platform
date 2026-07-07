@@ -22,6 +22,7 @@ import io.quarkus.panache.common.Sort;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.core.buffer.Buffer;
 import jakarta.inject.Inject;
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.ws.rs.core.MediaType;
 import org.apache.commons.lang3.tuple.Pair;
@@ -301,11 +302,16 @@ class CheckpointSessionServiceTest {
     @Test
     void shouldPersistAndReturnSameSessionWhenSaveSession() {
         SessionInfo session = mock(SessionInfo.class);
+        SessionInfo mergedSession = mock(SessionInfo.class);
+
+        EntityManager entityManager = mock(EntityManager.class);
+        when(sessionRepo.getEntityManager()).thenReturn(entityManager);
+        when(entityManager.merge(session)).thenReturn(mergedSession);
 
         SessionInfo out = checkpointSessionService.saveSession(session);
 
-        assertSame(session, out);
-        verify(sessionRepo).persistAndFlush(session);
+        assertSame(mergedSession, out);
+        verify(sessionRepo).persistAndFlush(mergedSession);
     }
 
     @Test

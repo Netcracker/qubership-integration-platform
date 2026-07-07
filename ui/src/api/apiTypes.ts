@@ -406,6 +406,7 @@ export type Session = AbstractRunnableElement & {
   chainId: string;
   chainName: string;
   domain: string;
+  domainType: DomainType;
   engineAddress: string;
   loggingLevel: SessionsLoggingLevel | string;
   snapshotName: string;
@@ -909,6 +910,23 @@ export type ActionLogSearchRequest = {
   offsetTime: number;
   rangeTime: number;
   filters?: unknown;
+};
+
+export type ActionLogFilterRequest = {
+  column: string;
+  condition: string;
+  value: string;
+};
+
+export type ActionLogPagedSearchRequest = {
+  offset: number;
+  limit: number;
+  filters?: ActionLogFilterRequest[];
+};
+
+export type ActionLogPagedSearchResponse = {
+  offset: number;
+  actionLogs: ActionLog[];
 };
 
 export enum EntityType {

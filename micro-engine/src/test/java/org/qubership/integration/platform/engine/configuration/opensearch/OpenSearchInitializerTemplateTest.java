@@ -132,7 +132,7 @@ class OpenSearchInitializerTemplateTest {
                 "sessions-*"
               ],
               "priority": 1,
-              "version": 4,
+              "version": 5,
               "template": {
                 "settings": {
                   "index.number_of_shards": 3,

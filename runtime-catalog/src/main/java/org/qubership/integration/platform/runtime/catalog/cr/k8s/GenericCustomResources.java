@@ -1,6 +1,8 @@
 package org.qubership.integration.platform.runtime.catalog.cr.k8s;
 
 import io.kubernetes.client.util.ModelMapper;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.Map;
@@ -13,7 +15,10 @@ import java.util.stream.Stream;
  * model
  * Supports only one version per kind
  */
+@Component
 public final class GenericCustomResources {
+    @Value("${spring.profiles.active}")
+    private String activeProfile;
 
     public record CustomResourceDefinition(
             String group,
@@ -27,17 +32,23 @@ public final class GenericCustomResources {
         }
     }
 
-    private static final Map<String, CustomResourceDefinition> DEFINITIONS_BY_KIND = Stream.of(
-            new CustomResourceDefinition("netcracker.com", "v1alpha", "FacadeService", "facadeservices", false),
-            new CustomResourceDefinition("core.netcracker.com", "v1", "Mesh", "meshes", true),
-            new CustomResourceDefinition("core.netcracker.com", "v1", "DBaaS", "dbaases", false)
-    ).collect(Collectors.toMap(CustomResourceDefinition::kind, Function.identity()));
-
-    private GenericCustomResources() {
+    private boolean isLocalDev() {
+        return "localdev".equals(activeProfile);
     }
 
-    public static void registerModelMaps() {
-        for (CustomResourceDefinition definition : DEFINITIONS_BY_KIND.values()) {
+    public Map<String, CustomResourceDefinition> getCustomResourceDefinitions() {
+        return isLocalDev()
+                ? Collections.emptyMap()
+                : Collections.unmodifiableMap(
+                        Stream.of(
+                            new CustomResourceDefinition("netcracker.com", "v1alpha", "FacadeService", "facadeservices", false),
+                            new CustomResourceDefinition("core.netcracker.com", "v1", "Mesh", "meshes", true),
+                            new CustomResourceDefinition("core.netcracker.com", "v1", "DBaaS", "dbaases", false)
+                        ).collect(Collectors.toMap(CustomResourceDefinition::kind, Function.identity())));
+    }
+
+    public void registerModelMaps() {
+        for (CustomResourceDefinition definition : getCustomResourceDefinitions().values()) {
             ModelMapper.addModelMap(
                     definition.group(),
                     definition.version(),
@@ -48,12 +59,8 @@ public final class GenericCustomResources {
         }
     }
 
-    public static Map<String, CustomResourceDefinition> getCustomResourceDefinitions() {
-        return Collections.unmodifiableMap(DEFINITIONS_BY_KIND);
-    }
-
-    public static CustomResourceDefinition definitionFor(String kind) {
-        CustomResourceDefinition definition = DEFINITIONS_BY_KIND.get(kind);
+    public CustomResourceDefinition definitionFor(String kind) {
+        CustomResourceDefinition definition = getCustomResourceDefinitions().get(kind);
         if (definition == null) {
             throw new IllegalArgumentException("No generic custom resource definition for kind " + kind);
         }

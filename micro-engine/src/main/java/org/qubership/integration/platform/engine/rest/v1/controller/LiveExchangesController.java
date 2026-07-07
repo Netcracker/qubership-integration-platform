@@ -16,9 +16,6 @@
 
 package org.qubership.integration.platform.engine.rest.v1.controller;
 
-import com.netcracker.cloud.routesregistration.common.annotation.Gateway;
-import com.netcracker.cloud.routesregistration.common.annotation.Route;
-import com.netcracker.cloud.routesregistration.common.gateway.route.RouteType;
 import jakarta.inject.Inject;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
@@ -39,8 +36,6 @@ import static java.util.Objects.isNull;
 
 @Slf4j
 @Path(RestApiConstants.V1_ROUTE_PREFIX + LiveExchangesController.LIVE_EXCHANGES_PATH)
-@Route(RouteType.PUBLIC)
-@Gateway(RestApiConstants.V1_PUBLIC_ROUTE_PREFIX + LiveExchangesController.LIVE_EXCHANGES_PATH)
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "live-exchanges-controller", description = "Live Exchanges Controller")
 public class LiveExchangesController {

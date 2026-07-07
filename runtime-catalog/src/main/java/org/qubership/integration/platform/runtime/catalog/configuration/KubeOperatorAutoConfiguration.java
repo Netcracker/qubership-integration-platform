@@ -22,6 +22,7 @@ import io.kubernetes.client.util.credentials.AccessTokenAuthentication;
 import io.kubernetes.client.util.credentials.TokenFileAuthentication;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.secret.DefaultKubeSecretOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.secret.KubeSecretOperator;
@@ -67,7 +68,7 @@ public class KubeOperatorAutoConfiguration {
      */
     @Bean
     @ConditionalOnProperty(prefix = "kubernetes", name = "devmode", havingValue = "false", matchIfMissing = true)
-    public KubeOperator kubeOperator() {
+    public KubeOperator kubeOperator(GenericCustomResources genericCustomResources) {
         try {
             log.info("Creating KubernetesOperator bean in PROD mode");
 
@@ -78,7 +79,7 @@ public class KubeOperatorAutoConfiguration {
                     .setAuthentication(new TokenFileAuthentication(token))
                     .build();
 
-            return new KubeOperator(client, namespace);
+            return new KubeOperator(client, namespace, genericCustomResources);
         } catch (Exception e) {
             log.error("Invalid k8s cluster parameters, can't initialize k8s API. {}", e.getMessage());
             return new KubeOperator();
@@ -91,7 +92,7 @@ public class KubeOperatorAutoConfiguration {
      */
     @Bean
     @ConditionalOnProperty(prefix = "kubernetes", name = "devmode", havingValue = "true")
-    public KubeOperator kubeOperatorDev() {
+    public KubeOperator kubeOperatorDev(GenericCustomResources genericCustomResources) {
         try {
             log.info("Creating KubernetesOperator bean in DEV mode");
 
@@ -101,7 +102,7 @@ public class KubeOperatorAutoConfiguration {
                     .setAuthentication(new AccessTokenAuthentication(token))
                     .build();
 
-            return new KubeOperator(client, namespace);
+            return new KubeOperator(client, namespace, genericCustomResources);
         } catch (Exception e) {
             log.error("Invalid k8s cluster parameters, can't initialize k8s API. {}", e.getMessage());
             return new KubeOperator();

@@ -44,6 +44,8 @@ import {
   ElementFilter,
   ActionLogSearchRequest,
   ActionLogResponse,
+  ActionLogPagedSearchRequest,
+  ActionLogPagedSearchResponse,
   LogExportRequestParams,
   IntegrationSystem,
   SystemRequest,
@@ -1023,12 +1025,49 @@ export class RestApi implements Api {
     return responses.flatMap((response) => response.data);
   };
 
+  getCheckpointSessionsForMicroDomain = async (
+    domain: string,
+    sessionIds: string[],
+  ): Promise<CheckpointSession[]> => {
+    const CHUNK_SIZE = 20;
+    if (sessionIds.length === 0) return [];
+    const chunks: string[][] = [];
+    for (let i = 0; i < sessionIds.length; i += CHUNK_SIZE) {
+      chunks.push(sessionIds.slice(i, i + CHUNK_SIZE));
+    }
+    const responses = await Promise.all(
+      chunks.map((chunk) =>
+        this.instance.get<CheckpointSession[]>(
+          `${this.v1()}/engine/${domain}/sessions`,
+          {
+            params: { ids: chunk },
+            paramsSerializer: {
+              indexes: null,
+            },
+          },
+        ),
+      ),
+    );
+    return responses.flatMap((response) => response.data);
+  };
+
   retrySessionFromCheckpoint = async (
     chainId: string,
     sessionId: string,
   ): Promise<void> => {
     return this.instance.post(
       `${this.v1()}/engine/chains/${chainId}/sessions/${sessionId}/retry`,
+      {},
+    );
+  };
+
+  retrySessionFromCheckpointForMicroDomain = async (
+    domain: string,
+    chainId: string,
+    sessionId: string,
+  ): Promise<void> => {
+    return this.instance.post(
+      `${this.v1()}/engine/${domain}/chains/${chainId}/sessions/${sessionId}/retry`,
       {},
     );
   };
@@ -1422,6 +1461,16 @@ export class RestApi implements Api {
   ): Promise<ActionLogResponse> => {
     const response = await this.instance.post<ActionLogResponse>(
       `${this.v1()}/catalog/actions-log`,
+      searchRequest,
+    );
+    return response.data;
+  };
+
+  loadCatalogActionsLogV2 = async (
+    searchRequest: ActionLogPagedSearchRequest,
+  ): Promise<ActionLogPagedSearchResponse> => {
+    const response = await this.instance.post<ActionLogPagedSearchResponse>(
+      `${this.v2()}/catalog/actions-log`,
       searchRequest,
     );
     return response.data;
