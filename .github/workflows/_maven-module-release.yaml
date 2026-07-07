@@ -1,15 +1,17 @@
 ---
 # Reusable Maven module release workflow.
 #
-# Model (idiomatic maven-release-plugin, hand-rolled on top of ${revision}):
-# the module pom carries <revision>X.Y.Z</revision> (+ <changelist>-SNAPSHOT</>
-# for the services; checkstyle has no changelist). On release we publish the
-# CURRENT <revision> (changelist stripped), tag it, then bump <revision> to the
-# next dev version per `release-type` and commit that back to the branch. You
-# never type the version — pick patch/minor/major. An optional `version` input
-# overrides the release version for edge cases (first release, explicit jump).
-# flatten-maven-plugin (ossrh mode) inlines the parent and resolves the
-# placeholder, so the published POM has no SNAPSHOT parent.
+# Model (bump-before, hand-rolled on top of ${revision}): the module pom carries
+# <revision>X.Y.Z</revision> (+ <changelist>-SNAPSHOT</> for the services;
+# checkstyle has no changelist) = the last released version. On release we bump
+# it per `release-type`, publish that (changelist stripped), tag it, then write
+# the bumped <revision> back to the branch. You never type the version — pick
+# patch/minor/major. Deciding the version at release time (not pre-writing the
+# next one) keeps forked release lines from colliding on a shared pending
+# version. An optional `version` input overrides for edge cases (first release,
+# explicit jump like a unified 1.0.0). flatten-maven-plugin (ossrh mode) inlines
+# the parent and resolves the placeholder, so the published POM has no SNAPSHOT
+# parent.
 #
 # Recovery: if the tag already exists, a previous run published+tagged the
 # version but its bump commit never landed. check-version flags recover=true and
@@ -33,12 +35,12 @@ on:
         type: string
         description: "Module directory name (e.g. engine, runtime-catalog)"
       release-type:
-        description: "patch | minor | major — how to bump <revision> for the NEXT dev version after release"
+        description: "patch | minor | major — how to bump <revision> to the released version"
         required: false
         type: string
         default: "patch"
       version:
-        description: "Explicit release version (X.Y.Z) override. Empty = release the module's current <revision>."
+        description: "Explicit release version (X.Y.Z) override. Empty = bump the current <revision> per release-type."
         required: false
         type: string
         default: ""
@@ -86,9 +88,9 @@ permissions: {}
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Preflight: derive the release version from the module's <revision> (or the
-  # override), compute the next dev version per release-type. If the tag already
-  # exists, enter recovery mode (re-apply the bump only) instead of failing.
+  # Preflight: derive the release version by bumping the module's <revision> per
+  # release-type (or use the override). If the tag already exists, enter recovery
+  # mode (re-apply the bump only) instead of failing.
   # ---------------------------------------------------------------------------
   check-version:
     runs-on: ubuntu-latest
@@ -188,8 +190,8 @@ jobs:
           set -eu
           # Run from the module dir (not `-pl` from root) so Maven reads only this
           # module + parent, never siblings — micro-engine pulls private
-          # com.netcracker.cloud artifacts this token can't read. Release the
-          # CURRENT <revision> (changelist stripped via -Dchangelist=).
+          # com.netcracker.cloud artifacts this token can't read. Publish the
+          # computed release version (-Drevision overrides the pom, changelist stripped via -Dchangelist=).
           # shellcheck disable=SC2086
           mvn --batch-mode deploy \
             -P "$MVN_PROFILE" \
@@ -209,17 +211,18 @@ jobs:
             git push origin "$RELEASE_TAG"
           fi
 
-      - name: Bump revision to next dev version and commit
+      - name: Write released version back to revision and commit
         env:
           BRANCH: ${{ github.ref_name }}
         run: |
           set -eu
           POM="$MODULE/pom.xml"
-          # Bump only <revision>; <changelist> (if any) stays untouched. Always
-          # runs (incl. recovery) — commit-and-push.sh no-ops if nothing changed.
+          # Write the released version into <revision>; <changelist> (if any)
+          # stays untouched. Always runs (incl. recovery) — commit-and-push.sh
+          # no-ops if nothing changed.
           sed -i -E "s#<revision>[0-9]+\.[0-9]+\.[0-9]+</revision>#<revision>${NEXT_DEV}</revision>#" "$POM"
-          grep -q "<revision>${NEXT_DEV}</revision>" "$POM" || { echo "::error::Failed to bump <revision> in $POM"; exit 1; }
-          bash scripts/commit-and-push.sh "chore: $MODULE $RELEASE_VERSION, next dev $NEXT_DEV [skip ci]" "$POM"
+          grep -q "<revision>${NEXT_DEV}</revision>" "$POM" || { echo "::error::Failed to write <revision> in $POM"; exit 1; }
+          bash scripts/commit-and-push.sh "chore: $MODULE $RELEASE_VERSION released [skip ci]" "$POM"
 
       - name: Upload build output
         if: ${{ inputs.build-docker == true && needs.check-version.outputs.recover != 'true' }}

@@ -35,7 +35,7 @@
         <maven.compiler.target>21</maven.compiler.target>
 
         <!-- Maven release version line, bumped by schemas-maven-release.yaml. Independent of the npm version in package.json (0.2.x). -->
-        <revision>0.0.20</revision>
+        <revision>0.0.19</revision>
         <changelist>-SNAPSHOT</changelist>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
