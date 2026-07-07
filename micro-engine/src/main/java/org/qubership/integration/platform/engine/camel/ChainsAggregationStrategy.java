@@ -34,6 +34,7 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -114,9 +115,9 @@ public class ChainsAggregationStrategy implements AggregationStrategy {
             inputExchange.setProperty(CamelConstants.Properties.SPLIT_EXCHANGE_HEADER_PROCESSED, true);
             if (isHeadersPropagationEnabled(exchange) || isMainBranch(exchange)) {
                 String branchName = getBranchName(exchange);
-                exchange.getMessage().getHeaders().forEach((key, value) -> {
+                new HashMap<>(exchange.getMessage().getHeaders()).forEach((key, value) -> {
                     if (!CamelConstants.isInternalHeader(key)) {
-                        if (!exchangeHeaderProcessed(exchange) && !isMainBranch(exchange)) {
+                        if (!isMainBranch(exchange)) {
                             key = String.format("%s.%s", branchName, key);
                         }
                         headers.put(key, value);
@@ -163,9 +164,9 @@ public class ChainsAggregationStrategy implements AggregationStrategy {
             inputExchange.setProperty(CamelConstants.Properties.SPLIT_EXCHANGE_PROPERTIES_PROCESSED, true);
             if (isPropertiesPropagationEnabled(exchange) || isMainBranch(exchange)) {
                 String branchName = getBranchName(exchange);
-                exchange.getProperties().forEach((key, value) -> {
+                new HashMap<>(exchange.getProperties()).forEach((key, value) -> {
                     if (!(isCommonOrSystemVariableMap(key) || CamelConstants.isInternalProperty(key))) {
-                        if (!exchangePropertiesProcessed(exchange) && !isMainBranch(exchange)) {
+                        if (!isMainBranch(exchange)) {
                             key = String.format("%s.%s", branchName, key);
                         }
                         properties.put(key, value);
