@@ -66,7 +66,7 @@ spec:
                 configMapKeyRef:
                   key: TRACING_ENABLED
                   name: {{ .Release.Name }}-env
-          image: ghcr.io/netcracker/qubership-integration-sessions-management:main
+          image: ghcr.io/netcracker/qubership-integration-sessions-management:latest
           imagePullPolicy: IfNotPresent
           livenessProbe:
             httpGet:
