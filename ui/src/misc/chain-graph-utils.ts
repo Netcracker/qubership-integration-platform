@@ -17,8 +17,7 @@ export const UNSUPPORTED_CANVAS_ELEMENT_TYPES = new Set([
   "kafka",
   "rabbitmq-sender",
   "rabbitmq",
-  "mapper",
-  "mapper-2"
+  "mapper"
 ]);
 
 export const UNSUPPORTED_ELEMENT_COLOR = "#F08080";
