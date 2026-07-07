@@ -68,7 +68,7 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
     @Value("${qip.control-plane.egress.enable-insecure-tls}")
     private boolean enableInsecureTls;
 
-    @Value("{qip.chains.external-routes.base-path}")
+    @Value("${qip.chains.external-routes.base-path}")
     private String baseRoutePrefix;
     @Value("${qip.control-plane.routes.endpoints.v1.get-routes}")
     private String getRoutesEndpoint;
@@ -91,7 +91,6 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
         this.restTemplateMS = restTemplateMS;
         this.jsonMapper = jsonMapper;
         this.blueGreenStateService = blueGreenStateService;
-        log.info("ControlPlaneDefaultService initialized");
     }
 
     /**
@@ -131,7 +130,6 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
      * @throws ControlPlaneException if control plane not available (not in dev mode)
      */
     private void postEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint, String gatewayName) throws ControlPlaneException, KubeApiException {
-        log.info("The postEngineRoutes() is started");
         if (deploymentRoutes == null || deploymentRoutes.isEmpty()) {
             return;
         }
