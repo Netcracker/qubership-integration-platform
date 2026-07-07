@@ -10,11 +10,12 @@
 # Env: ECOSYSTEM (maven|npm), MODULE, RELEASE_TYPE (patch|minor|major),
 #      VERSION_OVERRIDE (explicit X.Y.Z, or empty to derive from the file).
 #
-# Idiomatic per ecosystem (the asymmetry lives here, documented once):
-#   maven — pom <revision> is the in-development version; release it as-is, then
-#           bump <revision> to the next dev version afterwards (emits next-dev).
-#   npm   — package.json is the last released version; bump it and release that
-#           (the release IS the bump, so there is no separate next-dev).
+# Model (bump-before): the file holds the LAST RELEASED version (maven pom
+# <revision>, npm package.json); a release bumps it per release-type and
+# publishes that. Deciding the version at release time (not pre-writing the next
+# one into the file) keeps forked release lines from colliding on a shared
+# pending version. maven also emits next-dev (= the released version) for the
+# workflow to write back into <revision>; npm's release already updated the file.
 
 set -euo pipefail
 
@@ -62,12 +63,10 @@ case "$ECOSYSTEM" in
         ;;
 esac
 
-# Release version: an explicit override wins; else maven releases the current
-# <revision> as-is, npm bumps the current package.json version.
+# Release version: an explicit override wins; otherwise bump the current version
+# per release-type (both ecosystems hold the last released version in the file).
 if [ -n "$VERSION_OVERRIDE" ]; then
     release="$VERSION_OVERRIDE"
-elif [ "$ECOSYSTEM" = maven ]; then
-    release="$current"
 else
     is_semver "$current" || {
         echo "::error::Current version must be X.Y.Z (got '$current')"
@@ -80,10 +79,11 @@ is_semver "$release" || {
     exit 1
 }
 
-# next-dev only applies to maven (written back into <revision> after release).
+# next-dev applies to maven only: the just-released version, written back into
+# <revision> after release (npm's release command already updated package.json).
 next=""
 if [ "$ECOSYSTEM" = maven ]; then
-    next=$(bump "$release" "$RELEASE_TYPE")
+    next="$release"
 fi
 
 # Tag already there => a prior run published+tagged but its bump never landed:
@@ -101,4 +101,4 @@ fi
     echo "release-tag=$tag"
     echo "recover=$recover"
 } >> "$GITHUB_OUTPUT"
-echo "Releasing $MODULE $release (current $current, type $RELEASE_TYPE, recover $recover)${next:+; next dev $next}"
+echo "Releasing $MODULE $release (current $current, type $RELEASE_TYPE, recover $recover)${next:+; <revision> set to $next}"
