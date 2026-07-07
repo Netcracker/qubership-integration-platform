@@ -19,6 +19,7 @@ export type ChainGraphNodeData = {
   typeTitle?: string;
   mandatoryChecksPassed?: boolean;
   deprecated?: boolean;
+  unsupported?: boolean;
 };
 
 export type ChainGraphNode = Node<ChainGraphNodeData>;

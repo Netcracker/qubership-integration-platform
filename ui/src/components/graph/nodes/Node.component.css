@@ -10,7 +10,7 @@
     filter 120ms ease;
 }
 
-[class~="react-flow__node"]:not(.highlight) > div {
+[class~="react-flow__node"]:not(.highlight) > div:not([data-unsupported="true"]) {
   background: unset;
   border-width: unset;
   box-shadow: none;

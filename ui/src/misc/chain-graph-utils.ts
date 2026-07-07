@@ -8,6 +8,45 @@ import {
 } from "../components/graph/nodes/ChainGraphNodeTypes.ts";
 import { api } from "../api/api.ts";
 
+export const UNSUPPORTED_CANVAS_ELEMENT_TYPES = new Set([
+  "scheduler",
+  "sftp-trigger",
+  "chain-call",
+  "chain-trigger",
+  "kafka-sender",
+  "kafka",
+  "rabbitmq-sender",
+  "rabbitmq",
+  "mapper",
+  "mapper-2"
+]);
+
+export const UNSUPPORTED_ELEMENT_COLOR = "#F08080";
+
+export function isUnsupportedCanvasElementType(elementType: string): boolean {
+  return UNSUPPORTED_CANVAS_ELEMENT_TYPES.has(elementType);
+}
+
+export function isUnsupportedElement(
+  elementType: string,
+  libraryElement?: LibraryElement,
+): boolean {
+  return (
+    isUnsupportedCanvasElementType(elementType) ||
+    libraryElement?.unsupported === true
+  );
+}
+
+export function getElementTypeTitle(
+  elementType: string,
+  libraryElement?: LibraryElement,
+): string {
+  if (isUnsupportedElement(elementType, libraryElement)) {
+    return "Unknown";
+  }
+  return libraryElement?.title ?? elementType;
+}
+
 export function getDataFromElement(
   element: Element,
   libraryElement?: LibraryElement,
@@ -25,10 +64,17 @@ export function getDataFromElement(
       ...node,
       inputEnabled: libraryElement?.inputEnabled,
       outputEnabled: libraryElement?.outputEnabled,
-      typeTitle: libraryElement?.title,
       deprecated: libraryElement?.deprecated,
     };
   }
+
+  const unsupported = isUnsupportedElement(element.type, libraryElement);
+  node = {
+    ...node,
+    typeTitle: getElementTypeTitle(element.type, libraryElement),
+    ...(unsupported ? { unsupported: true } : {}),
+  };
+
   return node;
 }
 
@@ -91,7 +137,10 @@ export function getNodeFromElement(
       : { width: 150, height: 50 };
 
   const possiblePosition = position ?? defaultPosition;
-  const elementColor = getElementColor(libraryElement);
+  const unsupported = isUnsupportedElement(element.type, libraryElement);
+  const elementColor = unsupported
+    ? UNSUPPORTED_ELEMENT_COLOR
+    : getElementColor(libraryElement);
 
   const effectiveParentId = getEffectiveParentId(element);
 
@@ -118,11 +167,13 @@ export function getNodeFromElement(
       fontWeight: 500,
       ...(isContainer || isSwimlane
         ? {}
-        : libraryElement?.deprecated
-          ? {
-              background: `repeating-linear-gradient(135deg, #9ca3af, #9ca3af 1px, ${elementColor} 2px, ${elementColor} 10px)`,
-            }
-          : { backgroundColor: elementColor }),
+        : unsupported
+          ? { backgroundColor: UNSUPPORTED_ELEMENT_COLOR }
+          : libraryElement?.deprecated
+            ? {
+                background: `repeating-linear-gradient(135deg, #9ca3af, #9ca3af 1px, ${elementColor} 2px, ${elementColor} 10px)`,
+              }
+            : { backgroundColor: elementColor }),
     },
   };
 }
@@ -144,7 +195,7 @@ export function getElementColor(
     case ElementColorType.COMPOSITE_TRIGGER:
       return "#c9e1a5";
     case ElementColorType.UNSUPPORTED:
-      return "#b8b8b8";
+      return UNSUPPORTED_ELEMENT_COLOR;
     default:
       return "#fdf39d";
   }

@@ -1,15 +1,12 @@
-import { NodeProps } from "@xyflow/react";
-import { ChainGraphNode } from "./ChainGraphNodeTypes.ts";
-import { memo, useMemo } from "react";
-import { OverridableIcon } from "../../../icons/IconProvider.tsx";
-import { Flex, Typography } from "antd";
-import { NodeContentWrapper } from "./NodeContentWrapper.tsx";
+import {NodeProps} from "@xyflow/react";
+import {ChainGraphNode} from "./ChainGraphNodeTypes.ts";
+import {memo, useMemo, type CSSProperties} from "react";
+import {OverridableIcon} from "../../../icons/IconProvider.tsx";
+import {Flex, Typography} from "antd";
+import {NodeContentWrapper} from "./NodeContentWrapper.tsx";
 
-export const UnitNode = memo(function UnitNode({
-  data,
-  dragging,
-  ...rest
-}: NodeProps<ChainGraphNode>) {
+export const UnitNode = memo(function UnitNode({data, dragging, ...rest}: NodeProps<ChainGraphNode>) {
+  const nodeStyle = (rest as { style?: CSSProperties }).style;
   const trimmedLabel = useMemo(
     () => (data.label?.split("\n")[0] ?? "Node").trim(),
     [data.label],
@@ -29,6 +26,7 @@ export const UnitNode = memo(function UnitNode({
     <NodeContentWrapper
       {...{ data, dragging, ...rest }}
       style={{
+        ...nodeStyle,
         boxShadow:
           data.mandatoryChecksPassed === false
             ? "0 0 0 2px var(--ant-color-error, #ff4d4f)"
