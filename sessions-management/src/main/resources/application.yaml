@@ -56,6 +56,10 @@ management:
       exposure:
         exclude: shutdown
         include: info, health, ready, env, loggers, metrics, prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
   opentelemetry:
     resource-attributes:
       "service.name": ${spring.application.name}-${NAMESPACE:local}
@@ -77,6 +81,7 @@ info:
     name: ${cloud.microservice.name}
 
 qip:
+  standalone: true
   sessions:
     bulk-request:
       max-size-kb: ${SESSIONS_BULK_REQUEST_MAX_SIZE_KB:4096}

@@ -7,6 +7,20 @@ server:
     mbeanregistry:
       enabled: ${MONITORING_ENABLED:false}
 
+cloud:
+  microservice:
+    name: ${MICROSERVICE_NAME:qip-runtime-catalog}
+    bg_version: ${DEPLOYMENT_VERSION:v1}
+    namespace: ${NAMESPACE}
+    origin_namespace: ${ORIGIN_NAMESPACE}
+
+blue-green:
+  state-publisher:
+    enabled: ${BLUEGREEN_ENABLED:false}
+  state-monitor:
+    dev:
+      enabled: ${qip.standalone:false}
+
 spring:
   autoconfigure:
     exclude:
@@ -86,6 +100,10 @@ spring:
 app:
   prefix: qip
 
+tenant:
+  default:
+    id: 00000000-0000-0000-0000-000000000000
+
 management:
   endpoints:
     probe:
@@ -94,6 +112,10 @@ management:
       exposure:
         exclude: shutdown
         include: info, health, ready, env, loggers, metrics, prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
   opentelemetry:
     resource-attributes:
       "service.name": ${spring.application.name}-${NAMESPACE:local}
@@ -167,6 +189,22 @@ db:
         idle-timeout: ${db.hikari.datasources.datasource.idle-timeout}
         leak-detection-threshold: ${db.hikari.datasources.datasource.leak-detection-threshold}
 
+maas:
+  kafka:
+    enabled: false
+    local-dev:
+      enabled: true
+      tenant-ids: ${tenant.default.id}
+      config:
+        bootstrap:
+          servers: ${KAFKA_BROKERS:kafka:9092}
+          security:
+            protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+          sasl:
+            mechanism: ${KAFKA_SASL_MECHANISM:PLAIN}
+            jaas:
+              config: ${KAFKA_SASL_JAAS_CONFIG:}
+
 security:
   role-prefix: 'ROLE_'
 
@@ -228,6 +266,8 @@ qip:
     thread-pool:
       core-size: 3
       max-size: 3
+  control-plane:
+    enabled: false
   context-service:
     cleanup:
       cron: ${CONTEXT_RECORDS_CLEANUP_CRON:0 0 0 ? * SAT} #  Cleanup task schedule in cron expression format
@@ -304,6 +344,9 @@ qip:
     timeout: 300000
   idempotency:
     expired-records-cleanup-cron: ${IDEMPOTENCY_RECORDS_CLEANUP_CRON:0 */5 * ? * *}
+  chains:
+    external-routes:
+      base-path: /qip-routes
 
 kubernetes:
   devmode: ${KUBE_DEV_MODE:false}

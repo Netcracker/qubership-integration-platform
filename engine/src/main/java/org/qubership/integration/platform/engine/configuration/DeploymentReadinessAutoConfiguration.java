@@ -16,9 +16,7 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
-import org.qubership.integration.platform.engine.events.CommonVariablesUpdatedEvent;
-import org.qubership.integration.platform.engine.events.SecuredVariablesUpdatedEvent;
-import org.qubership.integration.platform.engine.events.UpdateEvent;
+import org.qubership.integration.platform.engine.events.*;
 import org.qubership.integration.platform.engine.util.DevModeUtil;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -37,6 +35,8 @@ public class DeploymentReadinessAutoConfiguration {
     Set<Class<? extends UpdateEvent>> deploymentReadinessEvents(DevModeUtil devModeUtil) {
         Set<Class<? extends UpdateEvent>> events = new HashSet<>();
         events.add(CommonVariablesUpdatedEvent.class);
+        events.add(ExternalLibrariesUpdatedEvent.class);
+        events.add(BlueGreenInitialStateReceivedEvent.class);
         if (!devModeUtil.isDevMode()) {
             events.add(SecuredVariablesUpdatedEvent.class);
         }

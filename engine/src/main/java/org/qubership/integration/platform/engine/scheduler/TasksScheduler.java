@@ -38,7 +38,6 @@ import org.springframework.stereotype.Component;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 @Slf4j
 @Component
@@ -50,7 +49,7 @@ public class TasksScheduler {
     private final DeploymentReadinessService deploymentReadinessService;
     private final ConsulService consulService;
     private final DeploymentsUpdateService deploymentsUpdateService;
-    private final Optional<ExternalLibraryService> externalLibraryService;
+    private final ExternalLibraryService externalLibraryService;
     private final CamelDebuggerPropertiesService debuggerPropertiesService;
 
     @Value("${qip.sessions.checkpoints.cleanup.interval}")
@@ -65,7 +64,7 @@ public class TasksScheduler {
                           DeploymentReadinessService deploymentReadinessService,
                           ConsulService consulService,
                           DeploymentsUpdateService deploymentsUpdateService,
-                          Optional<ExternalLibraryService> externalLibraryService,
+                          ExternalLibraryService externalLibraryService,
                           CamelDebuggerPropertiesService debuggerPropertiesService, ContextStorageService contextStorageService) {
         this.variableService = variableService;
         this.runtimeService = runtimeService;
@@ -161,18 +160,16 @@ public class TasksScheduler {
      */
     @Scheduled(fixedDelay = 2500)
     public void checkLibrariesUpdates() {
-        if (externalLibraryService.isPresent()) {
-            try {
-                Pair<Boolean, List<CompiledLibraryUpdate>> response = consulService.waitForLibrariesUpdate();
-                if (response.getLeft()) { // changes detected
-                    externalLibraryService.get().updateSystemModelLibraries(response.getRight());
-                }
-            } catch (KVNotFoundException kvnfe) {
-                log.warn("Libraries update KV is empty. {}", kvnfe.getMessage());
-            } catch (Exception e) {
-                log.error("Failed to get libraries update from consul/systems-catalog", e);
-                consulService.rollbackLibrariesLastIndex();
+        try {
+            Pair<Boolean, List<CompiledLibraryUpdate>> response = consulService.waitForLibrariesUpdate();
+            if (response.getLeft()) { // changes detected
+                externalLibraryService.updateSystemModelLibraries(response.getRight());
             }
+        } catch (KVNotFoundException kvnfe) {
+            log.warn("Libraries update KV is empty. {}", kvnfe.getMessage());
+        } catch (Exception e) {
+            log.error("Failed to get libraries update from consul/systems-catalog", e);
+            consulService.rollbackLibrariesLastIndex();
         }
     }
 

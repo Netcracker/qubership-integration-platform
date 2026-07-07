@@ -23,15 +23,15 @@ import org.flywaydb.core.api.migration.JavaMigration;
 import org.qubership.integration.platform.runtime.catalog.configuration.datasource.properties.FlywayConfigProperties;
 import org.qubership.integration.platform.runtime.catalog.db.migration.postgresql.configs.ConfigsJavaMigration;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 import javax.sql.DataSource;
 
-@AutoConfiguration
-@ConditionalOnBean(PersistenceAutoConfiguration.class)
+@Configuration
+@ConditionalOnProperty(value = "qip.standalone", havingValue = "true")
 @EnableConfigurationProperties(FlywayConfigProperties.class)
 public class FlywayInitializer {
     private final DataSource configsDataSource;

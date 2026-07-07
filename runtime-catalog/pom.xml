@@ -5,21 +5,23 @@
   <artifactId>qip-runtime-catalog</artifactId>
   <version>${revision}${changelist}</version>
   <name>QIP Runtime Catalog</name>
-  <description>Managing integration flows (so-called integration chains), services, snapshots and deployments.
-    </description>
+  <description>
+    Managing integration flows (so-called integration chains), services, snapshots and deployments.
+  </description>
   <url>https://github.com/Netcracker/qubership-integration-platform</url>
   <scm>
-    <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
-    <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
-    <url>https://github.com/Netcracker/qubership-integration-platform</url>
-    <tag>HEAD</tag>
+      <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
+      <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
+      <url>https://github.com/Netcracker/qubership-integration-platform</url>
+      <tag>HEAD</tag>
   </scm>
   <parent>
-    <groupId>org.qubership.integration.platform</groupId>
-    <artifactId>qip-monorepo-parent</artifactId>
-    <version>0.5.1-SNAPSHOT</version>
-    <relativePath>../parent</relativePath>
+      <groupId>org.qubership.integration.platform</groupId>
+      <artifactId>qip-monorepo-parent</artifactId>
+      <version>0.5.1-SNAPSHOT</version>
+      <relativePath>../parent</relativePath>
   </parent>
+
   <properties>
     <revision>1.0.0</revision>
     <changelist>-SNAPSHOT</changelist>
@@ -284,6 +286,30 @@
     </dependencies>
   </dependencyManagement>
   <dependencies>
+    <!--    DbaaS dependencies    -->
+    <dependency>
+      <groupId>com.netcracker.cloud</groupId>
+      <artifactId>dbaas-client-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.netcracker.cloud</groupId>
+      <artifactId>dbaas-client-postgres-starter</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.netcracker.cloud</groupId>
+      <artifactId>dbaas-client-postgres-flyway</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.netcracker.cloud</groupId>
+      <artifactId>dbaas-client-resttemplate</artifactId>
+    </dependency>
+
+    <!--    MaaS dependencies    -->
+    <dependency>
+      <groupId>com.netcracker.cloud.maas.client</groupId>
+      <artifactId>maas-client</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-database-postgresql</artifactId>

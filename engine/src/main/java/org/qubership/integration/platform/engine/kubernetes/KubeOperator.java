@@ -32,6 +32,7 @@ import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -74,20 +75,9 @@ public class KubeOperator {
         Map<String, Map<String, String>> secrets = new HashMap<>();
 
         try {
-            V1SecretList secretList = coreApi.listNamespacedSecret(
-                namespace,
-                null,
-                null,
-                null,
-                null,
-                label.getKey() + "=" + label.getValue(),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null
-            );
+            V1SecretList secretList = coreApi.listNamespacedSecret(getNotNullNamespace())
+                .labelSelector(label.getKey() + "=" + label.getValue())
+                .execute();
 
             List<V1Secret> secretListItems = secretList.getItems();
             for (V1Secret secret : secretListItems) {
@@ -127,31 +117,19 @@ public class KubeOperator {
                 customObjectsApi.replaceNamespacedCustomObject(
                         request.getGroup(),
                         request.getVersion(),
-                        namespace,
+                        getNotNullNamespace(),
                         request.getResourceNamePlural(),
-                        request.getBody().getMetadata().getName(),
-                        request.getBody(),
-                        null,
-                        null
+                        getNotNullCustomResourceName(request),
+                        request.getBody()
                 );
             } else {
                 customObjectsApi.createNamespacedCustomObject(
                         request.getGroup(),
                         request.getVersion(),
-                        namespace,
+                        getNotNullNamespace(),
                         request.getResourceNamePlural(),
-                        request.getBody(),
-                        null,
-                        null,
-                        null
+                        request.getBody()
                 );
-            }
-        } catch (ApiException e) {
-            if (e.getCode() != 404) {
-                if (!isDevmode()) {
-                    log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
-                }
-                throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
             }
         } catch (Exception e) {
             if (!isDevmode()) {
@@ -170,28 +148,30 @@ public class KubeOperator {
             Object response = customObjectsApi.getNamespacedCustomObject(
                     request.getGroup(),
                     request.getVersion(),
-                    namespace,
+                    getNotNullNamespace(),
                     request.getResourceNamePlural(),
-                    request.getBody().getMetadata().getName()
-            );
+                    getNotNullCustomResourceName(request)
+            ).execute();
 
             JsonNode responseNode = objectMapper.convertValue(response, JsonNode.class);
             JsonNode resourceVersion = responseNode.path("metadata").path("resourceVersion");
             return resourceVersion.isMissingNode() || resourceVersion.isNull() ? null : resourceVersion.asText();
-        } catch (ApiException e) {
-            if (e.getCode() == 404) {
-                return null;
-            } else {
-                if (!isDevmode()) {
-                    log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
-                }
-                throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
-            }
         } catch (Exception e) {
             if (!isDevmode()) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
             }
             throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getMessage(), e);
         }
+    }
+
+    private String getNotNullNamespace() {
+        return Objects.requireNonNull(namespace, "The namespace is missing");
+    }
+
+    private String getNotNullCustomResourceName(KubeCustomObjectRequest customObjectRequest) {
+        return Objects.requireNonNull(
+            customObjectRequest.getBody().getMetadata().getName(),
+            "Custom resource metadata.name must not be null"
+        );
     }
 }

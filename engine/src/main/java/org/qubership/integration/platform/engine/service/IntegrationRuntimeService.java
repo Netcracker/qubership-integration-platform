@@ -39,6 +39,7 @@ import org.qubership.integration.platform.engine.camel.converters.FormDataConver
 import org.qubership.integration.platform.engine.camel.converters.SecurityAccessPolicyConverter;
 import org.qubership.integration.platform.engine.camel.history.FilteringMessageHistoryFactory;
 import org.qubership.integration.platform.engine.camel.history.FilteringMessageHistoryFactory.FilteringEntity;
+import org.qubership.integration.platform.engine.cloudcore.maas.MaasService;
 import org.qubership.integration.platform.engine.configuration.ServerConfiguration;
 import org.qubership.integration.platform.engine.configuration.TracingConfiguration;
 import org.qubership.integration.platform.engine.consul.DeploymentReadinessService;
@@ -109,8 +110,8 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     private final ExternalLibraryGroovyShellFactory groovyShellFactory;
     private final GroovyLanguageWithResettableCache groovyLanguage;
     private final MetricsStore metricsStore;
-    private final Optional<ExternalLibraryService> externalLibraryService;
-    private final Optional<MaasService> maasService;
+    private final ExternalLibraryService externalLibraryService;
+    private final MaasService maasService;
     private final Optional<XmlConfigurationPreProcessor> xmlPreProcessor;
     private final VariablesService variablesService;
     private final EngineStateReporter engineStateReporter;
@@ -147,8 +148,8 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         ExternalLibraryGroovyShellFactory groovyShellFactory,
         GroovyLanguageWithResettableCache groovyLanguage,
         MetricsStore metricsStore,
-        Optional<ExternalLibraryService> externalLibraryService,
-        Optional<MaasService> maasService,
+        ExternalLibraryService externalLibraryService,
+        MaasService maasService,
         Optional<XmlConfigurationPreProcessor> xmlPreProcessor,
         VariablesService variablesService,
         EngineStateReporter engineStateReporter,
@@ -466,11 +467,9 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         String configurationXml = configuration.getXml();
 
         configurationXml = variablesService.injectVariables(configurationXml, true);
-        if (maasService.isPresent()) {
-            configurationXml = maasService.get().resolveDeploymentMaasParameters(configuration, configurationXml);
-        }
-        variablesService.resolveVariablesInRoutes(configuration);
+        configurationXml = maasService.resolveDeploymentMaasParameters(configuration, configurationXml);
         configurationXml = resolveRouteVariables(configuration.getRoutes(), configurationXml);
+        variablesService.resolveVariablesInRoutes(configuration);
         if (xmlPreProcessor.isPresent()) {
             configurationXml = xmlPreProcessor.get().process(configurationXml);
         }
@@ -612,9 +611,8 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             .map(properties -> properties.get(ChainProperties.OPERATION_SPECIFICATION_ID))
             .filter(Objects::nonNull)
             .toList();
-        ClassLoader classLoader = externalLibraryService.isPresent()
-                ? externalLibraryService.get().getClassLoaderForSystemModels(systemModelIds, context.getApplicationContextClassLoader())
-                : getClass().getClassLoader();
+        ClassLoader classLoader = externalLibraryService
+                .getClassLoaderForSystemModels(systemModelIds, context.getApplicationContextClassLoader());
         return new QipCustomClassResolver(classLoader);
     }
 

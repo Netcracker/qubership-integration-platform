@@ -16,7 +16,7 @@
 
 package org.qubership.integration.platform.sessions.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.netcracker.cloud.dbaas.client.opensearch.DbaasOpensearchClient;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.opensearch.client.json.JsonData;
@@ -44,14 +44,15 @@ import org.qubership.integration.platform.sessions.dto.opensearch.SessionElement
 import org.qubership.integration.platform.sessions.exception.SearchException;
 import org.qubership.integration.platform.sessions.mapper.SessionAggregateMapper;
 import org.qubership.integration.platform.sessions.mapper.SessionElementMapper;
-import org.qubership.integration.platform.sessions.opensearch.OpenSearchClientSupplier;
 import org.qubership.integration.platform.sessions.properties.opensearch.OpenSearchProperties;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.util.*;
 
+import static com.netcracker.cloud.dbaas.client.opensearch.config.DbaasOpensearchConfiguration.TENANT_NATIVE_OPENSEARCH_CLIENT;
 import static java.util.Objects.isNull;
 
 @Service
@@ -82,19 +83,18 @@ public class SessionService {
 
     private final SessionAggregateMapper sessionMapper;
     private final SessionElementMapper sessionElementMapper;
-    private final OpenSearchClientSupplier openSearchClientSupplier;
+    private final DbaasOpensearchClient opensearchClient;
 
     private final HttpAsyncResponseConsumerFactory consumerFactory;
 
     @Autowired
     public SessionService(SessionAggregateMapper sessionMapper,
-                          OpenSearchClientSupplier openSearchClientSupplier,
-                          ObjectMapper mapper,
+                          @Qualifier(TENANT_NATIVE_OPENSEARCH_CLIENT) DbaasOpensearchClient opensearchClient,
                           SessionElementMapper sessionElementMapper,
                           OpenSearchProperties openSearchProperties) {
         this.indexName = openSearchProperties.index().elements().name();
         this.sessionMapper = sessionMapper;
-        this.openSearchClientSupplier = openSearchClientSupplier;
+        this.opensearchClient = opensearchClient;
         this.sessionElementMapper = sessionElementMapper;
 
         this.consumerFactory = new HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory(
@@ -121,7 +121,7 @@ public class SessionService {
 
     private SearchRequest getScrollSearchRequest(String id, String idKey, boolean light, int scrollWindow) {
         SearchRequest.Builder requestBuilder = new SearchRequest.Builder()
-                .index(openSearchClientSupplier.normalize(indexName))
+                .index(opensearchClient.normalize(indexName))
                 .size(SCROLL_WINDOW)
                 .query(new TermQuery.Builder().field(idKey).value(FieldValue.of(id)).build().toQuery())
                 .sort(new SortOptions.Builder().field(new FieldSort.Builder().field(STARTED_KEY).order(SortOrder.Asc).build()).build());
@@ -136,7 +136,7 @@ public class SessionService {
 
     public SessionElement getElementById(String elementId) {
         SearchRequest.Builder requestBuilder = new SearchRequest.Builder()
-                .index(openSearchClientSupplier.normalize(indexName))
+                .index(opensearchClient.normalize(indexName))
                 .size(SCROLL_WINDOW)
                 .query(new TermQuery.Builder().field(ID_KEY).value(FieldValue.of(elementId)).build().toQuery())
                 .sort(new SortOptions.Builder().field(new FieldSort.Builder().field(STARTED_KEY).order(SortOrder.Asc).build()).build())
@@ -157,7 +157,7 @@ public class SessionService {
 
     public void deleteAllSessions() {
         DeleteByQueryRequest request = new DeleteByQueryRequest.Builder()
-                .index(openSearchClientSupplier.normalize(indexName))
+                .index(opensearchClient.normalize(indexName))
                 .query(new MatchAllQuery.Builder().build().toQuery())
                 .refresh(true)
                 .build();
@@ -166,7 +166,7 @@ public class SessionService {
 
     public void deleteByField(String fieldName, String value, boolean refresh) {
         DeleteByQueryRequest request = new DeleteByQueryRequest.Builder()
-                .index(openSearchClientSupplier.normalize(indexName))
+                .index(opensearchClient.normalize(indexName))
                 .query(new TermQuery.Builder().field(fieldName).value(FieldValue.of(value)).build().toQuery())
                 .refresh(refresh)
                 .build();
@@ -182,7 +182,7 @@ public class SessionService {
                 .build()
                 .toQuery();
         DeleteByQueryRequest request = new DeleteByQueryRequest.Builder()
-                .index(openSearchClientSupplier.normalize(indexName))
+                .index(opensearchClient.normalize(indexName))
                 .query(query)
                 .refresh(true)
                 .build();
@@ -240,7 +240,7 @@ public class SessionService {
                                                                          String sortColumn,
                                                                          FilterRequestAndSearchDTO filterAndSearch) {
         SearchRequest.Builder requestBuilder = new SearchRequest.Builder()
-                .index(openSearchClientSupplier.normalize(indexName));
+                .index(opensearchClient.normalize(indexName));
         BoolQuery.Builder queryBuilder = new BoolQuery.Builder();
 
         if (StringUtils.isNotEmpty(chainId)) {
@@ -325,7 +325,7 @@ public class SessionService {
         try {
             ApacheHttpClient5Options.Builder optionsBuilder = ApacheHttpClient5Options.DEFAULT.toBuilder();
             optionsBuilder.setHttpAsyncResponseConsumerFactory(consumerFactory);
-            response = openSearchClientSupplier.getClient().withTransportOptions(optionsBuilder.build()).search(request, SessionElementElastic.class);
+            response = opensearchClient.getClient().withTransportOptions(optionsBuilder.build()).search(request, SessionElementElastic.class);
         } catch (IOException e) {
             throw new SearchException(ELEMENT_EXECUTION_ERROR_MESSAGE, e);
         }
@@ -340,7 +340,7 @@ public class SessionService {
 
     private void delete(DeleteByQueryRequest request) {
         try {
-            openSearchClientSupplier.getClient().deleteByQuery(request);
+            opensearchClient.getClient().deleteByQuery(request);
         } catch (IOException e) {
             throw new SearchException("Unable to perform delete from OpenSearch", e);
         }

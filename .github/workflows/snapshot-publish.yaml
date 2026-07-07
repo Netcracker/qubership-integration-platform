@@ -73,6 +73,9 @@ jobs:
 
       # Pre-install the parent pom so the single-module deploy below resolves it.
       - name: Install qip-monorepo-parent locally
+        env:
+          MAVEN_USERNAME: ${{ github.actor }}
+          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: mvn --batch-mode -f parent/pom.xml install -N -DskipTests
 
       - name: Deploy SNAPSHOT to GitHub Packages
