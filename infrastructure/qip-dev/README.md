@@ -1,4 +1,4 @@
-# Cloud Integration Platform - Helm charts for local development
+# Qubership Integration Platform - Helm charts for local development
 
 ## Installation
 
