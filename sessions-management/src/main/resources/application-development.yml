@@ -5,6 +5,7 @@ logging:
   level:
     root: ${ROOT_LOG_LEVEL:WARN}
     org.qubership.integration.platform: DEBUG
+  format: ${LOG_FORMAT:json}
 
 spring:
   config:

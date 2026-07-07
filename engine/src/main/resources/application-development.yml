@@ -43,6 +43,11 @@ logging:
   level:
     root: ${ROOT_LOG_LEVEL:WARN}
     org.qubership.integration.platform.engine: DEBUG
+  format: ${LOG_FORMAT:text}
+
+otel:
+  sdk:
+    disabled: true
 
 qip:
   standalone: true
@@ -57,4 +62,4 @@ qip:
       location: /app/cert/defaultsslcertificate
   internal-services:
     runtime-catalog:
-      url: 'http://runtime-catalog:8080'
+      url: ${RUNTIME_CATALOG_SERVICE_URL:http://runtime-catalog:8080}

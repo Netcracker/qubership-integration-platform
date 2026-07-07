@@ -17,6 +17,7 @@ Application parameters can be set by environment variables.
 | Environment variable                    | Default value        | Description                                                                                                                  |
 |-----------------------------------------|----------------------|------------------------------------------------------------------------------------------------------------------------------|
 | ROOT_LOG_LEVEL                          | INFO                 | Logging level                                                                                                                |
+| LOG_FORMAT                              | json                 | Logging format. Values: json, text                                                                                                                 |
 | CONSUL_URL                              | `http://consul:8500` | Consul URL                                                                                                                   |
 | CONSUL_ADMIN_TOKEN                      |                      | Consul assess token                                                                                                          |
 | MAX_UPLOAD_MULTIPART_FILE_SIZE          | 25                   | Maximum file size to upload, MB. Limits data size for upload operations like sessions import.                                |

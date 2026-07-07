@@ -54,6 +54,7 @@
     <grpc.version>1.54.2</grpc.version>
     <protobuf-java.version>3.25.9</protobuf-java.version>
     <okhttp-bom.version>5.3.2</okhttp-bom.version>
+    <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
     <!-- Newest versions requires commons-io 2.15! -->
     <!-- TODO update io.kubernetes.client-java before update this library -->
     <poi.version>5.2.3</poi.version>
@@ -466,6 +467,12 @@
     <dependency>
       <groupId>org.dhatim</groupId>
       <artifactId>fastexcel</artifactId>
+    </dependency>
+    <!-- Logging -->
+    <dependency>
+      <groupId>net.logstash.logback</groupId>
+      <artifactId>logstash-logback-encoder</artifactId>
+      <version>${logstash-logback-encoder.version}</version>
     </dependency>
     <!-- Tracing -->
     <dependency>

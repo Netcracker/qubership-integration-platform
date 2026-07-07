@@ -24,7 +24,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.model.constants.BusinessIds;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
-import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
+import org.qubership.integration.platform.engine.service.debugger.logging.AbstractChainLogger;
 import org.qubership.integration.platform.engine.util.MDCUtil;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,12 +50,12 @@ public class LogRecordProcessor implements Processor {
     private static final String PROPERTY_BUSINESS_IDENTIFIERS = LOG_RECORD_PROPERTY_PREFIX + "businessIdentifiers";
     private static final String PROPERTY_MESSAGE = LOG_RECORD_PROPERTY_PREFIX + "message";
 
-    private final ChainLogger chainLogger;
+    private final AbstractChainLogger chainLogger;
 
     private final SimpleLanguage simpleInterpreter;
 
     @Autowired
-    public LogRecordProcessor(ChainLogger chainLogger, SimpleLanguage simpleInterpreter) {
+    public LogRecordProcessor(AbstractChainLogger chainLogger, SimpleLanguage simpleInterpreter) {
         this.chainLogger = chainLogger;
         this.simpleInterpreter = simpleInterpreter;
     }

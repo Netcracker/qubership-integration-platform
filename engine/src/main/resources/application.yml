@@ -136,6 +136,7 @@ logging:
   level:
     root: ${ROOT_LOG_LEVEL:INFO}
   config: classpath:logback-spring.xml
+  format: ${LOG_FORMAT:json}
 
 db:
   flyway:

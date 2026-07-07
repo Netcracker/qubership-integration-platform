@@ -46,7 +46,7 @@ import org.qubership.integration.platform.engine.persistence.shared.entity.Check
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
 import org.qubership.integration.platform.engine.service.*;
 import org.qubership.integration.platform.engine.service.debugger.kafkareporting.SessionsKafkaReportingService;
-import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
+import org.qubership.integration.platform.engine.service.debugger.logging.AbstractChainLogger;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
 import org.qubership.integration.platform.engine.service.debugger.sessions.SessionsService;
 import org.qubership.integration.platform.engine.service.debugger.tracing.TracingService;
@@ -78,7 +78,7 @@ public class CamelDebugger extends DefaultDebugger {
     private final TracingService tracingService;
     private final CheckpointSessionService checkpointSessionService;
     private final MetricsService metricsService;
-    private final ChainLogger chainLogger;
+    private final AbstractChainLogger chainLogger;
     private final Optional<SessionsKafkaReportingService> sessionsKafkaReportingService;
     private final SessionsService sessionsService;
     private final PayloadExtractor payloadExtractor;
@@ -96,7 +96,7 @@ public class CamelDebugger extends DefaultDebugger {
             TracingService tracingService,
             CheckpointSessionService checkpointSessionService,
             MetricsService metricsService,
-            ChainLogger chainLogger,
+            AbstractChainLogger chainLogger,
             Optional<SessionsKafkaReportingService> sessionsKafkaReportingService,
             SessionsService sessionsService,
             PayloadExtractor payloadExtractor,

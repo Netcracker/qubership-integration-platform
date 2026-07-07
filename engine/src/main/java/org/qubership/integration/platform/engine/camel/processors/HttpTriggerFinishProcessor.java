@@ -27,7 +27,7 @@ import org.qubership.integration.platform.engine.model.deployment.properties.Dep
 import org.qubership.integration.platform.engine.model.logging.LogPayload;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
-import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
+import org.qubership.integration.platform.engine.service.debugger.logging.AbstractChainLogger;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
 import org.qubership.integration.platform.engine.service.debugger.util.MaskedFieldUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
@@ -44,13 +44,13 @@ public class HttpTriggerFinishProcessor implements Processor {
 
     private final CamelDebuggerPropertiesService propertiesService;
     private final PayloadExtractor payloadExtractor;
-    private final ChainLogger chainLogger;
+    private final AbstractChainLogger chainLogger;
     private final MetricsService metricsService;
 
     @Autowired
     public HttpTriggerFinishProcessor(CamelDebuggerPropertiesService propertiesService,
                                       PayloadExtractor payloadExtractor,
-                                      ChainLogger chainLogger,
+                                      AbstractChainLogger chainLogger,
                                       MetricsService metricsService) {
         this.propertiesService = propertiesService;
         this.payloadExtractor = payloadExtractor;
