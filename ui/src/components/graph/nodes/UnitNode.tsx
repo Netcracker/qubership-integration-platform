@@ -48,7 +48,9 @@ export const UnitNode = memo(function UnitNode({data, dragging, ...rest}: NodePr
           wrap={false}
           style={{ width: "100%", padding: "0 8px 0 8px" }}
         >
-          <OverridableIcon name={data.elementType} style={{ fontSize: 16 }} />
+          {!data.unsupported && (
+            <OverridableIcon name={data.elementType} style={{ fontSize: 16 }} />
+          )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <Typography.Paragraph
               ellipsis={ellipsisConfig}
