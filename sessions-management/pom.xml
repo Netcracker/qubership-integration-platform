@@ -23,7 +23,7 @@
 
   <properties>
     <revision>1.0.0</revision>
-    <changelist>-2-core-deps-SNAPSHOT</changelist>
+    <changelist>-SNAPSHOT</changelist>
 
     <!-- BOMs -->
     <!-- 3rd party dependencies -->

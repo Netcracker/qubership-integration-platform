@@ -153,7 +153,6 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
                                     .build()))
                             .build())
                     .build();
-            log.info("Route configuration object: {}", configuration);
 
 
             postConfigurationV3(configuration);
