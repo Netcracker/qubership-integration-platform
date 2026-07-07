@@ -37,8 +37,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -71,6 +71,7 @@ class SessionsMetricsServiceTest {
 
     @BeforeEach
     void setUp() {
+        when(metricsStore.isMetricsEnabled()).thenReturn(true);
         sessionsMetricsService = new SessionsMetricsService(
                 INDEX_NAME,
                 metricsStore,
@@ -147,7 +148,7 @@ class SessionsMetricsServiceTest {
 
         assertEquals("Unable to retrieve session metrics from opensearch", result.getMessage());
         assertSame(cause, result.getOriginalException());
-        verifyNoInteractions(metricsStore);
+        verify(metricsStore, never()).processChainSessionsSize(any());
     }
 
     @Test
@@ -175,7 +176,7 @@ class SessionsMetricsServiceTest {
 
         assertEquals("Unable to retrieve checkpoints metrics from postgres", result.getMessage());
         assertSame(cause, result.getOriginalException());
-        verifyNoInteractions(metricsStore);
+        verify(metricsStore, never()).processChainCheckpointsSize(any());
     }
 
     private SearchResponse<SessionElementElastic> searchResponse(StringTermsBucket... buckets) {
