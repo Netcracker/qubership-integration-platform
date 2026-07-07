@@ -91,6 +91,7 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
         this.restTemplateMS = restTemplateMS;
         this.jsonMapper = jsonMapper;
         this.blueGreenStateService = blueGreenStateService;
+        log.info("ControlPlaneDefaultService initialized");
     }
 
     /**
@@ -130,6 +131,7 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
      * @throws ControlPlaneException if control plane not available (not in dev mode)
      */
     private void postEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint, String gatewayName) throws ControlPlaneException, KubeApiException {
+        log.info("The postEngineRoutes() is started");
         if (deploymentRoutes == null || deploymentRoutes.isEmpty()) {
             return;
         }
@@ -153,6 +155,7 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
                                     .build()))
                             .build())
                     .build();
+            log.info("Route configuration object: {}", configuration);
 
 
             postConfigurationV3(configuration);
