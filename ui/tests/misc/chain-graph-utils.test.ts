@@ -48,6 +48,7 @@ import {
   normalizeHandleId,
   sanitizeEdge,
   sortParentsBeforeChildren,
+  UNSUPPORTED_CANVAS_ELEMENT_TYPES,
   UNSUPPORTED_ELEMENT_COLOR,
 } from "../../src/misc/chain-graph-utils";
 
@@ -322,24 +323,21 @@ describe("getNodeFromElement", () => {
 });
 
 describe("unsupported canvas element types", () => {
-  test.each([
-    "scheduler",
-    "quartz-scheduler",
-    "sftp-trigger",
-    "sftp-trigger-2",
-    "chain-call",
-    "chain-call-2",
-    "chain-trigger",
-    "chain-trigger-2",
-    "kafka-sender",
-    "kafka-sender-2",
-  ])("includes %s", (type) => {
+  test.each([...UNSUPPORTED_CANVAS_ELEMENT_TYPES])("includes %s", (type) => {
     expect(isUnsupportedCanvasElementType(type)).toBe(true);
   });
 
   test("excludes supported element types", () => {
     expect(isUnsupportedCanvasElementType("script")).toBe(false);
     expect(isUnsupportedCanvasElementType("http-trigger")).toBe(false);
+  });
+
+  test("excludes v2 and quartz-scheduler aliases", () => {
+    expect(isUnsupportedCanvasElementType("quartz-scheduler")).toBe(false);
+    expect(isUnsupportedCanvasElementType("sftp-trigger-2")).toBe(false);
+    expect(isUnsupportedCanvasElementType("chain-call-2")).toBe(false);
+    expect(isUnsupportedCanvasElementType("chain-trigger-2")).toBe(false);
+    expect(isUnsupportedCanvasElementType("kafka-sender-2")).toBe(false);
   });
 
   test("isUnsupportedElement returns true for library unsupported flag", () => {

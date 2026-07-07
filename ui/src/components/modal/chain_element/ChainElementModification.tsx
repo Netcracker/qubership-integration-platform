@@ -285,7 +285,6 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   const isUnsupported =
     node.data.unsupported ??
     isUnsupportedCanvasElementType(node.data.elementType);
-  const unsupportedNotifiedRef = useRef(false);
 
   const reportMissingRequiredParams = useCallback(
     (key: string, params: string[]) => {
