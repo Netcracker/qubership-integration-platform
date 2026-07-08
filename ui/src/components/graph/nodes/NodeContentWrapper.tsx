@@ -12,6 +12,7 @@ import {
   ChainGraphChangeContext,
   NodeState,
 } from "../../chains/diff/ChainGraphChangeProvider.tsx";
+import { UNSUPPORTED_ELEMENT_COLOR } from "../../../misc/chain-graph-utils.ts";
 
 export type NodeContentWrapperProps = PropsWithChildren<
   NodeProps<ChainGraphNode>
@@ -55,17 +56,21 @@ export const NodeContentWrapper: React.FC<NodeContentWrapperProps> = ({
       case NodeState.CREATED:
         return "var(--node-created-color, #4ec9b0)";
       default:
-        return style?.["backgroundColor"];
+        if (data.unsupported) {
+          return UNSUPPORTED_ELEMENT_COLOR;
+        }
+        return style?.backgroundColor;
     }
-  }, [id, changeContext, style]);
+  }, [id, changeContext, style, data.unsupported]);
 
   return (
     <div
       className={`${styles.wrapper} ${selected ? styles.selected : ""}`}
+      data-unsupported={data.unsupported ? "true" : undefined}
       style={{
         ...style,
         transition: "outline-color var(--transition-duration, 0.25s) ease",
-        backgroundColor: backgroundColor,
+        backgroundColor,
       }}
     >
       {children}

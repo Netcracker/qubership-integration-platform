@@ -12,6 +12,10 @@
     outline-color var(--transition-duration, 0.25s) ease;
 }
 
+.wrapper[data-unsupported="true"] {
+  background-color: #f08080 !important;
+}
+
 .selected {
   outline-color: var(--vscode-focusBorder, #007acc) !important;
 }

@@ -7,7 +7,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { Button, Tabs, Flex, Typography } from "antd";
+import { Button, Tabs, Flex, Alert, Typography } from "antd";
 import { useModalContext } from "../../../ModalContextProvider.tsx";
 import styles from "./ChainElementModification.module.css";
 import {
@@ -89,6 +89,7 @@ import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 import { ModalWithFullscreenToggle } from "../ModalWithFullscreenToggle.tsx";
 import { JsonAsStringField } from "./field/JsonAsStringField.tsx";
 import { MCPServiceField } from "./field/select/MCPServiceField.tsx";
+import { getElementTypeTitle, isUnsupportedCanvasElementType } from "../../../misc/chain-graph-utils.ts";
 
 type ElementModificationProps = {
   node: ChainGraphNode;
@@ -281,6 +282,9 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 
   const permissions = usePermissions();
   const canEditChain = hasPermissions(permissions, { chain: ["update"] });
+  const isUnsupported =
+    node.data.unsupported ??
+    isUnsupportedCanvasElementType(node.data.elementType);
 
   const reportMissingRequiredParams = useCallback(
     (key: string, params: string[]) => {
@@ -642,6 +646,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   );
 
   const isSaveDisabled =
+    isUnsupported ||
     hasCriticalErrors(validationErrors) ||
     !!kafkaError ||
     hasMissingRequiredParams;
@@ -656,6 +661,10 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   }, []);
 
   const handleOk = useCallback(async () => {
+    if (isUnsupported) {
+      return;
+    }
+
     const pendingName = elementNameRef.current?.syncIfEditing?.();
     const nameToUse =
       (pendingName?.trim()?.length ?? 0) > 0
@@ -703,6 +712,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     notificationService,
     updateElement,
     handleClose,
+    isUnsupported,
   ]);
 
   const handleCheckUnsavedAndClose = useCallback(() => {
@@ -903,13 +913,12 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
             <ElementNameInlineEdit
               ref={elementNameRef}
               value={(formData.name as string) ?? node.data.label ?? ""}
-              typeLabel={
-                libraryElement?.title ??
-                node.data.typeTitle ??
-                node.data.elementType
-              }
+              typeLabel={getElementTypeTitle(
+                node.data.elementType,
+                libraryElement,
+              )}
               onSave={handleNameSave}
-              disabled={!canEditChain || libraryElementIsLoading}
+              disabled={!canEditChain || libraryElementIsLoading || isUnsupported}
             />
           </div>
           <Flex
@@ -975,6 +984,15 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         tabIndex={-1}
         className={styles["modalFocusRoot"]}
       >
+        {isUnsupported && (
+          <Alert
+            type="error"
+            showIcon
+            message="Unsupported element"
+            description={`Element type is not supported. Changes cannot be saved.`}
+            style={{ marginBottom: 12 }}
+          />
+        )}
         {schema && activeKey && (
           <>
             <Tabs
@@ -993,6 +1011,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
                 className={styles["parameters-form"]}
                 schema={schema}
                 formData={formData}
+                disabled={isUnsupported}
                 validator={validator}
                 uiSchema={uiSchema}
                 transformErrors={transformErrors}

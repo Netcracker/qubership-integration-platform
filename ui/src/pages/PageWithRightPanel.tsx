@@ -17,6 +17,7 @@ import { useLibraryContext } from "../components/LibraryContext.tsx";
 import {
   getLibraryElement,
   getNodeFromElement,
+  getElementTypeTitle,
 } from "../misc/chain-graph-utils.ts";
 import { api } from "../api/api.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
@@ -56,7 +57,7 @@ function elementMatchesSearch(
 ): boolean {
   const libraryElement = getLibraryElement(element, libraryElements);
   const elementName = element.name || libraryElement.title || element.type;
-  const elementTypeLabel = libraryElement.title || element.type;
+  const elementTypeLabel = getElementTypeTitle(element.type, libraryElement);
   return matchesByFields(searchString, [
     elementName,
     elementTypeLabel,
@@ -86,10 +87,10 @@ export const PageWithRightPanel = ({
     () =>
       [...new Set(elements.map((element) => element.type))].map((type) => ({
         value: type,
-        label:
-          libraryElements?.find(
-            (libraryElement) => libraryElement.name === type,
-          )?.title ?? type,
+        label: getElementTypeTitle(
+          type,
+          libraryElements?.find((libraryElement) => libraryElement.name === type),
+        ),
       })),
     [elements, libraryElements],
   );
@@ -209,7 +210,7 @@ export const PageWithRightPanel = ({
     return filteredElements.map((element: Element) => {
       const libraryElement = getLibraryElement(element, libraryElements);
       const elementName = element.name || libraryElement.title || element.type;
-      const elementTypeLabel = libraryElement.title || element.type;
+      const elementTypeLabel = getElementTypeTitle(element.type, libraryElement);
       return {
         key: element.id,
         name: elementName,

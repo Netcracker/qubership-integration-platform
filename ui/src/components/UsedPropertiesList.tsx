@@ -12,11 +12,11 @@ import { OverridableIcon } from "../icons/IconProvider.tsx";
 import styles from "./UsedPropertiesList.module.css";
 import { SidebarSearch } from "./elements_library/SidebarSearch.tsx";
 import { MenuItem } from "./elements_library/ElementsLibrarySidebar";
-import {
-  analyzeUsedProperties,
+import { analyzeUsedProperties,
   AnalyzableElement,
 } from "../misc/used-properties-analyzer.ts";
 import { useUsedProperties } from "../hooks/useUsedProperties.tsx";
+import { getElementTypeTitle } from "../misc/chain-graph-utils.ts";
 
 const USED_PROPERTY_SOURCE_LABEL_MAPPING: { [key: string]: string } = {
   HEADER: "H",
@@ -83,15 +83,6 @@ export const UsedPropertiesList: React.FC<UsedPropertiesListProps> = ({
   const [openKeysState, setOpenKeysState] = useState<string[]>([]);
   const [items, setItems] = useState<MenuItem[]>([]);
 
-  const getElementTemplate = useCallback(
-    (type: string): { title: string } | null => {
-      if (!libraryElements) return null;
-      const libraryElement = libraryElements.find((el) => el.name === type);
-      return libraryElement ? { title: libraryElement.title } : null;
-    },
-    [libraryElements],
-  );
-
   const buildUsedPropMapKey = (property: UsedProperty): string => {
     return property.name + property.source;
   };
@@ -119,8 +110,6 @@ export const UsedPropertiesList: React.FC<UsedPropertiesListProps> = ({
       const children: ParsedElement[] = Object.values(property.relatedElements)
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((element) => {
-          const elementDescriptor = getElementTemplate(element.type);
-
           return {
             id: buildUsedElementMapKey(
               property.name,
@@ -130,7 +119,10 @@ export const UsedPropertiesList: React.FC<UsedPropertiesListProps> = ({
             elementId: element.id,
             name: element.name,
             type: element.type,
-            typeTitle: elementDescriptor?.title || element.type,
+            typeTitle: getElementTypeTitle(
+              element.type,
+              libraryElements?.find((el) => el.name === element.type),
+            ),
             operations: element.operations.map((op) => ({
               operation: op,
               operationColor: usedPropertyElementOperationColorMapping[op],
@@ -149,7 +141,7 @@ export const UsedPropertiesList: React.FC<UsedPropertiesListProps> = ({
         children,
       };
     });
-  }, [properties, getElementTemplate]);
+  }, [properties, libraryElements]);
 
   useEffect(() => {
     const menuItems: MenuItem[] = parsedProperties.map((property) => ({
