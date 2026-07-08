@@ -14,6 +14,7 @@ public class ElementBuilder {
     private String description;
     private String type;
     private Element parent;
+    private Element swimlane;
     private Map<String, Object> properties;
     private Collection<Element> children;
     private Collection<Connection> inputConnections;
@@ -35,6 +36,7 @@ public class ElementBuilder {
         this.description = element.getDescription();
         this.type = element.getType();
         this.parent = element.getParent().orElse(null);
+        this.swimlane = element.getSwimlane().orElse(null);
         this.properties = Optional.ofNullable(element.getProperties()).map(HashMap::new).orElseGet(HashMap::new);
         this.children = Optional.ofNullable(element.getChildren()).map(ArrayList::new).orElseGet(ArrayList::new);
         this.inputConnections = Optional.ofNullable(element.getInputConnections()).map(ArrayList::new).orElseGet(ArrayList::new);
@@ -72,6 +74,11 @@ public class ElementBuilder {
 
     public ElementBuilder parent(Element parent) {
         this.parent = parent;
+        return this;
+    }
+
+    public ElementBuilder swimlane(Element swimlane) {
+        this.swimlane = swimlane;
         return this;
     }
 
@@ -118,6 +125,7 @@ public class ElementBuilder {
         element.setDescription(description);
         element.setType(type);
         element.setParent(parent);
+        element.setSwimlane(swimlane);
         element.setProperties(Optional.ofNullable(properties).orElseGet(HashMap::new));
         element.setChildren(Optional.ofNullable(children).orElseGet(ArrayList::new));
         element.setInputConnections(Optional.ofNullable(inputConnections).orElseGet(ArrayList::new));

@@ -3,7 +3,7 @@ package org.qubership.integration.platform.chain.model;
 import java.util.Collection;
 import java.util.Optional;
 
-public interface Chain extends Entity {
+public interface Chain extends Entity, Foldable {
     String getBusinessDescription();
 
     String getAssumptions();

@@ -7,6 +7,7 @@ import org.qubership.integration.platform.chain.model.ServiceEnvironment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 
 import java.util.Map;
+import java.util.Objects;
 
 public class EnvironmentAdapter implements ServiceEnvironment {
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -42,7 +43,7 @@ public class EnvironmentAdapter implements ServiceEnvironment {
 
     @Override
     public boolean isActivated() {
-        return environment.getSystem().getActiveEnvironmentId() == environment.getId();
+        return Objects.equals(environment.getSystem().getActiveEnvironmentId(), environment.getId());
     }
 
     @Override

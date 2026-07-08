@@ -19,6 +19,8 @@ public class ElementImpl implements Element {
     @Setter
     private Element parent;
     @Setter
+    private Element swimlane;
+    @Setter
     private Map<String, Object> properties = new HashMap<>();
     @Setter
     private Collection<Element> children = new ArrayList<>();
@@ -43,6 +45,11 @@ public class ElementImpl implements Element {
     @Override
     public Optional<Element> getParent() {
         return Optional.ofNullable(parent);
+    }
+
+    @Override
+    public Optional<Element> getSwimlane() {
+        return Optional.ofNullable(swimlane);
     }
 
     @Override

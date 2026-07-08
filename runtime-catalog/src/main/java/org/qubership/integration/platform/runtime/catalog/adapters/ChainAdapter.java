@@ -85,4 +85,10 @@ public class ChainAdapter implements Chain {
     public String getDescription() {
         return chain.getDescription();
     }
+
+    @Override
+    public Optional<Folder> getParentFolder() {
+        return Optional.ofNullable(chain.getParentFolder())
+            .map(FolderAdapter::new);
+    }
 }
