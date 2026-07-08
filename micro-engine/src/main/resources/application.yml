@@ -89,6 +89,8 @@ qip:
       registration:
         enabled: ${apigateway.routes.registration.enabled}
       prefix: /${application.prefix}-routes
+      public:
+        v1-prefix: /api/v1/${application.prefix}/engine
   chains:
     configuration:
       location: ${QIP_CHAINS_CONFIGURATION_URL:}

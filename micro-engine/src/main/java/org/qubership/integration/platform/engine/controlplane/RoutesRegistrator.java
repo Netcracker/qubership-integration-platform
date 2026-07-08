@@ -8,13 +8,16 @@ import io.quarkus.arc.properties.IfBuildProperty;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.model.engine.EngineInfo;
-import org.qubership.integration.platform.engine.rest.RestApiConstants;
 import org.qubership.integration.platform.engine.rest.v1.controller.CheckpointSessionController;
 import org.qubership.integration.platform.engine.rest.v1.controller.LiveExchangesController;
 import org.qubership.integration.platform.engine.rest.v1.controller.SessionController;
 
+import java.util.ArrayList;
 import java.util.List;
+
+import static org.qubership.integration.platform.engine.rest.RestApiConstants.V1_ROUTE_PREFIX;
 
 @Unremovable
 @ApplicationScoped
@@ -22,6 +25,9 @@ import java.util.List;
 public class RoutesRegistrator {
     private final RoutesRestRegistrationProcessor routesRestRegistrationProcessor;
     private final EngineInfo engineInfo;
+
+    @ConfigProperty(name = "qip.control-plane.routes.public.v1-prefix")
+    String publicRoutePrefixV1;
 
     @Inject
     public RoutesRegistrator(
@@ -34,23 +40,24 @@ public class RoutesRegistrator {
 
     @PostConstruct
     public void registerRoutes() {
-        List<RouteEntry> routes = List.of(
-            new RouteEntry(
-                RestApiConstants.V1_PUBLIC_ROUTE_PREFIX + "/" + engineInfo.getDomain()
-                    + SessionController.SESSIONS_PATH,
-                RouteType.PUBLIC
-            ),
-            new RouteEntry(
-                RestApiConstants.V1_PUBLIC_ROUTE_PREFIX + "/" + engineInfo.getDomain()
-                    + CheckpointSessionController.CHECKPOINT_SESSION_PATH,
-                RouteType.PUBLIC
-            ),
-            new RouteEntry(
-                RestApiConstants.V1_PUBLIC_ROUTE_PREFIX + "/" + engineInfo.getDomain()
-                    + LiveExchangesController.LIVE_EXCHANGES_PATH,
-                RouteType.PUBLIC
+        List<RouteEntry> routes = new ArrayList<>();
+        routes.addAll(createRouteEntriesForAllGateways(SessionController.SESSIONS_PATH));
+        routes.addAll(createRouteEntriesForAllGateways(CheckpointSessionController.CHECKPOINT_SESSION_PATH));
+        routes.add(
+        new RouteEntry(publicRoutePrefixV1 + "/" + engineInfo.getDomain() + LiveExchangesController.LIVE_EXCHANGES_PATH,
+                 RouteType.PUBLIC
             )
         );
         routesRestRegistrationProcessor.postRoutes(routes);
+    }
+
+    private List<RouteEntry> createRouteEntriesForAllGateways(String apiPath) {
+        String from = publicRoutePrefixV1 + "/" + engineInfo.getDomain() + apiPath;
+        String to = V1_ROUTE_PREFIX + apiPath;
+        return List.of(
+            new RouteEntry(from, to, RouteType.PUBLIC),
+            new RouteEntry(from, to, RouteType.PRIVATE),
+            new RouteEntry(from, to, RouteType.INTERNAL)
+        );
     }
 }
