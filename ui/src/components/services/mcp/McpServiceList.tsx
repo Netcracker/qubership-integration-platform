@@ -8,8 +8,8 @@ import {
   MCPSystem,
   MCPSystemCreateRequest,
 } from "../../../api/apiTypes.ts";
-import { formatOptional, formatTimestamp } from "../../../misc/format-utils.ts";
 import { createActionsColumnBase } from "../../table/actionsColumn.ts";
+import { createAuditColumns } from "../../table/auditColumns.ts";
 import { tableScroll } from "../../table/tableScroll.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { api } from "../../../api/api.ts";
@@ -198,40 +198,7 @@ export const McpServiceList: React.FC = () => {
         <ChainColumn chains={system.chains ?? []} />
       ),
     },
-    {
-      title: "Created At",
-      dataIndex: "createdWhen",
-      key: "createdWhen",
-      width: 160,
-      render: (_: unknown, system) => formatTimestamp(system.createdWhen),
-      hidden: true,
-    },
-    {
-      title: "Created By",
-      dataIndex: "createdBy",
-      key: "createdBy",
-      width: 130,
-      render: (_: unknown, system) =>
-        formatOptional(system.createdBy?.username),
-      hidden: true,
-    },
-    {
-      title: "Modified At",
-      dataIndex: "modifiedWhen",
-      key: "modifiedWhen",
-      width: 160,
-      render: (_: unknown, system) => formatTimestamp(system.modifiedWhen),
-      hidden: true,
-    },
-    {
-      title: "Modified By",
-      dataIndex: "modifiedBy",
-      key: "modifiedBy",
-      width: 130,
-      render: (_: unknown, system) =>
-        formatOptional(system.modifiedBy?.username),
-      hidden: true,
-    },
+    ...createAuditColumns<MCPSystem>(),
     {
       ...createActionsColumnBase<MCPSystem>(),
       render: (_: unknown, system) => (

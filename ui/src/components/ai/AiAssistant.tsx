@@ -27,19 +27,7 @@ export const AiAssistant: React.FC = () => {
 
   return (
     <>
-      <div
-        onClick={(e) => {
-          e.stopPropagation();
-          showDrawer();
-        }}
-        onMouseDown={(e) => {
-          if (e.button === 0) {
-            e.stopPropagation();
-            showDrawer();
-          }
-        }}
-        style={{ display: "flex", alignItems: "center" }}
-      >
+      <div style={{ display: "flex", alignItems: "center" }}>
         <Button
           type="text"
           aria-label={chat.assistantName}
