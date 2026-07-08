@@ -1,6 +1,6 @@
 import { formatSnakeCased } from "../../misc/format-utils.ts";
 import React from "react";
-import { Tag, Tooltip } from "antd";
+import { Tag, theme, Tooltip } from "antd";
 import {
   BulkDeploymentStatus,
   ImportEntityStatus,
@@ -17,7 +17,11 @@ type CombinedStatus =
   | ImportInstructionAction
   | BulkDeploymentStatus;
 
-function getStatusColor(status: CombinedStatus): PresetStatusColor {
+type StatusColor = PresetStatusColor | "neutral";
+
+function getStatusColor(status?: CombinedStatus): StatusColor {
+  if (!status) return "neutral";
+
   switch (status) {
     case SystemImportStatus.CREATED:
     case ImportEntityStatus.CREATED:
@@ -35,7 +39,7 @@ function getStatusColor(status: CombinedStatus): PresetStatusColor {
     case ImportEntityStatus.IGNORED:
     case ImportInstructionAction.IGNORE:
     case BulkDeploymentStatus.IGNORED:
-      return "default";
+      return "neutral";
     case ImportEntityStatus.SKIPPED:
     case ImportInstructionStatus.DELETED:
     case ImportInstructionAction.DELETE:
@@ -48,7 +52,7 @@ function getStatusColor(status: CombinedStatus): PresetStatusColor {
     case BulkDeploymentStatus.FAILED_SNAPSHOT:
       return "error";
     default:
-      return "default";
+      return "neutral";
   }
 }
 
@@ -56,10 +60,20 @@ export const StatusTag: React.FC<{
   status?: CombinedStatus;
   message?: string;
 }> = ({ status, message }) => {
-  const color = status ? getStatusColor(status) : "default";
+  const { token } = theme.useToken();
+  const statusColor = getStatusColor(status);
+  const neutral = statusColor === "neutral";
+  const color = neutral ? undefined : statusColor;
+  const neutralStyle: React.CSSProperties | undefined = neutral
+    ? {
+        backgroundColor: token.colorFillQuaternary,
+        borderColor: token.colorBorderSecondary,
+        color: token.colorTextSecondary,
+      }
+    : undefined;
 
   const statusNode = (
-    <Tag variant="solid" color={color}>
+    <Tag variant="solid" color={color} style={neutralStyle}>
       {formatSnakeCased(status ?? "")}
     </Tag>
   );

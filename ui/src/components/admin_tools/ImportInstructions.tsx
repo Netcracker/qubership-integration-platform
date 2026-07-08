@@ -94,11 +94,40 @@ type InstructionRow = {
   children?: InstructionRow[];
 };
 
+type UploadInstructionResultRow = {
+  key: string;
+  id: string;
+  name: string;
+  entityType: ImportEntityType;
+  status?: ImportInstructionResult["status"];
+  errorMessage?: ImportInstructionResult["errorMessage"];
+  isGroup: boolean;
+  children?: UploadInstructionResultRow[];
+};
+
 const ENTITY_DISPLAY: Record<InstructionEntityType, string> = {
   Chain: "Chains",
   Service: "Services",
   "Common Variable": "Common Variables",
 };
+
+const UPLOAD_RESULT_ENTITY_DISPLAY: Record<ImportEntityType, string> = {
+  [ImportEntityType.CHAIN]: "Chains",
+  [ImportEntityType.SERVICE]: "Services",
+  [ImportEntityType.SPECIFICATION_GROUP]: "Specification Groups",
+  [ImportEntityType.SPECIFICATION]: "Specifications",
+  [ImportEntityType.COMMON_VARIABLE]: "Common Variables",
+};
+
+const UPLOAD_RESULT_ENTITY_ICON: Record<ImportEntityType, string> = {
+  [ImportEntityType.CHAIN]: "link",
+  [ImportEntityType.SERVICE]: "cluster",
+  [ImportEntityType.SPECIFICATION_GROUP]: "group",
+  [ImportEntityType.SPECIFICATION]: "fileText",
+  [ImportEntityType.COMMON_VARIABLE]: "code",
+};
+
+const UPLOAD_RESULT_ENTITY_ORDER = Object.values(ImportEntityType);
 
 /** Injected by rc-table; must match expandable.columnWidth and scroll.x. */
 const IMPORT_INSTRUCTIONS_EXPAND_COLUMN_WIDTH = 48;
@@ -231,14 +260,14 @@ export function buildTableData(
       .sort(sortById),
   ];
 
-  return [
+  const groups: InstructionRow[] = [
     {
       key: "Chain",
       id: "Chain",
       entityType: "Chain",
       action: ImportInstructionAction.IGNORE,
       isGroup: true,
-      children: chainChildren.length > 0 ? chainChildren : undefined,
+      children: chainChildren,
     },
     {
       key: "Service",
@@ -246,7 +275,7 @@ export function buildTableData(
       entityType: "Service",
       action: ImportInstructionAction.IGNORE,
       isGroup: true,
-      children: serviceChildren.length > 0 ? serviceChildren : undefined,
+      children: serviceChildren,
     },
     {
       key: "Common Variable",
@@ -254,9 +283,37 @@ export function buildTableData(
       entityType: "Common Variable",
       action: ImportInstructionAction.IGNORE,
       isGroup: true,
-      children: varChildren.length > 0 ? varChildren : undefined,
+      children: varChildren,
     },
   ];
+
+  return groups.filter((row) => row.children?.length);
+}
+
+export function buildUploadResultTableData(
+  results: ImportInstructionResult[],
+): UploadInstructionResultRow[] {
+  const rowsByEntityType = results.reduce((groups, result, index) => {
+    const groupRows = groups.get(result.entityType) ?? [];
+    groupRows.push({
+      ...result,
+      key: `${result.entityType}-${result.id}-${index}`,
+      isGroup: false,
+    });
+    groups.set(result.entityType, groupRows);
+    return groups;
+  }, new Map<ImportEntityType, UploadInstructionResultRow[]>());
+
+  return UPLOAD_RESULT_ENTITY_ORDER.filter((entityType) =>
+    rowsByEntityType.has(entityType),
+  ).map((entityType) => ({
+    key: `group-${entityType}`,
+    id: entityType,
+    name: UPLOAD_RESULT_ENTITY_DISPLAY[entityType],
+    entityType,
+    isGroup: true,
+    children: rowsByEntityType.get(entityType),
+  }));
 }
 
 type CollectedIds = {
@@ -297,10 +354,12 @@ function filterRowsBySearchTerm(
         (c.name?.toLowerCase().includes(t) ?? false) ||
         c.labels?.some((l) => l.toLowerCase().includes(t)),
     ) ?? [];
-  return rows.map((r) => ({
-    ...r,
-    children: r.children?.length ? filterChildren(r.children) : undefined,
-  }));
+  return rows
+    .map((r) => ({
+      ...r,
+      children: r.children?.length ? filterChildren(r.children) : [],
+    }))
+    .filter((r) => r.children.length > 0);
 }
 
 export const ImportInstructions: React.FC = () => {
@@ -925,16 +984,40 @@ export const UploadInstructionsModal: React.FC<
   const notificationService = useNotificationService();
   const { showModal } = useModalsContext();
 
-  const uploadResultColumns = useMemo(
+  const uploadResultTableData = useMemo(
+    () => buildUploadResultTableData(result),
+    [result],
+  );
+
+  const uploadResultColumns = useMemo<
+    TableProps<UploadInstructionResultRow>["columns"]
+  >(
     () => [
-      { title: "Id", dataIndex: "name", key: "id" },
+      {
+        title: "Id",
+        dataIndex: "id",
+        key: "id",
+        render: (_name: unknown, row: UploadInstructionResultRow) =>
+          row.isGroup ? (
+            <strong>
+              <OverridableIcon
+                name={UPLOAD_RESULT_ENTITY_ICON[row.entityType]}
+                className={commonStyles.iconInline}
+              />
+              {row.name ?? row.id}
+            </strong>
+          ) : (
+            row.name ?? row.id
+          ),
+      },
       {
         title: "Status",
         dataIndex: "status",
         key: "status",
-        render: (_status: unknown, row: ImportInstructionResult) => (
-          <StatusTag status={row.status} message={row.errorMessage} />
-        ),
+        render: (_status: unknown, row: UploadInstructionResultRow) =>
+          row.isGroup ? null : (
+            <StatusTag status={row.status} message={row.errorMessage} />
+          ),
       },
     ],
     [],
@@ -944,10 +1027,16 @@ export const UploadInstructionsModal: React.FC<
     columnsWithResize: uploadColumnsWithResize,
     components: uploadInstructionsComponents,
     scrollX: uploadInstructionsScrollX,
-  } = useColumnsWithResizeAndScroll(uploadResultColumns, {
-    id: 280,
-    status: 200,
-  });
+  } = useColumnsWithResizeAndScroll(
+    uploadResultColumns,
+    {
+      id: 280,
+      status: 200,
+    },
+    {
+      expandColumnWidth: IMPORT_INSTRUCTIONS_EXPAND_COLUMN_WIDTH,
+    },
+  );
 
   const uploadSelectedFile = useCallback(async () => {
     setUploading(true);
@@ -1009,14 +1098,19 @@ export const UploadInstructionsModal: React.FC<
       ]}
     >
       {uploaded ? (
-        <Table
+        <Table<UploadInstructionResultRow>
           size="small"
-          rowKey={(r) => `${r.entityType}-${r.id}`}
+          rowKey="key"
           columns={uploadColumnsWithResize}
-          dataSource={result}
+          dataSource={uploadResultTableData}
           pagination={false}
           scroll={{ x: uploadInstructionsScrollX }}
           components={uploadInstructionsComponents}
+          expandable={{
+            expandIcon: treeExpandIcon<UploadInstructionResultRow>(),
+            columnWidth: IMPORT_INSTRUCTIONS_EXPAND_COLUMN_WIDTH,
+            defaultExpandAllRows: true,
+          }}
         />
       ) : (
         <Dragger
