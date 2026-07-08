@@ -1,18 +1,32 @@
+/*
+ * Copyright 2024-2025 NetCracker Technology Corporation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.qubership.integration.platform.engine.camel;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.camel.Exchange;
 import org.apache.camel.ExchangeExtension;
-import org.junit.jupiter.api.DisplayNameGeneration;
+import org.apache.camel.impl.DefaultCamelContext;
+import org.apache.camel.support.DefaultExchange;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
-import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
-import org.qubership.integration.platform.engine.testutils.MockExchanges;
-import org.qubership.integration.platform.engine.testutils.ObjectMappers;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -21,35 +35,30 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class ChainsAggregationStrategyTest {
 
-    private final ObjectMapper objectMapper = ObjectMappers.getObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final ChainsAggregationStrategy strategy = new ChainsAggregationStrategy(objectMapper);
 
     @Test
     void shouldReturnNullWhenFirstExchangeFailed() {
         Exchange newExchange = createBranchExchange("customerDetails", "{\"customerId\":\"C-100500\"}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
 
         newExchange.setException(new IllegalStateException("boom"));
 
-        Exchange result = strategy.aggregate(null, newExchange, inputExchange);
-
-        assertNull(result);
+        assertNull(strategy.aggregate(null, newExchange, inputExchange));
     }
 
     @Test
     void shouldReturnOldExchangeWhenNextExchangeFailed() {
         Exchange oldExchange = createBranchExchange("customerDetails", "{\"customerId\":\"C-100500\"}");
         Exchange newExchange = createBranchExchange("orderSummary", "{\"orderId\":\"O-456\"}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
 
         newExchange.setException(new IllegalStateException("boom"));
 
-        Exchange result = strategy.aggregate(oldExchange, newExchange, inputExchange);
-
-        assertSame(oldExchange, result);
+        assertSame(oldExchange, strategy.aggregate(oldExchange, newExchange, inputExchange));
     }
 
     @Test
@@ -70,8 +79,8 @@ class ChainsAggregationStrategyTest {
         Exchange aggregatedExchange = createBranchExchange("customerDetails", "{\"customerId\":\"C-100500\"}");
         Exchange newExchange = createBranchExchange("orderSummary", "{\"orderId\":\"O-456\"}");
 
-        Exchange firstResult = strategy.aggregate(null, aggregatedExchange);
-        Exchange result = strategy.aggregate(firstResult, newExchange);
+        strategy.aggregate(null, aggregatedExchange);
+        Exchange result = strategy.aggregate(aggregatedExchange, newExchange);
 
         JsonNode body = (JsonNode) result.getMessage().getBody();
 
@@ -97,7 +106,7 @@ class ChainsAggregationStrategyTest {
     void shouldPropagateHeadersWithBranchPrefixAndSkipInternalHeadersWhenHeaderPropagationEnabled() {
         Exchange oldExchange = createBranchExchange("customerDetails", "{}");
         Exchange newExchange = createBranchExchange("orderSummary", "{}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
 
         oldExchange.setProperty(Properties.SPLIT_PROPAGATE_HEADERS, true);
         newExchange.setProperty(Properties.SPLIT_PROPAGATE_HEADERS, true);
@@ -120,7 +129,7 @@ class ChainsAggregationStrategyTest {
     void shouldPropagateHeadersWithoutPrefixWhenMainBranchAggregated() {
         Exchange oldExchange = createBranchExchange("mainResponse", "{}");
         Exchange newExchange = createBranchExchange("orderSummary", "{}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
 
         oldExchange.setProperty(Properties.SPLIT_BRANCH_TYPE, "main");
         oldExchange.getMessage().setHeader("X-Correlation-Id", "REQ-42");
@@ -135,7 +144,7 @@ class ChainsAggregationStrategyTest {
     void shouldPropagatePropertiesWithBranchPrefixAndSkipInternalAndVariablesPropertiesWhenPropertyPropagationEnabled() {
         Exchange oldExchange = createBranchExchange("customerDetails", "{}");
         Exchange newExchange = createBranchExchange("orderSummary", "{}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
 
         oldExchange.setProperty(Properties.SPLIT_PROPAGATE_PROPERTIES, true);
         newExchange.setProperty(Properties.SPLIT_PROPAGATE_PROPERTIES, true);
@@ -163,7 +172,7 @@ class ChainsAggregationStrategyTest {
     void shouldPropagatePropertiesWithBranchPrefixWhenExchangePropertiesAlreadyProcessed() {
         Exchange oldExchange = createBranchExchange("mainBranch", "{}");
         Exchange newExchange = createBranchExchange("warmup", "{}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
 
         oldExchange.setProperty(Properties.SPLIT_BRANCH_TYPE, "main");
         oldExchange.setProperty("mainProp", "from-main");
@@ -186,7 +195,7 @@ class ChainsAggregationStrategyTest {
     void shouldPropagateHeadersWithBranchPrefixWhenExchangeHeaderAlreadyProcessed() {
         Exchange oldExchange = createBranchExchange("mainBranch", "{}");
         Exchange newExchange = createBranchExchange("warmup", "{}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
 
         oldExchange.setProperty(Properties.SPLIT_BRANCH_TYPE, "main");
         oldExchange.getMessage().setHeader("X-Main-Id", "main-1");
@@ -209,7 +218,7 @@ class ChainsAggregationStrategyTest {
     void shouldPropagateHeadersWithBranchPrefixWhenBranchSharesInputHeaderMap() {
         Exchange oldExchange = createBranchExchange("mainBranch", "{}");
         Exchange newExchange = createBranchExchange("warmup", "{}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
 
         Map<String, Object> sharedHeaders = inputExchange.getMessage().getHeaders();
         oldExchange.getMessage().setHeaders(sharedHeaders);
@@ -228,7 +237,7 @@ class ChainsAggregationStrategyTest {
     @Test
     void shouldReturnNullWhenFirstExchangeIsRollbackOnly() {
         Exchange newExchange = createBranchExchange("customerDetails", "{}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
         newExchange.setRollbackOnly(true);
 
         assertNull(strategy.aggregate(null, newExchange, inputExchange));
@@ -238,7 +247,7 @@ class ChainsAggregationStrategyTest {
     void shouldReturnOldExchangeWhenNextExchangeIsRollbackOnly() {
         Exchange oldExchange = createBranchExchange("customerDetails", "{}");
         Exchange newExchange = createBranchExchange("orderSummary", "{}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
         newExchange.setRollbackOnly(true);
 
         assertSame(oldExchange, strategy.aggregate(oldExchange, newExchange, inputExchange));
@@ -248,7 +257,7 @@ class ChainsAggregationStrategyTest {
     void shouldReturnOldExchangeWhenErrorHandlerHandledSet() {
         Exchange oldExchange = createBranchExchange("customerDetails", "{}");
         Exchange newExchange = mock(Exchange.class);
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
         ExchangeExtension extension = mock(ExchangeExtension.class);
 
         when(newExchange.isFailed()).thenReturn(false);
@@ -264,7 +273,7 @@ class ChainsAggregationStrategyTest {
     @Test
     void shouldAggregateFirstSuccessfulExchangeWithInputExchange() {
         Exchange newExchange = createBranchExchange("customerDetails", "{\"customerId\":\"C-1\"}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
         newExchange.setProperty(Properties.SPLIT_PROPAGATE_PROPERTIES, true);
         newExchange.setProperty("customerId", "C-1");
 
@@ -280,7 +289,7 @@ class ChainsAggregationStrategyTest {
     void shouldNotPropagateSecondaryHeadersWhenPropagationDisabled() {
         Exchange oldExchange = createBranchExchange("mainBranch", "{}");
         Exchange newExchange = createBranchExchange("warmup", "{}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
 
         oldExchange.setProperty(Properties.SPLIT_BRANCH_TYPE, "main");
         newExchange.setProperty(Properties.SPLIT_BRANCH_TYPE, "secondary");
@@ -296,7 +305,7 @@ class ChainsAggregationStrategyTest {
     void shouldNotPropagateSecondaryPropertiesWhenPropagationDisabled() {
         Exchange oldExchange = createBranchExchange("mainBranch", "{}");
         Exchange newExchange = createBranchExchange("warmup", "{}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
 
         oldExchange.setProperty(Properties.SPLIT_BRANCH_TYPE, "main");
         newExchange.setProperty(Properties.SPLIT_BRANCH_TYPE, "secondary");
@@ -312,7 +321,7 @@ class ChainsAggregationStrategyTest {
     void shouldPropagateMainBranchPropertiesWithoutPrefix() {
         Exchange oldExchange = createBranchExchange("mainBranch", "{}");
         Exchange newExchange = createBranchExchange("warmup", "{}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
 
         oldExchange.setProperty(Properties.SPLIT_BRANCH_TYPE, "main");
         oldExchange.setProperty("mainProp", "from-main");
@@ -330,7 +339,7 @@ class ChainsAggregationStrategyTest {
     void shouldRemoveInputHeadersAbsentOnBranchDuringSynchronization() {
         Exchange oldExchange = createBranchExchange("customerDetails", "{}");
         Exchange newExchange = createBranchExchange("orderSummary", "{}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
 
         inputExchange.getMessage().setHeader("stale-header", "stale-value");
         oldExchange.getMessage().setHeader("X-Customer-Id", "C-1");
@@ -349,7 +358,7 @@ class ChainsAggregationStrategyTest {
     void shouldRemoveInputPropertiesAbsentOnBranchDuringSynchronization() {
         Exchange oldExchange = createBranchExchange("customerDetails", "{}");
         Exchange newExchange = createBranchExchange("orderSummary", "{}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
 
         inputExchange.setProperty("staleProp", "stale-value");
         oldExchange.setProperty("customerId", "C-1");
@@ -367,7 +376,7 @@ class ChainsAggregationStrategyTest {
     void shouldSkipInternalPropertyPrefixWhenPropagatingProperties() {
         Exchange oldExchange = createBranchExchange("warmup", "{}");
         Exchange newExchange = createBranchExchange("orderSummary", "{}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
 
         oldExchange.setProperty(Properties.SPLIT_PROPAGATE_PROPERTIES, true);
         oldExchange.setProperty(Properties.SPLIT_EXCHANGE_PROPERTIES_PROCESSED, true);
@@ -383,7 +392,7 @@ class ChainsAggregationStrategyTest {
     void shouldNotPropagateInternalPropertyPrefixKeysFromSecondaryBranch() {
         Exchange oldExchange = createBranchExchange("mainBranch", "{}");
         Exchange newExchange = createBranchExchange("warmup", "{}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
 
         oldExchange.setProperty(Properties.SPLIT_BRANCH_TYPE, "main");
         newExchange.setProperty(Properties.SPLIT_BRANCH_TYPE, "secondary");
@@ -401,7 +410,7 @@ class ChainsAggregationStrategyTest {
     void shouldPreservePropagationFlagsOnAggregatedExchange() {
         Exchange oldExchange = createBranchExchange("warmup", "{}");
         Exchange newExchange = createBranchExchange("orderSummary", "{}");
-        Exchange inputExchange = MockExchanges.defaultExchange();
+        Exchange inputExchange = defaultExchange();
 
         oldExchange.setProperty(Properties.SPLIT_PROPAGATE_HEADERS, true);
         oldExchange.setProperty(Properties.SPLIT_PROPAGATE_PROPERTIES, true);
@@ -439,8 +448,12 @@ class ChainsAggregationStrategyTest {
         assertEquals("{invalid-json", result.getMessage().getBody(String.class));
     }
 
+    private Exchange defaultExchange() {
+        return new DefaultExchange(new DefaultCamelContext());
+    }
+
     private Exchange createBranchExchange(String branchName, String body) {
-        Exchange exchange = MockExchanges.defaultExchange();
+        Exchange exchange = defaultExchange();
         exchange.setProperty(Properties.SPLIT_ID, branchName);
         exchange.getMessage().setBody(body);
         return exchange;
