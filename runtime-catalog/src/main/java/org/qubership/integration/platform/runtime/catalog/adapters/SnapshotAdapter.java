@@ -90,4 +90,9 @@ public class SnapshotAdapter implements Snapshot {
     public String getDescription() {
         return snapshot.getDescription();
     }
+
+    @Override
+    public Optional<Folder> getParentFolder() {
+        return getChain().getParentFolder();
+    }
 }

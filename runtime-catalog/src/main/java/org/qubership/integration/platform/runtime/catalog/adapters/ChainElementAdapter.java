@@ -24,6 +24,11 @@ public class ChainElementAdapter implements Element {
     }
 
     @Override
+    public Optional<Element> getSwimlane() {
+        return Optional.ofNullable(chainElement.getSwimlane()).map(ChainElementAdapter::new);
+    }
+
+    @Override
     public Optional<Snapshot> getSnapshot() {
         return Optional.ofNullable(chainElement.getSnapshot()).map(SnapshotAdapter::new);
     }
