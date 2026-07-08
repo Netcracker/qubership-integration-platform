@@ -525,40 +525,24 @@
   border: none !important;
 }
 
-/* Edge styling */
+/* Edge colors come from ReactFlow's own --xy-edge-stroke* vars: its :focus rule
+   outranks a plain .selected override, which otherwise left clicked edges gray. */
+.react-flow {
+  --xy-edge-stroke: var(--vscode-foreground);
+  --xy-edge-stroke-selected: var(--vscode-focusBorder);
+}
+
+[data-theme="dark"] .react-flow {
+  --xy-edge-stroke: rgb(255 255 255 / 40%);
+  --xy-edge-stroke-selected: var(--vscode-focusBorder);
+}
+
 .react-flow__edge {
-  stroke: var(--vscode-foreground);
   stroke-width: 2px;
 }
 
 .react-flow__edge.selected {
-  stroke: var(--vscode-focusBorder);
   stroke-width: 3px;
-}
-
-.react-flow__edge-path {
-  stroke: var(--vscode-foreground);
-}
-
-[data-theme="dark"] .react-flow__edge-path {
-  stroke: rgb(255 255 255 / 40%);
-}
-
-.react-flow__edge.selected .react-flow__edge-path {
-  stroke: var(--vscode-focusBorder);
-}
-
-/* Dark theme - more visible edges */
-[data-theme="dark"] .react-flow__edge {
-  stroke: rgb(255 255 255 / 40%);
-}
-
-[data-theme="dark"] .react-flow__edge.selected {
-  stroke: var(--vscode-focusBorder);
-}
-
-[data-theme="dark"] .react-flow__edge.selected .react-flow__edge-path {
-  stroke: var(--vscode-focusBorder);
 }
 
 /* Connection line */

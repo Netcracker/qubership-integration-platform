@@ -29,6 +29,7 @@ import {
 } from "../../table/useColumnSettingsButton.tsx";
 import { ChainColumn } from "../ui/ChainColumn.tsx";
 import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { nameLinkStyle } from "../../table/nameLinkStyle.ts";
 
 const SELECTION_COLUMN_WIDTH = 48;
 
@@ -93,6 +94,7 @@ export const ContextServiceList: React.FC = () => {
       minWidth: 120,
       render: (_: unknown, system) => (
         <a
+          style={nameLinkStyle}
           href={`/services/context/${system.id}/parameters`}
           onClick={(event) => {
             event.preventDefault();

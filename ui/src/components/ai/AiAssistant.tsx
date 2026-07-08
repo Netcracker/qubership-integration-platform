@@ -38,7 +38,7 @@ export const AiAssistant: React.FC = () => {
             showDrawer();
           }
         }}
-        style={{ display: "inline-block" }}
+        style={{ display: "flex", alignItems: "center" }}
       >
         <Button
           type="text"

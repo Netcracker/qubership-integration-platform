@@ -26,6 +26,7 @@ import {
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton.tsx";
 import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { nameLinkStyle } from "../../table/nameLinkStyle.ts";
 import { useFilter } from "../../table/filter/useFilter.tsx";
 import {
   DateFilterConditions,
@@ -142,6 +143,7 @@ export const McpServiceList: React.FC = () => {
       minWidth: 120,
       render: (_: unknown, system) => (
         <a
+          style={nameLinkStyle}
           href={`/services/mcp/${system.id}/parameters`}
           onClick={(event) => {
             event.preventDefault();
@@ -202,6 +204,7 @@ export const McpServiceList: React.FC = () => {
       key: "createdWhen",
       width: 160,
       render: (_: unknown, system) => formatTimestamp(system.createdWhen),
+      hidden: true,
     },
     {
       title: "Created By",
@@ -210,6 +213,7 @@ export const McpServiceList: React.FC = () => {
       width: 130,
       render: (_: unknown, system) =>
         formatOptional(system.createdBy?.username),
+      hidden: true,
     },
     {
       title: "Modified At",
@@ -217,6 +221,7 @@ export const McpServiceList: React.FC = () => {
       key: "modifiedWhen",
       width: 160,
       render: (_: unknown, system) => formatTimestamp(system.modifiedWhen),
+      hidden: true,
     },
     {
       title: "Modified By",
@@ -225,6 +230,7 @@ export const McpServiceList: React.FC = () => {
       width: 130,
       render: (_: unknown, system) =>
         formatOptional(system.modifiedBy?.username),
+      hidden: true,
     },
     {
       ...createActionsColumnBase<MCPSystem>(),
