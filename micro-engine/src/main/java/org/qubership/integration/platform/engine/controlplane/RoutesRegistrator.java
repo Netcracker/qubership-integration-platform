@@ -27,7 +27,7 @@ import static org.qubership.integration.platform.engine.rest.RestApiConstants.V1
 @ApplicationScoped
 @IfBuildProperty(name = "qip.control-plane.routes.registration.enabled", stringValue = "true", enableIfMissing = true)
 public class RoutesRegistrator {
-    private static final Logger log = LoggerFactory.getLogger(RoutesRegistrator.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RoutesRegistrator.class);
 
     private final RoutesRestRegistrationProcessor routesRestRegistrationProcessor;
     private final EngineInfo engineInfo;
