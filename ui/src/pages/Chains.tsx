@@ -20,6 +20,7 @@ import { EntityLabels } from "../components/labels/EntityLabels.tsx";
 import { TableRowSelection } from "antd/lib/table/interface";
 import { CompactSearch } from "../components/table/CompactSearch.tsx";
 import { tableScroll } from "../components/table/tableScroll.ts";
+import { nameLinkStyle } from "../components/table/nameLinkStyle.ts";
 import type { BreadcrumbProps } from "antd/es/breadcrumb/Breadcrumb";
 import { DeploymentsCumulativeState } from "../components/deployment_runtime_states/DeploymentsCumulativeState.tsx";
 import { FolderEdit, FolderEditMode } from "../components/modal/FolderEdit.tsx";
@@ -966,9 +967,10 @@ const Chains = () => {
           {item.itemType === CatalogItemType.FOLDER ? (
             <OverridableIcon name="folder" />
           ) : (
-            <OverridableIcon name="file" />
+            <OverridableIcon name="chain" />
           )}
           <a
+            style={nameLinkStyle}
             href={
               item.itemType === CatalogItemType.FOLDER
                 ? `/chains?folder=${item.id}`

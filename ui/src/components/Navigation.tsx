@@ -29,7 +29,7 @@ const Navigation = () => {
       {
         label: <Link to="/chains">Chains</Link>,
         key: "chains",
-        icon: <OverridableIcon name="unorderedList" />,
+        icon: <OverridableIcon name="chain" />,
         require: { chain: ["list"] },
       },
       {
@@ -41,13 +41,13 @@ const Navigation = () => {
       {
         label: <Link to="/admintools">Admin Tools</Link>,
         key: "admintools",
-        icon: <OverridableIcon name="desktop" />,
+        icon: <OverridableIcon name="tool" />,
         require: { adminTools: ["read"] },
       },
       {
         label: <Link to="/devtools">Dev Tools</Link>,
         key: "devtools",
-        icon: <OverridableIcon name="tool" />,
+        icon: <OverridableIcon name="bug" />,
         require: { devTools: ["read"] },
       },
     ];

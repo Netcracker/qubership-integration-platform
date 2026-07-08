@@ -1,5 +1,6 @@
 import React from "react";
 import type { AntdIconProps } from "@ant-design/icons/lib/components/AntdIcon";
+import mcpIcon from "../assets/mcp.svg?raw";
 import {
   DeleteOutlined,
   PlusOutlined,
@@ -110,6 +111,7 @@ import {
   BulbOutlined,
   BarChartOutlined,
   ToolOutlined,
+  BugOutlined,
   KubernetesOutlined,
   MenuUnfoldOutlined,
   InfoCircleOutlined,
@@ -129,7 +131,6 @@ import {
   MinusCircleOutlined,
   SyncOutlined,
   ColumnWidthOutlined,
-  MessageOutlined,
   CaretUpOutlined,
   CaretDownOutlined,
 } from "@ant-design/icons";
@@ -252,6 +253,8 @@ export const commonIcons = {
   bulb: BulbOutlined,
   barChart: BarChartOutlined,
   tool: ToolOutlined,
+  bug: BugOutlined,
+  chain: NodeIndexOutlined,
   rightPanel: InsertRowRightOutlined,
   leftPanel: InsertRowLeftOutlined,
   block: BlockOutlined,
@@ -265,7 +268,7 @@ export const commonIcons = {
   importInstructions: ImportOutlined,
   warning: WarningOutlined,
   checkSquare: CheckSquareOutlined,
-  mcp: MessageOutlined,
+  mcp: mcpIcon,
   comment: CommentOutlined,
   paperClip: PaperClipOutlined,
   user: UserOutlined,
@@ -286,6 +289,7 @@ export const commonIcons = {
 };
 
 export const elementIcons = {
+  "mcp-trigger": mcpIcon,
   checkpoint: FlagOutlined,
   "file-read": FileSearchOutlined,
   "file-write": FileTextOutlined,

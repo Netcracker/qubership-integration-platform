@@ -8,8 +8,8 @@ import {
   MCPSystem,
   MCPSystemCreateRequest,
 } from "../../../api/apiTypes.ts";
-import { formatOptional, formatTimestamp } from "../../../misc/format-utils.ts";
 import { createActionsColumnBase } from "../../table/actionsColumn.ts";
+import { createAuditColumns } from "../../table/auditColumns.ts";
 import { tableScroll } from "../../table/tableScroll.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { api } from "../../../api/api.ts";
@@ -26,6 +26,7 @@ import {
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton.tsx";
 import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { nameLinkStyle } from "../../table/nameLinkStyle.ts";
 import { useFilter } from "../../table/filter/useFilter.tsx";
 import {
   DateFilterConditions,
@@ -142,6 +143,7 @@ export const McpServiceList: React.FC = () => {
       minWidth: 120,
       render: (_: unknown, system) => (
         <a
+          style={nameLinkStyle}
           href={`/services/mcp/${system.id}/parameters`}
           onClick={(event) => {
             event.preventDefault();
@@ -196,36 +198,7 @@ export const McpServiceList: React.FC = () => {
         <ChainColumn chains={system.chains ?? []} />
       ),
     },
-    {
-      title: "Created At",
-      dataIndex: "createdWhen",
-      key: "createdWhen",
-      width: 160,
-      render: (_: unknown, system) => formatTimestamp(system.createdWhen),
-    },
-    {
-      title: "Created By",
-      dataIndex: "createdBy",
-      key: "createdBy",
-      width: 130,
-      render: (_: unknown, system) =>
-        formatOptional(system.createdBy?.username),
-    },
-    {
-      title: "Modified At",
-      dataIndex: "modifiedWhen",
-      key: "modifiedWhen",
-      width: 160,
-      render: (_: unknown, system) => formatTimestamp(system.modifiedWhen),
-    },
-    {
-      title: "Modified By",
-      dataIndex: "modifiedBy",
-      key: "modifiedBy",
-      width: 130,
-      render: (_: unknown, system) =>
-        formatOptional(system.modifiedBy?.username),
-    },
+    ...createAuditColumns<MCPSystem>(),
     {
       ...createActionsColumnBase<MCPSystem>(),
       render: (_: unknown, system) => (

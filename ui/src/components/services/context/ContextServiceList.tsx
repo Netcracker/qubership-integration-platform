@@ -16,12 +16,12 @@ import { GenericServiceListPage } from "./../GenericServiceListPage.tsx";
 import { useAsyncRequest } from "../useAsyncRequest.ts";
 import { useContextServiceFilters } from "../../../hooks/useContextServiceFilter.ts";
 import { createActionsColumnBase } from "../../table/actionsColumn.ts";
+import { createAuditColumns } from "../../table/auditColumns.ts";
 import { tableScroll } from "../../table/tableScroll.ts";
 import { Require } from "../../../permissions/Require.tsx";
 import { EntityLabels } from "../../labels/EntityLabels.tsx";
 import { InlineEdit } from "../../InlineEdit.tsx";
 import { LabelsEdit } from "../../table/LabelsEdit.tsx";
-import { formatOptional, formatTimestamp } from "../../../misc/format-utils.ts";
 import { ProtectedDropdown } from "../../../permissions/ProtectedDropdown.tsx";
 import {
   ColumnsTypeWithSettings,
@@ -29,6 +29,7 @@ import {
 } from "../../table/useColumnSettingsButton.tsx";
 import { ChainColumn } from "../ui/ChainColumn.tsx";
 import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { nameLinkStyle } from "../../table/nameLinkStyle.ts";
 
 const SELECTION_COLUMN_WIDTH = 48;
 
@@ -93,6 +94,7 @@ export const ContextServiceList: React.FC = () => {
       minWidth: 120,
       render: (_: unknown, system) => (
         <a
+          style={nameLinkStyle}
           href={`/services/context/${system.id}/parameters`}
           onClick={(event) => {
             event.preventDefault();
@@ -140,40 +142,7 @@ export const ContextServiceList: React.FC = () => {
         <ChainColumn chains={system.chains ?? []} />
       ),
     },
-    {
-      title: "Created At",
-      dataIndex: "createdWhen",
-      key: "createdWhen",
-      width: 160,
-      render: (_: unknown, system) => formatTimestamp(system.createdWhen),
-      hidden: true,
-    },
-    {
-      title: "Created By",
-      dataIndex: "createdBy",
-      key: "createdBy",
-      width: 130,
-      render: (_: unknown, system) =>
-        formatOptional(system.createdBy?.username),
-      hidden: true,
-    },
-    {
-      title: "Modified At",
-      dataIndex: "modifiedWhen",
-      key: "modifiedWhen",
-      width: 160,
-      render: (_: unknown, system) => formatTimestamp(system.modifiedWhen),
-      hidden: true,
-    },
-    {
-      title: "Modified By",
-      dataIndex: "modifiedBy",
-      key: "modifiedBy",
-      width: 130,
-      render: (_: unknown, system) =>
-        formatOptional(system.modifiedBy?.username),
-      hidden: true,
-    },
+    ...createAuditColumns<ContextSystem>(),
     {
       ...createActionsColumnBase<ContextSystem>(),
       render: (_: unknown, system) => (

@@ -97,6 +97,10 @@ const config: Config = {
   moduleNameMapper: {
     "^tests/helpers/(.*)$": "<rootDir>/tests/helpers/$1",
     "^@netcracker/qip-schemas$": "<rootDir>/tests/__mocks__/qipSchemasStub.cjs",
+    "\\.svg\\?raw$": "<rootDir>/tests/__mocks__/svgRawMock.cjs",
+    // @ant-design/icons@6.3.x CJS build deep-requires the ESM `.../colors/es/*`;
+    // redirect to the CJS `lib/` twin so Jest's CommonJS runtime can load it.
+    "^@ant-design/colors/es/(.*)$": "@ant-design/colors/lib/$1",
     "DomainsTablesLayout\\.module\\.css$":
       "<rootDir>/tests/__mocks__/domainsTablesLayoutModule.cjs",
     "CommonStyle\\.module\\.css$":
