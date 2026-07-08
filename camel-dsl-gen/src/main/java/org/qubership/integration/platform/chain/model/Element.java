@@ -9,6 +9,8 @@ public interface Element extends Entity {
 
     Optional<Element> getParent();
 
+    Optional<Element> getSwimlane();
+
     Optional<Snapshot> getSnapshot();
 
     Map<String, Object> getProperties();

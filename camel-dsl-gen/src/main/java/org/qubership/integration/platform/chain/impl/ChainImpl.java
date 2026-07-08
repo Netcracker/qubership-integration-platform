@@ -26,11 +26,19 @@ public class ChainImpl implements Chain {
     @Setter
     private Element reuseSwimlane;
 
+    @Setter
+    private Folder parentFolder;
+
     public Optional<Element> getDefaultSwimlane() {
         return Optional.ofNullable(defaultSwimlane);
     }
 
     public Optional<Element> getReuseSwimlane() {
         return Optional.ofNullable(reuseSwimlane);
+    }
+
+    @Override
+    public Optional<Folder> getParentFolder() {
+        return Optional.ofNullable(parentFolder);
     }
 }
