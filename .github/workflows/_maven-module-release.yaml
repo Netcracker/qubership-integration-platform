@@ -163,11 +163,11 @@ jobs:
         with:
           java-version: "21"
           distribution: "temurin"
-          server-id: ${{ inputs.profile }}
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_PASSWORD
+          # Server credentials live in .github/maven-settings.xml: setup-java configures
+          # a single server-id, but a Central release authenticates github (resolve
+          # private BOMs) and central (deploy) at once. GPG key stays here; the
+          # passphrase is the gpg.passphrase server in that settings file.
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          gpg-passphrase: MAVEN_GPG_PASSPHRASE
           cache: "maven"
 
       # Pre-install the parent pom so the module deploy below resolves it.
@@ -175,16 +175,21 @@ jobs:
       - name: Install qip-monorepo-parent locally
         if: ${{ needs.check-version.outputs.recover != 'true' }}
         env:
-          MAVEN_USERNAME: ${{ github.actor }}
-          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: mvn --batch-mode -f parent/pom.xml install -N -DskipTests
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" -f parent/pom.xml install -N -DskipTests
 
       - name: Build and deploy module
         if: ${{ needs.check-version.outputs.recover != 'true' }}
         working-directory: ${{ inputs.module }}
         env:
-          MAVEN_USERNAME: ${{ inputs.profile == 'github' && github.actor || secrets.MAVEN_USER }}
-          MAVEN_PASSWORD: ${{ inputs.profile == 'github' && secrets.GITHUB_TOKEN || secrets.MAVEN_PASSWORD }}
+          # github resolves the private BOMs; central receives the deploy (unused
+          # and left empty when profile=github, e.g. micro-engine). Both come from
+          # .github/maven-settings.xml.
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_USER }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
           MVN_PROFILE: ${{ inputs.profile }}
           EXTRA_ARGS: ${{ inputs.mvn-args }}
@@ -197,6 +202,7 @@ jobs:
           # computed release version (-Drevision overrides the pom, changelist stripped via -Dchangelist=).
           # shellcheck disable=SC2086
           mvn --batch-mode deploy \
+            -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
             -P "$MVN_PROFILE" \
             -Drevision="$RELEASE_VERSION" \
             -Dchangelist= \
