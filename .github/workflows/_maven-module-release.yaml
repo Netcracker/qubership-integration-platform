@@ -4,19 +4,25 @@
 # Model (bump-before, hand-rolled on top of ${revision}): the module pom carries
 # <revision>X.Y.Z</revision> (+ <changelist>-SNAPSHOT</> for the services;
 # checkstyle has no changelist) = the last released version. On release we bump
-# it per `release-type`, publish that (changelist stripped), tag it, then write
-# the bumped <revision> back to the branch. You never type the version — pick
-# patch/minor/major. Deciding the version at release time (not pre-writing the
-# next one) keeps forked release lines from colliding on a shared pending
-# version. An optional `version` input overrides for edge cases (first release,
-# explicit jump like a unified 1.0.0). flatten-maven-plugin (ossrh mode) inlines
-# the parent and resolves the placeholder, so the published POM has no SNAPSHOT
-# parent.
+# it per `release-type`, publish that (changelist stripped), then write the
+# bumped <revision> back to the branch and tag that bump commit. You never type
+# the version — pick patch/minor/major. Deciding the version at release time (not
+# pre-writing the next one) keeps forked release lines from colliding on a shared
+# pending version. An optional `version` input overrides for edge cases (first
+# release, explicit jump like a unified 1.0.0). flatten-maven-plugin (ossrh mode)
+# inlines the parent and resolves the placeholder, so the published POM has no
+# SNAPSHOT parent.
+#
+# The tag rides on the bump commit (not the pre-release HEAD), so its <revision>
+# equals the released version and `git checkout <tag>` reproduces the release.
+# commit-and-push.sh pushes the tag before the branch, so the tag lands even if
+# the protected-branch push is rejected — the sentinel below.
 #
 # Recovery: if the tag already exists, a previous run published+tagged the
 # version but its bump commit never landed. check-version flags recover=true and
-# build-and-publish skips deploy/tag/docker and only re-applies the bump, so a
-# partial failure is self-healing on the next run instead of wedging the module.
+# build-and-publish skips deploy/docker and only re-applies the bump (the tag is
+# idempotent), so a partial failure is self-healing on the next run instead of
+# wedging the module.
 #
 # PREREQUISITE: the version-bump push targets a protected branch, so it goes
 # through a GitHub App token (vars.GH_BUMP_VERSION_APP_ID +
@@ -133,7 +139,6 @@ jobs:
       MODULE: ${{ inputs.module }}
       RELEASE_VERSION: ${{ needs.check-version.outputs.release-version }}
       NEXT_DEV: ${{ needs.check-version.outputs.next-dev }}
-      RELEASE_TAG: ${{ needs.check-version.outputs.release-tag }}
       # Gate the app-token step on the App key being present (secrets are not
       # allowed in `if:`, env derived from them is).
       APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
@@ -209,26 +214,19 @@ jobs:
             $SKIP_GPG \
             $EXTRA_ARGS
 
-      - name: Push release tag
-        run: |
-          set -eu
-          # Idempotent: in recovery (or a re-run) the tag may already exist.
-          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "Tag $RELEASE_TAG already exists — skipping."
-          else
-            git tag "$RELEASE_TAG"
-            git push origin "$RELEASE_TAG"
-          fi
-
-      - name: Write released version back to revision and commit
+      - name: Write released version back to revision, tag, and commit
         env:
           BRANCH: ${{ github.ref_name }}
+          TAG: ${{ needs.check-version.outputs.release-tag }}
         run: |
           set -eu
           POM="$MODULE/pom.xml"
           # Write the released version into <revision>; <changelist> (if any)
           # stays untouched. Always runs (incl. recovery) — commit-and-push.sh
-          # no-ops if nothing changed.
+          # no-ops if nothing changed. TAG makes it tag this bump commit (which
+          # carries the released <revision>) and push the tag before the branch,
+          # so `git checkout <tag>` reproduces the released version and recovery
+          # keeps its sentinel even if the protected-branch push is rejected.
           sed -i -E "s#<revision>[0-9]+\.[0-9]+\.[0-9]+</revision>#<revision>${NEXT_DEV}</revision>#" "$POM"
           grep -q "<revision>${NEXT_DEV}</revision>" "$POM" || { echo "::error::Failed to write <revision> in $POM"; exit 1; }
           bash scripts/commit-and-push.sh "chore: $MODULE $RELEASE_VERSION released [skip ci]" "$POM"

@@ -125,7 +125,6 @@ jobs:
       SCOPE: ${{ inputs.scope }}
       DIST_TAG: ${{ inputs.npm-dist-tag }}
       RELEASE_VERSION: ${{ needs.check-version.outputs.release-version }}
-      RELEASE_TAG: ${{ needs.check-version.outputs.release-tag }}
       # Gate the app-token step on the App key being present (secrets are not
       # allowed in `if:`, env derived from them is).
       APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
@@ -192,24 +191,19 @@ jobs:
             npm publish --tag "$DIST_TAG"
           fi
 
-      - name: Push release tag
-        run: |
-          set -eu
-          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "Tag $RELEASE_TAG already exists — skipping."
-          else
-            git tag "$RELEASE_TAG"
-            git push origin "$RELEASE_TAG"
-          fi
-
-      - name: Sync lockfile and commit version bump
+      - name: Sync lockfile, tag, and commit version bump
         env:
           BRANCH: ${{ github.ref_name }}
+          TAG: ${{ needs.check-version.outputs.release-tag }}
         run: |
           set -eu
           # Keep the single root lockfile in sync with the bumped workspace
           # version so the next `npm ci` doesn't fail on a mismatch. Always runs
-          # (incl. recovery) — commit-and-push.sh no-ops if nothing changed.
+          # (incl. recovery) — commit-and-push.sh no-ops if nothing changed. TAG
+          # makes it tag this bump commit (which carries the bumped package.json)
+          # and push the tag before the branch, so `git checkout <tag>` reproduces
+          # the released version and recovery keeps its sentinel even if the
+          # protected-branch push is rejected.
           npm install --package-lock-only --legacy-peer-deps
           bash scripts/commit-and-push.sh \
             "chore: $MODULE $RELEASE_VERSION [skip ci]" \
