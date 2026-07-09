@@ -1,22 +1,17 @@
 #!/usr/bin/env bash
 #
-# Commit the given paths and push to $BRANCH, rebasing onto the remote with
-# retries so parallel releases (release-all runs modules concurrently) don't
-# lose the push to a non-fast-forward. No-op if there is nothing to commit.
+# Commit the given paths and push to $BRANCH, rebasing with retries so parallel
+# releases don't lose the push to a non-fast-forward. No-op if nothing changed.
 #
 # Usage: BRANCH=main [TAG=engine-v1.2.3] scripts/commit-and-push.sh "<msg>" <path>...
 #
-# When TAG is set, the release tag is created on the bump commit and pushed
-# BEFORE the branch push. Two reasons: the tag then marks the released version
-# (not the pre-bump HEAD), and it lands even when the protected-branch bump push
-# is rejected (tags are not branch-protected) — this is the sentinel the release
-# recovery keys on. After the branch push lands, a tag created this run is moved
-# onto the landed commit so it stays reachable from $BRANCH; an existing tag
-# (recovery re-run) is left untouched.
+# TAG (optional): tag the bump commit and push the tag before the branch. The tag
+# then marks the released version and survives a rejected protected-branch push
+# (tags aren't protected) — the sentinel recovery keys on. After the branch lands,
+# a tag we created is re-pointed onto the landed commit; an existing tag (recovery
+# re-run) is left as is.
 #
-# Commit author is the org bot, matching
-# qubership-workflow-hub/actions/maven-release. The actual push uses whatever
-# token is already on the remote (the workflow's App token or GITHUB_TOKEN).
+# Commits as the org bot; pushes with the remote's existing token.
 
 set -euo pipefail
 
@@ -35,18 +30,15 @@ else
     git commit -m "$msg"
 fi
 
-# Tag the bump commit and push the tag ahead of the branch (see header). The tag
-# push survives a rejected branch push, so recovery can detect that the release
-# already happened. Idempotent: a prior run may already hold the tag.
+# Push the tag before the branch, with retries: it is the recovery sentinel after
+# a non-idempotent Central deploy, so losing it would re-deploy and wedge the
+# module next run. Idempotent — a prior run may already hold it.
 tag_created=false
 if [ -n "$tag" ]; then
     if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null 2>&1; then
         echo "Tag $tag already exists — leaving it in place."
     else
         git tag "$tag"
-        # Retry the tag push: it is the recovery sentinel after a non-idempotent
-        # Central deploy, so a transient failure must not abort before it lands
-        # (a lost sentinel re-deploys next run and wedges the module).
         for attempt in $(seq 1 5); do
             if git push origin "$tag"; then
                 tag_created=true
@@ -55,14 +47,16 @@ if [ -n "$tag" ]; then
             echo "tag push attempt $attempt failed; retrying in 5s..." >&2
             sleep 5
         done
-        $tag_created || { echo "::error::Could not push tag $tag after 5 attempts" >&2; exit 1; }
+        $tag_created || {
+            echo "::error::Could not push tag $tag after 5 attempts" >&2
+            exit 1
+        }
     fi
 fi
 
 pushed=false
 for attempt in $(seq 1 5); do
-    # fetch is inside the condition so a transient fetch failure retries instead
-    # of aborting the script under `set -e`.
+    # fetch in the condition: a transient failure retries, not aborts under set -e.
     if git fetch --quiet origin "$branch" && git rebase FETCH_HEAD && git push origin "HEAD:$branch"; then
         pushed=true
         break
@@ -77,11 +71,9 @@ if ! $pushed; then
     exit 1
 fi
 
-# A sibling release pushing first makes the loop rebase our commit onto it,
-# moving it off the SHA the tag was pushed at. Re-point a tag we created this run
-# onto the landed commit so it stays reachable from $branch. Best-effort: the tag
-# already carries the correct revision, so a failed re-point is a warning, not a
-# release failure. A pre-existing tag (recovery) is never force-moved.
+# The rebase above may move our commit off the SHA the tag was pushed at. Re-point
+# a tag we created onto the landed commit (best-effort — it already has the right
+# revision). A pre-existing tag (recovery) is never moved.
 if [ -n "$tag" ] && $tag_created; then
     landed="$(git rev-parse HEAD)"
     if [ "$landed" != "$(git rev-parse "refs/tags/$tag")" ]; then

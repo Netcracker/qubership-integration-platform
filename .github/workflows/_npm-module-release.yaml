@@ -1,27 +1,19 @@
 ---
 # Reusable npm module release workflow.
 #
-# Model (idiomatic `npm version`): the package.json `version` is the last
-# released version. On release we bump it by `release-type` (or use an explicit
-# `version` override), publish that version, push the module-scoped git tag
-# (<module>-vX.Y.Z), and commit the bumped package.json + the root lockfile back
-# to the branch. You never type the version — pick patch/minor/major.
+# Model (idiomatic `npm version`): package.json `version` is the last released
+# version. On release we bump it per release-type (or the `version` override),
+# publish it, commit the bumped package.json + root lockfile, and tag the bump
+# commit (<module>-vX.Y.Z). commit-and-push.sh pushes the tag before the branch,
+# so it survives a rejected protected-branch push — the recovery sentinel: tag
+# exists => a prior run published but the bump didn't land, so recover=true skips
+# install/build/publish and only re-applies the bump.
 #
-# Recovery: if the tag already exists, a previous run published+tagged the
-# version but its bump commit never landed. check-version flags recover=true and
-# npm-publish skips install/build/publish, re-applying the package.json bump
-# only, so a partial failure is self-healing instead of wedging the package.
+# Cascade (schemas → ui → vscode auto patch-bump) lives in the CALLER's wrapper.
 #
-# Cascade (auto patch-bump of the next package in schemas → ui → vscode) lives
-# in the CALLER: the wrapper adds a job that calls the next module's release
-# workflow with release-type=patch.
-#
-# PREREQUISITE: the version-bump push targets a protected branch, so it goes
-# through a GitHub App token (vars.GH_BUMP_VERSION_APP_ID +
-# secrets.GH_BUMP_VERSION_APP_KEY) whose App is on the branch-protection bypass
-# list. Without the App key it falls back to GITHUB_TOKEN, which cannot bypass:
-# the push fails and recovery re-applies the bump on the next run once the App
-# is configured.
+# The bump push needs a GitHub App token on the branch-protection bypass list
+# (vars.GH_BUMP_VERSION_APP_ID + secrets.GH_BUMP_VERSION_APP_KEY); without it
+# GITHUB_TOKEN can't bypass and recovery retries on the next run.
 
 name: NPM Module Release (reusable)
 
@@ -69,21 +61,16 @@ on:
         description: "Private key of the GitHub App that bypasses branch protection for the version-bump push. Falls back to GITHUB_TOKEN if unset."
 
 concurrency:
-  # Literal prefix (NOT github.workflow): inside a reusable, github.workflow is
-  # the TOP-LEVEL caller's name, so manual-vs-cascade or wrapper-vs-release-all
-  # runs of the same module would land in different groups and race the
-  # publish/tag/back-commit. Keying on the module serialises every release path.
+  # Key on the module, not github.workflow (the caller's name in a reusable), so
+  # every release path for a module serialises instead of racing.
   group: qip-release-${{ inputs.module }}-${{ github.ref }}
   cancel-in-progress: false
 
 permissions: {}
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # Preflight: derive the release version from the current package.json (or the
-  # override). If the tag already exists, enter recovery mode (re-apply the bump
-  # only) instead of failing.
-  # ---------------------------------------------------------------------------
+  # Preflight: bump package.json version (or use the override); recover if the
+  # tag already exists.
   check-version:
     runs-on: ubuntu-latest
     permissions:
@@ -108,11 +95,8 @@ jobs:
           VERSION_OVERRIDE: ${{ inputs.version }}
         run: bash scripts/compute-release-version.sh
 
-  # ---------------------------------------------------------------------------
-  # Build, publish (idempotent), tag, then commit the bumped package.json +
-  # lockfile back. In recovery mode (tag exists) install/build/publish are
-  # skipped and only the bump is re-applied.
-  # ---------------------------------------------------------------------------
+  # Build, publish (idempotent), then commit the bumped package.json + lockfile
+  # and tag. Recovery skips install/build/publish and only re-applies the bump.
   npm-publish:
     needs: check-version
     runs-on: ubuntu-latest
@@ -197,13 +181,9 @@ jobs:
           TAG: ${{ needs.check-version.outputs.release-tag }}
         run: |
           set -eu
-          # Keep the single root lockfile in sync with the bumped workspace
-          # version so the next `npm ci` doesn't fail on a mismatch. Always runs
-          # (incl. recovery) — commit-and-push.sh no-ops if nothing changed. TAG
-          # makes it tag this bump commit (which carries the bumped package.json)
-          # and push the tag before the branch, so `git checkout <tag>` reproduces
-          # the released version and recovery keeps its sentinel even if the
-          # protected-branch push is rejected.
+          # Sync the root lockfile with the bumped version so the next `npm ci`
+          # doesn't fail on a mismatch. TAG tags this bump commit and pushes it
+          # first (see the script). Runs in recovery too — no-ops if unchanged.
           npm install --package-lock-only --legacy-peer-deps
           bash scripts/commit-and-push.sh \
             "chore: $MODULE $RELEASE_VERSION [skip ci]" \
