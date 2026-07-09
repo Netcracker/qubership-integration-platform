@@ -42,7 +42,7 @@ public class SdsTriggerInfoBeanBuilder implements ElementBeansBuilder {
 
         streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "cron");
-        streamWriter.writeEmptyElement("value", element.getPropertyAsString(CRON_PROP));
+        streamWriter.writeAttribute("value", element.getPropertyAsString(CRON_PROP));
 
         streamWriter.writeEndElement();
         streamWriter.writeEndElement();
