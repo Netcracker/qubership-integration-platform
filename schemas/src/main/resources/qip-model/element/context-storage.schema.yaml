@@ -24,21 +24,15 @@ properties:
         title: Use correlation ID as context ID
       operation:
         type: string
-        oneOf: [
-          {
-            "const": "SET",
-            "title": "Create context"
-          },
-          {
-            "const": "GET",
-            "title": "Get context"
-          },
-          {
-            "const": "DELETE",
-            "title": "Delete context"
-          }
-        ]
+        oneOf:
+          - const: SET
+            title: Create context
+          - const: GET
+            title: Get context
+          - const: DELETE
+            title: Delete context
         title: Operation
+        default: SET
     allOf:
       - if:
           properties:
@@ -65,36 +59,52 @@ properties:
               title: Value
             ttl:
               type: integer
-              title: Lifetime (s)
-              description: Session context life time (in seconds).
+              title: Time to live
+              description: Context life time (in seconds).
+              default: 21600
           required:
             - key
-            - value
-        else:
+            - ttl
+      - if:
+          properties:
+            operation:
+              const: GET
+        then:
+          properties:
+            keys:
+              type: string
+              title: Keys
+            target:
+              type: string
+              oneOf:
+                - const: BODY
+                  title: Body
+                - const: HEADER
+                  title: Header
+                - const: PROPERTY
+                  title: Property
+              title: Target
+              default: BODY
+            unwrap:
+              type: boolean
+              title: Unwrap
+              description: Unwrap value
+              default: false
           if:
             properties:
-              operation:
-                const: GET
-          then:
-            properties:
-              keys:
-                type: string
-                title: Keys
               target:
-                type: string
                 enum:
-                  - BODY
                   - HEADER
                   - PROPERTY
-                title: Target
+          then:
+            properties:
               targetName:
                 type: string
-                title: Target field's name
-              unwrap:
-                type: boolean
-                title: Unwrap
+                title: Target field name
             required:
-              - target
+              - targetName
+          required:
+            - target
     required:
       - contextServiceId
       - useCorrelationId

@@ -15,29 +15,11 @@ properties:
     const: scs-sender
   properties:
     type: object
-    allOf:
-      - $ref: "http://qubership.org/schemas/product/qip/element/properties/context-propagation.schema.yaml"
     properties:
-      sessionId:
-        type: string
-        title: Session context ID
-        description: Session identifier
       useCorrelationId:
         type: boolean
-        title: Use correlation ID as session context ID
+        title: Use correlation ID as session ID
         default: false
-      operation:
-        type: string
-        title: Operation
-        enum:
-          - GET
-          - DELETE
-          - SET
-      ttl:
-        type: integer
-        title: Time to live
-        description: Session context life time (in seconds).
-        default: 21600
       connectTimeout:
         allOf:
           - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
@@ -46,51 +28,92 @@ properties:
           Specifies connection timeout in millis
           (default value will be used if nothing is given).
         default: 120000
-
-    if:
-      properties:
-        operation:
-          const: SET
-    then:
-      properties:
-        key:
-          type: string
-          title: Key
-        value:
-          type: string
-          title: Value
-      required:
-        - key
-        - value
-    else:
-      if:
-        properties:
-          operation:
-            const: GET
-      then:
-        properties:
-          keys:
-            type: string
-            title: Keys
-          target:
-            type: string
-            enum:
-              - BODY
-              - HEADER
-              - PROPERTY
-              - title: Target
-          targetName:
-            type: string
-            title: Target name
-          unwrap:
-            type: boolean
-            title: Unwrap
-            description: Unwrap value
-            default: false
-        required:
-          - target
+      operation:
+        type: string
+        oneOf:
+          - const: SET
+            title: Create session
+          - const: GET
+            title: Get session
+          - const: DELETE
+            title: Delete session
+        title: Operation
+        default: SET
+    allOf:
+      - $ref: "http://qubership.org/schemas/product/qip/element/properties/context-propagation.schema.yaml"
+      - if:
+          properties:
+            useCorrelationId:
+              const: false
+        then:
+          properties:
+            sessionId:
+              type: string
+              title: Session ID
+              description: Session identifier
+          required:
+            - sessionId
+      - if:
+          properties:
+            operation:
+              const: SET
+        then:
+          properties:
+            key:
+              type: string
+              title: Key
+            value:
+              type: string
+              title: Value
+            ttl:
+              type: integer
+              title: Time to live
+              description: Session life time (in seconds).
+              default: 21600
+          required:
+            - key
+            - ttl
+      - if:
+          properties:
+            operation:
+              const: GET
+        then:
+          properties:
+            keys:
+              type: string
+              title: Keys
+            target:
+              type: string
+              oneOf:
+                - const: BODY
+                  title: Body
+                - const: HEADER
+                  title: Header
+                - const: PROPERTY
+                  title: Property
+              title: Target
+              default: BODY
+            unwrap:
+              type: boolean
+              title: Unwrap
+              description: Unwrap value
+              default: false
+          if:
+            properties:
+              target:
+                enum:
+                  - HEADER
+                  - PROPERTY
+          then:
+            properties:
+              targetName:
+                type: string
+                title: Target field name
+            required:
+              - targetName
+          required:
+            - target
     required:
-      - sessionId
       - useCorrelationId
       - operation
 required:
