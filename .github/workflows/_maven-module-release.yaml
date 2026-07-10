@@ -1,29 +1,22 @@
 ---
 # Reusable Maven module release workflow.
 #
-# Model (bump-before, hand-rolled on top of ${revision}): the module pom carries
-# <revision>X.Y.Z</revision> (+ <changelist>-SNAPSHOT</> for the services;
-# checkstyle has no changelist) = the last released version. On release we bump
-# it per `release-type`, publish that (changelist stripped), tag it, then write
-# the bumped <revision> back to the branch. You never type the version — pick
-# patch/minor/major. Deciding the version at release time (not pre-writing the
-# next one) keeps forked release lines from colliding on a shared pending
-# version. An optional `version` input overrides for edge cases (first release,
-# explicit jump like a unified 1.0.0). flatten-maven-plugin (ossrh mode) inlines
-# the parent and resolves the placeholder, so the published POM has no SNAPSHOT
-# parent.
+# Model (bump-before): the pom <revision> (+ <changelist>-SNAPSHOT for services)
+# holds the last released version. On release we bump it per release-type, publish
+# that (changelist stripped), write the bumped <revision> back, and tag the bump
+# commit. Deciding the version at release time keeps forked release lines from
+# colliding on a shared pending version; `version` overrides for edge cases.
+# flatten-maven-plugin inlines the parent, so the published POM has no SNAPSHOT.
 #
-# Recovery: if the tag already exists, a previous run published+tagged the
-# version but its bump commit never landed. check-version flags recover=true and
-# build-and-publish skips deploy/tag/docker and only re-applies the bump, so a
-# partial failure is self-healing on the next run instead of wedging the module.
+# The tag rides the bump commit, so <revision> matches the released version and
+# `git checkout <tag>` reproduces it. commit-and-push.sh pushes the tag before the
+# branch (tags aren't protected), so it survives a rejected bump push — the
+# recovery sentinel: tag exists => a prior run published but the bump didn't land,
+# so recover=true skips deploy and only re-applies the bump.
 #
-# PREREQUISITE: the version-bump push targets a protected branch, so it goes
-# through a GitHub App token (vars.GH_BUMP_VERSION_APP_ID +
-# secrets.GH_BUMP_VERSION_APP_KEY) whose App is on the branch-protection bypass
-# list. Without the App key it falls back to GITHUB_TOKEN, which cannot bypass:
-# the push fails and recovery re-applies the bump on the next run once the App
-# is configured.
+# The bump push needs a GitHub App token on the branch-protection bypass list
+# (vars.GH_BUMP_VERSION_APP_ID + secrets.GH_BUMP_VERSION_APP_KEY); without it
+# GITHUB_TOKEN can't bypass and recovery retries on the next run.
 
 name: Maven Module Release (reusable)
 
@@ -77,21 +70,16 @@ on:
         description: "Private key of the GitHub App that bypasses branch protection for the version-bump push. Falls back to GITHUB_TOKEN if unset."
 
 concurrency:
-  # Literal prefix (NOT github.workflow): inside a reusable, github.workflow is
-  # the TOP-LEVEL caller's name, so manual-vs-cascade or wrapper-vs-release-all
-  # runs of the same module would land in different groups and race the
-  # publish/tag/back-commit. Keying on the module serialises every release path.
+  # Key on the module, not github.workflow (the caller's name in a reusable), so
+  # every release path for a module serialises instead of racing.
   group: qip-release-${{ inputs.module }}-${{ github.ref }}
   cancel-in-progress: false
 
 permissions: {}
 
 jobs:
-  # ---------------------------------------------------------------------------
-  # Preflight: derive the release version by bumping the module's <revision> per
-  # release-type (or use the override). If the tag already exists, enter recovery
-  # mode (re-apply the bump only) instead of failing.
-  # ---------------------------------------------------------------------------
+  # Preflight: bump <revision> per release-type (or the override); recover if the
+  # tag already exists.
   check-version:
     runs-on: ubuntu-latest
     permissions:
@@ -118,11 +106,8 @@ jobs:
           VERSION_OVERRIDE: ${{ inputs.version }}
         run: bash scripts/compute-release-version.sh
 
-  # ---------------------------------------------------------------------------
-  # Build, sign, publish, tag, then bump <revision> and commit it back. In
-  # recovery mode (tag exists) the deploy/tag/upload steps are skipped and only
-  # the bump is re-applied.
-  # ---------------------------------------------------------------------------
+  # Build, sign, publish, then bump <revision>, commit, and tag. Recovery skips
+  # deploy/upload and only re-applies the bump.
   build-and-publish:
     needs: check-version
     runs-on: ubuntu-latest
@@ -133,7 +118,6 @@ jobs:
       MODULE: ${{ inputs.module }}
       RELEASE_VERSION: ${{ needs.check-version.outputs.release-version }}
       NEXT_DEV: ${{ needs.check-version.outputs.next-dev }}
-      RELEASE_TAG: ${{ needs.check-version.outputs.release-tag }}
       # Gate the app-token step on the App key being present (secrets are not
       # allowed in `if:`, env derived from them is).
       APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
@@ -163,90 +147,57 @@ jobs:
         with:
           java-version: "21"
           distribution: "temurin"
+          # Creds come from .github/maven-settings.xml (setup-java takes one
+          # server-id; a Central release needs github + central). GPG key here.
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
           cache: "maven"
 
-      - name: Set up Maven servers (github + central)
-        run: |
-          mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml << 'EOF'
-          <settings xmlns="http://maven.apache.org/SETTINGS/1.2.0"
-                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                    xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.2.0 https://maven.apache.org/xsd/settings-1.2.0.xsd">
-            <servers>
-              <server>
-                <id>github</id>
-                <username>${env.MAVEN_GITHUB_USERNAME}</username>
-                <password>${env.MAVEN_GITHUB_PASSWORD}</password>
-              </server>
-              <server>
-                <id>central</id>
-                <username>${env.MAVEN_CENTRAL_USERNAME}</username>
-                <password>${env.MAVEN_CENTRAL_PASSWORD}</password>
-              </server>
-              <server>
-                <id>gpg.passphrase</id>
-                <passphrase>${env.MAVEN_GPG_PASSPHRASE}</passphrase>
-              </server>
-            </servers>
-          </settings>
-          EOF
-
-      # Pre-install the parent pom so the module deploy below resolves it.
-      # (`-pl parent -N` is broken; build the parent pom directly.)
+      # Pre-install the parent pom (deploy needs it; `-pl parent -N` is broken).
       - name: Install qip-monorepo-parent locally
         if: ${{ needs.check-version.outputs.recover != 'true' }}
         env:
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: mvn --batch-mode -f parent/pom.xml install -N -DskipTests
+        run: mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" -f parent/pom.xml install -N -DskipTests
 
       - name: Build and deploy module
         if: ${{ needs.check-version.outputs.recover != 'true' }}
         working-directory: ${{ inputs.module }}
         env:
-          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_USER }}
-          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+          # From .github/maven-settings.xml: github resolves BOMs, central takes
+          # the deploy (empty for profile=github).
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_USER }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
           MVN_PROFILE: ${{ inputs.profile }}
           EXTRA_ARGS: ${{ inputs.mvn-args }}
           SKIP_GPG: ${{ inputs.profile == 'github' && '-Dgpg.skip=true' || '' }}
         run: |
           set -eu
-          # Run from the module dir (not `-pl` from root) so Maven reads only this
-          # module + parent, never siblings — micro-engine pulls private
-          # com.netcracker.cloud artifacts this token can't read. Publish the
-          # computed release version (-Drevision overrides the pom, changelist stripped via -Dchangelist=).
+          # Run from the module dir so Maven reads only this module + parent, not
+          # siblings (micro-engine's private deps this token can't read).
+          # -Drevision publishes the computed version; -Dchangelist= strips -SNAPSHOT.
           # shellcheck disable=SC2086
           mvn --batch-mode deploy \
+            -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
             -P "$MVN_PROFILE" \
             -Drevision="$RELEASE_VERSION" \
             -Dchangelist= \
             $SKIP_GPG \
             $EXTRA_ARGS
 
-      - name: Push release tag
-        run: |
-          set -eu
-          # Idempotent: in recovery (or a re-run) the tag may already exist.
-          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "Tag $RELEASE_TAG already exists — skipping."
-          else
-            git tag "$RELEASE_TAG"
-            git push origin "$RELEASE_TAG"
-          fi
-
-      - name: Write released version back to revision and commit
+      - name: Write released version back to revision, tag, and commit
         env:
           BRANCH: ${{ github.ref_name }}
+          TAG: ${{ needs.check-version.outputs.release-tag }}
         run: |
           set -eu
           POM="$MODULE/pom.xml"
-          # Write the released version into <revision>; <changelist> (if any)
-          # stays untouched. Always runs (incl. recovery) — commit-and-push.sh
-          # no-ops if nothing changed.
+          # Write the released version into <revision> (<changelist> untouched).
+          # TAG tags this bump commit and pushes it first (see the script). Runs
+          # in recovery too — commit-and-push.sh no-ops if unchanged.
           sed -i -E "s#<revision>[0-9]+\.[0-9]+\.[0-9]+</revision>#<revision>${NEXT_DEV}</revision>#" "$POM"
           grep -q "<revision>${NEXT_DEV}</revision>" "$POM" || { echo "::error::Failed to write <revision> in $POM"; exit 1; }
           bash scripts/commit-and-push.sh "chore: $MODULE $RELEASE_VERSION released [skip ci]" "$POM"
@@ -256,18 +207,12 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: ${{ inputs.module }}-jar
-          # Upload the whole target/ dir, not selective globs: a single stable
-          # root keeps the artifact's internal layout predictable. With separate
-          # globs, upload-artifact picks a least-common-ancestor that strips the
-          # `target/` (Spring Boot exec jar) or `quarkus-app/` (Quarkus) prefix,
-          # which then breaks the Dockerfiles' `COPY target/...` in publish-image.
+          # Upload the whole target/ dir: selective globs make upload-artifact
+          # strip the `target/` prefix, breaking the Dockerfile's `COPY target/...`.
           path: ${{ inputs.module }}/target
           if-no-files-found: error
 
-  # ---------------------------------------------------------------------------
-  # Docker image build (delegated to the workflow-hub action — unchanged).
-  # Skipped in recovery: no jar artifact was produced.
-  # ---------------------------------------------------------------------------
+  # Docker image build (workflow-hub action). Skipped in recovery — no jar built.
   publish-image:
     if: ${{ inputs.build-docker == true && needs.check-version.outputs.recover != 'true' }}
     needs: [check-version, build-and-publish]

@@ -59,17 +59,14 @@ jobs:
         with:
           java-version: "21"
           distribution: "temurin"
-          # Authenticated GitHub Packages reads (e.g. qip-checkstyle).
-          server-id: github
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_PASSWORD
+          # GitHub Packages credentials live in .github/maven-settings.xml (passed via -s).
           cache: "maven"
 
       - name: Build and verify (no publish)
         working-directory: ${{ inputs.module }}
         env:
-          MAVEN_USERNAME: ${{ github.actor }}
-          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           FORCE_UPDATE: ${{ inputs.force-update }}
         run: |
           set -eu
@@ -78,7 +75,7 @@ jobs:
           # com.netcracker.cloud artifacts this token can't read. Publishes nothing.
           UPDATE_FLAG=""
           if [ "$FORCE_UPDATE" = "true" ]; then UPDATE_FLAG="-U"; fi
-          mvn --batch-mode verify $UPDATE_FLAG -Dgpg.skip=true
+          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" verify $UPDATE_FLAG -Dgpg.skip=true
 
       - name: Upload Sonar inputs
         if: ${{ inputs.sonar-project-key != '' }}
@@ -123,11 +120,9 @@ jobs:
         with:
           java-version: "21"
           distribution: "temurin"
-          # Authenticated GitHub Packages reads (mirrors the build job) so the
-          # effective POM can be assembled — micro-engine needs the private BOMs.
-          server-id: github
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_PASSWORD
+          # GitHub Packages credentials live in .github/maven-settings.xml (passed via -s),
+          # mirroring the build job — micro-engine needs the private BOMs to assemble
+          # its effective POM.
           cache: "maven"
 
       - name: Download Sonar inputs
@@ -139,17 +134,17 @@ jobs:
       - name: Sonar scan (blocks on red Quality Gate)
         working-directory: ${{ inputs.module }}
         env:
-          # GitHub Packages creds for the github server in settings.xml — needed
-          # to resolve micro-engine's private BOM imports while building the model.
-          MAVEN_USERNAME: ${{ github.actor }}
-          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          # GitHub Packages creds for the github server in .github/maven-settings.xml —
+          # needed to resolve micro-engine's private BOM imports while building the model.
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_PLUGIN_VERSION: ${{ vars.SONAR_PLUGIN_VERSION }}
           SONAR_PROJECT_KEY: ${{ inputs.sonar-project-key }}
           SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
           SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
         run: |
-          mvn --batch-mode \
+          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
             "org.sonarsource.scanner.maven:sonar-maven-plugin:${SONAR_PLUGIN_VERSION}:sonar" \
             -Dsonar.token="$SONAR_TOKEN" \
             -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
