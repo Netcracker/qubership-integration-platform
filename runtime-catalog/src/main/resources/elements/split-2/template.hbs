@@ -1,4 +1,6 @@
 <step id="{{identifier}}">
+    <removeProperty name="internalProperty_exchangePropertiesProcessed"/>
+    <removeProperty name="internalProperty_splitExchangeHeaderProcessed"/>
     <multicast parallelProcessing="true"
                aggregationStrategy="{{property 'aggregationStrategy'}}"
                timeout="{{property 'timeout'}}"
