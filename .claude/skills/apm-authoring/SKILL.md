@@ -32,7 +32,7 @@ agent-packages/
         ├── skills/                  # SKILL.md — on-demand how-tos
         │   └── <package-name>/
         │       └── SKILL.md
-        ├── prompts/                 # optional — *.prompt.md, user-invoked
+        ├── prompts/                 # avoid — Codex skips prompts; use a user-invoked skill
         │   └── <name>.prompt.md
         ├── agents/                  # optional — *.agent.md, sub-agent personas
         │   └── <name>.agent.md
@@ -52,12 +52,15 @@ Rules:
   catalogue is large enough to deserve its own activation). Bundle by
   topic, not by file count — a one-skill package and a five-skill package
   are both fine if each set is internally coherent.
-- Every skill needs a paired instructions file that triggers it.
+- An **auto-triggered** skill needs a paired instructions file.
   Without the trigger merged into `AGENTS.md` / `CLAUDE.md` the agent
   has no signal to pull the skill in. Keep names aligned so the link
-  is obvious from the tree. The reverse is **not** required: a small
+  is obvious from the tree. Two cases need no instruction: a small
   always-true rule may ship as a standalone instruction with no skill
-  behind it (see next section).
+  behind it (see next section), and a **user-invoked** skill — the
+  replacement for a slash-command — carries its activation rule in its
+  own `description:`, so the user invokes it by name and no paired
+  instruction is needed (see "Agents, hooks, and prompts").
 
 The host repo itself is also an APM project: its own AGENTS.md / CLAUDE.md
 must be **rendered by `apm compile`** from a local `.apm/` package plus
@@ -77,8 +80,13 @@ the rule needs to fire and *who* invokes it:
   the agent decides a skill is relevant (steered by the trigger
   phrase in a paired instruction). Cost paid only when activated.
 - **Prompts** (`*.prompt.md`) — slash-commands the **user** invokes
-  explicitly (`/review-pr`). Not loaded into context until called.
-  Use them for repeatable workflows the agent should not auto-trigger.
+  explicitly (`/review-pr`). The primitive exists, but `apm compile`
+  does not deploy it to the Codex target, so a prompt silently
+  vanishes there
+  ([microsoft/apm#1781](https://github.com/microsoft/apm/issues/1781)).
+  For a user-invoked workflow, ship a **skill without a paired
+  instruction** instead (see below): it deploys to every target, and
+  the user still invokes it by name.
 - **Agents** (`*.agent.md` under `agents/`) — sub-agent personalities
   with their own context window and tool-permission boundaries.
   Spawned via `Agent` / `Task`-style tools. Use when a task deserves
@@ -91,10 +99,11 @@ the rule needs to fire and *who* invokes it:
   scanners, log filters) where prose advice is unreliable.
 
 For most library-usage packages the bulk of the work is **one
-instruction** (the trigger) plus **one skill** (the how-to). Prompts,
-agents, and hooks are reserved for the cases the instruction-skill
-pair cannot cover: user-driven workflows, isolated sub-tasks, and
-hard enforcement, respectively.
+instruction** (the trigger) plus **one skill** (the how-to). A
+user-invoked workflow is also a skill — one without a paired
+instruction, invoked by name (see "Agents, hooks, and prompts").
+Agents and hooks are reserved for the two cases the instruction-skill
+pair cannot cover: isolated sub-tasks and hard enforcement.
 
 ### Instruction vs skill: the common case
 
@@ -272,8 +281,9 @@ fetch the [upstream `apm` documentation](https://github.com/microsoft/apm)
 when you reach for one.
 
 The rule that does belong here is about *when* to reach for them:
-**the user decides whether to introduce an agent, a hook, or a
-prompt — do not pick them unilaterally over a skill or instruction.**
+**the user decides whether to introduce an agent or a hook — do not
+pick one unilaterally over a skill or instruction. Don't ship a prompt
+at all; use a user-invoked skill (the Prompts bullet explains why).**
 
 - **Agents** (`*.agent.md`) change the runtime shape — separate
   context budget, restricted tool set, parallelisable. Worth it
@@ -285,9 +295,16 @@ prompt — do not pick them unilaterally over a skill or instruction.**
   secret scanners, log filters) when prose advice has demonstrably
   failed. Don't pre-emptively wire a hook for "good hygiene".
 - **Prompts** (`*.prompt.md`) run only when the user types the
-  slash-command, so they are the safest of the three to suggest.
-  Even so, prefer a skill the agent activates from a trigger over a
-  slash-command the user has to remember to invoke.
+  slash-command. Don't ship one: `apm compile` does not deploy prompts
+  to the Codex target, so a package that relies on a prompt breaks
+  silently for Codex users
+  ([microsoft/apm#1781](https://github.com/microsoft/apm/issues/1781),
+  closed as not planned). For a single-use workflow the user would
+  otherwise invoke as a slash-command, write a **skill without a paired
+  instruction** instead: it deploys to every target, and the user (or
+  another agent) invokes it by name. Put the activation rule in the
+  skill's `description:` — e.g. "Use only when the user asks to triage
+  dependency PRs" — so it does not auto-fire on unrelated turns.
 
 ## Frontmatter and formatting
 
@@ -401,3 +418,6 @@ dependency:
   package's actual name; multiple packages collide otherwise.
 - **Hand-edited AGENTS.md / CLAUDE.md in a repo that already uses
   APM.** Edit the local `.apm/` package and re-run `apm compile`.
+- **Shipping a workflow as a prompt.** `apm compile` skips prompts for
+  the Codex target, so the slash-command silently disappears there.
+  Write a user-invoked skill (no paired instruction) instead.
