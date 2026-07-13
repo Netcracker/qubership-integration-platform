@@ -17,5 +17,6 @@ spring:
         acl-token: ${CONSUL_ADMIN_TOKEN}
 
 qip:
+  standalone: true
   internal-services:
     runtime-catalog: qip-runtime-catalog
