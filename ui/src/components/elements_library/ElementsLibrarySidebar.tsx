@@ -34,6 +34,8 @@ const childRank = (key: string): number => {
   const index = CHILD_ORDER.indexOf(key);
   return index === -1 ? Number.MAX_SAFE_INTEGER : index;
 };
+const compareChildren = (a: MenuItem, b: MenuItem): number =>
+  childRank(a.key) - childRank(b.key) || a.name.localeCompare(b.name);
 
 export type ElementsLibrarySidebarProps = {
   width?: number | string;
@@ -102,11 +104,8 @@ export const ElementsLibrarySidebar = ({
             ),
           };
           if (childrenMenuItems.length !== 0) {
-            elementMenuItem.children = childrenMenuItems.sort(
-              (a, b) =>
-                childRank(a.key) - childRank(b.key) ||
-                a.name.localeCompare(b.name),
-            );
+            childrenMenuItems.sort(compareChildren);
+            elementMenuItem.children = childrenMenuItems;
           }
           folderMap.get(element.folder)!.children!.push(elementMenuItem);
         });
