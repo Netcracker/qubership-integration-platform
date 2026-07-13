@@ -8,9 +8,16 @@ function readStyle(relativePath: string): string {
 }
 
 function declarationsFor(css: string, selector: string): string {
-  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = css.match(new RegExp(`${escapedSelector}\\s*\\{([^{}]*)\\}`));
-  return match?.[1].replace(/\\s+/g, " ").trim() ?? "";
+  const rulePattern = /([^{}]+)\{([^{}]*)\}/g;
+  const stylesheet = css.replace(/\/\*[\s\S]*?\*\//g, "");
+
+  for (const match of stylesheet.matchAll(rulePattern)) {
+    if (match[1].split(",").some((item) => item.trim() === selector)) {
+      return match[2].replace(/\s+/g, " ").trim();
+    }
+  }
+
+  return "";
 }
 
 describe("Ant Design 6 global style contracts", () => {
@@ -21,5 +28,35 @@ describe("Ant Design 6 global style contracts", () => {
     expect(declarationsFor(css, ".theme-switching *")).toContain(
       "transition: none !important",
     );
+  });
+
+  it("targets the Ant Design 6 tab body structure", () => {
+    const css = readStyle("index.css");
+
+    expect(declarationsFor(css, ".flex-tabs .ant-tabs-body-holder")).toContain(
+      "display: flex",
+    );
+    expect(declarationsFor(css, ".flex-tabs .ant-tabs-body")).toContain(
+      "flex: 1 1 auto",
+    );
+    expect(
+      declarationsFor(css, ".flex-tabs .ant-tabs-content-active"),
+    ).toContain("display: flex");
+  });
+
+  it("keeps inactive Ant Design tabs out of the layout", () => {
+    const css = readStyle("index.css");
+
+    expect(
+      declarationsFor(css, ".flex-tabs .ant-tabs-content-hidden"),
+    ).toContain("display: none");
+  });
+
+  it("allows Monaco wrappers to shrink inside flex layouts", () => {
+    const css = readStyle("index.css");
+    const declarations = declarationsFor(css, ".qip-editor");
+
+    expect(declarations).toContain("min-height: 0");
+    expect(declarations).toContain("min-width: 0");
   });
 });
