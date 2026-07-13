@@ -246,6 +246,32 @@ describe("ImportInstructions", () => {
     expect(screen.getByText("Var One")).toBeInTheDocument();
   });
 
+  it("should not render entity links when instruction name is missing", async () => {
+    mockApi.getImportInstructions.mockResolvedValueOnce({
+      chains: {
+        ignore: [
+          { id: "existing-chain", name: "Existing Chain" },
+          { id: "missing-chain" },
+        ],
+        override: [],
+        delete: [],
+      },
+      services: { ignore: [{ id: "missing-service" }], delete: [] },
+      specificationGroups: { delete: [], ignore: [] },
+      specifications: { delete: [], ignore: [] },
+      commonVariables: { ignore: [], delete: [] },
+    });
+
+    render(<ImportInstructions />, { wrapper: ContextProviders });
+
+    const existingLink = await screen.findByRole("link", {
+      name: "Existing Chain",
+    });
+    expect(existingLink).toHaveAttribute("href", "/chains/existing-chain");
+    expect((await screen.findByText("missing-chain")).closest("a")).toBeNull();
+    expect(screen.getByText("missing-service").closest("a")).toBeNull();
+  });
+
   it("fetches export on Export button click", async () => {
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
@@ -730,7 +756,7 @@ describe("buildTableData", () => {
     const child = result[0].children![0];
     expect(child.key).toBe("Chain-IGNORE-c2");
     expect(child.action).toBe(ImportInstructionAction.IGNORE);
-    expect(child.name).toBe("c2");
+    expect(child.name).toBeUndefined();
   });
 
   it("maps service-delete into Services group with DELETE action", () => {

@@ -141,6 +141,7 @@ const ENTITY_ICON: Record<InstructionEntityType, string> = {
 };
 
 function getEntityHref(row: InstructionRow): string | undefined {
+  if (!row.name) return undefined;
   if (row.entityType === "Chain") return `/chains/${row.id}`;
   if (row.entityType === "Service") return `/services/systems/${row.id}`;
   return undefined;
@@ -189,7 +190,7 @@ function toInstructionRow(
   return {
     key: `${entityType}-${action}-${i.id}`,
     id: i.id,
-    name: i.name ?? i.id,
+    name: i.name,
     entityType,
     action,
     overriddenById: i.overriddenById,
@@ -1007,7 +1008,7 @@ export const UploadInstructionsModal: React.FC<
               {row.name ?? row.id}
             </strong>
           ) : (
-            row.name ?? row.id
+            (row.name ?? row.id)
           ),
       },
       {
