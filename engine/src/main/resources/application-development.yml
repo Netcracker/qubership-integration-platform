@@ -45,6 +45,7 @@ logging:
     org.qubership.integration.platform.engine: DEBUG
 
 qip:
+  standalone: true
   pubsub:
     emulator:
       enabled: true
