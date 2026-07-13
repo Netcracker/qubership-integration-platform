@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import React, {
+  useContext,
   useEffect,
   useLayoutEffect,
   useState,
@@ -47,6 +48,7 @@ import {
   getStaleProtocolProperties,
 } from "./ChainElementModificationConstants.ts";
 import { ChainGraphNode } from "../../graph/nodes/ChainGraphNodeTypes.ts";
+import { ChainContext } from "../../../pages/ChainPage.tsx";
 import MappingField from "./field/MappingField.tsx";
 import CustomArrayField from "./field/CustomArrayField.tsx";
 import ScriptField from "./field/ScriptField.tsx";
@@ -254,6 +256,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   onSubmit,
   onClose,
 }) => {
+  const chainContext = useContext(ChainContext);
   const { isLoading: libraryElementIsLoading, libraryElement } =
     useLibraryElement(node.data.elementType);
   const [isLoading, setIsLoading] = useState(false);
@@ -692,6 +695,8 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
           properties: formData.properties,
         } as Element;
         onSubmit?.(elementWithProperties, node);
+        // Saving marks the chain unsaved on the backend; refresh so the header banner reflects it.
+        void chainContext?.refresh?.();
       }
     } catch (error) {
       notificationService.errorWithDetails(
@@ -713,6 +718,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     updateElement,
     handleClose,
     isUnsupported,
+    chainContext,
   ]);
 
   const handleCheckUnsavedAndClose = useCallback(() => {

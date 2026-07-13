@@ -15,6 +15,7 @@ import type { ChainGraphNode } from "../../../../src/components/graph/nodes/Chai
 import type { UserPermissions } from "../../../../src/permissions/types";
 import { UserPermissionsContext } from "../../../../src/permissions/UserPermissionsContext";
 import { ChainElementModification } from "../../../../src/components/modal/chain_element/ChainElementModification";
+import { ChainContext } from "../../../../src/pages/ChainPage";
 import { jest } from "@jest/globals";
 
 jest.mock("@monaco-editor/react", () => ({
@@ -608,6 +609,67 @@ describe("ChainElementModification", () => {
       expect(defaultProps.onSubmit).toHaveBeenCalled();
       expect(mockCloseContainingModal).toHaveBeenCalled();
     });
+  });
+
+  it("refreshes the chain after a successful save so the unsaved-changes banner shows", async () => {
+    const refresh = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    render(
+      <ChainContext.Provider
+        value={{
+          chain: undefined,
+          refresh,
+          update: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+        }}
+      >
+        <UserPermissionsContext.Provider value={{ chain: ["update"] }}>
+          <ChainElementModification {...defaultProps} />
+        </UserPermissionsContext.Provider>
+      </ChainContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => {
+      expect(mockUpdateElement).toHaveBeenCalled();
+    });
+    // Saving marks the chain unsaved on the backend; the modal must refresh the
+    // chain so the header banner reflects the edit without a page reload.
+    await waitFor(() => {
+      expect(refresh).toHaveBeenCalled();
+    });
+  });
+
+  it("does not refresh the chain when the save fails", async () => {
+    mockUpdateElement.mockRejectedValueOnce(new Error("API error"));
+    const refresh = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    render(
+      <ChainContext.Provider
+        value={{
+          chain: undefined,
+          refresh,
+          update: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+        }}
+      >
+        <UserPermissionsContext.Provider value={{ chain: ["update"] }}>
+          <ChainElementModification {...defaultProps} />
+        </UserPermissionsContext.Provider>
+      </ChainContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => {
+      expect(mockNotificationService.errorWithDetails).toHaveBeenCalled();
+    });
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("Save button calls errorWithDetails when updateElement rejects", async () => {
