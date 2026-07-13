@@ -1,5 +1,5 @@
 ---
-name: english-us-developer-style
+name: english-developer-style
 description: 'American-English-first style guidance for developer-facing text of any length — README and docs, code comments and docstrings, Javadoc / KDoc / TSDoc / JSDoc, commit messages, PR descriptions and review replies, design docs, changelog entries, UI strings (buttons, labels, placeholders, tooltips), error and log messages, and English-side localization files (.po, .properties, JSON i18n). Use whenever the task involves English developer text — writing, editing, rewriting, translating, localizing, reviewing, proofreading, verifying, auditing, double-checking, or cross-checking. Length does not matter: a one-line `msgstr`, a `// FIXME` comment, or a three-word button label is in scope. Also covers choice of English identifier names (methods, variables, classes, files, tests) read by humans. Covers em-dash usage, hyphen stacking, sentence structure, that/which, gerunds after rather than, hedging, inclusive language, and British/American dialect consistency. Do not use for casual chat replies to the user.'
 ---
 
