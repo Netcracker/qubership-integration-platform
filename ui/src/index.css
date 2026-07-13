@@ -103,6 +103,12 @@ h1 {
     min-height: 0;
   }
 
+  /* antd v6 hides inactive panes via `.ant-tabs-content-hidden { display: none }`;
+     the flex rule above outranks it, so re-assert the hide or stale panes stack. */
+  .ant-tabs-content.ant-tabs-content-hidden {
+    display: none;
+  }
+
   .ant-tabs-tabpane {
     flex-grow: 1;
     flex-shrink: 1;
