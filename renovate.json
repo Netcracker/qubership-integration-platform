@@ -4,6 +4,9 @@
     "github>Netcracker/qubership-renovate-config",
     "security:only-security-updates"
   ],
+  "lockFileMaintenance": {
+    "enabled": false
+  },
   "packageRules": [
     {
       "description": "Pin GitHub Actions to commit SHAs and keep the pinned digests current",
