@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.codegen.graphql;
+package org.qubership.integration.platform.codegen.graphql;
 
-import org.qubership.integration.platform.runtime.catalog.configuration.GraphQLCodegenConfiguration;
-import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
-import org.qubership.integration.platform.runtime.catalog.service.codegen.SystemModelCodeGenerator;
-import org.qubership.integration.platform.runtime.catalog.service.codegen.TargetProtocol;
+import org.qubership.integration.platform.codegen.SystemModelCodeGenerator;
+import org.qubership.integration.platform.codegen.TargetProtocol;
+import org.qubership.integration.platform.codegen.model.CodegenSystemModel;
+import org.qubership.integration.platform.io.model.exportimport.system.OperationProtocol;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -29,7 +28,8 @@ import java.util.function.Function;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 
-import static org.qubership.integration.platform.runtime.catalog.service.codegen.PackageNameUtil.buildPackageName;
+import static org.qubership.integration.platform.codegen.PackageNameUtil.buildPackageName;
+import static org.qubership.integration.platform.codegen.graphql.GraphqlCodegenConstants.CODEGEN_BASE_PACKAGE;
 
 
 @Component
@@ -43,15 +43,15 @@ public class GraphQLCodeGenerator implements SystemModelCodeGenerator {
     }
 
     @Override
-    public Manifest generateManifest(SystemModel model) {
+    public Manifest generateManifest(CodegenSystemModel model) {
         Manifest manifest = new Manifest();
         manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
         return manifest;
     }
 
     @Override
-    public Map<String, String> generateCode(SystemModel model) throws Exception {
-        String packageName = buildPackageName(GraphQLCodegenConfiguration.CODEGEN_BASE_PACKAGE, model);
+    public Map<String, String> generateCode(CodegenSystemModel model) throws Exception {
+        String packageName = buildPackageName(CODEGEN_BASE_PACKAGE, model);
         GraphqlRuntimePojoGenerator generator = graphqlPojoGeneratorFactory.apply(packageName);
         return generator.generateCode(model);
     }

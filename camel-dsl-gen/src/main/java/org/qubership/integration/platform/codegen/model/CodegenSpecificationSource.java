@@ -14,17 +14,18 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.codegen;
+package org.qubership.integration.platform.codegen.model;
 
-import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
+/**
+ * A specification source presented to the DTO-library code generators.
+ *
+ * <p>Carries the file name and the raw source text the generators feed to the protocol compiler.
+ * Unlike the import-side specification-source model, this view includes the source text, because
+ * the generators read it directly.
+ */
+public interface CodegenSpecificationSource {
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+    String getName();
 
-@Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.TYPE})
-public @interface TargetProtocol {
-    OperationProtocol protocol();
+    String getSource();
 }

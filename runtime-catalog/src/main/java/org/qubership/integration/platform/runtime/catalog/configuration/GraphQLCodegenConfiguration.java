@@ -20,8 +20,8 @@ import com.graphql_java_generator.plugin.CodeTemplate;
 import com.graphql_java_generator.plugin.conf.*;
 import graphql.parser.Parser;
 import graphql.parser.ParserOptions;
-import org.qubership.integration.platform.runtime.catalog.service.codegen.graphql.GraphqlCodeDocumentParser;
-import org.qubership.integration.platform.runtime.catalog.service.codegen.graphql.GraphqlRuntimePojoGenerator;
+import org.qubership.integration.platform.codegen.graphql.GraphqlCodeDocumentParser;
+import org.qubership.integration.platform.codegen.graphql.GraphqlRuntimePojoGenerator;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,10 +33,6 @@ import java.util.function.Function;
 
 @Configuration
 public class GraphQLCodegenConfiguration {
-    public static final String CODEGEN_BASE_PACKAGE = "org.qubership.integration.engine.graphql.generated";
-    public static final String CODEGEN_QUERY_CLASS = "Query";
-    public static final String CODEGEN_MUTATION_CLASS = "Mutation";
-
     private static final int MAX_CHARS_TOKENS = 1_000_000;
 
     private static final List<CustomScalarDefinition> CUSTOM_SCALARS = List.of(

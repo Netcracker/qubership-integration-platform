@@ -14,19 +14,15 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.codegen;
+package org.qubership.integration.platform.codegen;
 
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
+import org.qubership.integration.platform.codegen.model.CodegenSystemModel;
 
 public class PackageNameUtil {
-    public static String buildPackageName(String basePackage, SystemModel model) {
-        SpecificationGroup specificationGroup = model.getSpecificationGroup();
-        IntegrationSystem system = specificationGroup.getSystem();
-        String systemPackageName = buildPackageName(system.getName(), "system", "system_");
-        String groupPackageName = buildPackageName(specificationGroup.getName(), "group", "group_");
+    public static String buildPackageName(String basePackage, CodegenSystemModel model) {
+        String systemPackageName = buildPackageName(model.getSystemName(), "system", "system_");
+        String groupPackageName = buildPackageName(model.getGroupName(), "group", "group_");
         String modelPackageName = buildPackageName(model.getName(), "model", "model_");
         return String.join(".", basePackage, systemPackageName, groupPackageName, modelPackageName);
     }

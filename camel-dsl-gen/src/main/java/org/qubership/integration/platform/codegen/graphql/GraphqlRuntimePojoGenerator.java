@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.codegen.graphql;
+package org.qubership.integration.platform.codegen.graphql;
 
 import com.graphql_java_generator.plugin.CodeTemplate;
 import com.graphql_java_generator.plugin.conf.GenerateCodeCommonConfiguration;
@@ -29,11 +29,9 @@ import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
-import org.qubership.integration.platform.runtime.catalog.configuration.GraphQLCodegenConfiguration;
-import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
+import org.qubership.integration.platform.codegen.model.CodegenSpecificationSource;
+import org.qubership.integration.platform.codegen.model.CodegenSystemModel;
+import org.qubership.integration.platform.io.model.exportimport.system.OperationProtocol;
 
 import java.io.StringWriter;
 import java.lang.reflect.InvocationTargetException;
@@ -75,16 +73,15 @@ public class GraphqlRuntimePojoGenerator {
         velocityEngine.init();
     }
 
-    public Map<String, String> generateCode(SystemModel model) throws Exception {
-        IntegrationSystem system = model.getSpecificationGroup().getSystem();
-        OperationProtocol protocol = system.getProtocol();
+    public Map<String, String> generateCode(CodegenSystemModel model) throws Exception {
+        OperationProtocol protocol = model.getProtocol();
         if (!OperationProtocol.GRAPHQL.equals(protocol)) {
             String message = String.format("Wrong system type. Expected: %s. Got: %s.",
                     OperationProtocol.GRAPHQL.name(), protocol.name());
             throw new Exception(message);
         }
 
-        List<SpecificationSource> sources = model.getSpecificationSources();
+        List<CodegenSpecificationSource> sources = model.getSpecificationSources();
         if (sources.isEmpty()) {
             String message = String.format("System model %s specification sources are empty", model.getId());
             throw new Exception(message);
@@ -111,8 +108,8 @@ public class GraphqlRuntimePojoGenerator {
         log.debug("Generating enums");
         result.putAll(generateCodeForObjects(parser.getEnumTypes(), "enum", resolveTemplate(CodeTemplate.ENUM)));
 
-        result.remove(getFullyQualifiedClassName(GraphQLCodegenConfiguration.CODEGEN_QUERY_CLASS));
-        result.remove(getFullyQualifiedClassName(GraphQLCodegenConfiguration.CODEGEN_MUTATION_CLASS));
+        result.remove(getFullyQualifiedClassName(GraphqlCodegenConstants.CODEGEN_QUERY_CLASS));
+        result.remove(getFullyQualifiedClassName(GraphqlCodegenConstants.CODEGEN_MUTATION_CLASS));
 
         return result;
     }
