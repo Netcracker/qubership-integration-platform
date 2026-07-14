@@ -21,6 +21,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.io.model.exportimport.chain.ChainElementExternalEntity;
 import org.springframework.lang.Nullable;
 
 import java.io.File;

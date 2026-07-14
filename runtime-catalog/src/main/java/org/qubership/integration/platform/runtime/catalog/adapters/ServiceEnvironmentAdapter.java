@@ -6,9 +6,9 @@ import org.qubership.integration.platform.chain.model.ServiceEnvironment;
 import java.util.Map;
 
 public class ServiceEnvironmentAdapter implements ServiceEnvironment {
-    private final org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment delegate;
+    private final org.qubership.integration.platform.io.model.exportimport.system.ServiceEnvironment delegate;
 
-    public ServiceEnvironmentAdapter(org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment delegate) {
+    public ServiceEnvironmentAdapter(org.qubership.integration.platform.io.model.exportimport.system.ServiceEnvironment delegate) {
         this.delegate = delegate;
     }
 

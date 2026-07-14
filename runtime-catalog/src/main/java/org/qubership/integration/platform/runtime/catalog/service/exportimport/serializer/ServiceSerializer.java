@@ -18,6 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
@@ -26,7 +27,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SpecificationGroupDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

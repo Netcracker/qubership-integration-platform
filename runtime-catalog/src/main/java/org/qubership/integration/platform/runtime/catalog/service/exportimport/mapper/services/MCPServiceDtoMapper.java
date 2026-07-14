@@ -1,12 +1,12 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services;
 
+import org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil;
+import org.qubership.integration.platform.io.readers.migrations.mcp.MCPServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.MCPServiceContentDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.MCPServiceDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystemLabel;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.mcp.MCPServiceImportFileMigration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;

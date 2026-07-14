@@ -24,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainElementExternalEntity;
+import org.qubership.integration.platform.io.model.exportimport.chain.ChainElementExternalEntity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Qualifier;

@@ -20,6 +20,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.io.readers.migrations.chain.ChainImportFileMigration;
 import org.springframework.stereotype.Component;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;

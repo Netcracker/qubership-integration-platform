@@ -17,8 +17,8 @@
 package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
 
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.io.model.exportimport.system.ServiceEnvironment;
 import org.qubership.integration.platform.library.constants.CamelNames;
-import org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.ElementPropertiesVerifier;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;

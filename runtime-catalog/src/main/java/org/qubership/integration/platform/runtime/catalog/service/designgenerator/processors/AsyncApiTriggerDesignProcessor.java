@@ -16,7 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.designgenerator.processors;
 
-import org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment;
+import org.qubership.integration.platform.io.model.exportimport.system.ServiceEnvironment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemRepository;
