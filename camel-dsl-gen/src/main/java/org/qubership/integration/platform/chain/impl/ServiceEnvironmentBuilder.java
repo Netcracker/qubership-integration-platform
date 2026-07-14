@@ -16,6 +16,8 @@ public class ServiceEnvironmentBuilder {
     private EnvironmentSourceType sourceType;
     private Map<String, Object> properties = new HashMap<>();
     private boolean activated;
+    private Long createdWhen;
+    private Long modifiedWhen;
 
     private ServiceEnvironmentBuilder() {
     }
@@ -33,6 +35,8 @@ public class ServiceEnvironmentBuilder {
         this.sourceType = environment.getSourceType();
         this.properties = new HashMap<>(environment.getProperties());
         this.activated = environment.isActivated();
+        this.createdWhen = environment.getCreatedWhen();
+        this.modifiedWhen = environment.getModifiedWhen();
         return this;
     }
 
@@ -76,6 +80,16 @@ public class ServiceEnvironmentBuilder {
         return this;
     }
 
+    public ServiceEnvironmentBuilder createdWhen(Long createdWhen) {
+        this.createdWhen = createdWhen;
+        return this;
+    }
+
+    public ServiceEnvironmentBuilder modifiedWhen(Long modifiedWhen) {
+        this.modifiedWhen = modifiedWhen;
+        return this;
+    }
+
     public ServiceEnvironment build() {
         ServiceEnvironmentImpl environment = new ServiceEnvironmentImpl();
         environment.setId(id);
@@ -86,6 +100,8 @@ public class ServiceEnvironmentBuilder {
         environment.setSourceType(sourceType);
         environment.setProperties(Optional.ofNullable(properties).orElseGet(HashMap::new));
         environment.setActivated(activated);
+        environment.setCreatedWhen(createdWhen);
+        environment.setModifiedWhen(modifiedWhen);
         return environment;
     }
 }

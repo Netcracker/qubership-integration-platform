@@ -3,12 +3,15 @@ package org.qubership.integration.platform.chain.impl;
 import lombok.Data;
 import lombok.Setter;
 import org.qubership.integration.platform.chain.model.*;
+import org.qubership.integration.platform.io.model.exportimport.chain.ChainCommitRequestAction;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 @Data
-public class ChainImpl implements Chain {
+public class ChainImpl implements ImportChain {
     private String id;
     private String name;
     private String description;
@@ -19,6 +22,13 @@ public class ChainImpl implements Chain {
     private Collection<Label> labels;
     private Collection<Connection> connections;
     private Collection<MaskedField> maskedFields;
+
+    private String lastImportHash;
+    private String overridesChainId;
+    private String overriddenByChainId;
+    private boolean overridden;
+    private List<String> deployments = new ArrayList<>();
+    private ChainCommitRequestAction deployAction;
 
     @Setter
     private Element defaultSwimlane;

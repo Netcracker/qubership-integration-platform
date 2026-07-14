@@ -16,4 +16,6 @@ public class ServiceEnvironmentImpl implements ServiceEnvironment {
     private EnvironmentSourceType sourceType;
     private Map<String, Object> properties;
     private boolean activated;
+    private Long createdWhen;
+    private Long modifiedWhen;
 }
