@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.model.exportimport.system;
+package org.qubership.integration.platform.io.model.exportimport.system;
 
 import com.fasterxml.jackson.annotation.*;
 import lombok.Builder;
@@ -22,9 +22,6 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
-import org.qubership.integration.platform.runtime.catalog.model.system.SystemModelSource;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.User;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 
 import java.sql.Timestamp;
 import java.util.*;
@@ -47,7 +44,7 @@ public class SystemModelContentDto {
 
     @Builder.Default
     @JsonIgnoreProperties({"createdWhen", "modifiedWhen", "createdBy", "modifiedBy"})
-    private List<Operation> operations = new ArrayList<>();
+    private List<OperationDto> operations = new ArrayList<>();
 
     @JsonProperty("parentId")
     private String parentId;

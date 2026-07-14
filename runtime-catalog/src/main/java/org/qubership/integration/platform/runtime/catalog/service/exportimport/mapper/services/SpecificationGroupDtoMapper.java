@@ -16,8 +16,8 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services;
 
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupContentDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupDto;
+import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupContentDto;
+import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroupLabel;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
@@ -27,6 +27,8 @@ import org.springframework.stereotype.Component;
 
 import java.net.URI;
 import java.util.stream.Collectors;
+
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam.toPersistenceUser;
 
 @Component
 public class SpecificationGroupDtoMapper implements ExternalEntityMapper<SpecificationGroup, SpecificationGroupDto> {
@@ -45,9 +47,9 @@ public class SpecificationGroupDtoMapper implements ExternalEntityMapper<Specifi
                 .id(specificationGroupDto.getId())
                 .name(specificationGroupDto.getName())
                 .description(specificationGroupDto.getContent().getDescription())
-                .createdBy(specificationGroupDto.getContent().getCreatedBy())
+                .createdBy(toPersistenceUser(specificationGroupDto.getContent().getCreatedBy()))
                 .createdWhen(specificationGroupDto.getContent().getCreatedWhen())
-                .modifiedBy(specificationGroupDto.getContent().getModifiedBy())
+                .modifiedBy(toPersistenceUser(specificationGroupDto.getContent().getModifiedBy()))
                 .modifiedWhen(specificationGroupDto.getContent().getModifiedWhen())
                 .url(specificationGroupDto.getContent().getUrl())
                 .synchronization(specificationGroupDto.getContent().isSynchronization())
