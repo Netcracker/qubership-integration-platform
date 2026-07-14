@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.resolvers;
+package org.qubership.integration.platform.parsers.resolvers;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -25,7 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.*;
 
-import static org.qubership.integration.platform.runtime.catalog.service.schemas.SchemasConstants.*;
+import static org.qubership.integration.platform.parsers.schemas.SchemasConstants.*;
 
 
 @Slf4j

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.resolvers;
+package org.qubership.integration.platform.parsers.resolvers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 

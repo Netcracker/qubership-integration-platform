@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.schemas.impl;
+package org.qubership.integration.platform.parsers.schemas.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,26 +22,18 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.swagger.v3.oas.models.media.Schema;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.MutablePair;
-import org.qubership.integration.platform.runtime.catalog.service.schemas.Processor;
-import org.qubership.integration.platform.runtime.catalog.service.schemas.SchemaProcessor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Service;
+import org.qubership.integration.platform.parsers.schemas.Processor;
+import org.qubership.integration.platform.parsers.schemas.SchemaProcessor;
 
-import static org.qubership.integration.platform.runtime.catalog.service.schemas.SchemasConstants.DEFAULT_SCHEMA_CLASS;
+import static org.qubership.integration.platform.parsers.schemas.SchemasConstants.DEFAULT_SCHEMA_CLASS;
 
 
 @Slf4j
-@Service
 @Processor(DEFAULT_SCHEMA_CLASS)
-@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 public class DefaultSchemaProcessor implements SchemaProcessor {
     protected final ObjectMapper objectMapper;
 
-    @Autowired
-    public DefaultSchemaProcessor(@Qualifier("openApiObjectMapper") ObjectMapper objectMapper) {
+    public DefaultSchemaProcessor(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
