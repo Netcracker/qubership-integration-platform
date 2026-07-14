@@ -233,17 +233,9 @@
   );
 }
 
-/* Smooth theme transitions */
+/* Prevent intermediate colors while theme variables are changing. */
 .theme-switching * {
   transition: none !important;
-}
-
-:root:not(.theme-switching) * {
-  transition:
-    background-color var(--transition-duration) ease,
-    color var(--transition-duration) ease,
-    border-color var(--transition-duration) ease,
-    box-shadow var(--transition-duration) ease;
 }
 
 /* Apply theme to body */
