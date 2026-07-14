@@ -22,11 +22,22 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.chain.model.ImportChain;
+import org.qubership.integration.platform.io.model.exportimport.MetaInfoExternalEntity;
+import org.qubership.integration.platform.io.model.exportimport.chain.*;
+import org.qubership.integration.platform.io.model.exportimport.chain.ChainCommitRequestAction;
+import org.qubership.integration.platform.io.readers.chain.ChainModelMapper;
+import org.qubership.integration.platform.io.readers.chain.ChainReader;
+import org.qubership.integration.platform.io.readers.chain.DirectoryPropertyFileSource;
+import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
+import org.qubership.integration.platform.io.readers.migrations.ImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.MigrationException;
+import org.qubership.integration.platform.io.readers.migrations.chain.ChainImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.common.GroupPathUtils;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainDifferenceClientException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainDifferenceException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainImportException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ComparisonEntityNotFoundException;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.MetaInfoExternalEntity;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.*;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ChainImportInstructionsConfig;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ChainsIgnoreOverrideResult;
@@ -38,7 +49,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportChainPreviewDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportEntityStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequest;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequestAction;
 import org.qubership.integration.platform.runtime.catalog.service.*;
 import org.qubership.integration.platform.runtime.catalog.service.difference.ChainDifferenceRequest;
 import org.qubership.integration.platform.runtime.catalog.service.difference.ChainDifferenceService;
@@ -46,10 +56,6 @@ import org.qubership.integration.platform.runtime.catalog.service.difference.Ent
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.entity.ChainDeployPrepare;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.MigrationException;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.qubership.integration.platform.runtime.catalog.util.ChainUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -93,6 +99,8 @@ public class ChainImportService {
     private final ImportInstructionsService importInstructionsService;
     private final FileMigrationService fileMigrationService;
     private final Collection<ChainImportFileMigration> chainImportFileMigrations;
+    private final ChainModelMapper chainModelMapper;
+    private final ChainReader chainReader;
 
     @Value("${qip.build.artifact-descriptor-version}")
     private String artifactDescriptorVersion;
@@ -118,7 +126,9 @@ public class ChainImportService {
             ChainDifferenceService chainDifferenceService,
             ImportInstructionsService importInstructionsService,
             FileMigrationService fileMigrationService,
-            Collection<ChainImportFileMigration> chainImportFileMigrations
+            Collection<ChainImportFileMigration> chainImportFileMigrations,
+            ChainModelMapper chainModelMapper,
+            ChainReader chainReader
     ) {
         this.yamlMapper = yamlMapper;
         this.transactionTemplate = transactionTemplate;
@@ -138,6 +148,8 @@ public class ChainImportService {
         this.importInstructionsService = importInstructionsService;
         this.fileMigrationService = fileMigrationService;
         this.chainImportFileMigrations = chainImportFileMigrations;
+        this.chainModelMapper = chainModelMapper;
+        this.chainReader = chainReader;
     }
 
     public List<ImportChainPreviewDTO> getChainsImportPreview(File importDirectory, ChainImportInstructionsConfig instructionsConfig) {
@@ -188,12 +200,9 @@ public class ChainImportService {
             .orElseThrow(() -> new ChainDifferenceClientException(
                 "Chain with id " + chainId + " not found in the archive"));
         try {
-            String chainYAML = Files.readString(getChainYAMLFile(chainDir).toPath());
-            chainYAML = migrateToActualFileVersion(chainYAML);
-            ChainExternalEntity chainExternalEntity = yamlMapper.readValue(chainYAML, ChainExternalEntity.class);
+            ImportChain importChain = chainReader.read(chainDir);
             return chainExternalEntityMapper.toInternalEntity(ChainExternalMapperEntity.builder()
-                .chainExternalEntity(chainExternalEntity)
-                .chainFilesDirectory(chainDir)
+                .importChain(importChain)
                 .build());
         } catch (Exception e) {
             throw new ChainDifferenceException("Exception while extracting chain " + chainId, e);
@@ -439,11 +448,14 @@ public class ChainImportService {
 
         Folder existingFolder = resolveOrCreateRootFolder(chainExternalEntity);
 
+        ImportChain importChain = chainModelMapper.map(
+                chainExternalEntity,
+                chainFilesDir == null ? null : new DirectoryPropertyFileSource(chainFilesDir));
+
         Chain newChainState = chainExternalEntityMapper.toInternalEntity(ChainExternalMapperEntity.builder()
-                .chainExternalEntity(chainExternalEntity)
+                .importChain(importChain)
                 .existingChain(currentChainState)
                 .existingFolder(existingFolder)
-                .chainFilesDirectory(chainFilesDir)
                 .build());
 
         replaceTechnicalLabels(technicalLabels, newChainState);

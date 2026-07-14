@@ -21,10 +21,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.qubership.integration.platform.chain.model.ImportChain;
+import org.qubership.integration.platform.io.model.exportimport.chain.ChainExternalEntity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Folder;
 import org.qubership.integration.platform.runtime.catalog.util.ChainUtils;
-import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 
 import java.io.File;
@@ -38,7 +39,11 @@ import java.util.function.Function;
 @SuperBuilder
 public class ChainExternalMapperEntity {
 
-    @NonNull
+    // Import input: the library model the seam maps to JPA entities.
+    @Nullable
+    private ImportChain importChain;
+    // Export output: the DTO the export direction fills in.
+    @Nullable
     private ChainExternalEntity chainExternalEntity;
     @Nullable
     private Chain existingChain;
