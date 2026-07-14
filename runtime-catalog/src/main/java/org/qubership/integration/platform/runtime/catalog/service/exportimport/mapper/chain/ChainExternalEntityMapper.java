@@ -18,17 +18,22 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.codehaus.plexus.util.StringUtils;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.MetaInfoExternalEntity;
+import org.qubership.integration.platform.chain.model.Connection;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.chain.model.ImportChain;
+import org.qubership.integration.platform.chain.model.Label;
+import org.qubership.integration.platform.io.model.exportimport.MetaInfoExternalEntity;
+import org.qubership.integration.platform.io.model.exportimport.chain.*;
+import org.qubership.integration.platform.io.model.exportimport.chain.ChainCommitRequestAction;
+import org.qubership.integration.platform.io.readers.migrations.chain.ChainImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.common.GroupPathUtils;
+import org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequestAction;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.GroupPathUtils;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.runtime.catalog.util.DistinctByKey;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -60,30 +65,30 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
 
     @Override
     public Chain toInternalEntity(@NonNull ChainExternalMapperEntity externalMapperEntity) {
-        ChainExternalEntity externalChain = externalMapperEntity.getChainExternalEntity();
+        ImportChain importChain = externalMapperEntity.getImportChain();
         Chain resultChain = Optional.ofNullable(externalMapperEntity.getExistingChain())
                 .orElse(new Chain());
 
         Set<Dependency> currentDependencies = resultChain.getDependencies();
 
-        resultChain.setId(externalChain.getId());
-        resultChain.setName(externalChain.getName());
-        resultChain.setLastImportHash(externalChain.getContent().getLastImportHash());
-        resultChain.setDescription(externalChain.getContent().getDescription());
-        resultChain.setOverridesChainId(externalChain.getContent().getOverridesChainId());
-        resultChain.setOverriddenByChainId(externalChain.getContent().getOverriddenByChainId());
-        if (!externalChain.getContent().isOverridden()) {
+        resultChain.setId(importChain.getId());
+        resultChain.setName(importChain.getName());
+        resultChain.setLastImportHash(importChain.getLastImportHash());
+        resultChain.setDescription(importChain.getDescription());
+        resultChain.setOverridesChainId(importChain.getOverridesChainId());
+        resultChain.setOverriddenByChainId(importChain.getOverriddenByChainId());
+        if (!importChain.isOverridden()) {
             resultChain.setOverriddenByChainId(null);
         }
 
-        resultChain.setBusinessDescription(externalChain.getContent().getBusinessDescription());
-        resultChain.setAssumptions(externalChain.getContent().getAssumptions());
-        resultChain.setOutOfScope(externalChain.getContent().getOutOfScope());
+        resultChain.setBusinessDescription(importChain.getBusinessDescription());
+        resultChain.setAssumptions(importChain.getAssumptions());
+        resultChain.setOutOfScope(importChain.getOutOfScope());
 
-        resultChain.addLabels(createMissingChainLabels(externalChain.getContent().getLabels(), resultChain));
+        resultChain.addLabels(createMissingChainLabels(importChain.getLabels(), resultChain));
 
         Set<MaskedField> resultMaskedFields = resultChain.getMaskedFields();
-        Set<MaskedField> externalMaskedFields = createMaskedFieldInternalEntities(externalChain.getContent().getMaskedFields(), resultChain);
+        Set<MaskedField> externalMaskedFields = createMaskedFieldInternalEntities(importChain.getMaskedFields(), resultChain);
         Set<MaskedField> mergedResultMaskedFields = resultMaskedFields
                 .stream()
                 .filter(resultMaskedField -> externalMaskedFields
@@ -103,8 +108,7 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
         resultChain.addMaskedFields(mergedResultMaskedFields);
         resultChain.addMaskedFields(mergedExternalMaskedFields);
 
-        MetaInfoExternalEntity metaInfo = externalChain.getMetaInfo();
-        List<String> groupSegments = GroupPathUtils.parseSegments(metaInfo == null ? null : metaInfo.getGroup());
+        List<String> groupSegments = extractGroupSegments(importChain);
         if (!groupSegments.isEmpty()) {
             Folder newFolder = createFolderInternalEntity(groupSegments, externalMapperEntity.getExistingFolder());
             resultChain.setParentFolder(newFolder);
@@ -112,20 +116,31 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
             resultChain.setParentFolder(null);
         }
 
-        ChainElementsExternalMapperEntity elementsMapperEntity = ChainElementsExternalMapperEntity.builder()
-                .chainElementExternalEntities(externalChain.getContent().getElements())
-                .chainFilesDirectory(externalMapperEntity.getChainFilesDirectory())
-                .build();
         resultChain.getElements().clear();
-        resultChain.addElementsHierarchy(chainElementsMapper.toInternalEntity(elementsMapperEntity));
-        specifyChainSwimlanes(externalChain, resultChain);
+        resultChain.addElementsHierarchy(chainElementsMapper.toInternalEntity(importChain.getElements()));
+        specifyChainSwimlanes(importChain, resultChain);
 
         if (externalMapperEntity.getActionBeforeDependencyMapping() != null) {
             resultChain = externalMapperEntity.getActionBeforeDependencyMapping().apply(resultChain);
         }
 
-        enrichInternalChainWithDependencies(resultChain, currentDependencies, externalChain.getContent().getDependencies());
+        enrichInternalChainWithDependencies(resultChain, currentDependencies, importChain.getConnections());
         return resultChain;
+    }
+
+    /**
+     * Recovers the folder-path segments the chain was exported under, top folder first. The library
+     * model stores the path as a parent-folder chain that runs from the leaf up to the root, so this
+     * walks it and reverses the order to match what {@link #createFolderInternalEntity} expects.
+     */
+    private List<String> extractGroupSegments(ImportChain importChain) {
+        Deque<String> segments = new ArrayDeque<>();
+        Optional<org.qubership.integration.platform.chain.model.Folder> current = importChain.getParentFolder();
+        while (current.isPresent()) {
+            segments.addFirst(current.get().getName());
+            current = current.get().getParentFolder();
+        }
+        return new ArrayList<>(segments);
     }
 
     @Override
@@ -178,36 +193,38 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
         return deploymentsForExport;
     }
 
-    private void specifyChainSwimlanes(ChainExternalEntity externalChain, Chain resultChain) {
+    private void specifyChainSwimlanes(ImportChain importChain, Chain resultChain) {
         resultChain.setDefaultSwimlane(null);
         resultChain.setReuseSwimlane(null);
 
-        if (externalChain.getContent().getDefaultSwimlaneId() != null) {
+        String defaultSwimlaneId = importChain.getDefaultSwimlane().map(Element::getId).orElse(null);
+        if (defaultSwimlaneId != null) {
             SwimlaneChainElement defaultSwimlane = resultChain.getElements().stream()
-                    .filter(element -> externalChain.getContent().getDefaultSwimlaneId().equals(element.getId()))
+                    .filter(element -> defaultSwimlaneId.equals(element.getId()))
                     .filter(element -> element instanceof SwimlaneChainElement)
                     .findFirst()
                     .map(element -> (SwimlaneChainElement) element)
                     .orElseThrow(() ->
-                            new IllegalArgumentException("Default swimlane " + externalChain.getContent().getDefaultSwimlaneId() + " not found"));
+                            new IllegalArgumentException("Default swimlane " + defaultSwimlaneId + " not found"));
             resultChain.setDefaultSwimlane(defaultSwimlane);
             defaultSwimlane.setDefaultSwimlane(true);
         }
 
-        if (externalChain.getContent().getReuseSwimlaneId() != null) {
+        String reuseSwimlaneId = importChain.getReuseSwimlane().map(Element::getId).orElse(null);
+        if (reuseSwimlaneId != null) {
             SwimlaneChainElement reuseSwimlane = resultChain.getElements().stream()
-                    .filter(element -> externalChain.getContent().getReuseSwimlaneId().equals(element.getId()))
+                    .filter(element -> reuseSwimlaneId.equals(element.getId()))
                     .filter(element -> element instanceof SwimlaneChainElement)
                     .findFirst()
                     .map(element -> (SwimlaneChainElement) element)
                     .orElseThrow(() ->
-                            new IllegalArgumentException("Reuse swimlane " + externalChain.getContent().getReuseSwimlaneId() + " not found"));
+                            new IllegalArgumentException("Reuse swimlane " + reuseSwimlaneId + " not found"));
             resultChain.setReuseSwimlane(reuseSwimlane);
             reuseSwimlane.setReuseSwimlane(true);
         }
     }
 
-    private void enrichInternalChainWithDependencies(Chain resultChain, Set<Dependency> currentDependencies, List<DependencyExternalEntity> dependencyExternalEntities) {
+    private void enrichInternalChainWithDependencies(Chain resultChain, Set<Dependency> currentDependencies, Collection<Connection> connections) {
         Map<String, ChainElement> elements = extractAllElements(resultChain.getElements());
 
         Map<String, Dependency> existingDependencies = new HashMap<>();
@@ -215,23 +232,25 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
         currentDependencies.forEach(currentDependency -> {
             String fromId = currentDependency.getElementFrom().getId();
             String toId = currentDependency.getElementTo().getId();
-            boolean importedDependencyExists = dependencyExternalEntities.stream()
-                    .anyMatch(dependency -> fromId.equals(dependency.getFrom()) && toId.equals(dependency.getTo()));
+            boolean importedDependencyExists = connections.stream()
+                    .anyMatch(connection -> fromId.equals(connection.getFrom().getId()) && toId.equals(connection.getTo().getId()));
             if (importedDependencyExists) {
                 existingDependencies.put(generateDependencyKey(fromId, toId), currentDependency);
             }
         });
 
-        for (DependencyExternalEntity dependencyEntity : dependencyExternalEntities) {
-            ChainElement elementFrom = elements.get(dependencyEntity.getFrom());
-            ChainElement elementTo = elements.get(dependencyEntity.getTo());
+        for (Connection connection : connections) {
+            String fromId = connection.getFrom().getId();
+            String toId = connection.getTo().getId();
+            ChainElement elementFrom = elements.get(fromId);
+            ChainElement elementTo = elements.get(toId);
 
             if (elementFrom == null || elementTo == null) {
-                throw new IllegalArgumentException("Unable to create dependency. At least one element not found: " + dependencyEntity);
+                throw new IllegalArgumentException("Unable to create dependency. At least one element not found: " + fromId + " -> " + toId);
             }
 
             Dependency dependency = existingDependencies.getOrDefault(
-                    generateDependencyKey(dependencyEntity.getFrom(), dependencyEntity.getTo()),
+                    generateDependencyKey(fromId, toId),
                     Dependency.of(elementFrom, elementTo)
             );
 
@@ -294,22 +313,23 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
         return names.isEmpty() ? null : String.join("/", names);
     }
 
-    private Set<ChainLabel> createMissingChainLabels(List<String> labels, Chain resultChain) {
+    private Set<ChainLabel> createMissingChainLabels(Collection<Label> labels, Chain resultChain) {
         if (CollectionUtils.isEmpty(labels)) {
             return Collections.emptySet();
         }
 
         return labels.stream()
+                .map(Label::getName)
                 .filter(label -> !resultChain.getLabels().stream().map(ChainLabel::getName).toList().contains(label))
                 .map(label -> ChainLabel.builder().name(label).chain(resultChain).build())
                 .collect(Collectors.toSet());
     }
 
-    private Set<MaskedField> createMaskedFieldInternalEntities(Set<MaskedFieldExternalEntity> maskedFieldExtEntities, Chain chain) {
+    private Set<MaskedField> createMaskedFieldInternalEntities(Collection<org.qubership.integration.platform.chain.model.MaskedField> maskedFieldModels, Chain chain) {
         Set<MaskedField> maskedFields = new HashSet<>();
-        for (MaskedFieldExternalEntity maskedFieldExtEntity : maskedFieldExtEntities) {
+        for (org.qubership.integration.platform.chain.model.MaskedField maskedFieldModel : maskedFieldModels) {
             maskedFields.add(MaskedField.builder()
-                    .name(maskedFieldExtEntity.getName())
+                    .name(maskedFieldModel.getName())
                     .chain(chain)
                     .build());
         }
