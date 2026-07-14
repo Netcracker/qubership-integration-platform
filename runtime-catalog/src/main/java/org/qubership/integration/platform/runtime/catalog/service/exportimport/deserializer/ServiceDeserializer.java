@@ -23,6 +23,8 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.qubership.integration.platform.chain.model.ImportSpecificationSource;
+import org.qubership.integration.platform.chain.model.ImportSystemModel;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupContentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupDto;
@@ -32,6 +34,7 @@ import org.qubership.integration.platform.io.readers.migrations.ImportFileMigrat
 import org.qubership.integration.platform.io.readers.migrations.MigrationException;
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
+import org.qubership.integration.platform.io.readers.system.SystemImportModelMapper;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
@@ -96,7 +99,8 @@ public class ServiceDeserializer {
             );
             ObjectNode migratedServiceNode = (ObjectNode) yamlMapper.readTree(serviceData);
             IntegrationSystemDto integrationSystemDto = yamlMapper.treeToValue(migratedServiceNode, IntegrationSystemDto.class);
-            IntegrationSystem integrationSystem = integrationSystemDtoMapper.toInternalEntity(integrationSystemDto);
+            IntegrationSystem integrationSystem = integrationSystemDtoMapper.toInternalEntity(
+                    SystemImportModelMapper.toModel(integrationSystemDto));
 
             Collection<File> files = listFiles(serviceDirectory);
 
@@ -258,7 +262,8 @@ public class ServiceDeserializer {
         try {
             ObjectNode migratedNode = node.has(CONTENT) ? node : migrate(node, versions);
             SpecificationGroupDto specificationGroupDto = yamlMapper.treeToValue(migratedNode, SpecificationGroupDto.class);
-            SpecificationGroup specificationGroup = specificationGroupDtoMapper.toInternalEntity(specificationGroupDto);
+            SpecificationGroup specificationGroup = specificationGroupDtoMapper.toInternalEntity(
+                    SystemImportModelMapper.toModel(specificationGroupDto));
 
             if (Objects.equals(specificationGroupDto.getContent().getParentId(), integrationSystem.getId())) {
                 integrationSystem.addSpecificationGroup(specificationGroup);
@@ -279,43 +284,43 @@ public class ServiceDeserializer {
         try {
             ObjectNode migratedNode = node.has(CONTENT) ? node : migrate(node, versions);
             SystemModelDto systemModelDto = yamlMapper.treeToValue(migratedNode, SystemModelDto.class);
-            SystemModel systemModel = systemModelDtoMapper.toInternalEntity(systemModelDto);
+            ImportSystemModel importSystemModel = SystemImportModelMapper.toModel(systemModelDto);
+            SystemModel systemModel = systemModelDtoMapper.toInternalEntity(importSystemModel);
             specificationGroups.stream()
-                    .filter(group -> Objects.equals(group.getId(), systemModelDto.getContent().getParentId()))
+                    .filter(group -> Objects.equals(group.getId(), importSystemModel.getParentId()))
                     .findFirst()
                     .ifPresent(group -> group.addSystemModel(systemModel));
-            systemModelDto.getContent().getSpecificationSources().forEach(specificationSourceDto -> {
-                var specificationSourceBuilder = SpecificationSource.builder();
-                specificationSourceBuilder
-                        .id(specificationSourceDto.getId())
-                        .name(specificationSourceDto.getName())
-                        .description(specificationSourceDto.getDescription())
-                        .createdBy(SystemEntitySeam.toPersistenceUser(specificationSourceDto.getCreatedBy()))
-                        .createdWhen(specificationSourceDto.getCreatedWhen())
-                        .modifiedBy(SystemEntitySeam.toPersistenceUser(specificationSourceDto.getModifiedBy()))
-                        .modifiedWhen(specificationSourceDto.getModifiedWhen())
-                        .sourceHash(specificationSourceDto.getSourceHash())
-                        .isMainSource(specificationSourceDto.isMainSource());
-                Path sourcePath = resourceDirectory.toPath().resolve(specificationSourceDto.getFileName());
-                if (!Files.exists(sourcePath) && !specificationSourceDto.getFileName().contains(RESOURCES_FOLDER_PREFIX)) {
-                    sourcePath = resourceDirectory.toPath().resolve(RESOURCES_FOLDER_PREFIX + specificationSourceDto.getFileName());
-                }
-                if (Files.exists(sourcePath)) {
-                    try {
-                        specificationSourceBuilder.source(Files.readString(sourcePath));
-                    } catch (IOException e) {
-                        throw new RuntimeException("Failed to read specification source", e);
-                    }
-                } else {
-                    log.warn("Specification source file not found: {}", specificationSourceDto.getFileName());
-                }
-                SpecificationSource specificationSource = specificationSourceBuilder.build();
+            importSystemModel.getSpecificationSources().forEach(source -> {
+                String sourceContent = readSpecificationSource(source, resourceDirectory);
+                SpecificationSource specificationSource =
+                        SystemEntitySeam.toPersistenceSpecificationSource(source, sourceContent);
                 systemModel.addProvidedSpecificationSource(specificationSource);
             });
         } catch (MigrationException exception) {
             throw new RuntimeException("Failed to migrate specification data", exception);
         } catch (JsonProcessingException exception) {
             throw new RuntimeException("Failed to construct specification from YAML", exception);
+        }
+    }
+
+    /**
+     * Reads a specification source's text from the archive directory, or returns {@code null} when
+     * the file is missing. Falls back to the resources subfolder when the recorded file name does
+     * not resolve directly, matching how the sources are laid out on export.
+     */
+    private String readSpecificationSource(ImportSpecificationSource source, File resourceDirectory) {
+        Path sourcePath = resourceDirectory.toPath().resolve(source.getFileName());
+        if (!Files.exists(sourcePath) && !source.getFileName().contains(RESOURCES_FOLDER_PREFIX)) {
+            sourcePath = resourceDirectory.toPath().resolve(RESOURCES_FOLDER_PREFIX + source.getFileName());
+        }
+        if (!Files.exists(sourcePath)) {
+            log.warn("Specification source file not found: {}", source.getFileName());
+            return null;
+        }
+        try {
+            return Files.readString(sourcePath);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read specification source", e);
         }
     }
 }

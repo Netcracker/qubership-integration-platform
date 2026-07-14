@@ -21,7 +21,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.qubership.integration.platform.io.model.exportimport.system.EnvironmentDto;
+import org.qubership.integration.platform.chain.model.ImportEnvironment;
+import org.qubership.integration.platform.chain.model.ImportSystem;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemType;
 import org.qubership.integration.platform.io.model.exportimport.system.OperationProtocol;
@@ -53,7 +54,7 @@ class IntegrationSystemReaderTest {
         reader = new IntegrationSystemReader(new YAMLMapper(), fileMigrationService, java.util.List.of());
     }
 
-    @DisplayName("read migrates the file, deserializes it, and keeps the enum, audit-user, and environment fields")
+    @DisplayName("read migrates the file, deserializes it, and maps the enum, audit-user, and environment fields")
     @Test
     void readsSystemFileIntoModel() throws IOException {
         String systemYaml = """
@@ -77,30 +78,33 @@ class IntegrationSystemReaderTest {
         Path systemFile = serviceDir.resolve("sys-1.service.qip.yaml");
         Files.writeString(systemFile, systemYaml);
 
-        IntegrationSystemDto result = reader.read(systemFile.toFile());
+        ImportSystem result = reader.read(systemFile.toFile());
 
         assertEquals("sys-1", result.getId());
         assertEquals("Payment System", result.getName());
-        assertEquals("A description", result.getContent().getDescription());
-        assertEquals(IntegrationSystemType.EXTERNAL, result.getContent().getIntegrationSystemType());
-        assertEquals(OperationProtocol.HTTP, result.getContent().getProtocol());
-        assertEquals("u-1", result.getContent().getCreatedBy().getId());
-        assertEquals("alice", result.getContent().getCreatedBy().getUsername());
-        assertEquals(1, result.getContent().getEnvironments().size());
-        EnvironmentDto environment = result.getContent().getEnvironments().get(0);
+        assertEquals("A description", result.getDescription());
+        assertEquals(IntegrationSystemType.EXTERNAL, result.getIntegrationSystemType());
+        assertEquals(OperationProtocol.HTTP, result.getProtocol());
+        assertEquals("u-1", result.getCreatedBy().getId());
+        assertEquals("alice", result.getCreatedBy().getUsername());
+        assertEquals(1, result.getEnvironments().size());
+        ImportEnvironment environment = result.getEnvironments().get(0);
         assertEquals("env-1", environment.getId());
         assertEquals("http://example.org", environment.getAddress());
-        assertEquals(java.util.List.of("prod"), result.getContent().getLabels());
+        assertEquals(java.util.List.of("prod"), result.getLabels());
     }
 
-    @DisplayName("toModel returns the deserialized export as the library model")
+    @DisplayName("toModel flattens the export content block onto the model")
     @Test
-    void toModelReturnsDeserializedExport() {
+    void toModelFlattensContent() {
         IntegrationSystemDto dto = IntegrationSystemDto.builder()
                 .id("sys-2")
                 .name("Order System")
                 .build();
 
-        assertEquals(dto, reader.toModel(dto));
+        ImportSystem result = reader.toModel(dto);
+
+        assertEquals("sys-2", result.getId());
+        assertEquals("Order System", result.getName());
     }
 }

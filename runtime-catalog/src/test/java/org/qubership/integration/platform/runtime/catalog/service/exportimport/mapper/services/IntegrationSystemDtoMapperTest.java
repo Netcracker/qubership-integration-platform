@@ -18,8 +18,8 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.io.model.exportimport.system.EnvironmentDto;
-import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemContentDto;
+import org.qubership.integration.platform.chain.impl.ImportEnvironmentImpl;
+import org.qubership.integration.platform.chain.impl.ImportSystemImpl;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
@@ -57,24 +57,20 @@ class IntegrationSystemDtoMapperTest {
     void testToInternalEntityMapsEveryContentField() {
         Timestamp createdWhen = new Timestamp(1_000L);
         Timestamp modifiedWhen = new Timestamp(2_000L);
-        IntegrationSystemContentDto content = IntegrationSystemContentDto.builder()
-                .description("A description")
-                .activeEnvironmentId("env-1")
-                .integrationSystemType(
-                        org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemType.EXTERNAL)
-                .internalServiceName("internal-service")
-                .protocol(org.qubership.integration.platform.io.model.exportimport.system.OperationProtocol.HTTP)
-                .createdWhen(createdWhen)
-                .modifiedWhen(modifiedWhen)
-                .labels(List.of("prod", "billing"))
-                .build();
-        IntegrationSystemDto dto = IntegrationSystemDto.builder()
-                .id("sys-1")
-                .name("Payment System")
-                .content(content)
-                .build();
+        ImportSystemImpl model = new ImportSystemImpl();
+        model.setId("sys-1");
+        model.setName("Payment System");
+        model.setDescription("A description");
+        model.setActiveEnvironmentId("env-1");
+        model.setIntegrationSystemType(
+                org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemType.EXTERNAL);
+        model.setInternalServiceName("internal-service");
+        model.setProtocol(org.qubership.integration.platform.io.model.exportimport.system.OperationProtocol.HTTP);
+        model.setCreatedWhen(createdWhen);
+        model.setModifiedWhen(modifiedWhen);
+        model.setLabels(List.of("prod", "billing"));
 
-        IntegrationSystem result = mapper.toInternalEntity(dto);
+        IntegrationSystem result = mapper.toInternalEntity(model);
 
         assertNotNull(result);
         assertEquals("sys-1", result.getId());
@@ -90,21 +86,16 @@ class IntegrationSystemDtoMapperTest {
 
     @Test
     void testToInternalEntityWiresEnvironmentsBackToSystem() {
-        EnvironmentDto environment = EnvironmentDto.builder()
-                .id("env-1")
-                .name("Prod")
-                .address("http://example.org")
-                .build();
-        IntegrationSystemContentDto content = IntegrationSystemContentDto.builder()
-                .environments(List.of(environment))
-                .build();
-        IntegrationSystemDto dto = IntegrationSystemDto.builder()
-                .id("sys-1")
-                .name("Payment System")
-                .content(content)
-                .build();
+        ImportEnvironmentImpl environment = new ImportEnvironmentImpl();
+        environment.setId("env-1");
+        environment.setName("Prod");
+        environment.setAddress("http://example.org");
+        ImportSystemImpl model = new ImportSystemImpl();
+        model.setId("sys-1");
+        model.setName("Payment System");
+        model.setEnvironments(List.of(environment));
 
-        IntegrationSystem result = mapper.toInternalEntity(dto);
+        IntegrationSystem result = mapper.toInternalEntity(model);
 
         assertEquals(1, result.getEnvironments().size());
         Environment resultEnvironment = result.getEnvironments().get(0);
@@ -115,16 +106,12 @@ class IntegrationSystemDtoMapperTest {
 
     @Test
     void testToInternalEntityMapsLabelsBoundToSystemAndNonTechnical() {
-        IntegrationSystemContentDto content = IntegrationSystemContentDto.builder()
-                .labels(List.of("prod", "billing"))
-                .build();
-        IntegrationSystemDto dto = IntegrationSystemDto.builder()
-                .id("sys-1")
-                .name("Payment System")
-                .content(content)
-                .build();
+        ImportSystemImpl model = new ImportSystemImpl();
+        model.setId("sys-1");
+        model.setName("Payment System");
+        model.setLabels(List.of("prod", "billing"));
 
-        IntegrationSystem result = mapper.toInternalEntity(dto);
+        IntegrationSystem result = mapper.toInternalEntity(model);
 
         Set<String> labelNames = result.getLabels().stream()
                 .map(IntegrationSystemLabel::getName)

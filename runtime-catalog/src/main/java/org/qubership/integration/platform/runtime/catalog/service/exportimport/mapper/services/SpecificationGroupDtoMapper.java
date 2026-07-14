@@ -16,11 +16,11 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services;
 
+import org.qubership.integration.platform.chain.model.ImportSpecificationGroup;
 import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupContentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroupLabel;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam.toPersistenceUser;
 
 @Component
-public class SpecificationGroupDtoMapper implements ExternalEntityMapper<SpecificationGroup, SpecificationGroupDto> {
+public class SpecificationGroupDtoMapper {
     private final URI schemaUri;
 
     @Autowired
@@ -41,21 +41,19 @@ public class SpecificationGroupDtoMapper implements ExternalEntityMapper<Specifi
         this.schemaUri = schemaUri;
     }
 
-    @Override
-    public SpecificationGroup toInternalEntity(SpecificationGroupDto specificationGroupDto) {
+    public SpecificationGroup toInternalEntity(ImportSpecificationGroup importSpecificationGroup) {
         SpecificationGroup specificationGroup = SpecificationGroup.builder()
-                .id(specificationGroupDto.getId())
-                .name(specificationGroupDto.getName())
-                .description(specificationGroupDto.getContent().getDescription())
-                .createdBy(toPersistenceUser(specificationGroupDto.getContent().getCreatedBy()))
-                .createdWhen(specificationGroupDto.getContent().getCreatedWhen())
-                .modifiedBy(toPersistenceUser(specificationGroupDto.getContent().getModifiedBy()))
-                .modifiedWhen(specificationGroupDto.getContent().getModifiedWhen())
-                .url(specificationGroupDto.getContent().getUrl())
-                .synchronization(specificationGroupDto.getContent().isSynchronization())
+                .id(importSpecificationGroup.getId())
+                .name(importSpecificationGroup.getName())
+                .description(importSpecificationGroup.getDescription())
+                .createdBy(toPersistenceUser(importSpecificationGroup.getCreatedBy()))
+                .createdWhen(importSpecificationGroup.getCreatedWhen())
+                .modifiedBy(toPersistenceUser(importSpecificationGroup.getModifiedBy()))
+                .modifiedWhen(importSpecificationGroup.getModifiedWhen())
+                .url(importSpecificationGroup.getUrl())
+                .synchronization(importSpecificationGroup.isSynchronization())
                 .build();
-        specificationGroup.setLabels(specificationGroupDto
-                .getContent()
+        specificationGroup.setLabels(importSpecificationGroup
                 .getLabels()
                 .stream()
                 .map(name -> new SpecificationGroupLabel(name, specificationGroup))
@@ -63,7 +61,6 @@ public class SpecificationGroupDtoMapper implements ExternalEntityMapper<Specifi
         return specificationGroup;
     }
 
-    @Override
     public SpecificationGroupDto toExternalEntity(SpecificationGroup specificationGroup) {
         return SpecificationGroupDto.builder()
                 .id(specificationGroup.getId())
