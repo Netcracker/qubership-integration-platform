@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.schemas;
+package org.qubership.integration.platform.parsers.schemas;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

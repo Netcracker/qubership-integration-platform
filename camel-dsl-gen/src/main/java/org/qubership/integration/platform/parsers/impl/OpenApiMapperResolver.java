@@ -1,10 +1,9 @@
-package org.qubership.integration.platform.runtime.catalog.service.parsers;
+package org.qubership.integration.platform.parsers.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.core.util.Json;
 import io.swagger.v3.core.util.Json31;
 import io.swagger.v3.oas.models.SpecVersion;
-import org.springframework.stereotype.Component;
 
 /**
  * Picks the swagger-core mapper that matches the parsed specification version.
@@ -17,7 +16,6 @@ import org.springframework.stereotype.Component;
  * <p>Both mappers are cached singletons inside swagger-core, so resolution is cheap and the
  * returned instance is safe to share across imports.
  */
-@Component
 public class OpenApiMapperResolver {
 
     /**

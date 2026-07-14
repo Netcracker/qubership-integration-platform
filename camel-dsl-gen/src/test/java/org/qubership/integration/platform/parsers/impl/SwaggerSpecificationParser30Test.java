@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.runtime.catalog.service.parsers.impl;
+package org.qubership.integration.platform.parsers.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
