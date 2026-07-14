@@ -17,8 +17,11 @@
 package org.qubership.integration.platform.runtime.catalog.service.parsers;
 
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.parsers.Parser;
+import org.qubership.integration.platform.parsers.SpecificationParserException;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
 import org.qubership.integration.platform.runtime.catalog.context.RequestIdContext;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarIdException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarVersionException;
 import org.qubership.integration.platform.runtime.catalog.model.system.SystemModelSource;
@@ -51,6 +54,8 @@ import java.util.stream.Collectors;
 public class OperationParserService {
 
     private final Map<String, SpecificationParser> parsers = new HashMap<>();
+    private final Map<String, org.qubership.integration.platform.parsers.SpecificationParser> libraryParsers =
+            new HashMap<>();
     private final OperationRepository operationRepository;
     private final SystemModelRepository systemModelRepository;
     private final SpecificationGroupRepository specificationGroupRepository;
@@ -61,6 +66,7 @@ public class OperationParserService {
 
     @Autowired
     public OperationParserService(List<SpecificationParser> parsers,
+                                  List<org.qubership.integration.platform.parsers.SpecificationParser> libraryParsers,
                                   OperationRepository operationRepository,
                                   SystemModelRepository systemModelRepository,
                                   SpecificationGroupRepository specificationGroupRepository,
@@ -81,10 +87,50 @@ public class OperationParserService {
                 this.parsers.put(parserAnnotation.value(), parser);
             }
         }
+        for (org.qubership.integration.platform.parsers.SpecificationParser parser : libraryParsers) {
+            Parser parserAnnotation = parser.getClass().getAnnotation(Parser.class);
+            if (parserAnnotation != null) {
+                this.libraryParsers.put(parserAnnotation.value(), parser);
+            }
+        }
     }
 
     private SpecificationParser getParser(String parserName) {
         return this.parsers.get(parserName);
+    }
+
+    /**
+     * Parses the sources with the parser registered under {@code parserName}. A catalog parser
+     * receives the group and sources directly; a library parser receives the group id and the
+     * source name and text, and its {@link SpecificationParserException} is translated into a
+     * {@link SpecificationImportException} so callers see one import-facing exception type.
+     */
+    private ParsedSystemModel parseSpecification(String parserName,
+                                                 SpecificationGroup specificationGroup,
+                                                 Collection<SpecificationSource> specificationSources,
+                                                 Consumer<String> messageHandler) {
+        SpecificationParser parser = getParser(parserName);
+        if (parser != null) {
+            return parser.parseSpecification(specificationGroup, specificationSources, messageHandler);
+        }
+
+        org.qubership.integration.platform.parsers.SpecificationParser libraryParser =
+                libraryParsers.get(parserName);
+        if (libraryParser == null) {
+            throw new SpecificationImportException(
+                    "No specification parser is registered for protocol '" + parserName + "'");
+        }
+
+        List<org.qubership.integration.platform.parsers.SpecificationSource> librarySources =
+                specificationSources.stream()
+                        .map(source -> new org.qubership.integration.platform.parsers.SpecificationSource(
+                                source.getName(), source.getSource()))
+                        .collect(Collectors.toList());
+        try {
+            return libraryParser.parseSpecification(specificationGroup.getId(), librarySources, messageHandler);
+        } catch (SpecificationParserException e) {
+            throw new SpecificationImportException(e.getMessage(), e.getCause());
+        }
     }
 
     public CompletableFuture<SystemModel> parse(String parserName,
@@ -98,10 +144,9 @@ public class OperationParserService {
             RequestIdContext.set(requestId);
             return transactionHandler.supplyInNewTransaction(() -> {
                 SpecificationGroup specificationGroup = specificationGroupRepository.getReferenceById(specificationGroupId);
-                SpecificationParser parser = getParser(parserName);
 
                 ParsedSystemModel parsedSystemModel =
-                        parser.parseSpecification(specificationGroup, specificationSources, messageHandler);
+                        parseSpecification(parserName, specificationGroup, specificationSources, messageHandler);
 
                 SystemModel systemModel = buildSystemModel(
                         parsedSystemModel, specificationGroup, oldSystemModelsIds, messageHandler);

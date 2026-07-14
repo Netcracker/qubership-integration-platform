@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.parsers.impl;
+package org.qubership.integration.platform.parsers.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,45 +22,36 @@ import graphql.language.AstPrinter;
 import graphql.language.Definition;
 import graphql.language.Document;
 import graphql.language.ObjectTypeDefinition;
-import graphql.parser.Parser;
 import graphql.parser.ParserEnvironment;
 import graphql.parser.ParserOptions;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.parsers.Parser;
+import org.qubership.integration.platform.parsers.SpecificationParser;
+import org.qubership.integration.platform.parsers.SpecificationParserException;
+import org.qubership.integration.platform.parsers.SpecificationSource;
 import org.qubership.integration.platform.parsers.model.ParsedOperation;
 import org.qubership.integration.platform.parsers.model.ParsedOperationImpl;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModelImpl;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
-import org.qubership.integration.platform.runtime.catalog.service.parsers.SpecificationParser;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Service
-@org.qubership.integration.platform.runtime.catalog.service.parsers.Parser("graphqlschema")
-@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
+@Parser("graphqlschema")
 public class GraphqlSpecificationParser implements SpecificationParser {
     public static final String MUTATION_NAME = "mutation";
     public static final String QUERY_NAME = "query";
     public static final String OPERATION_IN_SPEC_KEY = "operation";
 
-    private final Parser graphqlParser;
+    private final graphql.parser.Parser graphqlParser;
     private final ParserOptions graphqlParserOptions;
     private final ObjectMapper jsonMapper;
 
-    @Autowired
-    public GraphqlSpecificationParser(Parser graphqlParser,
-                                      @Qualifier("graphqlOperationParserOptions") ParserOptions graphqlParserOptions,
-                                      @Qualifier("primaryObjectMapper") ObjectMapper jsonMapper) {
+    public GraphqlSpecificationParser(graphql.parser.Parser graphqlParser,
+                                      ParserOptions graphqlParserOptions,
+                                      ObjectMapper jsonMapper) {
         this.graphqlParser = graphqlParser;
         this.graphqlParserOptions = graphqlParserOptions;
         this.jsonMapper = jsonMapper;
@@ -68,7 +59,7 @@ public class GraphqlSpecificationParser implements SpecificationParser {
 
     @Override
     public ParsedSystemModel parseSpecification(
-            SpecificationGroup group,
+            String groupId,
             Collection<SpecificationSource> sources,
             Consumer<String> messageHandler
     ) {
@@ -79,7 +70,7 @@ public class GraphqlSpecificationParser implements SpecificationParser {
                     .operations(operationList)
                     .build();
         } catch (Exception e) {
-            throw new SpecificationImportException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
+            throw new SpecificationParserException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
         }
     }
 

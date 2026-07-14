@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.parsers.impl;
+package org.qubership.integration.platform.parsers.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,20 +25,14 @@ import com.squareup.wire.schema.Location;
 import com.squareup.wire.schema.internal.parser.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.parsers.Parser;
+import org.qubership.integration.platform.parsers.SpecificationParser;
+import org.qubership.integration.platform.parsers.SpecificationParserException;
+import org.qubership.integration.platform.parsers.SpecificationSource;
 import org.qubership.integration.platform.parsers.model.ParsedOperation;
 import org.qubership.integration.platform.parsers.model.ParsedOperationImpl;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModelImpl;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
-import org.qubership.integration.platform.runtime.catalog.service.parsers.Parser;
-import org.qubership.integration.platform.runtime.catalog.service.parsers.SpecificationParser;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -50,30 +44,28 @@ import java.util.stream.Stream;
 
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
-import static org.qubership.integration.platform.runtime.catalog.service.schemas.SchemasConstants.*;
 
 
 @Slf4j
-@Service
 @Parser("protobuf")
-@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 public class ProtobufSpecificationParser implements SpecificationParser {
     private static final String JAVA_PACKAGE_OPTION_NAME = "java_package";
     private static final Pattern MAP_TYPE_REGEX =
             Pattern.compile("^map<\\s*([a-zA-Z0-9_\\-.]+)\\s*,\\s*([a-zA-Z0-9_\\-.]+)\\s*>$");
 
+    private static final String SCHEMA_ID_NODE_NAME = "$id";
+    private static final String SCHEMA_HEADER_NODE_NAME = "$schema";
+    private static final String DEFINITIONS_NODE_NAME = "definitions";
+
     private final ObjectMapper objectMapper;
 
-    @Autowired
-    public ProtobufSpecificationParser(
-            @Qualifier("primaryObjectMapper") ObjectMapper objectMapper
-    ) {
+    public ProtobufSpecificationParser(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
 
     @Override
     public ParsedSystemModel parseSpecification(
-            SpecificationGroup group,
+            String groupId,
             Collection<SpecificationSource> sources,
             Consumer<String> messageHandler
     ) {
@@ -86,7 +78,7 @@ public class ProtobufSpecificationParser implements SpecificationParser {
                     .operations(operations)
                     .build();
         } catch (Exception e) {
-            throw new SpecificationImportException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
+            throw new SpecificationParserException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
         }
     }
 
