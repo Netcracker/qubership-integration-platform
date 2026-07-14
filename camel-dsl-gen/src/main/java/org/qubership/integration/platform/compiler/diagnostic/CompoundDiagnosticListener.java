@@ -14,21 +14,23 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.compiler;
+package org.qubership.integration.platform.compiler.diagnostic;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-import javax.tools.JavaFileObject;
+import javax.tools.Diagnostic;
+import javax.tools.DiagnosticListener;
 
-public class URIUtils {
-    public static URI buildURI(String scheme, String className, JavaFileObject.Kind kind) {
-        try {
-            String path = "/" + className.replace('.', '/') + kind.extension;
-            return new URI(scheme, null, path, null);
-        } catch (URISyntaxException exception) {
-            throw new RuntimeException(exception);
-        }
+public class CompoundDiagnosticListener<S> implements DiagnosticListener<S> {
+    private final DiagnosticListener<S> first;
+    private final DiagnosticListener<S> second;
+
+    public CompoundDiagnosticListener(DiagnosticListener<S> first, DiagnosticListener<S> second) {
+        this.first = first;
+        this.second = second;
     }
 
-    private URIUtils() {}
+    @Override
+    public void report(Diagnostic<? extends S> diagnostic) {
+        first.report(diagnostic);
+        second.report(diagnostic);
+    }
 }

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.compiler;
+package org.qubership.integration.platform.compiler;
 
 import org.apache.commons.io.FilenameUtils;
 

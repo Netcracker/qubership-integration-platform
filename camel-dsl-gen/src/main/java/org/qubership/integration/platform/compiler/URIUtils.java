@@ -14,16 +14,21 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.compiler;
+package org.qubership.integration.platform.compiler;
 
-import org.springframework.stereotype.Service;
+import java.net.URI;
+import java.net.URISyntaxException;
+import javax.tools.JavaFileObject;
 
-import java.util.Map;
-
-@Service
-public class CompilerService {
-    public Map<String, byte[]> compile(Map<String, String> sources) throws CompilationError {
-        InMemoryCompiler compiler = new InMemoryCompiler();
-        return compiler.compile(sources);
+public class URIUtils {
+    public static URI buildURI(String scheme, String className, JavaFileObject.Kind kind) {
+        try {
+            String path = "/" + className.replace('.', '/') + kind.extension;
+            return new URI(scheme, null, path, null);
+        } catch (URISyntaxException exception) {
+            throw new RuntimeException(exception);
+        }
     }
+
+    private URIUtils() {}
 }
