@@ -21,9 +21,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.parsers.model.ParsedOperation;
+import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
+import org.qubership.integration.platform.parsers.model.ParsedSystemModelImpl;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarIdException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarVersionException;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.AsyncApiVersion;
 import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.AsyncapiSpecification;
@@ -33,11 +34,9 @@ import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBaseService;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.Parser;
-import org.qubership.integration.platform.runtime.catalog.service.parsers.ParserUtils;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.SpecificationParser;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.asyncapi.AsyncApiV3Normalizer;
 import org.qubership.integration.platform.runtime.catalog.service.resolvers.async.AsyncApiSpecificationResolver;
@@ -58,9 +57,7 @@ import java.util.stream.Collectors;
 @Parser("asyncapi")
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 public class AsyncapiSpecificationParser implements SpecificationParser {
-    private final SystemModelRepository systemModelRepository;
     private final EnvironmentBaseService environmentBaseService;
-    private final ParserUtils parserUtils;
     private final AsyncApiV3Normalizer v3Normalizer;
 
     private final ObjectMapper jsonMapper;
@@ -70,15 +67,11 @@ public class AsyncapiSpecificationParser implements SpecificationParser {
 
     @Autowired
     public AsyncapiSpecificationParser(@Lazy EnvironmentBaseService environmentBaseService,
-                                       SystemModelRepository systemModelRepository,
-                                       ParserUtils parserUtils,
                                        AsyncApiV3Normalizer v3Normalizer,
                                        @Qualifier("primaryObjectMapper") ObjectMapper jsonMapper,
                                        YAMLMapper yamlExportImportMapper,
                                        List<AsyncApiSpecificationResolver> resolverList) {
-        this.systemModelRepository = systemModelRepository;
         this.environmentBaseService = environmentBaseService;
-        this.parserUtils = parserUtils;
         this.v3Normalizer = v3Normalizer;
         this.jsonMapper = jsonMapper;
         this.yamlMapper = yamlExportImportMapper;
@@ -102,21 +95,14 @@ public class AsyncapiSpecificationParser implements SpecificationParser {
     }
 
     @Override
-    public SystemModel enrichSpecificationGroup(
+    public ParsedSystemModel parseSpecification(
             SpecificationGroup group,
             Collection<SpecificationSource> sources,
-            Set<String> oldSystemModelsIds,
-            boolean isDiscovered,
             Consumer<String> messageHandler
     ) {
         try {
-            SystemModel systemModel;
             String specificationText = sources.stream().map(SpecificationSource::getSource).findFirst().orElse("");
             AsyncapiSpecification importedAsyncApi = read(specificationText);
-            String systemModelName = parserUtils.defineVersionName(group, importedAsyncApi);
-            String systemModelId = buildId(group.getId(), systemModelName);
-
-            checkSpecId(oldSystemModelsIds, systemModelId);
 
             OperationProtocol operationProtocol = group.getSystem().getProtocol();
             List<Operation> operations = separate(importedAsyncApi, operationProtocol);
@@ -127,21 +113,16 @@ public class AsyncapiSpecificationParser implements SpecificationParser {
                     group.getSystem(),
                     messageHandler);
 
-            systemModel = SystemModel.builder().id(systemModelId).build();
+            List<ParsedOperation> parsedOperations = operations.stream()
+                    .map(SystemEntitySeam::toParsedOperation)
+                    .collect(Collectors.toList());
 
-            systemModel = systemModelRepository.save(systemModel);
-            systemModel.setName(systemModelName);
-            systemModel.setVersion(parserUtils.defineVersion(group, importedAsyncApi));
-            systemModel.setDescription(importedAsyncApi.getInfo().getDescription());
-
-            setOperationIds(systemModelId, operations, messageHandler.andThen(log::warn));
-
-            operations.forEach(systemModel::addProvidedOperation);
-            group.addSystemModel(systemModel);
-
-            return systemModel;
-        } catch (SpecificationSimilarIdException | SpecificationSimilarVersionException
-                 | SpecificationImportException e) {
+            return ParsedSystemModelImpl.builder()
+                    .version(importedAsyncApi.getInfo().getVersion())
+                    .description(importedAsyncApi.getInfo().getDescription())
+                    .operations(parsedOperations)
+                    .build();
+        } catch (SpecificationImportException e) {
             throw e;
         } catch (Exception e) {
             throw new SpecificationImportException(SPECIFICATION_FILE_PROCESSING_ERROR, e);

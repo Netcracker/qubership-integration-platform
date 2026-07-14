@@ -21,6 +21,8 @@ import org.qubership.integration.platform.chain.model.ImportOperation;
 import org.qubership.integration.platform.chain.model.ImportSpecificationSource;
 import org.qubership.integration.platform.io.model.exportimport.system.EnvironmentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.OperationDto;
+import org.qubership.integration.platform.parsers.model.ParsedOperation;
+import org.qubership.integration.platform.parsers.model.ParsedOperationImpl;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentLabel;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
@@ -42,6 +44,9 @@ import java.util.List;
  * enums; the catalog owns the JPA entities. This is the single seam where the service mappers
  * translate one side into the other: the model on import, the DTOs on export, by enum name for the
  * enums and field for field for everything else.
+ *
+ * <p>The library also owns the parser output model ({@code ParsedOperation}). This seam maps it to
+ * and from the {@code Operation} entity so the catalog can persist what a parser produces.
  */
 public final class SystemEntitySeam {
 
@@ -159,6 +164,24 @@ public final class SystemEntitySeam {
     }
 
     /**
+     * Maps a parsed operation to its persistence entity. The parser assigns no identity, so the
+     * caller sets the id after mapping.
+     */
+    public static Operation toPersistenceOperation(ParsedOperation operation) {
+        if (operation == null) {
+            return null;
+        }
+        return Operation.builder()
+                .name(operation.getName())
+                .method(operation.getMethod())
+                .path(operation.getPath())
+                .specification(operation.getSpecification())
+                .requestSchema(operation.getRequestSchema())
+                .responseSchemas(operation.getResponseSchemas())
+                .build();
+    }
+
+    /**
      * Maps a specification source to its persistence entity. The source text is not part of the
      * model; the catalog reads it from the archive file and passes it as {@code sourceContent}. It
      * is set through the builder rather than {@code setSource} so the exported {@code sourceHash} is
@@ -191,6 +214,20 @@ public final class SystemEntitySeam {
                 .id(operation.getId())
                 .name(operation.getName())
                 .description(operation.getDescription())
+                .method(operation.getMethod())
+                .path(operation.getPath())
+                .specification(operation.getSpecification())
+                .requestSchema(operation.getRequestSchema())
+                .responseSchemas(operation.getResponseSchemas())
+                .build();
+    }
+
+    public static ParsedOperation toParsedOperation(Operation operation) {
+        if (operation == null) {
+            return null;
+        }
+        return ParsedOperationImpl.builder()
+                .name(operation.getName())
                 .method(operation.getMethod())
                 .path(operation.getPath())
                 .specification(operation.getSpecification())

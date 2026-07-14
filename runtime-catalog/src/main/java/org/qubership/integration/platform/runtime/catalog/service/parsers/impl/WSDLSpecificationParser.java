@@ -36,18 +36,18 @@ import org.apache.woden.wsdl20.BindingOperation;
 import org.apache.woden.wsdl20.Description;
 import org.apache.woden.wsdl20.Endpoint;
 import org.apache.woden.wsdl20.xml.DescriptionElement;
+import org.qubership.integration.platform.parsers.model.ParsedOperation;
+import org.qubership.integration.platform.parsers.model.ParsedOperationImpl;
+import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
+import org.qubership.integration.platform.parsers.model.ParsedSystemModelImpl;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarIdException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarVersionException;
 import org.qubership.integration.platform.runtime.catalog.model.dto.system.EnvironmentRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.EnvironmentMapper;
 import org.qubership.integration.platform.runtime.catalog.model.system.WsdlVersion;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.FilesStorageService;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.Parser;
-import org.qubership.integration.platform.runtime.catalog.service.parsers.ParserUtils;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.SpecificationParser;
 import org.qubership.integration.platform.runtime.catalog.service.resolvers.wsdl.WsdlVersionParser;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -75,64 +75,41 @@ public class WSDLSpecificationParser implements SpecificationParser {
     private static final String POST_VERB_NAME = "POST";
     private static final String DEFAULT_PATH = "";
 
-    private final SystemModelRepository systemModelRepository;
     private final EnvironmentBaseService environmentBaseService;
     private final EnvironmentMapper environmentMapper;
     private final WsdlVersionParser wsdlVersionParser;
-    private final ParserUtils parserUtils;
     private final FilesStorageService storageService;
 
     @Autowired
     public WSDLSpecificationParser(
-            SystemModelRepository systemModelRepository,
             EnvironmentBaseService environmentBaseService,
             EnvironmentMapper environmentMapper,
             WsdlVersionParser wsdlVersionParser,
-            ParserUtils parserUtils,
             FilesStorageService storageService
     ) {
-        this.systemModelRepository = systemModelRepository;
         this.environmentBaseService = environmentBaseService;
         this.environmentMapper = environmentMapper;
         this.wsdlVersionParser = wsdlVersionParser;
-        this.parserUtils = parserUtils;
         this.storageService = storageService;
     }
 
     @Override
-    public SystemModel enrichSpecificationGroup(
+    public ParsedSystemModel parseSpecification(
             SpecificationGroup group,
             Collection<SpecificationSource> sources,
-            Set<String> oldSystemModelsIds, boolean isDiscovered,
             Consumer<String> messageHandler
     ) {
         try {
-            String systemModelName = parserUtils.defineVersionName(group, group);
-            String systemModelId = buildId(group.getId(), systemModelName);
-            SystemModel systemModel = SystemModel.builder().id(systemModelId).build();
-
-            checkSpecId(oldSystemModelsIds, systemModelId);
-
-            List<Operation> operationList = getParsedOperations(group, sources);
-
-            systemModel = systemModelRepository.save(systemModel);
-            systemModel.setName(systemModelName);
-            systemModel.setVersion(parserUtils.defineVersion(group, group));
-
-            setOperationIds(systemModelId, operationList, messageHandler.andThen(log::warn));
-
-            operationList.forEach(systemModel::addProvidedOperation);
-            group.addSystemModel(systemModel);
-
-            return systemModel;
-        } catch (SpecificationSimilarIdException | SpecificationSimilarVersionException e) {
-            throw e;
+            List<ParsedOperation> operationList = getParsedOperations(group, sources);
+            return ParsedSystemModelImpl.builder()
+                    .operations(operationList)
+                    .build();
         } catch (Exception e) {
             throw new SpecificationImportException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
         }
     }
 
-    private List<Operation> getParsedOperations(
+    private List<ParsedOperation> getParsedOperations(
             SpecificationGroup specificationGroup,
             Collection<SpecificationSource> sources
     ) throws SpecificationImportException {
@@ -162,7 +139,7 @@ public class WSDLSpecificationParser implements SpecificationParser {
                 .orElseThrow(() -> new SpecificationImportException("Couldn't determine main specification source"));
     }
 
-    private List<Operation> extractOperationsFromWsdlV2(
+    private List<ParsedOperation> extractOperationsFromWsdlV2(
             SpecificationGroup specificationGroup,
             Collection<SpecificationSource> sources,
             SpecificationSource mainSource
@@ -204,7 +181,7 @@ public class WSDLSpecificationParser implements SpecificationParser {
         }
     }
 
-    private List<Operation> extractOperationsFromWsdlV1(
+    private List<ParsedOperation> extractOperationsFromWsdlV1(
             SpecificationGroup specificationGroup,
             Collection<SpecificationSource> sources,
             SpecificationSource mainSource
@@ -268,13 +245,13 @@ public class WSDLSpecificationParser implements SpecificationParser {
                 .map(source -> new ByteArrayInputStream(source.getSource().getBytes()));
     }
 
-    private List<Operation> generateSOAOperationsList(Definitions definitions) {
+    private List<ParsedOperation> generateSOAOperationsList(Definitions definitions) {
         return definitions
                 .getServices()
                 .stream()
                 .flatMap(service -> service.getPorts().stream())
                 .flatMap(port -> port.getBinding().getOperations().stream())
-                .map(bindingOperation -> Operation.builder()
+                .map(bindingOperation -> (ParsedOperation) ParsedOperationImpl.builder()
                         .name(bindingOperation.getName())
                         .method(POST_VERB_NAME)
                         .path(DEFAULT_PATH)
@@ -283,13 +260,13 @@ public class WSDLSpecificationParser implements SpecificationParser {
                 .collect(Collectors.toList());
     }
 
-    private List<Operation> generateWoodenOperationsList(Description description) {
+    private List<ParsedOperation> generateWoodenOperationsList(Description description) {
         return Arrays.stream(description.getServices())
                 .flatMap(service -> Arrays.stream(service.getEndpoints()))
                 .map(Endpoint::getBinding)
                 .flatMap(binding -> Arrays.stream(binding.getBindingOperations()))
                 .map(BindingOperation::toElement)
-                .map(bindingOperationElement -> Operation.builder()
+                .map(bindingOperationElement -> (ParsedOperation) ParsedOperationImpl.builder()
                         .name(bindingOperationElement.getRef().getLocalPart())
                         .method(POST_VERB_NAME)
                         .path(DEFAULT_PATH)

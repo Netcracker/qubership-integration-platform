@@ -16,15 +16,11 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.parsers;
 
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarIdException;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
+import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.function.Consumer;
 
 
@@ -33,49 +29,21 @@ public interface SpecificationParser {
 
      String ID_SEPARATOR = "-";
 
-     SystemModel enrichSpecificationGroup(
+     /**
+      * Parses the sources into a system model. The result carries the parsed operations, the
+      * description, and the version the specification declares, if any. The parser does not touch
+      * persistence: it assigns no identity or version name and saves nothing. The caller resolves
+      * the version name, assigns ids, and persists the model.
+      *
+      * <p>A parser may still apply its existing environment side effects on the owning system.
+      *
+      * @param group the specification group the model will belong to
+      * @param sources the specification sources to parse
+      * @param messageHandler receives human-readable warnings raised while parsing
+      * @return the parsed system model
+      */
+     ParsedSystemModel parseSpecification(
              SpecificationGroup group,
              Collection<SpecificationSource> sources,
-             Set<String> oldSystemModelsIds,
-             boolean isDiscovered,
              Consumer<String> messageHandler);
-
-     default void checkSpecId(Set<String> oldSystemModelsIds, String systemModelId) throws SpecificationSimilarIdException {
-          // skip spec if one already exists (by id) in a system
-          if (oldSystemModelsIds.contains(systemModelId)) {
-               throw new SpecificationSimilarIdException(systemModelId);
-          }
-     }
-
-     default String buildId(String parentId, String entityName) {
-          return parentId + ID_SEPARATOR + entityName;
-     }
-
-     default String buildOperationId(String systemModelId, String operationName) {
-          String operationId = systemModelId + ID_SEPARATOR + operationName;
-          return operationId.replaceAll("[\\[\\]]", "");
-     }
-
-     default void setOperationIds(
-             String systemModelId,
-             Collection<Operation> operations,
-             Consumer<String> messageHandler
-     ) {
-          Set<String> ids = new HashSet<>();
-          for (Operation operation : operations) {
-               String idPrefix = buildOperationId(systemModelId, operation.getName());
-               String id = idPrefix;
-               int index = 0;
-               while (ids.contains(id)) {
-                    if (index == 0) {
-                         String message = String.format("Duplicated operation identifier: %s. ", operation.getName());
-                         messageHandler.accept(message);
-                    }
-                    ++index;
-                    id = idPrefix + "-" + index;
-               }
-               operation.setId(id);
-               ids.add(id);
-          }
-     }
 }

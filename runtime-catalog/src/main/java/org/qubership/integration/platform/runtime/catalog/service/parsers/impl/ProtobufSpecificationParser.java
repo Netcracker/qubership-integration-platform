@@ -25,15 +25,14 @@ import com.squareup.wire.schema.Location;
 import com.squareup.wire.schema.internal.parser.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.parsers.model.ParsedOperation;
+import org.qubership.integration.platform.parsers.model.ParsedOperationImpl;
+import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
+import org.qubership.integration.platform.parsers.model.ParsedSystemModelImpl;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarIdException;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.Parser;
-import org.qubership.integration.platform.runtime.catalog.service.parsers.ParserUtils;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.SpecificationParser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -63,54 +62,29 @@ public class ProtobufSpecificationParser implements SpecificationParser {
     private static final Pattern MAP_TYPE_REGEX =
             Pattern.compile("^map<\\s*([a-zA-Z0-9_\\-.]+)\\s*,\\s*([a-zA-Z0-9_\\-.]+)\\s*>$");
 
-    private final SystemModelRepository systemModelRepository;
-    private final ParserUtils parserUtils;
     private final ObjectMapper objectMapper;
 
     @Autowired
     public ProtobufSpecificationParser(
-            SystemModelRepository systemModelRepository,
-            ParserUtils parserUtils,
             @Qualifier("primaryObjectMapper") ObjectMapper objectMapper
     ) {
-        this.systemModelRepository = systemModelRepository;
-        this.parserUtils = parserUtils;
         this.objectMapper = objectMapper;
     }
 
     @Override
-    public SystemModel enrichSpecificationGroup(
+    public ParsedSystemModel parseSpecification(
             SpecificationGroup group,
             Collection<SpecificationSource> sources,
-            Set<String> oldSystemModelsIds, boolean isDiscovered,
             Consumer<String> messageHandler
     ) {
         try {
-            SystemModel systemModel;
-            String systemModelName = parserUtils.defineVersionName(group, null);
-            String systemModelVersion = parserUtils.defineVersion(group, null);
-
             List<ProtoFileElement> protoFiles = parseProtoFiles(sources);
             ObjectNode typeDefinitions = buildTypeDefinitions(protoFiles);
-            List<Operation> operations = getOperations(protoFiles, typeDefinitions);
+            List<ParsedOperation> operations = getOperations(protoFiles, typeDefinitions);
 
-            String systemModelId = buildId(group.getId(), systemModelName);
-            systemModel = SystemModel.builder().id(systemModelId).build();
-
-            checkSpecId(oldSystemModelsIds, systemModelId);
-
-            setOperationIds(systemModelId, operations, messageHandler.andThen(log::warn));
-
-            systemModel = systemModelRepository.save(systemModel);
-            systemModel.setName(systemModelName);
-            systemModel.setVersion(systemModelVersion);
-
-            operations.forEach(systemModel::addProvidedOperation);
-            group.addSystemModel(systemModel);
-
-            return systemModel;
-        } catch (SpecificationSimilarIdException e) {
-            throw e;
+            return ParsedSystemModelImpl.builder()
+                    .operations(operations)
+                    .build();
         } catch (Exception e) {
             throw new SpecificationImportException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
         }
@@ -315,7 +289,7 @@ public class ProtobufSpecificationParser implements SpecificationParser {
         }
     }
 
-    private List<Operation> getOperations(Collection<ProtoFileElement> protoFiles, ObjectNode typeDefinitions) {
+    private List<ParsedOperation> getOperations(Collection<ProtoFileElement> protoFiles, ObjectNode typeDefinitions) {
         return protoFiles.stream().flatMap(protoFile -> extractOperations(protoFile, typeDefinitions))
                 .collect(Collectors.toList());
     }
@@ -358,13 +332,13 @@ public class ProtobufSpecificationParser implements SpecificationParser {
         return node;
     }
 
-    private Stream<Operation> extractOperations(ProtoFileElement protoFile, ObjectNode typeDefinitions) {
+    private Stream<ParsedOperation> extractOperations(ProtoFileElement protoFile, ObjectNode typeDefinitions) {
         return protoFile.getServices().stream().flatMap(service ->
             service.getRpcs().stream().map(rpc -> {
                 String packageName = protoFile.getPackageName();
                 String javaPackageName = getJavaPackageName(protoFile);
                 String operationName = service.getName() + "." + rpc.getName();
-                Operation operation = new Operation();
+                ParsedOperation operation = new ParsedOperationImpl();
                 operation.setName(operationName);
                 operation.setMethod(rpc.getName());
                 operation.setPath(buildFullyQualifiedName(javaPackageName, service.getName()));
