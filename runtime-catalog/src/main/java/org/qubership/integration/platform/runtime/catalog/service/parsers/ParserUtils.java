@@ -19,15 +19,10 @@ package org.qubership.integration.platform.runtime.catalog.service.parsers;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.swagger.v3.oas.models.OpenAPI;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarVersionException;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentDefaultParameters;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
-import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.AsyncapiSpecification;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
-import org.qubership.integration.platform.runtime.catalog.service.SystemModelBaseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -36,49 +31,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class ParserUtils {
 
-    private final SystemModelBaseService systemModelBaseService;
     private final ObjectMapper jsonMapper;
 
     @Autowired
-    public ParserUtils(SystemModelBaseService systemModelBaseService,
-                       @Qualifier("primaryObjectMapper") ObjectMapper jsonMapper) {
-        this.systemModelBaseService = systemModelBaseService;
+    public ParserUtils(@Qualifier("primaryObjectMapper") ObjectMapper jsonMapper) {
         this.jsonMapper = jsonMapper;
-    }
-
-    public String defineVersionName(SpecificationGroup specificationGroup, Object specificationObject) {
-        return checkSimilarVersions(specificationGroup.getId(), defineVersion(specificationGroup, specificationObject));
-    }
-
-    public String defineVersion(SpecificationGroup specificationGroup, Object specificationObject) {
-        if (specificationObject instanceof AsyncapiSpecification asyncSpec) {
-            return defineVersion(specificationGroup, asyncSpec.getInfo().getVersion());
-        }
-        if (specificationObject instanceof OpenAPI openapiSpec) {
-            return defineVersion(specificationGroup, openapiSpec.getInfo().getVersion());
-        }
-        if (specificationObject instanceof String stringSpec) {
-            return defineVersion(specificationGroup, stringSpec);
-        }
-        // anyway just generate incrementing versions (1.0.0, 2.0.0, ...)
-        return defineVersion(specificationGroup, null);
-    }
-
-    private String defineVersion(SpecificationGroup specificationGroup, String version) {
-        return version == null ? generateVersion(specificationGroup.getId()) : version;
-    }
-
-    private String checkSimilarVersions(String specificationGroupId, String version) {
-        long count = systemModelBaseService.countBySpecificationGroupIdAndVersion(specificationGroupId, version);
-        if (count > 0) {
-            throw new SpecificationSimilarVersionException(version);
-        }
-        return version;
-    }
-
-    private String generateVersion(String id) {
-        int count = systemModelBaseService.getSystemModelsBySpecificationGroupId(id).size() + 1;
-        return count + ".0.0";
     }
 
     public JsonNode receiveEmptyProperties(OperationProtocol protocol) {

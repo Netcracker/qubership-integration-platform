@@ -30,7 +30,7 @@ class AsyncapiSpecificationParserV3Test {
         YAMLMapper yamlMapper = new YAMLMapper();
         AsyncApiV3Normalizer normalizer = new AsyncApiV3Normalizer(jsonMapper);
         parser = new AsyncapiSpecificationParser(
-                null, null, null, normalizer, jsonMapper, yamlMapper, Collections.emptyList());
+                null, normalizer, jsonMapper, yamlMapper, Collections.emptyList());
     }
 
     @Test
@@ -130,7 +130,7 @@ class AsyncapiSpecificationParserV3Test {
         YAMLMapper yamlMapper = new YAMLMapper();
         AsyncApiV3Normalizer normalizer = new AsyncApiV3Normalizer(jsonMapper);
         return new AsyncapiSpecificationParser(
-                null, null, null, normalizer, jsonMapper, yamlMapper, List.of(resolvers));
+                null, normalizer, jsonMapper, yamlMapper, List.of(resolvers));
     }
 
     private String readResource(String path) throws IOException {

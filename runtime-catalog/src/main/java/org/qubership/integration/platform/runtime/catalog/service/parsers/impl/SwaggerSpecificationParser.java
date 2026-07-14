@@ -36,15 +36,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.MutablePair;
 import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
+import org.qubership.integration.platform.parsers.model.ParsedOperation;
+import org.qubership.integration.platform.parsers.model.ParsedOperationImpl;
+import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
+import org.qubership.integration.platform.parsers.model.ParsedSystemModelImpl;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarIdException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarVersionException;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.OpenApiMapperResolver;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.Parser;
-import org.qubership.integration.platform.runtime.catalog.service.parsers.ParserUtils;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.SpecificationParser;
 import org.qubership.integration.platform.runtime.catalog.service.resolvers.swagger.SwaggerSchemaResolver;
 import org.qubership.integration.platform.runtime.catalog.service.schemas.Processor;
@@ -76,27 +76,21 @@ public class SwaggerSpecificationParser implements SpecificationParser {
     private static final String OPENAPI_32_VERSION_PREFIX = "3.2";
     private static final String OPENAPI_31_FALLBACK_VERSION = "3.1.0";
 
-    private final SystemModelRepository systemModelRepository;
     private final SwaggerSchemaResolver swaggerSchemaResolver;
     private final OpenApiMapperResolver openApiMapperResolver;
-    private final ParserUtils parserUtils;
     private final EnvironmentBaseService environmentBaseService;
 
     private final Map<String, SchemaProcessor> schemaProcessorMap = new HashMap<>();
 
     @Autowired
     public SwaggerSpecificationParser(
-            SystemModelRepository systemModelRepository,
             SwaggerSchemaResolver swaggerSchemaResolver,
             List<SchemaProcessor> schemaProcessors,
             OpenApiMapperResolver openApiMapperResolver,
-            ParserUtils parserUtils,
             EnvironmentBaseService environmentBaseService
     ) {
-        this.systemModelRepository = systemModelRepository;
         this.swaggerSchemaResolver = swaggerSchemaResolver;
         this.openApiMapperResolver = openApiMapperResolver;
-        this.parserUtils = parserUtils;
         this.environmentBaseService = environmentBaseService;
         for (SchemaProcessor schemaProcessor : schemaProcessors) {
             Processor processorAnnotation = schemaProcessor.getClass().getAnnotation(Processor.class);
@@ -107,14 +101,12 @@ public class SwaggerSpecificationParser implements SpecificationParser {
     }
 
     @Override
-    public SystemModel enrichSpecificationGroup(
+    public ParsedSystemModel parseSpecification(
             SpecificationGroup group,
             Collection<SpecificationSource> sources,
-            Set<String> oldSystemModelsIds, boolean isDiscovered,
             Consumer<String> messageHandler
     ) {
         try {
-            SystemModel systemModel;
             String specificationText = sources.stream().map(SpecificationSource::getSource).findFirst().orElse("");
             JsonNode specificationNode = DeserializationUtils.deserializeIntoTree(specificationText, "file");
             String parseableText = downgradeUnsupportedOpenApiVersion(specificationNode, specificationText, messageHandler.andThen(log::warn));
@@ -123,28 +115,14 @@ public class SwaggerSpecificationParser implements SpecificationParser {
                 throw new SpecificationImportException(INVALID_SWAGGER_FILE_ERROR_MESSAGE);
             }
             ObjectMapper specMapper = openApiMapperResolver.forVersion(importedOpenAPI.getSpecVersion());
-            String systemModelName = parserUtils.defineVersionName(group, importedOpenAPI);
-            String systemModelId = buildId(group.getId(), systemModelName);
-            List<Operation> operationList = separate(importedOpenAPI, specMapper, messageHandler.andThen(log::warn));
-
-            checkSpecId(oldSystemModelsIds, systemModelId);
+            List<ParsedOperation> operationList = separate(importedOpenAPI, specMapper, messageHandler.andThen(log::warn));
 
             resolverSwaggerEnvironment(group, importedOpenAPI);
 
-            systemModel = SystemModel.builder().id(systemModelId).build();
-
-            systemModel = systemModelRepository.save(systemModel);
-            systemModel.setName(systemModelName);
-            systemModel.setVersion(parserUtils.defineVersion(group, importedOpenAPI));
-
-            setOperationIds(systemModelId, operationList, messageHandler.andThen(log::warn));
-
-            operationList.forEach(systemModel::addProvidedOperation);
-            group.addSystemModel(systemModel);
-
-            return systemModel;
-        } catch (SpecificationSimilarIdException | SpecificationSimilarVersionException e) {
-            throw e;
+            return ParsedSystemModelImpl.builder()
+                    .version(importedOpenAPI.getInfo().getVersion())
+                    .operations(operationList)
+                    .build();
         } catch (Exception e) {
             throw new SpecificationImportException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
         }
@@ -189,7 +167,7 @@ public class SwaggerSpecificationParser implements SpecificationParser {
         }
     }
 
-    private List<Operation> separate(OpenAPI importedOpenAPI, ObjectMapper specMapper, Consumer<String> messageHandler) {
+    private List<ParsedOperation> separate(OpenAPI importedOpenAPI, ObjectMapper specMapper, Consumer<String> messageHandler) {
         Map<String, PathItem> pathItems = new LinkedHashMap<>();
         if (importedOpenAPI.getPaths() != null) {
             importedOpenAPI.getPaths().forEach((pathName, pathItem) -> {
@@ -201,13 +179,13 @@ public class SwaggerSpecificationParser implements SpecificationParser {
         return generateOperationsList(pathItems, importedOpenAPI, specMapper, messageHandler);
     }
 
-    private List<Operation> generateOperationsList(
+    private List<ParsedOperation> generateOperationsList(
             Map<String, PathItem> pathItems,
             OpenAPI importedOpenAPI,
             ObjectMapper specMapper,
             Consumer<String> messageHandler
     ) {
-        List<Operation> generatedOperations = new ArrayList<>();
+        List<ParsedOperation> generatedOperations = new ArrayList<>();
         List<String> operationNames = new ArrayList<>();
         int operationNamesCounter = 0;
         String operationPostfix;
@@ -236,7 +214,7 @@ public class SwaggerSpecificationParser implements SpecificationParser {
                         specificationParameters.addAll(pathItemParams);
                         specification.set(PARAMETERS_NODE, specificationParameters);
                     }
-                    Operation resultOperation = Operation.builder()
+                    ParsedOperation resultOperation = ParsedOperationImpl.builder()
                             .path(pathName)
                             .name(operation.getOperationId())
                             .method(method.getKey().name())

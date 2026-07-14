@@ -26,14 +26,13 @@ import graphql.parser.Parser;
 import graphql.parser.ParserEnvironment;
 import graphql.parser.ParserOptions;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.parsers.model.ParsedOperation;
+import org.qubership.integration.platform.parsers.model.ParsedOperationImpl;
+import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
+import org.qubership.integration.platform.parsers.model.ParsedSystemModelImpl;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarIdException;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
-import org.qubership.integration.platform.runtime.catalog.service.parsers.ParserUtils;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.SpecificationParser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -54,64 +53,40 @@ public class GraphqlSpecificationParser implements SpecificationParser {
     public static final String QUERY_NAME = "query";
     public static final String OPERATION_IN_SPEC_KEY = "operation";
 
-    private final SystemModelRepository systemModelRepository;
-    private final ParserUtils parserUtils;
     private final Parser graphqlParser;
     private final ParserOptions graphqlParserOptions;
     private final ObjectMapper jsonMapper;
 
     @Autowired
-    public GraphqlSpecificationParser(SystemModelRepository systemModelRepository,
-                                      ParserUtils parserUtils,
-                                      Parser graphqlParser,
+    public GraphqlSpecificationParser(Parser graphqlParser,
                                       @Qualifier("graphqlOperationParserOptions") ParserOptions graphqlParserOptions,
                                       @Qualifier("primaryObjectMapper") ObjectMapper jsonMapper) {
-        this.systemModelRepository = systemModelRepository;
-        this.parserUtils = parserUtils;
         this.graphqlParser = graphqlParser;
         this.graphqlParserOptions = graphqlParserOptions;
         this.jsonMapper = jsonMapper;
     }
 
     @Override
-    public SystemModel enrichSpecificationGroup(
+    public ParsedSystemModel parseSpecification(
             SpecificationGroup group,
             Collection<SpecificationSource> sources,
-            Set<String> oldSystemModelsIds, boolean isDiscovered,
             Consumer<String> messageHandler
     ) {
         try {
-            SystemModel systemModel;
             String specificationText = sources.stream().map(SpecificationSource::getSource).findFirst().orElse("");
-            List<Operation> operationList = getParsedOperations(specificationText);
-            String systemModelName = parserUtils.defineVersionName(group, group);
-            String systemModelId = buildId(group.getId(), systemModelName);
-
-            checkSpecId(oldSystemModelsIds, systemModelId);
-
-            systemModel = SystemModel.builder().id(systemModelId).build();
-
-            systemModel = systemModelRepository.save(systemModel);
-            systemModel.setName(systemModelName);
-            systemModel.setVersion(parserUtils.defineVersion(group, group));
-
-            setOperationIds(systemModelId, operationList, messageHandler.andThen(log::warn));
-
-            operationList.forEach(systemModel::addProvidedOperation);
-            group.addSystemModel(systemModel);
-
-            return systemModel;
-        } catch (SpecificationSimilarIdException e) {
-            throw e;
+            List<ParsedOperation> operationList = getParsedOperations(specificationText);
+            return ParsedSystemModelImpl.builder()
+                    .operations(operationList)
+                    .build();
         } catch (Exception e) {
             throw new SpecificationImportException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
         }
     }
 
-    private List<Operation> getParsedOperations(String specificationInput) {
+    private List<ParsedOperation> getParsedOperations(String specificationInput) {
         ParserEnvironment parserEnvironment = ParserEnvironment.newParserEnvironment().document(specificationInput).parserOptions(graphqlParserOptions).build();
         Document document = graphqlParser.parseDocument(parserEnvironment);
-        List<Operation> operations = new ArrayList<>();
+        List<ParsedOperation> operations = new ArrayList<>();
 
         for (Definition definition : document.getDefinitions()) {
             if (definition instanceof ObjectTypeDefinition) {
@@ -130,11 +105,11 @@ public class GraphqlSpecificationParser implements SpecificationParser {
         return operations;
     }
 
-    private List<Operation> parseObjectTypeOperations(ObjectTypeDefinition objectTypeDefinition, String method) {
+    private List<ParsedOperation> parseObjectTypeOperations(ObjectTypeDefinition objectTypeDefinition, String method) {
         return objectTypeDefinition.getFieldDefinitions().stream()
                 .map(field -> {
                     String operationDefString = AstPrinter.printAst(field);
-                    return Operation.builder()
+                    return (ParsedOperation) ParsedOperationImpl.builder()
                             .name(field.getName())
                             .method(method)
                             .path(operationDefString)
@@ -148,4 +123,3 @@ public class GraphqlSpecificationParser implements SpecificationParser {
                 .collect(Collectors.toList());
     }
 }
-
