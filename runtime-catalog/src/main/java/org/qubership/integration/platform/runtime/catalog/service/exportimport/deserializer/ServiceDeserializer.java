@@ -23,19 +23,20 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
+import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
+import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupContentDto;
+import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupDto;
+import org.qubership.integration.platform.io.model.exportimport.system.SystemModelDto;
 import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
 import org.qubership.integration.platform.io.readers.migrations.ImportFileMigration;
 import org.qubership.integration.platform.io.readers.migrations.MigrationException;
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupContentDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SpecificationGroupDtoMapper;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -289,9 +290,9 @@ public class ServiceDeserializer {
                         .id(specificationSourceDto.getId())
                         .name(specificationSourceDto.getName())
                         .description(specificationSourceDto.getDescription())
-                        .createdBy(specificationSourceDto.getCreatedBy())
+                        .createdBy(SystemEntitySeam.toPersistenceUser(specificationSourceDto.getCreatedBy()))
                         .createdWhen(specificationSourceDto.getCreatedWhen())
-                        .modifiedBy(specificationSourceDto.getModifiedBy())
+                        .modifiedBy(SystemEntitySeam.toPersistenceUser(specificationSourceDto.getModifiedBy()))
                         .modifiedWhen(specificationSourceDto.getModifiedWhen())
                         .sourceHash(specificationSourceDto.getSourceHash())
                         .isMainSource(specificationSourceDto.isMainSource());

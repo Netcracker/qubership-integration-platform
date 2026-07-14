@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.model.exportimport.system;
+package org.qubership.integration.platform.io.model.exportimport.system;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -34,10 +34,10 @@ import java.net.URI;
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonPropertyOrder({ "id", "schema", "name", "content" })
-public class SystemModelDto {
+public class IntegrationSystemDto {
     @JsonProperty(value = "$schema", index = 0)
     private URI schema;
     private String id;
     private String name;
-    SystemModelContentDto content;
+    IntegrationSystemContentDto content;
 }

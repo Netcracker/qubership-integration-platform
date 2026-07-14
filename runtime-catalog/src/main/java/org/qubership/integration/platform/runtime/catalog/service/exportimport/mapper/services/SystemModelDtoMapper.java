@@ -16,9 +16,9 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services;
 
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationSourceDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelContentDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
+import org.qubership.integration.platform.io.model.exportimport.system.SpecificationSourceDto;
+import org.qubership.integration.platform.io.model.exportimport.system.SystemModelContentDto;
+import org.qubership.integration.platform.io.model.exportimport.system.SystemModelDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModelLabel;
@@ -29,7 +29,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
+import java.util.LinkedList;
 import java.util.stream.Collectors;
+
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam.toModelSource;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam.toPersistenceSource;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam.toPersistenceUser;
 
 @Component
 public class SystemModelDtoMapper implements ExternalEntityMapper<SystemModel, SystemModelDto> {
@@ -48,14 +53,16 @@ public class SystemModelDtoMapper implements ExternalEntityMapper<SystemModel, S
                 .id(systemModelDto.getId())
                 .name(systemModelDto.getName())
                 .description(systemModelDto.getContent().getDescription())
-                .createdBy(systemModelDto.getContent().getCreatedBy())
+                .createdBy(toPersistenceUser(systemModelDto.getContent().getCreatedBy()))
                 .createdWhen(systemModelDto.getContent().getCreatedWhen())
-                .modifiedBy(systemModelDto.getContent().getModifiedBy())
+                .modifiedBy(toPersistenceUser(systemModelDto.getContent().getModifiedBy()))
                 .modifiedWhen(systemModelDto.getContent().getModifiedWhen())
                 .deprecated(systemModelDto.getContent().isDeprecated())
                 .version(systemModelDto.getContent().getVersion())
-                .source(systemModelDto.getContent().getSource())
-                .operations(systemModelDto.getContent().getOperations())
+                .source(toPersistenceSource(systemModelDto.getContent().getSource()))
+                .operations(systemModelDto.getContent().getOperations().stream()
+                        .map(SystemEntitySeam::toPersistenceOperation)
+                        .collect(Collectors.toCollection(LinkedList::new)))
                 .build();
         systemModel.getOperations().forEach(operation -> operation.setSystemModel(systemModel));
         systemModel.getSpecificationSources().forEach(specificationSource -> specificationSource.setSystemModel(systemModel));
@@ -78,8 +85,10 @@ public class SystemModelDtoMapper implements ExternalEntityMapper<SystemModel, S
                         .description(systemModel.getDescription())
                         .deprecated(systemModel.isDeprecated())
                         .version(systemModel.getVersion())
-                        .source(systemModel.getSource())
-                        .operations(systemModel.getOperations())
+                        .source(toModelSource(systemModel.getSource()))
+                        .operations(systemModel.getOperations().stream()
+                                .map(SystemEntitySeam::toModelOperation)
+                                .toList())
                         .parentId(systemModel.getSpecificationGroup().getId())
                         .labels(systemModel.getLabels().stream().map(SystemModelLabel::getName).toList())
                         .specificationSources(systemModel.getSpecificationSources()

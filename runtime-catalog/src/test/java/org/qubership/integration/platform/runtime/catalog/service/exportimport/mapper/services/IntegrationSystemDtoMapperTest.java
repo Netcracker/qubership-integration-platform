@@ -18,9 +18,10 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.io.model.exportimport.system.EnvironmentDto;
+import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemContentDto;
+import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemContentDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
@@ -59,9 +60,10 @@ class IntegrationSystemDtoMapperTest {
         IntegrationSystemContentDto content = IntegrationSystemContentDto.builder()
                 .description("A description")
                 .activeEnvironmentId("env-1")
-                .integrationSystemType(IntegrationSystemType.EXTERNAL)
+                .integrationSystemType(
+                        org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemType.EXTERNAL)
                 .internalServiceName("internal-service")
-                .protocol(OperationProtocol.HTTP)
+                .protocol(org.qubership.integration.platform.io.model.exportimport.system.OperationProtocol.HTTP)
                 .createdWhen(createdWhen)
                 .modifiedWhen(modifiedWhen)
                 .labels(List.of("prod", "billing"))
@@ -88,7 +90,7 @@ class IntegrationSystemDtoMapperTest {
 
     @Test
     void testToInternalEntityWiresEnvironmentsBackToSystem() {
-        Environment environment = Environment.builder()
+        EnvironmentDto environment = EnvironmentDto.builder()
                 .id("env-1")
                 .name("Prod")
                 .address("http://example.org")
@@ -156,9 +158,13 @@ class IntegrationSystemDtoMapperTest {
         assertNotNull(result.getContent());
         assertEquals("Order desc", result.getContent().getDescription());
         assertEquals("env-9", result.getContent().getActiveEnvironmentId());
-        assertEquals(IntegrationSystemType.INTERNAL, result.getContent().getIntegrationSystemType());
+        assertEquals(
+                org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemType.INTERNAL,
+                result.getContent().getIntegrationSystemType());
         assertEquals("orders", result.getContent().getInternalServiceName());
-        assertEquals(OperationProtocol.KAFKA, result.getContent().getProtocol());
+        assertEquals(
+                org.qubership.integration.platform.io.model.exportimport.system.OperationProtocol.KAFKA,
+                result.getContent().getProtocol());
         assertEquals(List.of("prod"), result.getContent().getLabels());
         assertEquals("[102]", result.getContent().getMigrations());
     }
