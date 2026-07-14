@@ -18,9 +18,9 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.chain.impl.ContextServiceImpl;
+import org.qubership.integration.platform.io.model.exportimport.system.ContextServiceDto;
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ContextServiceContentDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ContextServiceDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
 
 import java.net.URI;
@@ -47,19 +47,15 @@ class ContextServiceDtoMapperTest {
     }
 
     @Test
-    void testToInternalEntityMapsDtoToContextSystem() {
+    void testToInternalEntityMapsModelToContextSystem() {
         Timestamp modifiedWhen = new Timestamp(System.currentTimeMillis());
-        ContextServiceContentDto content = ContextServiceContentDto.builder()
-                .description("Test description")
-                .modifiedWhen(modifiedWhen)
-                .build();
-        ContextServiceDto dto = ContextServiceDto.builder()
-                .id("ctx-1")
-                .name("Context Service 1")
-                .content(content)
-                .build();
+        ContextServiceImpl model = new ContextServiceImpl();
+        model.setId("ctx-1");
+        model.setName("Context Service 1");
+        model.setDescription("Test description");
+        model.setModifiedWhen(modifiedWhen);
 
-        ContextSystem result = mapper.toInternalEntity(dto);
+        ContextSystem result = mapper.toInternalEntity(model);
 
         assertNotNull(result);
         assertEquals("ctx-1", result.getId());
@@ -89,16 +85,12 @@ class ContextServiceDtoMapperTest {
 
     @Test
     void testToInternalEntityLeavesLabelsAndChainsUnpopulated() {
-        ContextServiceContentDto content = ContextServiceContentDto.builder()
-                .description("Test description")
-                .build();
-        ContextServiceDto dto = ContextServiceDto.builder()
-                .id("ctx-3")
-                .name("Context Service 3")
-                .content(content)
-                .build();
+        ContextServiceImpl model = new ContextServiceImpl();
+        model.setId("ctx-3");
+        model.setName("Context Service 3");
+        model.setDescription("Test description");
 
-        ContextSystem result = mapper.toInternalEntity(dto);
+        ContextSystem result = mapper.toInternalEntity(model);
 
         // The mapper populates only id, name, description, and modifiedWhen. Labels and chains
         // stay at their entity defaults, so a later rewrite that starts filling them is caught here.

@@ -14,18 +14,16 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.model.exportimport.system;
+package org.qubership.integration.platform.io.model.exportimport.system;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
 
-import java.net.URI;
+import java.sql.Timestamp;
 
 @Getter
 @Setter
@@ -33,11 +31,9 @@ import java.net.URI;
 @Jacksonized
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonPropertyOrder({ "id", "schema", "name", "content" })
-public class ContextServiceDto {
-    @JsonProperty(value = "$schema", index = 0)
-    private URI schema;
-    private String id;
-    private String name;
-    ContextServiceContentDto content;
+public class ContextServiceContentDto {
+    private String description;
+    private String internalServiceName;
+    private Timestamp modifiedWhen;
+    private String migrations;
 }
