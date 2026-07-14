@@ -37,6 +37,14 @@ public class ElementImpl implements Element {
     @Setter
     private Snapshot snapshot;
 
+    /**
+     * Marks an element that is itself a swimlane lane, as opposed to {@link #swimlane}, which is the
+     * lane an element belongs to. The import reader sets this so a swimlane stays distinguishable
+     * without re-running the library element classifier.
+     */
+    @Setter
+    private boolean swimlaneElement;
+
     @Override
     public String getType() {
         return type;
@@ -90,6 +98,10 @@ public class ElementImpl implements Element {
     @Override
     public boolean isContainer() {
         return container;
+    }
+
+    public boolean isSwimlane() {
+        return swimlaneElement;
     }
 
     @Override

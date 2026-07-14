@@ -22,6 +22,7 @@ public class ElementBuilder {
     private Chain chain;
     private ServiceEnvironment serviceEnvironment;
     private boolean container;
+    private boolean swimlaneElement;
 
     private ElementBuilder() {}
 
@@ -44,6 +45,9 @@ public class ElementBuilder {
         this.chain = element.getChain();
         this.serviceEnvironment = element.getEnvironment().orElse(null);
         this.container = element.isContainer();
+        if (element instanceof ElementImpl elementImpl) {
+            this.swimlaneElement = elementImpl.isSwimlane();
+        }
         return this;
     }
 
@@ -117,6 +121,11 @@ public class ElementBuilder {
         return this;
     }
 
+    public ElementBuilder swimlaneElement(boolean swimlaneElement) {
+        this.swimlaneElement = swimlaneElement;
+        return this;
+    }
+
     public Element build() {
         ElementImpl element = new ElementImpl();
         element.setId(id);
@@ -133,6 +142,7 @@ public class ElementBuilder {
         element.setChain(chain);
         element.setServiceEnvironment(serviceEnvironment);
         element.setContainer(container);
+        element.setSwimlaneElement(swimlaneElement);
         return element;
     }
 }
