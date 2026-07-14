@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.compiler.diagnostic;
+package org.qubership.integration.platform.compiler.diagnostic;
 
 import org.slf4j.Logger;
 

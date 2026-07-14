@@ -14,23 +14,34 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.compiler.diagnostic;
+package org.qubership.integration.platform.compiler.diagnostic;
 
+import java.util.Optional;
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticListener;
 
-public class CompoundDiagnosticListener<S> implements DiagnosticListener<S> {
-    private final DiagnosticListener<S> first;
-    private final DiagnosticListener<S> second;
+import static java.util.Objects.isNull;
 
-    public CompoundDiagnosticListener(DiagnosticListener<S> first, DiagnosticListener<S> second) {
-        this.first = first;
-        this.second = second;
+public class FirstErrorCollectorDiagnosticListener<S> implements DiagnosticListener<S> {
+    private Diagnostic<? extends S> firstErrorDiagnostic;
+
+    public FirstErrorCollectorDiagnosticListener() {
+        this.firstErrorDiagnostic = null;
     }
+
 
     @Override
     public void report(Diagnostic<? extends S> diagnostic) {
-        first.report(diagnostic);
-        second.report(diagnostic);
+        if (isNull(firstErrorDiagnostic) && Diagnostic.Kind.ERROR.equals(diagnostic.getKind())) {
+            this.firstErrorDiagnostic = diagnostic;
+        }
+    }
+
+    public Optional<Diagnostic<? extends S>> getFirstErrorDiagnostic() {
+        return Optional.ofNullable(firstErrorDiagnostic);
+    }
+
+    public void reset() {
+        firstErrorDiagnostic = null;
     }
 }

@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.compiler;
+package org.qubership.integration.platform.compiler;
 
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.runtime.catalog.service.compiler.diagnostic.CompoundDiagnosticListener;
-import org.qubership.integration.platform.runtime.catalog.service.compiler.diagnostic.FirstErrorCollectorDiagnosticListener;
-import org.qubership.integration.platform.runtime.catalog.service.compiler.diagnostic.LoggingDiagnosticListener;
+import org.qubership.integration.platform.compiler.diagnostic.CompoundDiagnosticListener;
+import org.qubership.integration.platform.compiler.diagnostic.FirstErrorCollectorDiagnosticListener;
+import org.qubership.integration.platform.compiler.diagnostic.LoggingDiagnosticListener;
 
 import java.io.IOException;
 import java.util.List;

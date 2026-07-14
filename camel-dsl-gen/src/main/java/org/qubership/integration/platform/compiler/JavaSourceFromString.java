@@ -14,29 +14,20 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.compiler;
+package org.qubership.integration.platform.compiler;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.URI;
 import javax.tools.SimpleJavaFileObject;
 
-public class InMemoryOutputFileObject extends SimpleJavaFileObject {
-    public static final String SCHEME = "bytes";
-    private final ByteArrayOutputStream outputStream;
+public class JavaSourceFromString extends SimpleJavaFileObject {
+    private final String code;
 
-    public InMemoryOutputFileObject(URI uri, Kind kind) {
-        super(uri, kind);
-        outputStream = new ByteArrayOutputStream();
+    JavaSourceFromString(String className, String code) {
+        super(URIUtils.buildURI("string", className, Kind.SOURCE), Kind.SOURCE);
+        this.code = code;
     }
 
     @Override
-    public OutputStream openOutputStream() throws IOException {
-        return outputStream;
-    }
-
-    public byte[] getBytes() {
-        return outputStream.toByteArray();
+    public CharSequence getCharContent(boolean ignoreEncodingErrors) {
+        return code;
     }
 }

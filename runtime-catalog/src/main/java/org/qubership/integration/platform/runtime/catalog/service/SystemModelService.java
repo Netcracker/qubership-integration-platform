@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.service;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.compiler.CompilerService;
 import org.qubership.integration.platform.library.constants.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationDeleteException;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractLabel;
@@ -29,7 +30,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelLabelsRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
 import org.qubership.integration.platform.runtime.catalog.service.codegen.SystemModelCodeGenerator;
-import org.qubership.integration.platform.runtime.catalog.service.compiler.CompilerService;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ElementHelperService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
