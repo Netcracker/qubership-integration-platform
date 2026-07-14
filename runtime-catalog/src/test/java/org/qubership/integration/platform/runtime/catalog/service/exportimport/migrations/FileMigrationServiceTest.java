@@ -9,8 +9,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert.RevertMigration;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.VersionsGetterService;
+import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
+import org.qubership.integration.platform.io.readers.migrations.revert.RevertMigration;
+import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;

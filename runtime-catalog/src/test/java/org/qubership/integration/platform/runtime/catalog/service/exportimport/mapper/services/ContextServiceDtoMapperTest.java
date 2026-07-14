@@ -18,10 +18,10 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ContextServiceContentDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ContextServiceDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
 
 import java.net.URI;
 import java.sql.Timestamp;
@@ -29,6 +29,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -83,5 +85,24 @@ class ContextServiceDtoMapperTest {
         assertNotNull(result.getContent());
         assertEquals("Desc", result.getContent().getDescription());
         assertEquals("[102]", result.getContent().getMigrations());
+    }
+
+    @Test
+    void testToInternalEntityLeavesLabelsAndChainsUnpopulated() {
+        ContextServiceContentDto content = ContextServiceContentDto.builder()
+                .description("Test description")
+                .build();
+        ContextServiceDto dto = ContextServiceDto.builder()
+                .id("ctx-3")
+                .name("Context Service 3")
+                .content(content)
+                .build();
+
+        ContextSystem result = mapper.toInternalEntity(dto);
+
+        // The mapper populates only id, name, description, and modifiedWhen. Labels and chains
+        // stay at their entity defaults, so a later rewrite that starts filling them is caught here.
+        assertTrue(result.getLabels().isEmpty());
+        assertNull(result.getChains());
     }
 }

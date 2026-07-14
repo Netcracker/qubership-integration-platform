@@ -1,13 +1,13 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer;
 
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
+import org.qubership.integration.platform.io.readers.migrations.ImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.mcp.MCPServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.MCPServiceDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystem;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.MCPServiceDtoMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.mcp.MCPServiceImportFileMigration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;

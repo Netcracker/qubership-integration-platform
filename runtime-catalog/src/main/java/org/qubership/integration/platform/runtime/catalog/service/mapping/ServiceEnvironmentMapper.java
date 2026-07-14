@@ -21,7 +21,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-import org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment;
+import org.qubership.integration.platform.io.model.exportimport.system.ServiceEnvironment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 import org.springframework.beans.factory.annotation.Autowired;

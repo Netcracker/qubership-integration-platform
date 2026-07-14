@@ -21,14 +21,14 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
+import org.qubership.integration.platform.io.readers.migrations.ImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.chain.ImportFileMigrationUtils;
+import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ContextServiceDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ContextServiceDtoMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ImportFileMigrationUtils;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -37,8 +37,8 @@ import java.nio.file.Files;
 import java.util.*;
 import java.util.stream.IntStream;
 
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_VERSION_FIELD_OLD;
+import static org.qubership.integration.platform.io.readers.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
+import static org.qubership.integration.platform.io.readers.migrations.ImportFileMigration.IMPORT_VERSION_FIELD_OLD;
 
 
 @Slf4j

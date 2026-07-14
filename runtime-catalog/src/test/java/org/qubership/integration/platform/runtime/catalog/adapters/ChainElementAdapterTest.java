@@ -110,8 +110,8 @@ class ChainElementAdapterTest {
     @DisplayName("Should wrap the service environment when present")
     @Test
     void shouldWrapServiceEnvironmentWhenPresent() {
-        org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment environment =
-                new org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment();
+        org.qubership.integration.platform.io.model.exportimport.system.ServiceEnvironment environment =
+                new org.qubership.integration.platform.io.model.exportimport.system.ServiceEnvironment();
         environment.setId("env-1");
         ChainElement element = ChainElement.builder().id("e1").environment(environment).build();
 
