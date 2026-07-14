@@ -39,6 +39,7 @@
     <plexus-utils.version>3.0.24</plexus-utils.version>
     <graphql-java.version>21.5</graphql-java.version>
     <graphql-maven-plugin.version>2.0</graphql-maven-plugin.version>
+    <wire.version>4.9.7</wire.version>
   </properties>
 
   <dependencyManagement>
@@ -157,6 +158,11 @@
         <groupId>com.graphql-java-generator</groupId>
         <artifactId>graphql-maven-plugin-logic</artifactId>
         <version>${graphql-maven-plugin.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.squareup.wire</groupId>
+        <artifactId>wire-schema-jvm</artifactId>
+        <version>${wire.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -296,6 +302,10 @@
     <dependency>
       <groupId>com.graphql-java-generator</groupId>
       <artifactId>graphql-maven-plugin-logic</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.squareup.wire</groupId>
+      <artifactId>wire-schema-jvm</artifactId>
     </dependency>
     <dependency>
       <groupId>jakarta.persistence</groupId>
