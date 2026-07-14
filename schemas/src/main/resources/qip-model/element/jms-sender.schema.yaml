@@ -75,6 +75,5 @@ properties:
       - destinationType
       - acknowledgmentMode
       - jmsMessageType
-    additionalProperties: false
 required:
   - type
