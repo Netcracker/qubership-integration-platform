@@ -19,9 +19,13 @@ package org.qubership.integration.platform.runtime.catalog.service;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.codegen.SystemModelCodeGenerator;
+import org.qubership.integration.platform.codegen.TargetProtocol;
+import org.qubership.integration.platform.codegen.model.CodegenSystemModel;
 import org.qubership.integration.platform.compiler.CompilationError;
 import org.qubership.integration.platform.compiler.CompilerService;
 import org.qubership.integration.platform.compiler.JarBuilder;
+import org.qubership.integration.platform.runtime.catalog.adapters.SystemModelCodegenAdapter;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SystemModelLibraryGenerationException;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
@@ -30,8 +34,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelLabelsRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
-import org.qubership.integration.platform.runtime.catalog.service.codegen.SystemModelCodeGenerator;
-import org.qubership.integration.platform.runtime.catalog.service.codegen.TargetProtocol;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -187,11 +189,12 @@ public class SystemModelBaseService {
                 return null;
             }
             log.debug("Generating library source code for system model with id {}", model.getId());
-            Map<String, String> code = codeGenerator.generateCode(model);
+            CodegenSystemModel codegenModel = new SystemModelCodegenAdapter(model);
+            Map<String, String> code = codeGenerator.generateCode(codegenModel);
             if (code.isEmpty()) {
                 log.debug("System model has no DTO classes: {}", model.getId());
             }
-            Manifest manifest = codeGenerator.generateManifest(model);
+            Manifest manifest = codeGenerator.generateManifest(codegenModel);
             log.debug("Compiling library for system model with id {}", model.getId());
             Map<String, byte[]> compiledCode = code.isEmpty() ? Collections.emptyMap() : compilerService.compile(code);
             JarBuilder jarBuilder = new JarBuilder();
@@ -220,7 +223,8 @@ public class SystemModelBaseService {
         }
         return codeGenerators.stream().filter(generator ->
                 Optional.ofNullable(generator.getClass().getAnnotation(TargetProtocol.class))
-                        .map(TargetProtocol::protocol).map(protocol::equals).orElse(false)
+                        .map(TargetProtocol::protocol)
+                        .map(target -> target.name().equals(protocol.name())).orElse(false)
         ).findFirst().orElse(null);
     }
 }

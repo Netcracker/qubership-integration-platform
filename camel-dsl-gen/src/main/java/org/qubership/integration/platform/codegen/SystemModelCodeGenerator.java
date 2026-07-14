@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.codegen;
+package org.qubership.integration.platform.codegen;
 
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
+import org.qubership.integration.platform.codegen.model.CodegenSystemModel;
 
 import java.util.Map;
 import java.util.jar.Manifest;
 
 public interface SystemModelCodeGenerator {
-    Manifest generateManifest(SystemModel model);
+    Manifest generateManifest(CodegenSystemModel model);
 
-    Map<String, String> generateCode(SystemModel model) throws Exception;
+    Map<String, String> generateCode(CodegenSystemModel model) throws Exception;
 }

@@ -37,6 +37,8 @@
     <commons-io.version>2.22.0</commons-io.version>
     <atlasmap.version>2.5.2</atlasmap.version>
     <plexus-utils.version>3.0.24</plexus-utils.version>
+    <graphql-java.version>21.5</graphql-java.version>
+    <graphql-maven-plugin.version>2.0</graphql-maven-plugin.version>
   </properties>
 
   <dependencyManagement>
@@ -143,6 +145,18 @@
         <artifactId>jsonassert</artifactId>
         <version>1.5.3</version>
         <scope>test</scope>
+      </dependency>
+
+      <!-- DTO-library code generation -->
+      <dependency>
+        <groupId>com.graphql-java</groupId>
+        <artifactId>graphql-java</artifactId>
+        <version>${graphql-java.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.graphql-java-generator</groupId>
+        <artifactId>graphql-maven-plugin-logic</artifactId>
+        <version>${graphql-maven-plugin.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -272,6 +286,20 @@
       <groupId>org.skyscreamer</groupId>
       <artifactId>jsonassert</artifactId>
       <scope>test</scope>
+    </dependency>
+
+    <!-- DTO-library code generation -->
+    <dependency>
+      <groupId>com.graphql-java</groupId>
+      <artifactId>graphql-java</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.graphql-java-generator</groupId>
+      <artifactId>graphql-maven-plugin-logic</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.persistence</groupId>
+      <artifactId>jakarta.persistence-api</artifactId>
     </dependency>
   </dependencies>
 

@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.codegen.grpc;
+package org.qubership.integration.platform.codegen.grpc;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
-import org.qubership.integration.platform.runtime.catalog.service.codegen.SystemModelCodeGenerator;
-import org.qubership.integration.platform.runtime.catalog.service.codegen.TargetProtocol;
+import org.qubership.integration.platform.codegen.SystemModelCodeGenerator;
+import org.qubership.integration.platform.codegen.TargetProtocol;
+import org.qubership.integration.platform.codegen.model.CodegenSpecificationSource;
+import org.qubership.integration.platform.codegen.model.CodegenSystemModel;
+import org.qubership.integration.platform.io.model.exportimport.system.OperationProtocol;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -62,14 +62,14 @@ public class GrpcCodeGenerator implements SystemModelCodeGenerator {
     }
 
     @Override
-    public Manifest generateManifest(SystemModel model) {
+    public Manifest generateManifest(CodegenSystemModel model) {
         Manifest manifest = new Manifest();
         manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
         return manifest;
     }
 
     @Override
-    public Map<String, String> generateCode(SystemModel model) throws Exception {
+    public Map<String, String> generateCode(CodegenSystemModel model) throws Exception {
         Path rootDirectory = Paths.get(workDirectory, UUID.randomUUID().toString()).toAbsolutePath();
         try {
             Path sourceDirectory = rootDirectory.resolve("src");
@@ -79,7 +79,7 @@ public class GrpcCodeGenerator implements SystemModelCodeGenerator {
             Files.createDirectories(outputDirectory);
 
             Collection<Path> inputFiles = new ArrayList<>();
-            for (SpecificationSource source : model.getSpecificationSources()) {
+            for (CodegenSpecificationSource source : model.getSpecificationSources()) {
                 String fileName = source.getName();
                 if (!isProtobufFile(fileName)) {
                     continue;
