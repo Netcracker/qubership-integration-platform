@@ -14,26 +14,18 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.model.exportimport.system;
+package org.qubership.integration.platform.chain.impl;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.experimental.SuperBuilder;
-import lombok.extern.jackson.Jacksonized;
+import lombok.Data;
+import org.qubership.integration.platform.chain.model.ContextService;
 
 import java.sql.Timestamp;
 
-@Getter
-@Setter
-@SuperBuilder
-@Jacksonized
-@JsonInclude(JsonInclude.Include.NON_EMPTY)
-@JsonIgnoreProperties(ignoreUnknown = true)
-public class ContextServiceContentDto {
+@Data
+public class ContextServiceImpl implements ContextService {
+    private String id;
+    private String name;
     private String description;
     private String internalServiceName;
     private Timestamp modifiedWhen;
-    private String migrations;
 }
