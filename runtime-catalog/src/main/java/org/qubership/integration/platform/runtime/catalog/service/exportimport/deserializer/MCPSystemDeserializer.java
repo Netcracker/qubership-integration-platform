@@ -1,53 +1,47 @@
+/*
+ * Copyright 2024-2025 NetCracker Technology Corporation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer;
 
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
-import org.qubership.integration.platform.io.readers.migrations.ImportFileMigration;
-import org.qubership.integration.platform.io.readers.migrations.mcp.MCPServiceImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.MCPServiceDto;
+import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.chain.model.McpService;
+import org.qubership.integration.platform.io.readers.system.McpServiceReader;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystem;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.MCPServiceDtoMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
-import java.nio.file.Files;
-import java.util.Collection;
 
+@Slf4j
 @Component
 public class MCPSystemDeserializer {
-    private final YAMLMapper yamlMapper;
-    private final FileMigrationService fileMigrationService;
-    private final Collection<MCPServiceImportFileMigration> importFileMigrations;
+
+    private final McpServiceReader mcpServiceReader;
     private final MCPServiceDtoMapper mcpServiceDtoMapper;
 
     @Autowired
-    public MCPSystemDeserializer(
-            @Qualifier("yamlExportImportMapper") YAMLMapper yamlMapper,
-            FileMigrationService fileMigrationService,
-            Collection<MCPServiceImportFileMigration> importFileMigrations,
-            MCPServiceDtoMapper mcpServiceDtoMapper
-    ) {
-        this.yamlMapper = yamlMapper;
-        this.fileMigrationService = fileMigrationService;
-        this.importFileMigrations = importFileMigrations;
+    public MCPSystemDeserializer(McpServiceReader mcpServiceReader,
+                                 MCPServiceDtoMapper mcpServiceDtoMapper) {
+        this.mcpServiceReader = mcpServiceReader;
         this.mcpServiceDtoMapper = mcpServiceDtoMapper;
     }
 
     public MCPSystem deserialize(File serviceFile) {
-        try {
-            String serviceData = fileMigrationService.migrate(
-                    Files.readString(serviceFile.toPath()),
-                    importFileMigrations.stream().map(ImportFileMigration.class::cast).toList()
-            );
-            MCPServiceDto mcpServiceDto = yamlMapper.readValue(serviceData, MCPServiceDto.class);
-            return mcpServiceDtoMapper.toInternalEntity(mcpServiceDto);
-        } catch (ServiceImportException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        McpService mcpService = mcpServiceReader.read(serviceFile);
+        return mcpServiceDtoMapper.toInternalEntity(mcpService);
     }
 }
