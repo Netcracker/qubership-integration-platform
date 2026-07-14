@@ -18,9 +18,9 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.chain.impl.McpServiceImpl;
+import org.qubership.integration.platform.io.model.exportimport.system.MCPServiceDto;
 import org.qubership.integration.platform.io.readers.migrations.mcp.MCPServiceImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.MCPServiceContentDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.MCPServiceDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystemLabel;
 
@@ -52,21 +52,17 @@ class MCPServiceDtoMapperTest {
     void testToInternalEntityMapsEveryContentField() {
         Timestamp createdWhen = new Timestamp(1_000L);
         Timestamp modifiedWhen = new Timestamp(2_000L);
-        MCPServiceContentDto content = MCPServiceContentDto.builder()
-                .description("A description")
-                .identifier("mcp-identifier")
-                .instructions("Follow these steps")
-                .createdWhen(createdWhen)
-                .modifiedWhen(modifiedWhen)
-                .labels(List.of("prod", "billing"))
-                .build();
-        MCPServiceDto dto = MCPServiceDto.builder()
-                .id("mcp-1")
-                .name("MCP Service")
-                .content(content)
-                .build();
+        McpServiceImpl model = new McpServiceImpl();
+        model.setId("mcp-1");
+        model.setName("MCP Service");
+        model.setDescription("A description");
+        model.setIdentifier("mcp-identifier");
+        model.setInstructions("Follow these steps");
+        model.setCreatedWhen(createdWhen);
+        model.setModifiedWhen(modifiedWhen);
+        model.setLabels(List.of("prod", "billing"));
 
-        MCPSystem result = mapper.toInternalEntity(dto);
+        MCPSystem result = mapper.toInternalEntity(model);
 
         assertNotNull(result);
         assertEquals("mcp-1", result.getId());
@@ -80,16 +76,12 @@ class MCPServiceDtoMapperTest {
 
     @Test
     void testToInternalEntityMapsLabelsBoundToSystemAndNonTechnical() {
-        MCPServiceContentDto content = MCPServiceContentDto.builder()
-                .labels(List.of("prod", "billing"))
-                .build();
-        MCPServiceDto dto = MCPServiceDto.builder()
-                .id("mcp-1")
-                .name("MCP Service")
-                .content(content)
-                .build();
+        McpServiceImpl model = new McpServiceImpl();
+        model.setId("mcp-1");
+        model.setName("MCP Service");
+        model.setLabels(List.of("prod", "billing"));
 
-        MCPSystem result = mapper.toInternalEntity(dto);
+        MCPSystem result = mapper.toInternalEntity(model);
 
         Set<String> labelNames = result.getLabels().stream()
                 .map(MCPSystemLabel::getName)

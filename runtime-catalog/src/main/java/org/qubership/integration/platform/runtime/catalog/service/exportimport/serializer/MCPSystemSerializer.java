@@ -3,8 +3,8 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import org.qubership.integration.platform.io.model.exportimport.system.MCPServiceDto;
 import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.MCPServiceDto;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedMCPSystemObject;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSystemObject;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystem;
