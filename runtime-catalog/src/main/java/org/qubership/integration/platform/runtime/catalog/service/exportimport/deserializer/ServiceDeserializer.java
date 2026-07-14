@@ -25,10 +25,11 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
+import org.qubership.integration.platform.chain.model.ImportSpecificationSource;
+import org.qubership.integration.platform.chain.model.ImportSystemModel;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupContentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupDto;
-import org.qubership.integration.platform.io.model.exportimport.system.SpecificationSourceDto;
 import org.qubership.integration.platform.io.model.exportimport.system.SystemModelDto;
 import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
 import org.qubership.integration.platform.io.readers.migrations.ImportFileMigration;
@@ -36,6 +37,7 @@ import org.qubership.integration.platform.io.readers.migrations.MigrationExcepti
 import org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
+import org.qubership.integration.platform.io.readers.system.SystemImportModelMapper;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
@@ -100,7 +102,8 @@ public class ServiceDeserializer {
             );
             ObjectNode migratedServiceNode = (ObjectNode) yamlMapper.readTree(serviceData);
             IntegrationSystemDto integrationSystemDto = yamlMapper.treeToValue(migratedServiceNode, IntegrationSystemDto.class);
-            IntegrationSystem integrationSystem = integrationSystemDtoMapper.toInternalEntity(integrationSystemDto);
+            IntegrationSystem integrationSystem = integrationSystemDtoMapper.toInternalEntity(
+                    SystemImportModelMapper.toModel(integrationSystemDto));
 
             Collection<File> files = listFiles(serviceDirectory);
 
@@ -321,7 +324,8 @@ public class ServiceDeserializer {
         try {
             ObjectNode migratedNode = node.has(CONTENT) ? node : migrate(node, versions);
             SpecificationGroupDto specificationGroupDto = yamlMapper.treeToValue(migratedNode, SpecificationGroupDto.class);
-            SpecificationGroup specificationGroup = specificationGroupDtoMapper.toInternalEntity(specificationGroupDto);
+            SpecificationGroup specificationGroup = specificationGroupDtoMapper.toInternalEntity(
+                    SystemImportModelMapper.toModel(specificationGroupDto));
 
             if (Objects.equals(specificationGroupDto.getContent().getParentId(), integrationSystem.getId())) {
                 integrationSystem.addSpecificationGroup(specificationGroup);
@@ -342,38 +346,16 @@ public class ServiceDeserializer {
         try {
             ObjectNode migratedNode = node.has(CONTENT) ? node : migrate(node, versions);
             SystemModelDto systemModelDto = yamlMapper.treeToValue(migratedNode, SystemModelDto.class);
-            SystemModel systemModel = systemModelDtoMapper.toInternalEntity(systemModelDto);
+            ImportSystemModel importSystemModel = SystemImportModelMapper.toModel(systemModelDto);
+            SystemModel systemModel = systemModelDtoMapper.toInternalEntity(importSystemModel);
             specificationGroups.stream()
-                    .filter(group -> Objects.equals(group.getId(), systemModelDto.getContent().getParentId()))
+                    .filter(group -> Objects.equals(group.getId(), importSystemModel.getParentId()))
                     .findFirst()
                     .ifPresent(group -> group.addSystemModel(systemModel));
-            systemModelDto.getContent().getSpecificationSources().forEach(specificationSourceDto -> {
-                var specificationSourceBuilder = SpecificationSource.builder();
-                specificationSourceBuilder
-                        .id(specificationSourceDto.getId())
-                        .name(specificationSourceDto.getName())
-                        .description(specificationSourceDto.getDescription())
-                        .createdBy(SystemEntitySeam.toPersistenceUser(specificationSourceDto.getCreatedBy()))
-                        .createdWhen(specificationSourceDto.getCreatedWhen())
-                        .modifiedBy(SystemEntitySeam.toPersistenceUser(specificationSourceDto.getModifiedBy()))
-                        .modifiedWhen(specificationSourceDto.getModifiedWhen())
-                        .sourceHash(specificationSourceDto.getSourceHash())
-                        .isMainSource(specificationSourceDto.isMainSource());
-                String fileName = extractSpecSourceFileName(specificationSourceDto);
-                Path sourcePath = resourceDirectory.toPath().resolve(fileName);
-                if (!Files.exists(sourcePath) && !fileName.contains(RESOURCES_FOLDER_PREFIX)) {
-                    sourcePath = resourceDirectory.toPath().resolve(RESOURCES_FOLDER_PREFIX + fileName);
-                }
-                if (Files.exists(sourcePath)) {
-                    try {
-                        specificationSourceBuilder.source(Files.readString(sourcePath));
-                    } catch (IOException e) {
-                        throw new RuntimeException("Failed to read specification source", e);
-                    }
-                } else {
-                    log.warn("Specification source file not found: {}", fileName);
-                }
-                SpecificationSource specificationSource = specificationSourceBuilder.build();
+            importSystemModel.getSpecificationSources().forEach(source -> {
+                String sourceContent = readSpecificationSource(source, resourceDirectory);
+                SpecificationSource specificationSource =
+                        SystemEntitySeam.toPersistenceSpecificationSource(source, sourceContent);
                 systemModel.addProvidedSpecificationSource(specificationSource);
             });
         } catch (MigrationException exception) {
@@ -383,9 +365,32 @@ public class ServiceDeserializer {
         }
     }
 
-    private String extractSpecSourceFileName(SpecificationSourceDto specificationSourceDto) {
-        return StringUtils.firstNonBlank(
-            specificationSourceDto.getFileName(), specificationSourceDto.getName(), specificationSourceDto.getId()
-        );
+    /**
+     * Reads a specification source's text from the archive directory, or returns {@code null} when
+     * the file is missing.
+     *
+     * <p>Older exports leave the file name blank, so the source name and then its id stand in for
+     * it. When the resolved name does not match a file directly, the lookup retries under the
+     * resources subfolder, matching how the sources are laid out on export.
+     */
+    private String readSpecificationSource(ImportSpecificationSource source, File resourceDirectory) {
+        String fileName = extractSpecSourceFileName(source);
+        Path sourcePath = resourceDirectory.toPath().resolve(fileName);
+        if (!Files.exists(sourcePath) && !fileName.contains(RESOURCES_FOLDER_PREFIX)) {
+            sourcePath = resourceDirectory.toPath().resolve(RESOURCES_FOLDER_PREFIX + fileName);
+        }
+        if (!Files.exists(sourcePath)) {
+            log.warn("Specification source file not found: {}", fileName);
+            return null;
+        }
+        try {
+            return Files.readString(sourcePath);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read specification source", e);
+        }
+    }
+
+    private String extractSpecSourceFileName(ImportSpecificationSource source) {
+        return StringUtils.firstNonBlank(source.getFileName(), source.getName(), source.getId());
     }
 }

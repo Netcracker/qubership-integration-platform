@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.io.readers.system;
 
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import org.qubership.integration.platform.chain.model.ImportSystem;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
 import org.qubership.integration.platform.io.readers.migrations.ImportFileMigration;
@@ -30,13 +31,15 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Reads an integration-system export file into the library {@link IntegrationSystemDto} model.
+ * Reads an integration-system export file into the library {@link ImportSystem} model.
  *
- * <p>The reader migrates the YAML to the current file version and deserializes it into an
- * {@link IntegrationSystemDto}. It mirrors the chain-side {@code ChainReader} and the
- * {@code McpServiceReader}: the moved system DTO graph is both the import format and the model the
- * catalog maps to its JPA entities. The specification groups and system models that share the
- * export directory are read separately by the catalog, which walks the directory tree.
+ * <p>The reader migrates the YAML to the current file version, deserializes it into an
+ * {@link IntegrationSystemDto}, and maps the result to the library model. It mirrors the chain-side
+ * {@code ChainReader} and the {@code McpServiceReader}: the catalog turns the model into its JPA
+ * entities in a later step. The specification groups and system models that share the export
+ * directory in the modern format are read separately by the catalog, which walks the directory
+ * tree; only a legacy export that embeds them in the system file carries them on the returned
+ * model.
  */
 @Component
 public class IntegrationSystemReader {
@@ -61,7 +64,7 @@ public class IntegrationSystemReader {
      * @param systemFile the exported integration-system YAML file
      * @throws IllegalArgumentException if the file cannot be read or migrated
      */
-    public IntegrationSystemDto read(File systemFile) {
+    public ImportSystem read(File systemFile) {
         try {
             String systemYaml = migrateToCurrentFileVersion(Files.readString(systemFile.toPath()));
             return toModel(yamlMapper.readValue(systemYaml, IntegrationSystemDto.class));
@@ -74,12 +77,11 @@ public class IntegrationSystemReader {
     }
 
     /**
-     * Returns the deserialized integration-system export as the library model. The moved DTO graph
-     * already carries library-owned types, so it serves as the model directly. Package-visible so
-     * tests can exercise the mapping without a file on disk.
+     * Maps an already deserialized integration-system export to the library model. Package-visible
+     * so tests can exercise the mapping without a file on disk.
      */
-    IntegrationSystemDto toModel(IntegrationSystemDto dto) {
-        return dto;
+    ImportSystem toModel(IntegrationSystemDto dto) {
+        return SystemImportModelMapper.toModel(dto);
     }
 
     private String migrateToCurrentFileVersion(String systemYaml) throws Exception {

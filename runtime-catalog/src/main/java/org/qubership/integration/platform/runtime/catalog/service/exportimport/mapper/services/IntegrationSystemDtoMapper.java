@@ -16,13 +16,13 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services;
 
+import org.qubership.integration.platform.chain.model.ImportSystem;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemContentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystemLabel;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -38,7 +38,7 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam.toPersistenceUser;
 
 @Component
-public class IntegrationSystemDtoMapper implements ExternalEntityMapper<IntegrationSystem, IntegrationSystemDto> {
+public class IntegrationSystemDtoMapper {
     private final URI schemaUri;
     private final List<ServiceImportFileMigration> serviceImportFileMigrations;
 
@@ -51,28 +51,25 @@ public class IntegrationSystemDtoMapper implements ExternalEntityMapper<Integrat
         this.serviceImportFileMigrations = serviceImportFileMigrations;
     }
 
-    @Override
-    public IntegrationSystem toInternalEntity(IntegrationSystemDto integrationSystemDto) {
-        IntegrationSystemContentDto content = integrationSystemDto.getContent();
+    public IntegrationSystem toInternalEntity(ImportSystem importSystem) {
         IntegrationSystem system = IntegrationSystem.builder()
-                .id(integrationSystemDto.getId())
-                .name(integrationSystemDto.getName())
-                .description(content.getDescription())
-                .createdBy(toPersistenceUser(content.getCreatedBy()))
-                .createdWhen(content.getCreatedWhen())
-                .modifiedBy(toPersistenceUser(content.getModifiedBy()))
-                .modifiedWhen(content.getModifiedWhen())
-                .activeEnvironmentId(content.getActiveEnvironmentId())
-                .integrationSystemType(toPersistenceType(content.getIntegrationSystemType()))
-                .internalServiceName(content.getInternalServiceName())
-                .protocol(toPersistenceProtocol(content.getProtocol()))
-                .environments(content.getEnvironments().stream()
+                .id(importSystem.getId())
+                .name(importSystem.getName())
+                .description(importSystem.getDescription())
+                .createdBy(toPersistenceUser(importSystem.getCreatedBy()))
+                .createdWhen(importSystem.getCreatedWhen())
+                .modifiedBy(toPersistenceUser(importSystem.getModifiedBy()))
+                .modifiedWhen(importSystem.getModifiedWhen())
+                .activeEnvironmentId(importSystem.getActiveEnvironmentId())
+                .integrationSystemType(toPersistenceType(importSystem.getIntegrationSystemType()))
+                .internalServiceName(importSystem.getInternalServiceName())
+                .protocol(toPersistenceProtocol(importSystem.getProtocol()))
+                .environments(importSystem.getEnvironments().stream()
                         .map(SystemEntitySeam::toPersistenceEnvironment)
                         .collect(Collectors.toCollection(java.util.LinkedList::new)))
                 .build();
         system.getEnvironments().forEach(environment -> environment.setSystem(system));
-        system.setLabels(integrationSystemDto
-                .getContent()
+        system.setLabels(importSystem
                 .getLabels()
                 .stream()
                 .map(name -> new IntegrationSystemLabel(name, system))
@@ -80,7 +77,6 @@ public class IntegrationSystemDtoMapper implements ExternalEntityMapper<Integrat
         return system;
     }
 
-    @Override
     public IntegrationSystemDto toExternalEntity(IntegrationSystem integrationSystem) {
         return IntegrationSystemDto.builder()
                 .id(integrationSystem.getId())

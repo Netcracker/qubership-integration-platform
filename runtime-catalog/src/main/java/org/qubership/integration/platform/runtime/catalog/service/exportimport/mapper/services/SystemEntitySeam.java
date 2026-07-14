@@ -16,6 +16,9 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services;
 
+import org.qubership.integration.platform.chain.model.ImportEnvironment;
+import org.qubership.integration.platform.chain.model.ImportOperation;
+import org.qubership.integration.platform.chain.model.ImportSpecificationSource;
 import org.qubership.integration.platform.io.model.exportimport.system.EnvironmentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.OperationDto;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentLabel;
@@ -25,16 +28,20 @@ import org.qubership.integration.platform.runtime.catalog.model.system.SystemMod
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.User;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 
 import java.util.List;
 
 /**
- * Converts the library import/export value types to and from their persistence counterparts.
+ * Converts the library import model and export value types to and from their persistence
+ * counterparts.
  *
- * <p>The library owns the export format and its value types ({@code User}, the system enums, and the
- * {@code EnvironmentDto} / {@code OperationDto} serialization models); the catalog owns the JPA
- * entities. This is the single seam where the service mappers translate one side into the other, by
- * enum name for the enums and field for field for the value types.
+ * <p>The library owns the import model ({@code ImportEnvironment}, {@code ImportOperation},
+ * {@code ImportSpecificationSource}), the export format and its serialization value types
+ * ({@code EnvironmentDto} / {@code OperationDto}), the shared {@code User} value, and the system
+ * enums; the catalog owns the JPA entities. This is the single seam where the service mappers
+ * translate one side into the other: the model on import, the DTOs on export, by enum name for the
+ * enums and field for field for everything else.
  */
 public final class SystemEntitySeam {
 
@@ -97,22 +104,22 @@ public final class SystemEntitySeam {
                 : org.qubership.integration.platform.io.model.exportimport.system.SystemModelSource.valueOf(source.name());
     }
 
-    public static Environment toPersistenceEnvironment(EnvironmentDto dto) {
-        if (dto == null) {
+    public static Environment toPersistenceEnvironment(ImportEnvironment environment) {
+        if (environment == null) {
             return null;
         }
-        List<EnvironmentLabel> labels = dto.getLabels() == null
+        List<EnvironmentLabel> labels = environment.getLabels() == null
                 ? null
-                : dto.getLabels().stream().map(EnvironmentLabel::valueOf).toList();
+                : environment.getLabels().stream().map(EnvironmentLabel::valueOf).toList();
         return Environment.builder()
-                .id(dto.getId())
-                .name(dto.getName())
-                .description(dto.getDescription())
-                .address(dto.getAddress())
-                .sourceType(dto.getSourceType())
+                .id(environment.getId())
+                .name(environment.getName())
+                .description(environment.getDescription())
+                .address(environment.getAddress())
+                .sourceType(environment.getSourceType())
                 .labels(labels)
-                .maasInstanceId(dto.getMaasInstanceId())
-                .properties(dto.getProperties())
+                .maasInstanceId(environment.getMaasInstanceId())
+                .properties(environment.getProperties())
                 .build();
     }
 
@@ -135,19 +142,44 @@ public final class SystemEntitySeam {
                 .build();
     }
 
-    public static Operation toPersistenceOperation(OperationDto dto) {
-        if (dto == null) {
+    public static Operation toPersistenceOperation(ImportOperation operation) {
+        if (operation == null) {
             return null;
         }
         return Operation.builder()
-                .id(dto.getId())
-                .name(dto.getName())
-                .description(dto.getDescription())
-                .method(dto.getMethod())
-                .path(dto.getPath())
-                .specification(dto.getSpecification())
-                .requestSchema(dto.getRequestSchema())
-                .responseSchemas(dto.getResponseSchemas())
+                .id(operation.getId())
+                .name(operation.getName())
+                .description(operation.getDescription())
+                .method(operation.getMethod())
+                .path(operation.getPath())
+                .specification(operation.getSpecification())
+                .requestSchema(operation.getRequestSchema())
+                .responseSchemas(operation.getResponseSchemas())
+                .build();
+    }
+
+    /**
+     * Maps a specification source to its persistence entity. The source text is not part of the
+     * model; the catalog reads it from the archive file and passes it as {@code sourceContent}. It
+     * is set through the builder rather than {@code setSource} so the exported {@code sourceHash} is
+     * preserved instead of recomputed.
+     */
+    public static SpecificationSource toPersistenceSpecificationSource(
+            ImportSpecificationSource source, String sourceContent) {
+        if (source == null) {
+            return null;
+        }
+        return SpecificationSource.builder()
+                .id(source.getId())
+                .name(source.getName())
+                .description(source.getDescription())
+                .createdBy(toPersistenceUser(source.getCreatedBy()))
+                .createdWhen(source.getCreatedWhen())
+                .modifiedBy(toPersistenceUser(source.getModifiedBy()))
+                .modifiedWhen(source.getModifiedWhen())
+                .sourceHash(source.getSourceHash())
+                .isMainSource(source.isMainSource())
+                .source(sourceContent)
                 .build();
     }
 
