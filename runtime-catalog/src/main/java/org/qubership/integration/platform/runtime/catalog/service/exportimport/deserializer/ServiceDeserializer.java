@@ -53,7 +53,7 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.*;
 
 @Slf4j
 @Component

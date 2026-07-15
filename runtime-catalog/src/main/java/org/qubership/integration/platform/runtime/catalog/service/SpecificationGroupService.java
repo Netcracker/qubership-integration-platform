@@ -48,8 +48,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.DIFFERENT_PROTOCOL_ERROR_MESSAGE;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.INVALID_INPUT_FILE_ERROR_MESSAGE;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.DIFFERENT_PROTOCOL_ERROR_MESSAGE;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.INVALID_INPUT_FILE_ERROR_MESSAGE;
 
 @Slf4j
 @Service

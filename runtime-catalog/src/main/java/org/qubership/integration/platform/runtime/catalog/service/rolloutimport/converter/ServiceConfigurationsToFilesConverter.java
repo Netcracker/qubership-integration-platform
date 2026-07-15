@@ -19,12 +19,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_FILE_POSTFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_GROUP_FILE_POSTFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.YAML_FILE_NAME_POSTFIX;
 import static org.qubership.integration.platform.io.readers.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SPECIFICATION_FILE_POSTFIX;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SPECIFICATION_GROUP_FILE_POSTFIX;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.YAML_FILE_NAME_POSTFIX;
 
 @Slf4j
 @Component

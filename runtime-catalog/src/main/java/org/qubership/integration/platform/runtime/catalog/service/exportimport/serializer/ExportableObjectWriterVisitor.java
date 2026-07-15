@@ -27,7 +27,7 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.util.zip.ZipOutputStream;
 
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.RESOURCES_FOLDER_PREFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.RESOURCES_FOLDER_PREFIX;
 
 @Slf4j
 @Component

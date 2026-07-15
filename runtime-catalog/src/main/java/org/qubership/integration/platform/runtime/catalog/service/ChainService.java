@@ -56,8 +56,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.isNull;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.OVERRIDDEN_LABEL_NAME;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.OVERRIDES_LABEL_NAME;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.OVERRIDDEN_LABEL_NAME;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.OVERRIDES_LABEL_NAME;
 
 @Slf4j
 @Service

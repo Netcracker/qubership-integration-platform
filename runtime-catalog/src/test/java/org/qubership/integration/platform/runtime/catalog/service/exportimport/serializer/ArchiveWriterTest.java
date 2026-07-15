@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.ARCH_PARENT_DIR;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.ARCH_PARENT_DIR;
 
 @ExtendWith(MockitoExtension.class)
 class ArchiveWriterTest {
