@@ -699,7 +699,9 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         } as Element;
         onSubmit?.(elementWithProperties, node);
         // Saving marks the chain unsaved on the backend; refresh so the header banner reflects it.
-        void chainContext?.refresh?.();
+        chainContext?.refresh?.()?.catch(() => {
+          /* best-effort; refreshChain reports its own errors */
+        });
       }
     } catch (error) {
       notificationService.errorWithDetails(
