@@ -22,7 +22,6 @@ import org.qubership.integration.platform.chain.model.ImportSpecificationSource;
 import org.qubership.integration.platform.io.model.exportimport.system.EnvironmentDto;
 import org.qubership.integration.platform.io.model.exportimport.system.OperationDto;
 import org.qubership.integration.platform.parsers.model.ParsedOperation;
-import org.qubership.integration.platform.parsers.model.ParsedOperationImpl;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentLabel;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
@@ -58,16 +57,6 @@ public final class SystemEntitySeam {
             return null;
         }
         return User.builder()
-                .id(user.getId())
-                .username(user.getUsername())
-                .build();
-    }
-
-    public static org.qubership.integration.platform.io.model.exportimport.system.User toModelUser(User user) {
-        if (user == null) {
-            return null;
-        }
-        return org.qubership.integration.platform.io.model.exportimport.system.User.builder()
                 .id(user.getId())
                 .username(user.getUsername())
                 .build();
@@ -214,20 +203,6 @@ public final class SystemEntitySeam {
                 .id(operation.getId())
                 .name(operation.getName())
                 .description(operation.getDescription())
-                .method(operation.getMethod())
-                .path(operation.getPath())
-                .specification(operation.getSpecification())
-                .requestSchema(operation.getRequestSchema())
-                .responseSchemas(operation.getResponseSchemas())
-                .build();
-    }
-
-    public static ParsedOperation toParsedOperation(Operation operation) {
-        if (operation == null) {
-            return null;
-        }
-        return ParsedOperationImpl.builder()
-                .name(operation.getName())
                 .method(operation.getMethod())
                 .path(operation.getPath())
                 .specification(operation.getSpecification())
