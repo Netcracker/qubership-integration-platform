@@ -256,7 +256,13 @@ describe("ImportInstructions", () => {
         override: [],
         delete: [],
       },
-      services: { ignore: [{ id: "missing-service" }], delete: [] },
+      services: {
+        ignore: [
+          { id: "existing-service", name: "Existing Service" },
+          { id: "missing-service" },
+        ],
+        delete: [],
+      },
       specificationGroups: { delete: [], ignore: [] },
       specifications: { delete: [], ignore: [] },
       commonVariables: { ignore: [], delete: [] },
@@ -268,6 +274,13 @@ describe("ImportInstructions", () => {
       name: "Existing Chain",
     });
     expect(existingLink).toHaveAttribute("href", "/chains/existing-chain");
+    const existingServiceLink = screen.getByRole("link", {
+      name: "Existing Service",
+    });
+    expect(existingServiceLink).toHaveAttribute(
+      "href",
+      "/services/systems/existing-service/parameters",
+    );
     expect((await screen.findByText("missing-chain")).closest("a")).toBeNull();
     expect(screen.getByText("missing-service").closest("a")).toBeNull();
   });
@@ -627,6 +640,7 @@ services:
 
     expect(await screen.findByText("Chain Two")).toBeInTheDocument();
     expect(screen.getByText("Chain Two")).toBeInTheDocument();
+    expect(screen.getByText("other-chain").closest("a")).toBeNull();
 
     const cellTriggers = document.querySelectorAll(".inline-edit-value-wrap");
     expect(cellTriggers.length).toBeGreaterThanOrEqual(2);
