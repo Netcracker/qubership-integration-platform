@@ -1,0 +1,244 @@
+asyncapi: 3.0.0
+info:
+  title: Order Processing Platform
+  version: 3.2.0
+  description: Complex event-driven order processing system
+servers:
+  production:
+    host: kafka-prod.internal:9092
+    protocol: kafka
+  staging:
+    host: kafka-staging.internal:9092
+    protocol: kafka
+channels:
+  orderCommands:
+    address: orders.commands
+    description: Order command channel
+    messages:
+      CreateOrder:
+        $ref: '#/components/messages/CreateOrder'
+  orderEvents:
+    address: orders.events
+    description: Order domain events
+    messages:
+      OrderCreated:
+        $ref: '#/components/messages/OrderCreated'
+  orderCancellations:
+    address: orders.cancellations
+    messages:
+      OrderCancelled:
+        payload:
+          type: object
+          required:
+            - orderId
+            - reason
+            - cancelledAt
+          properties:
+            orderId:
+              type: string
+              format: uuid
+            reason:
+              type: string
+              enum:
+                - customer_request
+                - payment_failed
+                - fraud_detected
+                - out_of_stock
+            cancelledAt:
+              type: string
+              format: date-time
+            refundAmount:
+              type: number
+              minimum: 0
+  inventoryUpdates:
+    address: inventory.stock.updates
+    messages:
+      StockUpdated:
+        payload:
+          type: object
+          required:
+            - sku
+            - warehouse
+          properties:
+            sku:
+              type: string
+              pattern: "^[A-Z]{3}-\\d{6}$"
+            warehouse:
+              type: string
+            quantity:
+              type: integer
+              minimum: 0
+              maximum: 999999
+            metadata:
+              type: object
+              additionalProperties:
+                type: string
+operations:
+  createOrder:
+    action: send
+    channel:
+      $ref: '#/channels/orderCommands'
+    summary: Send create order command
+    messages:
+      - $ref: '#/channels/orderCommands/messages/CreateOrder'
+  onOrderCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/orderEvents'
+    summary: Receive order created events
+    messages:
+      - $ref: '#/channels/orderEvents/messages/OrderCreated'
+  onOrderCancelled:
+    action: receive
+    channel:
+      $ref: '#/channels/orderCancellations'
+    summary: Receive order cancelled events
+    messages:
+      - $ref: '#/channels/orderCancellations/messages/OrderCancelled'
+  onStockUpdated:
+    action: receive
+    channel:
+      $ref: '#/channels/inventoryUpdates'
+    summary: Receive inventory updates
+components:
+  messages:
+    CreateOrder:
+      headers:
+        type: object
+        required:
+          - correlationId
+          - idempotencyKey
+        properties:
+          correlationId:
+            type: string
+            format: uuid
+          idempotencyKey:
+            type: string
+          priority:
+            type: integer
+            minimum: 1
+            maximum: 10
+      payload:
+        type: object
+        required:
+          - customerId
+          - items
+        properties:
+          customerId:
+            type: string
+            format: uuid
+          items:
+            type: array
+            minItems: 1
+            maxItems: 100
+            items:
+              $ref: '#/components/schemas/OrderItem'
+          shippingAddress:
+            $ref: '#/components/schemas/Address'
+          billingAddress:
+            $ref: '#/components/schemas/Address'
+          discount:
+            oneOf:
+              - $ref: '#/components/schemas/PercentageDiscount'
+              - $ref: '#/components/schemas/FixedDiscount'
+          metadata:
+            type: object
+            additionalProperties: true
+    OrderCreated:
+      headers:
+        type: object
+        properties:
+          correlationId:
+            type: string
+      payload:
+        type: object
+        required:
+          - orderId
+          - status
+          - createdAt
+        properties:
+          orderId:
+            type: string
+            format: uuid
+          status:
+            type: string
+            enum:
+              - pending
+              - confirmed
+          createdAt:
+            type: string
+            format: date-time
+          totalAmount:
+            type: number
+            minimum: 0
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/OrderItem'
+  schemas:
+    OrderItem:
+      type: object
+      required:
+        - sku
+        - quantity
+        - unitPrice
+      properties:
+        sku:
+          type: string
+          pattern: "^[A-Z]{3}-\\d{6}$"
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 9999
+        unitPrice:
+          type: number
+          exclusiveMinimum: 0
+        productName:
+          type: string
+          minLength: 1
+          maxLength: 200
+    Address:
+      type: object
+      required:
+        - street
+        - city
+        - country
+      properties:
+        street:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        zipCode:
+          type: string
+          pattern: "^\\d{5}(-\\d{4})?$"
+        country:
+          type: string
+          minLength: 2
+          maxLength: 2
+    PercentageDiscount:
+      type: object
+      required:
+        - type
+        - percent
+      properties:
+        type:
+          type: string
+          const: percentage
+        percent:
+          type: number
+          minimum: 0
+          maximum: 100
+    FixedDiscount:
+      type: object
+      required:
+        - type
+        - amount
+      properties:
+        type:
+          type: string
+          const: fixed
+        amount:
+          type: number
+          minimum: 0
