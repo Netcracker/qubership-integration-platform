@@ -650,6 +650,47 @@ services:
     );
   });
 
+  it("should open Overridden By link without entering edit mode", async () => {
+    mockApi.getImportInstructions.mockResolvedValueOnce({
+      chains: {
+        ignore: [],
+        override: [
+          {
+            id: "chain-2",
+            name: "Chain Two",
+            overriddenById: "other-chain",
+            overriddenByName: "Other Chain",
+          },
+        ],
+        delete: [],
+      },
+      services: { ignore: [], delete: [] },
+      specificationGroups: { ignore: [], delete: [] },
+      specifications: { ignore: [], delete: [] },
+      commonVariables: { ignore: [], delete: [] },
+    });
+
+    render(<ImportInstructions />, { wrapper: ContextProviders });
+
+    const overriddenByLink = await screen.findByRole("link", {
+      name: "Other Chain",
+    });
+    expect(overriddenByLink).toHaveAttribute("href", "/chains/other-chain");
+    expect(overriddenByLink).toHaveAttribute("target", "_blank");
+
+    fireEvent.click(overriddenByLink);
+    expect(screen.queryByDisplayValue("other-chain")).not.toBeInTheDocument();
+
+    fireEvent.keyDown(overriddenByLink, { key: "Enter" });
+    expect(screen.queryByDisplayValue("other-chain")).not.toBeInTheDocument();
+
+    const viewer = overriddenByLink.closest(".inline-edit-value-wrap");
+    expect(viewer).toBeTruthy();
+    fireEvent.click(viewer!);
+
+    expect(await screen.findByDisplayValue("other-chain")).toBeInTheDocument();
+  });
+
   it("handleDelete: select row, confirm delete modal, deleteImportInstructions called", async () => {
     mockApi.deleteImportInstructions.mockResolvedValue(undefined);
 
