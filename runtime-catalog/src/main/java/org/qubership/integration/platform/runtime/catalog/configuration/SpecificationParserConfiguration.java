@@ -25,11 +25,14 @@ import org.qubership.integration.platform.parsers.impl.GraphqlSpecificationParse
 import org.qubership.integration.platform.parsers.impl.OpenApiMapperResolver;
 import org.qubership.integration.platform.parsers.impl.ProtobufSpecificationParser;
 import org.qubership.integration.platform.parsers.impl.SwaggerSpecificationParser;
+import org.qubership.integration.platform.parsers.impl.WsdlSpecificationParser;
 import org.qubership.integration.platform.parsers.resolvers.SwaggerSchemaResolver;
 import org.qubership.integration.platform.parsers.resolvers.async.AsyncApiSchemaResolver;
 import org.qubership.integration.platform.parsers.resolvers.async.AsyncApiSpecificationResolver;
 import org.qubership.integration.platform.parsers.resolvers.async.impl.AMQPSpecificationResolver;
 import org.qubership.integration.platform.parsers.resolvers.async.impl.KafkaSpecificationResolver;
+import org.qubership.integration.platform.parsers.resolvers.wsdl.WsdlRootFileParser;
+import org.qubership.integration.platform.parsers.resolvers.wsdl.WsdlVersionParser;
 import org.qubership.integration.platform.parsers.schemas.SchemaProcessor;
 import org.qubership.integration.platform.parsers.schemas.impl.ArraySchemaProcessor;
 import org.qubership.integration.platform.parsers.schemas.impl.DefaultSchemaProcessor;
@@ -43,6 +46,7 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.ArrayList;
 import java.util.List;
+import javax.xml.parsers.SAXParserFactory;
 
 /**
  * Wires the persistence-free specification parsers relocated to the translation library.
@@ -117,5 +121,36 @@ public class SpecificationParserConfiguration {
                 jsonMapper,
                 yamlExportImportMapper,
                 resolvers);
+    }
+
+    /**
+     * Detects the WSDL version of a source. The library WSDL parser depends on this bean to pick the
+     * WSDL 1.1 or WSDL 2.0 reading path.
+     */
+    @Bean
+    public WsdlVersionParser wsdlVersionParser(
+            @Qualifier("wsdlVersionSaxParserFactory") SAXParserFactory saxParserFactory
+    ) {
+        return new WsdlVersionParser(saxParserFactory);
+    }
+
+    /**
+     * Identifies the root WSDL among the uploaded files. The catalog import flow depends on this bean
+     * to pick the main source before parsing.
+     */
+    @Bean
+    public WsdlRootFileParser wsdlRootFileParser(
+            @Qualifier("wsdlVersionSaxParserFactory") SAXParserFactory saxParserFactory
+    ) {
+        return new WsdlRootFileParser(saxParserFactory);
+    }
+
+    /**
+     * Builds the library WSDL parser. The catalog WSDL parser depends on this bean and adds the
+     * environment side effect the library omits.
+     */
+    @Bean
+    public WsdlSpecificationParser libraryWsdlSpecificationParser(WsdlVersionParser wsdlVersionParser) {
+        return new WsdlSpecificationParser(wsdlVersionParser);
     }
 }
