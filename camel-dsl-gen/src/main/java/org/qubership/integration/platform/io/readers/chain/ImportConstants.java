@@ -19,8 +19,8 @@ package org.qubership.integration.platform.io.readers.chain;
 import java.io.File;
 
 /**
- * Property names and file-extension tokens shared by the chain import reader. They mirror the
- * catalog's {@code ExportImportConstants} so the reader restores element properties the same way the
+ * Property names and file-extension tokens shared by the chain import reader. They mirror
+ * {@code ExportImportConstants} so the reader restores element properties the same way the
  * exporter wrote them.
  */
 final class ImportConstants {

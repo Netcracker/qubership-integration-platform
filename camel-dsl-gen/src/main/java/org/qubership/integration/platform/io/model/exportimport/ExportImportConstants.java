@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.exportimport;
+package org.qubership.integration.platform.io.model.exportimport;
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;

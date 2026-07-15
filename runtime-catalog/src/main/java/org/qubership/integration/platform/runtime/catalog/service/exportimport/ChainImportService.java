@@ -71,9 +71,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Objects.nonNull;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.*;
 import static org.qubership.integration.platform.library.constants.CamelOptions.CONTEXT_SYSTEM_ID;
 import static org.qubership.integration.platform.library.constants.CamelOptions.SYSTEM_ID;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
 
 @Slf4j
 @Service

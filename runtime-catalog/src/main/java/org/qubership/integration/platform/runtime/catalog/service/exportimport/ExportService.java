@@ -48,7 +48,7 @@ import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.*;
 
 @Slf4j
 @Transactional(readOnly = true)

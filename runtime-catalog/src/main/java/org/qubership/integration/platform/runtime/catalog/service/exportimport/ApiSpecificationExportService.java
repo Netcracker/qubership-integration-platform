@@ -75,7 +75,7 @@ import java.util.stream.Stream;
 
 import static java.util.Objects.isNull;
 import static java.util.Objects.nonNull;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.*;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.*;
 import static org.qubership.integration.platform.util.TriggerUtils.*;
 
 @Slf4j
