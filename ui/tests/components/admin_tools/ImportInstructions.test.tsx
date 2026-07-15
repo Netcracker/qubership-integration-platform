@@ -256,7 +256,13 @@ describe("ImportInstructions", () => {
         override: [],
         delete: [],
       },
-      services: { ignore: [{ id: "missing-service" }], delete: [] },
+      services: {
+        ignore: [
+          { id: "existing-service", name: "Existing Service" },
+          { id: "missing-service" },
+        ],
+        delete: [],
+      },
       specificationGroups: { delete: [], ignore: [] },
       specifications: { delete: [], ignore: [] },
       commonVariables: { ignore: [], delete: [] },
@@ -268,6 +274,13 @@ describe("ImportInstructions", () => {
       name: "Existing Chain",
     });
     expect(existingLink).toHaveAttribute("href", "/chains/existing-chain");
+    const existingServiceLink = screen.getByRole("link", {
+      name: "Existing Service",
+    });
+    expect(existingServiceLink).toHaveAttribute(
+      "href",
+      "/services/systems/existing-service/parameters",
+    );
     expect((await screen.findByText("missing-chain")).closest("a")).toBeNull();
     expect(screen.getByText("missing-service").closest("a")).toBeNull();
   });
@@ -627,6 +640,7 @@ services:
 
     expect(await screen.findByText("Chain Two")).toBeInTheDocument();
     expect(screen.getByText("Chain Two")).toBeInTheDocument();
+    expect(screen.getByText("other-chain").closest("a")).toBeNull();
 
     const cellTriggers = document.querySelectorAll(".inline-edit-value-wrap");
     expect(cellTriggers.length).toBeGreaterThanOrEqual(2);
@@ -648,6 +662,47 @@ services:
         }),
       ),
     );
+  });
+
+  it("should open Overridden By link without entering edit mode", async () => {
+    mockApi.getImportInstructions.mockResolvedValueOnce({
+      chains: {
+        ignore: [],
+        override: [
+          {
+            id: "chain-2",
+            name: "Chain Two",
+            overriddenById: "other-chain",
+            overriddenByName: "Other Chain",
+          },
+        ],
+        delete: [],
+      },
+      services: { ignore: [], delete: [] },
+      specificationGroups: { ignore: [], delete: [] },
+      specifications: { ignore: [], delete: [] },
+      commonVariables: { ignore: [], delete: [] },
+    });
+
+    render(<ImportInstructions />, { wrapper: ContextProviders });
+
+    const overriddenByLink = await screen.findByRole("link", {
+      name: "Other Chain",
+    });
+    expect(overriddenByLink).toHaveAttribute("href", "/chains/other-chain");
+    expect(overriddenByLink).toHaveAttribute("target", "_blank");
+
+    fireEvent.click(overriddenByLink);
+    expect(screen.queryByDisplayValue("other-chain")).not.toBeInTheDocument();
+
+    fireEvent.keyDown(overriddenByLink, { key: "Enter" });
+    expect(screen.queryByDisplayValue("other-chain")).not.toBeInTheDocument();
+
+    const viewer = overriddenByLink.closest(".inline-edit-value-wrap");
+    expect(viewer).toBeTruthy();
+    fireEvent.click(viewer!);
+
+    expect(await screen.findByDisplayValue("other-chain")).toBeInTheDocument();
   });
 
   it("handleDelete: select row, confirm delete modal, deleteImportInstructions called", async () => {

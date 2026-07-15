@@ -143,8 +143,55 @@ const ENTITY_ICON: Record<InstructionEntityType, string> = {
 function getEntityHref(row: InstructionRow): string | undefined {
   if (!row.name) return undefined;
   if (row.entityType === "Chain") return `/chains/${row.id}`;
-  if (row.entityType === "Service") return `/services/systems/${row.id}`;
+  if (row.entityType === "Service") return `/services/systems/${row.id}/parameters`;
   return undefined;
+}
+
+function getOverriddenByHref(row: InstructionRow): string | undefined {
+  if (!row.overriddenByName) return undefined;
+  if (row.entityType === "Chain") return `/chains/${row.overriddenById}`;
+  return undefined;
+}
+
+function stopInlineEditClick(event: React.MouseEvent<HTMLAnchorElement>): void {
+  event.stopPropagation();
+}
+
+function stopInlineEditActivation(
+  event: React.KeyboardEvent<HTMLAnchorElement>,
+): void {
+  if (event.key === "Enter" || event.key === " ") {
+    event.stopPropagation();
+  }
+}
+
+function renderOverriddenByViewer(
+  row: InstructionRow,
+  showEditIcon = false,
+): React.ReactNode {
+  const value = row.overriddenByName ?? row.overriddenById ?? PLACEHOLDER;
+  const href = getOverriddenByHref(row);
+
+  return (
+    <span>
+      {href ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={stopInlineEditClick}
+          onKeyDown={stopInlineEditActivation}
+        >
+          {value}
+        </a>
+      ) : (
+        value
+      )}
+      {showEditIcon && (
+        <OverridableIcon name="edit" className={inlineEditStyles.inlineIcon} />
+      )}
+    </span>
+  );
 }
 
 const ENTITY_TO_API: Record<InstructionEntityType, ImportEntityType> = {
@@ -611,11 +658,7 @@ export const ImportInstructions: React.FC = () => {
             pendingOverrideRowKey === row.key;
           if (!showOverriddenBy) return "";
           if (!enableEdit) {
-            return (
-              <span>
-                {row.overriddenByName ?? row.overriddenById ?? PLACEHOLDER}
-              </span>
-            );
+            return renderOverriddenByViewer(row);
           }
 
           return (
@@ -625,15 +668,7 @@ export const ImportInstructions: React.FC = () => {
               }}
               initialActive={pendingOverrideRowKey === row.key}
               editor={<TextValueEdit name="overriddenBy" rules={[]} />}
-              viewer={
-                <span>
-                  {row.overriddenByName ?? row.overriddenById ?? PLACEHOLDER}
-                  <OverridableIcon
-                    name="edit"
-                    className={inlineEditStyles.inlineIcon}
-                  />
-                </span>
-              }
+              viewer={renderOverriddenByViewer(row, true)}
               onSubmit={async ({ overriddenBy }) => {
                 setPendingOverrideRowKey(null);
                 await handleUpdateAction(
