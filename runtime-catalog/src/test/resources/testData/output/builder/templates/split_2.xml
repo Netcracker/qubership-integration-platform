@@ -1,7 +1,5 @@
 <route>
     <step id="c653b031-d1f9-4a51-a6df-331db82c3815">
-        <removeProperty name="internalProperty_exchangePropertiesProcessed"/>
-        <removeProperty name="internalProperty_splitExchangeHeaderProcessed"/>
         <multicast parallelProcessing="true"
                    aggregationStrategy="chainsAggregationStrategy"
                    timeout="0"
