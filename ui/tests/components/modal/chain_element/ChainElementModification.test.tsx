@@ -15,6 +15,7 @@ import type { ChainGraphNode } from "../../../../src/components/graph/nodes/Chai
 import type { UserPermissions } from "../../../../src/permissions/types";
 import { UserPermissionsContext } from "../../../../src/permissions/UserPermissionsContext";
 import { ChainElementModification } from "../../../../src/components/modal/chain_element/ChainElementModification";
+import { ChainContext } from "../../../../src/pages/ChainPage";
 import { jest } from "@jest/globals";
 
 jest.mock("@monaco-editor/react", () => ({
@@ -548,9 +549,7 @@ describe("ChainElementModification", () => {
     fireEvent.click(screen.getByTestId("rjsf-user-change"));
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
-    const unsavedModal = (
-      mockShowModal.mock.calls[0][0]
-    ).component;
+    const unsavedModal = mockShowModal.mock.calls[0][0].component;
     render(unsavedModal);
 
     fireEvent.click(screen.getByRole("button", { name: "Yes" }));
@@ -569,9 +568,7 @@ describe("ChainElementModification", () => {
     fireEvent.click(screen.getByTestId("rjsf-user-change"));
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
-    const unsavedModal = (
-      mockShowModal.mock.calls[0][0]
-    ).component;
+    const unsavedModal = mockShowModal.mock.calls[0][0].component;
     render(unsavedModal);
 
     const dialogs = screen.getAllByRole("dialog");
@@ -610,6 +607,67 @@ describe("ChainElementModification", () => {
     });
   });
 
+  it("should refresh the chain when an element save succeeds", async () => {
+    const refresh = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    render(
+      <ChainContext.Provider
+        value={{
+          chain: undefined,
+          refresh,
+          update: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+        }}
+      >
+        <UserPermissionsContext.Provider value={{ chain: ["update"] }}>
+          <ChainElementModification {...defaultProps} />
+        </UserPermissionsContext.Provider>
+      </ChainContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => {
+      expect(mockUpdateElement).toHaveBeenCalled();
+    });
+    // Saving marks the chain unsaved on the backend; the modal must refresh the
+    // chain so the header banner reflects the edit without a page reload.
+    await waitFor(() => {
+      expect(refresh).toHaveBeenCalled();
+    });
+  });
+
+  it("should not refresh the chain when the element save fails", async () => {
+    mockUpdateElement.mockRejectedValueOnce(new Error("API error"));
+    const refresh = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    render(
+      <ChainContext.Provider
+        value={{
+          chain: undefined,
+          refresh,
+          update: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
+        }}
+      >
+        <UserPermissionsContext.Provider value={{ chain: ["update"] }}>
+          <ChainElementModification {...defaultProps} />
+        </UserPermissionsContext.Provider>
+      </ChainContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => {
+      expect(mockNotificationService.errorWithDetails).toHaveBeenCalled();
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
   it("Save button calls errorWithDetails when updateElement rejects", async () => {
     mockUpdateElement.mockRejectedValueOnce(new Error("API error"));
     renderWithPermissions({ chain: ["update"] });
@@ -645,7 +703,9 @@ describe("ChainElementModification", () => {
     fireEvent.blur(input);
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("Updated Script Name")).toBeInTheDocument();
+      expect(
+        screen.getByDisplayValue("Updated Script Name"),
+      ).toBeInTheDocument();
     });
 
     expect(mockUpdateElement).not.toHaveBeenCalled();
@@ -682,7 +742,9 @@ describe("ChainElementModification", () => {
     fireEvent.blur(input);
 
     await waitFor(() => {
-      expect(screen.queryByTestId("element-name-input")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("element-name-input"),
+      ).not.toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));

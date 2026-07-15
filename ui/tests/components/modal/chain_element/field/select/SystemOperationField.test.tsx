@@ -42,29 +42,23 @@ const mockRequestFailed = jest.fn();
 // service into useCallback deps, and a fresh object per render would recreate
 // callbacks → re-run useEffect → setState → loop.
 const mockNotificationService = { requestFailed: mockRequestFailed };
-jest.mock(
-  "../../../../../../src/hooks/useNotificationService",
-  () => ({
-    useNotificationService: () => mockNotificationService,
-  }),
-);
+jest.mock("../../../../../../src/hooks/useNotificationService", () => ({
+  useNotificationService: () => mockNotificationService,
+}));
 
 jest.mock("../../../../../../src/api/rest/vscodeExtensionApi", () => ({
   isVsCode: false,
   VSCodeExtensionApi: class MockedVSCode {},
 }));
 
-jest.mock(
-  "../../../../../../src/components/services/ui/OperationPath",
-  () => ({
-    OperationPath: ({ path }: { path: string }) => (
-      <span data-testid="op-path">{path}</span>
-    ),
-  }),
-);
-jest.mock("../../../../../../src/components/services/ui/HttpMethod", () => ({
-  HttpMethod: ({ value }: { value: string }) => (
-    <span data-testid="http-method">{value}</span>
+jest.mock("../../../../../../src/components/services/ui/OperationPath", () => ({
+  OperationPath: ({ path }: { path: string }) => (
+    <span data-testid="op-path">{path}</span>
+  ),
+}));
+jest.mock("../../../../../../src/components/services/ui/MethodBadge", () => ({
+  MethodBadge: ({ value }: { value: string }) => (
+    <span data-testid="method-badge">{value}</span>
   ),
 }));
 jest.mock(

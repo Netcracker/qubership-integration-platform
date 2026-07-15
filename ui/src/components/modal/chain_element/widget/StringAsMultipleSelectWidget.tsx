@@ -2,7 +2,7 @@ import React from "react";
 import { Select, SelectProps, Tag } from "antd";
 import { WidgetProps } from "@rjsf/utils";
 import { methodValues } from "../../../../hooks/useChainFilter.ts";
-import { methodTagStyle } from "../../../services/ui/HttpMethod.tsx";
+import { methodTagStyle } from "../../../services/ui/MethodBadge.tsx";
 
 // Color each selected method tag the same way operations render methods. The
 // qip-method-tag class keeps a white label in every theme and centers the close

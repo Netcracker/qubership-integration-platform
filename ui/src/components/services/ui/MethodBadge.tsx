@@ -2,13 +2,14 @@ import React from "react";
 import { Tag } from "antd";
 import { METHOD_COLORS } from "../../../theme/semanticColors.ts";
 
-type HttpMethodProps = {
+type MethodBadgeProps = {
   value: unknown;
-  width?: number;
+  minWidth?: number;
 };
 
-/** Shared visual style for an HTTP-method badge, colored by method (GET/POST/...).
- *  Squarish, bold, uppercase, white label — the Swagger/OpenAPI method-badge idiom. */
+/** Shared visual style for an operation-method badge, colored by method. Covers
+ *  any protocol's method — HTTP (GET/POST/...) and AsyncAPI (PUBLISH/SUBSCRIBE).
+ *  Squarish, bold, uppercase, white label — the Swagger method-badge idiom. */
 export function methodTagStyle(method: string): React.CSSProperties {
   const color = METHOD_COLORS[method.toUpperCase()] || "#d9d9d9";
   return {
@@ -27,8 +28,8 @@ export function methodTagStyle(method: string): React.CSSProperties {
   };
 }
 
-export const HttpMethod: React.FC<HttpMethodProps> = (
-  props: HttpMethodProps,
+export const MethodBadge: React.FC<MethodBadgeProps> = (
+  props: MethodBadgeProps,
 ) => {
   const method = props.value as string | undefined;
   if (!method) return "-";
@@ -40,7 +41,7 @@ export const HttpMethod: React.FC<HttpMethodProps> = (
       className="qip-method-tag"
       style={{
         ...methodTagStyle(displayMethod),
-        ...(props.width && { width: props.width }),
+        ...(props.minWidth && { minWidth: props.minWidth }),
       }}
     >
       {displayMethod}

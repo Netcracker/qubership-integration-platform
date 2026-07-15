@@ -134,6 +134,8 @@ const ChainGraphInner: React.FC = () => {
           "Created snapshot",
           `Created snapshot ${snapshot.name}`,
         );
+        // Building a snapshot clears the chain's unsaved-changes flag; refresh so the banner hides.
+        void chainContext?.refresh?.();
         await Promise.all(
           domains.map(async (domain) => {
             if (domain.type === DomainType.MICRO) {

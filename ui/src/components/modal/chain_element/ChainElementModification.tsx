@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import React, {
+  useContext,
   useEffect,
   useLayoutEffect,
   useState,
@@ -47,6 +48,7 @@ import {
   getStaleProtocolProperties,
 } from "./ChainElementModificationConstants.ts";
 import { ChainGraphNode } from "../../graph/nodes/ChainGraphNodeTypes.ts";
+import { ChainContext } from "../../../pages/ChainPage.tsx";
 import MappingField from "./field/MappingField.tsx";
 import CustomArrayField from "./field/CustomArrayField.tsx";
 import ScriptField from "./field/ScriptField.tsx";
@@ -89,13 +91,16 @@ import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 import { ModalWithFullscreenToggle } from "../ModalWithFullscreenToggle.tsx";
 import { JsonAsStringField } from "./field/JsonAsStringField.tsx";
 import { MCPServiceField } from "./field/select/MCPServiceField.tsx";
-import { getElementTypeTitle, isUnsupportedCanvasElementType } from "../../../misc/chain-graph-utils.ts";
+import {
+  getElementTypeTitle,
+  isUnsupportedCanvasElementType,
+} from "../../../misc/chain-graph-utils.ts";
 
 type ElementModificationProps = {
   node: ChainGraphNode;
   chainId: string;
   elementId: string;
-  onSubmit: (changedElement: Element, node: ChainGraphNode) => void;
+  onSubmit?: (changedElement: Element, node: ChainGraphNode) => void;
   onClose?: () => void;
 };
 
@@ -254,6 +259,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   onSubmit,
   onClose,
 }) => {
+  const chainContext = useContext(ChainContext);
   const { isLoading: libraryElementIsLoading, libraryElement } =
     useLibraryElement(node.data.elementType);
   const [isLoading, setIsLoading] = useState(false);
@@ -692,6 +698,8 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
           properties: formData.properties,
         } as Element;
         onSubmit?.(elementWithProperties, node);
+        // Saving marks the chain unsaved on the backend; refresh so the header banner reflects it.
+        void chainContext?.refresh?.();
       }
     } catch (error) {
       notificationService.errorWithDetails(
@@ -713,6 +721,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     updateElement,
     handleClose,
     isUnsupported,
+    chainContext,
   ]);
 
   const handleCheckUnsavedAndClose = useCallback(() => {
@@ -918,7 +927,9 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
                 libraryElement,
               )}
               onSave={handleNameSave}
-              disabled={!canEditChain || libraryElementIsLoading || isUnsupported}
+              disabled={
+                !canEditChain || libraryElementIsLoading || isUnsupported
+              }
             />
           </div>
           <Flex
