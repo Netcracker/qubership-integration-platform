@@ -18,6 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.MissingNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
@@ -35,6 +36,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.MigrationException;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.VersionsGetterService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -180,32 +182,52 @@ public class ServiceDeserializer {
             return;
         }
 
-        JsonNode specGroupsNode = migratedServiceNode.path(CONTENT).path("specificationGroups");
+        JsonNode specGroupsArray = migratedServiceNode.path(CONTENT).path("specificationGroups");
         for (SpecificationGroupDto group : specGroups) {
-            processSpecificationGroup(group, integrationSystem, versions, specGroupsNode, serviceDirectory);
+            JsonNode specGroupNode = findSpecificationGroup(specGroupsArray, group.getId());
+            processSpecificationGroup(group, integrationSystem, versions, specGroupNode, serviceDirectory);
         }
+    }
+
+    private JsonNode findSpecificationGroup(JsonNode specGroupsArray, String groupId) {
+        if (!specGroupsArray.isArray()) {
+            return specGroupsArray;
+        }
+        for (JsonNode node : specGroupsArray) {
+            if (groupId.equals(node.path("id").asText(null))) {
+                return node;
+            }
+        }
+        return MissingNode.getInstance();
     }
 
     private void processSpecificationGroup(
             SpecificationGroupDto group,
             IntegrationSystem integrationSystem,
             Collection<Integer> versions,
-            JsonNode specGroupsNode,
+            JsonNode specGroupNode,
             File serviceDirectory
     ) {
+        if (specGroupNode.isMissingNode() || specGroupNode.isNull()) {
+            return;
+        }
+
         setGroupParentId(group, integrationSystem);
 
-        JsonNode synchronization = specGroupsNode.path("synchronization");
+        JsonNode synchronization = specGroupNode.path(CONTENT).path("synchronization");
+        if (synchronization.isMissingNode() || synchronization.isNull()) {
+            synchronization = specGroupNode.path("synchronization");
+        }
         if (!synchronization.isMissingNode() && !synchronization.isNull()) {
             group.getContent().setSynchronization(synchronization.asBoolean());
         }
         buildAndAddSpecificationGroup(yamlMapper.valueToTree(group), versions, integrationSystem);
 
-        JsonNode systemModelsList = specGroupsNode.path("systemModels");
-        if (systemModelsList.isMissingNode() || systemModelsList.isNull()) {
+        JsonNode systemModelsArray = specGroupNode.path("systemModels");
+        if (systemModelsArray.isMissingNode() || systemModelsArray.isNull()) {
             return;
         }
-        processSystemModels(systemModelsList, group, integrationSystem, versions, serviceDirectory);
+        processSystemModels(systemModelsArray, group, integrationSystem, versions, serviceDirectory);
     }
 
     private void setGroupParentId(SpecificationGroupDto group, IntegrationSystem integrationSystem) {
@@ -218,32 +240,71 @@ public class ServiceDeserializer {
     }
 
     private void processSystemModels(
-            JsonNode systemModelsList,
+            JsonNode systemModelsArray,
             SpecificationGroupDto group,
             IntegrationSystem integrationSystem,
             Collection<Integer> versions,
             File serviceDirectory
     ) {
-        for (JsonNode model : systemModelsList) {
-            if (model.isMissingNode() || model.isNull()) {
-                return;
-            }
-            ensureModelContentParentId(model, group.getId());
-            buildAndAddSpecification(
-                    yamlMapper.valueToTree(model),
-                    versions,
-                    integrationSystem.getSpecificationGroups(),
-                    serviceDirectory
-            );
+        if (!systemModelsArray.isArray()) {
+            processSystemModel(systemModelsArray, group, integrationSystem, versions, serviceDirectory);
+            return;
+        }
+        for (JsonNode systemModelNode : systemModelsArray) {
+            processSystemModel(systemModelNode, group, integrationSystem, versions, serviceDirectory);
         }
     }
 
-    private void ensureModelContentParentId(JsonNode model, String groupId) {
+    private void processSystemModel(
+            JsonNode systemModelNode,
+            SpecificationGroupDto group,
+            IntegrationSystem integrationSystem,
+            Collection<Integer> versions,
+            File serviceDirectory
+    ) {
+        if (systemModelNode.isMissingNode() || systemModelNode.isNull() || !systemModelNode.isObject()) {
+            return;
+        }
+        ObjectNode preparedModel = prepareSystemModelNode(systemModelNode, group.getId());
+        buildAndAddSpecification(
+                preparedModel,
+                versions,
+                integrationSystem.getSpecificationGroups(),
+                serviceDirectory
+        );
+    }
+
+    private ObjectNode prepareSystemModelNode(JsonNode systemModelNode, String groupId) {
+        ObjectNode result;
+        if (systemModelNode.has(CONTENT)) {
+            result = (ObjectNode) systemModelNode.deepCopy();
+        } else {
+            result = MigrationUtil.moveFieldsToContentField((ObjectNode) systemModelNode);
+        }
+        ensureModelContentParentId(result, groupId);
+        mergeLegacyFieldsIntoContent(result, systemModelNode, "operations");
+        mergeLegacyFieldsIntoContent(result, systemModelNode, "specificationSources");
+        return result;
+    }
+
+    private void mergeLegacyFieldsIntoContent(ObjectNode model, JsonNode source, String fieldName) {
+        JsonNode legacyField = source.path(fieldName);
+        if (!legacyField.isArray() || legacyField.isEmpty()) {
+            return;
+        }
+        JsonNode content = model.path(CONTENT);
+        if (content instanceof ObjectNode contentObject
+                && (!contentObject.has(fieldName) || contentObject.get(fieldName).isEmpty())) {
+            contentObject.set(fieldName, legacyField);
+        }
+    }
+
+    private void ensureModelContentParentId(ObjectNode model, String groupId) {
         JsonNode contentModel = model.path(CONTENT);
-        if (contentModel.path(CONTENT).isMissingNode() || contentModel.path(CONTENT).isNull()) {
+        if (contentModel.isMissingNode() || contentModel.isNull() || !contentModel.isObject()) {
             ObjectNode contentNode = yamlMapper.createObjectNode();
             contentNode.put(PARENT_ID, groupId);
-            ((ObjectNode) model).set(CONTENT, contentNode);
+            model.set(CONTENT, contentNode);
         } else if (contentModel.path(PARENT_ID).isMissingNode() || contentModel.path(PARENT_ID).isNull()) {
             ((ObjectNode) contentModel).put(PARENT_ID, groupId);
         }
