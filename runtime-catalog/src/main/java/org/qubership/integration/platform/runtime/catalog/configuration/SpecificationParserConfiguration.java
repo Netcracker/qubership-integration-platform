@@ -17,12 +17,19 @@
 package org.qubership.integration.platform.runtime.catalog.configuration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import graphql.parser.ParserOptions;
+import org.qubership.integration.platform.parsers.asyncapi.AsyncApiV3Normalizer;
+import org.qubership.integration.platform.parsers.impl.AsyncapiSpecificationParser;
 import org.qubership.integration.platform.parsers.impl.GraphqlSpecificationParser;
 import org.qubership.integration.platform.parsers.impl.OpenApiMapperResolver;
 import org.qubership.integration.platform.parsers.impl.ProtobufSpecificationParser;
 import org.qubership.integration.platform.parsers.impl.SwaggerSpecificationParser;
 import org.qubership.integration.platform.parsers.resolvers.SwaggerSchemaResolver;
+import org.qubership.integration.platform.parsers.resolvers.async.AsyncApiSchemaResolver;
+import org.qubership.integration.platform.parsers.resolvers.async.AsyncApiSpecificationResolver;
+import org.qubership.integration.platform.parsers.resolvers.async.impl.AMQPSpecificationResolver;
+import org.qubership.integration.platform.parsers.resolvers.async.impl.KafkaSpecificationResolver;
 import org.qubership.integration.platform.parsers.schemas.SchemaProcessor;
 import org.qubership.integration.platform.parsers.schemas.impl.ArraySchemaProcessor;
 import org.qubership.integration.platform.parsers.schemas.impl.DefaultSchemaProcessor;
@@ -87,5 +94,28 @@ public class SpecificationParserConfiguration {
                 new SwaggerSchemaResolver(),
                 schemaProcessors,
                 new OpenApiMapperResolver());
+    }
+
+    /**
+     * Builds the library AsyncAPI parser with the binding resolvers it dispatches to. The catalog
+     * AsyncAPI parser depends on this bean and adds the environment side effect the library omits.
+     * The normalizer and resolvers carry no Spring stereotype, so the catalog constructs them here
+     * and hands the parser the primary JSON mapper and the shared YAML mapper.
+     */
+    @Bean
+    public AsyncapiSpecificationParser libraryAsyncapiSpecificationParser(
+            @Qualifier("primaryObjectMapper") ObjectMapper jsonMapper,
+            YAMLMapper yamlExportImportMapper
+    ) {
+        AsyncApiSchemaResolver asyncApiSchemaResolver = new AsyncApiSchemaResolver();
+        List<AsyncApiSpecificationResolver> resolvers = List.of(
+                new AMQPSpecificationResolver(asyncApiSchemaResolver),
+                new KafkaSpecificationResolver(asyncApiSchemaResolver)
+        );
+        return new AsyncapiSpecificationParser(
+                new AsyncApiV3Normalizer(jsonMapper),
+                jsonMapper,
+                yamlExportImportMapper,
+                resolvers);
     }
 }

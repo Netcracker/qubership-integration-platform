@@ -1,0 +1,40 @@
+asyncapi: 3.0.0
+info:
+  title: Kafka API with Component Refs
+  version: 2.0.0
+  description: Kafka v3 with component message references
+servers:
+  production:
+    host: kafka.example.com:9092
+    protocol: kafka
+channels:
+  orderChannel:
+    address: order/created
+    messages:
+      OrderCreated:
+        $ref: '#/components/messages/OrderCreated'
+operations:
+  publishOrder:
+    action: send
+    channel:
+      $ref: '#/channels/orderChannel'
+    messages:
+      - $ref: '#/components/messages/OrderCreated'
+components:
+  messages:
+    OrderCreated:
+      headers:
+        type: object
+        properties:
+          correlationId:
+            type: string
+      payload:
+        type: object
+        properties:
+          orderId:
+            type: string
+          amount:
+            type: number
+  schemas:
+    OrderId:
+      type: string
