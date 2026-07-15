@@ -41,8 +41,7 @@
     <flexmark.version>0.64.8</flexmark.version>
     <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
     <graphql-java.version>21.5</graphql-java.version>
-    <swagger-parser.version>2.1.38</swagger-parser.version>
-    <swagger-core.version>2.2.43</swagger-core.version>    <commons-validator.version>1.7</commons-validator.version>
+    <commons-validator.version>1.7</commons-validator.version>
     <plexus-utils.version>3.6.1</plexus-utils.version>
     <commons-beanutils.version>1.11.0</commons-beanutils.version>
     <jose4j.version>0.9.6</jose4j.version>

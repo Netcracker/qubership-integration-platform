@@ -28,9 +28,7 @@
 
     <spring-boot.version>3.5.12<!--4.0.6--></spring-boot.version>
     <jackson.version>2.19.4</jackson.version>
-    <swagger-core.version>2.2.49</swagger-core.version>
     <handlebars.version>4.3.1<!--4.5.1--></handlebars.version>
-    <swagger-parser.version>2.1.42</swagger-parser.version>
     <antlr4.version>4.13.1<!--4.13.2--></antlr4.version>
     <commons-text.version>1.11.0<!--1.15.0--></commons-text.version>
     <commons-collections4.version>4.5.0</commons-collections4.version>
@@ -55,10 +53,8 @@
       </dependency>
       <dependency>
         <groupId>io.swagger.core.v3</groupId>
-        <artifactId>swagger-bom</artifactId>
+        <artifactId>swagger-core-jakarta</artifactId>
         <version>${swagger-core.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
       </dependency>
       <dependency>
         <groupId>com.fasterxml.jackson</groupId>
