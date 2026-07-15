@@ -14,14 +14,9 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.resolvers.wsdl;
+package org.qubership.integration.platform.parsers.resolvers.wsdl;
 
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.config.ConfigurableBeanFactory;
-import org.springframework.context.annotation.Scope;
-import org.springframework.stereotype.Service;
+import org.qubership.integration.platform.parsers.SpecificationParserException;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
@@ -31,33 +26,27 @@ import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 
-@Service
-@Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
-public class WsdlRootFileParser {
+public class WsdlVersionParser {
     public static final String INVALID_WSDL_FILE_EXCEPTION = "Error during parsing WSDL structure: ";
     public static final String VERSION_PARSER_CONFIGURE_ERROR_MESSAGE = "Error during version's parser configure: ";
 
     private final SAXParserFactory saxParserFactory;
 
-    @Autowired
-    public WsdlRootFileParser(
-            @Qualifier("wsdlVersionSaxParserFactory") SAXParserFactory saxParserFactory
-    ) {
-        saxParserFactory.setNamespaceAware(true);
+    public WsdlVersionParser(SAXParserFactory saxParserFactory) {
         this.saxParserFactory = saxParserFactory;
     }
 
-    public boolean checkRootFile(String documentText) {
+    public WsdlVersion getWSDLVersion(String documentText) {
         try {
             InputSource specificationInputSource = new InputSource(new StringReader(documentText));
             SAXParser parser = this.saxParserFactory.newSAXParser();
-            WsdlRootFileParserHandler wsdlRootFileParserHandler = new WsdlRootFileParserHandler();
-            parser.parse(specificationInputSource, wsdlRootFileParserHandler);
-            return wsdlRootFileParserHandler.isRootCandidate();
+            WsdlVersionParserHandler wsdlVersionParserHandler = new WsdlVersionParserHandler();
+            parser.parse(specificationInputSource, wsdlVersionParserHandler);
+            return wsdlVersionParserHandler.getVersion();
         } catch (SAXException | IOException e) {
-            throw new SpecificationImportException(INVALID_WSDL_FILE_EXCEPTION, e.getCause());
+            throw new SpecificationParserException(INVALID_WSDL_FILE_EXCEPTION, e.getCause());
         } catch (ParserConfigurationException e) {
-            throw new SpecificationImportException(VERSION_PARSER_CONFIGURE_ERROR_MESSAGE, e.getCause());
+            throw new SpecificationParserException(VERSION_PARSER_CONFIGURE_ERROR_MESSAGE, e.getCause());
         }
     }
 }

@@ -14,29 +14,35 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.resolvers.wsdl;
+package org.qubership.integration.platform.parsers.resolvers.wsdl;
 
-import lombok.Getter;
-import org.qubership.integration.platform.runtime.catalog.model.system.WsdlVersion;
 import org.xml.sax.Attributes;
 import org.xml.sax.helpers.DefaultHandler;
 
-@Getter
-public class WsdlVersionParserHandler extends DefaultHandler {
+import java.util.Set;
 
-    private WsdlVersion version = WsdlVersion.WSDL_1;
-    private static final String DESCRIPTION_TAG_NAME = "description";
+public class WsdlRootFileParserHandler extends DefaultHandler {
 
-    @Override
-    public void startDocument() {
-        this.version = WsdlVersion.WSDL_1;
-    }
+    private static final Set<String> WSDL_NAMESPACES = Set.of(
+            "http://schemas.xmlsoap.org/wsdl/", // WSDL 1.1
+            "http://www.w3.org/ns/wsdl"         // WSDL 2.0
+    );
+
+    private boolean hasService = false;
+    private boolean hasBinding = false;
 
     @Override
     public void startElement(String uri, String lName, String qName, Attributes attr) {
-        if (qName.contains(DESCRIPTION_TAG_NAME)) {
-            this.version = WsdlVersion.WSDL_2;
+        if (WSDL_NAMESPACES.contains(uri)) {
+            if ("service".equals(lName)) {
+                hasService = true;
+            } else if ("binding".equals(lName)) {
+                hasBinding = true;
+            }
         }
     }
 
+    public boolean isRootCandidate() {
+        return hasService && hasBinding;
+    }
 }

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.model.system;
+package org.qubership.integration.platform.parsers.resolvers.wsdl;
 
 public enum WsdlVersion {
     WSDL_1,

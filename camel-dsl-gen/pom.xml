@@ -40,6 +40,8 @@
     <graphql-java.version>21.5</graphql-java.version>
     <graphql-maven-plugin.version>2.0</graphql-maven-plugin.version>
     <wire.version>4.9.7</wire.version>
+    <woden-core.version>1.0M10</woden-core.version>
+    <soa-model-core.version>1.6.4</soa-model-core.version>
   </properties>
 
   <dependencyManagement>
@@ -163,6 +165,17 @@
         <groupId>com.squareup.wire</groupId>
         <artifactId>wire-schema-jvm</artifactId>
         <version>${wire.version}</version>
+      </dependency>
+      <!-- WSDL support -->
+      <dependency>
+        <groupId>com.predic8</groupId>
+        <artifactId>soa-model-core</artifactId>
+        <version>${soa-model-core.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.woden</groupId>
+        <artifactId>woden-core</artifactId>
+        <version>${woden-core.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -310,6 +323,16 @@
     <dependency>
       <groupId>jakarta.persistence</groupId>
       <artifactId>jakarta.persistence-api</artifactId>
+    </dependency>
+
+    <!-- WSDL support -->
+    <dependency>
+      <groupId>com.predic8</groupId>
+      <artifactId>soa-model-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.woden</groupId>
+      <artifactId>woden-core</artifactId>
     </dependency>
   </dependencies>
 
