@@ -34,7 +34,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.runtime.catalog.service.parsers.SpecificationParser.SPECIFICATION_FILE_PROCESSING_ERROR;
+import static org.qubership.integration.platform.parsers.SpecificationParser.SPECIFICATION_FILE_PROCESSING_ERROR;
 
 
 @Slf4j
