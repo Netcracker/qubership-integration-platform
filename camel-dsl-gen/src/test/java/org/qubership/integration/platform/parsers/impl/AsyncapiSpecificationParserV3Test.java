@@ -6,8 +6,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.parsers.SpecificationParserException;
 import org.qubership.integration.platform.parsers.asyncapi.AsyncApiV3Normalizer;
+import org.qubership.integration.platform.parsers.model.ParsedEnvironment;
+import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
 import org.qubership.integration.platform.parsers.model.asyncapi.AsyncapiSpecification;
 import org.qubership.integration.platform.parsers.model.asyncapi.Channel;
+import org.qubership.integration.platform.parsers.model.asyncapi.Info;
+import org.qubership.integration.platform.parsers.model.asyncapi.Server;
 import org.qubership.integration.platform.parsers.resolvers.async.AsyncApiSpecificationResolver;
 import org.qubership.integration.platform.parsers.resolvers.async.impl.KafkaSpecificationResolver;
 
@@ -15,7 +19,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -122,6 +128,44 @@ class AsyncapiSpecificationParserV3Test {
         SpecificationParserException ex = assertThrows(SpecificationParserException.class,
                 () -> parserWithResolvers.resolveSpecificationResolver("http"));
         assertTrue(ex.getMessage().contains("kafka"));
+    }
+
+    @Test
+    void toSystemModelMapsServersToEnvironmentsInOrder() {
+        AsyncapiSpecificationParser parserWithResolvers = parserWith(new KafkaSpecificationResolver(null));
+
+        Map<String, Server> servers = new LinkedHashMap<>();
+        servers.put("production", new Server("kafka.prod:9092", "kafka", null));
+        servers.put("staging", new Server("kafka.stage:9092", "kafka", null));
+        AsyncapiSpecification spec = specWithServers(servers);
+
+        ParsedSystemModel model = parserWithResolvers.toSystemModel(spec, "kafka");
+
+        List<ParsedEnvironment> environments = model.getEnvironments();
+        assertEquals(2, environments.size());
+        assertEquals("production", environments.get(0).getName());
+        assertEquals("kafka.prod:9092", environments.get(0).getAddress());
+        assertEquals("staging", environments.get(1).getName());
+        assertEquals("kafka.stage:9092", environments.get(1).getAddress());
+    }
+
+    @Test
+    void toSystemModelWithoutServersLeavesEnvironmentsEmpty() {
+        AsyncapiSpecificationParser parserWithResolvers = parserWith(new KafkaSpecificationResolver(null));
+
+        ParsedSystemModel model = parserWithResolvers.toSystemModel(specWithServers(null), "kafka");
+
+        assertTrue(model.getEnvironments().isEmpty());
+    }
+
+    private AsyncapiSpecification specWithServers(Map<String, Server> servers) {
+        Info info = new Info();
+        info.setVersion("1.0.0");
+        info.setDescription("test");
+        AsyncapiSpecification spec = new AsyncapiSpecification();
+        spec.setInfo(info);
+        spec.setServers(servers);
+        return spec;
     }
 
     private AsyncapiSpecificationParser parserWith(AsyncApiSpecificationResolver... resolvers) {

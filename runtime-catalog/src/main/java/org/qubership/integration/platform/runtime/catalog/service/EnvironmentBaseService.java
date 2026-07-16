@@ -18,13 +18,10 @@ package org.qubership.integration.platform.runtime.catalog.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
 import org.qubership.integration.platform.parsers.model.ParsedEnvironment;
-import org.qubership.integration.platform.parsers.model.asyncapi.AsyncapiSpecification;
-import org.qubership.integration.platform.parsers.model.asyncapi.Server;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentDefaultParameters;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
@@ -124,31 +121,11 @@ public class EnvironmentBaseService {
     }
 
     /**
-     * Resolve environments from specification
-     */
-    public void resolveEnvironments(AsyncapiSpecification importedAsyncApi,
-                                    OperationProtocol operationProtocol,
-                                    IntegrationSystem system,
-                                    Consumer<String> messageHandler) {
-        try {
-            resolveEnvironmentsForServers(
-                    importedAsyncApi.getServers(),
-                    system,
-                    operationProtocol,
-                    messageHandler);
-        } catch (Exception e) {
-            log.warn("Failed to resolve environments", e);
-            messageHandler.accept("Failed to resolve environments, " + e.getMessage());
-        }
-    }
-
-    /**
      * Reconciles the environments a parser declared against the owning system.
      *
-     * <p>Applies the same reconcile logic as {@link #resolveEnvironmentsForServers}, but takes the
-     * protocol-agnostic {@link ParsedEnvironment} values a library parser produces instead of
-     * AsyncAPI servers. Each declared environment becomes an {@code Environment} through
-     * {@link #createEnvironmentFromParsed}.
+     * <p>Maps each protocol-agnostic {@link ParsedEnvironment} a library parser produces to an
+     * {@code Environment} through {@link #createEnvironmentFromParsed}, then hands the candidates to
+     * {@link #reconcileEnvironments}.
      */
     public void resolveEnvironments(List<ParsedEnvironment> parsedEnvironments,
                                     IntegrationSystem system,
@@ -198,27 +175,13 @@ public class EnvironmentBaseService {
                 .build());
     }
 
-    protected void resolveEnvironmentsForServers(Map<String, Server> specServers,
-                                               IntegrationSystem system,
-                                               OperationProtocol operationProtocol,
-                                               Consumer<String> messageHandler) throws EntityNotFoundException {
-        List<Environment> candidates = specServers == null
-                ? new ArrayList<>()
-                : specServers.entrySet().stream()
-                        .map(serverEntry -> createEnvironmentFromSpecServer(
-                                serverEntry.getKey(), serverEntry.getValue(), operationProtocol))
-                        .toList();
-        reconcileEnvironments(candidates, system, messageHandler);
-    }
-
     /**
      * Reconciles a system's environments against the ones a specification declares.
      *
-     * <p>Shared by the AsyncAPI server path and the protocol-agnostic parsed-environment path. An
-     * EXTERNAL system gains every declared environment that it does not already hold; an INTERNAL
-     * system keeps at most one, replacing a MANUAL placeholder that carries a blank address. When the
-     * specification declares nothing, an INTERNAL system falls back to empty protocol properties and
-     * the caller receives an explanatory message.
+     * <p>An EXTERNAL system gains every declared environment that it does not already hold; an
+     * INTERNAL system keeps at most one, replacing a MANUAL placeholder that carries a blank address.
+     * When the specification declares nothing, an INTERNAL system falls back to empty protocol
+     * properties and the caller receives an explanatory message.
      *
      * @param candidateEnvironments the environments the specification declares, in declaration order
      */
@@ -264,19 +227,6 @@ public class EnvironmentBaseService {
                 .getEnvironments().stream()
                 .filter(env -> env.getProperties() == null || env.getProperties().isEmpty())
                 .forEach(env -> env.setProperties(parserUtils.receiveEmptyProperties(system.getProtocol())));
-    }
-
-    protected Environment createEnvironmentFromSpecServer(
-            String name,
-            Server server,
-            OperationProtocol operationProtocol) {
-        return Environment.builder()
-                .name(name)
-                .address(server.getUrl())
-                .labels(new ArrayList<>())
-                .sourceType(EnvironmentSourceType.MANUAL)
-                .properties(parserUtils.receiveEmptyProperties(operationProtocol))
-                .build();
     }
 
     protected Environment createEnvironmentFromParsed(

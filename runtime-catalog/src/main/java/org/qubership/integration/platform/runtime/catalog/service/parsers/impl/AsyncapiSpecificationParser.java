@@ -23,6 +23,7 @@ import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
 import org.qubership.integration.platform.parsers.model.asyncapi.AsyncapiSpecification;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBaseService;
@@ -39,11 +40,12 @@ import java.util.function.Consumer;
 /**
  * Catalog entry point for AsyncAPI imports.
  *
- * <p>Pure spec parsing lives in the library {@link org.qubership.integration.platform.parsers.impl.AsyncapiSpecificationParser}.
- * This wrapper keeps the one part that touches persistence: it resolves the owning system's
- * environments from the specification's {@code servers}. The source is read once, so operation
- * parsing and environment resolution share the same {@link AsyncapiSpecification} model, and both
- * run in the same order as before the split: operations first, then environments.
+ * <p>Pure spec parsing lives in the library {@link org.qubership.integration.platform.parsers.impl.AsyncapiSpecificationParser},
+ * which maps each declared server to a {@link org.qubership.integration.platform.parsers.model.ParsedEnvironment}
+ * on the system model. This wrapper keeps the one part that touches persistence: it reconciles those
+ * environments against the owning system through the shared parsed-environment path. The source is
+ * read once, so operation parsing and environment resolution share the same {@link AsyncapiSpecification}
+ * model, and both run in the same order as before the split: operations first, then environments.
  */
 @Slf4j
 @Service
@@ -78,10 +80,11 @@ public class AsyncapiSpecificationParser implements SpecificationParser {
 
             ParsedSystemModel parsedSystemModel = libraryAsyncapiParser.toSystemModel(importedAsyncApi, protocol);
 
+            IntegrationSystem system = group.getSystem();
             environmentBaseService.resolveEnvironments(
-                    importedAsyncApi,
-                    operationProtocol,
-                    group.getSystem(),
+                    parsedSystemModel.getEnvironments(),
+                    system,
+                    system.getProtocol(),
                     messageHandler);
 
             return parsedSystemModel;
