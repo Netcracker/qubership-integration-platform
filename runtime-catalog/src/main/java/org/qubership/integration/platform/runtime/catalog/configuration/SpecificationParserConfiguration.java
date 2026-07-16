@@ -75,10 +75,10 @@ public class SpecificationParserConfiguration {
     }
 
     /**
-     * Builds the library Swagger parser with the schema processors it dispatches to. The catalog
-     * Swagger parser depends on this bean and adds the environment side effect the library omits.
-     * The processors serialize schemas with the swagger-core OpenAPI mapper, so they take
-     * {@code openApiObjectMapper} rather than the primary mapper.
+     * Builds the library Swagger parser with the schema processors it dispatches to.
+     * {@code OperationParserService} dispatches to this parser by protocol and reconciles the
+     * environments it emits. The processors serialize schemas with the swagger-core OpenAPI mapper,
+     * so they take {@code openApiObjectMapper} rather than the primary mapper.
      */
     @Bean
     public SwaggerSpecificationParser librarySwaggerSpecificationParser(
@@ -101,10 +101,10 @@ public class SpecificationParserConfiguration {
     }
 
     /**
-     * Builds the library AsyncAPI parser with the binding resolvers it dispatches to. The catalog
-     * AsyncAPI parser depends on this bean and adds the environment side effect the library omits.
-     * The normalizer and resolvers carry no Spring stereotype, so the catalog constructs them here
-     * and hands the parser the primary JSON mapper and the shared YAML mapper.
+     * Builds the library AsyncAPI parser with the binding resolvers it dispatches to.
+     * {@code OperationParserService} dispatches to this parser by protocol and reconciles the
+     * environments it emits. The normalizer and resolvers carry no Spring stereotype, so the catalog
+     * constructs them here and hands the parser the primary JSON mapper and the shared YAML mapper.
      */
     @Bean
     public AsyncapiSpecificationParser libraryAsyncapiSpecificationParser(
@@ -146,8 +146,8 @@ public class SpecificationParserConfiguration {
     }
 
     /**
-     * Builds the library WSDL parser. The catalog WSDL parser depends on this bean and adds the
-     * environment side effect the library omits.
+     * Builds the library WSDL parser. {@code OperationParserService} dispatches to this parser by
+     * protocol and reconciles the environments it emits.
      */
     @Bean
     public WsdlSpecificationParser libraryWsdlSpecificationParser(WsdlVersionParser wsdlVersionParser) {

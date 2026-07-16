@@ -32,6 +32,8 @@ public interface SpecificationParser {
 
     String SPECIFICATION_FILE_PROCESSING_ERROR = "An error occurred during parsing specification file";
 
+    String ID_SEPARATOR = "-";
+
     /**
      * Parses the sources into a system model.
      *

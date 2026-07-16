@@ -18,6 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.service.parsers;
 
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.parsers.Parser;
+import org.qubership.integration.platform.parsers.SpecificationParser;
 import org.qubership.integration.platform.parsers.SpecificationParserException;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
 import org.qubership.integration.platform.runtime.catalog.context.RequestIdContext;
@@ -89,7 +90,7 @@ public class OperationParserService {
         this.actionLogger = actionLogger;
         this.transactionHandler = transactionHandler;
         this.environmentBaseService = environmentBaseService;
-        for (org.qubership.integration.platform.parsers.SpecificationParser parser : libraryParsers) {
+        for (SpecificationParser parser : libraryParsers) {
             Parser parserAnnotation = parser.getClass().getAnnotation(Parser.class);
             if (parserAnnotation != null) {
                 this.libraryParsers.put(parserAnnotation.value(), parser);
@@ -107,7 +108,7 @@ public class OperationParserService {
                                                  SpecificationGroup specificationGroup,
                                                  Collection<SpecificationSource> specificationSources,
                                                  Consumer<String> messageHandler) {
-        org.qubership.integration.platform.parsers.SpecificationParser libraryParser =
+        SpecificationParser libraryParser =
                 libraryParsers.get(parserName);
         if (libraryParser == null) {
             throw new SpecificationImportException(
