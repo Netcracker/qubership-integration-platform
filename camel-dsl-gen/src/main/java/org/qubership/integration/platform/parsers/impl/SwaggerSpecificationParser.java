@@ -27,6 +27,7 @@ import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.parameters.Parameter;
+import io.swagger.v3.oas.models.servers.Server;
 import io.swagger.v3.parser.OpenAPIV3Parser;
 import io.swagger.v3.parser.converter.SwaggerConverter;
 import io.swagger.v3.parser.core.extensions.SwaggerParserExtension;
@@ -38,6 +39,8 @@ import org.qubership.integration.platform.parsers.Parser;
 import org.qubership.integration.platform.parsers.SpecificationParser;
 import org.qubership.integration.platform.parsers.SpecificationParserException;
 import org.qubership.integration.platform.parsers.SpecificationSource;
+import org.qubership.integration.platform.parsers.model.ParsedEnvironment;
+import org.qubership.integration.platform.parsers.model.ParsedEnvironmentImpl;
 import org.qubership.integration.platform.parsers.model.ParsedOperation;
 import org.qubership.integration.platform.parsers.model.ParsedOperationImpl;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
@@ -57,11 +60,12 @@ import static org.qubership.integration.platform.parsers.schemas.SchemasConstant
 /**
  * Parses an OpenAPI or Swagger specification into a persistence-free system model.
  *
- * <p>The parser produces the operations and their request and response schemas and performs no
- * environment side effect. The catalog wrapper reads the parsed {@code servers} and resolves the
- * owning system's environments. {@link #parseOpenApi} and {@link #toSystemModel} let that wrapper
- * parse the source once and reuse the {@link OpenAPI} model for both operations and environment
- * resolution.
+ * <p>The parser produces the operations with their request and response schemas, plus the servers
+ * the specification declares as {@link ParsedEnvironment} values with URL placeholders resolved to
+ * their defaults. It performs no environment side effect and touches no catalog storage: the catalog
+ * wrapper reads the declared environments and reconciles them against the owning system.
+ * {@link #parseOpenApi} and {@link #toSystemModel} let that wrapper parse the source once and reuse
+ * the {@link OpenAPI} model for both operations and environments.
  */
 @Slf4j
 @Parser("swagger")
@@ -125,8 +129,9 @@ public class SwaggerSpecificationParser implements SpecificationParser {
     }
 
     /**
-     * Builds the system model from an already-parsed {@link OpenAPI}: the declared version and the
-     * operations with their resolved request and response schemas.
+     * Builds the system model from an already-parsed {@link OpenAPI}: the declared version, the
+     * operations with their resolved request and response schemas, and the declared servers as
+     * environments.
      */
     public ParsedSystemModel toSystemModel(OpenAPI importedOpenAPI, Consumer<String> messageHandler) {
         ObjectMapper specMapper = openApiMapperResolver.forVersion(importedOpenAPI.getSpecVersion());
@@ -134,7 +139,42 @@ public class SwaggerSpecificationParser implements SpecificationParser {
         return ParsedSystemModelImpl.builder()
                 .version(importedOpenAPI.getInfo().getVersion())
                 .operations(operationList)
+                .environments(toParsedEnvironments(importedOpenAPI.getServers()))
                 .build();
+    }
+
+    /**
+     * Maps the declared servers to environments, resolving each URL's placeholders to their default
+     * values. The server description becomes the environment name when present; the catalog wrapper
+     * supplies a fallback name for a server that declares none.
+     */
+    private List<ParsedEnvironment> toParsedEnvironments(List<Server> servers) {
+        if (servers == null) {
+            return new ArrayList<>();
+        }
+        return servers.stream()
+                .map(server -> (ParsedEnvironment) ParsedEnvironmentImpl.builder()
+                        .name(server.getDescription())
+                        .address(resolveServerAddress(server))
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Resolves a server URL to a concrete address: substitutes each variable with its default value
+     * and strips leading and trailing slashes.
+     */
+    private String resolveServerAddress(Server server) {
+        final String[] url = {server.getUrl()};
+        if (server.getVariables() != null && !server.getVariables().isEmpty()) {
+            server.getVariables().forEach((key, value) -> {
+                if (url[0].contains("{" + key + "}")) {
+                    url[0] = url[0].replace("{" + key + "}", value.getDefault());
+                }
+            });
+        }
+        url[0] = StringUtils.strip(url[0], "/");
+        return url[0];
     }
 
     private SwaggerParserExtension getSwaggerParser(JsonNode node) {
