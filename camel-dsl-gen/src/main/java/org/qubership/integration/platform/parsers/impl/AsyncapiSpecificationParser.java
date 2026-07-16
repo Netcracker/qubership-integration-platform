@@ -22,6 +22,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.parsers.SpecificationParserException;
 import org.qubership.integration.platform.parsers.asyncapi.AsyncApiV3Normalizer;
+import org.qubership.integration.platform.parsers.model.ParsedEnvironment;
+import org.qubership.integration.platform.parsers.model.ParsedEnvironmentImpl;
 import org.qubership.integration.platform.parsers.model.ParsedOperation;
 import org.qubership.integration.platform.parsers.model.ParsedOperationImpl;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
@@ -30,6 +32,7 @@ import org.qubership.integration.platform.parsers.model.asyncapi.AsyncApiVersion
 import org.qubership.integration.platform.parsers.model.asyncapi.AsyncapiSpecification;
 import org.qubership.integration.platform.parsers.model.asyncapi.Channel;
 import org.qubership.integration.platform.parsers.model.asyncapi.OperationObject;
+import org.qubership.integration.platform.parsers.model.asyncapi.Server;
 import org.qubership.integration.platform.parsers.model.asyncapi.v3.AsyncapiV3Specification;
 import org.qubership.integration.platform.parsers.resolvers.async.AsyncApiSpecificationResolver;
 import org.qubership.integration.platform.parsers.resolvers.async.AsyncResolver;
@@ -47,10 +50,10 @@ import static org.qubership.integration.platform.parsers.resolvers.async.AsyncCo
  *
  * <p>The parser reads the source, normalizes AsyncAPI 3.0 documents onto the 2.x model, and turns
  * each channel operation into a {@link ParsedOperation} through the binding resolver for the
- * system's protocol. It performs no environment side effect: the catalog wrapper reads the parsed
- * {@link AsyncapiSpecification} and resolves the owning system's environments from its servers.
- * {@link #read} and {@link #toSystemModel} let that wrapper parse the source once and reuse the
- * specification for both operations and environment resolution.
+ * system's protocol. It also maps each declared server to a {@link ParsedEnvironment} on the system
+ * model, leaving the persistence side effect to the catalog: the catalog reconciles those
+ * environments against the owning system. {@link #read} and {@link #toSystemModel} let the catalog
+ * wrapper parse the source once and reuse the specification for both operations and environments.
  */
 @Slf4j
 public class AsyncapiSpecificationParser {
@@ -95,7 +98,8 @@ public class AsyncapiSpecificationParser {
 
     /**
      * Builds the system model from an already-read specification: the declared version and
-     * description, and the operations for the given protocol's binding.
+     * description, the operations for the given protocol's binding, and one environment per declared
+     * server.
      */
     public ParsedSystemModel toSystemModel(AsyncapiSpecification importedAsyncApi, String protocol) {
         List<ParsedOperation> operations = separate(importedAsyncApi, protocol);
@@ -103,7 +107,20 @@ public class AsyncapiSpecificationParser {
                 .version(importedAsyncApi.getInfo().getVersion())
                 .description(importedAsyncApi.getInfo().getDescription())
                 .operations(operations)
+                .environments(toParsedEnvironments(importedAsyncApi.getServers()))
                 .build();
+    }
+
+    private List<ParsedEnvironment> toParsedEnvironments(Map<String, Server> servers) {
+        if (servers == null) {
+            return new ArrayList<>();
+        }
+        return servers.entrySet().stream()
+                .map(entry -> (ParsedEnvironment) ParsedEnvironmentImpl.builder()
+                        .name(entry.getKey())
+                        .address(entry.getValue().getUrl())
+                        .build())
+                .collect(Collectors.toList());
     }
 
     private ObjectMapper getMapper(String data) {

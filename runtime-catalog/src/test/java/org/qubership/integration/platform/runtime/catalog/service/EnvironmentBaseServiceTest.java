@@ -28,7 +28,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
 import org.qubership.integration.platform.parsers.model.ParsedEnvironment;
 import org.qubership.integration.platform.parsers.model.ParsedEnvironmentImpl;
-import org.qubership.integration.platform.parsers.model.asyncapi.Server;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
@@ -37,9 +36,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.re
 import org.qubership.integration.platform.runtime.catalog.service.parsers.ParserUtils;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -55,14 +52,15 @@ import static org.mockito.Mockito.when;
 
 /**
  * Characterization tests that pin the environment reconcile behavior of
- * {@link EnvironmentBaseService#resolveEnvironmentsForServers}. They are the regression oracle for
- * the extraction that moves spec parsing into the library: the branches covered here must behave
- * identically before and after the refactor.
+ * {@link EnvironmentBaseService#resolveEnvironments(List, IntegrationSystem, OperationProtocol, Consumer)}.
+ * This is the shared path every library parser feeds, AsyncAPI included: each parser maps its
+ * servers or endpoints to {@link ParsedEnvironment} values, and the catalog reconciles them here.
+ * The branches covered here must behave identically before and after the parsing extraction.
  */
 @ExtendWith(MockitoExtension.class)
 class EnvironmentBaseServiceTest {
 
-    private static final String SERVER_ADDRESS = "http://host:8080";
+    private static final String ENV_ADDRESS = "http://host:8080";
     private static final String ENV_NAME = "env-1";
 
     @Mock
@@ -93,34 +91,32 @@ class EnvironmentBaseServiceTest {
                 .build();
     }
 
-    private Map<String, Server> singleServer() {
-        Map<String, Server> servers = new LinkedHashMap<>();
-        servers.put(ENV_NAME, new Server(SERVER_ADDRESS, "http", null));
-        return servers;
+    private List<ParsedEnvironment> singleEnvironment() {
+        return List.of(ParsedEnvironmentImpl.builder().name(ENV_NAME).address(ENV_ADDRESS).build());
     }
 
     @Test
-    @DisplayName("EXTERNAL system with a new server creates the environment")
-    void externalWithNewServerCreatesEnvironment() {
+    @DisplayName("EXTERNAL system with a new environment creates it")
+    void externalWithNewEnvironmentCreates() {
         JsonNode emptyProperties = JsonNodeFactory.instance.objectNode();
         when(parserUtils.receiveEmptyProperties(OperationProtocol.HTTP)).thenReturn(emptyProperties);
         when(environmentRepository.save(any(Environment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         IntegrationSystem system = system(IntegrationSystemType.EXTERNAL);
 
-        service.resolveEnvironmentsForServers(singleServer(), system, OperationProtocol.HTTP, messageHandler);
+        service.resolveEnvironments(singleEnvironment(), system, OperationProtocol.HTTP, messageHandler);
 
         verify(environmentRepository).save(any(Environment.class));
         assertThat(system.getEnvironments(), hasSize(1));
         Environment created = system.getEnvironments().get(0);
         assertThat(created.getName(), equalTo(ENV_NAME));
-        assertThat(created.getAddress(), equalTo(SERVER_ADDRESS));
+        assertThat(created.getAddress(), equalTo(ENV_ADDRESS));
         assertThat(created.getSourceType(), equalTo(EnvironmentSourceType.MANUAL));
         assertThat(created.getProperties(), sameInstance(emptyProperties));
     }
 
     @Test
-    @DisplayName("EXTERNAL system skips a server that matches an existing environment")
+    @DisplayName("EXTERNAL system skips an environment that matches an existing one")
     void externalDedupsIdenticalEnvironment() {
         JsonNode emptyProperties = JsonNodeFactory.instance.objectNode();
         when(parserUtils.receiveEmptyProperties(OperationProtocol.HTTP)).thenReturn(emptyProperties);
@@ -128,21 +124,21 @@ class EnvironmentBaseServiceTest {
         IntegrationSystem system = system(IntegrationSystemType.EXTERNAL);
         Environment existing = Environment.builder()
                 .name(ENV_NAME)
-                .address(SERVER_ADDRESS)
+                .address(ENV_ADDRESS)
                 .labels(new ArrayList<>())
                 .sourceType(EnvironmentSourceType.MANUAL)
                 .properties(emptyProperties)
                 .build();
         system.addEnvironment(existing);
 
-        service.resolveEnvironmentsForServers(singleServer(), system, OperationProtocol.HTTP, messageHandler);
+        service.resolveEnvironments(singleEnvironment(), system, OperationProtocol.HTTP, messageHandler);
 
         verify(environmentRepository, never()).save(any(Environment.class));
         assertThat(system.getEnvironments(), contains(existing));
     }
 
     @Test
-    @DisplayName("INTERNAL system with no environments creates one from the first server")
+    @DisplayName("INTERNAL system with no environments creates one from the first environment")
     void internalWithEmptyEnvironmentsCreates() {
         JsonNode emptyProperties = JsonNodeFactory.instance.objectNode();
         when(parserUtils.receiveEmptyProperties(OperationProtocol.HTTP)).thenReturn(emptyProperties);
@@ -150,7 +146,7 @@ class EnvironmentBaseServiceTest {
 
         IntegrationSystem system = system(IntegrationSystemType.INTERNAL);
 
-        service.resolveEnvironmentsForServers(singleServer(), system, OperationProtocol.HTTP, messageHandler);
+        service.resolveEnvironments(singleEnvironment(), system, OperationProtocol.HTTP, messageHandler);
 
         verify(environmentRepository).save(any(Environment.class));
         assertThat(system.getEnvironments(), hasSize(1));
@@ -174,18 +170,18 @@ class EnvironmentBaseServiceTest {
                 .build();
         system.addEnvironment(placeholder);
 
-        service.resolveEnvironmentsForServers(singleServer(), system, OperationProtocol.HTTP, messageHandler);
+        service.resolveEnvironments(singleEnvironment(), system, OperationProtocol.HTTP, messageHandler);
 
         verify(environmentRepository).delete(placeholder);
         verify(environmentRepository).save(any(Environment.class));
         assertThat(system.getEnvironments(), hasSize(1));
         assertThat(system.getEnvironments().get(0).getName(), equalTo(ENV_NAME));
-        assertThat(system.getEnvironments().get(0).getAddress(), equalTo(SERVER_ADDRESS));
+        assertThat(system.getEnvironments().get(0).getAddress(), equalTo(ENV_ADDRESS));
     }
 
     @Test
-    @DisplayName("Empty servers on an INTERNAL system set empty properties and report the message")
-    void emptyServersSetEmptyPropertiesAndReportMessage() {
+    @DisplayName("No environments on an INTERNAL system set empty properties and report the message")
+    void emptyEnvironmentsOnInternalSetEmptyPropertiesAndReportMessage() {
         JsonNode emptyProperties = JsonNodeFactory.instance.objectNode();
         when(parserUtils.receiveEmptyProperties(OperationProtocol.HTTP)).thenReturn(emptyProperties);
 
@@ -193,14 +189,14 @@ class EnvironmentBaseServiceTest {
         Environment existing = Environment.builder()
                 .id("e1")
                 .name("existing")
-                .address(SERVER_ADDRESS)
+                .address(ENV_ADDRESS)
                 .labels(new ArrayList<>())
                 .sourceType(EnvironmentSourceType.MANUAL)
                 .properties(null)
                 .build();
         system.addEnvironment(existing);
 
-        service.resolveEnvironmentsForServers(new LinkedHashMap<>(), system, OperationProtocol.HTTP, messageHandler);
+        service.resolveEnvironments(List.of(), system, OperationProtocol.HTTP, messageHandler);
 
         verify(environmentRepository, never()).save(any(Environment.class));
         assertThat(existing.getProperties(), sameInstance(emptyProperties));
@@ -208,30 +204,8 @@ class EnvironmentBaseServiceTest {
     }
 
     @Test
-    @DisplayName("resolveEnvironments from parsed environments creates one for an EXTERNAL system")
-    void resolveFromParsedEnvironmentsCreatesForExternal() {
-        JsonNode emptyProperties = JsonNodeFactory.instance.objectNode();
-        when(parserUtils.receiveEmptyProperties(OperationProtocol.HTTP)).thenReturn(emptyProperties);
-        when(environmentRepository.save(any(Environment.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        IntegrationSystem system = system(IntegrationSystemType.EXTERNAL);
-        List<ParsedEnvironment> parsed = List.of(
-                ParsedEnvironmentImpl.builder().name(ENV_NAME).address(SERVER_ADDRESS).build());
-
-        service.resolveEnvironments(parsed, system, OperationProtocol.HTTP, messageHandler);
-
-        verify(environmentRepository).save(any(Environment.class));
-        assertThat(system.getEnvironments(), hasSize(1));
-        Environment created = system.getEnvironments().get(0);
-        assertThat(created.getName(), equalTo(ENV_NAME));
-        assertThat(created.getAddress(), equalTo(SERVER_ADDRESS));
-        assertThat(created.getSourceType(), equalTo(EnvironmentSourceType.MANUAL));
-        assertThat(created.getProperties(), sameInstance(emptyProperties));
-    }
-
-    @Test
-    @DisplayName("resolveEnvironments with no parsed environments reports the message")
-    void resolveFromParsedEnvironmentsEmptyReportsMessage() {
+    @DisplayName("No environments on an EXTERNAL system report the message and create nothing")
+    void emptyEnvironmentsOnExternalReportMessage() {
         IntegrationSystem system = system(IntegrationSystemType.EXTERNAL);
 
         service.resolveEnvironments(List.of(), system, OperationProtocol.HTTP, messageHandler);
