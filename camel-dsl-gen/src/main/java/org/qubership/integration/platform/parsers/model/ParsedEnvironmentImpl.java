@@ -21,21 +21,12 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.ArrayList;
-import java.util.List;
-
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ParsedSystemModelImpl implements ParsedSystemModel {
+public class ParsedEnvironmentImpl implements ParsedEnvironment {
 
-    private String description;
-    private String version;
-
-    @Builder.Default
-    private List<ParsedOperation> operations = new ArrayList<>();
-
-    @Builder.Default
-    private List<ParsedEnvironment> environments = new ArrayList<>();
+    private String name;
+    private String address;
 }

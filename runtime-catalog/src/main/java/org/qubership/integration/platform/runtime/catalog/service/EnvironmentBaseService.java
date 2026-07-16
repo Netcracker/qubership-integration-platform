@@ -22,6 +22,7 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
+import org.qubership.integration.platform.parsers.model.ParsedEnvironment;
 import org.qubership.integration.platform.parsers.model.asyncapi.AsyncapiSpecification;
 import org.qubership.integration.platform.parsers.model.asyncapi.Server;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentDefaultParameters;
@@ -141,6 +142,26 @@ public class EnvironmentBaseService {
         }
     }
 
+    /**
+     * Reconciles the environments a parser declared against the owning system.
+     *
+     * <p>Applies the same reconcile logic as {@link #resolveEnvironmentsForServers}, but takes the
+     * protocol-agnostic {@link ParsedEnvironment} values a library parser produces instead of
+     * AsyncAPI servers. Each declared environment becomes an {@code Environment} through
+     * {@link #createEnvironmentFromParsed}.
+     */
+    public void resolveEnvironments(List<ParsedEnvironment> parsedEnvironments,
+                                    IntegrationSystem system,
+                                    OperationProtocol operationProtocol,
+                                    Consumer<String> messageHandler) {
+        List<Environment> candidates = parsedEnvironments == null
+                ? new ArrayList<>()
+                : parsedEnvironments.stream()
+                        .map(parsedEnvironment -> createEnvironmentFromParsed(parsedEnvironment, operationProtocol))
+                        .toList();
+        reconcileEnvironments(candidates, system, messageHandler);
+    }
+
     protected void activateDefaultEnvForExternalSystem(Environment environment, IntegrationSystem system) {
         if (system.getIntegrationSystemType() == IntegrationSystemType.EXTERNAL && system.getActiveEnvironmentId() == null) {
             activateEnvironmentByDefault(environment);
@@ -181,17 +202,35 @@ public class EnvironmentBaseService {
                                                IntegrationSystem system,
                                                OperationProtocol operationProtocol,
                                                Consumer<String> messageHandler) throws EntityNotFoundException {
+        List<Environment> candidates = specServers == null
+                ? new ArrayList<>()
+                : specServers.entrySet().stream()
+                        .map(serverEntry -> createEnvironmentFromSpecServer(
+                                serverEntry.getKey(), serverEntry.getValue(), operationProtocol))
+                        .toList();
+        reconcileEnvironments(candidates, system, messageHandler);
+    }
+
+    /**
+     * Reconciles a system's environments against the ones a specification declares.
+     *
+     * <p>Shared by the AsyncAPI server path and the protocol-agnostic parsed-environment path. An
+     * EXTERNAL system gains every declared environment that it does not already hold; an INTERNAL
+     * system keeps at most one, replacing a MANUAL placeholder that carries a blank address. When the
+     * specification declares nothing, an INTERNAL system falls back to empty protocol properties and
+     * the caller receives an explanatory message.
+     *
+     * @param candidateEnvironments the environments the specification declares, in declaration order
+     */
+    protected void reconcileEnvironments(List<Environment> candidateEnvironments,
+                                         IntegrationSystem system,
+                                         Consumer<String> messageHandler) {
         List<Environment> environments = system.getEnvironments();
 
-        if (specServers != null && !specServers.isEmpty()) {
+        if (!candidateEnvironments.isEmpty()) {
             switch (system.getIntegrationSystemType()) {
                 case EXTERNAL -> {
-                    for (Map.Entry<String, Server> serverEntry : specServers.entrySet()) {
-                        Environment newEnv = createEnvironmentFromSpecServer(
-                                serverEntry.getKey(),
-                                serverEntry.getValue(),
-                                operationProtocol);
-
+                    for (Environment newEnv : candidateEnvironments) {
                         boolean sameEnvNotExists = system.getEnvironments().stream().noneMatch(env -> env.equals(newEnv, false));
                         if (sameEnvNotExists) {
                             create(newEnv, system);
@@ -201,14 +240,7 @@ public class EnvironmentBaseService {
                 case INTERNAL -> {
                     boolean envsIsEmpty = environments.isEmpty();
                     if (envsIsEmpty || (environments.get(0).getSourceType() == EnvironmentSourceType.MANUAL && StringUtils.isBlank(environments.get(0).getAddress()))) {
-                        Map.Entry<String, Server> serverEntry = specServers.entrySet().stream()
-                                .findFirst()
-                                .orElseThrow(() -> new EntityNotFoundException(SPECIFICATION_PARAMETERS_ARE_EMPTY_MESSAGE));
-
-                        Environment newEnv = createEnvironmentFromSpecServer(
-                                serverEntry.getKey(),
-                                serverEntry.getValue(),
-                                operationProtocol);
+                        Environment newEnv = candidateEnvironments.get(0);
 
                         if (!envsIsEmpty) {
                             Environment oldEnvironment = environments.get(0);
@@ -241,6 +273,18 @@ public class EnvironmentBaseService {
         return Environment.builder()
                 .name(name)
                 .address(server.getUrl())
+                .labels(new ArrayList<>())
+                .sourceType(EnvironmentSourceType.MANUAL)
+                .properties(parserUtils.receiveEmptyProperties(operationProtocol))
+                .build();
+    }
+
+    protected Environment createEnvironmentFromParsed(
+            ParsedEnvironment parsedEnvironment,
+            OperationProtocol operationProtocol) {
+        return Environment.builder()
+                .name(parsedEnvironment.getName())
+                .address(parsedEnvironment.getAddress())
                 .labels(new ArrayList<>())
                 .sourceType(EnvironmentSourceType.MANUAL)
                 .properties(parserUtils.receiveEmptyProperties(operationProtocol))

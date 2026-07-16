@@ -16,26 +16,20 @@
 
 package org.qubership.integration.platform.parsers.model;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+/**
+ * An environment a specification declares: its name and its network address.
+ *
+ * <p>A parser fills in only the bits the specification itself carries. Source type, properties, and
+ * the link to the owning system belong to the persistence layer, so this model omits them; the
+ * catalog assigns them when it reconciles the environment onto its {@code Environment} entity.
+ */
+public interface ParsedEnvironment {
 
-import java.util.ArrayList;
-import java.util.List;
+    String getName();
 
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
-public class ParsedSystemModelImpl implements ParsedSystemModel {
+    void setName(String name);
 
-    private String description;
-    private String version;
+    String getAddress();
 
-    @Builder.Default
-    private List<ParsedOperation> operations = new ArrayList<>();
-
-    @Builder.Default
-    private List<ParsedEnvironment> environments = new ArrayList<>();
+    void setAddress(String address);
 }
