@@ -214,4 +214,48 @@ class EnvironmentBaseServiceTest {
         assertThat(system.getEnvironments(), empty());
         assertThat(messages, contains(EnvironmentBaseService.SPECIFICATION_PARAMETERS_ARE_EMPTY_MESSAGE));
     }
+
+    @Test
+    @DisplayName("WSDL: a non-EXTERNAL system is left untouched")
+    void wsdlSkipsNonExternalSystem() {
+        IntegrationSystem system = system(IntegrationSystemType.INTERNAL);
+
+        service.resolveWsdlEnvironments(
+                List.of(ParsedEnvironmentImpl.builder().name("port").address("http://example.com").build()),
+                system, messageHandler);
+
+        verify(environmentRepository, never()).save(any(Environment.class));
+        assertThat(system.getEnvironments(), empty());
+    }
+
+    @Test
+    @DisplayName("WSDL: an EXTERNAL system drops endpoints whose address is not a valid URL")
+    void wsdlDropsInvalidEndpointAddresses() {
+        IntegrationSystem system = system(IntegrationSystemType.EXTERNAL);
+
+        service.resolveWsdlEnvironments(
+                List.of(ParsedEnvironmentImpl.builder().name("port").address("${host}/service").build()),
+                system, messageHandler);
+
+        verify(environmentRepository, never()).save(any(Environment.class));
+        assertThat(system.getEnvironments(), empty());
+    }
+
+    @Test
+    @DisplayName("WSDL: an EXTERNAL system creates an environment for a valid endpoint")
+    void wsdlCreatesEnvironmentForValidEndpoint() {
+        JsonNode emptyProperties = JsonNodeFactory.instance.objectNode();
+        when(parserUtils.receiveEmptyProperties(OperationProtocol.HTTP)).thenReturn(emptyProperties);
+        when(environmentRepository.save(any(Environment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        IntegrationSystem system = system(IntegrationSystemType.EXTERNAL);
+
+        service.resolveWsdlEnvironments(
+                List.of(ParsedEnvironmentImpl.builder().name("port").address("http://example.com/service").build()),
+                system, messageHandler);
+
+        verify(environmentRepository).save(any(Environment.class));
+        assertThat(system.getEnvironments(), hasSize(1));
+        assertThat(system.getEnvironments().get(0).getAddress(), equalTo("http://example.com/service"));
+    }
 }

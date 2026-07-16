@@ -63,8 +63,8 @@ import static org.qubership.integration.platform.parsers.schemas.SchemasConstant
  * <p>The parser produces the operations with their request and response schemas, plus the servers
  * the specification declares as {@link ParsedEnvironment} values with URL placeholders resolved to
  * their defaults. It performs no environment side effect and touches no catalog storage: the catalog
- * wrapper reads the declared environments and reconciles them against the owning system.
- * {@link #parseOpenApi} and {@link #toSystemModel} let that wrapper parse the source once and reuse
+ * reads the declared environments and reconciles them against the owning system.
+ * {@link #parseOpenApi} and {@link #toSystemModel} also stand on their own for callers that reuse
  * the {@link OpenAPI} model for both operations and environments.
  */
 @Slf4j
@@ -115,7 +115,7 @@ public class SwaggerSpecificationParser implements SpecificationParser {
 
     /**
      * Parses the first source into an {@link OpenAPI} model, first downgrading an unsupported 3.2
-     * version to 3.1. The catalog wrapper reuses the returned model for environment resolution.
+     * version to 3.1. A caller may reuse the returned model for environment resolution.
      */
     public OpenAPI parseOpenApi(Collection<SpecificationSource> sources, Consumer<String> messageHandler) {
         String specificationText = sources.stream().map(SpecificationSource::getSource).findFirst().orElse("");
@@ -145,7 +145,7 @@ public class SwaggerSpecificationParser implements SpecificationParser {
 
     /**
      * Maps the declared servers to environments, resolving each URL's placeholders to their default
-     * values. The server description becomes the environment name when present; the catalog wrapper
+     * values. The server description becomes the environment name when present; the catalog
      * supplies a fallback name for a server that declares none.
      */
     private List<ParsedEnvironment> toParsedEnvironments(List<Server> servers) {

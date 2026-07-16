@@ -30,6 +30,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.AbstractSystemEntity;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
@@ -39,9 +40,11 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.re
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationSourceRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
+import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -53,7 +56,10 @@ import java.util.stream.Collectors;
 @Slf4j
 public class OperationParserService {
 
-    private final Map<String, SpecificationParser> parsers = new HashMap<>();
+    private static final String SWAGGER_PARSER = "swagger";
+    private static final String SOAP_PARSER = "soap";
+    private static final String ASYNCAPI_PARSER = "asyncapi";
+
     private final Map<String, org.qubership.integration.platform.parsers.SpecificationParser> libraryParsers =
             new HashMap<>();
     private final OperationRepository operationRepository;
@@ -63,17 +69,18 @@ public class OperationParserService {
     private final SystemModelBaseService systemModelBaseService;
     private final ActionsLogService actionLogger;
     private final TransactionHandler transactionHandler;
+    private final EnvironmentBaseService environmentBaseService;
 
     @Autowired
-    public OperationParserService(List<SpecificationParser> parsers,
-                                  List<org.qubership.integration.platform.parsers.SpecificationParser> libraryParsers,
+    public OperationParserService(List<org.qubership.integration.platform.parsers.SpecificationParser> libraryParsers,
                                   OperationRepository operationRepository,
                                   SystemModelRepository systemModelRepository,
                                   SpecificationGroupRepository specificationGroupRepository,
                                   SpecificationSourceRepository specificationSourceRepository,
                                   SystemModelBaseService systemModelBaseService,
                                   ActionsLogService actionLogger,
-                                  TransactionHandler transactionHandler) {
+                                  TransactionHandler transactionHandler,
+                                  @Lazy EnvironmentBaseService environmentBaseService) {
         this.operationRepository = operationRepository;
         this.systemModelRepository = systemModelRepository;
         this.specificationGroupRepository = specificationGroupRepository;
@@ -81,12 +88,7 @@ public class OperationParserService {
         this.systemModelBaseService = systemModelBaseService;
         this.actionLogger = actionLogger;
         this.transactionHandler = transactionHandler;
-        for (SpecificationParser parser : parsers) {
-            Parser parserAnnotation = parser.getClass().getAnnotation(Parser.class);
-            if (parserAnnotation != null) {
-                this.parsers.put(parserAnnotation.value(), parser);
-            }
-        }
+        this.environmentBaseService = environmentBaseService;
         for (org.qubership.integration.platform.parsers.SpecificationParser parser : libraryParsers) {
             Parser parserAnnotation = parser.getClass().getAnnotation(Parser.class);
             if (parserAnnotation != null) {
@@ -95,25 +97,16 @@ public class OperationParserService {
         }
     }
 
-    private SpecificationParser getParser(String parserName) {
-        return this.parsers.get(parserName);
-    }
-
     /**
-     * Parses the sources with the parser registered under {@code parserName}. A catalog parser
-     * receives the group and sources directly; a library parser receives the group id and the
-     * source name and text, and its {@link SpecificationParserException} is translated into a
-     * {@link SpecificationImportException} so callers see one import-facing exception type.
+     * Parses the sources with the library parser registered under {@code parserName}. The parser
+     * receives the group id and the source name and text; its {@link SpecificationParserException}
+     * is translated into a {@link SpecificationImportException} so callers see one import-facing
+     * exception type. Parsing produces the model only; the caller reconciles environments.
      */
     private ParsedSystemModel parseSpecification(String parserName,
                                                  SpecificationGroup specificationGroup,
                                                  Collection<SpecificationSource> specificationSources,
                                                  Consumer<String> messageHandler) {
-        SpecificationParser parser = getParser(parserName);
-        if (parser != null) {
-            return parser.parseSpecification(specificationGroup, specificationSources, messageHandler);
-        }
-
         org.qubership.integration.platform.parsers.SpecificationParser libraryParser =
                 libraryParsers.get(parserName);
         if (libraryParser == null) {
@@ -124,12 +117,43 @@ public class OperationParserService {
         List<org.qubership.integration.platform.parsers.SpecificationSource> librarySources =
                 specificationSources.stream()
                         .map(source -> new org.qubership.integration.platform.parsers.SpecificationSource(
-                                source.getName(), source.getSource()))
+                                source.getName(), source.getSource(), source.isMainSource()))
                         .collect(Collectors.toList());
         try {
             return libraryParser.parseSpecification(specificationGroup.getId(), librarySources, messageHandler);
         } catch (SpecificationParserException e) {
             throw new SpecificationImportException(e.getMessage(), e.getCause());
+        }
+    }
+
+    /**
+     * Reconciles the parsed environments against the owning system for protocols that declare any.
+     * WSDL takes only valid URLs on an EXTERNAL system; Swagger follows its per-protocol rules;
+     * AsyncAPI feeds the shared reconcile path. GraphQL and gRPC declare no environments, so they
+     * are a no-op. Unexpected failures surface as a {@link SpecificationImportException}, matching
+     * how the former per-protocol parsers reported them.
+     */
+    private void resolveEnvironments(String parserName,
+                                     ParsedSystemModel parsedSystemModel,
+                                     SpecificationGroup specificationGroup,
+                                     Consumer<String> messageHandler) {
+        IntegrationSystem system = specificationGroup.getSystem();
+        try {
+            switch (parserName) {
+                case SWAGGER_PARSER -> environmentBaseService.resolveSwaggerEnvironments(
+                        parsedSystemModel.getEnvironments(), specificationGroup);
+                case SOAP_PARSER -> environmentBaseService.resolveWsdlEnvironments(
+                        parsedSystemModel.getEnvironments(), system, messageHandler);
+                case ASYNCAPI_PARSER -> environmentBaseService.resolveEnvironments(
+                        parsedSystemModel.getEnvironments(), system, system.getProtocol(), messageHandler);
+                default -> {
+                    // GraphQL and gRPC declare no environments; nothing to reconcile.
+                }
+            }
+        } catch (SpecificationImportException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new SpecificationImportException(SpecificationParser.SPECIFICATION_FILE_PROCESSING_ERROR, e);
         }
     }
 
@@ -147,6 +171,8 @@ public class OperationParserService {
 
                 ParsedSystemModel parsedSystemModel =
                         parseSpecification(parserName, specificationGroup, specificationSources, messageHandler);
+
+                resolveEnvironments(parserName, parsedSystemModel, specificationGroup, messageHandler);
 
                 SystemModel systemModel = buildSystemModel(
                         parsedSystemModel, specificationGroup, oldSystemModelsIds, messageHandler);

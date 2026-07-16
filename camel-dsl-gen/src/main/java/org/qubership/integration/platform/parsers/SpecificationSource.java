@@ -19,18 +19,26 @@ package org.qubership.integration.platform.parsers;
 /**
  * A single specification source handed to a {@link SpecificationParser}.
  *
- * <p>Carries only the two fields a parser reads: the file name, which some parsers use to select
- * or locate sources, and the source text itself. The caller adapts its own storage type to this
- * shape so the parsers stay free of any persistence dependency.
+ * <p>Carries the fields a parser reads: the file name, which some parsers use to select or locate
+ * sources; the source text itself; and whether this source is the specification's main source. The
+ * WSDL parser uses the main-source flag to pick the root file among several uploaded files; other
+ * parsers ignore it. The caller adapts its own storage type to this shape so the parsers stay free
+ * of any persistence dependency.
  */
 public class SpecificationSource {
 
     private final String name;
     private final String source;
+    private final boolean mainSource;
 
     public SpecificationSource(String name, String source) {
+        this(name, source, false);
+    }
+
+    public SpecificationSource(String name, String source, boolean mainSource) {
         this.name = name;
         this.source = source;
+        this.mainSource = mainSource;
     }
 
     public String getName() {
@@ -39,5 +47,9 @@ public class SpecificationSource {
 
     public String getSource() {
         return source;
+    }
+
+    public boolean isMainSource() {
+        return mainSource;
     }
 }
