@@ -22,13 +22,11 @@ import org.qubership.integration.platform.parsers.Parser;
 import org.qubership.integration.platform.parsers.SpecificationParserException;
 import org.qubership.integration.platform.parsers.SpecificationSource;
 import org.qubership.integration.platform.parsers.impl.WsdlSpecificationParser;
+import org.qubership.integration.platform.parsers.model.ParsedEnvironment;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
-import org.qubership.integration.platform.parsers.model.wsdl.WsdlEndpoint;
 import org.qubership.integration.platform.parsers.model.wsdl.WsdlParseResult;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
-import org.qubership.integration.platform.runtime.catalog.model.dto.system.EnvironmentRequestDTO;
-import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.EnvironmentMapper;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBaseService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,11 +44,12 @@ import static org.qubership.integration.platform.runtime.catalog.model.system.In
 /**
  * Catalog entry point for WSDL (SOAP) imports.
  *
- * <p>Pure spec parsing lives in the library {@link WsdlSpecificationParser}. This wrapper keeps the
- * two parts that touch the catalog: it adapts the persistence sources to the library shape, then
- * registers the owning system's environments from the endpoints the library returns. Parsing runs
- * once, so operation parsing and environment resolution share the same result, and both run in the
- * same order as before the split: operations first, then environments.
+ * <p>Pure spec parsing lives in the library {@link WsdlSpecificationParser}, which returns the
+ * declared endpoints as part of its system model. This wrapper adapts the persistence sources to the
+ * library shape, then hands the declared environments to {@link EnvironmentBaseService} to reconcile
+ * against the owning system. Parsing runs once, so operation parsing and environment resolution share
+ * the same result, and both run in the same order as before the split: operations first, then
+ * environments.
  */
 @Slf4j
 @Service
@@ -59,17 +58,14 @@ import static org.qubership.integration.platform.runtime.catalog.model.system.In
 public class WSDLSpecificationParser implements org.qubership.integration.platform.runtime.catalog.service.parsers.SpecificationParser {
 
     private final EnvironmentBaseService environmentBaseService;
-    private final EnvironmentMapper environmentMapper;
     private final WsdlSpecificationParser libraryWsdlParser;
 
     @Autowired
     public WSDLSpecificationParser(
             EnvironmentBaseService environmentBaseService,
-            EnvironmentMapper environmentMapper,
             WsdlSpecificationParser libraryWsdlParser
     ) {
         this.environmentBaseService = environmentBaseService;
-        this.environmentMapper = environmentMapper;
         this.libraryWsdlParser = libraryWsdlParser;
     }
 
@@ -95,7 +91,7 @@ public class WSDLSpecificationParser implements org.qubership.integration.platfo
 
             WsdlParseResult result = libraryWsdlParser.parse(librarySources, mainSource);
 
-            setUpEnvironments(group, result.endpoints());
+            setUpEnvironments(group, result.systemModel(), messageHandler);
 
             return result.systemModel();
         } catch (SpecificationImportException e) {
@@ -107,24 +103,19 @@ public class WSDLSpecificationParser implements org.qubership.integration.platfo
         }
     }
 
-    private void setUpEnvironments(SpecificationGroup specificationGroup, List<WsdlEndpoint> endpoints) {
-        if (specificationGroup.getSystem() == null
-                || !EXTERNAL.equals(specificationGroup.getSystem().getIntegrationSystemType())) {
+    private void setUpEnvironments(SpecificationGroup group, ParsedSystemModel systemModel, Consumer<String> messageHandler) {
+        IntegrationSystem system = group.getSystem();
+        if (system == null || !EXTERNAL.equals(system.getIntegrationSystemType())) {
             return;
         }
-        for (WsdlEndpoint endpoint : endpoints) {
-            addEnvironment(specificationGroup, endpoint.name(), endpoint.address());
-        }
-    }
-
-    private void addEnvironment(SpecificationGroup specificationGroup, String envName, String envURL) {
         UrlValidator urlValidator = new UrlValidator();
-        if (urlValidator.isValid(envURL)) {
-            EnvironmentRequestDTO requestDTO = new EnvironmentRequestDTO();
-            requestDTO.setName(envName);
-            requestDTO.setAddress(envURL);
-            Environment environment = environmentMapper.toEnvironment(requestDTO);
-            environmentBaseService.create(environment, specificationGroup.getSystem());
+        List<ParsedEnvironment> validEnvironments = systemModel.getEnvironments().stream()
+                .filter(environment -> urlValidator.isValid(environment.getAddress()))
+                .toList();
+        if (validEnvironments.isEmpty()) {
+            return;
         }
+        environmentBaseService.resolveEnvironments(
+                validEnvironments, system, system.getProtocol(), messageHandler);
     }
 }

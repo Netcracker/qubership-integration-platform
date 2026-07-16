@@ -1,0 +1,243 @@
+/*
+ * Copyright 2024-2025 NetCracker Technology Corporation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.qubership.integration.platform.runtime.catalog.service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
+import org.qubership.integration.platform.parsers.model.ParsedEnvironment;
+import org.qubership.integration.platform.parsers.model.ParsedEnvironmentImpl;
+import org.qubership.integration.platform.parsers.model.asyncapi.Server;
+import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
+import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.EnvironmentRepository;
+import org.qubership.integration.platform.runtime.catalog.service.parsers.ParserUtils;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+/**
+ * Characterization tests that pin the environment reconcile behavior of
+ * {@link EnvironmentBaseService#resolveEnvironmentsForServers}. They are the regression oracle for
+ * the extraction that moves spec parsing into the library: the branches covered here must behave
+ * identically before and after the refactor.
+ */
+@ExtendWith(MockitoExtension.class)
+class EnvironmentBaseServiceTest {
+
+    private static final String SERVER_ADDRESS = "http://host:8080";
+    private static final String ENV_NAME = "env-1";
+
+    @Mock
+    private EnvironmentRepository environmentRepository;
+    @Mock
+    private SystemBaseService systemBaseService;
+    @Mock
+    private ActionsLogService actionLogger;
+    @Mock
+    private ParserUtils parserUtils;
+
+    private EnvironmentBaseService service;
+    private final List<String> messages = new ArrayList<>();
+    private final Consumer<String> messageHandler = messages::add;
+
+    @BeforeEach
+    void setUp() {
+        service = new EnvironmentBaseService(
+                environmentRepository, systemBaseService, actionLogger, new ObjectMapper(), parserUtils);
+    }
+
+    private IntegrationSystem system(IntegrationSystemType type) {
+        return IntegrationSystem.builder()
+                .id("system-1")
+                .name("test system")
+                .integrationSystemType(type)
+                .protocol(OperationProtocol.HTTP)
+                .build();
+    }
+
+    private Map<String, Server> singleServer() {
+        Map<String, Server> servers = new LinkedHashMap<>();
+        servers.put(ENV_NAME, new Server(SERVER_ADDRESS, "http", null));
+        return servers;
+    }
+
+    @Test
+    @DisplayName("EXTERNAL system with a new server creates the environment")
+    void externalWithNewServerCreatesEnvironment() {
+        JsonNode emptyProperties = JsonNodeFactory.instance.objectNode();
+        when(parserUtils.receiveEmptyProperties(OperationProtocol.HTTP)).thenReturn(emptyProperties);
+        when(environmentRepository.save(any(Environment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        IntegrationSystem system = system(IntegrationSystemType.EXTERNAL);
+
+        service.resolveEnvironmentsForServers(singleServer(), system, OperationProtocol.HTTP, messageHandler);
+
+        verify(environmentRepository).save(any(Environment.class));
+        assertThat(system.getEnvironments(), hasSize(1));
+        Environment created = system.getEnvironments().get(0);
+        assertThat(created.getName(), equalTo(ENV_NAME));
+        assertThat(created.getAddress(), equalTo(SERVER_ADDRESS));
+        assertThat(created.getSourceType(), equalTo(EnvironmentSourceType.MANUAL));
+        assertThat(created.getProperties(), sameInstance(emptyProperties));
+    }
+
+    @Test
+    @DisplayName("EXTERNAL system skips a server that matches an existing environment")
+    void externalDedupsIdenticalEnvironment() {
+        JsonNode emptyProperties = JsonNodeFactory.instance.objectNode();
+        when(parserUtils.receiveEmptyProperties(OperationProtocol.HTTP)).thenReturn(emptyProperties);
+
+        IntegrationSystem system = system(IntegrationSystemType.EXTERNAL);
+        Environment existing = Environment.builder()
+                .name(ENV_NAME)
+                .address(SERVER_ADDRESS)
+                .labels(new ArrayList<>())
+                .sourceType(EnvironmentSourceType.MANUAL)
+                .properties(emptyProperties)
+                .build();
+        system.addEnvironment(existing);
+
+        service.resolveEnvironmentsForServers(singleServer(), system, OperationProtocol.HTTP, messageHandler);
+
+        verify(environmentRepository, never()).save(any(Environment.class));
+        assertThat(system.getEnvironments(), contains(existing));
+    }
+
+    @Test
+    @DisplayName("INTERNAL system with no environments creates one from the first server")
+    void internalWithEmptyEnvironmentsCreates() {
+        JsonNode emptyProperties = JsonNodeFactory.instance.objectNode();
+        when(parserUtils.receiveEmptyProperties(OperationProtocol.HTTP)).thenReturn(emptyProperties);
+        when(environmentRepository.save(any(Environment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        IntegrationSystem system = system(IntegrationSystemType.INTERNAL);
+
+        service.resolveEnvironmentsForServers(singleServer(), system, OperationProtocol.HTTP, messageHandler);
+
+        verify(environmentRepository).save(any(Environment.class));
+        assertThat(system.getEnvironments(), hasSize(1));
+        assertThat(system.getEnvironments().get(0).getName(), equalTo(ENV_NAME));
+    }
+
+    @Test
+    @DisplayName("INTERNAL system replaces a MANUAL blank-address environment")
+    void internalReplacesBlankManualEnvironment() {
+        JsonNode emptyProperties = JsonNodeFactory.instance.objectNode();
+        when(parserUtils.receiveEmptyProperties(OperationProtocol.HTTP)).thenReturn(emptyProperties);
+        when(environmentRepository.save(any(Environment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        IntegrationSystem system = system(IntegrationSystemType.INTERNAL);
+        Environment placeholder = Environment.builder()
+                .id("old-1")
+                .name("placeholder")
+                .address("")
+                .labels(new ArrayList<>())
+                .sourceType(EnvironmentSourceType.MANUAL)
+                .build();
+        system.addEnvironment(placeholder);
+
+        service.resolveEnvironmentsForServers(singleServer(), system, OperationProtocol.HTTP, messageHandler);
+
+        verify(environmentRepository).delete(placeholder);
+        verify(environmentRepository).save(any(Environment.class));
+        assertThat(system.getEnvironments(), hasSize(1));
+        assertThat(system.getEnvironments().get(0).getName(), equalTo(ENV_NAME));
+        assertThat(system.getEnvironments().get(0).getAddress(), equalTo(SERVER_ADDRESS));
+    }
+
+    @Test
+    @DisplayName("Empty servers on an INTERNAL system set empty properties and report the message")
+    void emptyServersSetEmptyPropertiesAndReportMessage() {
+        JsonNode emptyProperties = JsonNodeFactory.instance.objectNode();
+        when(parserUtils.receiveEmptyProperties(OperationProtocol.HTTP)).thenReturn(emptyProperties);
+
+        IntegrationSystem system = system(IntegrationSystemType.INTERNAL);
+        Environment existing = Environment.builder()
+                .id("e1")
+                .name("existing")
+                .address(SERVER_ADDRESS)
+                .labels(new ArrayList<>())
+                .sourceType(EnvironmentSourceType.MANUAL)
+                .properties(null)
+                .build();
+        system.addEnvironment(existing);
+
+        service.resolveEnvironmentsForServers(new LinkedHashMap<>(), system, OperationProtocol.HTTP, messageHandler);
+
+        verify(environmentRepository, never()).save(any(Environment.class));
+        assertThat(existing.getProperties(), sameInstance(emptyProperties));
+        assertThat(messages, contains(EnvironmentBaseService.SPECIFICATION_PARAMETERS_ARE_EMPTY_MESSAGE));
+    }
+
+    @Test
+    @DisplayName("resolveEnvironments from parsed environments creates one for an EXTERNAL system")
+    void resolveFromParsedEnvironmentsCreatesForExternal() {
+        JsonNode emptyProperties = JsonNodeFactory.instance.objectNode();
+        when(parserUtils.receiveEmptyProperties(OperationProtocol.HTTP)).thenReturn(emptyProperties);
+        when(environmentRepository.save(any(Environment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        IntegrationSystem system = system(IntegrationSystemType.EXTERNAL);
+        List<ParsedEnvironment> parsed = List.of(
+                ParsedEnvironmentImpl.builder().name(ENV_NAME).address(SERVER_ADDRESS).build());
+
+        service.resolveEnvironments(parsed, system, OperationProtocol.HTTP, messageHandler);
+
+        verify(environmentRepository).save(any(Environment.class));
+        assertThat(system.getEnvironments(), hasSize(1));
+        Environment created = system.getEnvironments().get(0);
+        assertThat(created.getName(), equalTo(ENV_NAME));
+        assertThat(created.getAddress(), equalTo(SERVER_ADDRESS));
+        assertThat(created.getSourceType(), equalTo(EnvironmentSourceType.MANUAL));
+        assertThat(created.getProperties(), sameInstance(emptyProperties));
+    }
+
+    @Test
+    @DisplayName("resolveEnvironments with no parsed environments reports the message")
+    void resolveFromParsedEnvironmentsEmptyReportsMessage() {
+        IntegrationSystem system = system(IntegrationSystemType.EXTERNAL);
+
+        service.resolveEnvironments(List.of(), system, OperationProtocol.HTTP, messageHandler);
+
+        verify(environmentRepository, never()).save(any(Environment.class));
+        assertThat(system.getEnvironments(), empty());
+        assertThat(messages, contains(EnvironmentBaseService.SPECIFICATION_PARAMETERS_ARE_EMPTY_MESSAGE));
+    }
+}

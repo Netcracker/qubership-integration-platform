@@ -27,6 +27,10 @@ import java.util.List;
  * incrementing version. Identity, the resolved version name, the source, and the link to the owning
  * specification group belong to the persistence layer and are assigned when the catalog maps this
  * model onto its {@code SystemModel} entity.
+ *
+ * <p>The model also carries the environments the specification declares. A parser fills them from
+ * the specification's server or endpoint definitions; the catalog reconciles them against the owning
+ * system after mapping. Parsers that declare no environments leave the list empty.
  */
 public interface ParsedSystemModel {
 
@@ -41,4 +45,8 @@ public interface ParsedSystemModel {
     List<ParsedOperation> getOperations();
 
     void setOperations(List<ParsedOperation> operations);
+
+    List<ParsedEnvironment> getEnvironments();
+
+    void setEnvironments(List<ParsedEnvironment> environments);
 }

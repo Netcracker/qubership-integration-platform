@@ -37,6 +37,8 @@ import org.apache.woden.wsdl20.Endpoint;
 import org.apache.woden.wsdl20.xml.DescriptionElement;
 import org.qubership.integration.platform.parsers.SpecificationParserException;
 import org.qubership.integration.platform.parsers.SpecificationSource;
+import org.qubership.integration.platform.parsers.model.ParsedEnvironment;
+import org.qubership.integration.platform.parsers.model.ParsedEnvironmentImpl;
 import org.qubership.integration.platform.parsers.model.ParsedOperation;
 import org.qubership.integration.platform.parsers.model.ParsedOperationImpl;
 import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
@@ -113,8 +115,9 @@ public class WsdlSpecificationParser {
             wsdlParserContext.setInput(new ByteArrayInputStream(mainSource.getSource().getBytes(StandardCharsets.UTF_8)));
 
             Definitions definitions = parser.parse(wsdlParserContext);
-            ParsedSystemModel systemModel = toSystemModel(generateSOAOperationsList(definitions));
-            return new WsdlParseResult(systemModel, collectSOAEndpoints(definitions));
+            List<WsdlEndpoint> endpoints = collectSOAEndpoints(definitions);
+            ParsedSystemModel systemModel = toSystemModel(generateSOAOperationsList(definitions), endpoints);
+            return new WsdlParseResult(systemModel, endpoints);
         } catch (WrongGrammarException e) {
             String location = Arrays.stream(e.getLocation().toString().split("\n")).filter(StringUtils::isNotBlank)
                     .collect(Collectors.joining(", "));
@@ -144,8 +147,9 @@ public class WsdlSpecificationParser {
             DescriptionElement descElem = (DescriptionElement) reader.readWSDL(sourceUriMap.get(mainSource).toString());
             Description description = descElem.toComponent();
 
-            ParsedSystemModel systemModel = toSystemModel(generateWoodenOperationsList(description));
-            return new WsdlParseResult(systemModel, collectWoodenEndpoints(description));
+            List<WsdlEndpoint> endpoints = collectWoodenEndpoints(description);
+            ParsedSystemModel systemModel = toSystemModel(generateWoodenOperationsList(description), endpoints);
+            return new WsdlParseResult(systemModel, endpoints);
         } catch (WSDLException e) {
             throw new SpecificationParserException(e.getMessage(), e);
         } finally {
@@ -207,10 +211,20 @@ public class WsdlSpecificationParser {
                 .map(source -> new ByteArrayInputStream(source.getSource().getBytes(StandardCharsets.UTF_8)));
     }
 
-    private ParsedSystemModel toSystemModel(List<ParsedOperation> operations) {
+    private ParsedSystemModel toSystemModel(List<ParsedOperation> operations, List<WsdlEndpoint> endpoints) {
         return ParsedSystemModelImpl.builder()
                 .operations(operations)
+                .environments(toParsedEnvironments(endpoints))
                 .build();
+    }
+
+    private List<ParsedEnvironment> toParsedEnvironments(List<WsdlEndpoint> endpoints) {
+        return endpoints.stream()
+                .map(endpoint -> (ParsedEnvironment) ParsedEnvironmentImpl.builder()
+                        .name(endpoint.name())
+                        .address(endpoint.address())
+                        .build())
+                .collect(Collectors.toList());
     }
 
     private List<ParsedOperation> generateSOAOperationsList(Definitions definitions) {
