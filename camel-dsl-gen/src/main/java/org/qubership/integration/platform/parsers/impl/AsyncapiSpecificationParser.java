@@ -20,7 +20,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.parsers.Parser;
+import org.qubership.integration.platform.parsers.SpecificationParser;
 import org.qubership.integration.platform.parsers.SpecificationParserException;
+import org.qubership.integration.platform.parsers.SpecificationSource;
 import org.qubership.integration.platform.parsers.asyncapi.AsyncApiV3Normalizer;
 import org.qubership.integration.platform.parsers.model.ParsedEnvironment;
 import org.qubership.integration.platform.parsers.model.ParsedEnvironmentImpl;
@@ -38,9 +41,11 @@ import org.qubership.integration.platform.parsers.resolvers.async.AsyncApiSpecif
 import org.qubership.integration.platform.parsers.resolvers.async.AsyncResolver;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.qubership.integration.platform.parsers.resolvers.async.AsyncConstants.AMQP_BINDING_CLASS;
@@ -50,13 +55,14 @@ import static org.qubership.integration.platform.parsers.resolvers.async.AsyncCo
  *
  * <p>The parser reads the source, normalizes AsyncAPI 3.0 documents onto the 2.x model, and turns
  * each channel operation into a {@link ParsedOperation} through the binding resolver for the
- * system's protocol. It also maps each declared server to a {@link ParsedEnvironment} on the system
- * model, leaving the persistence side effect to the catalog: the catalog reconciles those
- * environments against the owning system. {@link #read} and {@link #toSystemModel} let the catalog
- * wrapper parse the source once and reuse the specification for both operations and environments.
+ * specification's protocol. It also maps each declared server to a {@link ParsedEnvironment} on the
+ * system model, leaving the persistence side effect to the catalog: the catalog reconciles those
+ * environments against the owning system. {@link #read} and {@link #toSystemModel} also stand on
+ * their own for callers that already hold the protocol.
  */
 @Slf4j
-public class AsyncapiSpecificationParser {
+@Parser("asyncapi")
+public class AsyncapiSpecificationParser implements SpecificationParser {
 
     private final AsyncApiV3Normalizer v3Normalizer;
     private final ObjectMapper jsonMapper;
@@ -82,8 +88,56 @@ public class AsyncapiSpecificationParser {
     }
 
     /**
-     * Reads a specification source, normalizing an AsyncAPI 3.0 document onto the 2.x model. The
-     * catalog wrapper reuses the returned specification for environment resolution.
+     * Parses the first source into a system model, deriving the protocol from the specification's
+     * servers. The declared servers become the model's environments; the caller reconciles them
+     * against the owning system.
+     *
+     * @param groupId the id of the specification group the model will belong to; unused here
+     * @param sources the specification sources to parse; only the first is read
+     * @param messageHandler receives human-readable warnings raised while parsing; unused here
+     * @return the parsed system model
+     * @throws SpecificationParserException if the source cannot be parsed
+     */
+    @Override
+    public ParsedSystemModel parseSpecification(
+            String groupId,
+            Collection<SpecificationSource> sources,
+            Consumer<String> messageHandler
+    ) {
+        try {
+            String specificationText = sources.stream()
+                    .map(SpecificationSource::getSource)
+                    .findFirst()
+                    .orElse("");
+            AsyncapiSpecification importedAsyncApi = read(specificationText);
+            return toSystemModel(importedAsyncApi, resolveProtocol(importedAsyncApi));
+        } catch (SpecificationParserException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new SpecificationParserException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
+        }
+    }
+
+    /**
+     * Derives the binding protocol from the specification the same way the catalog does when it
+     * assigns the system's protocol: the first declared server's protocol, then the {@code
+     * x-protocol} field on {@code info}. Returns {@code null} when neither is present, which lets
+     * {@link #resolveSpecificationResolver} raise the standard "protocol is not set" error.
+     */
+    private String resolveProtocol(AsyncapiSpecification specification) {
+        Map<String, Server> servers = specification.getServers();
+        if (servers != null) {
+            for (Server server : servers.values()) {
+                if (server != null && server.getProtocol() != null) {
+                    return server.getProtocol();
+                }
+            }
+        }
+        return specification.getInfo() == null ? null : specification.getInfo().getProtocol();
+    }
+
+    /**
+     * Reads a specification source, normalizing an AsyncAPI 3.0 document onto the 2.x model.
      */
     public AsyncapiSpecification read(String data) throws JsonProcessingException {
         ObjectMapper mapper = getMapper(data);

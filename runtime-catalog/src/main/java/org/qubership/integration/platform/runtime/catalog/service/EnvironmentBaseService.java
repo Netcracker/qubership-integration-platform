@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.validator.routines.UrlValidator;
 import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
 import org.qubership.integration.platform.parsers.model.ParsedEnvironment;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentDefaultParameters;
@@ -30,6 +31,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.EnvironmentRepository;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.ParserUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -137,6 +139,89 @@ public class EnvironmentBaseService {
                         .map(parsedEnvironment -> createEnvironmentFromParsed(parsedEnvironment, operationProtocol))
                         .toList();
         reconcileEnvironments(candidates, system, messageHandler);
+    }
+
+    /**
+     * Reconciles a WSDL import's environments against the owning system. Only an EXTERNAL system
+     * takes them, and only endpoints whose address is a valid URL count. The valid endpoints then go
+     * through the shared reconcile path under the system's protocol.
+     *
+     * @param parsedEnvironments the endpoints the WSDL declares
+     * @param system the owning system; a non-EXTERNAL or {@code null} system is left untouched
+     */
+    public void resolveWsdlEnvironments(List<ParsedEnvironment> parsedEnvironments,
+                                        IntegrationSystem system,
+                                        Consumer<String> messageHandler) {
+        if (system == null || !IntegrationSystemType.EXTERNAL.equals(system.getIntegrationSystemType())) {
+            return;
+        }
+        UrlValidator urlValidator = new UrlValidator();
+        List<ParsedEnvironment> validEnvironments = parsedEnvironments.stream()
+                .filter(environment -> urlValidator.isValid(environment.getAddress()))
+                .toList();
+        if (validEnvironments.isEmpty()) {
+            return;
+        }
+        resolveEnvironments(validEnvironments, system, system.getProtocol(), messageHandler);
+    }
+
+    /**
+     * Reconciles a Swagger import's environments against the owning system, preserving Swagger's
+     * per-protocol rules. An EXTERNAL system with no environments yet gains one per parsed
+     * environment; an INTERNAL system fills a blank address in place from the first parsed
+     * environment; both, along with IMPLEMENTED, receive the protocol's default properties. The
+     * address is already placeholder-stripped by the parser; a parsed environment with no name falls
+     * back to a spec-group-derived name.
+     *
+     * @param parsedEnvironments the servers the specification declares
+     * @param specificationGroup carries both the owning system and the fallback name
+     */
+    public void resolveSwaggerEnvironments(List<ParsedEnvironment> parsedEnvironments,
+                                           SpecificationGroup specificationGroup) {
+        if (parsedEnvironments == null || parsedEnvironments.isEmpty()) {
+            return;
+        }
+        switch (specificationGroup.getSystem().getIntegrationSystemType()) {
+            case EXTERNAL:
+                if (specificationGroup.getSystem().getEnvironments().isEmpty()) {
+                    for (ParsedEnvironment parsedEnvironment : parsedEnvironments) {
+                        Environment environment = Environment.builder()
+                                .name(swaggerEnvironmentName(parsedEnvironment, specificationGroup))
+                                .address(parsedEnvironment.getAddress())
+                                .labels(new ArrayList<>())
+                                .sourceType(EnvironmentSourceType.MANUAL)
+                                .build();
+                        create(environment, specificationGroup.getSystem());
+                        setSwaggerDefaultProperties(specificationGroup);
+                    }
+                }
+                break;
+            case INTERNAL:
+                Environment environment = setSwaggerDefaultProperties(specificationGroup);
+                if (StringUtils.isBlank(environment.getAddress())) {
+                    environment.setAddress(parsedEnvironments.get(0).getAddress());
+                    update(environment);
+                }
+                break;
+            case IMPLEMENTED:
+                setSwaggerDefaultProperties(specificationGroup);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private String swaggerEnvironmentName(ParsedEnvironment parsedEnvironment, SpecificationGroup specificationGroup) {
+        if (parsedEnvironment.getName() != null) {
+            return parsedEnvironment.getName();
+        }
+        return "Environment for " + specificationGroup.getName() + " specification group";
+    }
+
+    private Environment setSwaggerDefaultProperties(SpecificationGroup specificationGroup) {
+        Environment environment = specificationGroup.getSystem().getEnvironments().get(0);
+        setDefaultProperties(environment);
+        return environment;
     }
 
     protected void activateDefaultEnvForExternalSystem(Environment environment, IntegrationSystem system) {

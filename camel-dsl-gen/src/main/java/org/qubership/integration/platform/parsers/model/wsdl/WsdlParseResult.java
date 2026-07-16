@@ -24,8 +24,8 @@ import java.util.List;
  * What the WSDL parser produces from a specification: the parsed operations and the service
  * endpoints the WSDL declares.
  *
- * <p>Operations feed the catalog's system model; endpoints feed the catalog wrapper's environment
- * side effect. Parsing the source once yields both, so the wrapper never re-parses the WSDL.
+ * <p>Operations feed the catalog's system model; endpoints feed the catalog's environment
+ * reconcile. Parsing the source once yields both, so the catalog never re-parses the WSDL.
  *
  * @param systemModel the parsed operations and description, free of any persistence identity
  * @param endpoints the service endpoints the WSDL declares, in document order

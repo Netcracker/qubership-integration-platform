@@ -26,7 +26,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
+import org.qubership.integration.platform.parsers.SpecificationSource;
 import org.qubership.integration.platform.parsers.impl.OpenApiMapperResolver;
+import org.qubership.integration.platform.parsers.model.ParsedSystemModel;
 import org.qubership.integration.platform.parsers.resolvers.SwaggerSchemaResolver;
 import org.qubership.integration.platform.parsers.schemas.SchemaProcessor;
 import org.qubership.integration.platform.parsers.schemas.impl.ArraySchemaProcessor;
@@ -40,7 +42,6 @@ import org.qubership.integration.platform.runtime.catalog.model.system.Operation
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.EnvironmentRepository;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBaseService;
@@ -56,11 +57,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 /**
- * Characterization tests that pin Swagger's per-protocol environment reconcile in the catalog
- * wrapper. They are the regression oracle for the refactor that reads environments from the library
- * model instead of {@code OpenAPI.getServers()}: the placeholder-stripped address, the spec-group
- * fallback name, the HTTP default properties, and the EXTERNAL, INTERNAL, and IMPLEMENTED branches
- * must all behave exactly as before.
+ * Characterization tests that pin Swagger's per-protocol environment reconcile, now hosted by
+ * {@link EnvironmentBaseService#resolveSwaggerEnvironments}. They are the regression oracle for the
+ * refactor that reads environments from the library model instead of {@code OpenAPI.getServers()}:
+ * the placeholder-stripped address, the spec-group fallback name, the HTTP default properties, and
+ * the EXTERNAL, INTERNAL, and IMPLEMENTED branches must all behave exactly as before.
  */
 @ExtendWith(MockitoExtension.class)
 class SwaggerSpecificationParserTest {
@@ -72,17 +73,30 @@ class SwaggerSpecificationParserTest {
     @Mock
     private ActionsLogService actionLogger;
 
-    private SwaggerSpecificationParser parser;
+    private org.qubership.integration.platform.parsers.impl.SwaggerSpecificationParser libraryParser;
+    private EnvironmentBaseService environmentBaseService;
 
     @BeforeEach
     void setUp() {
-        EnvironmentBaseService environmentBaseService = new EnvironmentBaseService(
+        environmentBaseService = new EnvironmentBaseService(
                 environmentRepository,
                 systemBaseService,
                 actionLogger,
                 new ObjectMapper(),
                 new ParserUtils(new ObjectMapper()));
-        parser = new SwaggerSpecificationParser(libraryParser(), environmentBaseService);
+        libraryParser = libraryParser();
+    }
+
+    /**
+     * Parses the specification with the library parser, then reconciles the declared environments
+     * through the catalog, mirroring how {@code OperationParserService} drives a Swagger import.
+     */
+    private void parseAndReconcile(String specification, SpecificationGroup group) {
+        ParsedSystemModel model = libraryParser.parseSpecification(
+                "group-1",
+                List.of(new SpecificationSource("spec", specification)),
+                message -> { });
+        environmentBaseService.resolveSwaggerEnvironments(model.getEnvironments(), group);
     }
 
     private org.qubership.integration.platform.parsers.impl.SwaggerSpecificationParser libraryParser() {
@@ -116,10 +130,6 @@ class SwaggerSpecificationParserTest {
         return group;
     }
 
-    private List<SpecificationSource> sources(String specification) {
-        return List.of(SpecificationSource.builder().name("spec").source(specification).build());
-    }
-
     private void answerSaveWithArgument() {
         when(environmentRepository.save(any(Environment.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -145,7 +155,7 @@ class SwaggerSpecificationParserTest {
                 {"url": "https://{host}/api/v1/", "description": "Primary",
                  "variables": {"host": {"default": "example.com"}}}""");
 
-        parser.parseSpecification(group(system), sources(spec), message -> { });
+        parseAndReconcile(spec, group(system));
 
         assertEquals(1, system.getEnvironments().size());
         Environment created = system.getEnvironments().get(0);
@@ -162,7 +172,7 @@ class SwaggerSpecificationParserTest {
         IntegrationSystem system = system(IntegrationSystemType.EXTERNAL);
         String spec = specWithServer("{\"url\": \"https://plain.example.com/\"}");
 
-        parser.parseSpecification(group(system), sources(spec), message -> { });
+        parseAndReconcile(spec, group(system));
 
         assertEquals(1, system.getEnvironments().size());
         Environment created = system.getEnvironments().get(0);
@@ -185,7 +195,7 @@ class SwaggerSpecificationParserTest {
         system.addEnvironment(existing);
         String spec = specWithServer("{\"url\": \"https://internal.example.com/\"}");
 
-        parser.parseSpecification(group(system), sources(spec), message -> { });
+        parseAndReconcile(spec, group(system));
 
         assertEquals(1, system.getEnvironments().size());
         Environment updated = system.getEnvironments().get(0);
@@ -209,7 +219,7 @@ class SwaggerSpecificationParserTest {
         system.addEnvironment(existing);
         String spec = specWithServer("{\"url\": \"https://ignored.example.com/\"}");
 
-        parser.parseSpecification(group(system), sources(spec), message -> { });
+        parseAndReconcile(spec, group(system));
 
         assertEquals(1, system.getEnvironments().size());
         Environment result = system.getEnvironments().get(0);

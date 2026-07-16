@@ -35,6 +35,8 @@ import org.apache.woden.wsdl20.BindingOperation;
 import org.apache.woden.wsdl20.Description;
 import org.apache.woden.wsdl20.Endpoint;
 import org.apache.woden.wsdl20.xml.DescriptionElement;
+import org.qubership.integration.platform.parsers.Parser;
+import org.qubership.integration.platform.parsers.SpecificationParser;
 import org.qubership.integration.platform.parsers.SpecificationParserException;
 import org.qubership.integration.platform.parsers.SpecificationSource;
 import org.qubership.integration.platform.parsers.model.ParsedEnvironment;
@@ -64,6 +66,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -74,20 +77,52 @@ import static java.util.Objects.nonNull;
  *
  * <p>The parser detects the WSDL version, reads the definition with the matching library
  * (soa-model for WSDL 1.1, Apache Woden for WSDL 2.0), and produces the binding operations plus the
- * service endpoints the WSDL declares. It performs no environment side effect and touches no catalog
- * storage: WSDL 1.1 resolves imports in memory from the supplied sources, and WSDL 2.0 materializes
- * the sources into a private temporary directory that the parser deletes before returning. The
- * catalog wrapper reads the returned endpoints and registers the owning system's environments.
+ * service endpoints the WSDL declares as environments on the system model. It performs no
+ * environment side effect and touches no catalog storage: WSDL 1.1 resolves imports in memory from
+ * the supplied sources, and WSDL 2.0 materializes the sources into a private temporary directory
+ * that the parser deletes before returning. The catalog reads the declared environments and
+ * reconciles them against the owning system.
  */
 @Slf4j
-public class WsdlSpecificationParser {
+@Parser("soap")
+public class WsdlSpecificationParser implements SpecificationParser {
     private static final String POST_VERB_NAME = "POST";
     private static final String DEFAULT_PATH = "";
+    private static final String NO_MAIN_SOURCE_ERROR_MESSAGE = "Couldn't determine main specification source";
 
     private final WsdlVersionParser wsdlVersionParser;
 
     public WsdlSpecificationParser(WsdlVersionParser wsdlVersionParser) {
         this.wsdlVersionParser = wsdlVersionParser;
+    }
+
+    /**
+     * Parses the sources into a system model, picking the root file from the main-source flag the
+     * caller sets on exactly one source. The declared service endpoints become the model's
+     * environments; the caller reconciles them against the owning system.
+     *
+     * @param groupId the id of the specification group the model will belong to; unused here
+     * @param sources all sources that make up the specification, including any imported files
+     * @param messageHandler receives human-readable warnings raised while parsing; unused here
+     * @return the parsed system model
+     * @throws SpecificationParserException if no main source is flagged or the sources cannot be parsed
+     */
+    @Override
+    public ParsedSystemModel parseSpecification(
+            String groupId,
+            Collection<SpecificationSource> sources,
+            Consumer<String> messageHandler
+    ) {
+        SpecificationSource mainSource = null;
+        for (SpecificationSource source : sources) {
+            if (source.isMainSource()) {
+                mainSource = source;
+            }
+        }
+        if (mainSource == null) {
+            throw new SpecificationParserException(NO_MAIN_SOURCE_ERROR_MESSAGE);
+        }
+        return parse(sources, mainSource).systemModel();
     }
 
     /**

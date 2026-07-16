@@ -19,8 +19,8 @@ package org.qubership.integration.platform.parsers.model.wsdl;
 /**
  * A service endpoint a WSDL declares: its name and its network address.
  *
- * <p>The parser surfaces these so the catalog wrapper can register the owning system's environments
- * without depending on the WSDL model types. The wrapper decides whether to act on them; the parser
+ * <p>The parser surfaces these so the catalog can register the owning system's environments
+ * without depending on the WSDL model types. The catalog decides whether to act on them; the parser
  * neither validates the address nor touches persistence.
  *
  * @param name the endpoint (WSDL 1.1 port or WSDL 2.0 endpoint) name
