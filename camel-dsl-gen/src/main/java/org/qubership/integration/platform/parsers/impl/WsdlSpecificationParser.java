@@ -198,6 +198,10 @@ public class WsdlSpecificationParser implements SpecificationParser {
         for (SpecificationSource source : sources) {
             String fileName = StringUtils.isEmpty(source.getName()) ? "source-" + index + ".wsdl" : source.getName();
             Path filePath = workingDir.resolve(fileName).normalize();
+            if (!filePath.startsWith(workingDir)) {
+                throw new SpecificationParserException(
+                        String.format("WSDL source name '%s' resolves outside the working directory", fileName));
+            }
             try {
                 Files.createDirectories(filePath.getParent());
                 Files.write(filePath, source.getSource().getBytes(StandardCharsets.UTF_8));
