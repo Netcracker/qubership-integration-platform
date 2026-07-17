@@ -36,7 +36,8 @@
     <kubernetes-client-java.version>25.0.0</kubernetes-client-java.version>
     <atlasmap.version>2.5.2</atlasmap.version>
     <antlr4.version>4.13.2</antlr4.version>
-    <google-guava.version>33.4.0-jre</google-guava.version>    <okio.version>3.16.4</okio.version>
+    <google-guava.version>33.4.0-jre</google-guava.version>
+    <okio.version>3.16.4</okio.version>
     <dhatim.fastexcel.version>0.16.4</dhatim.fastexcel.version>
     <flexmark.version>0.64.8</flexmark.version>
     <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
@@ -183,7 +184,8 @@
         <groupId>io.hypersistence</groupId>
         <artifactId>hypersistence-utils-hibernate-63</artifactId>
         <version>${hypersistence-utils-hibernate.version}</version>
-      </dependency>      <dependency>
+      </dependency>
+      <dependency>
         <groupId>commons-validator</groupId>
         <artifactId>commons-validator</artifactId>
         <version>${commons-validator.version}</version>
@@ -468,7 +470,8 @@
     <dependency>
       <groupId>io.hypersistence</groupId>
       <artifactId>hypersistence-utils-hibernate-63</artifactId>
-    </dependency>    <dependency>
+    </dependency>
+    <dependency>
       <groupId>commons-validator</groupId>
       <artifactId>commons-validator</artifactId>
     </dependency>
@@ -509,7 +512,8 @@
     <dependency>
       <groupId>org.mapstruct</groupId>
       <artifactId>mapstruct-processor</artifactId>
-    </dependency>    <dependency>
+    </dependency>
+    <dependency>
       <groupId>jakarta.annotation</groupId>
       <artifactId>jakarta.annotation-api</artifactId>
     </dependency>

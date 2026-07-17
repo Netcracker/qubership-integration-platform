@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -242,10 +243,8 @@ class EnvironmentBaseServiceTest {
     }
 
     @Test
-    @DisplayName("WSDL: an EXTERNAL system creates an environment for a valid endpoint")
+    @DisplayName("WSDL: an EXTERNAL system creates an environment with no default properties")
     void wsdlCreatesEnvironmentForValidEndpoint() {
-        JsonNode emptyProperties = JsonNodeFactory.instance.objectNode();
-        when(parserUtils.receiveEmptyProperties(OperationProtocol.HTTP)).thenReturn(emptyProperties);
         when(environmentRepository.save(any(Environment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         IntegrationSystem system = system(IntegrationSystemType.EXTERNAL);
@@ -256,6 +255,31 @@ class EnvironmentBaseServiceTest {
 
         verify(environmentRepository).save(any(Environment.class));
         assertThat(system.getEnvironments(), hasSize(1));
-        assertThat(system.getEnvironments().get(0).getAddress(), equalTo("http://example.com/service"));
+        Environment created = system.getEnvironments().get(0);
+        assertThat(created.getName(), equalTo("port"));
+        assertThat(created.getAddress(), equalTo("http://example.com/service"));
+        assertThat(created.getSourceType(), equalTo(EnvironmentSourceType.MANUAL));
+        // The pre-extraction WSDL path never set properties; Kafka defaults must not leak in.
+        assertThat(created.getProperties(), nullValue());
+    }
+
+    @Test
+    @DisplayName("WSDL: an EXTERNAL system skips an endpoint that matches an existing environment")
+    void wsdlDedupsIdenticalEndpoint() {
+        IntegrationSystem system = system(IntegrationSystemType.EXTERNAL);
+        Environment existing = Environment.builder()
+                .name("port")
+                .address("http://example.com/service")
+                .labels(new ArrayList<>())
+                .sourceType(EnvironmentSourceType.MANUAL)
+                .build();
+        system.addEnvironment(existing);
+
+        service.resolveWsdlEnvironments(
+                List.of(ParsedEnvironmentImpl.builder().name("port").address("http://example.com/service").build()),
+                system, messageHandler);
+
+        verify(environmentRepository, never()).save(any(Environment.class));
+        assertThat(system.getEnvironments(), contains(existing));
     }
 }
