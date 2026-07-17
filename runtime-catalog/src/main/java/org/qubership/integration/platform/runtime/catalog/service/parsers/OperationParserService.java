@@ -209,6 +209,12 @@ public class OperationParserService {
         checkSpecId(oldSystemModelsIds, systemModelId);
 
         SystemModel systemModel = SystemModel.builder().id(systemModelId).build();
+        // Save the model before wiring it into the group. SystemModel has an assigned id, so
+        // SystemModelRepository.save() routes to EntityManager.merge(), which returns a separate
+        // managed copy. Adding the model to the group before saving would leave the group's cascade
+        // collection pointing at the pre-merge instance while the managed copy holds the same id;
+        // the flush cascade then associates two objects with one id and throws NonUniqueObjectException.
+        systemModel = systemModelRepository.save(systemModel);
         systemModel.setName(version);
         systemModel.setVersion(version);
         systemModel.setDescription(parsedSystemModel.getDescription());
