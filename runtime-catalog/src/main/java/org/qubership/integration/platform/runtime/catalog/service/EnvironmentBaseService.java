@@ -144,7 +144,12 @@ public class EnvironmentBaseService {
     /**
      * Reconciles a WSDL import's environments against the owning system. Only an EXTERNAL system
      * takes them, and only endpoints whose address is a valid URL count. The valid endpoints then go
-     * through the shared reconcile path under the system's protocol.
+     * through the shared reconcile path.
+     *
+     * <p>Unlike the AMQP and HTTP protocols, WSDL environments carry no default properties. The SOAP
+     * system reports {@code "http"} as its protocol, so routing WSDL endpoints through
+     * {@link #createEnvironmentFromParsed} would stamp them with Kafka defaults; building the
+     * candidates here keeps their properties unset, as the pre-extraction WSDL path did.
      *
      * @param parsedEnvironments the endpoints the WSDL declares
      * @param system the owning system; a non-EXTERNAL or {@code null} system is left untouched
@@ -156,13 +161,25 @@ public class EnvironmentBaseService {
             return;
         }
         UrlValidator urlValidator = new UrlValidator();
-        List<ParsedEnvironment> validEnvironments = parsedEnvironments.stream()
+        List<Environment> candidates = parsedEnvironments.stream()
                 .filter(environment -> urlValidator.isValid(environment.getAddress()))
+                .map(this::createWsdlEnvironment)
                 .toList();
-        if (validEnvironments.isEmpty()) {
+        if (candidates.isEmpty()) {
             return;
         }
-        resolveEnvironments(validEnvironments, system, system.getProtocol(), messageHandler);
+        reconcileEnvironments(candidates, system, messageHandler);
+    }
+
+    private Environment createWsdlEnvironment(ParsedEnvironment parsedEnvironment) {
+        // No properties: a SOAP system reports "http" as its protocol, so the shared path would stamp
+        // Kafka defaults on it. An empty label list (never null) keeps the reconcile dedup comparison
+        // from tripping over CompareListUtils on a null-versus-null labels pair.
+        return Environment.builder()
+                .name(parsedEnvironment.getName())
+                .address(parsedEnvironment.getAddress())
+                .labels(new ArrayList<>())
+                .build();
     }
 
     /**
