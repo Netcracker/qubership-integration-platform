@@ -16,32 +16,39 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
+import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
+import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.system.V100ServiceImportFileMigration;
+import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
+import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldInContentStrategy;
+import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldStrategy;
+import org.qubership.integration.platform.io.readers.migrations.versions.strategies.VersionFieldStrategy;
+import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
+import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
+import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.model.system.SystemModelSource;
+import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedIntegrationSystem;
+import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSpecification;
+import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSpecificationGroup;
+import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSpecificationSource;
+import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSystemObject;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SpecificationGroupDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.V100ServiceImportFileMigration;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.VersionsGetterService;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ServiceSerializer;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,261 +58,236 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.when;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.RESOURCES_FOLDER_PREFIX;
 
-@ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
+/**
+ * Exercises {@link ServiceDeserializer#deserializeSystem(File)} against a real exported archive.
+ *
+ * <p>The test builds a fully-populated system graph, serializes it with the production
+ * {@link ServiceSerializer}, lays the resulting YAML and source files out on disk the way an export
+ * archive is structured, and reads it back. It asserts the whole reconstructed graph: system,
+ * specification group, system model, operation, and both specification sources. One source is placed
+ * only under the {@code resources/} subfolder to drive the resources fallback in
+ * {@code readSpecificationSource}; the other is placed directly to drive the primary lookup. It also
+ * asserts each source's stored hash survives the round trip.
+ */
 class ServiceDeserializerTest {
+
+    private static final String APP_NAME = "qip";
 
     private static final String SYSTEM_ID = "system-1";
     private static final String GROUP_ID = "group-1";
     private static final String MODEL_ID = "model-1";
 
-    @TempDir
-    Path tempDir;
+    private static final String FALLBACK_SOURCE_NAME = "main.wsdl";
+    private static final String DIRECT_SOURCE_NAME = "types.xsd";
+    private static final String FALLBACK_SOURCE_CONTENT = "<wsdl>main</wsdl>";
+    private static final String DIRECT_SOURCE_CONTENT = "<xsd>types</xsd>";
 
-    @Mock
-    private VersionsGetterService versionsGetterService;
-
-    @Mock
-    private FileMigrationService fileMigrationService;
-
+    private YAMLMapper yamlMapper;
+    private ServiceSerializer serializer;
     private ServiceDeserializer deserializer;
 
+    private String fallbackSourceHash;
+    private String directSourceHash;
+
     @BeforeEach
-    void setUp() throws Exception {
-        YAMLMapper yamlMapper = new YAMLMapper();
-        List<ServiceImportFileMigration> migrations = List.of(new V100ServiceImportFileMigration());
+    void setUp() {
+        yamlMapper = new MapperAutoConfiguration().yamlExportImportMapper();
 
-        when(versionsGetterService.getVersions(any())).thenReturn(List.of(100, 101, 102));
-        when(fileMigrationService.migrate(anyString(), anyCollection())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(fileMigrationService.migrate(any(ObjectNode.class), anyCollection())).thenAnswer(invocation -> invocation.getArgument(0));
+        VersionsGetterService versionsGetterService = buildVersionsGetterService();
+        FileMigrationService fileMigrationService =
+                new FileMigrationService(yamlMapper, versionsGetterService, List.of());
+        List<ServiceImportFileMigration> serviceMigrations = List.of(new V100ServiceImportFileMigration());
 
+        IntegrationSystemDtoMapper systemMapper = new IntegrationSystemDtoMapper(
+                URI.create("http://qubership.org/schemas/product/qip/service"), serviceMigrations);
+        SpecificationGroupDtoMapper groupMapper = new SpecificationGroupDtoMapper(
+                URI.create("http://qubership.org/schemas/product/qip/specification-group"));
+        SystemModelDtoMapper modelMapper = new SystemModelDtoMapper(
+                URI.create("http://qubership.org/schemas/product/qip/specification"));
+
+        serializer = new ServiceSerializer(yamlMapper, systemMapper, groupMapper, modelMapper, fileMigrationService);
         deserializer = new ServiceDeserializer(
-                yamlMapper,
-                versionsGetterService,
-                new IntegrationSystemDtoMapper(URI.create("http://qubership.org/schemas/product/qip/service"), migrations),
-                new SpecificationGroupDtoMapper(URI.create("http://qubership.org/schemas/product/qip/specification-group")),
-                new SystemModelDtoMapper(URI.create("http://qubership.org/schemas/product/qip/specification")),
-                fileMigrationService,
-                migrations
-        );
-        ReflectionTestUtils.setField(deserializer, "appName", "qip");
+                yamlMapper, versionsGetterService, systemMapper, groupMapper, modelMapper,
+                fileMigrationService, serviceMigrations);
+        ReflectionTestUtils.setField(deserializer, "appName", APP_NAME);
     }
 
     @Test
-    @DisplayName("Should deserialize legacy service with embedded specification groups, models and operations")
-    void shouldDeserializeLegacyEmbeddedService() throws IOException {
-        writeFile(tempDir.resolve("openapi.txt"), "openapi spec content");
-        File serviceFile = writeServiceFile(tempDir, legacyServiceYaml("openapi.txt", null));
+    void deserializeSystemRebuildsGraphAndResolvesSourcesFromDisk(@TempDir Path archiveDir) throws Exception {
+        IntegrationSystem system = buildSystemGraph();
+        File serviceFile = writeArchive(system, archiveDir);
 
-        IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
+        IntegrationSystem result = deserializer.deserializeSystem(serviceFile);
 
-        assertEquals(SYSTEM_ID, system.getId());
-        assertEquals("Legacy Service", system.getName());
-        assertEquals(1, system.getSpecificationGroups().size());
+        assertEquals(SYSTEM_ID, result.getId());
+        assertEquals("Payment Service", result.getName());
+        assertEquals("Handles payments", result.getDescription());
+        assertEquals(OperationProtocol.SOAP, result.getProtocol());
+        assertEquals(IntegrationSystemType.EXTERNAL, result.getIntegrationSystemType());
+        assertEquals("payment-internal", result.getInternalServiceName());
 
-        SpecificationGroup group = system.getSpecificationGroups().getFirst();
+        assertEquals(1, result.getSpecificationGroups().size());
+        SpecificationGroup group = result.getSpecificationGroups().get(0);
         assertEquals(GROUP_ID, group.getId());
-        assertEquals("API Group", group.getName());
-        assertFalse(group.isSynchronization());
-        assertEquals(1, group.getSystemModels().size());
-
-        SystemModel model = group.getSystemModels().getFirst();
-        assertEquals(MODEL_ID, model.getId());
-        assertEquals("1.0", model.getVersion());
-        assertEquals(1, model.getOperations().size());
-        assertEquals("GET", model.getOperations().getFirst().getMethod());
-        assertEquals("/pets", model.getOperations().getFirst().getPath());
-
-        assertEquals(1, model.getSpecificationSources().size());
-        SpecificationSource source = model.getSpecificationSources().getFirst();
-        assertEquals("src-1", source.getId());
-        assertEquals("openapi.txt", source.getName());
-        assertEquals("openapi spec content", source.getSource());
-        assertTrue(source.isMainSource());
-    }
-
-    @Test
-    @DisplayName("Should use specification source name when fileName is missing")
-    void shouldUseSpecificationSourceNameWhenFileNameMissing() throws IOException {
-        writeFile(tempDir.resolve("legacy-spec.txt"), "legacy source body");
-        File serviceFile = writeServiceFile(tempDir, legacyServiceYaml("legacy-spec.txt", null));
-
-        IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
-
-        SpecificationSource source = system.getSpecificationGroups().getFirst()
-                .getSystemModels().getFirst()
-                .getSpecificationSources().getFirst();
-        assertEquals("legacy source body", source.getSource());
-    }
-
-    @Test
-    @DisplayName("Should read specification source from resources folder when not found in root")
-    void shouldReadSpecificationSourceFromResourcesFolder() throws IOException {
-        Path resourcesDir = tempDir.resolve("resources");
-        Files.createDirectories(resourcesDir);
-        writeFile(resourcesDir.resolve("nested-spec.txt"), "nested source body");
-        File serviceFile = writeServiceFile(tempDir, legacyServiceYaml("nested-spec.txt", null));
-
-        IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
-
-        SpecificationSource source = system.getSpecificationGroups().getFirst()
-                .getSystemModels().getFirst()
-                .getSpecificationSources().getFirst();
-        assertEquals("nested source body", source.getSource());
-    }
-
-    @Test
-    @DisplayName("Should resolve specification group by id when multiple groups are embedded")
-    void shouldResolveSpecificationGroupById() throws IOException {
-        String yaml = """
-                id: "%s"
-                name: "Multi Group Service"
-                content:
-                  integrationSystemType: EXTERNAL
-                  protocol: HTTP
-                  specificationGroups:
-                    - id: "group-a"
-                      name: "Group A"
-                      synchronization: true
-                      systemModels:
-                        - id: "model-a"
-                          name: "1.0"
-                          version: "1.0"
-                          source: MANUAL
-                          operations: []
-                          specificationSources: []
-                    - id: "group-b"
-                      name: "Group B"
-                      synchronization: false
-                      systemModels:
-                        - id: "model-b"
-                          name: "2.0"
-                          version: "2.0"
-                          source: MANUAL
-                          operations:
-                            - id: "op-b"
-                              method: POST
-                              path: /items
-                          specificationSources: []
-                fileVersion: 3
-                """.formatted(SYSTEM_ID);
-        File serviceFile = writeServiceFile(tempDir, yaml);
-
-        IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
-
-        assertEquals(2, system.getSpecificationGroups().size());
-        SpecificationGroup groupB = system.getSpecificationGroups().stream()
-                .filter(group -> "group-b".equals(group.getId()))
-                .findFirst()
-                .orElseThrow();
-        assertFalse(groupB.isSynchronization());
-        assertEquals(1, groupB.getSystemModels().size());
-        assertEquals("POST", groupB.getSystemModels().getFirst().getOperations().getFirst().getMethod());
-    }
-
-    @Test
-    @DisplayName("Should deserialize service from separate specification group and model files")
-    void shouldDeserializeServiceFromSeparateFiles() throws IOException {
-        String serviceYaml = """
-                id: "%s"
-                name: "Modern Service"
-                content:
-                  integrationSystemType: EXTERNAL
-                  protocol: HTTP
-                  migrations: "[100, 101]"
-                """.formatted(SYSTEM_ID);
-        File serviceFile = writeServiceFile(tempDir, serviceYaml);
-
-        String groupYaml = """
-                id: "%s"
-                name: "Separate Group"
-                content:
-                  synchronization: true
-                  parentId: "%s"
-                """.formatted(GROUP_ID, SYSTEM_ID);
-        writeFile(tempDir.resolve(GROUP_ID + ".specification-group.qip.yaml"), groupYaml);
-
-        String modelYaml = """
-                id: "%s"
-                name: "1.0"
-                content:
-                  version: "1.0"
-                  parentId: "%s"
-                  operations: []
-                  specificationSources: []
-                """.formatted(MODEL_ID, GROUP_ID);
-        writeFile(tempDir.resolve(MODEL_ID + ".specification.qip.yaml"), modelYaml);
-
-        IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
-
-        assertEquals(SYSTEM_ID, system.getId());
-        assertEquals(1, system.getSpecificationGroups().size());
-        SpecificationGroup group = system.getSpecificationGroups().getFirst();
-        assertEquals(GROUP_ID, group.getId());
+        assertEquals("Payment API", group.getName());
+        assertEquals("Payment API group", group.getDescription());
+        assertEquals("https://payments.example.com/wsdl", group.getUrl());
         assertTrue(group.isSynchronization());
+
         assertEquals(1, group.getSystemModels().size());
-        assertEquals(MODEL_ID, group.getSystemModels().getFirst().getId());
+        SystemModel model = group.getSystemModels().get(0);
+        assertEquals(MODEL_ID, model.getId());
+        assertEquals("1.0.0", model.getName());
+        assertEquals("1.0.0", model.getVersion());
+        assertEquals("First revision", model.getDescription());
+        assertEquals(SystemModelSource.DISCOVERED, model.getSource());
+        assertFalse(model.isDeprecated());
+
+        assertEquals(1, model.getOperations().size());
+        Operation operation = model.getOperations().get(0);
+        assertEquals("model-1-createPayment", operation.getId());
+        assertEquals("createPayment", operation.getName());
+        assertEquals("POST", operation.getMethod());
+        assertEquals("/pay", operation.getPath());
+
+        assertEquals(2, model.getSpecificationSources().size());
+        SpecificationSource fallbackSource = findSource(model, FALLBACK_SOURCE_NAME);
+        SpecificationSource directSource = findSource(model, DIRECT_SOURCE_NAME);
+
+        assertTrue(fallbackSource.isMainSource());
+        assertEquals(FALLBACK_SOURCE_CONTENT, fallbackSource.getSource());
+        assertEquals(fallbackSourceHash, fallbackSource.getSourceHash());
+
+        assertFalse(directSource.isMainSource());
+        assertEquals(DIRECT_SOURCE_CONTENT, directSource.getSource());
+        assertEquals(directSourceHash, directSource.getSourceHash());
     }
 
-    @Test
-    @DisplayName("Should import specification source using explicit fileName field")
-    void shouldImportSpecificationSourceUsingFileName() throws IOException {
-        writeFile(tempDir.resolve("explicit-spec.txt"), "explicit source body");
-        File serviceFile = writeServiceFile(tempDir, legacyServiceYaml(null, "explicit-spec.txt"));
-
-        IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
-
-        SpecificationSource source = system.getSpecificationGroups().getFirst()
-                .getSystemModels().getFirst()
-                .getSpecificationSources().getFirst();
-        assertNotNull(source.getSource());
-        assertEquals("explicit source body", source.getSource());
+    private static VersionsGetterService buildVersionsGetterService() {
+        MigrationFieldStrategy migrationFieldStrategy = new MigrationFieldStrategy();
+        return new VersionsGetterService(List.of(
+                new MigrationFieldInContentStrategy(migrationFieldStrategy),
+                migrationFieldStrategy,
+                new VersionFieldStrategy()));
     }
 
-    private static String legacyServiceYaml(String sourceName, String sourceFileName) {
-        String specificationSourceLine = sourceFileName != null
-                ? "fileName: \"%s\"".formatted(sourceFileName)
-                : "name: \"%s\"".formatted(sourceName);
+    private IntegrationSystem buildSystemGraph() {
+        IntegrationSystem system = IntegrationSystem.builder()
+                .id(SYSTEM_ID)
+                .name("Payment Service")
+                .description("Handles payments")
+                .protocol(OperationProtocol.SOAP)
+                .integrationSystemType(IntegrationSystemType.EXTERNAL)
+                .internalServiceName("payment-internal")
+                .build();
 
-        return """
-            id: "%s"
-            name: "Legacy Service"
-            content:
-              integrationSystemType: EXTERNAL
-              protocol: HTTP
-              specificationGroups:
-                - id: "%s"
-                  name: "API Group"
-                  synchronization: false
-                  systemModels:
-                    - id: "%s"
-                      name: "1.0"
-                      version: "1.0"
-                      source: MANUAL
-                      operations:
-                        - id: "op-1"
-                          method: GET
-                          path: /pets
-                      specificationSources:
-                        - id: "src-1"
-                          %s
-                          mainSource: true
-            fileVersion: 3
-            """.formatted(SYSTEM_ID, GROUP_ID, MODEL_ID, specificationSourceLine);
+        SpecificationGroup group = SpecificationGroup.builder()
+                .id(GROUP_ID)
+                .name("Payment API")
+                .description("Payment API group")
+                .url("https://payments.example.com/wsdl")
+                .synchronization(true)
+                .system(system)
+                .build();
+        system.addSpecificationGroup(group);
+
+        SystemModel model = SystemModel.builder()
+                .id(MODEL_ID)
+                .name("1.0.0")
+                .description("First revision")
+                .version("1.0.0")
+                .deprecated(false)
+                .source(SystemModelSource.DISCOVERED)
+                .build();
+        group.addSystemModel(model);
+
+        Operation operation = Operation.builder()
+                .id("model-1-createPayment")
+                .name("createPayment")
+                .description("Create a payment")
+                .method("POST")
+                .path("/pay")
+                .build();
+        operation.setSystemModel(model);
+        model.addProvidedOperation(operation);
+
+        SpecificationSource fallbackSource = SpecificationSource.builder()
+                .id("source-main")
+                .name(FALLBACK_SOURCE_NAME)
+                .isMainSource(true)
+                .source(FALLBACK_SOURCE_CONTENT)
+                .build();
+        fallbackSource.setSystemModel(model);
+        model.addProvidedSpecificationSource(fallbackSource);
+        fallbackSourceHash = fallbackSource.getSourceHash();
+
+        SpecificationSource directSource = SpecificationSource.builder()
+                .id("source-types")
+                .name(DIRECT_SOURCE_NAME)
+                .isMainSource(false)
+                .source(DIRECT_SOURCE_CONTENT)
+                .build();
+        directSource.setSystemModel(model);
+        model.addProvidedSpecificationSource(directSource);
+        directSourceHash = directSource.getSourceHash();
+
+        return system;
     }
 
-    private static File writeServiceFile(Path directory, String yaml) throws IOException {
-        Path servicePath = directory.resolve("service-" + SYSTEM_ID + ".yaml");
-        writeFile(servicePath, yaml);
-        return servicePath.toFile();
+    /**
+     * Writes the exported YAML documents and their source files into {@code archiveDir}, mirroring
+     * the export archive layout. The fallback source lands only under {@code resources/}; the direct
+     * source lands at its recorded path.
+     */
+    private File writeArchive(IntegrationSystem system, Path archiveDir) throws Exception {
+        ExportedIntegrationSystem exportedSystem = (ExportedIntegrationSystem) serializer.serialize(system);
+
+        Path serviceFile = archiveDir.resolve(
+                ExportImportUtils.generateMainSystemFileExportName(exportedSystem.getId(), APP_NAME, false));
+        writeYaml(serviceFile, exportedSystem);
+
+        for (ExportedSpecificationGroup exportedGroup : exportedSystem.getSpecificationGroups()) {
+            Path groupFile = archiveDir.resolve(
+                    ExportImportUtils.generateSpecificationGroupFileExportName(exportedGroup.getId(), APP_NAME, false));
+            writeYaml(groupFile, exportedGroup);
+
+            for (ExportedSpecification exportedSpecification : exportedGroup.getSpecifications()) {
+                Path specFile = archiveDir.resolve(ExportImportUtils.generateSpecificationFileExportName(
+                        exportedSpecification.getId(), APP_NAME, false));
+                writeYaml(specFile, exportedSpecification);
+
+                for (ExportedSpecificationSource source : exportedSpecification.getSpecificationSources()) {
+                    Path target = FALLBACK_SOURCE_NAME.equals(fileNameOf(source.getName()))
+                            ? archiveDir.resolve(RESOURCES_FOLDER_PREFIX + source.getName())
+                            : archiveDir.resolve(source.getName());
+                    writeFile(target, source.getSource());
+                }
+            }
+        }
+        return serviceFile.toFile();
     }
 
-    private static void writeFile(Path path, String content) throws IOException {
+    private void writeYaml(Path path, ExportedSystemObject exportedObject) throws Exception {
+        writeFile(path, yamlMapper.writeValueAsString(exportedObject.getObjectNode()));
+    }
+
+    private static void writeFile(Path path, String content) throws Exception {
+        Files.createDirectories(path.getParent());
         Files.writeString(path, content);
+    }
+
+    private static String fileNameOf(String recordedName) {
+        return Path.of(recordedName).getFileName().toString();
+    }
+
+    private static SpecificationSource findSource(SystemModel model, String name) {
+        SpecificationSource source = model.getSpecificationSources().stream()
+                .filter(candidate -> name.equals(candidate.getName()))
+                .findFirst()
+                .orElse(null);
+        assertNotNull(source, "Expected a specification source named " + name);
+        return source;
     }
 }
