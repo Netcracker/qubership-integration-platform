@@ -39,6 +39,7 @@ public class CustomGroovyShellFactory implements GroovyShellFactory {
     public CustomGroovyShellFactory(ExternalLibraryService externalLibraryService) {
         this.externalLibraryService = externalLibraryService;
     }
+
     @Override
     public GroovyShell createGroovyShell(Exchange exchange) {
         log.debug("Requesting groovy shell for {}", isNull(exchange) ? Collections.emptyMap() : exchange.getProperties());

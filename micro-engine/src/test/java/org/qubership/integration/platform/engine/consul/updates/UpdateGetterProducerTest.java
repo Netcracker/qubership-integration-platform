@@ -16,7 +16,6 @@ import org.qubership.integration.platform.engine.consul.updates.parsers.CommonVa
 import org.qubership.integration.platform.engine.consul.updates.parsers.DeploymentUpdateParser;
 import org.qubership.integration.platform.engine.consul.updates.parsers.LibrariesUpdateParser;
 import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
-import org.qubership.integration.platform.engine.model.kafka.systemmodel.CompiledLibraryUpdate;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import java.util.List;

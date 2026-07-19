@@ -9,9 +9,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.consul.updates.parsers.ChainRuntimePropertiesUpdateParser;
 import org.qubership.integration.platform.engine.consul.updates.parsers.CommonVariablesUpdateParser;
 import org.qubership.integration.platform.engine.consul.updates.parsers.DeploymentUpdateParser;
-import org.qubership.integration.platform.engine.consul.updates.parsers.LibrariesUpdateParser;
 import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
-import org.qubership.integration.platform.engine.model.kafka.systemmodel.CompiledLibraryUpdate;
 
 import java.util.*;
 import java.util.function.Supplier;
