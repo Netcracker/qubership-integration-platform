@@ -55,20 +55,6 @@ public class UpdateGetterProducer {
     }
 
     @Produces
-    @Named("librariesUpdateGetter")
-    @ApplicationScoped
-    public UpdateGetterHelper<List<CompiledLibraryUpdate>> librariesUpdateGetter(
-            Supplier<ConsulClient> consulClientSupplier,
-            LibrariesUpdateParser valueParser
-    ) {
-        return new UpdateGetterHelper<>(
-                keyPrefix + keyEngineConfigRoot + keyLibrariesUpdate,
-                consulClientSupplier,
-                valueParser
-        );
-    }
-
-    @Produces
     @Named("chainRuntimePropertiesUpdateGetter")
     @ApplicationScoped
     public UpdateGetterHelper<Map<String, ChainRuntimeProperties>> chainRuntimePropertiesUpdateGetter(

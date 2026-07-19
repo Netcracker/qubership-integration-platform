@@ -44,10 +44,6 @@ public class TasksScheduler {
     CheckpointSessionService checkpointSessionService;
 
     @Inject
-    @Named("librariesUpdateGetter")
-    UpdateGetterHelper<List<CompiledLibraryUpdate>> librariesUpdateGetter;
-
-    @Inject
     @Named("chainRuntimePropertiesUpdateGetter")
     UpdateGetterHelper<Map<String, ChainRuntimeProperties>> chainRuntimePropertiesUpdateGetter;
 

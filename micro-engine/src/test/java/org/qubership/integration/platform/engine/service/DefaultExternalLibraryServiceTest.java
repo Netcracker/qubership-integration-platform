@@ -15,16 +15,16 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
-class ExternalLibraryServiceTest {
+class DefaultExternalLibraryServiceTest {
 
-    private ExternalLibraryService service;
+    private DefaultExternalLibraryService service;
 
     @TempDir
     Path librariesDir;
 
     @BeforeEach
     void setUp() {
-        service = new ExternalLibraryService();
+        service = new DefaultExternalLibraryService();
         service.librariesPath = librariesDir.toString();
     }
 
