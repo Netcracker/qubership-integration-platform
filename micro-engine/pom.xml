@@ -301,6 +301,11 @@
                 <artifactId>groovy-xml</artifactId>
                 <version>${groovy.xml.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.apache.groovy</groupId>
+                <artifactId>groovy-json</artifactId>
+                <version>${groovy.xml.version}</version>
+            </dependency>
 
             <dependency>
                 <groupId>com.netcracker.cloud.quarkus</groupId>
@@ -618,6 +623,10 @@
         <dependency>
             <groupId>org.apache.groovy</groupId>
             <artifactId>groovy-xml</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-json</artifactId>
         </dependency>
 
         <dependency>
