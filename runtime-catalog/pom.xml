@@ -542,7 +542,7 @@
 
     <dependency>
       <groupId>${project.parent.groupId}</groupId>
-      <artifactId>qip-camel-dsl-gen</artifactId>
+      <artifactId>qip-integration-build-pipeline</artifactId>
       <version>${project.parent.version}</version>
     </dependency>
   </dependencies>
