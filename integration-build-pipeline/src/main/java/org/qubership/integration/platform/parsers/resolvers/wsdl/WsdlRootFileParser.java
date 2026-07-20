@@ -33,7 +33,6 @@ public class WsdlRootFileParser {
     private final SAXParserFactory saxParserFactory;
 
     public WsdlRootFileParser(SAXParserFactory saxParserFactory) {
-        saxParserFactory.setNamespaceAware(true);
         this.saxParserFactory = saxParserFactory;
     }
 

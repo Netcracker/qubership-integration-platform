@@ -32,6 +32,9 @@ public class SaxParserFactoryConfiguration {
             throws ParserConfigurationException, SAXNotRecognizedException, SAXNotSupportedException {
         SAXParserFactory factory = SAXParserFactory.newDefaultInstance();
         factory.setValidating(false);
+        // WsdlRootFileParser matches WSDL elements by namespace URI, which SAX reports only in
+        // namespace-aware mode. Keep this enabled.
+        factory.setNamespaceAware(true);
         factory.setXIncludeAware(false);
         factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
         factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
