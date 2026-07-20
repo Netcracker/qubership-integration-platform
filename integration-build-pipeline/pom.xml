@@ -5,8 +5,8 @@
   <artifactId>qip-integration-build-pipeline</artifactId>
   <packaging>jar</packaging>
 
-  <name>QIP Chain YAML to Camel DSL Translation Library</name>
-  <description>Manages QIP chain model to Apache Camel DSL translation.</description>
+  <name>QIP Integration Build Pipeline</name>
+  <description>Reads exported QIP integration chains and services into a domain model and generates Apache Camel DSL.</description>
   <url>https://github.com/Netcracker/qubership-integration-platform</url>
   <scm>
     <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
