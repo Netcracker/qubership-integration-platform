@@ -11,9 +11,11 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 
 @AutoConfiguration
 public class ObjectMapperAutoConfiguration {
+    @Primary
     @Bean("primaryObjectMapper")
     @ConditionalOnMissingBean(name = "primaryObjectMapper")
     public ObjectMapper qipPrimaryObjectMapper() {
