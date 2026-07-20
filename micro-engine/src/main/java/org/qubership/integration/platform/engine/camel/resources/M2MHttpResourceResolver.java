@@ -20,7 +20,7 @@ public class M2MHttpResourceResolver extends DefaultResourceResolvers.HttpResolv
 
     @Override
     public Resource createResource(String location, String remaining) {
-        log.info("Resolving M2M-authenticated resource for location: {}", location); // todo
+        log.debug("Resolving M2M-authenticated resource for location: {}", location);
         return new M2MAuthenticatedResource(location);
     }
 
