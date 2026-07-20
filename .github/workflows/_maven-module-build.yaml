@@ -137,7 +137,6 @@ jobs:
           path: ${{ inputs.module }}/target
 
       - name: Sonar scan (blocks on red Quality Gate)
-        working-directory: ${{ inputs.module }}
         env:
           MODULE_NAME: ${{ inputs.module }}
           # GitHub Packages creds for the github server in .github/maven-settings.xml —
