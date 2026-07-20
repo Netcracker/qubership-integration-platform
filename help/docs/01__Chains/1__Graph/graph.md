@@ -73,7 +73,7 @@ Elements may also be deleted with the "**Delete**" option from the context menu,
 For container-type elements, that have multiple elements in them, system will request to confirm delete process via dialog menu.
 
 ### View Table with Added Elements
-To see all elements, currently added to the configuration graph, click ![insert-row-right](img/insert-row-right.svg) - open right panel with the elements using in the chain. Clicking the element in the list will immediately show it on the graph. Double-click will open this element in edit mode.
+To see all elements, currently added to the configuration graph, click ![insert-row-right](img/insert-row-right.svg) - opens right panel with tab displaying list of elements used within the chain. Clicking the element in the list will immediately show it on the graph. Double-click will open this element in edit mode.
 
 ### View Table with Exchange Properties
 To open window with a table, that contains all utilized exchange properties in the current chain, click ![insert-row-right](img/insert-row-right.svg) to open right panel and then click ![menu-unfold](img/menu-unfold.svg)tab. Each property in the list will have numeric indicator of elements, where this property is being utilized, type (if available) and labels, which help to identify property origin:
