@@ -2,6 +2,7 @@ package org.qubership.integration.platform.engine.state;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.mutiny.TimeoutException;
 import io.smallrye.mutiny.Uni;
 import io.vertx.ext.consul.KeyValueOptions;
 import io.vertx.mutiny.ext.consul.ConsulClient;
@@ -18,6 +19,7 @@ import org.qubership.integration.platform.engine.model.engine.EngineInfo;
 import org.qubership.integration.platform.engine.model.engine.EngineState;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
+import java.time.Duration;
 import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -87,7 +89,7 @@ class EngineStateServiceTest {
 
     @Test
     void shouldUpdateEngineStateInConsulWithAcquiredSession() throws Exception {
-        stubConsulSession();
+        stubConsulSessionForKvWrite();
         stubEngineInfo();
         when(consulKeyValidator.makeKeyValid("qip-engine-v1-default-localhost")).thenReturn(VALID_ENGINE_KEY);
         when(objectMapper.writeValueAsString(state)).thenReturn(SERIALIZED_STATE);
@@ -109,7 +111,7 @@ class EngineStateServiceTest {
     void shouldBuildDynamicConsulKeyWhenDynamicStateKeysAreEnabled() throws Exception {
         service.dynamicStateKeys = true;
 
-        stubConsulSession();
+        stubConsulSessionForKvWrite();
         stubEngineInfo();
         when(consulKeyValidator.makeKeyValid(anyString())).thenReturn("valid-dynamic-engine-key");
         when(objectMapper.writeValueAsString(state)).thenReturn(SERIALIZED_STATE);
@@ -147,10 +149,29 @@ class EngineStateServiceTest {
     }
 
     @Test
+    void shouldThrowTimeoutExceptionWhenKvWriteStalls() throws Exception {
+        stubConsulSession();
+        stubEngineInfo();
+        when(consulSessionService.getAwaitTimeout()).thenReturn(Duration.ofMillis(100));
+        when(consulKeyValidator.makeKeyValid("qip-engine-v1-default-localhost")).thenReturn(VALID_ENGINE_KEY);
+        when(objectMapper.writeValueAsString(org.mockito.ArgumentMatchers.any(EngineState.class)))
+                .thenReturn(SERIALIZED_STATE);
+        when(consulClientSupplier.get()).thenReturn(consulClient);
+        when(consulClient.putValueWithOptions(
+                eq("qip/engine-config/engines-state/" + VALID_ENGINE_KEY),
+                eq(SERIALIZED_STATE),
+                org.mockito.ArgumentMatchers.any(KeyValueOptions.class)
+        )).thenReturn(Uni.createFrom().nothing());
+
+        EngineState engineState = new EngineState();
+        assertThrows(TimeoutException.class, () -> service.updateState(engineState));
+    }
+
+    @Test
     void shouldPropagateConsulFailureWhenPutValueFails() throws Exception {
         IllegalStateException consulException = new IllegalStateException("Consul write failed");
 
-        stubConsulSession();
+        stubConsulSessionForKvWrite();
         stubEngineInfo();
         when(consulKeyValidator.makeKeyValid("qip-engine-v1-default-localhost")).thenReturn(VALID_ENGINE_KEY);
         when(objectMapper.writeValueAsString(state)).thenReturn(SERIALIZED_STATE);
@@ -168,6 +189,15 @@ class EngineStateServiceTest {
 
     private void stubConsulSession() {
         when(consulSessionService.getOrCreateSession()).thenReturn(SESSION_ID);
+    }
+
+    private void stubConsulKvTimeout() {
+        when(consulSessionService.getAwaitTimeout()).thenReturn(Duration.ofSeconds(51));
+    }
+
+    private void stubConsulSessionForKvWrite() {
+        stubConsulSession();
+        stubConsulKvTimeout();
     }
 
     private void stubEngineInfo() {

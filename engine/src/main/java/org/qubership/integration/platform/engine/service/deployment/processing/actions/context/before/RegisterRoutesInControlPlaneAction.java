@@ -34,7 +34,6 @@ import org.qubership.integration.platform.engine.service.deployment.processing.D
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnBeforeDeploymentContextCreated;
 import org.qubership.integration.platform.engine.util.SimpleHttpUriUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 
 import java.net.MalformedURLException;
@@ -43,7 +42,6 @@ import java.util.List;
 import static java.util.Objects.nonNull;
 
 @Component
-@ConditionalOnBean(ControlPlaneService.class)
 @OnBeforeDeploymentContextCreated
 public class RegisterRoutesInControlPlaneAction implements DeploymentProcessingAction {
     private final VariablesService variablesService;

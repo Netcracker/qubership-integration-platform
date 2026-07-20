@@ -1,6 +1,6 @@
 {
   "name": "@netcracker/qip-ui",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "license": "Apache-2.0",
   "description": "Qubership Integration Platform - UI",
   "module": "./dist-lib/index.es.js",
@@ -48,7 +48,7 @@
     "postpublish": "rimraf dist-lib"
   },
   "dependencies": {
-    "@ant-design/icons": "^6.2.3",
+    "@ant-design/icons": "^6.3.1",
     "@lightenna/react-mermaid-diagram": "^1.0.21",
     "@monaco-editor/react": "^4.7.0",
     "@netcracker/qip-schemas": "^1.0.0",
@@ -58,7 +58,7 @@
     "@rjsf/validator-ajv8": "^6.6.2",
     "@tanstack/react-query": "^5.76.0",
     "@xyflow/react": "^12.4.2",
-    "antd": "^6.4.5",
+    "antd": "^6.5.0",
     "axios": "^1.16.0",
     "axios-rate-limit": "1.4.0",
     "clsx": "^2.1.1",

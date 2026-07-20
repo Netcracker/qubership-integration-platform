@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.service.debugger.metrics;
 
+import com.netcracker.cloud.dbaas.client.opensearch.DbaasOpensearchClient;
 import lombok.extern.slf4j.Slf4j;
 import org.opensearch.client.json.JsonData;
 import org.opensearch.client.opensearch._types.InlineScript;
@@ -28,7 +29,6 @@ import org.opensearch.client.transport.httpclient5.ApacheHttpClient5Options;
 import org.opensearch.client.transport.httpclient5.HttpAsyncResponseConsumerFactory;
 import org.qubership.integration.platform.engine.errorhandling.EngineRuntimeException;
 import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
-import org.qubership.integration.platform.engine.opensearch.OpenSearchClientSupplier;
 import org.qubership.integration.platform.engine.persistence.shared.entity.ChainDataAllocationSize;
 import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -52,16 +52,16 @@ public class SessionsMetricsService {
     private String indexName;
 
     private final MetricsStore metricsStore;
-    private final OpenSearchClientSupplier openSearchClientSupplier;
+    private final DbaasOpensearchClient dbaasOpenSearchClient;
     private final HttpAsyncResponseConsumerFactory consumerFactory;
-    private final CheckpointRepository  checkpointRepository;
+    private final CheckpointRepository checkpointRepository;
 
     public SessionsMetricsService(MetricsStore metricsStore,
-                                  OpenSearchClientSupplier openSearchClientSupplier,
+                                  DbaasOpensearchClient dbaasOpenSearchClient,
                                   CheckpointRepository checkpointRepository
     ) {
         this.metricsStore = metricsStore;
-        this.openSearchClientSupplier = openSearchClientSupplier;
+        this.dbaasOpenSearchClient = dbaasOpenSearchClient;
         this.checkpointRepository = checkpointRepository;
         this.consumerFactory = HttpAsyncResponseConsumerFactory.DEFAULT;
     }
@@ -98,7 +98,7 @@ public class SessionsMetricsService {
                 .build();
 
         SearchRequest searchRequest = new SearchRequest.Builder()
-                .index(openSearchClientSupplier.normalize(indexName.concat("-session-elements")))
+                .index(dbaasOpenSearchClient.normalize(indexName.concat("-session-elements")))
                 .aggregations(Map.of("session_count", aggregation))
                 .size(0)
                 .build();
@@ -107,29 +107,29 @@ public class SessionsMetricsService {
         try {
             ApacheHttpClient5Options.Builder optionsBuilder = ApacheHttpClient5Options.DEFAULT.toBuilder();
             optionsBuilder.setHttpAsyncResponseConsumerFactory(consumerFactory);
-            response = openSearchClientSupplier.getClient().withTransportOptions(optionsBuilder.build()).search(searchRequest, SessionElementElastic.class);
+            response = dbaasOpenSearchClient.getClient().withTransportOptions(optionsBuilder.build()).search(searchRequest, SessionElementElastic.class);
 
             StringTermsAggregate responseSessionCountAgg = ((Aggregate) response.aggregations().get("session_count")).sterms();
             Buckets<StringTermsBucket> buckets = responseSessionCountAgg.buckets();
             Collection<StringTermsBucket> bucketsList = buckets.isArray() ? buckets.array() : buckets.keyed().values();
             List<ChainDataAllocationSize> chainSessionsSizes = new ArrayList<>();
             for (StringTermsBucket bucket : bucketsList) {
-                  String chainId = bucket.key();
+                String chainId = bucket.key();
 
-                  TopHitsAggregate topHitsAgg = bucket.aggregations().get("chain_name").topHits();
-                  List<Hit<JsonData>> hits = topHitsAgg.hits().hits();
-                  String chainName = !hits.isEmpty() ? hits.getFirst().source().to(Map.class).get("chainName").toString() : null;
+                TopHitsAggregate topHitsAgg = bucket.aggregations().get("chain_name").topHits();
+                List<Hit<JsonData>> hits = topHitsAgg.hits().hits();
+                String chainName = !hits.isEmpty() ? hits.getFirst().source().to(Map.class).get("chainName").toString() : null;
 
-                  ScriptedMetricAggregate sizeMetric = bucket.aggregations().get("calculate_all_fields_size_bytes").scriptedMetric();
-                  Long sessionsSize = sizeMetric.value().to(Long.class);
+                ScriptedMetricAggregate sizeMetric = bucket.aggregations().get("calculate_all_fields_size_bytes").scriptedMetric();
+                Long sessionsSize = sizeMetric.value().to(Long.class);
 
-                  ChainDataAllocationSize chainSessionsSize = ChainDataAllocationSize.builder()
-                          .chainId(chainId)
-                          .chainName(chainName)
-                          .allocatedSize(sessionsSize)
-                          .build();
+                ChainDataAllocationSize chainSessionsSize = ChainDataAllocationSize.builder()
+                        .chainId(chainId)
+                        .chainName(chainName)
+                        .allocatedSize(sessionsSize)
+                        .build();
 
-                  chainSessionsSizes.add(chainSessionsSize);
+                chainSessionsSizes.add(chainSessionsSize);
             }
 
             metricsStore.processChainSessionsSize(chainSessionsSizes);

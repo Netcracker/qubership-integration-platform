@@ -32,6 +32,7 @@ import {
   getDataFromElement,
   getEffectiveParentId,
   getElementColor,
+  getElementTypeTitle,
   getFakeNode,
   getIntersectionParent,
   getLeastCommonParent,
@@ -40,11 +41,15 @@ import {
   getParentChain,
   getPossibleGraphIntersection,
   isSwimlanesOnly,
+  isUnsupportedCanvasElementType,
+  isUnsupportedElement,
   mergeWithPinnedPositions,
   nonEmptyContainerExists,
   normalizeHandleId,
   sanitizeEdge,
   sortParentsBeforeChildren,
+  UNSUPPORTED_CANVAS_ELEMENT_TYPES,
+  UNSUPPORTED_ELEMENT_COLOR,
 } from "../../src/misc/chain-graph-utils";
 
 function makeElement(overrides: Partial<Element> = {}): Element {
@@ -108,6 +113,7 @@ describe("getDataFromElement", () => {
       description: "d",
       properties: {},
       mandatoryChecksPassed: false,
+      typeTitle: "script",
     });
   });
 
@@ -125,6 +131,41 @@ describe("getDataFromElement", () => {
     expect(data.inputEnabled).toBe(false);
     expect(data.outputEnabled).toBe(true);
     expect(data.deprecated).toBe(true);
+  });
+
+  test("marks unsupported canvas element types as Unknown", () => {
+    const element = makeElement({ type: "kafka-sender" });
+    const library = makeLibraryElement({
+      name: "kafka-sender",
+      title: "Kafka Sender (deprecated)",
+    });
+    const data = getDataFromElement(element, library);
+
+    expect(data.unsupported).toBe(true);
+    expect(data.typeTitle).toBe("Unknown");
+    expect(data.inputEnabled).toBe(true);
+  });
+
+  test("marks unsupported canvas element types without library element", () => {
+    const data = getDataFromElement(makeElement({ type: "scheduler" }));
+
+    expect(data.unsupported).toBe(true);
+    expect(data.typeTitle).toBe("Unknown");
+  });
+
+  test("getElementTypeTitle returns Unknown for unsupported types", () => {
+    expect(
+      getElementTypeTitle(
+        "kafka-sender",
+        makeLibraryElement({
+          name: "kafka-sender",
+          title: "Kafka Sender (deprecated)",
+        }),
+      ),
+    ).toBe("Unknown");
+    expect(
+      getElementTypeTitle("script", makeLibraryElement({ title: "Script" })),
+    ).toBe("Script");
   });
 });
 
@@ -181,7 +222,7 @@ describe("getElementColor", () => {
     [ElementColorType.TRIGGER, "#a5e1d2"],
     [ElementColorType.CHAIN_CALL, "#cfc3ef"],
     [ElementColorType.COMPOSITE_TRIGGER, "#c9e1a5"],
-    [ElementColorType.UNSUPPORTED, "#b8b8b8"],
+    [ElementColorType.UNSUPPORTED, UNSUPPORTED_ELEMENT_COLOR],
   ])("returns color for %s", (colorType, expected) => {
     expect(getElementColor(makeLibraryElement({ colorType }))).toBe(expected);
   });
@@ -261,6 +302,51 @@ describe("getNodeFromElement", () => {
     );
     expect(node.width).toBe(300);
     expect(node.height).toBe(300);
+  });
+
+  test("uses unsupported color and Unknown type for unsupported canvas elements", () => {
+    const element = makeElement({ type: "chain-call", name: "My Chain Call" });
+    const node = getNodeFromElement(
+      element,
+      makeLibraryElement({
+        name: "chain-call",
+        title: "Chain Call (deprecated)",
+        deprecated: true,
+      }),
+    );
+
+    expect(node.data.unsupported).toBe(true);
+    expect(node.data.typeTitle).toBe("Unknown");
+    expect(node.style?.backgroundColor).toBe(UNSUPPORTED_ELEMENT_COLOR);
+    expect(node.style?.background).toBeUndefined();
+  });
+});
+
+describe("unsupported canvas element types", () => {
+  test.each([...UNSUPPORTED_CANVAS_ELEMENT_TYPES])("includes %s", (type) => {
+    expect(isUnsupportedCanvasElementType(type)).toBe(true);
+  });
+
+  test("excludes supported element types", () => {
+    expect(isUnsupportedCanvasElementType("script")).toBe(false);
+    expect(isUnsupportedCanvasElementType("http-trigger")).toBe(false);
+  });
+
+  test("excludes v2 and quartz-scheduler aliases", () => {
+    expect(isUnsupportedCanvasElementType("quartz-scheduler")).toBe(false);
+    expect(isUnsupportedCanvasElementType("sftp-trigger-2")).toBe(false);
+    expect(isUnsupportedCanvasElementType("chain-call-2")).toBe(false);
+    expect(isUnsupportedCanvasElementType("chain-trigger-2")).toBe(false);
+    expect(isUnsupportedCanvasElementType("kafka-sender-2")).toBe(false);
+  });
+
+  test("isUnsupportedElement returns true for library unsupported flag", () => {
+    expect(
+      isUnsupportedElement(
+        "custom",
+        makeLibraryElement({ unsupported: true }),
+      ),
+    ).toBe(true);
   });
 });
 

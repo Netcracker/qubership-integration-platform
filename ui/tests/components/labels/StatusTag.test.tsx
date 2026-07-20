@@ -5,9 +5,11 @@
 import { describe, it, expect } from "@jest/globals";
 import "@testing-library/jest-dom";
 import { render, screen } from "@testing-library/react";
+import { ConfigProvider } from "antd";
 import { StatusTag } from "../../../src/components/labels/StatusTag.tsx";
 import {
   BulkDeploymentStatus,
+  ImportInstructionStatus,
   ImportEntityStatus,
   SystemImportStatus,
 } from "../../../src/api/apiTypes.ts";
@@ -65,6 +67,30 @@ describe("StatusTag", () => {
     expect(
       container.querySelector(".ant-tooltip-open"),
     ).not.toBeInTheDocument();
+  });
+
+  it("renders NO_ACTION status with neutral token colors", () => {
+    const { container } = render(
+      <ConfigProvider
+        theme={{
+          token: {
+            colorFillQuaternary: "#303030",
+            colorBorderSecondary: "#515151",
+            colorTextSecondary: "#9ca3af",
+          },
+        }}
+      >
+        <StatusTag status={ImportInstructionStatus.NO_ACTION} />
+      </ConfigProvider>,
+    );
+
+    const tag = container.querySelector(".ant-tag");
+    expect(tag).toHaveTextContent("No action");
+    expect(tag).toHaveStyle({
+      backgroundColor: "#303030",
+      borderColor: "#515151",
+      color: "#9ca3af",
+    });
   });
 
   it("renders empty tag when status is undefined", () => {

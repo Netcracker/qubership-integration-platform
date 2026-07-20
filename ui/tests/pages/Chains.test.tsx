@@ -349,12 +349,12 @@ describe("Chains page", () => {
     });
   });
 
-  it("displays folder icon for folders and file icon for chains", async () => {
+  it("displays folder icon for folders and chain icon for chains", async () => {
     mockApi.listFolder.mockResolvedValue([mockFolder, mockChain]);
     render(<Chains />);
     await waitFor(() => {
       expect(screen.getByTestId("icon-folder")).toBeInTheDocument();
-      expect(screen.getByTestId("icon-file")).toBeInTheDocument();
+      expect(screen.getByTestId("icon-chain")).toBeInTheDocument();
     });
   });
 

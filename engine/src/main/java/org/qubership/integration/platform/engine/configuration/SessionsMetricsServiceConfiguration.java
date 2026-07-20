@@ -16,8 +16,7 @@
 
 package org.qubership.integration.platform.engine.configuration;
 
-
-import org.qubership.integration.platform.engine.opensearch.OpenSearchClientSupplier;
+import com.netcracker.cloud.dbaas.client.opensearch.DbaasOpensearchClient;
 import org.qubership.integration.platform.engine.persistence.shared.repository.CheckpointRepository;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsStore;
 import org.qubership.integration.platform.engine.service.debugger.metrics.SessionsMetricsService;
@@ -33,9 +32,9 @@ public class SessionsMetricsServiceConfiguration {
     @Bean
     @ConditionalOnProperty(value = "qip.metrics.enabled", havingValue = "true")
     public SessionsMetricsService getMetricsService(MetricsStore metricsStore,
-                                                    OpenSearchClientSupplier openSearchClientSupplier,
+                                                    DbaasOpensearchClient dbaasOpenSearchClient,
                                                     CheckpointRepository checkpointRepository) {
 
-        return new SessionsMetricsService(metricsStore, openSearchClientSupplier, checkpointRepository);
+        return new SessionsMetricsService(metricsStore, dbaasOpenSearchClient, checkpointRepository);
     }
 }

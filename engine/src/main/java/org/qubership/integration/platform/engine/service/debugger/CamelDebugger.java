@@ -44,10 +44,7 @@ import org.qubership.integration.platform.engine.model.logging.SessionsLoggingLe
 import org.qubership.integration.platform.engine.model.sessionsreporting.EventSourceType;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
 import org.qubership.integration.platform.engine.persistence.shared.entity.SessionInfo;
-import org.qubership.integration.platform.engine.service.CheckpointSessionService;
-import org.qubership.integration.platform.engine.service.ExchangePropertyService;
-import org.qubership.integration.platform.engine.service.ExecutionStatus;
-import org.qubership.integration.platform.engine.service.VariablesService;
+import org.qubership.integration.platform.engine.service.*;
 import org.qubership.integration.platform.engine.service.debugger.kafkareporting.SessionsKafkaReportingService;
 import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
@@ -87,8 +84,8 @@ public class CamelDebugger extends DefaultDebugger {
     private final PayloadExtractor payloadExtractor;
     private final VariablesService variablesService;
     private final CamelDebuggerPropertiesService propertiesService;
-    private final Optional<CamelExchangeContextPropagation> exchangeContextPropagation;
-    private final ExchangePropertyService exchangePropertyService;
+    private final CamelExchangeContextPropagation exchangeContextPropagation;
+    private final BlueGreenStateService blueGreenStateService;
     @Setter
     @Getter
     private String deploymentId;
@@ -105,8 +102,8 @@ public class CamelDebugger extends DefaultDebugger {
             PayloadExtractor payloadExtractor,
             VariablesService variablesService,
             CamelDebuggerPropertiesService propertiesService,
-            Optional<CamelExchangeContextPropagation> exchangeContextPropagation,
-            ExchangePropertyService exchangePropertyService
+            CamelExchangeContextPropagation exchangeContextPropagation,
+            BlueGreenStateService blueGreenStateService
     ) {
         this.serverConfiguration = serverConfiguration;
         this.tracingService = tracingService;
@@ -119,7 +116,7 @@ public class CamelDebugger extends DefaultDebugger {
         this.variablesService = variablesService;
         this.propertiesService = propertiesService;
         this.exchangeContextPropagation = exchangeContextPropagation;
-        this.exchangePropertyService = exchangePropertyService;
+        this.blueGreenStateService = blueGreenStateService;
     }
 
     @Override
@@ -684,27 +681,26 @@ public class CamelDebugger extends DefaultDebugger {
             if (!contextInitMarkers.contains(currentThreadId)) {
                 log.debug("Detected new thread '{}' with empty context",
                         Thread.currentThread().getName());
-                exchangeContextPropagation.ifPresent(bean -> bean.activateContextSnapshot(contextSnapshot));
+                exchangeContextPropagation.activateContextSnapshot(contextSnapshot);
                 contextInitMarkers.add(currentThreadId);
             }
         } else {
             // initial exchange created
-            exchangeContextPropagation.ifPresent(bean -> bean.initRequestContext(exchangeHeaders));
+            exchangeContextPropagation.initRequestContext(exchangeHeaders);
             getContextInitMarkers(exchange).add(currentThreadId);
             log.debug("New exchange created in thread '{}'", Thread.currentThread().getName());
-            exchangeContextPropagation.ifPresent(bean -> {
-                Object authorization = exchangeHeaders.get(HttpHeaders.AUTHORIZATION);
-                bean.removeContextHeaders(exchangeHeaders);
-                if (nonNull(authorization)) {
-                    exchangeHeaders.put(HttpHeaders.AUTHORIZATION, authorization);
-                }
-            });
-            Map<String, Object> snapshot = exchangeContextPropagation.isPresent()
-                    ? exchangeContextPropagation.get().createContextSnapshot()
-                    : Collections.emptyMap();
+
+            Object authorization = exchangeHeaders.get(HttpHeaders.AUTHORIZATION);
+            exchangeContextPropagation.removeContextHeaders(exchangeHeaders);
+            if (nonNull(authorization)) {
+                exchangeHeaders.put(HttpHeaders.AUTHORIZATION, authorization);
+            }
+
+            Map<String, Object> snapshot = exchangeContextPropagation.createContextSnapshot();
             exchange.setProperty(CamelConstants.Properties.REQUEST_CONTEXT_PROPAGATION_SNAPSHOT, snapshot);
 
-            this.exchangePropertyService.initAdditionalExchangeProperties(exchange);
+            String bgStateName = this.blueGreenStateService.getBlueGreenStateValue().getName();
+            exchange.setProperty(SYSTEM_PROPERTY_BLUEGREEN_STATE, bgStateName);
         }
     }
 

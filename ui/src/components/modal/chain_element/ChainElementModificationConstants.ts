@@ -16,8 +16,11 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "integrationSystemId",
       "integrationSpecificationId",
       "integrationOperationId",
+      /* context storage */
       "contextServiceId",
+      "useCorrelationId",
       "contextId",
+      "sessionId",
       /* rabbitmq/kafka trigger */
       "connectionSourceType",
       "addresses",
@@ -549,6 +552,7 @@ export const pathToTabMap: Record<string, string> = {
   "properties.contextServiceId": "Operation",
   "properties.useCorrelationId": "Operation",
   "properties.contextId": "Operation",
+  "properties.sessionId": "Operation",
   "properties.operation": "Operation",
   "properties.ttl": "Operation",
   "properties.key": "Operation",

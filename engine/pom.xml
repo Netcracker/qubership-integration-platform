@@ -22,22 +22,20 @@
     <relativePath>../parent</relativePath>
   </parent>
   <properties>
-    <revision>1.0.0</revision>
+    <revision>1.0.2</revision>
     <changelist>-SNAPSHOT</changelist>
 
     <generated-sources>target/generated-sources/java</generated-sources>
     <generated-resources>target/generated-sources/resources</generated-resources>
-    <java.version>21</java.version>
-    <groovy-apache-bom.version>4.0.30</groovy-apache-bom.version>
+
+    <groovy-apache-bom.version>4.0.30</groovy-apache-bom.version><!-- Cloud Core dependencies -->
+
     <!-- 3rd party dependencies -->
     <camel.version>4.18.2</camel.version>
     <spring-ai.version>1.1.3</spring-ai.version>
     <snappy-java.version>1.1.10.8</snappy-java.version>
     <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
     <atlasmap.version>2.5.2</atlasmap.version>
-    <logback-gelf.version>5.0.1</logback-gelf.version>
-    <commons-text.version>1.11.0</commons-text.version>
-    <kubernetes-client-java.version>19.0.3</kubernetes-client-java.version>
     <protobuf-java.version>3.25.9</protobuf-java.version>
     <amqp-client.version>5.20.0</amqp-client.version>
     <json-filter.version>4.0.1</json-filter.version>
@@ -46,12 +44,17 @@
     <jakarta.ws.rs-api.version>4.0.0</jakarta.ws.rs-api.version>
     <reflections.version>0.10.2</reflections.version>
     <lz4-java.version>1.10.1</lz4-java.version>
-    <jose4j.version>0.9.6</jose4j.version>
     <!-- Plugins -->
   </properties>
   <dependencyManagement>
     <dependencies>
-      <!-- BOMs -->
+      <dependency>
+          <groupId>io.netty</groupId>
+          <artifactId>netty-bom</artifactId>
+          <version>4.1.110.Final</version>
+          <type>pom</type>
+          <scope>import</scope>
+      </dependency>
       <dependency>
         <groupId>io.grpc</groupId>
         <artifactId>grpc-bom</artifactId>
@@ -92,16 +95,6 @@
         <groupId>org.xerial.snappy</groupId>
         <artifactId>snappy-java</artifactId>
         <version>${snappy-java.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>de.siegmar</groupId>
-        <artifactId>logback-gelf</artifactId>
-        <version>${logback-gelf.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.commons</groupId>
-        <artifactId>commons-text</artifactId>
-        <version>${commons-text.version}</version>
       </dependency>
       <dependency>
         <groupId>org.projectlombok</groupId>
@@ -151,11 +144,6 @@
         <version>${atlasmap.version}</version>
       </dependency>
       <dependency>
-        <groupId>io.kubernetes</groupId>
-        <artifactId>client-java</artifactId>
-        <version>${kubernetes-client-java.version}</version>
-      </dependency>
-      <dependency>
         <groupId>com.google.protobuf</groupId>
         <artifactId>protobuf-java</artifactId>
         <version>${protobuf-java.version}</version>
@@ -175,11 +163,6 @@
         <groupId>org.conscrypt</groupId>
         <artifactId>conscrypt-openjdk-uber</artifactId>
         <version>${conscrypt-openjdk-uber.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.springdoc</groupId>
-        <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-        <version>${springdoc.version}</version>
       </dependency>
       <!-- OpenSearch -->
       <dependency>
@@ -213,14 +196,51 @@
         <artifactId>lz4-java</artifactId>
         <version>${lz4-java.version}</version>
       </dependency>
-      <dependency>
-        <groupId>org.bitbucket.b_c</groupId>
-        <artifactId>jose4j</artifactId>
-        <version>${jose4j.version}</version>
-      </dependency>
     </dependencies>
   </dependencyManagement>
   <dependencies>
+    <!--   DBaaS dependencies    -->
+
+    <dependency>
+        <groupId>com.netcracker.cloud</groupId>
+        <artifactId>dbaas-client-postgres-starter</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>com.netcracker.cloud</groupId>
+        <artifactId>dbaas-client-opensearch-starter</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>com.netcracker.cloud</groupId>
+        <artifactId>dbaas-client-postgres-flyway</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>com.netcracker.cloud</groupId>
+        <artifactId>dbaas-client-resttemplate</artifactId>
+    </dependency>
+
+    <dependency>
+        <groupId>com.netcracker.cloud</groupId>
+        <artifactId>consul-config-provider-common</artifactId>
+    </dependency>
+
+    <dependency>
+        <groupId>com.netcracker.cloud</groupId>
+        <artifactId>blue-green-state-monitor-spring</artifactId>
+    </dependency>
+
+    <dependency>
+        <groupId>com.netcracker.cloud.maas.declarative</groupId>
+        <artifactId>maas-declarative-kafka-client-spring</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>com.netcracker.cloud.maas.client</groupId>
+        <artifactId>rabbit-context-propagation</artifactId>
+    </dependency>
+
+    <dependency>
+        <groupId>com.netcracker.cloud</groupId>
+        <artifactId>consul-config-provider-spring-resttemplate</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.springframework.cloud</groupId>
       <artifactId>spring-cloud-starter-consul-config</artifactId>
@@ -252,6 +272,11 @@
     <dependency>
       <groupId>org.springframework</groupId>
       <artifactId>spring-aspects</artifactId>
+    </dependency>
+
+    <dependency>
+        <groupId>com.netcracker.cloud.maas.client</groupId>
+        <artifactId>kafka-blue-green-consumer</artifactId>
     </dependency>
     <dependency>
       <groupId>jakarta.ws.rs</groupId>
@@ -597,6 +622,19 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-dependency-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>list</goal>
+            </goals>
+            <configuration>
+              <outputFile>${project.build.directory}/classes/maven-dependency-list.txt</outputFile>
+              <includeScope>runtime</includeScope>
+              <sort>true</sort>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

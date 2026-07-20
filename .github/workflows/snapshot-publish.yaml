@@ -66,20 +66,21 @@ jobs:
         with:
           java-version: "21"
           distribution: "temurin"
-          server-id: github
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_PASSWORD
+          # GitHub Packages credentials live in .github/maven-settings.xml (passed via -s).
           cache: "maven"
 
       # Pre-install the parent pom so the single-module deploy below resolves it.
       - name: Install qip-monorepo-parent locally
-        run: mvn --batch-mode -f parent/pom.xml install -N -DskipTests
+        env:
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" -f parent/pom.xml install -N -DskipTests
 
       - name: Deploy SNAPSHOT to GitHub Packages
         working-directory: ${{ inputs.module }}
         env:
-          MAVEN_USERNAME: ${{ github.actor }}
-          MAVEN_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
           # Run from the module dir so Maven reads only this module + parent (via
@@ -87,4 +88,4 @@ jobs:
           # (no -Drevision / -Dchangelist=) → publishes the current X.Y.Z-SNAPSHOT.
           # -Pgithub deactivates the activeByDefault `central` profile and targets
           # maven.pkg.github.com; GPG is skipped for GitHub Packages.
-          mvn --batch-mode deploy -Pgithub -Dgpg.skip=true
+          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" deploy -Pgithub -Dgpg.skip=true

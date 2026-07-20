@@ -8,6 +8,8 @@ targets:
 dependencies:
   apm:
     - Netcracker/qubership-ai-packages/agent-packages/english-developer-style
+    - Netcracker/qubership-ai-packages/agent-packages/codex-review
+    - Netcracker/qubership-ai-agent-telemetry/agent-packages/ai-agent-telemetry
 devDependencies:
   apm:
     - Netcracker/qubership-ai-packages/agent-packages/apm-authoring

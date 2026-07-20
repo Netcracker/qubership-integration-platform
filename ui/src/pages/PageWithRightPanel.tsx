@@ -17,6 +17,7 @@ import { useLibraryContext } from "../components/LibraryContext.tsx";
 import {
   getLibraryElement,
   getNodeFromElement,
+  getElementTypeTitle,
 } from "../misc/chain-graph-utils.ts";
 import { api } from "../api/api.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
@@ -56,7 +57,7 @@ function elementMatchesSearch(
 ): boolean {
   const libraryElement = getLibraryElement(element, libraryElements);
   const elementName = element.name || libraryElement.title || element.type;
-  const elementTypeLabel = libraryElement.title || element.type;
+  const elementTypeLabel = getElementTypeTitle(element.type, libraryElement);
   return matchesByFields(searchString, [
     elementName,
     elementTypeLabel,
@@ -78,18 +79,18 @@ export const PageWithRightPanel = ({
   const { libraryElements } = useLibraryContext();
   const notificationService = useNotificationService();
   const navigate = useNavigate();
-  const [elements, setElements] = useState<Element[]>(
-    chainContext?.chain?.elements ?? [],
-  );
+  const [elements, setElements] = useState<Element[]>([]);
 
   const elementTypeValues = useMemo(
     () =>
       [...new Set(elements.map((element) => element.type))].map((type) => ({
         value: type,
-        label:
+        label: getElementTypeTitle(
+          type,
           libraryElements?.find(
             (libraryElement) => libraryElement.name === type,
-          )?.title ?? type,
+          ),
+        ),
       })),
     [elements, libraryElements],
   );
@@ -105,10 +106,9 @@ export const PageWithRightPanel = ({
     direction = "RIGHT";
   }
 
-  useEffect(() => {
-    setElements(chainContext?.chain?.elements ?? []);
-  }, [chainContext?.chain?.elements]);
-
+  // Load the flat element list from GET /elements: this panel renders a flat
+  // list, whereas chain.elements is a nested tree (containers with children).
+  // Re-run on chain.elements too, so a save (which refreshes the chain) re-syncs.
   useEffect(() => {
     const chainId = chainContext?.chain?.id;
     if (!chainId) return;
@@ -128,7 +128,7 @@ export const PageWithRightPanel = ({
     return () => {
       cancelled = true;
     };
-  }, [chainContext?.chain?.id]);
+  }, [chainContext?.chain?.id, chainContext?.chain?.elements]);
 
   const filteredElements = useMemo(() => {
     const filteredByRules = applyEntityFiltersToElements(
@@ -164,12 +164,9 @@ export const PageWithRightPanel = ({
               node={node}
               chainId={chainId}
               elementId={element.id}
-              onSubmit={() => {
-                void api
-                  .getElements(chainId)
-                  .then(setElements)
-                  .catch(() => {});
-              }}
+              // Saving refreshes the chain (see ChainElementModification); the
+              // elements effect above reacts to chain.elements and reloads this
+              // panel's flat list, so no explicit reload is needed here.
               onClose={() => {
                 if (chainId) {
                   void navigate(`/chains/${chainId}/graph`);
@@ -209,7 +206,10 @@ export const PageWithRightPanel = ({
     return filteredElements.map((element: Element) => {
       const libraryElement = getLibraryElement(element, libraryElements);
       const elementName = element.name || libraryElement.title || element.type;
-      const elementTypeLabel = libraryElement.title || element.type;
+      const elementTypeLabel = getElementTypeTitle(
+        element.type,
+        libraryElement,
+      );
       return {
         key: element.id,
         name: elementName,

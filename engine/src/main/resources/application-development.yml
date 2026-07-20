@@ -8,6 +8,7 @@ spring:
     - org.springframework.boot.autoconfigure.jooq.JooqAutoConfiguration
     - org.springframework.boot.actuate.autoconfigure.jdbc.DataSourceHealthContributorAutoConfiguration
     - org.springframework.boot.actuate.autoconfigure.metrics.jdbc.DataSourcePoolMetricsAutoConfiguration
+    - io.opentelemetry.instrumentation.spring.autoconfigure.internal.instrumentation.jdbc.JdbcInstrumentationAutoConfiguration
     - org.apache.camel.component.quartz.springboot.QuartzComponentAutoConfiguration
     - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
   config:
@@ -30,12 +31,21 @@ spring:
         jdbc:
           batch_size: 30
 
+tenant:
+  default:
+    id: 00000000-0000-0000-0000-000000000000
+
+maas:
+  kafka:
+    enabled: false
+
 logging:
   level:
     root: ${ROOT_LOG_LEVEL:WARN}
     org.qubership.integration.platform.engine: DEBUG
 
 qip:
+  standalone: true
   pubsub:
     emulator:
       enabled: true

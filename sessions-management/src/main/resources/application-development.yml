@@ -16,10 +16,7 @@ spring:
           enabled: false
         acl-token: ${CONSUL_ADMIN_TOKEN}
 
-datasource:
-  configuration:
-    enabled: false
-
 qip:
+  standalone: true
   internal-services:
     runtime-catalog: qip-runtime-catalog

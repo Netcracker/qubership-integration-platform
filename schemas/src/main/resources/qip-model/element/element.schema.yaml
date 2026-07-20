@@ -70,6 +70,7 @@ oneOf:
   - $ref: "http://qubership.org/schemas/product/qip/element/http-trigger.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/jms-trigger.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/kafka-trigger-2.schema.yaml"
+  - $ref: "http://qubership.org/schemas/product/qip/element/mcp-trigger.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/pubsub-trigger.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/rabbitmq-trigger-2.schema.yaml"
   - $ref: "http://qubership.org/schemas/product/qip/element/quartz-scheduler.schema.yaml"

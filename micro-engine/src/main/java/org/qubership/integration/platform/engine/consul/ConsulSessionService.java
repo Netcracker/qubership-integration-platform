@@ -1,6 +1,8 @@
 package org.qubership.integration.platform.engine.consul;
 
 import io.quarkus.scheduler.Scheduled;
+import io.smallrye.mutiny.TimeoutException;
+import io.smallrye.mutiny.Uni;
 import io.vertx.ext.consul.SessionBehavior;
 import io.vertx.ext.consul.SessionOptions;
 import io.vertx.mutiny.core.eventbus.EventBus;
@@ -8,7 +10,9 @@ import io.vertx.mutiny.ext.consul.ConsulClient;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.time.Duration;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -24,6 +28,13 @@ public class ConsulSessionService {
     private static final String SESSION_PREFIX = "qip-engine-session-";
     private static final SessionBehavior SESSION_BEHAVIOR = SessionBehavior.DELETE;
     private static final long SESSION_TTL = 60;
+    private static final long CONSUL_AWAIT_BUFFER_MS = 1_000;
+
+    @ConfigProperty(name = "consul.connectTimeout")
+    int consulConnectTimeout;
+
+    @ConfigProperty(name = "consul.timeout")
+    int consulTimeout;
 
     @Inject
     Supplier<ConsulClient> consulClientSupplier;
@@ -41,6 +52,10 @@ public class ConsulSessionService {
         return sessionId;
     }
 
+    public Duration getAwaitTimeout() {
+        return consulAwaitTimeout();
+    }
+
     @Scheduled(
             every = SESSION_RENEW_INTERVAL,
             executeWith = Scheduled.SIMPLE
@@ -52,10 +67,8 @@ public class ConsulSessionService {
     private synchronized void doCreateOrRenewSession() {
         try {
             if (isNull(sessionId)) {
-                if (nonNull(previousSessionId)) {
-                    log.info("Delete old consul session: {}", previousSessionId);
-                    deleteSession(previousSessionId);
-                    previousSessionId = null;
+                if (nonNull(previousSessionId) && !deletePreviousSession()) {
+                    return;
                 }
                 log.debug("Create consul session");
                 sessionId = createSession();
@@ -65,10 +78,38 @@ public class ConsulSessionService {
                 log.debug("Renew consul session");
                 renewSession(sessionId);
             }
-        } catch (Exception e) {
-            log.error("Failed to create/renew consul session", e);
-            previousSessionId = sessionNotFoundError(e) ? null : sessionId;
+        } catch (InvalidConsulSessionException e) {
+            log.warn("Consul session expired, scheduling destroy and creating a new one: {}", sessionId);
+            previousSessionId = sessionId;
             sessionId = null;
+        } catch (ConsulOperationTimeoutException e) {
+            if (nonNull(sessionId)) {
+                log.warn("Consul session renew timed out, will retry with the same session id: {}", sessionId);
+            } else {
+                log.error("Consul session creation timed out. Consul agent might be unreachable.", e);
+            }
+        } catch (Exception e) {
+            if (nonNull(sessionId)) {
+                log.warn("Failed to renew consul session due to unexpected error, will retry with the same session id", e);
+            } else {
+                log.error("Failed to create consul session due to unexpected error", e);
+            }
+        }
+    }
+
+    private boolean deletePreviousSession() {
+        if (isNull(previousSessionId)) {
+            return true;
+        }
+
+        try {
+            log.info("Delete old consul session: {}", previousSessionId);
+            deleteSession(previousSessionId);
+            previousSessionId = null;
+            return true;
+        } catch (Exception e) {
+            log.warn("Failed to delete previous consul session {}, will retry", previousSessionId, e);
+            return false;
         }
     }
 
@@ -77,40 +118,61 @@ public class ConsulSessionService {
     }
 
     private void renewSession(String id) {
-        consulClientSupplier.get().renewSession(id)
-                .onFailure()
-                .transform(failure -> {
+        awaitConsul(consulClientSupplier.get().renewSession(id)
+            .onFailure().invoke(failure -> {
+                if (!sessionNotFoundError(failure)) {
                     log.error("Failed to renew session in consul: {}", failure.getMessage());
-                    return failure;
-                })
-                .await()
-                .indefinitely();
+                }
+            })
+            .onFailure(this::sessionNotFoundError).transform(failure -> new InvalidConsulSessionException(id, failure))
+        );
     }
 
     private String createSession() {
         String name = SESSION_PREFIX + UUID.randomUUID();
         SessionOptions options = new SessionOptions()
-                .setName(name)
-                .setTtl(SESSION_TTL)
-                .setBehavior(SESSION_BEHAVIOR);
-        return consulClientSupplier.get().createSessionWithOptions(options)
-                .onFailure()
-                .transform(failure -> {
-                    log.error("Failed to create session in consul: {}", failure.getMessage());
-                    return failure;
-                })
-                .await()
-                .indefinitely();
+            .setName(name)
+            .setTtl(SESSION_TTL)
+            .setBehavior(SESSION_BEHAVIOR);
+        return awaitConsul(consulClientSupplier.get().createSessionWithOptions(options)
+            .onFailure().invoke(failure -> log.error("Failed to create session in consul: {}", failure.getMessage()))
+        );
     }
 
     private void deleteSession(String id) {
-        consulClientSupplier.get().destroySession(id).onFailure().transform(failure -> {
-            log.error("Failed to delete session from consul: {}", failure.getMessage());
-            return failure;
-        }).await().indefinitely();
+        awaitConsul(consulClientSupplier.get().destroySession(id)
+                .onFailure()
+                .recoverWithUni(failure -> {
+                    if (sessionNotFoundError(failure)) {
+                        log.debug("Consul session already gone: {}", id);
+                        return Uni.createFrom().voidItem();
+                    }
+                    log.error("Failed to delete session from consul: {}", failure.getMessage());
+                    return Uni.createFrom().failure(failure);
+                }));
     }
 
-    private boolean sessionNotFoundError(Exception e) {
-        return e.getMessage().matches("Session id .* not found");
+    private <T> T awaitConsul(Uni<T> uni) {
+        try {
+            return uni.await().atMost(consulAwaitTimeout());
+        } catch (TimeoutException e) {
+            throw new ConsulOperationTimeoutException(
+                "Consul operation exceeded safety threshold of " + consulAwaitTimeout().toMillis() + "ms", e
+            );
+        }
+    }
+
+    private Duration consulAwaitTimeout() {
+        return Duration.ofMillis((long) consulConnectTimeout + consulTimeout + CONSUL_AWAIT_BUFFER_MS);
+    }
+
+    private boolean sessionNotFoundError(Throwable e) {
+        for (Throwable current = e; current != null; current = current.getCause()) {
+            String message = current.getMessage();
+            if (message != null && message.contains("Session id") && message.contains("not found")) {
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -18,6 +18,7 @@ import {
   ImportInstructions,
   UploadInstructionsModal,
   buildTableData,
+  buildUploadResultTableData,
 } from "../../../src/components/admin_tools/ImportInstructions";
 import {
   ImportEntityType,
@@ -222,7 +223,7 @@ describe("ImportInstructions", () => {
 
     expect(await screen.findByText("Chains")).toBeInTheDocument();
     expect(screen.getByText("Chains")).toBeInTheDocument();
-    expect(screen.getByText("Services")).toBeInTheDocument();
+    expect(screen.queryByText("Services")).not.toBeInTheDocument();
     expect(screen.getByText("Common Variables")).toBeInTheDocument();
     expect(mockApi.getImportInstructions).toHaveBeenCalledTimes(1);
   });
@@ -243,6 +244,45 @@ describe("ImportInstructions", () => {
     expect(screen.getByText("Chains")).toBeInTheDocument();
     expect(screen.getByText("Chain One")).toBeInTheDocument();
     expect(screen.getByText("Var One")).toBeInTheDocument();
+  });
+
+  it("should not render entity links when instruction name is missing", async () => {
+    mockApi.getImportInstructions.mockResolvedValueOnce({
+      chains: {
+        ignore: [
+          { id: "existing-chain", name: "Existing Chain" },
+          { id: "missing-chain" },
+        ],
+        override: [],
+        delete: [],
+      },
+      services: {
+        ignore: [
+          { id: "existing-service", name: "Existing Service" },
+          { id: "missing-service" },
+        ],
+        delete: [],
+      },
+      specificationGroups: { delete: [], ignore: [] },
+      specifications: { delete: [], ignore: [] },
+      commonVariables: { ignore: [], delete: [] },
+    });
+
+    render(<ImportInstructions />, { wrapper: ContextProviders });
+
+    const existingLink = await screen.findByRole("link", {
+      name: "Existing Chain",
+    });
+    expect(existingLink).toHaveAttribute("href", "/chains/existing-chain");
+    const existingServiceLink = screen.getByRole("link", {
+      name: "Existing Service",
+    });
+    expect(existingServiceLink).toHaveAttribute(
+      "href",
+      "/services/systems/existing-service/parameters",
+    );
+    expect((await screen.findByText("missing-chain")).closest("a")).toBeNull();
+    expect(screen.getByText("missing-service").closest("a")).toBeNull();
   });
 
   it("fetches export on Export button click", async () => {
@@ -329,14 +369,15 @@ describe("ImportInstructions", () => {
     expect(screen.getByText("Chain One")).toBeInTheDocument();
   });
 
-  it("search with no match still shows group headers", async () => {
+  it("search with no match hides group headers", async () => {
     render(<ImportInstructions />, { wrapper: ContextProviders });
 
     await flushPromises();
     expect(screen.getByText("Chains")).toBeInTheDocument();
     const searchInput = screen.getByPlaceholderText("Search...");
     fireEvent.change(searchInput, { target: { value: "nonexistent-xyz" } });
-    expect(screen.getByText("Chains")).toBeInTheDocument();
+    expect(screen.queryByText("Chains")).not.toBeInTheDocument();
+    expect(screen.queryByText("Common Variables")).not.toBeInTheDocument();
   });
 
   it("renders AddInstructionModal form", () => {
@@ -395,7 +436,7 @@ describe("ImportInstructions", () => {
     expect(uploadButton).toBeDisabled();
   });
 
-  it("UploadInstructionsModal shows result table with Id and Status after upload", async () => {
+  it("UploadInstructionsModal shows result table grouped by entity type after upload", async () => {
     mockUploadImportInstructionsFile.mockImplementation(
       (_fileList, _api, _notification, onSuccess) => {
         onSuccess([
@@ -404,6 +445,13 @@ describe("ImportInstructions", () => {
             name: "UploadedName",
             entityType: ImportEntityType.CHAIN,
             status: ImportInstructionStatus.NO_ACTION,
+            errorMessage: "",
+          },
+          {
+            id: "row-2",
+            name: "UploadedService",
+            entityType: ImportEntityType.SERVICE,
+            status: ImportInstructionStatus.IGNORED,
             errorMessage: "",
           },
         ]);
@@ -423,7 +471,12 @@ describe("ImportInstructions", () => {
     fireEvent.click(uploadButton!);
 
     const dialog = screen.getByRole("dialog");
+    expect(await within(dialog).findByText("Chains")).toBeInTheDocument();
+    expect(await within(dialog).findByText("Services")).toBeInTheDocument();
     expect(await within(dialog).findByText("UploadedName")).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText("UploadedService"),
+    ).toBeInTheDocument();
     expect(
       within(dialog).getAllByRole("columnheader", { name: "Id" }).length,
     ).toBeGreaterThan(0);
@@ -587,6 +640,7 @@ services:
 
     expect(await screen.findByText("Chain Two")).toBeInTheDocument();
     expect(screen.getByText("Chain Two")).toBeInTheDocument();
+    expect(screen.getByText("other-chain").closest("a")).toBeNull();
 
     const cellTriggers = document.querySelectorAll(".inline-edit-value-wrap");
     expect(cellTriggers.length).toBeGreaterThanOrEqual(2);
@@ -608,6 +662,47 @@ services:
         }),
       ),
     );
+  });
+
+  it("should open Overridden By link without entering edit mode", async () => {
+    mockApi.getImportInstructions.mockResolvedValueOnce({
+      chains: {
+        ignore: [],
+        override: [
+          {
+            id: "chain-2",
+            name: "Chain Two",
+            overriddenById: "other-chain",
+            overriddenByName: "Other Chain",
+          },
+        ],
+        delete: [],
+      },
+      services: { ignore: [], delete: [] },
+      specificationGroups: { ignore: [], delete: [] },
+      specifications: { ignore: [], delete: [] },
+      commonVariables: { ignore: [], delete: [] },
+    });
+
+    render(<ImportInstructions />, { wrapper: ContextProviders });
+
+    const overriddenByLink = await screen.findByRole("link", {
+      name: "Other Chain",
+    });
+    expect(overriddenByLink).toHaveAttribute("href", "/chains/other-chain");
+    expect(overriddenByLink).toHaveAttribute("target", "_blank");
+
+    fireEvent.click(overriddenByLink);
+    expect(screen.queryByDisplayValue("other-chain")).not.toBeInTheDocument();
+
+    fireEvent.keyDown(overriddenByLink, { key: "Enter" });
+    expect(screen.queryByDisplayValue("other-chain")).not.toBeInTheDocument();
+
+    const viewer = overriddenByLink.closest(".inline-edit-value-wrap");
+    expect(viewer).toBeTruthy();
+    fireEvent.click(viewer!);
+
+    expect(await screen.findByDisplayValue("other-chain")).toBeInTheDocument();
   });
 
   it("handleDelete: select row, confirm delete modal, deleteImportInstructions called", async () => {
@@ -665,7 +760,7 @@ describe("buildTableData", () => {
     expect(buildTableData(undefined)).toEqual([]);
   });
 
-  it("returns three group rows for empty instructions", () => {
+  it("returns empty array for empty instructions", () => {
     const result = buildTableData({
       chains: { ignore: [], override: [], delete: [] },
       services: { ignore: [], delete: [] },
@@ -674,12 +769,7 @@ describe("buildTableData", () => {
       commonVariables: { ignore: [], delete: [] },
     });
 
-    expect(result).toHaveLength(3);
-    expect(result[0].key).toBe("Chain");
-    expect(result[1].key).toBe("Service");
-    expect(result[2].key).toBe("Common Variable");
-    expect(result[0].isGroup).toBe(true);
-    result.forEach((r) => expect(r.children).toBeUndefined());
+    expect(result).toEqual([]);
   });
 
   it("maps chain-override into Chains group with OVERRIDE action", () => {
@@ -695,10 +785,10 @@ describe("buildTableData", () => {
       commonVariables: { ignore: [], delete: [] },
     });
 
-    const chainGroup = result[0];
-    expect(chainGroup.children).toBeDefined();
-    expect(chainGroup.children).toHaveLength(1);
-    const child = chainGroup.children![0];
+    const chainGroup = result.find((row) => row.key === "Chain");
+    expect(chainGroup).toBeDefined();
+    expect(chainGroup?.children).toHaveLength(1);
+    const child = chainGroup!.children![0];
     expect(child.key).toBe("Chain-OVERRIDE-c1");
     expect(child.action).toBe(ImportInstructionAction.OVERRIDE);
     expect(child.entityType).toBe("Chain");
@@ -721,7 +811,7 @@ describe("buildTableData", () => {
     const child = result[0].children![0];
     expect(child.key).toBe("Chain-IGNORE-c2");
     expect(child.action).toBe(ImportInstructionAction.IGNORE);
-    expect(child.name).toBe("c2");
+    expect(child.name).toBeUndefined();
   });
 
   it("maps service-delete into Services group with DELETE action", () => {
@@ -733,12 +823,13 @@ describe("buildTableData", () => {
       commonVariables: { ignore: [], delete: [] },
     });
 
-    const serviceGroup = result[1];
-    expect(serviceGroup.children).toHaveLength(1);
-    expect(serviceGroup.children![0].action).toBe(
+    const serviceGroup = result.find((row) => row.key === "Service");
+    expect(serviceGroup).toBeDefined();
+    expect(serviceGroup?.children).toHaveLength(1);
+    expect(serviceGroup!.children![0].action).toBe(
       ImportInstructionAction.DELETE,
     );
-    expect(serviceGroup.children![0].key).toBe("Service-DELETE-s1");
+    expect(serviceGroup!.children![0].key).toBe("Service-DELETE-s1");
   });
 
   it("maps commonVariable-ignore into Common Variable group", () => {
@@ -750,11 +841,12 @@ describe("buildTableData", () => {
       commonVariables: { ignore: [{ id: "v1" }], delete: [] },
     });
 
-    const varGroup = result[2];
-    expect(varGroup.children).toHaveLength(1);
-    expect(varGroup.children![0].action).toBe(ImportInstructionAction.IGNORE);
-    expect(varGroup.children![0].entityType).toBe("Common Variable");
-    expect(varGroup.children![0].key).toBe("Common Variable-IGNORE-v1");
+    const varGroup = result.find((row) => row.key === "Common Variable");
+    expect(varGroup).toBeDefined();
+    expect(varGroup?.children).toHaveLength(1);
+    expect(varGroup!.children![0].action).toBe(ImportInstructionAction.IGNORE);
+    expect(varGroup!.children![0].entityType).toBe("Common Variable");
+    expect(varGroup!.children![0].key).toBe("Common Variable-IGNORE-v1");
   });
 
   it("maps chain-delete into Chains group with DELETE action", () => {
@@ -770,11 +862,14 @@ describe("buildTableData", () => {
       commonVariables: { ignore: [], delete: [] },
     });
 
-    const chainGroup = result[0];
-    expect(chainGroup.children).toHaveLength(1);
-    expect(chainGroup.children![0].key).toBe("Chain-DELETE-c1");
-    expect(chainGroup.children![0].action).toBe(ImportInstructionAction.DELETE);
-    expect(chainGroup.children![0].entityType).toBe("Chain");
+    const chainGroup = result.find((row) => row.key === "Chain");
+    expect(chainGroup).toBeDefined();
+    expect(chainGroup?.children).toHaveLength(1);
+    expect(chainGroup!.children![0].key).toBe("Chain-DELETE-c1");
+    expect(chainGroup!.children![0].action).toBe(
+      ImportInstructionAction.DELETE,
+    );
+    expect(chainGroup!.children![0].entityType).toBe("Chain");
   });
 
   it("maps service-ignore into Services group with IGNORE action", () => {
@@ -786,13 +881,14 @@ describe("buildTableData", () => {
       commonVariables: { ignore: [], delete: [] },
     });
 
-    const serviceGroup = result[1];
-    expect(serviceGroup.children).toHaveLength(1);
-    expect(serviceGroup.children![0].key).toBe("Service-IGNORE-s1");
-    expect(serviceGroup.children![0].action).toBe(
+    const serviceGroup = result.find((row) => row.key === "Service");
+    expect(serviceGroup).toBeDefined();
+    expect(serviceGroup?.children).toHaveLength(1);
+    expect(serviceGroup!.children![0].key).toBe("Service-IGNORE-s1");
+    expect(serviceGroup!.children![0].action).toBe(
       ImportInstructionAction.IGNORE,
     );
-    expect(serviceGroup.children![0].entityType).toBe("Service");
+    expect(serviceGroup!.children![0].entityType).toBe("Service");
   });
 
   it("maps commonVariable-delete into Common Variable group with DELETE action", () => {
@@ -804,10 +900,58 @@ describe("buildTableData", () => {
       commonVariables: { ignore: [], delete: [{ id: "v1", name: "Var Del" }] },
     });
 
-    const varGroup = result[2];
-    expect(varGroup.children).toHaveLength(1);
-    expect(varGroup.children![0].key).toBe("Common Variable-DELETE-v1");
-    expect(varGroup.children![0].action).toBe(ImportInstructionAction.DELETE);
-    expect(varGroup.children![0].entityType).toBe("Common Variable");
+    const varGroup = result.find((row) => row.key === "Common Variable");
+    expect(varGroup).toBeDefined();
+    expect(varGroup?.children).toHaveLength(1);
+    expect(varGroup!.children![0].key).toBe("Common Variable-DELETE-v1");
+    expect(varGroup!.children![0].action).toBe(ImportInstructionAction.DELETE);
+    expect(varGroup!.children![0].entityType).toBe("Common Variable");
+  });
+});
+
+describe("buildUploadResultTableData", () => {
+  it("returns empty array for empty results", () => {
+    expect(buildUploadResultTableData([])).toEqual([]);
+  });
+
+  it("groups upload results by entity type in enum order", () => {
+    const result = buildUploadResultTableData([
+      {
+        id: "service-1",
+        name: "Service Instruction",
+        entityType: ImportEntityType.SERVICE,
+        status: ImportInstructionStatus.IGNORED,
+        errorMessage: "",
+      },
+      {
+        id: "chain-1",
+        name: "Chain Instruction",
+        entityType: ImportEntityType.CHAIN,
+        status: ImportInstructionStatus.NO_ACTION,
+        errorMessage: "",
+      },
+      {
+        id: "variable-1",
+        name: "Variable Instruction",
+        entityType: ImportEntityType.COMMON_VARIABLE,
+        status: ImportInstructionStatus.DELETED,
+        errorMessage: "",
+      },
+    ]);
+
+    expect(result.map((row) => row.name)).toEqual([
+      "Chains",
+      "Services",
+      "Common Variables",
+    ]);
+    expect(result[0].children?.map((row) => row.name)).toEqual([
+      "Chain Instruction",
+    ]);
+    expect(result[1].children?.map((row) => row.name)).toEqual([
+      "Service Instruction",
+    ]);
+    expect(result[2].children?.map((row) => row.name)).toEqual([
+      "Variable Instruction",
+    ]);
   });
 });

@@ -25,6 +25,10 @@
 /* Icon-only home: 1em drives SVG size; same for config.icons.logo overrides */
 .navigation .home-button:global(.ant-btn-icon-only) :global(.anticon) {
   font-size: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
 }
 
 .menu {
@@ -73,6 +77,10 @@
 .menu :global(.ant-menu-item .anticon svg) {
   color: white !important;
   fill: white !important;
+}
+
+.menu :global(.ant-menu-item a) {
+  font-weight: 500;
 }
 
 .menu :global(.ant-menu-item:hover),

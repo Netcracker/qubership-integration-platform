@@ -116,4 +116,23 @@ describe("UnitNode", () => {
     );
     expect(container.firstChild).toBeTruthy();
   });
+
+  it("hides icon and shows Unknown badge for unsupported elements", () => {
+    const { container, queryByTestId } = render(
+      <UnitNode
+        {...makeProps({
+          data: {
+            elementType: "kafka-sender",
+            label: "Kafka Sender",
+            typeTitle: "Unknown",
+            unsupported: true,
+          },
+        })}
+      />,
+    );
+
+    expect(queryByTestId("icon")).toBeNull();
+    expect(container.textContent).toContain("Unknown");
+    expect(container.textContent).toContain("Kafka Sender");
+  });
 });

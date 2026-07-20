@@ -76,37 +76,48 @@ jest.mock("../../../../src/misc/download-utils", () => ({
 jest.mock("../../../../src/components/table/filter/useFilter.tsx", () => ({
   useFilter: () => ({
     filters: mockFilters,
-    filterButton: <button key="filter-btn" data-testid="filter-btn">Filter</button>,
+    filterButton: (
+      <button key="filter-btn" data-testid="filter-btn">
+        Filter
+      </button>
+    ),
   }),
 }));
+
+// Captures the column definitions the component hands to the settings hook so a
+// test can assert their default-visibility flags (the hook + table mocks below
+// ignore `hidden`, so rendering alone can't verify default-hidden columns).
+const mockCapturedColumns: { current: unknown[] } = { current: [] };
 
 jest.mock(
   "../../../../src/components/table/useColumnSettingsButton.tsx",
   () => ({
-    useColumnSettingsBasedOnColumnsType: (
-      _key: string,
-      columns: unknown[],
-    ) => ({
-      orderedColumns: columns,
-      columnSettingsButton: (
-        <button key="column-settings-btn" data-testid="column-settings-btn">Columns</button>
-      ),
-    }),
+    useColumnSettingsBasedOnColumnsType: (_key: string, columns: unknown[]) => {
+      mockCapturedColumns.current = columns;
+      return {
+        orderedColumns: columns,
+        columnSettingsButton: (
+          <button key="column-settings-btn" data-testid="column-settings-btn">
+            Columns
+          </button>
+        ),
+      };
+    },
   }),
 );
 
-jest.mock(
-  "../../../../src/components/table/useTableColumnResize.tsx",
-  () => ({
-    useTableColumnResize: () => ({
-      columnWidths: {},
-      createResizeHandlers: () => ({ onResize: jest.fn(), onResizeStop: jest.fn() }),
-      resizableHeaderComponents: {},
+jest.mock("../../../../src/components/table/useTableColumnResize.tsx", () => ({
+  useTableColumnResize: () => ({
+    columnWidths: {},
+    createResizeHandlers: () => ({
+      onResize: jest.fn(),
+      onResizeStop: jest.fn(),
     }),
-    attachResizeToColumns: (_cols: unknown[]) => _cols,
-    sumScrollXForColumns: () => 1200,
+    resizableHeaderComponents: {},
   }),
-);
+  attachResizeToColumns: (_cols: unknown[]) => _cols,
+  sumScrollXForColumns: () => 1200,
+}));
 
 jest.mock("../../../../src/components/table/actionsColumn.ts", () => ({
   createActionsColumnBase: () => ({
@@ -144,7 +155,7 @@ jest.mock("../../../../src/permissions/ProtectedButton.tsx", () => ({
         data-testid={`action-${String(tooltipProps.title)
           .replace(/\s+/g, "-")
           .toLowerCase()}`}
-        {...(rest)}
+        {...rest}
       />
     );
   },
@@ -229,7 +240,9 @@ jest.mock("../../../../src/components/table/LabelsEdit.tsx", () => ({
 }));
 
 jest.mock("antd", () => {
-  const { antdMockWithLightweightTable } = require("tests/helpers/antdMockWithLightweightTable");
+  const {
+    antdMockWithLightweightTable,
+  } = require("tests/helpers/antdMockWithLightweightTable");
   return antdMockWithLightweightTable({
     message: {
       info: (...args: unknown[]) => mockMessageInfo(...args),
@@ -297,9 +310,7 @@ describe("McpServiceList", () => {
 
   it("should call api.getMcpSystems when mounted with no search or filters", async () => {
     renderPage();
-    await waitFor(() =>
-      expect(mockGetMcpSystems).toHaveBeenCalledWith(true),
-    );
+    await waitFor(() => expect(mockGetMcpSystems).toHaveBeenCalledWith(true));
     expect(mockFilterMcpSystems).not.toHaveBeenCalled();
   });
 
@@ -425,9 +436,32 @@ describe("McpServiceList", () => {
     ]);
     renderPage();
 
+    await waitFor(() => expect(screen.getByText("alice")).toBeInTheDocument());
+  });
+
+  it("should hide the created and modified audit columns by default", async () => {
+    mockGetMcpSystems.mockResolvedValue([makeMcpSystem({})]);
+    renderPage();
+
     await waitFor(() =>
-      expect(screen.getByText("alice")).toBeInTheDocument(),
+      expect(mockCapturedColumns.current.length).toBeGreaterThan(0),
     );
+
+    const columnByKey = (key: string) =>
+      mockCapturedColumns.current.find(
+        (column) => (column as { key?: string }).key === key,
+      ) as { hidden?: boolean } | undefined;
+
+    for (const key of [
+      "createdWhen",
+      "createdBy",
+      "modifiedWhen",
+      "modifiedBy",
+    ]) {
+      expect(columnByKey(key)?.hidden).toBe(true);
+    }
+    // The Name column stays visible by default.
+    expect(columnByKey("name")?.hidden).not.toBe(true);
   });
 
   // --- Delete ---------------------------------------------------------------
@@ -531,9 +565,7 @@ describe("McpServiceList", () => {
     renderPage();
 
     await waitFor(() => expect(mockGetMcpSystems).toHaveBeenCalled());
-    fireEvent.click(
-      screen.getByTestId("action-download-selected-services"),
-    );
+    fireEvent.click(screen.getByTestId("action-download-selected-services"));
 
     expect(messageInfoSpy).toHaveBeenCalledWith("No services selected");
     messageInfoSpy.mockRestore();
@@ -554,9 +586,7 @@ describe("McpServiceList", () => {
     const [headerCheckbox] = screen.getAllByRole("checkbox");
     fireEvent.click(headerCheckbox);
 
-    fireEvent.click(
-      screen.getByTestId("action-download-selected-services"),
-    );
+    fireEvent.click(screen.getByTestId("action-download-selected-services"));
 
     await waitFor(() =>
       expect(mockExportMcpSystems).toHaveBeenCalledWith(
@@ -608,7 +638,9 @@ describe("McpServiceList", () => {
     fireEvent.click(screen.getByTestId("action-create-service"));
 
     const modalArg = mockShowModal.mock.calls[0][0] as {
-      component: React.ReactElement<{ onSubmit: (name: string, desc: string) => Promise<void> }>;
+      component: React.ReactElement<{
+        onSubmit: (name: string, desc: string) => Promise<void>;
+      }>;
     };
     await expect(
       modalArg.component.props.onSubmit("New", "desc"),
@@ -639,9 +671,7 @@ describe("McpServiceList", () => {
     };
     modalArg.component.props.onSuccess();
 
-    await waitFor(() =>
-      expect(mockGetMcpSystems).toHaveBeenCalledTimes(2),
-    );
+    await waitFor(() => expect(mockGetMcpSystems).toHaveBeenCalledTimes(2));
   });
 
   // --- Labels inline edit ---------------------------------------------------

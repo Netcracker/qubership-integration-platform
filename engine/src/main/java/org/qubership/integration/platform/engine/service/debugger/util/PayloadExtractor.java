@@ -36,10 +36,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.MimeType;
 import org.springframework.web.reactive.function.UnsupportedMediaTypeException;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -48,11 +46,14 @@ import java.util.stream.Collectors;
 public class PayloadExtractor {
     private final MaskingService maskingService;
     private final ObjectMapper objectMapper;
-    private final Optional<CamelExchangeContextPropagation> exchangeContextPropagation;
+    private final CamelExchangeContextPropagation exchangeContextPropagation;
 
     @Autowired
-    public PayloadExtractor(MaskingService maskingService, @Qualifier("jsonMapper") ObjectMapper objectMapper,
-        Optional<CamelExchangeContextPropagation> exchangeContextPropagation) {
+    public PayloadExtractor(
+            MaskingService maskingService,
+            @Qualifier("jsonMapper") ObjectMapper objectMapper,
+            CamelExchangeContextPropagation exchangeContextPropagation
+    ) {
         this.maskingService = maskingService;
         this.objectMapper = objectMapper;
         this.exchangeContextPropagation = exchangeContextPropagation;
@@ -117,9 +118,7 @@ public class PayloadExtractor {
 
     public Map<String, String> extractContextForLogging(Set<String> maskedFields, boolean maskingEnabled) {
 
-        Map<String, String> headers = exchangeContextPropagation.isPresent()
-                ? exchangeContextPropagation.get().buildContextSnapshotForSessions()
-                : new HashMap<>();
+        Map<String, String> headers = exchangeContextPropagation.buildContextSnapshotForSessions();
         if (maskingEnabled) {
             maskingService.maskFields(headers, maskedFields);
         }

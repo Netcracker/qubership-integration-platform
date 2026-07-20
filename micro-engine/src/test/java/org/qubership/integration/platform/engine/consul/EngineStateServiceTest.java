@@ -19,6 +19,7 @@ import org.qubership.integration.platform.engine.model.engine.EngineState;
 import org.qubership.integration.platform.engine.state.EngineStateService;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
+import java.time.Duration;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -71,10 +72,8 @@ class EngineStateServiceTest {
     void shouldPutSerializedStateToConsulWhenSessionPresentAndDynamicKeysDisabled() throws Exception {
         EngineState state = new EngineState();
 
-        when(consulSessionService.getOrCreateSession()).thenReturn(SESSION_ID);
-        when(engineInfo.getEngineDeploymentName()).thenReturn("engine-deployment");
-        when(engineInfo.getDomain()).thenReturn("customer-domain");
-        when(engineInfo.getHost()).thenReturn("host.example.com");
+        stubConsulSessionForKvWrite();
+        stubEngineInfo();
         when(objectMapper.writeValueAsString(state)).thenReturn("serialized-state");
         when(consulClient.putValueWithOptions(
                 eq("config/test/qip-engine-configurations/engines-state/engine-deployment-customer-domain-host_example_com"),
@@ -99,10 +98,8 @@ class EngineStateServiceTest {
     void shouldAppendLocalNodeIdToConsulKeyWhenDynamicStateKeysEnabled() throws Exception {
         EngineState state = new EngineState();
 
-        when(consulSessionService.getOrCreateSession()).thenReturn(SESSION_ID);
-        when(engineInfo.getEngineDeploymentName()).thenReturn("engine-deployment");
-        when(engineInfo.getDomain()).thenReturn("customer-domain");
-        when(engineInfo.getHost()).thenReturn("host.example.com");
+        stubConsulSessionForKvWrite();
+        stubEngineInfo();
         when(objectMapper.writeValueAsString(state)).thenReturn("serialized-state");
         when(consulClient.putValueWithOptions(
                 any(),
@@ -149,9 +146,7 @@ class EngineStateServiceTest {
         };
 
         when(consulSessionService.getOrCreateSession()).thenReturn(SESSION_ID);
-        when(engineInfo.getEngineDeploymentName()).thenReturn("engine-deployment");
-        when(engineInfo.getDomain()).thenReturn("customer-domain");
-        when(engineInfo.getHost()).thenReturn("host.example.com");
+        stubEngineInfo();
         when(objectMapper.writeValueAsString(state)).thenThrow(cause);
 
         RuntimeException exception = assertThrows(
@@ -161,5 +156,24 @@ class EngineStateServiceTest {
 
         assertSame(cause, exception.getCause());
         verify(consulClient, never()).putValueWithOptions(any(), any(), any());
+    }
+
+    private void stubConsulSession() {
+        when(consulSessionService.getOrCreateSession()).thenReturn(SESSION_ID);
+    }
+
+    private void stubConsulKvTimeout() {
+        when(consulSessionService.getAwaitTimeout()).thenReturn(Duration.ofSeconds(51));
+    }
+
+    private void stubConsulSessionForKvWrite() {
+        stubConsulSession();
+        stubConsulKvTimeout();
+    }
+
+    private void stubEngineInfo() {
+        when(engineInfo.getEngineDeploymentName()).thenReturn("engine-deployment");
+        when(engineInfo.getDomain()).thenReturn("customer-domain");
+        when(engineInfo.getHost()).thenReturn("host.example.com");
     }
 }

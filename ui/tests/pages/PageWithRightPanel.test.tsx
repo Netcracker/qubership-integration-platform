@@ -193,13 +193,19 @@ jest.mock("../../src/pages/ElkDirectionContext", () => ({
   },
 }));
 
-jest.mock("../../src/misc/chain-graph-utils", () => ({
-  getLibraryElement: (el: { type?: string }) => ({
-    title: el?.type ?? "Element",
-    type: el?.type ?? "script",
-  }),
-  getNodeFromElement: () => ({}),
-}));
+jest.mock("../../src/misc/chain-graph-utils", () => {
+  const actual = jest.requireActual<
+    typeof import("../../src/misc/chain-graph-utils")
+  >("../../src/misc/chain-graph-utils");
+  return {
+    ...actual,
+    getLibraryElement: (el: { type?: string }) => ({
+      title: el?.type ?? "Element",
+      type: el?.type ?? "script",
+    }),
+    getNodeFromElement: () => ({}),
+  };
+});
 
 describe("PageWithRightPanel", () => {
   beforeEach(() => {

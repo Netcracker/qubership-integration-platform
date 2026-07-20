@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import React, {
+  useContext,
   useEffect,
   useLayoutEffect,
   useState,
@@ -7,7 +8,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { Button, Tabs, Flex, Typography } from "antd";
+import { Button, Tabs, Flex, Alert, Typography } from "antd";
 import { useModalContext } from "../../../ModalContextProvider.tsx";
 import styles from "./ChainElementModification.module.css";
 import {
@@ -47,6 +48,7 @@ import {
   getStaleProtocolProperties,
 } from "./ChainElementModificationConstants.ts";
 import { ChainGraphNode } from "../../graph/nodes/ChainGraphNodeTypes.ts";
+import { ChainContext } from "../../../pages/ChainPage.tsx";
 import MappingField from "./field/MappingField.tsx";
 import CustomArrayField from "./field/CustomArrayField.tsx";
 import ScriptField from "./field/ScriptField.tsx";
@@ -89,12 +91,16 @@ import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 import { ModalWithFullscreenToggle } from "../ModalWithFullscreenToggle.tsx";
 import { JsonAsStringField } from "./field/JsonAsStringField.tsx";
 import { MCPServiceField } from "./field/select/MCPServiceField.tsx";
+import {
+  getElementTypeTitle,
+  isUnsupportedCanvasElementType,
+} from "../../../misc/chain-graph-utils.ts";
 
 type ElementModificationProps = {
   node: ChainGraphNode;
   chainId: string;
   elementId: string;
-  onSubmit: (changedElement: Element, node: ChainGraphNode) => void;
+  onSubmit?: (changedElement: Element, node: ChainGraphNode) => void;
   onClose?: () => void;
 };
 
@@ -253,6 +259,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   onSubmit,
   onClose,
 }) => {
+  const chainContext = useContext(ChainContext);
   const { isLoading: libraryElementIsLoading, libraryElement } =
     useLibraryElement(node.data.elementType);
   const [isLoading, setIsLoading] = useState(false);
@@ -281,6 +288,9 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 
   const permissions = usePermissions();
   const canEditChain = hasPermissions(permissions, { chain: ["update"] });
+  const isUnsupported =
+    node.data.unsupported ??
+    isUnsupportedCanvasElementType(node.data.elementType);
 
   const reportMissingRequiredParams = useCallback(
     (key: string, params: string[]) => {
@@ -642,6 +652,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   );
 
   const isSaveDisabled =
+    isUnsupported ||
     hasCriticalErrors(validationErrors) ||
     !!kafkaError ||
     hasMissingRequiredParams;
@@ -656,6 +667,10 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
   }, []);
 
   const handleOk = useCallback(async () => {
+    if (isUnsupported) {
+      return;
+    }
+
     const pendingName = elementNameRef.current?.syncIfEditing?.();
     const nameToUse =
       (pendingName?.trim()?.length ?? 0) > 0
@@ -683,6 +698,10 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
           properties: formData.properties,
         } as Element;
         onSubmit?.(elementWithProperties, node);
+        // Saving marks the chain unsaved on the backend; refresh so the header banner reflects it.
+        chainContext?.refresh?.()?.catch(() => {
+          /* best-effort; refreshChain reports its own errors */
+        });
       }
     } catch (error) {
       notificationService.errorWithDetails(
@@ -703,6 +722,8 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     notificationService,
     updateElement,
     handleClose,
+    isUnsupported,
+    chainContext,
   ]);
 
   const handleCheckUnsavedAndClose = useCallback(() => {
@@ -903,13 +924,14 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
             <ElementNameInlineEdit
               ref={elementNameRef}
               value={(formData.name as string) ?? node.data.label ?? ""}
-              typeLabel={
-                libraryElement?.title ??
-                node.data.typeTitle ??
-                node.data.elementType
-              }
+              typeLabel={getElementTypeTitle(
+                node.data.elementType,
+                libraryElement,
+              )}
               onSave={handleNameSave}
-              disabled={!canEditChain || libraryElementIsLoading}
+              disabled={
+                !canEditChain || libraryElementIsLoading || isUnsupported
+              }
             />
           </div>
           <Flex
@@ -975,6 +997,15 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         tabIndex={-1}
         className={styles["modalFocusRoot"]}
       >
+        {isUnsupported && (
+          <Alert
+            type="error"
+            showIcon
+            message="Unsupported element"
+            description={`Element type is not supported. Changes cannot be saved.`}
+            style={{ marginBottom: 12 }}
+          />
+        )}
         {schema && activeKey && (
           <>
             <Tabs
@@ -993,6 +1024,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
                 className={styles["parameters-form"]}
                 schema={schema}
                 formData={formData}
+                disabled={isUnsupported}
                 validator={validator}
                 uiSchema={uiSchema}
                 transformErrors={transformErrors}

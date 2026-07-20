@@ -9,7 +9,7 @@ import {
   SystemOperation,
 } from "../../../../../api/apiTypes.ts";
 
-import { HttpMethod } from "../../../../services/ui/HttpMethod.tsx";
+import { MethodBadge } from "../../../../services/ui/MethodBadge.tsx";
 import { SelectTag } from "./SelectTag.tsx";
 import { normalizeProtocol } from "../../../../../misc/protocol-utils.ts";
 import { SelectAndNavigateField } from "./SelectAndNavigateField.tsx";
@@ -176,7 +176,7 @@ const SystemOperationField: React.FC<
             <span className={styles.nameCol}>
               <SelectTag value={operation.name} />
             </span>
-            <HttpMethod value={operation.method} width={72} />
+            <MethodBadge value={operation.method} minWidth={72} />
             <span className={styles.path}>
               <OperationPath path={operation.path} />
             </span>
@@ -186,7 +186,7 @@ const SystemOperationField: React.FC<
         selectedLabel: formData === operation.id && (
           <span className={styles.row}>
             <SelectTag value={operation.name} />
-            <HttpMethod value={operation.method} />
+            <MethodBadge value={operation.method} />
             <span className={styles.path}>
               <OperationPath
                 path={operation.path}

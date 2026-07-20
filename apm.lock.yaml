@@ -1,10 +1,21 @@
 lockfile_version: '1'
-generated_at: '2026-06-10T19:31:51.866828+00:00'
-apm_version: 0.19.0
+generated_at: '2026-07-13T16:31:33.372540+00:00'
+apm_version: 0.24.1
 dependencies:
-- repo_url: Netcracker/qubership-ai-packages
+- repo_url: netcracker/qubership-ai-agent-telemetry
+  name: ai-agent-telemetry
   host: github.com
-  resolved_commit: 5317a7b1325eadf5bd1859c6ff92b68b857d40c8
+  resolved_commit: 6ec9a71177fd9dd1a9d0dc134fdccbf255d26a55
+  version: 1.1.0
+  virtual_path: agent-packages/ai-agent-telemetry
+  is_virtual: true
+  package_type: apm_package
+  content_hash: sha256:900bb9fe3c6dee45ea5f0f32bc08d1962a21f0dc1f1dbefd2bf3279b33c93bf0
+- repo_url: netcracker/qubership-ai-packages
+  name: apm-authoring
+  host: github.com
+  resolved_commit: b5c51a1eaa16ac523d94008db6dd5ed5d946ea08
+  version: 1.0.0
   virtual_path: agent-packages/apm-authoring
   is_virtual: true
   package_type: apm_package
@@ -16,39 +27,62 @@ dependencies:
   - .claude/skills/apm-authoring/SKILL.md
   - .cursor/rules/apm-authoring.mdc
   deployed_file_hashes:
-    .agents/skills/apm-authoring/SKILL.md: sha256:b7f059feadabde6c1016cb5151770d2fc14363730cbb353f546d187489ed596a
+    .agents/skills/apm-authoring/SKILL.md: sha256:1832abc93a14884504dc87d97cc0c2825c7e7b4a6786f2daccf1d6ef172bc907
     .claude/rules/apm-authoring.md: sha256:5c4185d3d69333a810c01f5e26a8ea46b033e7082a21f1551433d6c97d8a24a2
-    .claude/skills/apm-authoring/SKILL.md: sha256:b7f059feadabde6c1016cb5151770d2fc14363730cbb353f546d187489ed596a
+    .claude/skills/apm-authoring/SKILL.md: sha256:1832abc93a14884504dc87d97cc0c2825c7e7b4a6786f2daccf1d6ef172bc907
     .cursor/rules/apm-authoring.mdc: sha256:fbc8f94d4f0b94c04a0ed042ee06f1f48244fdac316f0ce15e2d38b0affbb9aa
-  content_hash: sha256:67d86cc0cae0313cfbfa3e6a16d52c0184bc477711a4d2d668236fca5f7c2c47
+  content_hash: sha256:1d731d0a26376eda0b82629e6e1cff1b41dfeae13fe8d7e5debb24a1699ea4a8
   is_dev: true
-- repo_url: Netcracker/qubership-ai-packages
+- repo_url: netcracker/qubership-ai-packages
+  name: codex-review
   host: github.com
-  resolved_commit: 5317a7b1325eadf5bd1859c6ff92b68b857d40c8
-  virtual_path: agent-packages/english-developer-style
-  is_virtual: true
-  package_type: apm_package
-  content_hash: sha256:d06ce3b1506f828c5698dcab55bfbf0dbb8c9f216185e8f5715c872a88afd6e8
-- repo_url: Netcracker/qubership-ai-packages
-  host: github.com
-  resolved_commit: 0453aca8531265db34d1299519dd5c8dbde1f307
-  resolved_ref: 0453aca8531265db34d1299519dd5c8dbde1f307
-  virtual_path: agent-packages/english-us-developer-style
+  resolved_commit: b5c51a1eaa16ac523d94008db6dd5ed5d946ea08
+  version: 1.0.0
+  virtual_path: agent-packages/codex-review
   is_virtual: true
   package_type: apm_package
   deployed_files:
-  - .agents/skills/english-us-developer-style
-  - .agents/skills/english-us-developer-style/SKILL.md
-  - .claude/rules/english-us-developer-style.md
-  - .claude/skills/english-us-developer-style
-  - .claude/skills/english-us-developer-style/SKILL.md
-  - .cursor/rules/english-us-developer-style.mdc
+  - .agents/skills/codex-review
+  - .agents/skills/codex-review/SKILL.md
+  - .claude/skills/codex-review
+  - .claude/skills/codex-review/SKILL.md
   deployed_file_hashes:
-    .agents/skills/english-us-developer-style/SKILL.md: sha256:29ad7156586f8265dab3f7e55b257f2a9b3cb1b78b99180d7f7b362f5e11b74c
-    .claude/rules/english-us-developer-style.md: sha256:50cb5c3eb0809ebdfa3fb5a95b6234c95b47905ce82c05e2be2334cee5b16f14
-    .claude/skills/english-us-developer-style/SKILL.md: sha256:29ad7156586f8265dab3f7e55b257f2a9b3cb1b78b99180d7f7b362f5e11b74c
-    .cursor/rules/english-us-developer-style.mdc: sha256:dbc642bc4c4de0abc3a3f0cc2a623713c8967936ab1ad49ba42829c83214b10b
-  content_hash: sha256:81ed9935f43fbcf4aab9a7a3d41f5cd273cb293b7e7d2136bdace53add6ad0a0
+    .agents/skills/codex-review/SKILL.md: sha256:2119ddab29ecb75cc470068fc7464419e386f57127e1cdf3bb5e9bbb48609960
+    .claude/skills/codex-review/SKILL.md: sha256:2119ddab29ecb75cc470068fc7464419e386f57127e1cdf3bb5e9bbb48609960
+  content_hash: sha256:2e2ea3193e6bb5e8647f60a6d7777b98a2722ef9146f023d6fda0764bd79d7e5
+- repo_url: netcracker/qubership-ai-packages
+  name: english-developer-style
+  host: github.com
+  resolved_commit: b5c51a1eaa16ac523d94008db6dd5ed5d946ea08
+  version: 2.0.1
+  virtual_path: agent-packages/english-developer-style
+  is_virtual: true
+  package_type: apm_package
+  content_hash: sha256:c7a28df93a78f7f9beb609e1ea6cfaa59e818d73b6b017e949c71b45806a065f
+- repo_url: netcracker/qubership-ai-packages
+  name: english-us-developer-style
+  host: github.com
+  resolved_commit: cb31b6ce4d9457d2638b40590500a5229c230d99
+  resolved_ref: cb31b6ce4d9457d2638b40590500a5229c230d99
+  version: 2.0.0
+  virtual_path: agent-packages/english-us-developer-style
+  is_virtual: true
+  depth: 2
+  resolved_by: netcracker/qubership-ai-packages
+  package_type: apm_package
+  deployed_files:
+  - .agents/skills/english-developer-style
+  - .agents/skills/english-developer-style/SKILL.md
+  - .claude/rules/english-developer-style.md
+  - .claude/skills/english-developer-style
+  - .claude/skills/english-developer-style/SKILL.md
+  - .cursor/rules/english-developer-style.mdc
+  deployed_file_hashes:
+    .agents/skills/english-developer-style/SKILL.md: sha256:c91fecf2c209428808e1c9ffc0cbe6cd735bd0786e266be533620e8164367da7
+    .claude/rules/english-developer-style.md: sha256:7b837ce6ca63996064b7eb7378a54b484f9905a7102d18ee009ee2e1fb9edf7a
+    .claude/skills/english-developer-style/SKILL.md: sha256:c91fecf2c209428808e1c9ffc0cbe6cd735bd0786e266be533620e8164367da7
+    .cursor/rules/english-developer-style.mdc: sha256:77065463f554e95f32be987d5a51849ded6e621515ea1b8e9dd61530c3046928
+  content_hash: sha256:30311d4be0a1b4111895a3ac1f67183ba0a1a64a99f3ed09724ae4731682c8b9
 local_deployed_files:
 - .agents/skills/ui-api-and-utilities
 - .agents/skills/ui-api-and-utilities/SKILL.md
