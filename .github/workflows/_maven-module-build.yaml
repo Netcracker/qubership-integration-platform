@@ -63,8 +63,8 @@ jobs:
           cache: "maven"
 
       - name: Build and verify (no publish)
-        working-directory: ${{ inputs.module }}
         env:
+          MODULE_NAME: ${{ inputs.module }}
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           FORCE_UPDATE: ${{ inputs.force-update }}
@@ -75,7 +75,12 @@ jobs:
           # com.netcracker.cloud artifacts this token can't read. Publishes nothing.
           UPDATE_FLAG=""
           if [ "$FORCE_UPDATE" = "true" ]; then UPDATE_FLAG="-U"; fi
-          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" verify $UPDATE_FLAG -Dgpg.skip=true
+          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            verify \
+            $UPDATE_FLAG \
+            -pl $MODULE_NAME \
+            -am \
+            -Dgpg.skip=true
 
       - name: Upload Sonar inputs
         if: ${{ inputs.sonar-project-key != '' }}
@@ -134,6 +139,7 @@ jobs:
       - name: Sonar scan (blocks on red Quality Gate)
         working-directory: ${{ inputs.module }}
         env:
+          MODULE_NAME: ${{ inputs.module }}
           # GitHub Packages creds for the github server in .github/maven-settings.xml —
           # needed to resolve micro-engine's private BOM imports while building the model.
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
@@ -145,6 +151,7 @@ jobs:
           SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
         run: |
           mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            -pl $MODULE_NAME -am \
             "org.sonarsource.scanner.maven:sonar-maven-plugin:${SONAR_PLUGIN_VERSION}:sonar" \
             -Dsonar.token="$SONAR_TOKEN" \
             -Dsonar.projectKey="$SONAR_PROJECT_KEY" \

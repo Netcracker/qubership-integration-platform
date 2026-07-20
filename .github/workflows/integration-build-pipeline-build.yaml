@@ -1,10 +1,10 @@
-name: Runtime Catalog Build
+---
+name: Integration Build Pipeline Library Build
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - 'runtime-catalog/**'
       - 'integration-build-pipeline/**'
       - 'parent/**'
       - 'pom.xml'
@@ -18,7 +18,7 @@ jobs:
       packages: write
     uses: ./.github/workflows/_maven-module-build.yaml
     with:
-      module: runtime-catalog
-      sonar-project-key: ${{ vars.SONAR_RUNTIME_CATALOG_PROJECT_KEY }}
+      module: integration-build-pipeline
+      sonar-project-key: ${{ vars.SONAR_INTEGRATION_BUILD_PIPELINE_PROJECT_KEY }}
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
