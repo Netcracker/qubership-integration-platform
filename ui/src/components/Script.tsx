@@ -300,7 +300,7 @@ export const Script: React.FC<ScriptProps> = ({
   return (
     <AutoHeight {...props}>
       <Editor
-        height="300px"
+        height="100%"
         className="qip-editor"
         value={value}
         language={mode}
