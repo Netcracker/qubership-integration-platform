@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.configuration;
+package org.qubership.integration.platform.parsers.configuration;
 
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.xml.sax.SAXNotRecognizedException;
 import org.xml.sax.SAXNotSupportedException;
 
@@ -25,9 +26,18 @@ import javax.xml.XMLConstants;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
 
-@Configuration
+/**
+ * Provides the hardened SAX parser factory that the WSDL parsers use to read specification sources.
+ *
+ * <p>The factory is namespace-aware (WSDL elements are matched by namespace URI) and locked down
+ * against XML external-entity attacks. It is exposed as a library auto-configuration so a consumer
+ * that only pulls in this library still gets working WSDL parsing; an application that already
+ * defines a {@code wsdlVersionSaxParserFactory} bean keeps its own.
+ */
+@AutoConfiguration
 public class SaxParserFactoryConfiguration {
     @Bean("wsdlVersionSaxParserFactory")
+    @ConditionalOnMissingBean(name = "wsdlVersionSaxParserFactory")
     public SAXParserFactory wsdlVersionSaxParserFactory()
             throws ParserConfigurationException, SAXNotRecognizedException, SAXNotSupportedException {
         SAXParserFactory factory = SAXParserFactory.newDefaultInstance();
