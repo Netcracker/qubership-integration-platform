@@ -9,6 +9,7 @@ import org.qubership.integration.platform.camelk.model.ResourceBuilder;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.naming.validation.K8sNameValidator;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.camelk.sources.IntegrationSourceBuilder;
 import org.qubership.integration.platform.camelk.sources.IntegrationSourceBuilderFactory;
 import org.qubership.integration.platform.camelk.sources.SourceBuilderContext;
@@ -58,7 +59,8 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Snapshot> {
             @Qualifier("integrationResourceNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
 
-            K8sNameValidator k8sNameValidator
+            K8sNameValidator k8sNameValidator,
+            IntegrationServiceCatalog serviceCatalog
     ) {
         this.yamlMapper = yamlMapper;
         this.integrationSourceBuilderFactory = integrationSourceBuilderFactory;
@@ -119,6 +121,7 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Snapshot> {
                 .domainName(context.getBuildInfo().getOptions().getName())
                 .buildName(context.getBuildInfo().getName())
                 .buildTimestamp(context.getBuildInfo().getTimestamp())
+                .integrationServiceCatalog(context.getServiceCatalog())
                 .build();
     }
 }

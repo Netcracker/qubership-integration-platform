@@ -25,10 +25,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.camelk.model.routes.ElementRoute;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
-import org.qubership.integration.platform.chain.model.IntegrationService;
 import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.runtime.catalog.adapters.ChainElementAdapter;
-import org.qubership.integration.platform.runtime.catalog.adapters.IntegrationServiceAdapter;
 import org.qubership.integration.platform.runtime.catalog.adapters.SnapshotAdapter;
 import org.qubership.integration.platform.runtime.catalog.configuration.aspect.DeploymentModification;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
@@ -92,7 +90,7 @@ public class DeploymentService {
     private final DeploymentBuilderService deploymentBuilderService;
     private final TransactionHandler transactionHandler;
     private final org.qubership.integration.platform.camelk.services.RoutesGetterService routesGetterService;
-    private final SystemService systemService;
+    private final IntegrationServiceCatalog integrationServiceCatalog;
 
     @Value("${qip.chains.triggers.check.enabled}")
     private boolean triggersCheckEnabled;
@@ -139,7 +137,7 @@ public class DeploymentService {
                              DeploymentBuilderService deploymentBuilderService,
                              TransactionHandler transactionHandler,
                              org.qubership.integration.platform.camelk.services.RoutesGetterService routesGetterService,
-                             SystemService systemService) {
+                             IntegrationServiceCatalog integrationServiceCatalog) {
         this.deploymentRepository = deploymentRepository;
         this.elementRepository = elementRepository;
         this.chainFinderService = chainFinderService;
@@ -148,7 +146,7 @@ public class DeploymentService {
         this.deploymentBuilderService = deploymentBuilderService;
         this.transactionHandler = transactionHandler;
         this.routesGetterService = routesGetterService;
-        this.systemService = systemService;
+        this.integrationServiceCatalog = integrationServiceCatalog;
     }
 
     @Transactional
@@ -345,19 +343,8 @@ public class DeploymentService {
     }
 
     private List<DeploymentRoute> buildDeploymentRoutes(Deployment deployment) {
-        return routesGetterService.getRoutes(new SnapshotAdapter(deployment.getSnapshot()), new IntegrationServiceCatalog() {
-            @Override
-            public Optional<IntegrationService> findById(String id) {
-                return Optional.ofNullable(systemService.findById(id)).map(IntegrationServiceAdapter::new);
-            }
-
-            @Override
-            public Collection<IntegrationService> findAllByIds(Collection<String> ids) {
-                return systemService.findAllByIds(ids).stream()
-                    .<IntegrationService>map(IntegrationServiceAdapter::new)
-                    .toList();
-            }
-        }).stream()
+        return routesGetterService.getRoutes(new SnapshotAdapter(deployment.getSnapshot()), integrationServiceCatalog)
+            .stream()
             .map(route -> DeploymentRoute.builder()
                     .id(route.getId())
                     .path(route.getPath())
