@@ -47,7 +47,7 @@ import java.util.List;
  * consumes to rebuild its JPA entities. This mapper is the boundary between the two: it flattens
  * each DTO's {@code content} block onto the corresponding model node and rebuilds the child lists.
  * Specification-source text is not part of a DTO — it lives in a separate archive file — so
- * {@link ImportSpecificationSource#getSource()} stays empty here and the catalog fills it from disk.
+ * {@link ImportSpecificationSource#getSource()} stays empty here and the reader fills it from disk.
  */
 public final class SystemImportModelMapper {
 

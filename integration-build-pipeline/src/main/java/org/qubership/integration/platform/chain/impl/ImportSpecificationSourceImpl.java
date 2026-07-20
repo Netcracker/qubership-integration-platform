@@ -34,4 +34,5 @@ public class ImportSpecificationSourceImpl implements ImportSpecificationSource 
     private String sourceHash;
     private String fileName;
     private boolean mainSource;
+    private String source;
 }

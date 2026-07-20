@@ -16,108 +16,58 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.NotNull;
+import org.qubership.integration.platform.chain.model.ImportSpecificationGroup;
 import org.qubership.integration.platform.chain.model.ImportSpecificationSource;
+import org.qubership.integration.platform.chain.model.ImportSystem;
 import org.qubership.integration.platform.chain.model.ImportSystemModel;
-import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
-import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupContentDto;
-import org.qubership.integration.platform.io.model.exportimport.system.SpecificationGroupDto;
-import org.qubership.integration.platform.io.model.exportimport.system.SystemModelDto;
-import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
-import org.qubership.integration.platform.io.readers.migrations.ImportFileMigration;
-import org.qubership.integration.platform.io.readers.migrations.MigrationException;
-import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
-import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
-import org.qubership.integration.platform.io.readers.system.SystemImportModelMapper;
+import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SpecificationGroupDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.*;
-
-@Slf4j
+/**
+ * Turns an exported integration-system archive into its persistence graph.
+ *
+ * <p>The library {@link IntegrationSystemReader} reads the whole archive — the system YAML, the
+ * specification groups and system models in their separate files, and each specification source's
+ * text — into the complete {@link ImportSystem} model. This deserializer only maps that model to the
+ * JPA entities through the service mappers and the {@link SystemEntitySeam}; it does not touch the
+ * archive itself.
+ */
 @Component
 public class ServiceDeserializer {
-    private final YAMLMapper yamlMapper;
-    private final VersionsGetterService versionsGetterService;
+    private final IntegrationSystemReader integrationSystemReader;
     private final IntegrationSystemDtoMapper integrationSystemDtoMapper;
     private final SpecificationGroupDtoMapper specificationGroupDtoMapper;
     private final SystemModelDtoMapper systemModelDtoMapper;
-    private final FileMigrationService fileMigrationService;
-    private final Collection<ServiceImportFileMigration> importFileMigrations;
-
-    @Value("${app.prefix}")
-    private String appName;
 
     @Autowired
     public ServiceDeserializer(
-            YAMLMapper yamlExportImportMapper,
-            VersionsGetterService versionsGetterService,
+            IntegrationSystemReader integrationSystemReader,
             IntegrationSystemDtoMapper integrationSystemDtoMapper,
             SpecificationGroupDtoMapper specificationGroupDtoMapper,
-            SystemModelDtoMapper systemModelDtoMapper,
-            FileMigrationService fileMigrationService,
-            Collection<ServiceImportFileMigration> importFileMigrations
+            SystemModelDtoMapper systemModelDtoMapper
     ) {
-        this.yamlMapper = yamlExportImportMapper;
-        this.versionsGetterService = versionsGetterService;
+        this.integrationSystemReader = integrationSystemReader;
         this.integrationSystemDtoMapper = integrationSystemDtoMapper;
         this.specificationGroupDtoMapper = specificationGroupDtoMapper;
         this.systemModelDtoMapper = systemModelDtoMapper;
-        this.fileMigrationService = fileMigrationService;
-        this.importFileMigrations = importFileMigrations;
     }
 
     public IntegrationSystem deserializeSystem(File serviceFile) {
         try {
-            File serviceDirectory = serviceFile.getParentFile();
-            JsonNode serviceNode = yamlMapper.readTree(serviceFile);
-            Collection<Integer> versions = versionsGetterService.getVersions(serviceNode);
-            String serviceData = fileMigrationService.migrate(
-                    Files.readString(serviceFile.toPath()),
-                    importFileMigrations.stream().map(ImportFileMigration.class::cast).toList()
-            );
-            ObjectNode migratedServiceNode = (ObjectNode) yamlMapper.readTree(serviceData);
-            IntegrationSystemDto integrationSystemDto = yamlMapper.treeToValue(migratedServiceNode, IntegrationSystemDto.class);
-            IntegrationSystem integrationSystem = integrationSystemDtoMapper.toInternalEntity(
-                    SystemImportModelMapper.toModel(integrationSystemDto));
-
-            Collection<File> files = listFiles(serviceDirectory);
-
-            if (integrationSystemDto.getContent() != null && !integrationSystemDto.getContent().getSpecificationGroups().isEmpty()) {
-                processLegacyService(integrationSystemDto, integrationSystem, versions, migratedServiceNode, serviceDirectory);
-            } else {
-                Stream.concat(getFilesDataDeprecated(files, SPECIFICATION_GROUP_FILE_PREFIX),
-                                getFilesData(files, SPECIFICATION_GROUP_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
-                        .forEach(node -> buildAndAddSpecificationGroup(node, versions, integrationSystem));
-
-                Stream.concat(getFilesDataDeprecated(files, SPECIFICATION_FILE_PREFIX),
-                                getFilesData(files, SPECIFICATION_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX))
-                        .forEach(node ->
-                                buildAndAddSpecification(node, versions, integrationSystem.getSpecificationGroups(), serviceDirectory));
-            }
-
-            return integrationSystem;
+            ImportSystem importSystem = integrationSystemReader.read(serviceFile);
+            return toPersistenceEntity(importSystem);
         } catch (ServiceImportException e) {
             throw e;
         } catch (Exception e) {
@@ -125,202 +75,21 @@ public class ServiceDeserializer {
         }
     }
 
-    private ObjectNode migrate(ObjectNode node, Collection<Integer> versions) throws MigrationException {
-        node.set("migrations", TextNode.valueOf(versions.stream().sorted().toList().toString()));
-        return fileMigrationService.migrate(
-                node,
-                importFileMigrations.stream().map(ImportFileMigration.class::cast).toList()
-        );
-    }
-
-    private static Collection<File> listFiles(File serviceDirectory) {
-        try (Stream<Path> fs = Files.walk(serviceDirectory.toPath())) {
-            return fs.filter(Files::isRegularFile)
-                    .map(Path::toFile).toList();
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to list service directory", e);
-        }
-    }
-
-    @Deprecated
-    private Stream<ObjectNode> getFilesDataDeprecated(Collection<File> files, String namePrefix) {
-        return files.stream()
-                .filter(file -> file.getName().startsWith(namePrefix))
-                .map(getFileObjectNode());
-    }
-
-    private Stream<ObjectNode> getFilesData(Collection<File> files, String namePostfix) {
-        return files.stream()
-                .filter(file -> file.getName().endsWith(namePostfix))
-                .map(getFileObjectNode());
-    }
-
-    private @NotNull Function<File, ObjectNode> getFileObjectNode() {
-        return file -> {
-            try {
-                JsonNode node = yamlMapper.readTree(file);
-                if (!node.isObject()) {
-                    throw new RuntimeException("Expected object node but got " + node.getNodeType().name());
+    private IntegrationSystem toPersistenceEntity(ImportSystem importSystem) {
+        IntegrationSystem integrationSystem = integrationSystemDtoMapper.toInternalEntity(importSystem);
+        for (ImportSpecificationGroup importGroup : importSystem.getSpecificationGroups()) {
+            SpecificationGroup specificationGroup = specificationGroupDtoMapper.toInternalEntity(importGroup);
+            integrationSystem.addSpecificationGroup(specificationGroup);
+            for (ImportSystemModel importModel : importGroup.getSystemModels()) {
+                SystemModel systemModel = systemModelDtoMapper.toInternalEntity(importModel);
+                specificationGroup.addSystemModel(systemModel);
+                for (ImportSpecificationSource importSource : importModel.getSpecificationSources()) {
+                    SpecificationSource specificationSource =
+                            SystemEntitySeam.toPersistenceSpecificationSource(importSource, importSource.getSource());
+                    systemModel.addProvidedSpecificationSource(specificationSource);
                 }
-                return (ObjectNode) node;
-            } catch (IOException exception) {
-                throw new RuntimeException(exception);
             }
-        };
-    }
-
-    private void processLegacyService(
-            IntegrationSystemDto integrationSystemDto,
-            IntegrationSystem integrationSystem,
-            Collection<Integer> versions,
-            ObjectNode migratedServiceNode,
-            File serviceDirectory
-    ) {
-        if (integrationSystemDto.getContent() == null) {
-            return;
         }
-
-        List<SpecificationGroupDto> specGroups = integrationSystemDto.getContent().getSpecificationGroups();
-        if (specGroups == null || specGroups.isEmpty()) {
-            return;
-        }
-
-        JsonNode specGroupsNode = migratedServiceNode.path(CONTENT).path("specificationGroups");
-        for (SpecificationGroupDto group : specGroups) {
-            processSpecificationGroup(group, integrationSystem, versions, specGroupsNode, serviceDirectory);
-        }
-    }
-
-    private void processSpecificationGroup(
-            SpecificationGroupDto group,
-            IntegrationSystem integrationSystem,
-            Collection<Integer> versions,
-            JsonNode specGroupsNode,
-            File serviceDirectory
-    ) {
-        setGroupParentId(group, integrationSystem);
-
-        JsonNode synchronization = specGroupsNode.path("synchronization");
-        if (!synchronization.isMissingNode() && !synchronization.isNull()) {
-            group.getContent().setSynchronization(synchronization.asBoolean());
-        }
-        buildAndAddSpecificationGroup(yamlMapper.valueToTree(group), versions, integrationSystem);
-
-        JsonNode systemModelsList = specGroupsNode.path("systemModels");
-        if (systemModelsList.isMissingNode() || systemModelsList.isNull()) {
-            return;
-        }
-        processSystemModels(systemModelsList, group, integrationSystem, versions, serviceDirectory);
-    }
-
-    private void setGroupParentId(SpecificationGroupDto group, IntegrationSystem integrationSystem) {
-        if (integrationSystem.getId() != null) {
-            if (group.getContent() == null) {
-                group.setContent(SpecificationGroupContentDto.builder().build());
-            }
-            group.getContent().setParentId(integrationSystem.getId());
-        }
-    }
-
-    private void processSystemModels(
-            JsonNode systemModelsList,
-            SpecificationGroupDto group,
-            IntegrationSystem integrationSystem,
-            Collection<Integer> versions,
-            File serviceDirectory
-    ) {
-        for (JsonNode model : systemModelsList) {
-            if (model.isMissingNode() || model.isNull()) {
-                return;
-            }
-            ensureModelContentParentId(model, group.getId());
-            buildAndAddSpecification(
-                    yamlMapper.valueToTree(model),
-                    versions,
-                    integrationSystem.getSpecificationGroups(),
-                    serviceDirectory
-            );
-        }
-    }
-
-    private void ensureModelContentParentId(JsonNode model, String groupId) {
-        JsonNode contentModel = model.path(CONTENT);
-        if (contentModel.path(CONTENT).isMissingNode() || contentModel.path(CONTENT).isNull()) {
-            ObjectNode contentNode = yamlMapper.createObjectNode();
-            contentNode.put(PARENT_ID, groupId);
-            ((ObjectNode) model).set(CONTENT, contentNode);
-        } else if (contentModel.path(PARENT_ID).isMissingNode() || contentModel.path(PARENT_ID).isNull()) {
-            ((ObjectNode) contentModel).put(PARENT_ID, groupId);
-        }
-    }
-
-    private void buildAndAddSpecificationGroup(
-            ObjectNode node,
-            Collection<Integer> versions,
-            IntegrationSystem integrationSystem
-    ) {
-        try {
-            ObjectNode migratedNode = node.has(CONTENT) ? node : migrate(node, versions);
-            SpecificationGroupDto specificationGroupDto = yamlMapper.treeToValue(migratedNode, SpecificationGroupDto.class);
-            SpecificationGroup specificationGroup = specificationGroupDtoMapper.toInternalEntity(
-                    SystemImportModelMapper.toModel(specificationGroupDto));
-
-            if (Objects.equals(specificationGroupDto.getContent().getParentId(), integrationSystem.getId())) {
-                integrationSystem.addSpecificationGroup(specificationGroup);
-            }
-        } catch (MigrationException exception) {
-            throw new RuntimeException("Failed to migrate specification group data", exception);
-        } catch (JsonProcessingException exception) {
-            throw new RuntimeException("Failed to construct specification group from YAML", exception);
-        }
-    }
-
-    private void buildAndAddSpecification(
-            ObjectNode node,
-            Collection<Integer> versions,
-            Collection<SpecificationGroup> specificationGroups,
-            File resourceDirectory
-    ) {
-        try {
-            ObjectNode migratedNode = node.has(CONTENT) ? node : migrate(node, versions);
-            SystemModelDto systemModelDto = yamlMapper.treeToValue(migratedNode, SystemModelDto.class);
-            ImportSystemModel importSystemModel = SystemImportModelMapper.toModel(systemModelDto);
-            SystemModel systemModel = systemModelDtoMapper.toInternalEntity(importSystemModel);
-            specificationGroups.stream()
-                    .filter(group -> Objects.equals(group.getId(), importSystemModel.getParentId()))
-                    .findFirst()
-                    .ifPresent(group -> group.addSystemModel(systemModel));
-            importSystemModel.getSpecificationSources().forEach(source -> {
-                String sourceContent = readSpecificationSource(source, resourceDirectory);
-                SpecificationSource specificationSource =
-                        SystemEntitySeam.toPersistenceSpecificationSource(source, sourceContent);
-                systemModel.addProvidedSpecificationSource(specificationSource);
-            });
-        } catch (MigrationException exception) {
-            throw new RuntimeException("Failed to migrate specification data", exception);
-        } catch (JsonProcessingException exception) {
-            throw new RuntimeException("Failed to construct specification from YAML", exception);
-        }
-    }
-
-    /**
-     * Reads a specification source's text from the archive directory, or returns {@code null} when
-     * the file is missing. Falls back to the resources subfolder when the recorded file name does
-     * not resolve directly, matching how the sources are laid out on export.
-     */
-    private String readSpecificationSource(ImportSpecificationSource source, File resourceDirectory) {
-        Path sourcePath = resourceDirectory.toPath().resolve(source.getFileName());
-        if (!Files.exists(sourcePath) && !source.getFileName().contains(RESOURCES_FOLDER_PREFIX)) {
-            sourcePath = resourceDirectory.toPath().resolve(RESOURCES_FOLDER_PREFIX + source.getFileName());
-        }
-        if (!Files.exists(sourcePath)) {
-            log.warn("Specification source file not found: {}", source.getFileName());
-            return null;
-        }
-        try {
-            return Files.readString(sourcePath);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to read specification source", e);
-        }
+        return integrationSystem;
     }
 }
