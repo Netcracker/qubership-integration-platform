@@ -8,6 +8,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.springframework.stereotype.Component;
 
 import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.HTTP_TRIGGER_ELEMENT;
+import static org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.XmlBeanConstants.*;
 
 @Component
 public class HttpTriggerBeansBuilder implements ElementBeansBuilder {
@@ -33,21 +34,21 @@ public class HttpTriggerBeansBuilder implements ElementBeansBuilder {
 
         Chain chain = element.getSnapshot().getChain();
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "chainId");
-        streamWriter.writeAttribute("value", chain.getId());
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, "chainId");
+        streamWriter.writeAttribute(ATTR_VALUE, chain.getId());
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "chainName");
-        streamWriter.writeAttribute("value", chain.getName());
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, "chainName");
+        streamWriter.writeAttribute(ATTR_VALUE, chain.getName());
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "elementId");
-        streamWriter.writeAttribute("value", element.getOriginalId());
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, "elementId");
+        streamWriter.writeAttribute(ATTR_VALUE, element.getOriginalId());
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "elementName");
-        streamWriter.writeAttribute("value", element.getName());
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, "elementName");
+        streamWriter.writeAttribute(ATTR_VALUE, element.getName());
 
         streamWriter.writeEndElement();
         streamWriter.writeEndElement();
