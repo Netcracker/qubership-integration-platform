@@ -17,6 +17,7 @@ import org.qubership.integration.platform.camelk.model.BuildInfo;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
@@ -68,6 +69,7 @@ public class MicroDomainService {
     private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
     private final boolean monitoringEnabled;
     private final GenericCustomResources genericCustomResources;
+    private final IntegrationServiceCatalog integrationServiceCatalog;
 
     @Value("${qip.cr.labels.domain}")
     String domainLabel;
@@ -87,6 +89,7 @@ public class MicroDomainService {
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationsConfigurationConfigMapNamingStrategy,
             IntegrationConfigurationSerdes integrationConfigurationSerdes,
             GenericCustomResources genericCustomResources,
+            IntegrationServiceCatalog integrationServiceCatalog,
             @Value("${qip.cr.build.monitoring.enabled:false}") boolean monitoringEnabled
     ) {
         this.kubeOperator = kubeOperator;
@@ -94,6 +97,7 @@ public class MicroDomainService {
         this.integrationsConfigurationConfigMapNamingStrategy = integrationsConfigurationConfigMapNamingStrategy;
         this.integrationConfigurationSerdes = integrationConfigurationSerdes;
         this.genericCustomResources = genericCustomResources;
+        this.integrationServiceCatalog = integrationServiceCatalog;
         this.monitoringEnabled = monitoringEnabled;
     }
 
@@ -261,8 +265,10 @@ public class MicroDomainService {
     }
 
     private ResourceBuildContext<List<Snapshot>> getContextForDomain(String name) {
-        return ResourceBuildContext.create(BuildInfo.builder()
-                .options(ResourceBuildOptions.builder().name(name).build())
-                .build()).updateTo(Collections.emptyList());
+        BuildInfo buildInfo = BuildInfo.builder()
+            .options(ResourceBuildOptions.builder().name(name).build())
+            .build();
+        return ResourceBuildContext.create(buildInfo, integrationServiceCatalog)
+            .updateTo(Collections.emptyList());
     }
 }

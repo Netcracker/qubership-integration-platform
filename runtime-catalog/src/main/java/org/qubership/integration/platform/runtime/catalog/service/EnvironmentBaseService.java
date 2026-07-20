@@ -304,11 +304,11 @@ public class EnvironmentBaseService {
                 }
                 case INTERNAL -> {
                     boolean envsIsEmpty = environments.isEmpty();
-                    if (envsIsEmpty || (environments.get(0).getSourceType() == EnvironmentSourceType.MANUAL && StringUtils.isBlank(environments.get(0).getAddress()))) {
-                        Environment newEnv = candidateEnvironments.get(0);
+                    if (envsIsEmpty || (environments.getFirst().getSourceType() == EnvironmentSourceType.MANUAL && StringUtils.isBlank(environments.getFirst().getAddress()))) {
+                        Environment newEnv = candidateEnvironments.getFirst();
 
                         if (!envsIsEmpty) {
-                            Environment oldEnvironment = environments.get(0);
+                            Environment oldEnvironment = environments.getFirst();
                             system.removeEnvironment(oldEnvironment);
                             environmentRepository.delete(oldEnvironment);
                         }
