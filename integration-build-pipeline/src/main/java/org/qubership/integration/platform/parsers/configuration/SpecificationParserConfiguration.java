@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.configuration;
+package org.qubership.integration.platform.parsers.configuration;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import graphql.parser.ParserOptions;
 import org.qubership.integration.platform.parsers.asyncapi.AsyncApiV3Normalizer;
@@ -41,24 +43,30 @@ import org.qubership.integration.platform.parsers.schemas.impl.ObjectSchemaProce
 import org.qubership.integration.platform.parsers.schemas.impl.StringSchemaProcessor;
 import org.qubership.integration.platform.parsers.schemas.impl.UUIDSchemaProcessor;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+import org.yaml.snakeyaml.LoaderOptions;
 
 import java.util.ArrayList;
 import java.util.List;
 import javax.xml.parsers.SAXParserFactory;
 
 /**
- * Wires the persistence-free specification parsers relocated to the translation library.
+ * Wires the persistence-free specification parsers.
  *
- * <p>The parsers themselves carry no Spring stereotype; the catalog owns the beans they depend on,
- * so it constructs them here and hands them the graphql parser, the parser options, and the shared
- * object mapper.
+ * <p>The parsers carry no Spring stereotype, so this auto-configuration constructs them and hands
+ * each the collaborators it needs: the GraphQL parser and parser options, the JSON and OpenAPI
+ * mappers, and the WSDL SAX factory. It is a library auto-configuration so a consumer of this library
+ * alone gets working parsers; an application that already defines any of these beans keeps its own.
  */
-@Configuration
+@AutoConfiguration
 public class SpecificationParserConfiguration {
 
+    private static final int CODE_POINT_LIMIT_MB = 256;
+
     @Bean
+    @ConditionalOnMissingBean(GraphqlSpecificationParser.class)
     public GraphqlSpecificationParser graphqlSpecificationParser(
             graphql.parser.Parser graphqlParser,
             @Qualifier("graphqlOperationParserOptions") ParserOptions graphqlParserOptions,
@@ -68,6 +76,7 @@ public class SpecificationParserConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(ProtobufSpecificationParser.class)
     public ProtobufSpecificationParser protobufSpecificationParser(
             @Qualifier("primaryObjectMapper") ObjectMapper objectMapper
     ) {
@@ -81,6 +90,7 @@ public class SpecificationParserConfiguration {
      * so they take {@code openApiObjectMapper} rather than the primary mapper.
      */
     @Bean
+    @ConditionalOnMissingBean(SwaggerSpecificationParser.class)
     public SwaggerSpecificationParser librarySwaggerSpecificationParser(
             @Qualifier("openApiObjectMapper") ObjectMapper openApiObjectMapper
     ) {
@@ -103,13 +113,13 @@ public class SpecificationParserConfiguration {
     /**
      * Builds the library AsyncAPI parser with the binding resolvers it dispatches to.
      * {@code OperationParserService} dispatches to this parser by protocol and reconciles the
-     * environments it emits. The normalizer and resolvers carry no Spring stereotype, so the catalog
-     * constructs them here and hands the parser the primary JSON mapper and the shared YAML mapper.
+     * environments it emits. The normalizer and resolvers carry no Spring stereotype, so this
+     * configuration constructs them and hands the parser the primary JSON mapper and a YAML mapper.
      */
     @Bean
+    @ConditionalOnMissingBean(AsyncapiSpecificationParser.class)
     public AsyncapiSpecificationParser libraryAsyncapiSpecificationParser(
-            @Qualifier("primaryObjectMapper") ObjectMapper jsonMapper,
-            YAMLMapper yamlExportImportMapper
+            @Qualifier("primaryObjectMapper") ObjectMapper jsonMapper
     ) {
         AsyncApiSchemaResolver asyncApiSchemaResolver = new AsyncApiSchemaResolver();
         List<AsyncApiSpecificationResolver> resolvers = List.of(
@@ -119,8 +129,23 @@ public class SpecificationParserConfiguration {
         return new AsyncapiSpecificationParser(
                 new AsyncApiV3Normalizer(jsonMapper),
                 jsonMapper,
-                yamlExportImportMapper,
+                createAsyncapiYamlMapper(),
                 resolvers);
+    }
+
+    /**
+     * Builds the YAML mapper the AsyncAPI parser reads specs with. The parser deserializes a spec
+     * into partial POJOs, so the mapper must ignore the many properties those POJOs do not model; the
+     * large code-point limit lets it read big specs. This matches the read behavior the parser relied
+     * on before this configuration moved into the library.
+     */
+    private static YAMLMapper createAsyncapiYamlMapper() {
+        LoaderOptions loaderOptions = new LoaderOptions();
+        loaderOptions.setCodePointLimit(CODE_POINT_LIMIT_MB * 1024 * 1024);
+        YAMLFactory yamlFactory = YAMLFactory.builder().loaderOptions(loaderOptions).build();
+        YAMLMapper yamlMapper = new YAMLMapper(yamlFactory);
+        yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        return yamlMapper;
     }
 
     /**
@@ -128,6 +153,7 @@ public class SpecificationParserConfiguration {
      * WSDL 1.1 or WSDL 2.0 reading path.
      */
     @Bean
+    @ConditionalOnMissingBean(WsdlVersionParser.class)
     public WsdlVersionParser wsdlVersionParser(
             @Qualifier("wsdlVersionSaxParserFactory") SAXParserFactory saxParserFactory
     ) {
@@ -135,10 +161,11 @@ public class SpecificationParserConfiguration {
     }
 
     /**
-     * Identifies the root WSDL among the uploaded files. The catalog import flow depends on this bean
-     * to pick the main source before parsing.
+     * Identifies the root WSDL among the uploaded files. The import flow depends on this bean to pick
+     * the main source before parsing.
      */
     @Bean
+    @ConditionalOnMissingBean(WsdlRootFileParser.class)
     public WsdlRootFileParser wsdlRootFileParser(
             @Qualifier("wsdlVersionSaxParserFactory") SAXParserFactory saxParserFactory
     ) {
@@ -150,6 +177,7 @@ public class SpecificationParserConfiguration {
      * protocol and reconciles the environments it emits.
      */
     @Bean
+    @ConditionalOnMissingBean(WsdlSpecificationParser.class)
     public WsdlSpecificationParser libraryWsdlSpecificationParser(WsdlVersionParser wsdlVersionParser) {
         return new WsdlSpecificationParser(wsdlVersionParser);
     }

@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.swagger.v3.core.util.Json;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -32,5 +33,15 @@ public class ObjectMapperAutoConfiguration {
         objectMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         objectMapper.setFilterProvider(new SimpleFilterProvider().setFailOnUnknownId(false));
         return objectMapper;
+    }
+
+    /**
+     * The swagger-core OpenAPI mapper. The Swagger specification parser serializes schemas with it,
+     * so it must be the swagger-core mapper rather than the primary one.
+     */
+    @Bean("openApiObjectMapper")
+    @ConditionalOnMissingBean(name = "openApiObjectMapper")
+    public ObjectMapper openApiObjectMapper() {
+        return Json.mapper();
     }
 }

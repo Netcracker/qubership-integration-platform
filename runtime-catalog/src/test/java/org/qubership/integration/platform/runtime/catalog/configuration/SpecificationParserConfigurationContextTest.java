@@ -17,11 +17,11 @@
 package org.qubership.integration.platform.runtime.catalog.configuration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import graphql.parser.ParserOptions;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.parsers.Parser;
 import org.qubership.integration.platform.parsers.SpecificationParser;
+import org.qubership.integration.platform.parsers.configuration.SpecificationParserConfiguration;
 import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.operations.OperationRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationGroupRepository;
@@ -58,7 +58,6 @@ class SpecificationParserConfigurationContextTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withBean("primaryObjectMapper", ObjectMapper.class, ObjectMapper::new)
             .withBean("openApiObjectMapper", ObjectMapper.class, ObjectMapper::new)
-            .withBean("yamlExportImportMapper", YAMLMapper.class, YAMLMapper::new)
             .withBean("wsdlVersionSaxParserFactory", SAXParserFactory.class, SAXParserFactory::newInstance)
             .withBean("graphqlOperationParserOptions", ParserOptions.class,
                     ParserOptions::getDefaultOperationParserOptions)
