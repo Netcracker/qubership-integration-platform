@@ -31,6 +31,7 @@ import org.qubership.integration.platform.io.readers.migrations.FileMigrationSer
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.io.readers.migrations.system.V100ServiceImportFileMigration;
 import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
+import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
@@ -38,7 +39,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SpecificationGroupDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -84,16 +84,15 @@ class ServiceDeserializerArchiveLayoutTest {
         when(fileMigrationService.migrate(anyString(), anyCollection())).thenAnswer(invocation -> invocation.getArgument(0));
         when(fileMigrationService.migrate(any(ObjectNode.class), anyCollection())).thenAnswer(invocation -> invocation.getArgument(0));
 
+        IntegrationSystemReader reader = new IntegrationSystemReader(
+                yamlMapper, fileMigrationService, versionsGetterService, migrations);
+
         deserializer = new ServiceDeserializer(
-                yamlMapper,
-                versionsGetterService,
+                reader,
                 new IntegrationSystemDtoMapper(URI.create("http://qubership.org/schemas/product/qip/service"), migrations),
                 new SpecificationGroupDtoMapper(URI.create("http://qubership.org/schemas/product/qip/specification-group")),
-                new SystemModelDtoMapper(URI.create("http://qubership.org/schemas/product/qip/specification")),
-                fileMigrationService,
-                migrations
+                new SystemModelDtoMapper(URI.create("http://qubership.org/schemas/product/qip/specification"))
         );
-        ReflectionTestUtils.setField(deserializer, "appName", "qip");
     }
 
     @Test

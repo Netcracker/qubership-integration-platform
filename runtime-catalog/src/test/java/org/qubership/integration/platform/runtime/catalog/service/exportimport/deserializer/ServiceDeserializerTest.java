@@ -27,6 +27,7 @@ import org.qubership.integration.platform.io.readers.migrations.versions.Version
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldInContentStrategy;
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldStrategy;
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.VersionFieldStrategy;
+import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
 import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
@@ -46,7 +47,6 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ServiceSerializer;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.File;
 import java.net.URI;
@@ -107,11 +107,11 @@ class ServiceDeserializerTest {
         SystemModelDtoMapper modelMapper = new SystemModelDtoMapper(
                 URI.create("http://qubership.org/schemas/product/qip/specification"));
 
+        IntegrationSystemReader reader = new IntegrationSystemReader(
+                yamlMapper, fileMigrationService, versionsGetterService, serviceMigrations);
+
         serializer = new ServiceSerializer(yamlMapper, systemMapper, groupMapper, modelMapper, fileMigrationService);
-        deserializer = new ServiceDeserializer(
-                yamlMapper, versionsGetterService, systemMapper, groupMapper, modelMapper,
-                fileMigrationService, serviceMigrations);
-        ReflectionTestUtils.setField(deserializer, "appName", APP_NAME);
+        deserializer = new ServiceDeserializer(reader, systemMapper, groupMapper, modelMapper);
     }
 
     @Test
@@ -163,6 +163,70 @@ class ServiceDeserializerTest {
         assertFalse(directSource.isMainSource());
         assertEquals(DIRECT_SOURCE_CONTENT, directSource.getSource());
         assertEquals(directSourceHash, directSource.getSourceHash());
+    }
+
+    /**
+     * Locks in the legacy inline layout, where the specification groups live inside the system YAML
+     * rather than in separate files. The reader maps each embedded group and stamps its parent id
+     * with the owning system, but it does not descend into the groups: the embedded system models
+     * and specification sources are not carried into the entity graph. This test is a regression
+     * oracle for that exact behavior, so the refactor that moves the read into the library must
+     * reproduce it unchanged.
+     */
+    @Test
+    void deserializeSystemMapsLegacyInlineGroupsWithoutDescendingIntoModels(@TempDir Path archiveDir) throws Exception {
+        String legacyServiceYaml = """
+                $schema: http://qubership.org/schemas/product/qip/service
+                id: system-legacy
+                name: Legacy Payment Service
+                content:
+                  description: Legacy handles payments
+                  protocol: SOAP
+                  integrationSystemType: EXTERNAL
+                  internalServiceName: legacy-internal
+                  migrations: '[100]'
+                  specificationGroups:
+                    - id: group-legacy
+                      name: Legacy Payment API
+                      content:
+                        description: Legacy Payment API group
+                        url: https://legacy.example.com/wsdl
+                        synchronization: true
+                        systemModels:
+                          - id: model-legacy
+                            name: 1.0.0
+                            content:
+                              version: 1.0.0
+                              description: Legacy revision
+                              source: DISCOVERED
+                              specificationSources:
+                                - id: source-legacy
+                                  name: legacy.wsdl
+                                  mainSource: true
+                                  sourceHash: legacy-hash
+                """;
+        Path serviceFile = archiveDir.resolve("system-legacy.service.qip.yaml");
+        Files.writeString(serviceFile, legacyServiceYaml);
+
+        IntegrationSystem result = deserializer.deserializeSystem(serviceFile.toFile());
+
+        assertEquals("system-legacy", result.getId());
+        assertEquals("Legacy Payment Service", result.getName());
+        assertEquals("Legacy handles payments", result.getDescription());
+        assertEquals(OperationProtocol.SOAP, result.getProtocol());
+        assertEquals(IntegrationSystemType.EXTERNAL, result.getIntegrationSystemType());
+        assertEquals("legacy-internal", result.getInternalServiceName());
+
+        assertEquals(1, result.getSpecificationGroups().size());
+        SpecificationGroup group = result.getSpecificationGroups().get(0);
+        assertEquals("group-legacy", group.getId());
+        assertEquals("Legacy Payment API", group.getName());
+        assertEquals("Legacy Payment API group", group.getDescription());
+        assertEquals("https://legacy.example.com/wsdl", group.getUrl());
+        assertTrue(group.isSynchronization());
+
+        assertTrue(group.getSystemModels().isEmpty(),
+                "Legacy inline models are not carried into the graph");
     }
 
     private static VersionsGetterService buildVersionsGetterService() {

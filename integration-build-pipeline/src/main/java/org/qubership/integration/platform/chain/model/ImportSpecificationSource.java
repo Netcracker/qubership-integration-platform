@@ -25,9 +25,9 @@ import java.sql.Timestamp;
  *
  * <p>Carries exactly the fields the catalog reads to rebuild its {@code SpecificationSource}
  * entity: the identity and description from {@link Entity}, the audit users and timestamps, the
- * source hash, the main-source flag, and the exported file name. The source text itself lives in a
- * separate file in the archive named by {@link #getFileName()}; the catalog reads it from disk and
- * supplies it at the seam, so it is not part of this model.
+ * source hash, the main-source flag, the exported file name, and the source text. The reader loads
+ * the text from the archive file named by {@link #getFileName()} and stores it on {@link #getSource()};
+ * the catalog supplies it at the seam together with the exported {@link #getSourceHash()}.
  */
 public interface ImportSpecificationSource extends Entity {
 
@@ -44,4 +44,6 @@ public interface ImportSpecificationSource extends Entity {
     String getFileName();
 
     boolean isMainSource();
+
+    String getSource();
 }

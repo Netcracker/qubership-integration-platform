@@ -27,6 +27,7 @@ import org.qubership.integration.platform.io.model.exportimport.system.Integrati
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemType;
 import org.qubership.integration.platform.io.model.exportimport.system.OperationProtocol;
 import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
+import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -50,8 +51,10 @@ class IntegrationSystemReaderTest {
         // Migration is exercised by its own tests; here it passes the document through unchanged.
         FileMigrationService fileMigrationService = mock(FileMigrationService.class);
         when(fileMigrationService.migrate(anyString(), any())).thenAnswer(invocation -> invocation.getArgument(0));
+        VersionsGetterService versionsGetterService = mock(VersionsGetterService.class);
 
-        reader = new IntegrationSystemReader(new YAMLMapper(), fileMigrationService, java.util.List.of());
+        reader = new IntegrationSystemReader(
+                new YAMLMapper(), fileMigrationService, versionsGetterService, java.util.List.of());
     }
 
     @DisplayName("read migrates the file, deserializes it, and maps the enum, audit-user, and environment fields")
