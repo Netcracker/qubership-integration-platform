@@ -46,7 +46,7 @@ public class RoutesRegistrator {
 
     @PostConstruct
     public void registerRoutes() {
-        LOG.info("[TEMP] registerRoutes() called, domain={}, publicPrefix={}", engineInfo.getDomain(), publicRoutePrefixV1);
+        LOG.info("registering routes in control-plane for domain={}", engineInfo.getDomain());
         List<RouteEntry> routes = new ArrayList<>();
         routes.addAll(createRouteEntriesForAllGateways(SessionController.SESSIONS_PATH));
         routes.addAll(createRouteEntriesForAllGateways(CheckpointSessionController.CHECKPOINT_SESSION_PATH));
@@ -55,12 +55,10 @@ public class RoutesRegistrator {
                 RouteType.PUBLIC
             )
         );
-        LOG.info("[TEMP] posting {} routes to control-plane: {}", routes.size(), routes);
         try {
             routesRestRegistrationProcessor.postRoutes(routes);
-            LOG.info("[TEMP] routes posted successfully");
         } catch (Exception e) {
-            LOG.error("[TEMP] failed to post routes", e);
+            LOG.error("failed to post routes", e);
             throw e;
         }
     }
