@@ -8,7 +8,7 @@ import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.stereotype.Component;
 
-import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.XmlBeanConstants.*;
+import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.BeanPropertyHelper.writePropertyElement;
 import static org.qubership.integration.platform.util.TriggerUtils.getSdsTriggerJobId;
 
 @Component
@@ -30,21 +30,10 @@ public class SdsTriggerInfoBeanBuilder implements ElementBeansBuilder {
 
         streamWriter.writeStartElement("properties");
 
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "jobId");
-        streamWriter.writeAttribute(ATTR_VALUE, getSdsTriggerJobId(element));
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, PROHIBIT_PARALLEL_RUN_PROP);
-        streamWriter.writeAttribute(ATTR_VALUE, ElementUtils.getPropertyAsString(element, PROHIBIT_PARALLEL_RUN_PROP));
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, PARALLEL_RUN_TIMEOUT_PROP);
-        streamWriter.writeAttribute(ATTR_VALUE, ElementUtils.getPropertyAsString(element, PARALLEL_RUN_TIMEOUT_PROP));
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, CRON_PROP);
-        streamWriter.writeAttribute(ATTR_VALUE, ElementUtils.getPropertyAsString(element, CRON_PROP));
+        writePropertyElement(streamWriter, "jobId", getSdsTriggerJobId(element));
+        writePropertyElement(streamWriter, PROHIBIT_PARALLEL_RUN_PROP, ElementUtils.getPropertyAsString(element, PROHIBIT_PARALLEL_RUN_PROP));
+        writePropertyElement(streamWriter, PARALLEL_RUN_TIMEOUT_PROP, ElementUtils.getPropertyAsString(element, PARALLEL_RUN_TIMEOUT_PROP));
+        writePropertyElement(streamWriter, CRON_PROP, ElementUtils.getPropertyAsString(element, CRON_PROP));
 
         streamWriter.writeEndElement();
         streamWriter.writeEndElement();

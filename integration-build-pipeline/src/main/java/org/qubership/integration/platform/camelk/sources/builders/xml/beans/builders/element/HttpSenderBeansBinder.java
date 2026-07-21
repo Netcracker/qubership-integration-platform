@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
-import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.XmlBeanConstants.*;
+import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.BeanPropertyHelper.writePropertyElement;
 import static org.qubership.integration.platform.library.constants.CamelNames.*;
 import static org.qubership.integration.platform.library.constants.CamelOptions.CONTEXT_PATH;
 import static org.qubership.integration.platform.library.constants.CamelOptions.OPERATION_PATH;
@@ -43,40 +43,20 @@ public class HttpSenderBeansBinder implements ElementBeansBuilder {
         Chain chain = element.getSnapshot().map(Snapshot::getChain)
             .orElseThrow(() -> new RuntimeException("Failed to get chain from snapshot"));
 
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "chainId");
-        streamWriter.writeAttribute(ATTR_VALUE, chain.getId());
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "chainName");
-        streamWriter.writeAttribute(ATTR_VALUE, chain.getName());
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "elementId");
-        streamWriter.writeAttribute(ATTR_VALUE, element.getOriginalId().orElse(element.getId()));
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "elementName");
-        streamWriter.writeAttribute(ATTR_VALUE, element.getName());
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "operationPath");
-        streamWriter.writeAttribute(ATTR_VALUE, Optional.ofNullable(element.getProperties().get(CONTEXT_PATH))
-                .or(() -> Optional.ofNullable(element.getProperties().get(OPERATION_PATH)))
-                        .map(Object::toString)
-                        .orElse("null"));
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "reuseEstablishedConnection");
-        streamWriter.writeAttribute(ATTR_VALUE, Optional.ofNullable(element.getProperties().get(REUSE_ESTABLISHED_CONN))
-                .map(Object::toString)
-                .orElse("true"));
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "protocol");
-        streamWriter.writeAttribute(ATTR_VALUE, Optional.ofNullable(element.getProperties().get(OPERATION_PROTOCOL_TYPE_PROP))
-                .map(Object::toString)
-                .orElse(OPERATION_PROTOCOL_TYPE_HTTP));
+        writePropertyElement(streamWriter, "chainId", chain.getId());
+        writePropertyElement(streamWriter, "chainName", chain.getName());
+        writePropertyElement(streamWriter, "elementId", element.getOriginalId().orElse(element.getId()));
+        writePropertyElement(streamWriter, "elementName", element.getName());
+        writePropertyElement(streamWriter, "operationPath", Optional.ofNullable(element.getProperties().get(CONTEXT_PATH))
+            .or(() -> Optional.ofNullable(element.getProperties().get(OPERATION_PATH)))
+            .map(Object::toString)
+            .orElse("null"));
+        writePropertyElement(streamWriter, "reuseEstablishedConnection", Optional.ofNullable(element.getProperties().get(REUSE_ESTABLISHED_CONN))
+            .map(Object::toString)
+            .orElse("true"));
+        writePropertyElement(streamWriter, "protocol", Optional.ofNullable(element.getProperties().get(OPERATION_PROTOCOL_TYPE_PROP))
+            .map(Object::toString)
+            .orElse(OPERATION_PROTOCOL_TYPE_HTTP));
 
         streamWriter.writeEndElement();
         streamWriter.writeEndElement();
