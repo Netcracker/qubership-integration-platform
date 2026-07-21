@@ -27,6 +27,13 @@ on:
           Enable for modules with private GitHub Packages deps (micro-engine):
           the OWNER/* wildcard repo intermittently fails under load, and Maven
           negative-caches the miss across runs (cache: maven). -U defeats that.
+      preinstall-integration-build-pipeline-library:
+        required: false
+        type: boolean
+        default: false
+        description: >-
+          Install the integration-build-pipeline library into the local .m2
+          before building when execute sonar analysis. Required for consumers (runtime-catalog).
     secrets:
       SONAR_TOKEN:
         required: false
@@ -130,6 +137,13 @@ jobs:
           # its effective POM.
           cache: "maven"
 
+      - name: Pre-install integration-build-library into .m2
+        if: ${{ inputs.preinstall-integration-build-pipeline-library == true }}
+        run: |
+          set -eu
+          mvn --batch-mode -f integration-build-pipeline/pom.xml install \
+            -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
+
       - name: Download Sonar inputs
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
@@ -137,8 +151,8 @@ jobs:
           path: ${{ inputs.module }}/target
 
       - name: Sonar scan (blocks on red Quality Gate)
+        working-directory: ${{ inputs.module }}
         env:
-          MODULE_NAME: ${{ inputs.module }}
           # GitHub Packages creds for the github server in .github/maven-settings.xml —
           # needed to resolve micro-engine's private BOM imports while building the model.
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
@@ -150,7 +164,6 @@ jobs:
           SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
         run: |
           mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
-            -pl .,$MODULE_NAME -am \
             "org.sonarsource.scanner.maven:sonar-maven-plugin:${SONAR_PLUGIN_VERSION}:sonar" \
             -Dsonar.token="$SONAR_TOKEN" \
             -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
