@@ -9,7 +9,7 @@ import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.stereotype.Component;
 
-import static org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.XmlBeanConstants.*;
+import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.XmlBeanConstants.*;
 import static org.qubership.integration.platform.library.constants.CamelNames.*;
 
 @Component

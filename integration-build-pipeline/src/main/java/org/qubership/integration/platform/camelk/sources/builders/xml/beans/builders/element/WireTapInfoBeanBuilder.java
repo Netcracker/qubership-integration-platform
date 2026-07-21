@@ -10,8 +10,8 @@ import org.springframework.stereotype.Component;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.XmlBeanConstants.*;
 import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.ASYNC_SPLIT_ELEMENT;
-import static org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.XmlBeanConstants.ATTR_VALUE;
 
 @Component
 public class WireTapInfoBeanBuilder implements ElementBeansBuilder {

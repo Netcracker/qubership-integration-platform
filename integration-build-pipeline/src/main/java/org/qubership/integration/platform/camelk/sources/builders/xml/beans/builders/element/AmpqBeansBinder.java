@@ -17,7 +17,7 @@ import java.util.Optional;
 import java.util.Set;
 import javax.xml.stream.XMLStreamException;
 
-import static org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.XmlBeanConstants.*;
+import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.XmlBeanConstants.*;
 import static org.qubership.integration.platform.library.constants.CamelNames.*;
 import static org.qubership.integration.platform.library.constants.CamelOptions.*;
 
