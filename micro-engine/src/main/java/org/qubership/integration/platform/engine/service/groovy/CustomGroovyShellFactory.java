@@ -19,9 +19,11 @@ package org.qubership.integration.platform.engine.service.groovy;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.GroovyShell;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.language.groovy.GroovyShellFactory;
+import org.qubership.integration.platform.engine.service.ExternalLibraryService;
 
 import java.util.Collections;
 
@@ -30,10 +32,19 @@ import static java.util.Objects.isNull;
 @Slf4j
 @ApplicationScoped
 public class CustomGroovyShellFactory implements GroovyShellFactory {
+
+    private final ExternalLibraryService externalLibraryService;
+
+    @Inject
+    public CustomGroovyShellFactory(ExternalLibraryService externalLibraryService) {
+        this.externalLibraryService = externalLibraryService;
+    }
+
     @Override
     public GroovyShell createGroovyShell(Exchange exchange) {
         log.debug("Requesting groovy shell for {}", isNull(exchange) ? Collections.emptyMap() : exchange.getProperties());
-        GroovyClassLoader groovyClassLoader = new GroovyClassLoader(getClass().getClassLoader());
+        GroovyClassLoader groovyClassLoader = new GroovyClassLoader(externalLibraryService.getShellClassLoader());
+
         return new GroovyShell(groovyClassLoader);
     }
 }

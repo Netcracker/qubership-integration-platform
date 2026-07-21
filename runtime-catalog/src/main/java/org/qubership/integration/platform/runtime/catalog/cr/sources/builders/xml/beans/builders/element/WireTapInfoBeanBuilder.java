@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import java.util.stream.Collectors;
 
 import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.ASYNC_SPLIT_ELEMENT;
+import static org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.XmlBeanConstants.ATTR_VALUE;
 
 @Component
 public class WireTapInfoBeanBuilder implements ElementBeansBuilder {
@@ -32,7 +33,7 @@ public class WireTapInfoBeanBuilder implements ElementBeansBuilder {
 
         streamWriter.writeEmptyElement("constructor");
         streamWriter.writeAttribute("index", "0");
-        streamWriter.writeAttribute("value", getWireTapId(element));
+        streamWriter.writeAttribute(ATTR_VALUE, getWireTapId(element));
 
         streamWriter.writeEndElement();
         streamWriter.writeEndElement();

@@ -7,6 +7,7 @@ import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNa
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.springframework.stereotype.Component;
 
+import static org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.XmlBeanConstants.*;
 import static org.qubership.integration.platform.runtime.catalog.util.TriggerUtils.getSdsTriggerJobId;
 
 @Component
@@ -28,21 +29,21 @@ public class SdsTriggerInfoBeanBuilder implements ElementBeansBuilder {
 
         streamWriter.writeStartElement("properties");
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "jobId");
-        streamWriter.writeAttribute("value", getSdsTriggerJobId(element));
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, "jobId");
+        streamWriter.writeAttribute(ATTR_VALUE, getSdsTriggerJobId(element));
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "prohibitParallelRun");
-        streamWriter.writeAttribute("value", element.getPropertyAsString(PROHIBIT_PARALLEL_RUN_PROP));
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, PROHIBIT_PARALLEL_RUN_PROP);
+        streamWriter.writeAttribute(ATTR_VALUE, element.getPropertyAsString(PROHIBIT_PARALLEL_RUN_PROP));
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "parallelRunTimeout");
-        streamWriter.writeAttribute("value", element.getPropertyAsString(PARALLEL_RUN_TIMEOUT_PROP));
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, PARALLEL_RUN_TIMEOUT_PROP);
+        streamWriter.writeAttribute(ATTR_VALUE, element.getPropertyAsString(PARALLEL_RUN_TIMEOUT_PROP));
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "cron");
-        streamWriter.writeEmptyElement("value", element.getPropertyAsString(CRON_PROP));
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, CRON_PROP);
+        streamWriter.writeAttribute(ATTR_VALUE, element.getPropertyAsString(CRON_PROP));
 
         streamWriter.writeEndElement();
         streamWriter.writeEndElement();

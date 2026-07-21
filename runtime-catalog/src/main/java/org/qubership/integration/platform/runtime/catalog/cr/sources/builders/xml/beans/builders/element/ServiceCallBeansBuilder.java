@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.*;
+import static org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.XmlBeanConstants.*;
 
 @Component
 public class ServiceCallBeansBuilder implements ElementBeansBuilder {
@@ -44,42 +45,42 @@ public class ServiceCallBeansBuilder implements ElementBeansBuilder {
 
         streamWriter.writeStartElement("properties");
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "retryCount");
-        streamWriter.writeAttribute("value", element.getPropertyAsString(SERVICE_CALL_RETRY_COUNT));
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, "retryCount");
+        streamWriter.writeAttribute(ATTR_VALUE, element.getPropertyAsString(SERVICE_CALL_RETRY_COUNT));
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "retryDelay");
-        streamWriter.writeAttribute("value", element.getPropertyAsString(SERVICE_CALL_RETRY_DELAY));
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, "retryDelay");
+        streamWriter.writeAttribute(ATTR_VALUE, element.getPropertyAsString(SERVICE_CALL_RETRY_DELAY));
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "protocol");
-        streamWriter.writeAttribute("value", element.getPropertyAsString(CamelNames.OPERATION_PROTOCOL_TYPE_PROP));
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, "protocol");
+        streamWriter.writeAttribute(ATTR_VALUE, element.getPropertyAsString(CamelNames.OPERATION_PROTOCOL_TYPE_PROP));
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "specificationId");
-        streamWriter.writeEmptyElement("value", element.getPropertyAsString(CamelOptions.SPECIFICATION_ID));
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, "specificationId");
+        streamWriter.writeAttribute(ATTR_VALUE, element.getPropertyAsString(CamelOptions.SPECIFICATION_ID));
 
         if (IntegrationSystemType.EXTERNAL.name().equals(element.getProperty(CamelOptions.SYSTEM_TYPE))) {
             String systemId = (String) element.getProperty(CamelOptions.SYSTEM_ID);
             if (StringUtils.isNotEmpty(systemId)) {
                 IntegrationSystem system = systemService.findById(systemId);
 
-                streamWriter.writeEmptyElement("property");
-                streamWriter.writeAttribute("key", "externalServiceName");
-                streamWriter.writeAttribute("value", system.getName());
+                streamWriter.writeEmptyElement(XML_PROPERTY);
+                streamWriter.writeAttribute(ATTR_KEY, "externalServiceName");
+                streamWriter.writeAttribute(ATTR_VALUE, system.getName());
 
                 String activeEnvironmentId = system.getActiveEnvironmentId();
                 if (StringUtils.isNotEmpty(activeEnvironmentId)) {
                     Environment env = environmentService.getByIdForSystem(systemId, activeEnvironmentId);
 
-                    streamWriter.writeEmptyElement("property");
-                    streamWriter.writeAttribute("key", "externalServiceAddress");
-                    streamWriter.writeAttribute("value", env.getAddress());
+                    streamWriter.writeEmptyElement(XML_PROPERTY);
+                    streamWriter.writeAttribute(ATTR_KEY, "externalServiceAddress");
+                    streamWriter.writeAttribute(ATTR_VALUE, env.getAddress());
 
-                    streamWriter.writeEmptyElement("property");
-                    streamWriter.writeAttribute("key", "externalServiceEnvironmentName");
-                    streamWriter.writeAttribute("value", env.getName());
+                    streamWriter.writeEmptyElement(XML_PROPERTY);
+                    streamWriter.writeAttribute(ATTR_KEY, "externalServiceEnvironmentName");
+                    streamWriter.writeAttribute(ATTR_VALUE, env.getName());
                 }
             }
         }

@@ -15,6 +15,7 @@ import java.util.Optional;
 
 import static java.util.Objects.nonNull;
 import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.ELEMENTS_WITH_INTERMEDIATE_CHILDREN;
+import static org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.XmlBeanConstants.*;
 
 @Component
 public class CommonBeansBuilder implements ElementBeansBuilder {
@@ -42,29 +43,29 @@ public class CommonBeansBuilder implements ElementBeansBuilder {
 
         streamWriter.writeStartElement("properties");
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "id");
-        streamWriter.writeAttribute("value", element.getOriginalId());
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, "id");
+        streamWriter.writeAttribute(ATTR_VALUE, element.getOriginalId());
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "snapshotElementId");
-        streamWriter.writeAttribute("value", element.getId());
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, "snapshotElementId");
+        streamWriter.writeAttribute(ATTR_VALUE, element.getId());
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "name");
-        streamWriter.writeAttribute("value", element.getName());
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, "name");
+        streamWriter.writeAttribute(ATTR_VALUE, element.getName());
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "type");
-        streamWriter.writeAttribute("value", element.getType());
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, "type");
+        streamWriter.writeAttribute(ATTR_VALUE, element.getType());
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "chainId");
-        streamWriter.writeAttribute("value", element.getSnapshot().getChain().getId());
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, "chainId");
+        streamWriter.writeAttribute(ATTR_VALUE, element.getSnapshot().getChain().getId());
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "snapshotId");
-        streamWriter.writeAttribute("value", element.getSnapshot().getId());
+        streamWriter.writeEmptyElement(XML_PROPERTY);
+        streamWriter.writeAttribute(ATTR_KEY, "snapshotId");
+        streamWriter.writeAttribute(ATTR_VALUE, element.getSnapshot().getId());
 
         if (nonNull(element.getParent())) {
             ChainElement parent = element.getParent();
@@ -72,22 +73,22 @@ public class CommonBeansBuilder implements ElementBeansBuilder {
                 || Optional.ofNullable(libraryService.getElementDescriptor(parent.getType()))
                     .map(descriptor -> ElementType.REUSE == descriptor.getType())
                     .orElse(false)) {
-                streamWriter.writeEmptyElement("property");
-                streamWriter.writeAttribute("key", "parentId");
-                streamWriter.writeAttribute("value", element.getParent().getOriginalId());
+                streamWriter.writeEmptyElement(XML_PROPERTY);
+                streamWriter.writeAttribute(ATTR_KEY, "parentId");
+                streamWriter.writeAttribute(ATTR_VALUE, element.getParent().getOriginalId());
 
-                streamWriter.writeEmptyElement("property");
-                streamWriter.writeAttribute("key", "hasIntermediateParents");
-                streamWriter.writeAttribute("value",
+                streamWriter.writeEmptyElement(XML_PROPERTY);
+                streamWriter.writeAttribute(ATTR_KEY, "hasIntermediateParents");
+                streamWriter.writeAttribute(ATTR_VALUE,
                         Boolean.toString(ELEMENTS_WITH_INTERMEDIATE_CHILDREN
                                 .contains(element.getParent().getType())));
 
             }
 
             if (BuilderConstants.REUSE_ELEMENT_TYPE.equals(element.getParent().getType())) {
-                streamWriter.writeEmptyElement("property");
-                streamWriter.writeAttribute("key", "reuseId");
-                streamWriter.writeAttribute("value", element.getParent().getOriginalId());
+                streamWriter.writeEmptyElement(XML_PROPERTY);
+                streamWriter.writeAttribute(ATTR_KEY, "reuseId");
+                streamWriter.writeAttribute(ATTR_VALUE, element.getParent().getOriginalId());
             }
         }
 

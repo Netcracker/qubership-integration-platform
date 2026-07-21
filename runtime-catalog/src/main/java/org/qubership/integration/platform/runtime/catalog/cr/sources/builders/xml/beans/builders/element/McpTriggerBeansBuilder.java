@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.MCP_TRIGGER_ELEMENT;
+import static org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.XmlBeanConstants.*;
 
 @Component
 public class McpTriggerBeansBuilder implements ElementBeansBuilder {
@@ -42,9 +43,9 @@ public class McpTriggerBeansBuilder implements ElementBeansBuilder {
         );
 
         for (String propertyName : propertyNames) {
-            streamWriter.writeEmptyElement("property");
-            streamWriter.writeAttribute("key", propertyName);
-            streamWriter.writeAttribute("value", Optional.ofNullable(element.getProperties().get(propertyName))
+            streamWriter.writeEmptyElement(XML_PROPERTY);
+            streamWriter.writeAttribute(ATTR_KEY, propertyName);
+            streamWriter.writeAttribute(ATTR_VALUE, Optional.ofNullable(element.getProperties().get(propertyName))
                     .map(String::valueOf)
                     .orElse(""));
         }

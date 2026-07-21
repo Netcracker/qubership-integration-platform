@@ -9,9 +9,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.consul.updates.parsers.ChainRuntimePropertiesUpdateParser;
 import org.qubership.integration.platform.engine.consul.updates.parsers.CommonVariablesUpdateParser;
 import org.qubership.integration.platform.engine.consul.updates.parsers.DeploymentUpdateParser;
-import org.qubership.integration.platform.engine.consul.updates.parsers.LibrariesUpdateParser;
 import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
-import org.qubership.integration.platform.engine.model.kafka.systemmodel.CompiledLibraryUpdate;
 
 import java.util.*;
 import java.util.function.Supplier;
@@ -49,20 +47,6 @@ public class UpdateGetterProducer {
     ) {
         return new UpdateGetterHelper<>(
                 keyPrefix + keyEngineConfigRoot + keyDeploymentsUpdate,
-                consulClientSupplier,
-                valueParser
-        );
-    }
-
-    @Produces
-    @Named("librariesUpdateGetter")
-    @ApplicationScoped
-    public UpdateGetterHelper<List<CompiledLibraryUpdate>> librariesUpdateGetter(
-            Supplier<ConsulClient> consulClientSupplier,
-            LibrariesUpdateParser valueParser
-    ) {
-        return new UpdateGetterHelper<>(
-                keyPrefix + keyEngineConfigRoot + keyLibrariesUpdate,
                 consulClientSupplier,
                 valueParser
         );
