@@ -24,6 +24,10 @@ import io.kubernetes.client.openapi.models.V1Service;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.qubership.integration.platform.camelk.builders.IntegrationsConfigurationConfigMapBuilder;
+import org.qubership.integration.platform.camelk.integrations.configuration.IntegrationsConfiguration;
+import org.qubership.integration.platform.camelk.integrations.configuration.SourceDefinition;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
@@ -33,6 +37,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrati
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -267,5 +272,69 @@ class MicroDomainServiceTest {
         verify(kubeOperator).deleteConfigMap(CFG_CONFIG_MAP_NAME);
         verify(kubeOperator).deleteConfigMap("source-1");
         verify(kubeOperator).deleteSecret("secret");
+    }
+
+    // ---- deleteChainSnapshot ----
+
+    @DisplayName("Does nothing when the domain has no integration")
+    @Test
+    void deleteChainSnapshotIsNoOpWhenIntegrationAbsent() {
+        when(kubeOperator.getIntegrationsByLabels(any())).thenReturn(List.of());
+
+        MicroDomainService service = newService(false);
+        service.deleteChainSnapshot(DOMAIN, "s1");
+
+        verify(kubeOperator, never()).createOrUpdateResource(any());
+        verify(kubeOperator, never()).deleteConfigMap(anyString());
+    }
+
+    @DisplayName("Unmounts the snapshot source, drops its configuration entry, and deletes its config map")
+    @Test
+    void deleteChainSnapshotRemovesTheSnapshotSourceMountAndConfiguration() {
+        stubNamingStrategies();
+
+        CamelKIntegration.IntegrationSpec.Traits.MountTrait mount =
+                new CamelKIntegration.IntegrationSpec.Traits.MountTrait();
+        mount.setResources(new ArrayList<>(List.of("configmap:src-s1/x", "configmap:keep/y")));
+        CamelKIntegration.IntegrationSpec.Traits traits = new CamelKIntegration.IntegrationSpec.Traits();
+        traits.setMount(mount);
+        CamelKIntegration.IntegrationSpec spec = new CamelKIntegration.IntegrationSpec();
+        spec.setTraits(traits);
+        CamelKIntegration integration = new CamelKIntegration();
+        integration.setSpec(spec);
+
+        V1ConfigMap cfg = configMap(CFG_CONFIG_MAP_NAME, null);
+        V1ConfigMap source = configMap("src-s1", Map.of(SNAPSHOT_ID_LABEL, "s1"));
+        when(kubeOperator.getIntegrationsByLabels(any())).thenReturn(List.of(integration));
+        when(kubeOperator.getServicesByLabel(anyString(), anyString())).thenReturn(List.of());
+        when(kubeOperator.getConfigMapsByLabel(anyString(), anyString())).thenReturn(List.of(cfg, source));
+
+        IntegrationsConfiguration configuration = IntegrationsConfiguration.builder()
+                .sources(new ArrayList<>(List.of(
+                        SourceDefinition.builder().id("s1").build(),
+                        SourceDefinition.builder().id("s2").build())))
+                .build();
+        when(integrationConfigurationSerdes.getFromConfigMap(cfg)).thenReturn(configuration);
+        when(integrationConfigurationSerdes.toYaml(any())).thenReturn("yaml-out");
+
+        MicroDomainService service = newService(false);
+        service.deleteChainSnapshot(DOMAIN, "s1");
+
+        assertEquals(List.of("configmap:keep/y"),
+                integration.getSpec().getTraits().getMount().getResources(),
+                "the mount that referenced the snapshot's source config map is removed");
+        assertEquals("camel.apache.org/v1", integration.getApiVersion());
+        assertEquals("Integration", integration.getKind());
+        verify(kubeOperator).createOrUpdateResource(integration);
+
+        ArgumentCaptor<IntegrationsConfiguration> captor = ArgumentCaptor.forClass(IntegrationsConfiguration.class);
+        verify(integrationConfigurationSerdes).toYaml(captor.capture());
+        assertEquals(List.of("s2"),
+                captor.getValue().getSources().stream().map(SourceDefinition::getId).toList(),
+                "the deleted snapshot's source is dropped from the integrations configuration");
+        assertEquals("yaml-out", cfg.getData().get(IntegrationsConfigurationConfigMapBuilder.CONTENT_KEY));
+        verify(kubeOperator).createOrUpdateResource(cfg);
+
+        verify(kubeOperator).deleteConfigMap("src-s1");
     }
 }
