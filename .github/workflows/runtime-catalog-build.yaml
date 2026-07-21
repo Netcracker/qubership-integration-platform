@@ -21,5 +21,6 @@ jobs:
       module: runtime-catalog
       sonar-project-key: ${{ vars.SONAR_RUNTIME_CATALOG_PROJECT_KEY }}
       ensure-openapi-spec: true
+      preinstall-integration-build-pipeline-library: true
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
