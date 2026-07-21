@@ -331,7 +331,10 @@ public class ApiSpecificationExportService {
     private String buildConfigurationDescription(Collection<Element> elements) {
         StringBuilder sb = new StringBuilder();
         elements.forEach(element -> {
-            sb.append("* ").append(getElementChain(element).getName()).append(" - ").append(element.getName());
+            sb.append("* ")
+                .append(getElementChain(element).map(Chain::getName).orElse(""))
+                .append(" - ")
+                .append(element.getName());
             element.getSnapshot().ifPresent(snapshot -> {
                 sb.append(" (").append(snapshot.getName()).append(")");
             });
@@ -340,10 +343,9 @@ public class ApiSpecificationExportService {
         return sb.toString();
     }
 
-    private Chain getElementChain(Element element) {
+    private Optional<Chain> getElementChain(Element element) {
         return Optional.ofNullable(element.getChain())
-            .or(() -> element.getSnapshot().map(Snapshot::getChain))
-            .orElse(null);
+            .or(() -> element.getSnapshot().map(Snapshot::getChain));
     }
 
     private Paths buildPaths(Collection<Element> elements) {
@@ -715,7 +717,7 @@ public class ApiSpecificationExportService {
     }
 
     private String buildOperationSummary(Element element) {
-        return getElementChain(element).getName() + " - " + element.getName();
+        return getElementChain(element).map(Chain::getName).orElse("") + " - " + element.getName();
     }
 
     private String buildOperationId(Element element, ElementRoute route, HttpMethod method) {

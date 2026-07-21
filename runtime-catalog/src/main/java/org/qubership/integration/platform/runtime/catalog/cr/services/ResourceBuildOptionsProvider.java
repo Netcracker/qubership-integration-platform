@@ -85,7 +85,7 @@ public class ResourceBuildOptionsProvider {
 
     private Map<String, String> getEnvironment() {
         Map<String, String> result = new HashMap<>(environment);
-        result.put("MONITORING_ENABLED", Boolean.valueOf(monitoringEnabled).toString());
+        result.put("MONITORING_ENABLED", Boolean.toString(monitoringEnabled));
         result.put(DEFAULT_SECRET_ENABLED_ENV, Boolean.toString(defaultSecretEnabled));
         return result;
     }
