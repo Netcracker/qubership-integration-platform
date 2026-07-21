@@ -33,6 +33,7 @@ import org.qubership.integration.platform.runtime.catalog.service.SystemModelBas
 import org.qubership.integration.platform.runtime.catalog.service.parsers.OperationParserService;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.xml.parsers.SAXParserFactory;
@@ -80,7 +81,7 @@ class SpecificationParserConfigurationContextTest {
 
             Set<String> registeredProtocols = context.getBeansOfType(SpecificationParser.class).values().stream()
                     .map(parser -> parser.getClass().getAnnotation(Parser.class))
-                    .filter(annotation -> annotation != null)
+                    .filter(Objects::nonNull)
                     .map(Parser::value)
                     .collect(Collectors.toSet());
             assertThat(registeredProtocols).isEqualTo(EXPECTED_PARSER_PROTOCOLS);

@@ -146,13 +146,13 @@ public class MicroDomainService {
             Optional.ofNullable(resources.customResources)
                     .ifPresent(customResources -> {
                         log.info("Deleting {} generic custom resource(s) for domain '{}'", customResources.size(), name);
-                        customResources.forEach(customObject -> {
+                        customResources.forEach(customObject ->
                             KubeUtil.getName(customObject).ifPresent(customObjectName -> {
                                 GenericCustomResources.CustomResourceDefinition definition =
                                         genericCustomResources.definitionFor(customObject.getKind());
                                 kubeOperator.deleteCustomObject(definition.group(), definition.version(), definition.plural(), customObjectName);
-                            });
-                        });
+                            })
+                        );
                     });
         });
     }
