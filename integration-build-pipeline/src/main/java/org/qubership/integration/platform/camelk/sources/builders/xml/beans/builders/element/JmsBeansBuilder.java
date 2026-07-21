@@ -7,7 +7,7 @@ import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.stereotype.Component;
 
-import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.XmlBeanConstants.*;
+import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.BeanPropertyHelper.writePropertyElement;
 import static org.qubership.integration.platform.library.constants.CamelNames.JMS_SENDER_COMPONENT;
 import static org.qubership.integration.platform.library.constants.CamelNames.JMS_TRIGGER_COMPONENT;
 
@@ -35,29 +35,12 @@ public class JmsBeansBuilder implements ElementBeansBuilder {
 
         streamWriter.writeStartElement("properties");
 
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "elementId");
-        streamWriter.writeAttribute(ATTR_VALUE, element.getOriginalId().orElse(element.getId()));
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, JMS_INITIAL_CONTEXT_FACTORY);
-        streamWriter.writeAttribute(ATTR_VALUE, ElementUtils.getPropertyAsString(element, JMS_INITIAL_CONTEXT_FACTORY));
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, JMS_PROVIDER_URL);
-        streamWriter.writeAttribute(ATTR_VALUE, ElementUtils.getPropertyAsString(element, JMS_PROVIDER_URL));
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, JMS_CONNECTION_FACTORY_NAME);
-        streamWriter.writeAttribute(ATTR_VALUE, ElementUtils.getPropertyAsString(element, JMS_CONNECTION_FACTORY_NAME));
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, JMS_USERNAME);
-        streamWriter.writeAttribute(ATTR_VALUE, ElementUtils.getPropertyAsString(element, JMS_USERNAME));
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, JMS_PASSWORD);
-        streamWriter.writeAttribute(ATTR_VALUE, ElementUtils.getPropertyAsString(element, JMS_PASSWORD));
+        writePropertyElement(streamWriter, "elementId", element.getOriginalId().orElse(element.getId()));
+        writePropertyElement(streamWriter, JMS_INITIAL_CONTEXT_FACTORY, ElementUtils.getPropertyAsString(element, JMS_INITIAL_CONTEXT_FACTORY));
+        writePropertyElement(streamWriter, JMS_PROVIDER_URL, ElementUtils.getPropertyAsString(element, JMS_PROVIDER_URL));
+        writePropertyElement(streamWriter, JMS_CONNECTION_FACTORY_NAME, ElementUtils.getPropertyAsString(element, JMS_CONNECTION_FACTORY_NAME));
+        writePropertyElement(streamWriter, JMS_USERNAME, ElementUtils.getPropertyAsString(element, JMS_USERNAME));
+        writePropertyElement(streamWriter,  JMS_PASSWORD, ElementUtils.getPropertyAsString(element, JMS_PASSWORD));
 
         streamWriter.writeEndElement();
         streamWriter.writeEndElement();

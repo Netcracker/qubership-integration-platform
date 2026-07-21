@@ -13,7 +13,7 @@ import org.qubership.integration.platform.library.model.ElementType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.XmlBeanConstants.*;
+import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.BeanPropertyHelper.writePropertyElement;
 import static org.qubership.integration.platform.library.constants.CamelNames.CONTAINER;
 import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.ELEMENTS_WITH_INTERMEDIATE_CHILDREN;
 
@@ -43,32 +43,15 @@ public class CommonBeansBuilder implements ElementBeansBuilder {
 
         streamWriter.writeStartElement("properties");
 
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "id");
-        streamWriter.writeAttribute(ATTR_VALUE, element.getOriginalId().orElse(element.getId()));
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "snapshotElementId");
-        streamWriter.writeAttribute(ATTR_VALUE, element.getId());
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "name");
-        streamWriter.writeAttribute(ATTR_VALUE, element.getName());
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "type");
-        streamWriter.writeAttribute(ATTR_VALUE, element.getType());
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "chainId");
-        streamWriter.writeAttribute(ATTR_VALUE, element.getSnapshot()
+        writePropertyElement(streamWriter, "id", element.getOriginalId().orElse(element.getId()));
+        writePropertyElement(streamWriter, "snapshotElementId", element.getId());
+        writePropertyElement(streamWriter, "name", element.getName());
+        writePropertyElement(streamWriter, "type", element.getType());
+        writePropertyElement(streamWriter, "chainId", element.getSnapshot()
             .map(Snapshot::getChain)
             .map(Chain::getId)
             .orElse(""));
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "snapshotId");
-        streamWriter.writeAttribute(ATTR_VALUE, element.getSnapshot()
+        writePropertyElement(streamWriter, "snapshotId", element.getSnapshot()
             .map(Snapshot::getId)
             .orElse(""));
 
@@ -79,22 +62,14 @@ public class CommonBeansBuilder implements ElementBeansBuilder {
                 .map(ElementDescriptor::getType)
                 .map(ElementType.REUSE::equals)
                 .orElse(false)) {
-                streamWriter.writeEmptyElement(XML_PROPERTY);
-                streamWriter.writeAttribute(ATTR_KEY, "parentId");
-                streamWriter.writeAttribute(ATTR_VALUE, parent.getOriginalId().orElse(parent.getId()));
 
-                streamWriter.writeEmptyElement(XML_PROPERTY);
-                streamWriter.writeAttribute(ATTR_KEY, "hasIntermediateParents");
-                streamWriter.writeAttribute(ATTR_VALUE,
-                    Boolean.toString(ELEMENTS_WITH_INTERMEDIATE_CHILDREN
-                        .contains(parent.getType())));
-
+                writePropertyElement(streamWriter, "parentId", parent.getOriginalId().orElse(parent.getId()));
+                writePropertyElement(streamWriter, "hasIntermediateParents", Boolean.toString(ELEMENTS_WITH_INTERMEDIATE_CHILDREN
+                    .contains(parent.getType())));
             }
 
             if (BuilderConstants.REUSE_ELEMENT_TYPE.equals(parent.getType())) {
-                streamWriter.writeEmptyElement(XML_PROPERTY);
-                streamWriter.writeAttribute(ATTR_KEY, "reuseId");
-                streamWriter.writeAttribute(ATTR_VALUE, parent.getOriginalId().orElse(parent.getId()));
+                writePropertyElement(streamWriter, "reuseId", parent.getOriginalId().orElse(parent.getId()));
             }
         }
 

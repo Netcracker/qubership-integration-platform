@@ -9,7 +9,7 @@ import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.stereotype.Component;
 
-import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.XmlBeanConstants.*;
+import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.BeanPropertyHelper.writePropertyElement;
 import static org.qubership.integration.platform.library.constants.CamelNames.*;
 
 @Component
@@ -34,21 +34,10 @@ public class GrpcBeansBuilder implements ElementBeansBuilder {
         Chain chain = element.getSnapshot().map(Snapshot::getChain)
             .orElseThrow(() -> new RuntimeException("Failed to get chain from snapshot"));
 
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "chainId");
-        streamWriter.writeAttribute(ATTR_VALUE, chain.getId());
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "chainName");
-        streamWriter.writeAttribute(ATTR_VALUE, chain.getName());
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "elementId");
-        streamWriter.writeAttribute(ATTR_VALUE, element.getOriginalId().orElse(element.getId()));
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "elementName");
-        streamWriter.writeAttribute(ATTR_VALUE, element.getName());
+        writePropertyElement(streamWriter, "chainId", chain.getId());
+        writePropertyElement(streamWriter, "chainName", chain.getName());
+        writePropertyElement(streamWriter, "elementId", element.getOriginalId().orElse(element.getId()));
+        writePropertyElement(streamWriter, "elementName", element.getName());
 
         streamWriter.writeEndElement();
         streamWriter.writeEndElement();

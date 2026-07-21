@@ -17,7 +17,7 @@ import java.util.Optional;
 import java.util.Set;
 import javax.xml.stream.XMLStreamException;
 
-import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.XmlBeanConstants.*;
+import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.BeanPropertyHelper.writePropertyElement;
 import static org.qubership.integration.platform.library.constants.CamelNames.*;
 import static org.qubership.integration.platform.library.constants.CamelNames.OPERATION_PROTOCOL_TYPE_PROP;
 import static org.qubership.integration.platform.library.constants.CamelOptions.*;
@@ -79,27 +79,14 @@ public class KafkaBeansBinder implements ElementBeansBuilder {
         Chain chain = element.getSnapshot().map(Snapshot::getChain)
             .orElseThrow(() -> new RuntimeException("Failed to get chain from snapshot"));
 
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "chainId");
-        streamWriter.writeAttribute(ATTR_VALUE, chain.getId());
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "chainName");
-        streamWriter.writeAttribute(ATTR_VALUE, chain.getName());
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "elementId");
-        streamWriter.writeAttribute(ATTR_VALUE, element.getOriginalId().orElse(element.getId()));
-
-        streamWriter.writeEmptyElement(XML_PROPERTY);
-        streamWriter.writeAttribute(ATTR_KEY, "elementName");
-        streamWriter.writeAttribute(ATTR_VALUE, element.getName());
+        writePropertyElement(streamWriter, "chainId", chain.getId());
+        writePropertyElement(streamWriter, "chainName", chain.getName());
+        writePropertyElement(streamWriter, "elementId", element.getOriginalId().orElse(element.getId()));
+        writePropertyElement(streamWriter, "elementName", element.getName());
 
         String maasClassifier = getMaasClassifier(element, context);
         if (StringUtils.isNotBlank(maasClassifier)) {
-            streamWriter.writeEmptyElement(XML_PROPERTY);
-            streamWriter.writeAttribute(ATTR_KEY, "maasClassifier");
-            streamWriter.writeAttribute(ATTR_VALUE, maasClassifier);
+            writePropertyElement(streamWriter, "maasClassifier", maasClassifier);
         }
 
         streamWriter.writeEndElement();

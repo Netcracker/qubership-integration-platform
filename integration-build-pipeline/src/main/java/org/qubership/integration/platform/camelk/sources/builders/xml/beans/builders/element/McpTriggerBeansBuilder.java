@@ -10,7 +10,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.XmlBeanConstants.*;
+import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.BeanPropertyHelper.writePropertyElement;
 import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.MCP_TRIGGER_ELEMENT;
 
 @Component
@@ -43,11 +43,9 @@ public class McpTriggerBeansBuilder implements ElementBeansBuilder {
         );
 
         for (String propertyName : propertyNames) {
-            streamWriter.writeEmptyElement(XML_PROPERTY);
-            streamWriter.writeAttribute(ATTR_KEY, propertyName);
-            streamWriter.writeAttribute(ATTR_VALUE, Optional.ofNullable(element.getProperties().get(propertyName))
-                    .map(String::valueOf)
-                    .orElse(""));
+            writePropertyElement(streamWriter, propertyName, Optional.ofNullable(element.getProperties().get(propertyName))
+                .map(String::valueOf)
+                .orElse(""));
         }
 
         streamWriter.writeEndElement();
