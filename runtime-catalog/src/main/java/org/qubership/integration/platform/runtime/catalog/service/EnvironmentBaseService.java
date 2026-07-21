@@ -44,8 +44,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+/**
+ * Persists and reconciles a system's environments.
+ *
+ * <p>The transaction boundary sits on the class rather than on {@code create} and {@code update}:
+ * those methods are called both from outside the bean and from the reconcile methods in this class.
+ * A method-level annotation would not apply to the in-class calls, so declaring it once on the class
+ * keeps every public entry point transactional.
+ */
 @Slf4j
 @Service
+@Transactional
 public class EnvironmentBaseService {
 
     protected static final String SPECIFICATION_PARAMETERS_ARE_EMPTY_MESSAGE = "Server parameters are empty in input specification";
@@ -75,7 +84,6 @@ public class EnvironmentBaseService {
         return environmentRepository.save(environment);
     }
 
-    @Transactional
     public Environment update(Environment environment) {
         Environment savedEnv = environmentRepository.save(environment);
 
@@ -84,7 +92,6 @@ public class EnvironmentBaseService {
         return savedEnv;
     }
 
-    @Transactional
     public Environment create(Environment environment, IntegrationSystem system) {
         environment = save(environment);
         system.addEnvironment(environment);
@@ -94,7 +101,6 @@ public class EnvironmentBaseService {
         return environment;
     }
 
-    @Transactional
     public void setDefaultProperties(Environment environment) {
         OperationProtocol protocol = environment.getSystem().getProtocol();
         if (null != protocol && (environment.getProperties() == null || environment.getProperties().isEmpty())) {
