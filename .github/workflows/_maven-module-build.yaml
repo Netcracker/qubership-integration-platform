@@ -150,7 +150,7 @@ jobs:
           SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
         run: |
           mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
-            -pl .,$MODULE_NAME -am \
+            -pl .,$MODULE_NAME \
             "org.sonarsource.scanner.maven:sonar-maven-plugin:${SONAR_PLUGIN_VERSION}:sonar" \
             -Dsonar.token="$SONAR_TOKEN" \
             -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
