@@ -17,22 +17,15 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.jknack.handlebars.internal.lang3.tuple.Pair;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.io.model.exportimport.chain.ChainElementExternalEntity;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -40,23 +33,12 @@ import static org.qubership.integration.platform.io.model.exportimport.ExportImp
 
 
 @Component
-@Slf4j
 public class ChainElementFilePropertiesSubstitutor {
 
     private final ObjectMapper objectMapper;
 
     public ChainElementFilePropertiesSubstitutor(@Qualifier("primaryObjectMapper") ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
-    }
-
-    public void enrichElementWithFileProperties(ChainElement element, File chainFilesDir, @Nullable String propertiesFilename) {
-        try {
-            Objects.requireNonNull(chainFilesDir, "Chain directory file must not be null");
-
-            restoreProperties(element, chainFilesDir, propertiesFilename);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Unable to read element properties file: " + e.getMessage(), e);
-        }
     }
 
     public Map<String, byte[]> getElementPropertiesAsSeparateFiles(ChainElementExternalEntity externalElement) {
@@ -77,104 +59,6 @@ public class ChainElementFilePropertiesSubstitutor {
         }
 
         return result;
-    }
-
-    private void restoreProperties(ChainElement element, File chainFilesDir, String propertiesFilename) throws IOException {
-        if (!SERVICE_CALL.equals(element.getType())) {
-            propertiesFilename = Optional.ofNullable(propertiesFilename)
-                    .orElse(element.getPropertyAsString(FILE_NAME_PROPERTY));
-            if (propertiesFilename == null) {
-                return;
-            }
-
-            Object propertiesFileContent = extractPropertiesFileContent(element.getProperties(), chainFilesDir, propertiesFilename);
-            if (propertiesFileContent instanceof Map<?, ?>) {
-                element.getProperties().putAll((Map<String, Object>) propertiesFileContent);
-            } else {
-                element.getProperties().put(
-                        (String) element.getProperties().get(PROPS_EXPORT_IN_SEPARATE_FILE_PROPERTY),
-                        propertiesFileContent
-                );
-            }
-            element.getProperties().remove(FILE_NAME_PROPERTY);
-            return;
-        }
-
-        Object afterPropertiesObj = element.getProperties().getOrDefault(AFTER, Collections.emptyList());
-        if (afterPropertiesObj instanceof List<?> afterPropertiesList) {
-            for (Object obj : afterPropertiesList) {
-                if (obj instanceof Map<?, ?> afterProperties) {
-                    String afterPropertiesFilename = (String) afterProperties.get(FILE_NAME_PROPERTY);
-                    if (afterPropertiesFilename == null) {
-                        continue;
-                    }
-                    addServiceCallHandlerContent(
-                            (Map<String, Object>) afterProperties,
-                            extractPropertiesFileContent((Map<String, Object>) afterProperties, chainFilesDir, afterPropertiesFilename)
-                    );
-                    afterProperties.remove(FILE_NAME_PROPERTY);
-                } else {
-                    log.error("Either the 'after' property is missing, or it is not formatted as a key-value pair " + obj.getClass().getName());
-                    throw new IllegalArgumentException("Either the 'after' property is missing, or it is not formatted as a key-value pair");
-                }
-            }
-        } else {
-            log.error(("Either the 'after' property is missing or it is not in the required format " + afterPropertiesObj.getClass().getName()));
-            throw new IllegalArgumentException("Either the 'after' property is missing or it is not in the required format");
-        }
-
-        Object beforePropertiesObj = element.getProperties().getOrDefault(BEFORE, Collections.emptyMap());
-
-        if (beforePropertiesObj instanceof Map<?, ?> beforeProperties) {
-            String beforePropertiesFilename = (String) beforeProperties.get(FILE_NAME_PROPERTY);
-            if (beforePropertiesFilename == null) {
-                return;
-            }
-
-            addServiceCallHandlerContent(
-                    (Map<String, Object>) beforeProperties,
-                    extractPropertiesFileContent((Map<String, Object>) beforeProperties, chainFilesDir, beforePropertiesFilename)
-            );
-            beforeProperties.remove(FILE_NAME_PROPERTY);
-        } else {
-            log.error(("Either the 'before' property is missing, or it is not formatted as a key-value pair " + beforePropertiesObj.getClass().getName()));
-            throw new IllegalArgumentException("Either the 'before' property is missing, or it is not formatted as a key-value pair");
-        }
-
-    }
-
-    private Object extractPropertiesFileContent(Map<String, Object> properties, File chainFilesDir, String propertiesFilename) throws IOException {
-        String fileContent = ExportImportUtils.getFileContentByName(chainFilesDir, propertiesFilename);
-        if (fileContent == null) {
-            throw new IllegalArgumentException("Could not find file with properties: " + propertiesFilename);
-        }
-
-        if (isPropertiesFileGroovy(propertiesFilename, properties) || isPropertiesFileSql(propertiesFilename, properties)) {
-            return fileContent;
-        }
-        if (isPropertiesFileJson(propertiesFilename, properties)) {
-            return objectMapper.readValue(fileContent, new TypeReference<Map<String, Object>>() {});
-        }
-
-        throw new IllegalArgumentException(
-                "The " + propertiesFilename + " properties file must have one of the following extensions: groovy, json or sql");
-    }
-
-    private void addServiceCallHandlerContent(Map<String, Object> handlerProperties, Object handlerContent) {
-        Object type = handlerProperties.get(TYPE);
-        if (SCRIPT.equals(type)) {
-            handlerProperties.put(SCRIPT, handlerContent);
-        }
-        if (String.valueOf(type).startsWith(MAPPER)) {
-            HashMap<String, Object> mapperContent = (HashMap<String, Object>) handlerContent;
-            if (MAPPER.equals(type)) {
-                handlerProperties.put(MAPPING, mapperContent.get(MAPPING));
-                handlerProperties.put(SOURCE, mapperContent.get(SOURCE));
-                handlerProperties.put(TARGET, mapperContent.get(TARGET));
-            } else {
-                handlerProperties.put(MAPPING_DESCRIPTION, mapperContent.get(MAPPING_DESCRIPTION));
-            }
-        }
     }
 
     private List<String> getPropertiesToExportInSeparateFile(ChainElementExternalEntity externalElement) {
