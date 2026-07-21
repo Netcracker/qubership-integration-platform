@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans;
+package org.qubership.integration.platform.camelk.sources.builders.xml.beans;
 
 public final class XmlBeanConstants {
 

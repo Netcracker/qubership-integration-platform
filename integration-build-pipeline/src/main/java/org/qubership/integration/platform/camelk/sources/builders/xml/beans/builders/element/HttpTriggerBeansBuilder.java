@@ -8,8 +8,8 @@ import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.springframework.stereotype.Component;
 
+import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.XmlBeanConstants.*;
 import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.HTTP_TRIGGER_ELEMENT;
-import static org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.XmlBeanConstants.*;
 
 @Component
 public class HttpTriggerBeansBuilder implements ElementBeansBuilder {

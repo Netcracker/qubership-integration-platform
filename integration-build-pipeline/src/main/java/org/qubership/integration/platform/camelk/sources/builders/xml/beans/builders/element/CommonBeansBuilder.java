@@ -13,9 +13,9 @@ import org.qubership.integration.platform.library.model.ElementType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.XmlBeanConstants.*;
 import static org.qubership.integration.platform.library.constants.CamelNames.CONTAINER;
 import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.ELEMENTS_WITH_INTERMEDIATE_CHILDREN;
-import static org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.XmlBeanConstants.*;
 
 @Component
 public class CommonBeansBuilder implements ElementBeansBuilder {
