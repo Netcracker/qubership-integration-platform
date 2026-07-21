@@ -1,11 +1,11 @@
 ---
-paths:
-  - "**"
+description: American-English-first style rules for developer-facing text of any length — docs, code comments and docstrings inside source files (.go, .js, .ts, .py, .java, .rs, .kt, .cs, ...), commits, PR descriptions, changelogs, UI strings, error and log messages, and English-side localization files (.po, .properties, JSON i18n). Triggered by review/translate/verify/proofread, not only writing.
+globs: "**"
 ---
 
-## Skill trigger: `english-us-developer-style`
+## Skill trigger: `english-developer-style`
 
-**You MUST invoke the `english-us-developer-style` skill BEFORE producing, modifying, translating, or critiquing any
+**You MUST invoke the `english-developer-style` skill BEFORE producing, modifying, translating, or critiquing any
 English developer-facing text.** The skill applies regardless of text length — a one-line error message and a multi-page
 README go through the same checklist.
 

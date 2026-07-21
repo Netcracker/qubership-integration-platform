@@ -28,6 +28,15 @@ export type MenuItem = {
 
 const DEFAULT_WIDTH = 230;
 
+// Fixed display order for container children; anything unlisted stays alphabetical.
+const CHILD_ORDER = ["if", "else", "try-2", "catch-2", "finally-2"];
+const childRank = (key: string): number => {
+  const index = CHILD_ORDER.indexOf(key);
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+};
+const compareChildren = (a: MenuItem, b: MenuItem): number =>
+  childRank(a.key) - childRank(b.key) || a.name.localeCompare(b.name);
+
 export type ElementsLibrarySidebarProps = {
   width?: number | string;
 };
@@ -79,7 +88,7 @@ export const ElementsLibrarySidebar = ({
                   element={libraryData.childElements[child.name]}
                 />
               ),
-              name: child.name,
+              name: libraryData.childElements[child.name]?.title ?? child.name,
               icon: (
                 <OverridableIcon name={child.name} style={{ fontSize: 18 }} />
               ),
@@ -95,21 +104,20 @@ export const ElementsLibrarySidebar = ({
             ),
           };
           if (childrenMenuItems.length !== 0) {
-            elementMenuItem.children = childrenMenuItems.sort((a, b) =>
-              a.key.localeCompare(b.key),
-            );
+            childrenMenuItems.sort(compareChildren);
+            elementMenuItem.children = childrenMenuItems;
           }
           folderMap.get(element.folder)!.children!.push(elementMenuItem);
         });
       });
 
       const sortedFolders: MenuItem[] = Array.from(folderMap.values()).sort(
-        (a, b) => a.key.localeCompare(b.key),
+        (a, b) => a.name.localeCompare(b.name),
       );
 
       sortedFolders.forEach((folder) => {
         if (folder.children) {
-          folder.children.sort((a, b) => a.key.localeCompare(b.key));
+          folder.children.sort((a, b) => a.name.localeCompare(b.name));
         }
       });
 

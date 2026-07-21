@@ -25,13 +25,11 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.consul.KVNotFoundException;
 import org.qubership.integration.platform.engine.consul.updates.UpdateGetterHelper;
 import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
-import org.qubership.integration.platform.engine.model.kafka.systemmodel.CompiledLibraryUpdate;
 import org.qubership.integration.platform.engine.service.CheckpointSessionService;
 import org.qubership.integration.platform.engine.service.VariablesService;
 import org.qubership.integration.platform.engine.service.contextstorage.ContextStorageService;
 import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePropertiesService;
 
-import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -42,10 +40,6 @@ public class TasksScheduler {
 
     @Inject
     CheckpointSessionService checkpointSessionService;
-
-    @Inject
-    @Named("librariesUpdateGetter")
-    UpdateGetterHelper<List<CompiledLibraryUpdate>> librariesUpdateGetter;
 
     @Inject
     @Named("chainRuntimePropertiesUpdateGetter")

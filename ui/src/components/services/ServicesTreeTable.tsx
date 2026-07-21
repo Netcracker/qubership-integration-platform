@@ -45,7 +45,7 @@ import { InlineEdit } from "../InlineEdit";
 import { LabelsEdit } from "../table/LabelsEdit";
 import { ChainColumn } from "./ui/ChainColumn";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
-import { HttpMethod } from "./ui/HttpMethod.tsx";
+import { MethodBadge } from "./ui/MethodBadge.tsx";
 import { ProtectedDropdown } from "../../permissions/ProtectedDropdown.tsx";
 import { ColumnSettingsButton } from "../table/ColumnSettingsButton.tsx";
 import type { ActionConfig } from "./serviceRowActions";
@@ -451,7 +451,7 @@ export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
       dataIndex: "method",
       key: "method",
       width: 100,
-      render: (value: unknown) => <HttpMethod value={value} />,
+      render: (value: unknown) => <MethodBadge value={value} />,
     },
     {
       title: "URL",

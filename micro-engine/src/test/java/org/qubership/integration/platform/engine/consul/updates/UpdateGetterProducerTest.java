@@ -16,7 +16,6 @@ import org.qubership.integration.platform.engine.consul.updates.parsers.CommonVa
 import org.qubership.integration.platform.engine.consul.updates.parsers.DeploymentUpdateParser;
 import org.qubership.integration.platform.engine.consul.updates.parsers.LibrariesUpdateParser;
 import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
-import org.qubership.integration.platform.engine.model.kafka.systemmodel.CompiledLibraryUpdate;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import java.util.List;
@@ -78,31 +77,6 @@ class UpdateGetterProducerTest {
         getter.checkForUpdates(result::set);
 
         assertEquals(42L, result.get());
-    }
-
-    @Test
-    void shouldCreateLibrariesUpdateGetterWithConfiguredKeyAndParser() {
-        UpdateGetterHelper<List<CompiledLibraryUpdate>> getter =
-                producer.librariesUpdateGetter(() -> consulClient, librariesUpdateParser);
-
-        List<KeyValue> entries = List.of(mock(KeyValue.class));
-        KeyValueList kvList = changedKvList(entries);
-        List<CompiledLibraryUpdate> updates = List.of(
-                mock(CompiledLibraryUpdate.class),
-                mock(CompiledLibraryUpdate.class)
-        );
-
-        when(consulClient.getValuesWithOptions(
-                eq("config/test/qip-engine-configurations/libraries-update"),
-                any(BlockingQueryOptions.class)
-        )).thenReturn(Uni.createFrom().item(kvList));
-        when(librariesUpdateParser.apply(entries)).thenReturn(updates);
-
-        AtomicReference<List<CompiledLibraryUpdate>> result = new AtomicReference<>();
-
-        getter.checkForUpdates(result::set);
-
-        assertSame(updates, result.get());
     }
 
     @Test

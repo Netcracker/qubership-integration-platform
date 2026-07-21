@@ -18,17 +18,17 @@ package org.qubership.integration.platform.sessions.configuration.opensearch;
 
 import com.netcracker.cloud.dbaas.client.management.DatabaseConfig;
 import com.netcracker.cloud.dbaas.client.opensearch.DbaasOpensearchClient;
+import org.apache.commons.lang3.StringUtils;
 import org.opensearch.client.opensearch.OpenSearchClient;
 
 public class DevDbaasOpensearchClient implements DbaasOpensearchClient {
-    private static final String PREFIX = "dev";
 
-    private OpenSearchClient client;
+    private final OpenSearchClient client;
+    private final String prefix;
 
-    private DevDbaasOpensearchClient() {}
-
-    public DevDbaasOpensearchClient(OpenSearchClient client) {
+    public DevDbaasOpensearchClient(OpenSearchClient client, String prefix) {
         this.client = client;
+        this.prefix = prefix;
     }
 
     @Override
@@ -43,12 +43,12 @@ public class DevDbaasOpensearchClient implements DbaasOpensearchClient {
 
     @Override
     public String getPrefix() {
-        return PREFIX;
+        return prefix;
     }
 
     @Override
     public String normalize(String name) {
-        return PREFIX + "_" + name;
+        return StringUtils.isEmpty(prefix) ? name : (prefix + "_" + name);
     }
 
     @Override

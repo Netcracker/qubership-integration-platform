@@ -26,6 +26,7 @@ import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.transport.httpclient5.ApacheHttpClient5TransportBuilder;
 import org.qubership.integration.platform.sessions.properties.opensearch.ClientProperties;
 import org.qubership.integration.platform.sessions.properties.opensearch.OpenSearchProperties;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -39,6 +40,9 @@ import static com.netcracker.cloud.dbaas.client.opensearch.config.DbaasOpensearc
 @ConditionalOnProperty(name = "qip.standalone", havingValue = "true")
 public class OpenSearchStandaloneAutoConfiguration {
 
+    @Value("${qip.opensearch.index.prefix}")
+    private String prefix;
+
     @Primary
     @Bean(TENANT_NATIVE_OPENSEARCH_CLIENT)
     public DbaasOpensearchClient createOpenSearchClient(OpenSearchProperties properties) {
@@ -51,6 +55,6 @@ public class OpenSearchStandaloneAutoConfiguration {
                 .builder(new HttpHost(clientProperties.protocol(), clientProperties.host(), clientProperties.port()))
                 .setHttpClientConfigCallback(httpClientBuilder ->
                         httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider));
-        return new DevDbaasOpensearchClient(new OpenSearchClient(builder.build()));
+        return new DevDbaasOpensearchClient(new OpenSearchClient(builder.build()), prefix);
     }
 }

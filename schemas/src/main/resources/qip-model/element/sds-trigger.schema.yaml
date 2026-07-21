@@ -34,17 +34,24 @@ properties:
         title: Prohibit parallel run by default
         description: If checked, new job execution will be skipped while other job is still running.
         default: false
-      parallelRunTimeout:
-        type: integer
-        title: Default session timeout
-        description: >
-          Only works, when "Prohibit parallel run" checkbox is marked.
-          After specified amount of time (in milliseconds), session, started by SDS will be considered as timed-out, allowing next job to be started.
-        default: 1200000
+    allOf:
+      - if:
+          properties:
+            prohibitParallelRun:
+              const: true
+        then:
+          properties:
+            parallelRunTimeout:
+              type: integer
+              title: Default session timeout
+              description: >
+                Only works, when "Prohibit parallel run" checkbox is marked.
+                After specified amount of time (in milliseconds), session, started by SDS will be considered as timed-out, allowing next job to be started.
+              default: 1200000
+          required:
+            - parallelRunTimeout
     required:
       - jobId
       - prohibitParallelRun
-      - parallelRunTimeout
-    additionalProperties: false
 required:
   - type

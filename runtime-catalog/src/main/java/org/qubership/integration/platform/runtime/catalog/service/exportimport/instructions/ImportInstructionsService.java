@@ -88,7 +88,7 @@ public class ImportInstructionsService {
 
     @Autowired
     public ImportInstructionsService(
-            @Value("${qip.import.instructions-filename:qip-import-instructions}") String instructionsFileName,
+            @Value("${qip.import.instructions-filename:import-instructions}") String instructionsFileName,
             ImportInstructionsRepository importInstructionsRepository,
             GeneralInstructionsMapper generalInstructionsMapper,
             ServiceInstructionsMapper serviceInstructionsMapper,

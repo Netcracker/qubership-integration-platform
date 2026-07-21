@@ -68,7 +68,7 @@ jobs:
           # Reject unknown tokens so a typo (or a manually-released module like
           # schemas/checkstyle) fails loudly instead of being silently dropped.
           if [[ "$MODULES" != "all" ]]; then
-            known=",${ALL_MODULES// /},"
+            known=",${ALL_MODULES// /,},"
             IFS=',' read -ra tokens <<< "${MODULES// /}"
             for tok in "${tokens[@]}"; do
               [ -z "$tok" ] && continue

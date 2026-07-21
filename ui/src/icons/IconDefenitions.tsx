@@ -288,53 +288,73 @@ export const commonIcons = {
 };
 
 export const elementIcons = {
-  "mcp-trigger": mcpIcon,
+  // Composite Triggers
   checkpoint: FlagOutlined,
+
+  // Files
   "file-read": FileSearchOutlined,
   "file-write": FileTextOutlined,
   "sftp-download": DownloadOutlined,
   "sftp-upload": UploadOutlined,
+
+  // Grouping
+  container: ContainerOutlined,
   swimlane: LayoutOutlined,
+
+  // Deprecated Routing
+
+  // Routing
   "chain-call-2": NodeIndexOutlined,
   "circuit-breaker-2": ApiOutlined,
+  "circuit-breaker-configuration-2": DeliveredProcedureOutlined,
+  "on-fallback-2": DeleteRowOutlined,
   condition: BlockOutlined,
+  if: StepForwardOutlined,
+  else: StepBackwardOutlined,
   "log-record": ProfileOutlined,
   "loop-2": ReloadOutlined,
   reuse: NodeCollapseOutlined,
   "reuse-reference": NodeExpandOutlined,
   "split-2": ForkOutlined,
+  "main-split-element-2": GroupOutlined,
+  "split-element-2": PullRequestOutlined,
   "split-async-2": BranchesOutlined,
+  "async-split-element-2": SisternodeOutlined,
   "try-catch-finally-2": DeploymentUnitOutlined,
+  "try-2": CheckCircleOutlined,
+  "catch-2": CloseCircleOutlined,
+  "finally-2": QuestionCircleOutlined,
+
+  // Senders
   "graphql-sender": RadarChartOutlined,
   "http-sender": LogoutOutlined,
+  "jms-sender": CloudDownloadOutlined,
   "kafka-sender-2": CloudDownloadOutlined,
+  "mail-sender": MailOutlined,
   "pubsub-sender": CloudDownloadOutlined,
   "rabbitmq-sender-2": CloudDownloadOutlined,
-  "mail-sender": MailOutlined,
-  "service-call": ClusterOutlined,
-  "context-storage": DatabaseOutlined,
   "scs-sender": DatabaseOutlined,
+  "service-call": ClusterOutlined,
+
+  // Services
+  "context-storage": DatabaseOutlined,
+
+  // Transformation
   "header-modification": DiffOutlined,
   "mapper-2": ShareAltOutlined,
   script: CodeOutlined,
   xslt: FileTextOutlined,
-  "kafka-trigger-2": CloudUploadOutlined,
-  "pubsub-trigger": CloudUploadOutlined,
-  "rabbitmq-trigger-2": CloudUploadOutlined,
+
+  // Triggers
   "async-api-trigger": CloudServerOutlined,
   "chain-trigger-2": InteractionOutlined,
-  "quartz-scheduler": ScheduleOutlined,
-  "sftp-trigger-2": FileAddOutlined,
   "http-trigger": LoginOutlined,
-  if: StepForwardOutlined,
-  else: StepBackwardOutlined,
-  "main-split-element-2": GroupOutlined,
-  "split-element-2": PullRequestOutlined,
-  "async-split-element-2": SisternodeOutlined,
-  "try-2": CheckCircleOutlined,
-  "catch-2": CloseCircleOutlined,
-  "finally-2": QuestionCircleOutlined,
-  "circuit-breaker-configuration-2": DeliveredProcedureOutlined,
-  "on-fallback-2": DeleteRowOutlined,
-  container: ContainerOutlined,
+  "jms-trigger": CloudUploadOutlined,
+  "kafka-trigger-2": CloudUploadOutlined,
+  "mcp-trigger": mcpIcon,
+  "pubsub-trigger": CloudUploadOutlined,
+  "rabbitmq-trigger-2": CloudUploadOutlined,
+  "quartz-scheduler": ScheduleOutlined,
+  "sds-trigger": ClockCircleOutlined,
+  "sftp-trigger-2": FileAddOutlined,
 };

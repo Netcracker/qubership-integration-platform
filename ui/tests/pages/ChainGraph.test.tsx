@@ -417,17 +417,18 @@ describe("ChainGraph", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("save and deploy creates snapshot and deploys", async () => {
+  it("save and deploy creates snapshot, refreshes the chain, and deploys", async () => {
     const createSnapshot = api.createSnapshot as jest.Mock;
     const createDeployment = api.createDeployment as jest.Mock;
     createSnapshot.mockResolvedValue({ id: "snap-1", name: "snap-a" });
     createDeployment.mockResolvedValue(undefined);
+    const refresh = jest.fn().mockResolvedValue(undefined);
 
     render(
       <ChainContext.Provider
         value={{
           chain: undefined,
-          refresh: jest.fn().mockResolvedValue(undefined),
+          refresh,
           update: jest.fn().mockResolvedValue(undefined),
         }}
       >
@@ -454,6 +455,9 @@ describe("ChainGraph", () => {
     ]);
 
     expect(createSnapshot).toHaveBeenCalledWith("chain-1");
+    // Building the snapshot clears the backend unsaved-changes flag; the chain must
+    // refresh so the header banner hides (regression guard: #476 dropped this call).
+    expect(refresh).toHaveBeenCalled();
     expect(createDeployment).toHaveBeenCalledWith(
       "chain-1",
       expect.objectContaining({
