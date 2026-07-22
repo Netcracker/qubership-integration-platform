@@ -4,11 +4,11 @@ import org.qubership.integration.platform.library.components.LibraryElementsServ
 import org.qubership.integration.platform.library.model.ElementProperty;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import java.util.Map;
 
-@Component
+@Service
 public class PropertyPlaceholderService {
     private static final String CREATED_ELEMENT_ID_PLACEHOLDER = "%%{created-element-id-placeholder}";
     private static final String CHAIN_ID_PLACEHOLDER = "%%{chain-id-placeholder}";
