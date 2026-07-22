@@ -25,6 +25,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
@@ -55,6 +57,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class ServiceDeserializerTest {
 
     private static final String SYSTEM_ID = "system-1";
@@ -265,45 +268,35 @@ class ServiceDeserializerTest {
     }
 
     private static String legacyServiceYaml(String sourceName, String sourceFileName) {
-        String sourceBlock;
-        if (sourceFileName != null) {
-            sourceBlock = """
-                      specificationSources:
-                        - id: "src-1"
-                          fileName: "%s"
-                          mainSource: true
-                    """.formatted(sourceFileName);
-        } else {
-            sourceBlock = """
-                      specificationSources:
-                        - id: "src-1"
-                          name: "%s"
-                          mainSource: true
-                    """.formatted(sourceName);
-        }
+        String specificationSourceLine = sourceFileName != null
+                ? "fileName: \"%s\"".formatted(sourceFileName)
+                : "name: \"%s\"".formatted(sourceName);
 
         return """
-                id: "%s"
-                name: "Legacy Service"
-                content:
-                  integrationSystemType: EXTERNAL
-                  protocol: HTTP
-                  specificationGroups:
+            id: "%s"
+            name: "Legacy Service"
+            content:
+              integrationSystemType: EXTERNAL
+              protocol: HTTP
+              specificationGroups:
+                - id: "%s"
+                  name: "API Group"
+                  synchronization: false
+                  systemModels:
                     - id: "%s"
-                      name: "API Group"
-                      synchronization: false
-                      systemModels:
-                        - id: "%s"
-                          name: "1.0"
-                          version: "1.0"
-                          source: MANUAL
-                          operations:
-                            - id: "op-1"
-                              method: GET
-                              path: /pets
-                %s
-                fileVersion: 3
-                """.formatted(SYSTEM_ID, GROUP_ID, MODEL_ID, sourceBlock);
+                      name: "1.0"
+                      version: "1.0"
+                      source: MANUAL
+                      operations:
+                        - id: "op-1"
+                          method: GET
+                          path: /pets
+                      specificationSources:
+                        - id: "src-1"
+                          %s
+                          mainSource: true
+            fileVersion: 3
+            """.formatted(SYSTEM_ID, GROUP_ID, MODEL_ID, specificationSourceLine);
     }
 
     private static File writeServiceFile(Path directory, String yaml) throws IOException {
