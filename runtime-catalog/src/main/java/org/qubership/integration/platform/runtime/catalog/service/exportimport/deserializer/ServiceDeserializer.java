@@ -231,10 +231,10 @@ public class ServiceDeserializer {
     }
 
     private void setGroupParentId(SpecificationGroupDto group, IntegrationSystem integrationSystem) {
+        if (group.getContent() == null) {
+            group.setContent(SpecificationGroupContentDto.builder().build());
+        }
         if (integrationSystem.getId() != null) {
-            if (group.getContent() == null) {
-                group.setContent(SpecificationGroupContentDto.builder().build());
-            }
             group.getContent().setParentId(integrationSystem.getId());
         }
     }
@@ -356,9 +356,12 @@ public class ServiceDeserializer {
                         .modifiedWhen(specificationSourceDto.getModifiedWhen())
                         .sourceHash(specificationSourceDto.getSourceHash())
                         .isMainSource(specificationSourceDto.isMainSource());
-                Path sourcePath = resourceDirectory.toPath().resolve(specificationSourceDto.getFileName());
-                if (!Files.exists(sourcePath) && !specificationSourceDto.getFileName().contains(RESOURCES_FOLDER_PREFIX)) {
-                    sourcePath = resourceDirectory.toPath().resolve(RESOURCES_FOLDER_PREFIX + specificationSourceDto.getFileName());
+                String fileName = specificationSourceDto.getFileName() != null
+                    ? specificationSourceDto.getFileName()
+                    : specificationSourceDto.getName();
+                Path sourcePath = resourceDirectory.toPath().resolve(fileName);
+                if (!Files.exists(sourcePath) && !fileName.contains(RESOURCES_FOLDER_PREFIX)) {
+                    sourcePath = resourceDirectory.toPath().resolve(RESOURCES_FOLDER_PREFIX + fileName);
                 }
                 if (Files.exists(sourcePath)) {
                     try {
@@ -367,7 +370,7 @@ public class ServiceDeserializer {
                         throw new RuntimeException("Failed to read specification source", e);
                     }
                 } else {
-                    log.warn("Specification source file not found: {}", specificationSourceDto.getFileName());
+                    log.warn("Specification source file not found: {}", fileName);
                 }
                 SpecificationSource specificationSource = specificationSourceBuilder.build();
                 systemModel.addProvidedSpecificationSource(specificationSource);
