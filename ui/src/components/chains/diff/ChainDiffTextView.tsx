@@ -5,6 +5,7 @@ import yaml, { DumpOptions } from "js-yaml";
 import { DiffEditor } from "@monaco-editor/react";
 import { useMonacoTheme } from "../../../hooks/useMonacoTheme.ts";
 import { buildElementMap } from "./compare/compare.ts";
+import styles from "./ChainDiffTextView.module.css";
 
 export type ChainDiffTextViewProps = {
   chain1?: Chain;
@@ -91,19 +92,21 @@ export const ChainDiffTextView: React.FC<ChainDiffTextViewProps> = ({
   }, [chain1, chain2]);
 
   return (
-    <DiffEditor
-      className="qip-editor"
-      originalLanguage={"yaml"}
-      modifiedLanguage={"yaml"}
-      original={yaml1}
-      modified={yaml2}
-      theme={monacoTheme}
-      options={{
-        readOnly: true,
-        originalAriaLabel: "Body Before",
-        modifiedAriaLabel: "Body After",
-        automaticLayout: true,
-      }}
-    />
+    <div className={styles.textView}>
+      <DiffEditor
+        className="qip-editor"
+        originalLanguage={"yaml"}
+        modifiedLanguage={"yaml"}
+        original={yaml1}
+        modified={yaml2}
+        theme={monacoTheme}
+        options={{
+          readOnly: true,
+          originalAriaLabel: "Body Before",
+          modifiedAriaLabel: "Body After",
+          automaticLayout: true,
+        }}
+      />
+    </div>
   );
 };

@@ -1,0 +1,12 @@
+.textView {
+  height: 100%;
+  min-height: 0;
+}
+
+.textView :global(> section) {
+  height: 100% !important;
+}
+
+.textView :global(.qip-editor) {
+  margin-top: 0;
+}

@@ -72,31 +72,33 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
         onViewTypeChange={(viewType) => setViewType(viewType)}
       />
       <ElementSchemasProvider>
-        {viewType === "graph" ? (
-          <ChainDiffGraphView
-            chain1={chain1}
-            chain2={chain2}
-            changes={changes}
-            selectedChangeId={selectedChangeId}
-            onSelectChange={setSelectedChangeId}
-          />
-        ) : viewType === "table" ? (
-          <ChainDiffTableView
-            chain1={chain1}
-            chain2={chain2}
-            changes={changes}
-            selectedChangeId={selectedChangeId}
-            onSelectChange={setSelectedChangeId}
-          />
-        ) : (
-          <ChainDiffTextView
-            chain1={chain1}
-            chain2={chain2}
-            changes={changes}
-            selectedChangeId={selectedChangeId}
-            onSelectChange={setSelectedChangeId}
-          />
-        )}
+        <div className={styles.viewContent}>
+          {viewType === "graph" ? (
+            <ChainDiffGraphView
+              chain1={chain1}
+              chain2={chain2}
+              changes={changes}
+              selectedChangeId={selectedChangeId}
+              onSelectChange={setSelectedChangeId}
+            />
+          ) : viewType === "table" ? (
+            <ChainDiffTableView
+              chain1={chain1}
+              chain2={chain2}
+              changes={changes}
+              selectedChangeId={selectedChangeId}
+              onSelectChange={setSelectedChangeId}
+            />
+          ) : (
+            <ChainDiffTextView
+              chain1={chain1}
+              chain2={chain2}
+              changes={changes}
+              selectedChangeId={selectedChangeId}
+              onSelectChange={setSelectedChangeId}
+            />
+          )}
+        </div>
       </ElementSchemasProvider>
     </Flex>
   );

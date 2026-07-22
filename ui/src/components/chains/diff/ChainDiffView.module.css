@@ -3,3 +3,16 @@
   left: calc(50% - 16px);
   top: calc(50% - 16px);
 }
+
+.viewContent {
+  display: flex;
+  flex-direction: column;
+  height: calc(90vh - 220px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.viewContent > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
