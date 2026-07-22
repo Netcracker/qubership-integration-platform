@@ -51,7 +51,7 @@ To build the sequence diagram by particular snapshot data, select "**Show Diagra
 
 Sequence diagram could be exported via button **"Export"** with 3 output formats supported: **SVG**, **Mermaid** or **PlantUML**.
 
-#### Compare Snapshots
+### Compare Snapshots
 Mark two snapshots with checkboxes, click ![diff](img/diff.svg) button to open widget with two comparison areas and supplementary elements:
 
 - **Snapshot Name** - dropdown with snapshot versions, available for given chain. When a comparison window is requested, while only a single snapshot is marked with a checkbox, the system compares it with current state of the chain.
@@ -60,18 +60,18 @@ Mark two snapshots with checkboxes, click ![diff](img/diff.svg) button to open w
 
 Comparison could be done in three different views, that could be switched anytime:
 - **Graph View** - Default view for comparison widget. When this type of view is selected, comparison areas show configuration graphs, compiled on the basis of selected snapshots. Next tools are available:
-  - ![plus](img/plus.svg) ![minus](img/minus.svg) - zoom in /out the graph.
+  - ![plus](img/plus.svg) ![minus](img/minus.svg) - zoom in/out the graph.
   - ![expand](img/expand.svg) - fit view.
   - ![rotate-right](img/rotate-right.svg) - changes graphs orientation from vertical to horizontal and vice versa.
   - ![arrows-alt](img/arrows-alt.svg) ![shrink](img/shrink.svg) - allows to open widget in full screen and collapse it back.
 
-  Graphs' elements are marked according to the found differences:
+  Chain graph elements are marked according to the found differences:
    - **Identical (grey)** - no differences were found in the element or dependency.
    - **Changed (yellow)** - the element exists in both chain versions, but its properties differ.
    - **Removed (red)** - the element or dependency does not exist in the compared chain version.
    - **Created (green)** - a new element or dependency exists in the compared chain version.
 
-Clicking the element in one area makes another area also selecting it, allowing to quickly find comparable elements. Double-clicking the element opens another window with text-based comparator, complied on the basis of the elements' data.
+Clicking the element in one area makes another area also selecting it, allowing to quickly find comparable elements. Double-clicking the element opens another window with text-based comparator, complied on the basis of the element's data.
 
 - **Table View** - Select **Table** in the **Graph/Table/Text** switcher to display the comparison results as a table. Each row represents a detected difference. The table contains the following columns:
 
