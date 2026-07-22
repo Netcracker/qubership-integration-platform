@@ -19,9 +19,9 @@ package org.qubership.integration.platform.runtime.catalog.model.dto.system;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.model.dto.user.UserDTO;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentLabel;
-import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
 
 import java.util.List;
 

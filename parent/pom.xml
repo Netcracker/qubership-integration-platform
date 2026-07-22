@@ -61,6 +61,10 @@
         <jose4j.version>0.9.6</jose4j.version>
         <jandex.version>3.4.0</jandex.version>
 
+        <!-- Swagger / OpenAPI (shared by integration-build-pipeline and runtime-catalog; keep in sync) -->
+        <swagger-parser.version>2.1.38</swagger-parser.version>
+        <swagger-core.version>2.2.43</swagger-core.version>
+
         <!-- Common plugin versions -->
         <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
         <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>

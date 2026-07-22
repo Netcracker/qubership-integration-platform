@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.io.readers.migrations.chain.V106ChainImportFileMigration;
 
 import static org.junit.jupiter.api.Assertions.*;
 

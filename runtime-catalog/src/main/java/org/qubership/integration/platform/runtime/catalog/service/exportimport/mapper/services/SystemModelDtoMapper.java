@@ -16,23 +16,28 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services;
 
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationSourceDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelContentDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
+import org.qubership.integration.platform.chain.model.ImportSystemModel;
+import org.qubership.integration.platform.io.model.exportimport.system.SpecificationSourceDto;
+import org.qubership.integration.platform.io.model.exportimport.system.SystemModelContentDto;
+import org.qubership.integration.platform.io.model.exportimport.system.SystemModelDto;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModelLabel;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
+import java.util.LinkedList;
 import java.util.stream.Collectors;
 
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam.toModelSource;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam.toPersistenceSource;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemEntitySeam.toPersistenceUser;
+
 @Component
-public class SystemModelDtoMapper implements ExternalEntityMapper<SystemModel, SystemModelDto> {
+public class SystemModelDtoMapper {
     private final URI schemaUri;
 
     @Autowired
@@ -42,25 +47,25 @@ public class SystemModelDtoMapper implements ExternalEntityMapper<SystemModel, S
         this.schemaUri = schemaUri;
     }
 
-    @Override
-    public SystemModel toInternalEntity(SystemModelDto systemModelDto) {
+    public SystemModel toInternalEntity(ImportSystemModel importSystemModel) {
         SystemModel systemModel = SystemModel.builder()
-                .id(systemModelDto.getId())
-                .name(systemModelDto.getName())
-                .description(systemModelDto.getContent().getDescription())
-                .createdBy(systemModelDto.getContent().getCreatedBy())
-                .createdWhen(systemModelDto.getContent().getCreatedWhen())
-                .modifiedBy(systemModelDto.getContent().getModifiedBy())
-                .modifiedWhen(systemModelDto.getContent().getModifiedWhen())
-                .deprecated(systemModelDto.getContent().isDeprecated())
-                .version(systemModelDto.getContent().getVersion())
-                .source(systemModelDto.getContent().getSource())
-                .operations(systemModelDto.getContent().getOperations())
+                .id(importSystemModel.getId())
+                .name(importSystemModel.getName())
+                .description(importSystemModel.getDescription())
+                .createdBy(toPersistenceUser(importSystemModel.getCreatedBy()))
+                .createdWhen(importSystemModel.getCreatedWhen())
+                .modifiedBy(toPersistenceUser(importSystemModel.getModifiedBy()))
+                .modifiedWhen(importSystemModel.getModifiedWhen())
+                .deprecated(importSystemModel.isDeprecated())
+                .version(importSystemModel.getVersion())
+                .source(toPersistenceSource(importSystemModel.getSource()))
+                .operations(importSystemModel.getOperations().stream()
+                        .map(SystemEntitySeam::toPersistenceOperation)
+                        .collect(Collectors.toCollection(LinkedList::new)))
                 .build();
         systemModel.getOperations().forEach(operation -> operation.setSystemModel(systemModel));
         systemModel.getSpecificationSources().forEach(specificationSource -> specificationSource.setSystemModel(systemModel));
-        systemModel.setLabels(systemModelDto
-                .getContent()
+        systemModel.setLabels(importSystemModel
                 .getLabels()
                 .stream()
                 .map(name -> new SystemModelLabel(name, systemModel))
@@ -68,7 +73,6 @@ public class SystemModelDtoMapper implements ExternalEntityMapper<SystemModel, S
         return systemModel;
     }
 
-    @Override
     public SystemModelDto toExternalEntity(SystemModel systemModel) {
         return SystemModelDto.builder()
                 .id(systemModel.getId())
@@ -78,8 +82,10 @@ public class SystemModelDtoMapper implements ExternalEntityMapper<SystemModel, S
                         .description(systemModel.getDescription())
                         .deprecated(systemModel.isDeprecated())
                         .version(systemModel.getVersion())
-                        .source(systemModel.getSource())
-                        .operations(systemModel.getOperations())
+                        .source(toModelSource(systemModel.getSource()))
+                        .operations(systemModel.getOperations().stream()
+                                .map(SystemEntitySeam::toModelOperation)
+                                .toList())
                         .parentId(systemModel.getSpecificationGroup().getId())
                         .labels(systemModel.getLabels().stream().map(SystemModelLabel::getName).toList())
                         .specificationSources(systemModel.getSpecificationSources()

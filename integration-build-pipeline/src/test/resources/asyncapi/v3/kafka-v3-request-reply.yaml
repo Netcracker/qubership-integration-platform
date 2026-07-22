@@ -1,0 +1,41 @@
+asyncapi: 3.0.0
+info:
+  title: Kafka Request/Reply API
+  version: 1.0.0
+  description: Kafka v3 with request/reply pattern
+servers:
+  production:
+    host: kafka.example.com:9092
+    protocol: kafka
+channels:
+  requestChannel:
+    address: order/request
+    messages:
+      OrderRequest:
+        payload:
+          type: object
+          properties:
+            orderId:
+              type: string
+  replyChannel:
+    address: order/reply
+    messages:
+      OrderResponse:
+        payload:
+          type: object
+          properties:
+            orderId:
+              type: string
+            status:
+              type: string
+operations:
+  sendOrderRequest:
+    action: send
+    channel:
+      $ref: '#/channels/requestChannel'
+    summary: Send order request
+    reply:
+      channel:
+        $ref: '#/channels/replyChannel'
+      messages:
+        - $ref: '#/channels/replyChannel/messages/OrderResponse'

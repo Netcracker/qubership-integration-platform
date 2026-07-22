@@ -29,8 +29,10 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.qubership.integration.platform.runtime.catalog.builder.templates.helpers.MapperInterpretatorHelper;
-import org.qubership.integration.platform.runtime.catalog.configuration.element.descriptor.DescriptorPropertiesConfiguration;
+import org.qubership.integration.platform.io.writers.camel.xml.templates.helpers.MapperInterpreterHelper;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.components.LibraryResourceLoader;
+import org.qubership.integration.platform.library.configuration.DescriptorPropertiesConfiguration;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -38,8 +40,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.re
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.DependencyRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryResourceLoader;
 import org.qubership.integration.platform.runtime.catalog.service.migration.element.ElementMigration;
 import org.qubership.integration.platform.runtime.catalog.service.migration.element.MigrationContext;
 import org.qubership.integration.platform.runtime.catalog.testutils.TestUtils;
@@ -50,10 +50,10 @@ import org.qubership.integration.platform.runtime.catalog.testutils.mapper.Chain
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.IOException;
@@ -96,18 +96,18 @@ public class ChainMigrationServiceTest {
     private ChainMapper chainMapper;
     @Autowired
     private ChainMigrationService chainMigrationService;
-    @MockBean
+    @MockitoBean
     private ChainRepository chainRepository;
-    @MockBean
+    @MockitoBean
     private ElementRepository elementRepository;
-    @MockBean
+    @MockitoBean
     private DependencyRepository dependencyRepository;
-    @MockBean
+    @MockitoBean
     private ActionsLogService actionsLogService;
-    @MockBean
+    @MockitoBean
     private AuditingHandler jpaAuditingHandler;
-    @MockBean
-    MapperInterpretatorHelper mapperInterpretatorHelper;
+    @MockitoBean
+    MapperInterpreterHelper mapperInterpreterHelper;
 
     @Autowired
     private List<ElementMigration> elemenMigrationList;

@@ -19,7 +19,6 @@ package org.qubership.integration.platform.runtime.catalog.service.verification.
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.ElementPropertiesVerifier;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
-import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -29,11 +28,13 @@ import java.util.Collections;
 @Component
 public class ElementWithMandatoryFieldsVerifier implements ElementPropertiesVerifier {
 
-    private final ElementUtils elementUtils;
+    private final MandatoryPropertyVerificationHelper mandatoryPropertyVerificationHelper;
 
     @Autowired
-    public ElementWithMandatoryFieldsVerifier(ElementUtils elementUtils) {
-        this.elementUtils = elementUtils;
+    public ElementWithMandatoryFieldsVerifier(
+        MandatoryPropertyVerificationHelper mandatoryPropertyVerificationHelper
+    ) {
+        this.mandatoryPropertyVerificationHelper = mandatoryPropertyVerificationHelper;
     }
 
     @Override
@@ -43,7 +44,7 @@ public class ElementWithMandatoryFieldsVerifier implements ElementPropertiesVeri
 
     @Override
     public Collection<VerificationError> verify(ChainElement element) {
-        return elementUtils.areMandatoryPropertiesPresent(element)
+        return mandatoryPropertyVerificationHelper.areMandatoryPropertiesPresent(element)
                 ? Collections.emptyList()
                 : Collections.singletonList(new VerificationError("Required fields not specified"));
     }

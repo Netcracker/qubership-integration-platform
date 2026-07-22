@@ -17,12 +17,13 @@
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties.builders;
 
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.chain.model.ServiceEnvironment;
+import org.qubership.integration.platform.library.constants.CamelNames;
+import org.qubership.integration.platform.library.constants.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DeploymentProcessingException;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
-import org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
+import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -31,8 +32,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.OPERATION_PATH_TOPIC;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.SASL_MECHANISM;
+import static org.qubership.integration.platform.library.constants.CamelNames.OPERATION_PATH_TOPIC;
+import static org.qubership.integration.platform.library.constants.CamelOptions.SASL_MECHANISM;
 
 @Component
 public class OperationElementPropertiesBuilder implements ElementPropertiesBuilder {
@@ -50,21 +51,21 @@ public class OperationElementPropertiesBuilder implements ElementPropertiesBuild
     }
 
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         String type = element.getType();
         return CamelNames.ASYNC_API_TRIGGER_COMPONENT.equals(type)
                || CamelNames.SERVICE_CALL_COMPONENT.equals(type);
     }
 
     @Override
-    public Map<String, String> build(ChainElement element) {
-        return Optional.ofNullable(element.getEnvironment())
+    public Map<String, String> build(Element element) {
+        return element.getEnvironment()
                 .map(environment -> buildProperties(element, environment))
                 .orElse(Collections.emptyMap());
     }
 
     private Map<String, String> buildProperties(
-            ChainElement element,
+            Element element,
             ServiceEnvironment environment
     ) {
         Map<String, String> properties = new HashMap<>();
@@ -73,12 +74,12 @@ public class OperationElementPropertiesBuilder implements ElementPropertiesBuild
         return properties;
     }
 
-    private Map<String, String> buildProtocolSpecificProperties(ChainElement element, ServiceEnvironment environment) {
-        Object protocolType = element.getProperty(CamelNames.OPERATION_PROTOCOL_TYPE_PROP);
+    private Map<String, String> buildProtocolSpecificProperties(Element element, ServiceEnvironment environment) {
+        Object protocolType = element.getProperties().get(CamelNames.OPERATION_PROTOCOL_TYPE_PROP);
         if (CamelNames.OPERATION_PROTOCOL_TYPE_KAFKA.equals(protocolType)) {
             Map<String, String> elementProperties = Optional.ofNullable(environment.getProperties())
                     .map(environmentProperties -> kafkaElementPropertiesBuilder.buildKafkaConnectionProperties(
-                            element.getPropertyAsString(OPERATION_PATH_TOPIC),
+                            ElementUtils.getPropertyAsString(element, OPERATION_PATH_TOPIC),
                             environment.getAddress(),
                             (String) environmentProperties.get(CamelOptions.SECURITY_PROTOCOL),
                             (String) environmentProperties.get(SASL_MECHANISM),
@@ -94,7 +95,7 @@ public class OperationElementPropertiesBuilder implements ElementPropertiesBuild
                             (String) environmentProperties.get(CamelOptions.SSL),
                             environment.getAddress(),
                             getQueueName(element, ((String) environmentProperties.get(CamelOptions.QUEUES))),
-                            element.getPropertyAsString(CamelNames.OPERATION_PATH_EXCHANGE),
+                            ElementUtils.getPropertyAsString(element, CamelNames.OPERATION_PATH_EXCHANGE),
                             (String) environmentProperties.get(CamelOptions.USERNAME),
                             (String) environmentProperties.get(CamelOptions.PASSWORD),
                             environment.getSourceType() != null ? String.valueOf(environment.getSourceType()) : null,
@@ -109,7 +110,7 @@ public class OperationElementPropertiesBuilder implements ElementPropertiesBuild
         return Collections.emptyMap();
     }
 
-    private static String getQueueName(ChainElement element, String queueNameFromEnv) {
+    private static String getQueueName(Element element, String queueNameFromEnv) {
         if (element.getProperties() != null && element.getProperties().containsKey(CamelNames.OPERATION_ASYNC_PROPERTIES)) {
             Map<String, Object> prop = (Map<String, Object>) element.getProperties().get(CamelNames.OPERATION_ASYNC_PROPERTIES);
             if (prop != null && prop.containsKey(CamelOptions.QUEUES)) {
@@ -120,16 +121,16 @@ public class OperationElementPropertiesBuilder implements ElementPropertiesBuild
         return queueNameFromEnv;
     }
 
-    private static Map<String, String> buildCommonProperties(ChainElement element) {
+    private static Map<String, String> buildCommonProperties(Element element) {
         return Map.of(CamelNames.OPERATION_PROTOCOL_TYPE_PROP,
-                String.valueOf(element.getProperty(CamelNames.OPERATION_PROTOCOL_TYPE_PROP)));
+                String.valueOf(element.getProperties().get(CamelNames.OPERATION_PROTOCOL_TYPE_PROP)));
     }
 
-    private static Map<String, String> buildGrpcProperties(ChainElement element) {
-        return Map.of(CamelOptions.MODEL_ID, element.getPropertyAsString(CamelOptions.MODEL_ID));
+    private static Map<String, String> buildGrpcProperties(Element element) {
+        return Map.of(CamelOptions.MODEL_ID, ElementUtils.getPropertyAsString(element, CamelOptions.MODEL_ID));
     }
 
-    private static RuntimeException getEnvironmentNotFoundException(ChainElement element) {
+    private static RuntimeException getEnvironmentNotFoundException(Element element) {
         String message = String.format("Can't find active environment for element %s, %s",
                 element.getName(), element.getId());
         return new DeploymentProcessingException(message);

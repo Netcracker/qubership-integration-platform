@@ -27,6 +27,13 @@ on:
           Enable for modules with private GitHub Packages deps (micro-engine):
           the OWNER/* wildcard repo intermittently fails under load, and Maven
           negative-caches the miss across runs (cache: maven). -U defeats that.
+      preinstall-integration-build-pipeline-library:
+        required: false
+        type: boolean
+        default: false
+        description: >-
+          Install the integration-build-pipeline library into the local .m2
+          before building when execute sonar analysis. Required for consumers (runtime-catalog).
     secrets:
       SONAR_TOKEN:
         required: false
@@ -63,8 +70,8 @@ jobs:
           cache: "maven"
 
       - name: Build and verify (no publish)
-        working-directory: ${{ inputs.module }}
         env:
+          MODULE_NAME: ${{ inputs.module }}
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           FORCE_UPDATE: ${{ inputs.force-update }}
@@ -75,7 +82,12 @@ jobs:
           # com.netcracker.cloud artifacts this token can't read. Publishes nothing.
           UPDATE_FLAG=""
           if [ "$FORCE_UPDATE" = "true" ]; then UPDATE_FLAG="-U"; fi
-          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" verify $UPDATE_FLAG -Dgpg.skip=true
+          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            verify \
+            $UPDATE_FLAG \
+            -pl $MODULE_NAME \
+            -am \
+            -Dgpg.skip=true
 
       - name: Upload Sonar inputs
         if: ${{ inputs.sonar-project-key != '' }}
@@ -124,6 +136,13 @@ jobs:
           # mirroring the build job — micro-engine needs the private BOMs to assemble
           # its effective POM.
           cache: "maven"
+
+      - name: Pre-install integration-build-library into .m2
+        if: ${{ inputs.preinstall-integration-build-pipeline-library == true }}
+        run: |
+          set -eu
+          mvn --batch-mode -f integration-build-pipeline/pom.xml install \
+            -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
 
       - name: Download Sonar inputs
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0

@@ -37,16 +37,11 @@
     <atlasmap.version>2.5.2</atlasmap.version>
     <antlr4.version>4.13.2</antlr4.version>
     <google-guava.version>33.4.0-jre</google-guava.version>
-    <wire.version>4.9.7</wire.version>
     <okio.version>3.16.4</okio.version>
     <dhatim.fastexcel.version>0.16.4</dhatim.fastexcel.version>
     <flexmark.version>0.64.8</flexmark.version>
     <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
     <graphql-java.version>21.5</graphql-java.version>
-    <swagger-parser.version>2.1.38</swagger-parser.version>
-    <swagger-core.version>2.2.43</swagger-core.version>
-    <woden-core.version>1.0M10</woden-core.version>
-    <soa-model-core.version>1.6.4</soa-model-core.version>
     <commons-validator.version>1.7</commons-validator.version>
     <plexus-utils.version>3.6.1</plexus-utils.version>
     <commons-beanutils.version>1.11.0</commons-beanutils.version>
@@ -191,16 +186,6 @@
         <version>${hypersistence-utils-hibernate.version}</version>
       </dependency>
       <dependency>
-        <groupId>com.squareup.wire</groupId>
-        <artifactId>wire-schema-jvm</artifactId>
-        <version>${wire.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.predic8</groupId>
-        <artifactId>soa-model-core</artifactId>
-        <version>${soa-model-core.version}</version>
-      </dependency>
-      <dependency>
         <groupId>commons-validator</groupId>
         <artifactId>commons-validator</artifactId>
         <version>${commons-validator.version}</version>
@@ -254,14 +239,7 @@
         <artifactId>swagger-core-jakarta</artifactId>
         <version>${swagger-core.version}</version>
       </dependency>
-      <!-- Mapper dependencies -->
-      <!-- WSDL Support -->
-      <dependency>
-        <groupId>org.apache.woden</groupId>
-        <artifactId>woden-core</artifactId>
-        <version>${woden-core.version}</version>
-      </dependency>
-      <!-- GRPC -->
+      <!-- Mapper dependencies -->      <!-- GRPC -->
       <dependency>
         <groupId>io.grpc</groupId>
         <artifactId>grpc-protobuf</artifactId>
@@ -494,14 +472,6 @@
       <artifactId>hypersistence-utils-hibernate-63</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.squareup.wire</groupId>
-      <artifactId>wire-schema-jvm</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.predic8</groupId>
-      <artifactId>soa-model-core</artifactId>
-    </dependency>
-    <dependency>
       <groupId>commons-validator</groupId>
       <artifactId>commons-validator</artifactId>
     </dependency>
@@ -543,11 +513,6 @@
       <groupId>org.mapstruct</groupId>
       <artifactId>mapstruct-processor</artifactId>
     </dependency>
-    <!-- WSDL Support -->
-    <dependency>
-      <groupId>org.apache.woden</groupId>
-      <artifactId>woden-core</artifactId>
-    </dependency>
     <dependency>
       <groupId>jakarta.annotation</groupId>
       <artifactId>jakarta.annotation-api</artifactId>
@@ -573,6 +538,12 @@
     <dependency>
       <groupId>com.graphql-java-generator</groupId>
       <artifactId>graphql-maven-plugin-logic</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>${project.parent.groupId}</groupId>
+      <artifactId>qip-integration-build-pipeline</artifactId>
+      <version>${project.parent.version}</version>
     </dependency>
   </dependencies>
   <build>

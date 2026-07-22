@@ -16,7 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions;
 
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequestAction;
+import org.qubership.integration.platform.io.model.exportimport.chain.ChainCommitRequestAction;
 
 import java.util.ArrayList;
 import java.util.HashMap;

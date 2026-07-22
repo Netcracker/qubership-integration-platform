@@ -23,14 +23,14 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.qubership.integration.platform.runtime.catalog.builder.templates.helpers.MapperInterpretatorHelper;
-import org.qubership.integration.platform.runtime.catalog.configuration.element.descriptor.DescriptorPropertiesConfiguration;
+import org.qubership.integration.platform.io.writers.camel.xml.templates.helpers.MapperInterpreterHelper;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.components.LibraryResourceLoader;
+import org.qubership.integration.platform.library.configuration.DescriptorPropertiesConfiguration;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryResourceLoader;
 import org.qubership.integration.platform.runtime.catalog.testutils.TestUtils;
 import org.qubership.integration.platform.runtime.catalog.testutils.configuration.TestConfig;
 import org.qubership.integration.platform.runtime.catalog.testutils.dto.ChainImportDTO;
@@ -40,9 +40,9 @@ import org.qubership.integration.platform.runtime.catalog.testutils.mapper.Eleme
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.IOException;
@@ -63,7 +63,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mockStatic;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.CONTAINER;
+import static org.qubership.integration.platform.library.constants.CamelNames.CONTAINER;
 import static org.qubership.integration.platform.runtime.catalog.service.migration.element.MigrationContext.*;
 
 @DisplayName("Element migration")
@@ -88,8 +88,8 @@ public class ElementMigrationTest {
     private static final String OLD_TEST_TYPE = "test-element";
     private static final String NEW_TEST_TYPE = "test-element-2";
 
-    @MockBean
-    MapperInterpretatorHelper mapperInterpretatorHelper;
+    @MockitoBean
+    MapperInterpreterHelper mapperInterpreterHelper;
 
     @Autowired
     private YAMLMapper defaultYamlMapper;

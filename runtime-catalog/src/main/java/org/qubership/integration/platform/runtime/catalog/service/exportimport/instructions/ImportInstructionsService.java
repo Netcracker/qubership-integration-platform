@@ -23,6 +23,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.io.model.exportimport.chain.ChainCommitRequestAction;
 import org.qubership.integration.platform.runtime.catalog.consul.ConsulService;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ImportInstructionsExternalException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ImportInstructionsInternalException;
@@ -41,7 +42,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.instructions.ImportInstructionsRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.instructions.DeleteInstructionsRequest;
-import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequestAction;
 import org.qubership.integration.platform.runtime.catalog.service.*;
 import org.qubership.integration.platform.runtime.catalog.service.filter.ImportInstructionFilterSpecificationBuilder;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;

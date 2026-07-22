@@ -23,14 +23,14 @@ import static org.junit.jupiter.api.Assertions.*;
 class DictionaryEntryParserTest {
     @Test
     void testParse() {
-        var entry = DictionaryEntryParser.parse("foo=bar");
+        var entry = org.qubership.integration.platform.mapper.build.DictionaryEntryParser.parse("foo=bar");
         assertEquals("foo", entry.getKey());
         assertEquals("bar", entry.getValue());
     }
 
     @Test
     void testParseEscaped() {
-        var entry = DictionaryEntryParser.parse("\\;\\==\\=\\=\\=");
+        var entry = org.qubership.integration.platform.mapper.build.DictionaryEntryParser.parse("\\;\\==\\=\\=\\=");
         assertEquals(";=", entry.getKey());
         assertEquals("===", entry.getValue());
     }
@@ -38,7 +38,7 @@ class DictionaryEntryParserTest {
     @Test
     void testThrowsExceptionOnMalformedValue() {
         Exception exception = assertThrows(
-                Exception.class, () -> DictionaryEntryParser.parse("foo"));
+                Exception.class, () -> org.qubership.integration.platform.mapper.build.DictionaryEntryParser.parse("foo"));
         assertTrue(exception.getMessage().contains("foo"));
     }
 }

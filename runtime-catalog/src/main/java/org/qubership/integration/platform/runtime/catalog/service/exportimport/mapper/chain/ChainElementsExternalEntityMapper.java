@@ -16,29 +16,28 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain;
 
-import org.apache.commons.lang3.tuple.Pair;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainElementExternalEntity;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.io.model.exportimport.chain.ChainElementExternalEntity;
+import org.qubership.integration.platform.io.model.exportimport.system.ServiceEnvironment;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.model.ElementDescriptor;
+import org.qubership.integration.platform.library.model.ElementType;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainElementsExternalMapperEntity;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 
-import java.io.File;
 import java.sql.Timestamp;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.CONTAINER;
+import static org.qubership.integration.platform.library.constants.CamelNames.CONTAINER;
 
 
 @Component
-public class ChainElementsExternalEntityMapper implements ExternalEntityMapper<List<ChainElement>, ChainElementsExternalMapperEntity> {
+public class ChainElementsExternalEntityMapper {
 
     private final LibraryElementsService libraryService;
     private final ChainElementFilePropertiesSubstitutor chainElementFilePropertiesSubstitutor;
@@ -51,44 +50,37 @@ public class ChainElementsExternalEntityMapper implements ExternalEntityMapper<L
         this.chainElementFilePropertiesSubstitutor = chainElementFilePropertiesSubstitutor;
     }
 
-    @Override
-    public List<ChainElement> toInternalEntity(@NonNull ChainElementsExternalMapperEntity elementsExternalMapperEntity) {
-        Map<String, ChainElement> resultElements = new HashMap<>();
+    /**
+     * Builds the JPA element tree from the library element model.
+     *
+     * <p>The model list is flat: it holds every element, including container descendants. Container
+     * nesting is rebuilt from {@link Element#getChildren()} starting at the root elements, and swimlane
+     * membership is wired in a second pass once every element exists, so a member can resolve its lane
+     * by id regardless of iteration order. Element property files are already substituted into the
+     * model, so no file lookup happens here; {@code createdWhen} is re-stamped because the model does
+     * not carry it.
+     */
+    public List<ChainElement> toInternalEntity(@NonNull Collection<Element> modelElements) {
+        Map<String, ChainElement> resultElements = new LinkedHashMap<>();
 
-        // convert swimlane elements
-        elementsExternalMapperEntity
-                .getChainElementExternalEntities()
-                .stream()
-                .map(externalEntity -> Pair.of(externalEntity, libraryService.getElementDescriptor(externalEntity.getType())))
-                .filter(swimlaneDescriptorPair -> Optional.ofNullable(swimlaneDescriptorPair.getValue())
-                        .map(descriptor -> descriptor.getType() == ElementType.SWIMLANE)
-                        .orElse(false))
-                .forEach(swimlaneDescriptorPair -> createInternalEntity(
-                        swimlaneDescriptorPair,
-                        elementsExternalMapperEntity.getChainFilesDirectory(),
-                        resultElements
-                ));
-        // convert non-swimlane elements
-        elementsExternalMapperEntity
-                .getChainElementExternalEntities()
-                .stream()
-                .map(externalElement -> Pair.of(externalElement, libraryService.getElementDescriptor(externalElement.getType())))
-                .filter(elementDescriptoPair -> {
-                    ElementDescriptor descriptor = elementDescriptoPair.getValue();
-                    return descriptor == null || descriptor.getType() != ElementType.SWIMLANE;
-                })
-                .forEach(elementDescriptorPair -> createInternalEntity(
-                        elementDescriptorPair,
-                        elementsExternalMapperEntity.getChainFilesDirectory(),
-                        resultElements
-                ));
+        modelElements.stream()
+                .filter(element -> element.getParent().isEmpty())
+                .forEach(rootElement -> createInternalEntity(rootElement, resultElements));
+
+        for (Element modelElement : modelElements) {
+            modelElement.getSwimlane().ifPresent(modelSwimlane -> {
+                ChainElement element = resultElements.get(modelElement.getId());
+                if (element != null && resultElements.get(modelSwimlane.getId()) instanceof SwimlaneChainElement swimlane) {
+                    element.setSwimlane(swimlane);
+                }
+            });
+        }
 
         return resultElements.values().stream()
                 .filter(element -> element.getParent() == null)
                 .collect(Collectors.toList());
     }
 
-    @Override
     public ChainElementsExternalMapperEntity toExternalEntity(@NonNull List<ChainElement> chainElements) {
         Map<String, byte[]> propertyFiles = new HashMap<>();
         List<ChainElementExternalEntity> elementsExternalEntities = chainElements.stream()
@@ -101,22 +93,8 @@ public class ChainElementsExternalEntityMapper implements ExternalEntityMapper<L
                 .build();
     }
 
-    private ChainElement createInternalEntity(
-            Pair<ChainElementExternalEntity, ElementDescriptor> elementDescriptorPair,
-            File chainFilesDir,
-            Map<String, ChainElement> resultElements
-    ) {
-        ChainElementExternalEntity elementExternalEntity = elementDescriptorPair.getKey();
-        ElementDescriptor descriptor = Optional.ofNullable(elementDescriptorPair.getValue())
-                .orElseGet(() -> {
-                    if (CONTAINER.equals(elementExternalEntity.getType())) {
-                        ElementDescriptor containerDescriptor = new ElementDescriptor();
-                        containerDescriptor.setType(ElementType.CONTAINER);
-                        containerDescriptor.setContainer(true);
-                        return containerDescriptor;
-                    }
-                    throw new IllegalArgumentException("Element of type " + elementExternalEntity.getType() + " not found");
-                });
+    private ChainElement createInternalEntity(Element modelElement, Map<String, ChainElement> resultElements) {
+        ElementDescriptor descriptor = resolveDescriptor(modelElement.getType());
 
         ChainElement element;
         if (descriptor.isContainer()) {
@@ -128,32 +106,53 @@ public class ChainElementsExternalEntityMapper implements ExternalEntityMapper<L
         }
 
         if (element instanceof ContainerChainElement containerElement) {
-            for (ChainElementExternalEntity childExternal : elementExternalEntity.getChildren()) {
-                ElementDescriptor childDescriptor = libraryService.getElementDescriptor(childExternal.getType());
-                ChainElement childEntity = createInternalEntity(
-                        Pair.of(childExternal, childDescriptor), chainFilesDir, resultElements);
-                containerElement.addChildElement(childEntity);
+            for (Element childModel : modelElement.getChildren()) {
+                containerElement.addChildElement(createInternalEntity(childModel, resultElements));
             }
         }
 
-        element.setId(elementExternalEntity.getId());
-        element.setType(elementExternalEntity.getType());
-        element.setName(elementExternalEntity.getName());
-        element.setDescription(elementExternalEntity.getDescription());
-        element.setOriginalId(elementExternalEntity.getOriginalId());
-        element.setEnvironment(elementExternalEntity.getServiceEnvironment());
-        element.setProperties(elementExternalEntity.getProperties());
+        element.setId(modelElement.getId());
+        element.setType(modelElement.getType());
+        element.setName(modelElement.getName());
+        element.setDescription(modelElement.getDescription());
+        element.setOriginalId(modelElement.getOriginalId().orElse(null));
+        element.setEnvironment(toEnvironmentEntity(modelElement.getEnvironment().orElse(null)));
+        element.setProperties(modelElement.getProperties());
         element.setCreatedWhen(new Timestamp(System.currentTimeMillis()));
-
-        if (resultElements.get(elementExternalEntity.getSwimlaneId()) instanceof SwimlaneChainElement swimlane) {
-            element.setSwimlane(swimlane);
-        }
-
-        chainElementFilePropertiesSubstitutor
-                .enrichElementWithFileProperties(element, chainFilesDir, elementExternalEntity.getPropertiesFilename());
 
         resultElements.put(element.getId(), element);
         return element;
+    }
+
+    private ElementDescriptor resolveDescriptor(String type) {
+        return libraryService.lookupElementDescriptor(type)
+                .orElseGet(() -> {
+                    if (CONTAINER.equals(type)) {
+                        ElementDescriptor containerDescriptor = new ElementDescriptor();
+                        containerDescriptor.setType(ElementType.CONTAINER);
+                        containerDescriptor.setContainer(true);
+                        return containerDescriptor;
+                    }
+                    throw new IllegalArgumentException("Element of type " + type + " not found");
+                });
+    }
+
+    private ServiceEnvironment toEnvironmentEntity(org.qubership.integration.platform.chain.model.ServiceEnvironment modelEnvironment) {
+        if (modelEnvironment == null) {
+            return null;
+        }
+        ServiceEnvironment environment = new ServiceEnvironment();
+        environment.setId(modelEnvironment.getId());
+        environment.setName(modelEnvironment.getName());
+        environment.setDescription(modelEnvironment.getDescription());
+        environment.setSystemId(modelEnvironment.getSystemId());
+        environment.setAddress(modelEnvironment.getAddress());
+        environment.setSourceType(modelEnvironment.getSourceType());
+        environment.setProperties(modelEnvironment.getProperties());
+        environment.setNotActivated(!modelEnvironment.isActivated());
+        environment.setCreatedWhen(modelEnvironment.getCreatedWhen());
+        environment.setModifiedWhen(modelEnvironment.getModifiedWhen());
+        return environment;
     }
 
     private ChainElementExternalEntity createExternalFromInternal(ChainElement element, final Map<String, byte[]> propertyFiles) {

@@ -17,8 +17,8 @@
 package org.qubership.integration.platform.runtime.catalog.exception.exceptions;
 
 import lombok.Getter;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.chain.model.Chain;
+import org.qubership.integration.platform.chain.model.Element;
 
 import java.util.Optional;
 
@@ -27,23 +27,23 @@ public class ChainElementVerificationException extends ApiSpecificationExportExc
     private final String chainId;
     private final String elementId;
 
-    public ChainElementVerificationException(ChainElement element, String message) {
+    public ChainElementVerificationException(Element element, String message) {
         super(buildMessage(element, message));
         this.chainId = extractChainId(element);
         this.elementId = extractElementId(element);
     }
 
-    private static String buildMessage(ChainElement element, String message) {
+    private static String buildMessage(Element element, String message) {
         return String.format("Chain ID: %s, element ID: %s. %s",
                 extractChainId(element), extractElementId(element), message);
     }
 
-    protected static String extractChainId(ChainElement element) {
-        return Optional.ofNullable(element).map(ChainElement::getChain).map(Chain::getId).orElse(null);
+    protected static String extractChainId(Element element) {
+        return Optional.ofNullable(element).map(Element::getChain).map(Chain::getId).orElse(null);
     }
 
-    protected static String extractElementId(ChainElement element) {
-        return Optional.ofNullable(element).map(ChainElement::getId).orElse(null);
+    protected static String extractElementId(Element element) {
+        return Optional.ofNullable(element).map(Element::getId).orElse(null);
     }
 
 }

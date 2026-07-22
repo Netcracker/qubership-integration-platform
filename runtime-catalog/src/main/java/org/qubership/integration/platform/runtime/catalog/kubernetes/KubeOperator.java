@@ -31,7 +31,7 @@ import io.kubernetes.client.openapi.apis.CustomObjectsApi;
 import io.kubernetes.client.openapi.models.*;
 import io.kubernetes.client.util.PatchUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.runtime.catalog.cr.CustomResourceDeployError;
+import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainDeployError;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrationList;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
@@ -202,7 +202,7 @@ public class KubeOperator {
             createSecretIfAbsent(secret);
         } else {
             log.error("Unsupported resource type: {}", resource.getClass().getName());
-            throw new CustomResourceDeployError("Unsupported resource type: " + resource);
+            throw new MicroDomainDeployError("Unsupported resource type: " + resource);
         }
     }
 

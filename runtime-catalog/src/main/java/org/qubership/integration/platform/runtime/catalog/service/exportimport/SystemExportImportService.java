@@ -73,8 +73,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Objects.isNull;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.ZIP_EXTENSION;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
+import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.ZIP_EXTENSION;
 import static org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils.*;
 import static org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED;
 

@@ -16,12 +16,12 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services;
 
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ContextServiceContentDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ContextServiceDto;
+import org.qubership.integration.platform.chain.model.ContextService;
+import org.qubership.integration.platform.io.model.exportimport.system.ContextServiceContentDto;
+import org.qubership.integration.platform.io.model.exportimport.system.ContextServiceDto;
+import org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil;
+import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -30,7 +30,7 @@ import java.net.URI;
 import java.util.List;
 
 @Component
-public class ContextServiceDtoMapper implements ExternalEntityMapper<ContextSystem, ContextServiceDto> {
+public class ContextServiceDtoMapper {
     private final URI schemaUri;
     private final List<ServiceImportFileMigration> serviceImportFileMigrations;
 
@@ -43,18 +43,16 @@ public class ContextServiceDtoMapper implements ExternalEntityMapper<ContextSyst
         this.serviceImportFileMigrations = serviceImportFileMigrations;
     }
 
-    @Override
-    public ContextSystem toInternalEntity(ContextServiceDto contextServiceDto) {
+    public ContextSystem toInternalEntity(ContextService contextService) {
         return ContextSystem.builder()
-                .id(contextServiceDto.getId())
-                .name(contextServiceDto.getName())
-                .modifiedWhen(contextServiceDto.getContent().getModifiedWhen())
-                .description(contextServiceDto.getContent().getDescription())
+                .id(contextService.getId())
+                .name(contextService.getName())
+                .modifiedWhen(contextService.getModifiedWhen())
+                .description(contextService.getDescription())
                 .build();
     }
 
 
-    @Override
     public ContextServiceDto toExternalEntity(ContextSystem contextSystem) {
         return ContextServiceDto.builder()
                 .id(contextSystem.getId())

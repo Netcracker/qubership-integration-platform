@@ -25,8 +25,10 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.qubership.integration.platform.runtime.catalog.builder.templates.helpers.MapperInterpretatorHelper;
-import org.qubership.integration.platform.runtime.catalog.configuration.element.descriptor.DescriptorPropertiesConfiguration;
+import org.qubership.integration.platform.io.writers.camel.xml.templates.helpers.MapperInterpreterHelper;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.components.LibraryResourceLoader;
+import org.qubership.integration.platform.library.configuration.DescriptorPropertiesConfiguration;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DependencyValidationException;
 import org.qubership.integration.platform.runtime.catalog.model.ChainDiff;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
@@ -35,19 +37,18 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.DependencyRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryResourceLoader;
+import org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers.MandatoryPropertyVerificationHelper;
 import org.qubership.integration.platform.runtime.catalog.testutils.TestUtils;
 import org.qubership.integration.platform.runtime.catalog.testutils.configuration.TestConfig;
 import org.qubership.integration.platform.runtime.catalog.testutils.dto.ChainImportDTO;
 import org.qubership.integration.platform.runtime.catalog.testutils.mapper.ChainElementsMapper;
 import org.qubership.integration.platform.runtime.catalog.testutils.mapper.ChainMapper;
-import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
 import org.qubership.integration.platform.runtime.catalog.util.OldContainerUtils;
+import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.IOException;
@@ -81,7 +82,9 @@ import static org.mockito.Mockito.*;
         OldContainerUtils.class,
         DependencyService.class,
         ChainElementsMapper.class,
-        ChainMapper.class
+        ChainMapper.class,
+        MandatoryPropertyVerificationHelper.class,
+        PropertyPlaceholderService.class
 })
 @ExtendWith(SpringExtension.class)
 @ExtendWith(MockitoExtension.class)
@@ -114,29 +117,29 @@ public class DependencyServiceTest {
 
     private static MockedStatic<UUID> mockedUUID;
 
-    @MockBean
+    @MockitoBean
     ElementRepository elementRepository;
-    @MockBean
+    @MockitoBean
     ChainService chainService;
-    @MockBean
+    @MockitoBean
     SwimlaneService swimlaneService;
-    @MockBean
+    @MockitoBean
     ActionsLogService actionsLogService;
-    @MockBean
+    @MockitoBean
     AuditingHandler jpaAuditingHandler;
-    @MockBean
+    @MockitoBean
     DependencyRepository dependencyRepository;
-    @MockBean
+    @MockitoBean
     EnvironmentService environmentService;
-    @MockBean
-    MapperInterpretatorHelper mapperInterpretatorHelper;
-    @MockBean
+    @MockitoBean
+    MapperInterpreterHelper mapperInterpreterHelper;
+    @MockitoBean
     SystemEnvironmentsGenerator systemEnvironmentsGenerator;
-    @MockBean
+    @MockitoBean
     ChainFinderService chainFinderService;
-    @MockBean
+    @MockitoBean
     private SystemBaseService systemBaseService;
-    @MockBean
+    @MockitoBean
     private SystemModelBaseService systemModelBaseService;
 
 
@@ -197,7 +200,7 @@ public class DependencyServiceTest {
         assertThat(chainDiff.getUpdatedElements(), empty());
         assertThat(chainDiff.getRemovedElements(), empty());
 
-        Dependency dependency = chainDiff.getCreatedDependencies().get(0);
+        Dependency dependency = chainDiff.getCreatedDependencies().getFirst();
 
         assertThat(dependency.getId(), equalTo(UUID_VALUE.toString()));
         assertThat(dependency.getElementFrom(), equalTo(httpTrigger));
@@ -232,7 +235,7 @@ public class DependencyServiceTest {
         assertThat(chainDiff.getUpdatedElements(), empty());
         assertThat(chainDiff.getRemovedElements(), empty());
 
-        Dependency dependency = chainDiff.getCreatedDependencies().get(0);
+        Dependency dependency = chainDiff.getCreatedDependencies().getFirst();
 
         assertThat(dependency.getId(), equalTo(UUID_VALUE.toString()));
         assertThat(dependency.getElementFrom(), equalTo(tryElement));
@@ -286,8 +289,8 @@ public class DependencyServiceTest {
         assertThat(chainDiff.getUpdatedElements(), hasSize(1));
         assertThat(chainDiff.getRemovedElements(), empty());
 
-        Dependency dependency = chainDiff.getCreatedDependencies().get(0);
-        ChainElement element = chainDiff.getUpdatedElements().get(0);
+        Dependency dependency = chainDiff.getCreatedDependencies().getFirst();
+        ChainElement element = chainDiff.getUpdatedElements().getFirst();
 
         assertThat(dependency.getId(), equalTo(UUID_VALUE.toString()));
         assertThat(dependency.getElementFrom(), equalTo(elementFrom));
@@ -329,7 +332,7 @@ public class DependencyServiceTest {
         assertThat(chainDiff.getUpdatedElements(), hasSize(3));
         assertThat(chainDiff.getRemovedElements(), empty());
 
-        Dependency dependency = chainDiff.getCreatedDependencies().get(0);
+        Dependency dependency = chainDiff.getCreatedDependencies().getFirst();
 
         assertThat(dependency.getId(), equalTo(UUID_VALUE.toString()));
         assertThat(dependency.getElementFrom(), equalTo(loopMapper));
@@ -377,7 +380,7 @@ public class DependencyServiceTest {
         assertThat(chainDiff.getUpdatedElements(), hasSize(4));
         assertThat(chainDiff.getRemovedElements(), empty());
 
-        Dependency dependency = chainDiff.getCreatedDependencies().get(0);
+        Dependency dependency = chainDiff.getCreatedDependencies().getFirst();
 
         assertThat(dependency.getId(), equalTo(UUID_VALUE.toString()));
         assertThat(dependency.getElementFrom(), equalTo(loopElement));
@@ -465,7 +468,7 @@ public class DependencyServiceTest {
         when(elementRepository.findById(eq(SCRIPT_1_TRY_INSIDE_MAPPER_ID))).thenReturn(Optional.of(elementFrom));
         when(elementRepository.findById(eq(SCRIPT_1_TRY_INSIDE_SCRIPT_ID))).thenReturn(Optional.of(elementTo));
         when(dependencyRepository.findByFromAndTo(eq(SCRIPT_1_TRY_INSIDE_MAPPER_ID), eq(SCRIPT_1_TRY_INSIDE_SCRIPT_ID)))
-                .thenReturn(Optional.of(elementFrom.getOutputDependencies().get(0)));
+                .thenReturn(Optional.of(elementFrom.getOutputDependencies().getFirst()));
 
         assertThrows(
                 EntityExistsException.class,
@@ -476,7 +479,7 @@ public class DependencyServiceTest {
     @DisplayName("Deleting dependency by id")
     @Test
     public void deleteByIdTest() {
-        Dependency dependency = getElementById(SCRIPT_1_TRY_INSIDE_MAPPER_ID).getOutputDependencies().get(0);
+        Dependency dependency = getElementById(SCRIPT_1_TRY_INSIDE_MAPPER_ID).getOutputDependencies().getFirst();
         when(dependencyRepository.getReferenceById(eq(dependency.getId()))).thenReturn(dependency);
         doNothing().when(dependencyRepository).deleteById(eq(dependency.getId()));
 
@@ -496,7 +499,7 @@ public class DependencyServiceTest {
     public void deleteAllByIdsTest() {
         Dependency dependency1 = getElementById(SCRIPT_2_MAPPER_SCRIPT_ID).getInputDependencies().get(0);
         Dependency dependency2 = getElementById(SCRIPT_2_MAPPER_SCRIPT_ID).getInputDependencies().get(1);
-        Dependency dependency3 = getElementById(SCRIPT_2_ID).getOutputDependencies().get(0);
+        Dependency dependency3 = getElementById(SCRIPT_2_ID).getOutputDependencies().getFirst();
         dependency1.setId("9699c862-d394-4e47-82a8-55611e004cac");
         dependency2.setId("0a6ffff4-a399-496d-9f81-7603403627ee");
         dependency3.setId("adacd00e-9a30-460e-a012-1c2c3fe158d4");

@@ -48,7 +48,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.CONTAINER;
+import static org.qubership.integration.platform.library.constants.CamelNames.CONTAINER;
 
 
 @Slf4j

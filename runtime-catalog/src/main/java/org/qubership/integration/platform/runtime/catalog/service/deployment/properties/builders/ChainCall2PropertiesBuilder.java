@@ -17,7 +17,8 @@
 package org.qubership.integration.platform.runtime.catalog.service.deployment.properties.builders;
 
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.ElementService;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
@@ -28,7 +29,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.CHAIN_CALL_2_ELEMENT;
+import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.CHAIN_CALL_2_ELEMENT;
 
 
 @Slf4j
@@ -42,13 +43,13 @@ public class ChainCall2PropertiesBuilder implements ElementPropertiesBuilder {
     }
 
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         String type = element.getType();
         return CHAIN_CALL_2_ELEMENT.equals(type);
     }
 
     @Override
-    public Map<String, String> build(ChainElement element) {
+    public Map<String, String> build(Element element) {
         return getChainCallProperties(this.elementService, element.getProperties());
     }
 

@@ -18,14 +18,17 @@ package org.qubership.integration.platform.runtime.catalog.service.deployment;
 
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
-import org.qubership.integration.platform.runtime.catalog.builder.BuilderConstants;
-import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.io.writers.camel.xml.BuilderConstants;
+import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.constants.CamelOptions;
+import org.qubership.integration.platform.library.model.ElementDescriptor;
+import org.qubership.integration.platform.library.model.ElementType;
+import org.qubership.integration.platform.runtime.catalog.adapters.ChainElementAdapter;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentConfiguration;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentUpdate;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.ElementProperties;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementDescriptor;
-import org.qubership.integration.platform.runtime.catalog.model.library.ElementType;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
@@ -36,8 +39,6 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.Deploym
 import org.qubership.integration.platform.runtime.catalog.service.*;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilderFactory;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
-import org.qubership.integration.platform.runtime.catalog.service.library.LibraryElementsService;
-import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
@@ -48,9 +49,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.qubership.integration.platform.runtime.catalog.consul.ConfigurationPropertiesConstants.*;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.CHECKPOINT;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.SCHEDULER;
+import static org.qubership.integration.platform.library.constants.CamelNames.CHECKPOINT;
+import static org.qubership.integration.platform.library.constants.CamelNames.SCHEDULER;
+import static org.qubership.integration.platform.library.constants.ConfigurationPropertiesConstants.*;
 
 @Slf4j
 @Component
@@ -63,25 +64,26 @@ public class DeploymentBuilderService {
 
     private final ChainFinderService chainFinderService;
     private final SnapshotService snapshotService;
-    private final ElementUtils elementUtils;
     private final ElementPropertiesBuilderFactory elementPropertiesBuilderFactory;
     private final LibraryElementsService libraryService;
     private final DeploymentRouteMapper deploymentRouteMapper;
+    private final org.qubership.integration.platform.io.writers.camel.xml.CompositeTriggerHelper compositeTriggerHelper;
 
     @Autowired
     public DeploymentBuilderService(
             ChainFinderService chainFinderService,
             @Lazy SnapshotService snapshotService,
-            ElementUtils elementUtils,
             ElementPropertiesBuilderFactory elementPropertiesBuilderFactory,
             LibraryElementsService libraryService,
-            DeploymentRouteMapper deploymentRouteMapper) {
+            DeploymentRouteMapper deploymentRouteMapper,
+            org.qubership.integration.platform.io.writers.camel.xml.CompositeTriggerHelper compositeTriggerHelper
+    ) {
         this.chainFinderService = chainFinderService;
         this.snapshotService = snapshotService;
-        this.elementUtils = elementUtils;
         this.elementPropertiesBuilderFactory = elementPropertiesBuilderFactory;
         this.libraryService = libraryService;
         this.deploymentRouteMapper = deploymentRouteMapper;
+        this.compositeTriggerHelper = compositeTriggerHelper;
     }
 
     public List<DeploymentUpdate> buildDeploymentsUpdate(List<Deployment> deployments) {
@@ -125,46 +127,51 @@ public class DeploymentBuilderService {
     private DeploymentConfiguration createUpdateDeploymentConfiguration(Deployment deployment) {
         Snapshot snapshot = deployment.getSnapshot();
 
-        Set<ChainElement> groupContainers = snapshot.getElements().stream()
+        Set<String> groupContainers = snapshot.getElements().stream()
                 .filter(item -> ElementService.CONTAINER_TYPE_NAME.equals(item.getType())
-                        || Optional.ofNullable(libraryService.getElementDescriptor(item.getType()))
-                                .map(descriptor -> ElementType.REUSE == descriptor.getType())
+                        || libraryService.lookupElementDescriptor(item.getType())
+                                .map(ElementDescriptor::getType)
+                                .map(ElementType.REUSE::equals)
                                 .orElse(false))
+                .map(ChainElement::getId)
                 .collect(Collectors.toSet());
 
-        List<ChainElement> filteredElements = snapshot.getElements().stream()
+        List<Element> filteredElements = snapshot.getElements().stream()
                 .filter(item -> !item.getType().equals(ElementService.CONTAINER_TYPE_NAME)
-                        && Optional.ofNullable(libraryService.getElementDescriptor(item.getType()))
+                        && libraryService.lookupElementDescriptor(item.getType())
                                 .map(ElementDescriptor::getType)
                                 .map(type -> ElementType.REUSE != type
                                              && ElementType.REUSE_REFERENCE != type
                                              && ElementType.SWIMLANE != type)
                                 .orElse(true))
+                .map(ChainElementAdapter::new)
                 .collect(Collectors.toList());
-        filteredElements = elementUtils.splitCompositeTriggers(filteredElements);
+        filteredElements = compositeTriggerHelper.splitCompositeTriggers(filteredElements);
 
         List<ElementProperties> elementProperties = new ArrayList<>();
         filteredElements.stream()
                 .map(element -> {
                     Map<String, String> properties = new HashMap<>(elementPropertiesBuilderFactory
                             .getElementPropertiesBuilder(element).build(element));
-                    if (element.getParent() != null) {
-                        if (!groupContainers.contains(element.getParent())) {
-                            properties.put(PARENT_ELEMENT_ID, element.getParent().getId());
-                            properties.put(PARENT_ELEMENT_ORIGINAL_ID, element.getParent().getOriginalId());
-                            properties.put(PARENT_ELEMENT_NAME, element.getParent().getName());
-                            if (ELEMENTS_WITH_INTERMEDIATE_CHILDREN.contains(element.getParent().getType())) {
+                    element.getParent().ifPresent(parent -> {
+                        if (!groupContainers.contains(parent.getId())) {
+                            properties.put(PARENT_ELEMENT_ID, parent.getId());
+                            properties.put(PARENT_ELEMENT_ORIGINAL_ID, parent.getOriginalId().orElse(""));
+                            properties.put(PARENT_ELEMENT_NAME, parent.getName());
+                            if (ELEMENTS_WITH_INTERMEDIATE_CHILDREN.contains(parent.getType())) {
                                 properties.put(HAS_INTERMEDIATE_PARENTS, Boolean.TRUE.toString());
                             }
                         }
-                        if (BuilderConstants.REUSE_ELEMENT_TYPE.equals(element.getParent().getType())) {
-                            properties.put(REUSE_ORIGINAL_ID, element.getParent().getOriginalId());
+                        if (BuilderConstants.REUSE_ELEMENT_TYPE.equals(parent.getType())) {
+                            properties.put(REUSE_ORIGINAL_ID, parent.getOriginalId().orElse(""));
                         }
-                    }
+                    });
                     if (SERVICE_CALL_ELEMENT.equals(element.getType())) {
-                        if (IntegrationSystemType.EXTERNAL.name().equals(element.getProperty(CamelOptions.SYSTEM_TYPE))) {
-                            properties.put(EXTERNAL_SERVICE_ENV_NAME, element.getEnvironment().getName());
-                            properties.put(EXTERNAL_SERVICE_ADDRESS, element.getEnvironment().getAddress());
+                        if (IntegrationSystemType.EXTERNAL.name().equals(element.getProperties().get(CamelOptions.SYSTEM_TYPE))) {
+                            element.getEnvironment().ifPresent(environment -> {
+                                properties.put(EXTERNAL_SERVICE_ENV_NAME, environment.getName());
+                                properties.put(EXTERNAL_SERVICE_ADDRESS, environment.getAddress());
+                            });
                         }
                     }
                     return ElementProperties.builder().elementId(element.getId()).properties(properties).build();
