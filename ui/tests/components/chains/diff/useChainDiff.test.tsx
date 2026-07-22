@@ -49,14 +49,14 @@ describe("useChainDiff", () => {
     mockCompareChains.mockReturnValue([]);
   });
 
-  it("should return undefined chains, empty changes, and undefined selectedChangeId when first rendered", () => {
+  it("should return undefined chains, undefined changes, and undefined selectedChangeId when first rendered", () => {
     mockGetChain.mockImplementation(resolveById);
 
     const { result } = renderHook(() => useChainDiff(item1, item2));
 
     expect(result.current.chain1).toBeUndefined();
     expect(result.current.chain2).toBeUndefined();
-    expect(result.current.changes).toEqual([]);
+    expect(result.current.changes).toBeUndefined();
     expect(result.current.selectedChangeId).toBeUndefined();
   });
 
@@ -147,6 +147,22 @@ describe("useChainDiff", () => {
     expect(mockCompareChains).not.toHaveBeenCalled();
   });
 
+  it("should keep changes undefined when only one chain has loaded", async () => {
+    mockGetChain.mockImplementation((id: string) =>
+      id === "chain-1"
+        ? Promise.resolve(chain1)
+        : Promise.reject(new Error("Not found")),
+    );
+
+    const { result } = renderHook(() => useChainDiff(item1, item2));
+
+    await waitFor(() => {
+      expect(result.current.chain1).toEqual(chain1);
+    });
+
+    expect(result.current.changes).toBeUndefined();
+  });
+
   it("should call notificationService.requestFailed when fetching chain1 throws", async () => {
     const error = new Error("Chain 1 load failed");
     mockGetChain.mockImplementation((id: string) =>
@@ -197,7 +213,7 @@ describe("useChainDiff", () => {
     });
   });
 
-  it("should keep changes as an empty array when compareChains throws", async () => {
+  it("should leave changes undefined when compareChains throws", async () => {
     mockGetChain.mockImplementation(resolveById);
     mockCompareChains.mockImplementation(() => {
       throw new Error("Compare failed");
@@ -209,7 +225,7 @@ describe("useChainDiff", () => {
       expect(mockErrorWithDetails).toHaveBeenCalled();
     });
 
-    expect(result.current.changes).toEqual([]);
+    expect(result.current.changes).toBeUndefined();
   });
 
   it("should reload chain1 and re-run comparison when chainId1 changes", async () => {

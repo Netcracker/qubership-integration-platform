@@ -28,7 +28,9 @@ export function getElementId(
 export type ChainDiffGraphViewProps = {
   chain1?: Chain;
   chain2?: Chain;
-  changes: Change[];
+  // Undefined means there is no valid comparison yet; the graph panes stay
+  // empty instead of rendering misleading node states.
+  changes?: Change[];
   selectedChangeId?: string;
   onSelectChange: (id: string) => void;
 };
@@ -44,7 +46,7 @@ export const ChainDiffGraphView: React.FC<ChainDiffGraphViewProps> = ({
   );
 
   useEffect(() => {
-    setSelectedChange(changes.find((c) => c.id === selectedChangeId));
+    setSelectedChange(changes?.find((c) => c.id === selectedChangeId));
   }, [changes, selectedChangeId]);
 
   const elementMap = useMemo(() => {
@@ -85,7 +87,7 @@ export const ChainDiffGraphView: React.FC<ChainDiffGraphViewProps> = ({
       </Row>
       <Row gutter={16} style={{ minHeight: 0, flexGrow: 1, flexShrink: 0 }}>
         <Col span={12}>
-          {chain1 ? (
+          {chain1 && chain2 && changes ? (
             <DiffDocumentContextProvider type={"left"}>
               <ChainGraphChangeProvider
                 chain={chain1}
@@ -103,7 +105,7 @@ export const ChainDiffGraphView: React.FC<ChainDiffGraphViewProps> = ({
           ) : null}
         </Col>
         <Col span={12}>
-          {chain2 ? (
+          {chain1 && chain2 && changes ? (
             <DiffDocumentContextProvider type={"right"}>
               <ChainGraphChangeProvider
                 chain={chain2}
