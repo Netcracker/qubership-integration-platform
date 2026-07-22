@@ -194,7 +194,7 @@ public class ServiceDeserializer {
             return specGroupsArray;
         }
         for (JsonNode node : specGroupsArray) {
-            if (groupId.equals(node.path("id").asText(null))) {
+            if (Objects.equals(groupId, node.path("id").textValue())) {
                 return node;
             }
         }
