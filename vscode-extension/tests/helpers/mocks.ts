@@ -31,6 +31,8 @@ export function createVscodeMock(overrides: Record<string, any> = {}) {
     workspace: {
       getConfiguration: jest.fn().mockReturnValue({
         get: jest.fn((_key: string, defaultVal: any) => defaultVal),
+        inspect: jest.fn(() => undefined),
+        update: jest.fn().mockResolvedValue(undefined),
       }),
       workspaceFolders: [{ uri: { path: "/workspace", fsPath: "/workspace" } }],
       createFileSystemWatcher: jest.fn(() => ({
@@ -52,6 +54,7 @@ export function createVscodeMock(overrides: Record<string, any> = {}) {
       executeCommand: jest.fn(),
     },
     ViewColumn: { One: 1 },
+    ConfigurationTarget: { Global: 1, Workspace: 2, WorkspaceFolder: 3 },
     ColorThemeKind: {
       Light: 1,
       Dark: 2,
