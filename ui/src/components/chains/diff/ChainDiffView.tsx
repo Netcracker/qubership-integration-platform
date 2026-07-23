@@ -66,7 +66,7 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
         </Col>
       </Row>
       <ChainDiffViewControls
-        changes={changes}
+        changes={changes ?? []}
         selectedChangeId={selectedChangeId}
         onSelectChange={setSelectedChangeId}
         onViewTypeChange={(viewType) => setViewType(viewType)}
@@ -84,7 +84,7 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
           <ChainDiffTableView
             chain1={chain1}
             chain2={chain2}
-            changes={changes}
+            changes={changes ?? []}
             selectedChangeId={selectedChangeId}
             onSelectChange={setSelectedChangeId}
           />
@@ -92,7 +92,7 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
           <ChainDiffTextView
             chain1={chain1}
             chain2={chain2}
-            changes={changes}
+            changes={changes ?? []}
             selectedChangeId={selectedChangeId}
             onSelectChange={setSelectedChangeId}
           />

@@ -1,5 +1,5 @@
 import { Chain, ChainSnapshot } from "../../../api/apiTypes.ts";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { api } from "../../../api/api.ts";
 import { Change } from "./compare/types.ts";
@@ -50,12 +50,9 @@ export function asChain(snapshot: ChainSnapshot): Chain {
 export const useChainDiff = (item1: ComparableItem, item2: ComparableItem) => {
   const [chain1, setChain1] = useState<Chain | undefined>();
   const [chain2, setChain2] = useState<Chain | undefined>();
-  const [changes, setChanges] = useState<Change[]>([]);
 
-  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isChain1Loading, setIsChain1Loading] = useState<boolean>(false);
   const [isChain2Loading, setIsChain2Loading] = useState<boolean>(false);
-  const [isComparing, setIsComparing] = useState<boolean>(false);
 
   const [selectedChangeId, setSelectedChangeId] = useState<
     string | undefined
@@ -130,22 +127,6 @@ export const useChainDiff = (item1: ComparableItem, item2: ComparableItem) => {
     [loadChain, loadSnapshot, loadChainFromArchive],
   );
 
-  const compareChains = useCallback(
-    async (chain1: Chain, chain2: Chain): Promise<Change[]> => {
-      try {
-        setIsComparing(true);
-        return await (async () =>
-          Promise.resolve(doCompareChains(chain1, chain2)))();
-      } catch (e) {
-        notificationService.errorWithDetails("Failed to compare chains", "", e);
-        return [];
-      } finally {
-        setIsComparing(false);
-      }
-    },
-    [notificationService],
-  );
-
   useEffect(() => {
     void loadItem(item1, setIsChain1Loading).then(setChain1);
   }, [item1, loadItem]);
@@ -154,16 +135,36 @@ export const useChainDiff = (item1: ComparableItem, item2: ComparableItem) => {
     void loadItem(item2, setIsChain2Loading).then(setChain2);
   }, [item2, loadItem]);
 
-  useEffect(() => {
+  // Deriving the comparison synchronously leaves no render frame where both
+  // chains are set but the changes describe older inputs. An undefined result
+  // means there is no valid comparison: a chain is missing or the compare
+  // threw.
+  const comparison = useMemo(():
+    | { changes: Change[]; error?: never }
+    | { changes?: never; error: unknown }
+    | undefined => {
     if (!chain1 || !chain2) {
-      return;
+      return undefined;
     }
-    void compareChains(chain1, chain2).then(setChanges);
-  }, [chain1, chain2, compareChains]);
+    try {
+      return { changes: doCompareChains(chain1, chain2) };
+    } catch (e) {
+      return { error: e };
+    }
+  }, [chain1, chain2]);
 
   useEffect(() => {
-    setIsLoading(isChain1Loading || isChain2Loading || isComparing);
-  }, [isChain1Loading, isChain2Loading, isComparing]);
+    if (comparison?.error) {
+      notificationService.errorWithDetails(
+        "Failed to compare chains",
+        "",
+        comparison.error,
+      );
+    }
+  }, [comparison, notificationService]);
+
+  const changes = comparison?.changes;
+  const isLoading = isChain1Loading || isChain2Loading;
 
   return {
     isLoading,
