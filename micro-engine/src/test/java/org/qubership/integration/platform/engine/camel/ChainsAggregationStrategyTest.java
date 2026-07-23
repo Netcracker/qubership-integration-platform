@@ -157,6 +157,63 @@ class ChainsAggregationStrategyTest {
         assertNull(result.getProperty("orderSummary." + Properties.SESSION_ID));
     }
 
+    @Test
+    void shouldPropagatePropertiesWithBranchPrefixWhenExchangePropertiesAlreadyProcessed() {
+        Exchange oldExchange = createBranchExchange("mainBranch", "{}");
+        Exchange newExchange = createBranchExchange("warmup", "{}");
+        Exchange inputExchange = MockExchanges.defaultExchange();
+
+        oldExchange.setProperty(Properties.SPLIT_BRANCH_TYPE, "main");
+        oldExchange.setProperty("mainProp", "from-main");
+
+        newExchange.setProperty(Properties.SPLIT_BRANCH_TYPE, "secondary");
+        newExchange.setProperty(Properties.SPLIT_PROPAGATE_PROPERTIES, true);
+        newExchange.setProperty("testProp", "from-secondary");
+        newExchange.setProperty(Properties.SPLIT_EXCHANGE_PROPERTIES_PROCESSED, true);
+
+        inputExchange.setProperty(Properties.SPLIT_EXCHANGE_PROPERTIES_PROCESSED, true);
+
+        Exchange result = strategy.aggregate(oldExchange, newExchange, inputExchange);
+
+        assertEquals("from-main", result.getProperty("mainProp"));
+        assertEquals("from-secondary", result.getProperty("warmup.testProp"));
+        assertNull(result.getProperty("testProp"));
+    }
+
+    @Test
+    void shouldNotCreateNullPrefixedHeadersWhenSecondaryBranchHasNoSplitId() {
+        Exchange mergedSecondary = createBranchExchange("warmup", "{}");
+        mergedSecondary.setProperty(Properties.SPLIT_BRANCH_TYPE, "secondary");
+        mergedSecondary.setProperty(Properties.SPLIT_PROPAGATE_HEADERS, true);
+        mergedSecondary.getMessage().setHeader("X-Secondary-Id", "secondary-1");
+        mergedSecondary.removeProperty(Properties.SPLIT_ID);
+
+        Exchange mainBranch = createBranchExchange("mainBranch", "{}");
+        mainBranch.setProperty(Properties.SPLIT_BRANCH_TYPE, "main");
+        Exchange inputExchange = MockExchanges.defaultExchange();
+
+        Exchange result = strategy.aggregate(mergedSecondary, mainBranch, inputExchange);
+
+        assertNull(result.getMessage().getHeader("null.X-Secondary-Id"));
+    }
+
+    @Test
+    void shouldNotCreateNullPrefixedPropertiesWhenSecondaryBranchHasNoSplitId() {
+        Exchange mergedSecondary = createBranchExchange("warmup", "{}");
+        mergedSecondary.setProperty(Properties.SPLIT_BRANCH_TYPE, "secondary");
+        mergedSecondary.setProperty(Properties.SPLIT_PROPAGATE_PROPERTIES, true);
+        mergedSecondary.setProperty("testProp", "from-secondary");
+        mergedSecondary.removeProperty(Properties.SPLIT_ID);
+
+        Exchange mainBranch = createBranchExchange("mainBranch", "{}");
+        mainBranch.setProperty(Properties.SPLIT_BRANCH_TYPE, "main");
+        Exchange inputExchange = MockExchanges.defaultExchange();
+
+        Exchange result = strategy.aggregate(mergedSecondary, mainBranch, inputExchange);
+
+        assertNull(result.getProperty("null.testProp"));
+    }
+
     private Exchange createBranchExchange(String branchName, String body) {
         Exchange exchange = MockExchanges.defaultExchange();
         exchange.setProperty(Properties.SPLIT_ID, branchName);

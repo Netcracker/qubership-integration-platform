@@ -34,6 +34,7 @@ import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -97,34 +98,45 @@ public class ChainsAggregationStrategy implements AggregationStrategy {
     }
 
     private void processHeaders(Exchange exchange, Map<String, Object> headers, Exchange inputExchange) {
-        if (exchange != null) {
-            if (!exchangeHeaderProcessed(inputExchange)) {
-                List<String> keysToRemove = new ArrayList<>();
-                Map<String, Object> inputHeaders = inputExchange.getMessage().getHeaders();
-                inputHeaders.forEach((key, value) -> {
-                    if (exchange.getMessage().getHeaders().containsKey(key)) {
-                        headers.put(key, value);
-                    } else {
-                        keysToRemove.add(key);
-                    }
-                });
-                keysToRemove.forEach(inputHeaders::remove);
-            }
-
-            inputExchange.setProperty(CamelConstants.Properties.SPLIT_EXCHANGE_HEADER_PROCESSED, true);
-            if (isHeadersPropagationEnabled(exchange) || isMainBranch(exchange)) {
-                String branchName = getBranchName(exchange);
-                exchange.getMessage().getHeaders().forEach((key, value) -> {
-                    if (!CamelConstants.isInternalHeader(key)) {
-                        if (!exchangeHeaderProcessed(exchange) && !isMainBranch(exchange)) {
-                            key = String.format("%s.%s", branchName, key);
-                        }
-                        headers.put(key, value);
-                    }
-                });
-                exchange.setProperty(CamelConstants.Properties.SPLIT_EXCHANGE_HEADER_PROCESSED, true);
-            }
+        if (exchange == null) {
+            return;
         }
+        synchronizeInputHeaders(exchange, headers, inputExchange);
+        inputExchange.setProperty(CamelConstants.Properties.SPLIT_EXCHANGE_HEADER_PROCESSED, true);
+        if (isHeadersPropagationEnabled(exchange) || isMainBranch(exchange)) {
+            propagateExchangeHeaders(exchange, headers);
+            exchange.setProperty(CamelConstants.Properties.SPLIT_EXCHANGE_HEADER_PROCESSED, true);
+        }
+    }
+
+    private void synchronizeInputHeaders(Exchange exchange, Map<String, Object> headers, Exchange inputExchange) {
+        if (exchangeHeaderProcessed(inputExchange)) {
+            return;
+        }
+        List<String> keysToRemove = new ArrayList<>();
+        Map<String, Object> inputHeaders = inputExchange.getMessage().getHeaders();
+        inputHeaders.forEach((key, value) -> {
+            if (exchange.getMessage().getHeaders().containsKey(key)) {
+                headers.put(key, value);
+            } else {
+                keysToRemove.add(key);
+            }
+        });
+        keysToRemove.forEach(inputHeaders::remove);
+    }
+
+    private void propagateExchangeHeaders(Exchange exchange, Map<String, Object> headers) {
+        if (!canPropagateBranchState(exchange)) {
+            return;
+        }
+        String branchName = getBranchName(exchange);
+        boolean mainBranch = isMainBranch(exchange);
+        new HashMap<>(exchange.getMessage().getHeaders()).forEach((key, value) -> {
+            if (!CamelConstants.isInternalHeader(key)) {
+                String propagatedKey = resolvePropagatedKey(branchName, mainBranch, key);
+                headers.put(propagatedKey, value);
+            }
+        });
     }
 
     private void processProperties(Exchange oldExchange, Exchange newExchange, Exchange inputExchange) {
@@ -147,32 +159,60 @@ public class ChainsAggregationStrategy implements AggregationStrategy {
     }
 
     private void processProperties(Exchange exchange, Map<String, Object> properties, Exchange inputExchange) {
-        if (exchange != null) {
-            if (!exchangePropertiesProcessed(inputExchange)) {
-                List<String> propertiesToRemove = new ArrayList<>();
-                Map<String, Object> inputProperties = inputExchange.getProperties();
-                inputProperties.forEach((key, value) -> {
-                    if (exchange.getProperties().containsKey(key)) {
-                        properties.put(key, value);
-                    } else {
-                        propertiesToRemove.add(key);
-                    }
-                });
-                propertiesToRemove.forEach(inputProperties::remove);
-            }
-            inputExchange.setProperty(CamelConstants.Properties.SPLIT_EXCHANGE_PROPERTIES_PROCESSED, true);
-            if (isPropertiesPropagationEnabled(exchange) || isMainBranch(exchange)) {
-                String branchName = getBranchName(exchange);
-                exchange.getProperties().forEach((key, value) -> {
-                    if (!(isCommonOrSystemVariableMap(key) || CamelConstants.isInternalProperty(key))) {
-                        if (!exchangePropertiesProcessed(exchange) && !isMainBranch(exchange)) {
-                            key = String.format("%s.%s", branchName, key);
-                        }
-                        properties.put(key, value);
-                    }
-                });
-            }
+        if (exchange == null) {
+            return;
         }
+        synchronizeInputProperties(exchange, properties, inputExchange);
+        inputExchange.setProperty(CamelConstants.Properties.SPLIT_EXCHANGE_PROPERTIES_PROCESSED, true);
+        if (isPropertiesPropagationEnabled(exchange) || isMainBranch(exchange)) {
+            propagateExchangeProperties(exchange, properties);
+        }
+    }
+
+    private void synchronizeInputProperties(
+            Exchange exchange, Map<String, Object> properties, Exchange inputExchange) {
+        if (exchangePropertiesProcessed(inputExchange)) {
+            return;
+        }
+        List<String> propertiesToRemove = new ArrayList<>();
+        Map<String, Object> inputProperties = inputExchange.getProperties();
+        inputProperties.forEach((key, value) -> {
+            if (exchange.getProperties().containsKey(key)) {
+                properties.put(key, value);
+            } else {
+                propertiesToRemove.add(key);
+            }
+        });
+        propertiesToRemove.forEach(inputProperties::remove);
+    }
+
+    private void propagateExchangeProperties(Exchange exchange, Map<String, Object> properties) {
+        if (!canPropagateBranchState(exchange)) {
+            return;
+        }
+        String branchName = getBranchName(exchange);
+        boolean mainBranch = isMainBranch(exchange);
+        new HashMap<>(exchange.getProperties()).forEach((key, value) -> {
+            if (!isCommonOrSystemVariableMap(key) && !CamelConstants.isInternalProperty(key)) {
+                String propagatedKey = resolvePropagatedKey(branchName, mainBranch, key);
+                properties.put(propagatedKey, value);
+            }
+        });
+    }
+
+    private boolean canPropagateBranchState(Exchange exchange) {
+        if (isMainBranch(exchange)) {
+            return true;
+        }
+        String branchName = getBranchName(exchange);
+        return branchName != null && !branchName.isBlank();
+    }
+
+    private String resolvePropagatedKey(String branchName, boolean mainBranch, String key) {
+        if (mainBranch) {
+            return key;
+        }
+        return String.format("%s.%s", branchName, key);
     }
 
     private String getBranchName(Exchange exchange) {
