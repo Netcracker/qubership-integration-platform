@@ -1,0 +1,17 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/api.schema.yaml"
+id: "some-id"
+name: "Sample API"
+content:
+  specificationType: "wsdl"
+  specificationVersion: "1.1"
+  operations:
+    - id: "generated-id"
+      type: "wsdl"
+      name: HelloServiceBinding
+      description: Optional description
+      protocol: SOAP
+      binding: HelloServiceBinding
+  specifications:
+    - filePath: "some-resource-name.yaml"
+      isRoot: true
