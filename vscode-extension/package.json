@@ -16,7 +16,8 @@
   },
   "enabledApiProposals": [
     "tunnels",
-    "customEditorDiffs"
+    "customEditorDiffs",
+    "customEditorPriority"
   ],
   "categories": [
     "Other"
@@ -32,6 +33,21 @@
   ],
   "browser": "./dist/web/extension.js",
   "contributes": {
+    "configurationDefaults": {
+      "workbench.diffEditorAssociations": {
+        "*.chain.qip.yaml": "qip.chainFile.editor"
+      }
+    },
+    "configuration": {
+      "title": "Qubership Integration Platform Extension",
+      "properties": {
+        "qipExtension.useDefaultDiffView": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Open integration chain diffs in the built-in text diff editor instead of the QIP visual diff. Toggling this updates the `workbench.diffEditorAssociations` entry for `*.chain.qip.yaml` in your user settings."
+        }
+      }
+    },
     "commands": [
       {
         "command": "qip.open",
@@ -98,7 +114,11 @@
             "filenamePattern": "*.chain.qip.yaml"
           }
         ],
-        "diffEditorPriority": "option"
+        "priority": {
+          "textEditor": "default",
+          "diffEditor": "default",
+          "mergeEditor": "never"
+        }
       },
       {
         "viewType": "qip.serviceFile.editor",

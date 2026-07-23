@@ -241,6 +241,145 @@ describe("extension.ts", () => {
     });
   });
 
+  describe("useDefaultDiffView toggle", () => {
+    const DIFF_ASSOCIATIONS_SETTING = "workbench.diffEditorAssociations";
+    const CHAIN_GLOB = "*.chain.qip.yaml";
+
+    const flushAsync = () => new Promise((resolve) => setImmediate(resolve));
+
+    /**
+     * Points the vscode configuration mock at mutable state so tests can flip
+     * the toggle between activation and a configuration-change event.
+     */
+    function configureDiffToggleMocks(state: {
+      useDefaultDiffView: boolean;
+      globalAssociations?: Record<string, string>;
+    }) {
+      const vscode = require("vscode");
+      const update = jest.fn().mockResolvedValue(undefined);
+      vscode.workspace.getConfiguration.mockImplementation(
+        (section?: string) => {
+          if (section === "qipExtension") {
+            return {
+              get: jest.fn((_key: string, defaultVal: any) =>
+                _key === "useDefaultDiffView"
+                  ? state.useDefaultDiffView
+                  : defaultVal,
+              ),
+            };
+          }
+          return {
+            get: jest.fn((_key: string, defaultVal: any) => defaultVal),
+            inspect: jest.fn(() => ({
+              globalValue: state.globalAssociations,
+            })),
+            update,
+          };
+        },
+      );
+      return update;
+    }
+
+    function fireConfigurationChange(affectedSetting: string) {
+      const vscode = require("vscode");
+      const event = {
+        affectsConfiguration: (section: string) => section === affectedSetting,
+      };
+      for (const call of vscode.workspace.onDidChangeConfiguration.mock
+        .calls) {
+        call[0](event);
+      }
+    }
+
+    test("activation writes a 'default' association when the toggle is on", async () => {
+      const update = configureDiffToggleMocks({ useDefaultDiffView: true });
+
+      activate(buildMockContext());
+      await flushAsync();
+
+      expect(update).toHaveBeenCalledWith(
+        DIFF_ASSOCIATIONS_SETTING,
+        { [CHAIN_GLOB]: "default" },
+        require("vscode").ConfigurationTarget.Global,
+      );
+    });
+
+    test("activation removes the association when the toggle is off", async () => {
+      const update = configureDiffToggleMocks({
+        useDefaultDiffView: false,
+        globalAssociations: { [CHAIN_GLOB]: "default" },
+      });
+
+      activate(buildMockContext());
+      await flushAsync();
+
+      expect(update).toHaveBeenCalledWith(
+        DIFF_ASSOCIATIONS_SETTING,
+        undefined,
+        require("vscode").ConfigurationTarget.Global,
+      );
+    });
+
+    test("keeps unrelated associations when removing the chain entry", async () => {
+      const update = configureDiffToggleMocks({
+        useDefaultDiffView: false,
+        globalAssociations: {
+          [CHAIN_GLOB]: "default",
+          "*.md": "vscode.markdown.preview.editor",
+        },
+      });
+
+      activate(buildMockContext());
+      await flushAsync();
+
+      expect(update).toHaveBeenCalledWith(
+        DIFF_ASSOCIATIONS_SETTING,
+        { "*.md": "vscode.markdown.preview.editor" },
+        require("vscode").ConfigurationTarget.Global,
+      );
+    });
+
+    test("does not touch settings when already in sync", async () => {
+      const update = configureDiffToggleMocks({ useDefaultDiffView: false });
+
+      activate(buildMockContext());
+      await flushAsync();
+
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    test("re-syncs when the toggle changes after activation", async () => {
+      const state = { useDefaultDiffView: false };
+      const update = configureDiffToggleMocks(state);
+
+      activate(buildMockContext());
+      await flushAsync();
+      expect(update).not.toHaveBeenCalled();
+
+      state.useDefaultDiffView = true;
+      fireConfigurationChange("qipExtension.useDefaultDiffView");
+      await flushAsync();
+
+      expect(update).toHaveBeenCalledWith(
+        DIFF_ASSOCIATIONS_SETTING,
+        { [CHAIN_GLOB]: "default" },
+        require("vscode").ConfigurationTarget.Global,
+      );
+    });
+
+    test("ignores unrelated configuration changes", async () => {
+      const update = configureDiffToggleMocks({ useDefaultDiffView: false });
+
+      activate(buildMockContext());
+      await flushAsync();
+
+      fireConfigurationChange("editor.fontSize");
+      await flushAsync();
+
+      expect(update).not.toHaveBeenCalled();
+    });
+  });
+
   describe("resolveCustomTextEditorInlineDiff", () => {
     test("registers chain diff handlers and enriches diff webview", async () => {
       const provider = activateAndGetProvider();

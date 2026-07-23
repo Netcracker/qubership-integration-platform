@@ -345,6 +345,50 @@ class ChainFileEditorProvider extends BaseFileEditorProvider {
   }
 }
 
+const DIFF_EDITOR_ASSOCIATIONS_SETTING = "workbench.diffEditorAssociations";
+const CHAIN_DIFF_ASSOCIATION_GLOB = "*.chain.qip.yaml";
+
+/**
+ * Keeps `workbench.diffEditorAssociations` in sync with the
+ * `qipExtension.useDefaultDiffView` toggle.
+ *
+ * The extension's `configurationDefaults` map chain file diffs to the visual
+ * editor. When the toggle is on, a user-level `"default"` association
+ * overrides that default so chain diffs open in the built-in text diff; when
+ * the toggle is off, the entry is removed and the default applies again.
+ * Associations for other globs are left untouched.
+ */
+async function syncChainDiffAssociation(): Promise<void> {
+  const useDefaultDiffView = vscode.workspace
+    .getConfiguration("qipExtension")
+    .get<boolean>("useDefaultDiffView", false);
+
+  const configuration = vscode.workspace.getConfiguration();
+  const associations = {
+    ...configuration.inspect<Record<string, string>>(
+      DIFF_EDITOR_ASSOCIATIONS_SETTING,
+    )?.globalValue,
+  };
+
+  if (useDefaultDiffView) {
+    if (associations[CHAIN_DIFF_ASSOCIATION_GLOB] === "default") {
+      return;
+    }
+    associations[CHAIN_DIFF_ASSOCIATION_GLOB] = "default";
+  } else {
+    if (!(CHAIN_DIFF_ASSOCIATION_GLOB in associations)) {
+      return;
+    }
+    delete associations[CHAIN_DIFF_ASSOCIATION_GLOB];
+  }
+
+  await configuration.update(
+    DIFF_EDITOR_ASSOCIATIONS_SETTING,
+    Object.keys(associations).length > 0 ? associations : undefined,
+    vscode.ConfigurationTarget.Global,
+  );
+}
+
 function openWebviewForElement(
   context: ExtensionContext,
   fileUri: Uri,
@@ -802,6 +846,23 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
   context.subscriptions.push(
     vscode.commands.registerCommand("qip.refreshExplorer", () => {
       qipProvider.refresh();
+    }),
+  );
+
+  syncChainDiffAssociation().catch((error) => {
+    console.error("[QIP] Failed to sync chain diff editor association:", error);
+  });
+
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("qipExtension.useDefaultDiffView")) {
+        syncChainDiffAssociation().catch((error) => {
+          console.error(
+            "[QIP] Failed to sync chain diff editor association:",
+            error,
+          );
+        });
+      }
     }),
   );
 
