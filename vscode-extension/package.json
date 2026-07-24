@@ -244,7 +244,7 @@
   },
   "dependencies": {
     "@apidevtools/swagger-parser": "^12.0.0",
-    "@asyncapi/parser": "^3.4.0",
+    "@asyncapi/parser": "3.4.0",
     "@netcracker/qip-ui": "^1.0.0",
     "@types/js-yaml": "^4.0.9",
     "@vscode/dts": "^0.4.1",
@@ -257,5 +257,11 @@
     "tar": "^7.5.7",
     "yaml": "^2.8.1",
     "yauzl": "^3.2.0"
+  },
+  "overrides": {
+    "@asyncapi/generator": "3.3.0",
+    "@asyncapi/generator-helpers": "1.1.0",
+    "@asyncapi/generator-components": "0.7.0",
+    "@asyncapi/specs": "6.11.1"
   }
 }
