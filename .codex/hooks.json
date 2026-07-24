@@ -9,8 +9,7 @@
             "timeout": 30,
             "statusMessage": "Recording skill telemetry"
           }
-        ],
-        "_apm_source": "ai-agent-telemetry"
+        ]
       }
     ]
   }
