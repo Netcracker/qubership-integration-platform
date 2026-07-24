@@ -32,8 +32,7 @@ public class McpTriggerPropertiesBuilder implements ElementPropertiesBuilder {
                 "readOnly",
                 "destructive",
                 "idempotent",
-                "openWorld",
-                "requiresLocal"
+                "openWorld"
         ).collect(Collectors.toMap(
                 Function.identity(),
                 key -> Optional.ofNullable(element.getProperties().get(key))

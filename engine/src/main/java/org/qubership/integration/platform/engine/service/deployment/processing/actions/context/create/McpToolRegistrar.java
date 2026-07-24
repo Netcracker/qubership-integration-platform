@@ -87,7 +87,7 @@ public class McpToolRegistrar extends ElementProcessingAction {
                         Boolean.valueOf(props.get("destructive")),
                         Boolean.valueOf(props.get("idempotent")),
                         Boolean.valueOf(props.get("openWorld")),
-                        Boolean.valueOf(props.get("requiresLocal"))))
+                        false))
                 .meta(Map.of(DEPLOYMENT_ID, deploymentInfo.getDeploymentId()))
                 .inputSchema(mcpJsonMapper, props.get("inputSchema"));
         String outputSchema = props.get("outputSchema");

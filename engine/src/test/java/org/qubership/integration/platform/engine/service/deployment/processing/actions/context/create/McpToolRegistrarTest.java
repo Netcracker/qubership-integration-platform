@@ -166,7 +166,6 @@ class McpToolRegistrarTest {
         props.put("destructive", "false");
         props.put("idempotent", "true");
         props.put("openWorld", "false");
-        props.put("requiresLocal", "false");
         props.put("inputSchema", INPUT_SCHEMA);
         if (outputSchema != null) {
             props.put("outputSchema", outputSchema);
