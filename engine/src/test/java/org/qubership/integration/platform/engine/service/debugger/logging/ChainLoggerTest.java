@@ -183,9 +183,9 @@ class ChainLoggerTest {
         ArgumentCaptor<ErrorCode> errorCodeCaptor = ArgumentCaptor.forClass(ErrorCode.class);
         verify(extendedErrorLogger).error(
                 errorCodeCaptor.capture(),
-                contains("HTTP request failed. Headers: {}, body: {}, exchange properties: {}"),
-                eq(headers), eq(body), eq(properties)
-        );
+                eq("{} HTTP request failed. Headers: {}, body: {}, exchange properties: {}"),
+                eq(HttpLogParameters.createResponse(duration).toString()), eq(headers), eq(body), eq(properties));
+
         assertEquals(ErrorCode.UNEXPECTED_BUSINESS_ERROR, errorCodeCaptor.getValue());
     }
 
@@ -202,9 +202,9 @@ class ChainLoggerTest {
         chainLogger.logExternalServiceParams(message, params, body, headers, properties, envName, address);
 
         verify(extendedErrorLogger).info(
-                eq(params.toString() + " " + message + " Headers: {}, body: {}, exchange properties: {}, external service environment name: {}, external service address: {}"),
-                eq(headers), eq(body), eq(properties), eq(envName), eq(address)
-        );
+                eq("{}{} Headers: {}, body: {}, exchange properties: {}, external service environment name: {}, external service address: {}"),
+                eq(params.toString() + " "), eq(message), eq(headers), eq(body), eq(properties), eq(envName),
+                eq(address));
     }
 
     @Test
@@ -219,9 +219,8 @@ class ChainLoggerTest {
         chainLogger.logExternalServiceParams(message, null, body, headers, properties, envName, address);
 
         verify(extendedErrorLogger).info(
-                eq(message + " Headers: {}, body: {}, exchange properties: {}, external service environment name: {}, external service address: {}"),
-                eq(headers), eq(body), eq(properties), eq(envName), eq(address)
-        );
+                eq("{}{} Headers: {}, body: {}, exchange properties: {}, external service environment name: {}, external service address: {}"),
+                eq(""), eq(message), eq(headers), eq(body), eq(properties), eq(envName), eq(address));
     }
 
     // ========== Tests for AbstractChainLogger's concrete methods ==========
