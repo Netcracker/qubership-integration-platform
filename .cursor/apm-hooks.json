@@ -1,0 +1,8 @@
+{
+  "afterAgentResponse": [
+    {
+      "command": "ai-agent-telemetry ingest --agent=cursor",
+      "_apm_source": "ai-agent-telemetry"
+    }
+  ]
+}

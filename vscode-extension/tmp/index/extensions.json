@@ -1,0 +1,46 @@
+[
+  {
+    "id": "Netcracker-Technology.nc-cip-integration-designer",
+    "packageJSON": {
+      "openFileWithExtensionCommand": "integrationDesigner.openFileWithExtension",
+      "contributes": {
+        "languages": [
+          {
+            "extensions": [
+              ".chain.cip.yaml"
+            ]
+          },
+          {
+            "extensions": [
+              ".service.cip.yaml"
+            ]
+          },
+          {
+            "extensions": [
+              ".context-service.cip.yaml"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "Netcracker-Technology.nc-low-code-ide",
+    "packageJSON": {
+      "contributes": {
+        "languages": [
+          {
+            "extensions": [
+              ".ftl"
+            ]
+          },
+          {
+            "extensions": [
+              ".cel"
+            ]
+          }
+        ]
+      }
+    }
+  }
+]
