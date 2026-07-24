@@ -7,13 +7,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCodePrefix;
+import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
 import org.qubership.integration.platform.engine.model.deployment.properties.CamelDebuggerProperties;
 import org.qubership.integration.platform.engine.model.deployment.properties.DeploymentRuntimeProperties;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
 import org.qubership.integration.platform.engine.service.debugger.tracing.TracingService;
@@ -21,6 +22,7 @@ import org.qubership.integration.platform.engine.util.log.ExtendedErrorLogger;
 import org.qubership.integration.platform.engine.util.log.ExtendedErrorLoggerFactory;
 import org.slf4j.MDC;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -34,12 +36,8 @@ import static org.mockito.Mockito.when;
 class ChainLoggerTest {
 
     ChainLogger chainLogger;
-
-    @Mock
-    TracingService tracingService;
-
-    @Mock
-    Optional<OriginatingBusinessIdProvider> originatingBusinessIdProvider;
+    TracingService tracingService = mock(TracingService.class);
+    OriginatingBusinessIdProvider originatingBusinessIdProvider = mock(OriginatingBusinessIdProvider.class);
 
     ExtendedErrorLogger extendedErrorLogger;
     MockedStatic<ExtendedErrorLoggerFactory> factoryMock;
@@ -51,7 +49,7 @@ class ChainLoggerTest {
         factoryMock = mockStatic(ExtendedErrorLoggerFactory.class);
         factoryMock.when(() -> ExtendedErrorLoggerFactory.getLogger(any(Class.class)))
                 .thenReturn(extendedErrorLogger);
-        chainLogger = new ChainLogger(tracingService, originatingBusinessIdProvider);
+        chainLogger = new ChainLogger(tracingService, Optional.of(originatingBusinessIdProvider));
         MDC.clear();
     }
 
@@ -76,9 +74,8 @@ class ChainLoggerTest {
         chainLogger.logExchange(message, body, headers, properties);
 
         verify(extendedErrorLogger).info(
-                eq("{} Headers: {}, body: {}, exchange properties: {}"),
-                eq(message), eq(headers), eq(body), eq(properties)
-        );
+                "{} Headers: {}, body: {}, exchange properties: {}",
+                message, headers, body, properties);
     }
 
     @Test
@@ -115,10 +112,9 @@ class ChainLoggerTest {
         chainLogger.logErrorWithHttpParams(message, errorCode, params, body, headers, properties);
 
         verify(extendedErrorLogger).error(
-                eq(errorCode),
-                eq("{} {} Headers: {}, body: {}, exchange properties: {}"),
-                eq(params.toString()), eq(message), eq(headers), eq(body), eq(properties)
-        );
+                errorCode,
+                "{} {} Headers: {}, body: {}, exchange properties: {}",
+                params.toString(), message, headers, body, properties);
     }
 
     @Test
@@ -132,8 +128,8 @@ class ChainLoggerTest {
         chainLogger.logHttpParams(message, params, body, headers, properties);
 
         verify(extendedErrorLogger).info(
-                eq("{} Headers: {}, body: {}, exchange properties: {}"),
-                eq(String.format("%s %s", params.toString(), message)), eq(headers), eq(body), eq(properties));
+                "{} Headers: {}, body: {}, exchange properties: {}",
+                String.format("%s %s", params.toString(), message), headers, body, properties);
     }
 
     @Test
@@ -197,9 +193,8 @@ class ChainLoggerTest {
         chainLogger.logExternalServiceParams(message, params, body, headers, properties, envName, address);
 
         verify(extendedErrorLogger).info(
-                eq("{}{} Headers: {}, body: {}, exchange properties: {}, external service environment name: {}, external service address: {}"),
-                eq(params.toString() + " "), eq(message), eq(headers), eq(body), eq(properties), eq(envName),
-                eq(address));
+                "{}{} Headers: {}, body: {}, exchange properties: {}, external service environment name: {}, external service address: {}",
+                params.toString() + " ", message, headers, body, properties, envName, address);
     }
 
     @Test
@@ -214,8 +209,8 @@ class ChainLoggerTest {
         chainLogger.logExternalServiceParams(message, null, body, headers, properties, envName, address);
 
         verify(extendedErrorLogger).info(
-                eq("{}{} Headers: {}, body: {}, exchange properties: {}, external service environment name: {}, external service address: {}"),
-                eq(""), eq(message), eq(headers), eq(body), eq(properties), eq(envName), eq(address));
+                "{}{} Headers: {}, body: {}, exchange properties: {}, external service environment name: {}, external service address: {}",
+                "", message, headers, body, properties, envName, address);
     }
 
     // ========== Tests for AbstractChainLogger's concrete methods ==========
@@ -240,13 +235,13 @@ class ChainLoggerTest {
         when(dbgProperties.getRuntimeProperties(any())).thenReturn(runtimeProperties);
         when(runtimeProperties.getLogLoggingLevel()).thenReturn(LogLoggingLevel.INFO);
 
-        chainLogger.logExchangeFinished(dbgProperties, "body", "headers", "properties", ExecutionStatus.COMPLETED_NORMALLY, 100L);
+        chainLogger.logExchangeFinished(dbgProperties, "body", "headers", "properties",
+                ExecutionStatus.COMPLETED_NORMALLY, 100L);
 
         verify(extendedErrorLogger).info(
-                eq("{} Headers: {}, body: {}, exchange properties: {}"),
-                eq("Session COMPLETED NORMALLY. Duration 100ms."),
-                eq("headers"), eq("body"), eq("properties")
-        );
+                "{} Headers: {}, body: {}, exchange properties: {}",
+                "Session COMPLETED NORMALLY. Duration 100ms.",
+                "headers", "body", "properties");
     }
 
     @Test
@@ -267,18 +262,18 @@ class ChainLoggerTest {
         String expectedMessage = HttpLogParameters.createResponse("http://req", 200, 150L).toString() + " "
                 + "HTTP request completed.";
         verify(extendedErrorLogger).info(
-                eq("{} Headers: {}, body: {}, exchange properties: {}"),
-                eq(expectedMessage),
-                eq("headers"), eq("body"), eq("properties"));
+                "{} Headers: {}, body: {}, exchange properties: {}",
+                expectedMessage,
+                "headers", "body", "properties");
     }
 
-    /*@Test
-    void testLogHTTPExchangeFinished_Error() {
-        Exchange exchange = new DefaultExchange();
-        exchange.setProperty(org.apache.camel.Constants.SERVLET_REQUEST_URL, "http://test.com");
-        Message message = new DefaultMessage();
-        message.setHeader(org.apache.camel.Constants.HTTP_RESPONSE_CODE, 500);
-        exchange.setMessage(message);
+    @Test
+    void shouldLogHTTPExchangeFinishedCorrectlyWithErrorInfo() {
+        Exchange exchange = mock(Exchange.class);
+        Message message = mock(Message.class);
+        when(message.getHeader(Exchange.HTTP_RESPONSE_CODE, Integer.class)).thenReturn(500);
+        when(exchange.getProperty(Properties.SERVLET_REQUEST_URL)).thenReturn("http://req");
+        when(exchange.getMessage()).thenReturn(message);
 
         CamelDebuggerProperties dbgProperties = mock(CamelDebuggerProperties.class);
         DeploymentRuntimeProperties runtimeProperties = mock(DeploymentRuntimeProperties.class);
@@ -288,45 +283,43 @@ class ChainLoggerTest {
         errorCodePrefixMock = mockStatic(ErrorCodePrefix.class);
         errorCodePrefixMock.when(ErrorCodePrefix::getCodePrefix).thenReturn("qip");
 
-        chainLogger.logHTTPExchangeFinished(exchange, dbgProperties, "body", "headers", "properties", null, 150L, null);
+        chainLogger.logHTTPExchangeFinished(exchange, dbgProperties, "body", "headers", "properties", null, 150L,
+                mock(HttpOperationFailedException.class));
 
+        HttpLogParameters expectedHttpParams = HttpLogParameters.createResponse("http://req", 500, 150L);
         ArgumentCaptor<ErrorCode> errorCodeCaptor = ArgumentCaptor.forClass(ErrorCode.class);
         verify(extendedErrorLogger).error(
                 errorCodeCaptor.capture(),
-                contains("HTTP request failed. http://test.com 500 150ms RESPONSE Headers: {}, body: {}, exchange properties: {}"),
-                eq("headers"), eq("body"), eq("properties")
-        );
+                eq("{} {} Headers: {}, body: {}, exchange properties: {}"),
+                eq(expectedHttpParams.toString()), eq("HTTP request failed."), eq("headers"), eq("body"),
+                eq("properties"));
         assertEquals(ErrorCode.SERVICE_RETURNED_ERROR, errorCodeCaptor.getValue());
     }
 
     @Test
     void testSetLoggerContext() {
-        Exchange exchange = new DefaultExchange();
-        exchange.setProperty("sessionId", "session-123");
+        Exchange exchange = mock(Exchange.class);
+        when(exchange.getProperty(Properties.SESSION_ID)).thenReturn("session-123");
 
         CamelDebuggerProperties dbgProperties = mock(CamelDebuggerProperties.class);
-        Map<String, String> deploymentInfo = new HashMap<>();
-        deploymentInfo.put("chainId", "chain-1");
-        deploymentInfo.put("chainName", "Test Chain");
+        DeploymentInfo deploymentInfo = DeploymentInfo.builder()
+                .chainId("chain-1").chainName("Test Chain").build();
         when(dbgProperties.getDeploymentInfo()).thenReturn(deploymentInfo);
         when(dbgProperties.getElementProperty("node-1")).thenReturn(Map.of(
                 "elementName", "Element 1",
-                "elementId", "elem-1"
-        ));
-
-        when(tracingService.isTracingEnabled()).thenReturn(false);
+                "elementId", "elem-1"));
 
         chainLogger.setLoggerContext(exchange, dbgProperties, "node-1", false);
 
         assertEquals("chain-1", MDC.get("chainId"));
         assertEquals("Test Chain", MDC.get("chainName"));
-        assertEquals("session-123", MDC.get("sessionId"));
+        assertEquals("session-123", MDC.get(Properties.SESSION_ID));
         assertEquals("elem-1", MDC.get("elementId"));
         assertEquals("Element 1", MDC.get("elementName"));
-        assertEquals("chain", MDC.get("log_type"));
+        assertEquals(CamelConstants.LOG_TYPE_VALUE, MDC.get(CamelConstants.LOG_TYPE_KEY));
     }
 
-    @Test
+    /*@Test
     void testLogBeforeProcess_SchedulerTrigger() {
         Exchange exchange = new DefaultExchange();
         CamelDebuggerProperties dbgProperties = mock(CamelDebuggerProperties.class);
