@@ -126,9 +126,9 @@ public class JsonChainLogger extends AbstractChainLogger {
 
     private List<StructuredArgument> buildExchangeArguments(LoggedPayloadValues loggedPayloadValues) {
         List<StructuredArgument> result = new ArrayList<>();
-        result.add(kv("exchange_headers", loggedPayloadValues.getHeaders()));
-        result.add(kv("exchange_body", loggedPayloadValues.getBody()));
-        result.add(kv("exchange_properties", loggedPayloadValues.getProperties()));
+        result.add(kv("exchange_headers", truncateValue(loggedPayloadValues.getHeaders())));
+        result.add(kv("exchange_body", truncateValue(loggedPayloadValues.getBody())));
+        result.add(kv("exchange_properties", truncateValue(loggedPayloadValues.getProperties())));
         return result;
     }
 

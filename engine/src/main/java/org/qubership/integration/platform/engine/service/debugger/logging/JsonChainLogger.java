@@ -13,7 +13,7 @@ import java.util.Optional;
 import static net.logstash.logback.marker.Markers.append;
 
 @Component
-@ConditionalOnProperty(name = "logging.format", havingValue = "json", matchIfMissing = true)
+@ConditionalOnProperty(name = "qip.logging.format", havingValue = "json", matchIfMissing = true)
 public class JsonChainLogger extends AbstractChainLogger {
     public JsonChainLogger(
             @Lazy TracingService tracingService,
@@ -118,9 +118,9 @@ public class JsonChainLogger extends AbstractChainLogger {
 
     private LogstashMarker buildExchangeMarkers(String bodyForLogging, Object headersForLogging,
             Object exchangePropertiesForLogging) {
-        return append("exchange_body", bodyForLogging)
-                .and(append("exchange_headers", headersForLogging.toString()))
-                .and(append("exchange_properties", exchangePropertiesForLogging.toString()));
+        return append("exchange_body", truncateValue(bodyForLogging))
+                .and(append("exchange_headers", truncateValue(headersForLogging.toString())))
+                .and(append("exchange_properties", truncateValue(exchangePropertiesForLogging.toString())));
     }
 
     private Optional<ErrorCode> getErrorCode(Exception exception) {

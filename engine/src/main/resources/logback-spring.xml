@@ -2,7 +2,7 @@
 <configuration>
     <property resource="application.yml"/>
 
-    <springProperty scope="context" name="logFormat" source="logging.format" defaultValue="json"/>
+    <springProperty scope="context" name="logFormat" source="qip.logging.format" defaultValue="json"/>
     <property name="appenderName_json" value="STDOUT_JSON" />
     <property name="appenderName_text" value="STDOUT" />
     <property name="appenderName" value="${appenderName_${logFormat}:-STDOUT_JSON}" />

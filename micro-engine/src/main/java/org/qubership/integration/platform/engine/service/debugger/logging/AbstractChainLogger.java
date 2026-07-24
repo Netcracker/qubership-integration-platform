@@ -10,6 +10,7 @@ import org.apache.camel.support.http.HttpUtil;
 import org.apache.camel.tracing.ActiveSpanManager;
 import org.apache.camel.tracing.SpanAdapter;
 import org.apache.commons.lang3.StringUtils;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.logging.ExtendedErrorLogger;
 import org.qubership.integration.platform.engine.logging.ExtendedErrorLoggerFactory;
@@ -52,6 +53,9 @@ import static org.qubership.integration.platform.engine.model.constants.CamelCon
 public abstract class AbstractChainLogger {
     public static final String MDC_TRACE_ID = "trace_id";
     public static final String MDC_SNAP_ID = "span_id";
+
+    @ConfigProperty(name = "qip.logging.field-value-max-size")
+    Integer fieldValueMaxSize;
 
     @SuppressWarnings("checkstyle:ConstantName")
     protected final ExtendedErrorLogger chainLogger = ExtendedErrorLoggerFactory.getLogger(this.getClass());
@@ -394,6 +398,14 @@ public abstract class AbstractChainLogger {
             chainLogger.error("Failed to get retry parameters.", ex);
             return new RetryParameters(0, 0, 0, false);
         }
+    }
+
+    protected String truncateValue(String value) {
+        if (fieldValueMaxSize != null && fieldValueMaxSize >= 0 && value != null) {
+            return StringUtils.abbreviate(value, fieldValueMaxSize + 3);
+        }
+
+        return value;
     }
 
     public abstract void logExchange(String message, LoggedPayloadValues loggedPayloadValues);

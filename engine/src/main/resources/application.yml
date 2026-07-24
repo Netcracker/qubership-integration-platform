@@ -136,7 +136,6 @@ logging:
   level:
     root: ${ROOT_LOG_LEVEL:INFO}
   config: classpath:logback-spring.xml
-  format: ${LOG_FORMAT:json}
 
 db:
   flyway:
@@ -336,6 +335,9 @@ qip:
       password: ''
     certs:
       location: :/tmp/cert/${SSL_SECRET:defaultsslcertificate}
+  logging:
+    format: ${LOG_FORMAT:json}
+    field-value-max-size: ${LOG_FIELDS_MAX_SIZE}
   production-mode:
     enabled: ${PRODUCTION_MODE:false}
   internal-services:

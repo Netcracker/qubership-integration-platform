@@ -52,9 +52,9 @@ public class ChainLogger extends AbstractChainLogger {
         chainLogger.info(
                 "{} " + LOG_EXCHANGE_FORMAT,
                 message,
-                loggedPayloadValues.getHeaders(),
-                loggedPayloadValues.getBody(),
-                loggedPayloadValues.getProperties());
+                truncateValue(loggedPayloadValues.getHeaders()),
+                truncateValue(loggedPayloadValues.getBody()),
+                truncateValue(loggedPayloadValues.getProperties()));
     }
 
     @Override
