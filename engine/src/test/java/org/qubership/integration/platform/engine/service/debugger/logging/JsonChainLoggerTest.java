@@ -80,7 +80,7 @@ class JsonChainLoggerTest {
         String properties = "properties";
 
         try (MockedStatic<ErrorCodePrefix> mockedStatic = mockStatic(ErrorCodePrefix.class)) {
-            mockedStatic.when(() -> ErrorCodePrefix.getCodePrefix())
+            mockedStatic.when(ErrorCodePrefix::getCodePrefix)
                     .thenReturn("qip");
             jsonChainLogger.logError("Error occurred", exception, body, header, properties);
 
@@ -108,7 +108,7 @@ class JsonChainLoggerTest {
         String properties = "properties";
 
         try (MockedStatic<ErrorCodePrefix> mockedStatic = mockStatic(ErrorCodePrefix.class)) {
-            mockedStatic.when(() -> ErrorCodePrefix.getCodePrefix())
+            mockedStatic.when(ErrorCodePrefix::getCodePrefix)
                     .thenReturn("qip");
 
             jsonChainLogger.logErrorWithHttpParams("Validation error", errorCode, params, body, header, properties);
@@ -155,7 +155,7 @@ class JsonChainLoggerTest {
         String properties = "properties";
 
         try (MockedStatic<ErrorCodePrefix> mockedStatic = mockStatic(ErrorCodePrefix.class)) {
-            mockedStatic.when(() -> ErrorCodePrefix.getCodePrefix())
+            mockedStatic.when(ErrorCodePrefix::getCodePrefix)
                     .thenReturn("qip");
 
             jsonChainLogger.logFailedHttpOperation(body, header, properties, httpException, 30000L);
@@ -180,7 +180,7 @@ class JsonChainLoggerTest {
         String properties = "properties";
 
         try (MockedStatic<ErrorCodePrefix> mockedStatic = mockStatic(ErrorCodePrefix.class)) {
-            mockedStatic.when(() -> ErrorCodePrefix.getCodePrefix())
+            mockedStatic.when(ErrorCodePrefix::getCodePrefix)
                     .thenReturn("qip");
 
             jsonChainLogger.logFailedOperation(body, header, properties, exception, 100L);

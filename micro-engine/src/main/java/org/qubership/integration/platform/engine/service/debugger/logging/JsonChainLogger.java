@@ -44,10 +44,12 @@ public class JsonChainLogger extends AbstractChainLogger {
 
     @Override
     public void logError(String message, Exception exception, LoggedPayloadValues loggedPayloadValues) {
-        List<StructuredArgument> args = buildExchangeArguments(loggedPayloadValues);
-        enrichWithErrorCode(args, exception);
-        chainLogger.error(String.format("%s %s", message, exception != null ? exception.getMessage() : ""),
-                args.toArray());
+        if (chainLogger.isErrorEnabled()) {
+            List<StructuredArgument> args = buildExchangeArguments(loggedPayloadValues);
+            enrichWithErrorCode(args, exception);
+            chainLogger.error(String.format("%s %s", message, exception != null ? exception.getMessage() : ""),
+                    args.toArray());
+        }
     }
 
     @Override

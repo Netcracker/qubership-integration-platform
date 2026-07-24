@@ -194,8 +194,8 @@ public abstract class AbstractChainLogger {
                     break;
                 case CHECKPOINT:
                     // detect checkpoint context saver
-                    if (!exchange.getProperty(Properties.CHECKPOINT_IS_TRIGGER_STEP, false,
-                            boolean.class)) {
+                    if (Boolean.FALSE.equals(exchange.getProperty(Properties.CHECKPOINT_IS_TRIGGER_STEP, Boolean.FALSE,
+                            Boolean.class))) {
                         chainLogger.info("Session checkpoint passed");
                     }
                     break;

@@ -58,6 +58,7 @@ class JsonChainLoggerTest {
     @BeforeEach
     void setUp() {
         chainLogger = mock(ExtendedErrorLogger.class);
+        doReturn(true).when(chainLogger).isErrorEnabled();
         factoryMock = Mockito.mockStatic(ExtendedErrorLoggerFactory.class);
         factoryMock.when(() -> ExtendedErrorLoggerFactory.getLogger(Mockito.any(Class.class)))
                 .thenReturn(chainLogger);
