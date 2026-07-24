@@ -32,7 +32,7 @@ import org.qubership.integration.platform.engine.service.SdsService;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
 import org.qubership.integration.platform.engine.service.debugger.kafkareporting.SessionsKafkaReportingService;
-import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
+import org.qubership.integration.platform.engine.service.debugger.logging.AbstractChainLogger;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
 import org.qubership.integration.platform.engine.service.debugger.sessions.SessionsService;
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
@@ -60,7 +60,7 @@ public class ChainFinishProcessor implements Processor {
     private final SessionsService sessionsService;
     private final Optional<SessionsKafkaReportingService> sessionsKafkaReportingService;
     private final Optional<SdsService> sdsService;
-    private final ChainLogger chainLogger;
+    private final AbstractChainLogger chainLogger;
     private final PayloadExtractor payloadExtractor;
     private final ConcurrentHashMap<String, Long> syncDurationMap = new ConcurrentHashMap<>();
 
@@ -70,7 +70,7 @@ public class ChainFinishProcessor implements Processor {
                                 SessionsService sessionsService,
                                 Optional<SessionsKafkaReportingService> sessionsKafkaReportingService,
                                 Optional<SdsService> sdsService,
-                                ChainLogger chainLogger, PayloadExtractor payloadExtractor) {
+                                AbstractChainLogger chainLogger, PayloadExtractor payloadExtractor) {
         this.metricsService = metricsService;
         this.propertiesService = propertiesService;
         this.sessionsService = sessionsService;

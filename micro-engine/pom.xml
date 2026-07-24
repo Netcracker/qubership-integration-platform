@@ -78,6 +78,7 @@
         <surefire-plugin.version>3.5.6</surefire-plugin.version>
         <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
         <jacoco.plugin.version>0.8.15</jacoco.plugin.version>
+        <quarkiverse.loggingjson.version>3.5.0</quarkiverse.loggingjson.version>
         <sonar.coverage.jacoco.xmlReportPaths>
             ${project.basedir}/target/site/jacoco-aggregate/jacoco.xml
         </sonar.coverage.jacoco.xmlReportPaths>
@@ -458,6 +459,11 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-messaging-kafka</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkiverse.loggingjson</groupId>
+            <artifactId>quarkus-logging-json</artifactId>
+            <version>${quarkiverse.loggingjson.version}</version>
         </dependency>
 
         <dependency>

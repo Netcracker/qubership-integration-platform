@@ -2,6 +2,11 @@
 <configuration>
     <property resource="application.yaml"/>
 
+    <springProperty scope="context" name="logFormat" source="qip.logging.format" defaultValue="json"/>
+    <property name="appenderName_json" value="STDOUT_JSON" />
+    <property name="appenderName_text" value="STDOUT" />
+    <property name="appenderName" value="${appenderName_${logFormat}:-STDOUT_JSON}" />
+
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>
@@ -10,11 +15,52 @@
         </encoder>
     </appender>
 
+    <appender name="STDOUT_JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <timestamp>
+                    <fieldName>time</fieldName>
+                    <pattern>yyyy-MM-dd'T'HH:mm:ss.SSSZ</pattern>
+                </timestamp>
+                <logLevel>
+                    <fieldName>level</fieldName>
+                </logLevel>
+                <message>
+                    <fieldName>message</fieldName>
+                </message>
+                <threadName>
+                    <fieldName>thread</fieldName>
+                </threadName>
+                <loggerName>
+                    <fieldName>class</fieldName>
+                </loggerName>
+                <callerData>
+                    <methodFieldName>method</methodFieldName>
+                    <classFieldName>[ignore]</classFieldName>
+                    <fileFieldName>[ignore]</fileFieldName>
+                    <lineFieldName>[ignore]</lineFieldName>
+                </callerData>
+                <pattern>
+                    <pattern>
+                        {
+                        "request_id": "%.-15X{requestId:--}",
+                        "traceId": "%.-16X{X-B3-TraceId:--}",
+                        "spanId": "%.-16X{X-B3-SpanId:--}"
+                        }
+                    </pattern>
+                </pattern>
+                <stackTrace>
+                    <fieldName>stacktrace</fieldName>
+                </stackTrace>
+            </providers>
+        </encoder>
+    </appender>
+
     <root level="INFO">
-        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="${appenderName}"/>
     </root>
 
     <logger name="Hibernate Types" level="ERROR">
-        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="${appenderName}"/>
     </logger>
 </configuration>
