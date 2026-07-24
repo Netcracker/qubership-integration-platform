@@ -4,6 +4,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { CreateServiceModal } from "../../../../src/components/services/modals/CreateServiceModal";
+import { IntegrationSystemType } from "../../../../src/api/apiTypes";
 
 Object.defineProperty(globalThis, "matchMedia", {
   writable: true,
@@ -38,6 +39,7 @@ describe("CreateServiceModal", () => {
   it("renders with defaultName pre-filled in the Name field", () => {
     render(
       <CreateServiceModal
+        serviceType={IntegrationSystemType.EXTERNAL}
         defaultName="New external service"
         onSubmit={mockSubmit}
       />,
@@ -49,7 +51,12 @@ describe("CreateServiceModal", () => {
   });
 
   it("shows Cancel and Create buttons and Name field", () => {
-    render(<CreateServiceModal onSubmit={mockSubmit} />);
+    render(
+      <CreateServiceModal
+        serviceType={IntegrationSystemType.EXTERNAL}
+        onSubmit={mockSubmit}
+      />,
+    );
 
     expect(screen.getByText("Create service")).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: /name/i })).toBeInTheDocument();
@@ -62,14 +69,24 @@ describe("CreateServiceModal", () => {
   });
 
   it("Cancel button calls closeContainingModal", () => {
-    render(<CreateServiceModal onSubmit={mockSubmit} />);
+    render(
+      <CreateServiceModal
+        serviceType={IntegrationSystemType.EXTERNAL}
+        onSubmit={mockSubmit}
+      />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
     expect(mockCloseModal).toHaveBeenCalled();
   });
 
   it("submit calls onSubmit with name and description", async () => {
-    render(<CreateServiceModal onSubmit={mockSubmit} />);
+    render(
+      <CreateServiceModal
+        serviceType={IntegrationSystemType.EXTERNAL}
+        onSubmit={mockSubmit}
+      />,
+    );
 
     fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
       target: { value: "svc-a" },
@@ -81,12 +98,17 @@ describe("CreateServiceModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
 
     await waitFor(() => {
-      expect(mockSubmit).toHaveBeenCalledWith("svc-a", "desc");
+      expect(mockSubmit).toHaveBeenCalledWith("svc-a", "desc", {});
     });
   });
 
   it("calls closeContainingModal after successful submit", async () => {
-    render(<CreateServiceModal onSubmit={mockSubmit} />);
+    render(
+      <CreateServiceModal
+        serviceType={IntegrationSystemType.EXTERNAL}
+        onSubmit={mockSubmit}
+      />,
+    );
 
     fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
       target: { value: "svc-b" },
@@ -101,7 +123,12 @@ describe("CreateServiceModal", () => {
 
   it("shows error alert when onSubmit throws", async () => {
     mockSubmit.mockRejectedValue(new Error("Creation failed"));
-    render(<CreateServiceModal onSubmit={mockSubmit} />);
+    render(
+      <CreateServiceModal
+        serviceType={IntegrationSystemType.EXTERNAL}
+        onSubmit={mockSubmit}
+      />,
+    );
 
     fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
       target: { value: "svc-c" },
