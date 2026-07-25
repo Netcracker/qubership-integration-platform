@@ -23,12 +23,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupContentDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationGroupDto;
-import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SpecificationGroupDtoMapper;
@@ -356,9 +354,7 @@ public class ServiceDeserializer {
                         .modifiedWhen(specificationSourceDto.getModifiedWhen())
                         .sourceHash(specificationSourceDto.getSourceHash())
                         .isMainSource(specificationSourceDto.isMainSource());
-                String fileName = specificationSourceDto.getFileName() != null
-                    ? specificationSourceDto.getFileName()
-                    : specificationSourceDto.getName();
+                String fileName = extractSpecSourceFileName(specificationSourceDto);
                 Path sourcePath = resourceDirectory.toPath().resolve(fileName);
                 if (!Files.exists(sourcePath) && !fileName.contains(RESOURCES_FOLDER_PREFIX)) {
                     sourcePath = resourceDirectory.toPath().resolve(RESOURCES_FOLDER_PREFIX + fileName);
@@ -380,5 +376,11 @@ public class ServiceDeserializer {
         } catch (JsonProcessingException exception) {
             throw new RuntimeException("Failed to construct specification from YAML", exception);
         }
+    }
+
+    private String extractSpecSourceFileName(SpecificationSourceDto specificationSourceDto) {
+        return StringUtils.firstNonBlank(
+            specificationSourceDto.getFileName(), specificationSourceDto.getName(), specificationSourceDto.getId()
+        );
     }
 }
