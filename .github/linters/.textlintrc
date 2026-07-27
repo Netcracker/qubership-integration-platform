@@ -4,7 +4,8 @@
             "exclude": [
                 "V[ -]?S[ -]?Code",
                 "file[- ]name(s)?",
-                "ID"
+                "ID",
+                "JSON"
             ]
         }
     }
