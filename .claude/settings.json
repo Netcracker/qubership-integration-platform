@@ -6,9 +6,9 @@
         "hooks": [
           {
             "type": "command",
+            "statusMessage": "Recording skill telemetry",
             "command": "ai-agent-telemetry ingest --agent=claude",
-            "timeout": 30,
-            "statusMessage": "Recording skill telemetry"
+            "timeout": 30
           }
         ]
       }

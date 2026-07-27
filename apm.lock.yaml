@@ -1,6 +1,6 @@
 lockfile_version: '1'
-generated_at: '2026-07-13T16:31:33.372540+00:00'
-apm_version: 0.24.1
+generated_at: '2026-07-24T18:19:54.844726+00:00'
+apm_version: 0.26.0
 dependencies:
 - repo_url: netcracker/qubership-ai-agent-telemetry
   name: ai-agent-telemetry
@@ -83,7 +83,460 @@ dependencies:
     .claude/skills/english-developer-style/SKILL.md: sha256:c91fecf2c209428808e1c9ffc0cbe6cd735bd0786e266be533620e8164367da7
     .cursor/rules/english-developer-style.mdc: sha256:77065463f554e95f32be987d5a51849ded6e621515ea1b8e9dd61530c3046928
   content_hash: sha256:30311d4be0a1b4111895a3ac1f67183ba0a1a64a99f3ed09724ae4731682c8b9
+deployments:
+- kind: project-relative
+  target: agents
+  value: .agents/skills/docs-authoring
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: agents
+  value: .agents/skills/docs-authoring/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:15e202da6be41696fa2f5dccd7e88c58960365893a692ed29bb30cc1fa2d112b
+- kind: project-relative
+  target: agents
+  value: .agents/skills/ui-api-and-utilities
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: agents
+  value: .agents/skills/ui-api-and-utilities/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:c88f1c0204789a249055d485bab96b859b6be9b64fe30df9b792d56b3d3f6a3a
+- kind: project-relative
+  target: agents
+  value: .agents/skills/ui-component-patterns
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: agents
+  value: .agents/skills/ui-component-patterns/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:f0a55c6c01fb67026c5ecd7c83eaa4fea7463e09cb41fa9100b39288be409970
+- kind: project-relative
+  target: agents
+  value: .agents/skills/ui-core-development
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: agents
+  value: .agents/skills/ui-core-development/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:72143be4cc559bea04e321d7246454e9ee84e4e2fb04b16315a84a8388ec8de9
+- kind: project-relative
+  target: agents
+  value: .agents/skills/ui-theme-and-vscode-webview
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: agents
+  value: .agents/skills/ui-theme-and-vscode-webview/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:aeff9e0efe9fa49b50cfd292e26ad781edc1fe15a4a7681943107fb37322961b
+- kind: project-relative
+  target: agents
+  value: .agents/skills/update-docs
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: agents
+  value: .agents/skills/update-docs/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:d90e58bd0e9cde0b5b51cd0313ed56ce34393fa5f447c44155ec5924742bae3b
+- kind: project-relative
+  target: claude
+  value: .claude/rules/apm-authoring.md
+  runtime: null
+  scope: project
+  owners:
+  - netcracker/qubership-ai-packages/agent-packages/apm-authoring
+  active_owner: netcracker/qubership-ai-packages/agent-packages/apm-authoring
+  content_hash: sha256:5c4185d3d69333a810c01f5e26a8ea46b033e7082a21f1551433d6c97d8a24a2
+- kind: project-relative
+  target: claude
+  value: .claude/rules/docs-authoring.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:fb65f291a143c58e0b76a52a24d792a6f7a54c35813548e5d378341df89be806
+- kind: project-relative
+  target: claude
+  value: .claude/rules/english-developer-style.md
+  runtime: null
+  scope: project
+  owners:
+  - netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
+  active_owner: netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
+  content_hash: sha256:7b837ce6ca63996064b7eb7378a54b484f9905a7102d18ee009ee2e1fb9edf7a
+- kind: project-relative
+  target: claude
+  value: .claude/rules/ui-api-and-utilities.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:71aa40132c92c5861e02877fac639503defe750689e9b5019420180c9dda9a94
+- kind: project-relative
+  target: claude
+  value: .claude/rules/ui-component-patterns.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:6ea0cf80626c5e7a78b5d8e36ee5817cfdc8266afcf32b76c85e69d6702ffe1a
+- kind: project-relative
+  target: claude
+  value: .claude/rules/ui-core-development.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:cd27211d682f0c03809a67e30e7dbbc67c00145df56e3c0eb14c9b89ce6408d5
+- kind: project-relative
+  target: claude
+  value: .claude/rules/ui-theme-and-vscode-webview.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:b9c3fb0eb8853ff8fc98a27ac8ccbdb9f6755fd235addba7d44a5855b5b43a17
+- kind: project-relative
+  target: claude
+  value: .claude/skills/apm-authoring
+  runtime: null
+  scope: project
+  owners:
+  - netcracker/qubership-ai-packages/agent-packages/apm-authoring
+  active_owner: netcracker/qubership-ai-packages/agent-packages/apm-authoring
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/apm-authoring/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - netcracker/qubership-ai-packages/agent-packages/apm-authoring
+  active_owner: netcracker/qubership-ai-packages/agent-packages/apm-authoring
+  content_hash: sha256:1832abc93a14884504dc87d97cc0c2825c7e7b4a6786f2daccf1d6ef172bc907
+- kind: project-relative
+  target: claude
+  value: .claude/skills/codex-review
+  runtime: null
+  scope: project
+  owners:
+  - netcracker/qubership-ai-packages/agent-packages/codex-review
+  active_owner: netcracker/qubership-ai-packages/agent-packages/codex-review
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/codex-review/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - netcracker/qubership-ai-packages/agent-packages/codex-review
+  active_owner: netcracker/qubership-ai-packages/agent-packages/codex-review
+  content_hash: sha256:2119ddab29ecb75cc470068fc7464419e386f57127e1cdf3bb5e9bbb48609960
+- kind: project-relative
+  target: claude
+  value: .claude/skills/docs-authoring
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/docs-authoring/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:15e202da6be41696fa2f5dccd7e88c58960365893a692ed29bb30cc1fa2d112b
+- kind: project-relative
+  target: claude
+  value: .claude/skills/english-developer-style
+  runtime: null
+  scope: project
+  owners:
+  - netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
+  active_owner: netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/english-developer-style/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
+  active_owner: netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
+  content_hash: sha256:c91fecf2c209428808e1c9ffc0cbe6cd735bd0786e266be533620e8164367da7
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ui-api-and-utilities
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ui-api-and-utilities/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:c88f1c0204789a249055d485bab96b859b6be9b64fe30df9b792d56b3d3f6a3a
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ui-component-patterns
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ui-component-patterns/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:f0a55c6c01fb67026c5ecd7c83eaa4fea7463e09cb41fa9100b39288be409970
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ui-core-development
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ui-core-development/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:72143be4cc559bea04e321d7246454e9ee84e4e2fb04b16315a84a8388ec8de9
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ui-theme-and-vscode-webview
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ui-theme-and-vscode-webview/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:aeff9e0efe9fa49b50cfd292e26ad781edc1fe15a4a7681943107fb37322961b
+- kind: project-relative
+  target: claude
+  value: .claude/skills/update-docs
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/update-docs/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:d90e58bd0e9cde0b5b51cd0313ed56ce34393fa5f447c44155ec5924742bae3b
+- kind: project-relative
+  target: codex
+  value: .agents/skills/apm-authoring
+  runtime: null
+  scope: project
+  owners:
+  - netcracker/qubership-ai-packages/agent-packages/apm-authoring
+  active_owner: netcracker/qubership-ai-packages/agent-packages/apm-authoring
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/apm-authoring/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - netcracker/qubership-ai-packages/agent-packages/apm-authoring
+  active_owner: netcracker/qubership-ai-packages/agent-packages/apm-authoring
+  content_hash: sha256:1832abc93a14884504dc87d97cc0c2825c7e7b4a6786f2daccf1d6ef172bc907
+- kind: project-relative
+  target: codex
+  value: .agents/skills/codex-review
+  runtime: null
+  scope: project
+  owners:
+  - netcracker/qubership-ai-packages/agent-packages/codex-review
+  active_owner: netcracker/qubership-ai-packages/agent-packages/codex-review
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/codex-review/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - netcracker/qubership-ai-packages/agent-packages/codex-review
+  active_owner: netcracker/qubership-ai-packages/agent-packages/codex-review
+  content_hash: sha256:2119ddab29ecb75cc470068fc7464419e386f57127e1cdf3bb5e9bbb48609960
+- kind: project-relative
+  target: codex
+  value: .agents/skills/english-developer-style
+  runtime: null
+  scope: project
+  owners:
+  - netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
+  active_owner: netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/english-developer-style/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
+  active_owner: netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
+  content_hash: sha256:c91fecf2c209428808e1c9ffc0cbe6cd735bd0786e266be533620e8164367da7
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/apm-authoring.mdc
+  runtime: null
+  scope: project
+  owners:
+  - netcracker/qubership-ai-packages/agent-packages/apm-authoring
+  active_owner: netcracker/qubership-ai-packages/agent-packages/apm-authoring
+  content_hash: sha256:fbc8f94d4f0b94c04a0ed042ee06f1f48244fdac316f0ce15e2d38b0affbb9aa
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/docs-authoring.mdc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:35b9632cef5d6994bd10797b1790a93ac43bce7b4c1fac43d1728d43bc01f532
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/english-developer-style.mdc
+  runtime: null
+  scope: project
+  owners:
+  - netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
+  active_owner: netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
+  content_hash: sha256:77065463f554e95f32be987d5a51849ded6e621515ea1b8e9dd61530c3046928
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/ui-api-and-utilities.mdc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:2db0434f5f2c5d22240435520b454f7da4d900795a698563570bddddaec0db34
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/ui-component-patterns.mdc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:76114bbb23037926ccea5110a104dcc9cb0d67f4c1002b107f9a78980ac1ff19
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/ui-core-development.mdc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:b5fa4e22978c0b3ad030432ba96c8a8d268337d2e6f1b88de6689bbc84d8700f
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/ui-theme-and-vscode-webview.mdc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:6d22cae143816f98685ba75afb5198d9abf57c9e584aa7b78391553a49ffabd9
 local_deployed_files:
+- .agents/skills/docs-authoring
+- .agents/skills/docs-authoring/SKILL.md
 - .agents/skills/ui-api-and-utilities
 - .agents/skills/ui-api-and-utilities/SKILL.md
 - .agents/skills/ui-component-patterns
@@ -92,10 +545,15 @@ local_deployed_files:
 - .agents/skills/ui-core-development/SKILL.md
 - .agents/skills/ui-theme-and-vscode-webview
 - .agents/skills/ui-theme-and-vscode-webview/SKILL.md
+- .agents/skills/update-docs
+- .agents/skills/update-docs/SKILL.md
+- .claude/rules/docs-authoring.md
 - .claude/rules/ui-api-and-utilities.md
 - .claude/rules/ui-component-patterns.md
 - .claude/rules/ui-core-development.md
 - .claude/rules/ui-theme-and-vscode-webview.md
+- .claude/skills/docs-authoring
+- .claude/skills/docs-authoring/SKILL.md
 - .claude/skills/ui-api-and-utilities
 - .claude/skills/ui-api-and-utilities/SKILL.md
 - .claude/skills/ui-component-patterns
@@ -104,23 +562,32 @@ local_deployed_files:
 - .claude/skills/ui-core-development/SKILL.md
 - .claude/skills/ui-theme-and-vscode-webview
 - .claude/skills/ui-theme-and-vscode-webview/SKILL.md
+- .claude/skills/update-docs
+- .claude/skills/update-docs/SKILL.md
+- .cursor/rules/docs-authoring.mdc
 - .cursor/rules/ui-api-and-utilities.mdc
 - .cursor/rules/ui-component-patterns.mdc
 - .cursor/rules/ui-core-development.mdc
 - .cursor/rules/ui-theme-and-vscode-webview.mdc
 local_deployed_file_hashes:
+  .agents/skills/docs-authoring/SKILL.md: sha256:15e202da6be41696fa2f5dccd7e88c58960365893a692ed29bb30cc1fa2d112b
   .agents/skills/ui-api-and-utilities/SKILL.md: sha256:c88f1c0204789a249055d485bab96b859b6be9b64fe30df9b792d56b3d3f6a3a
   .agents/skills/ui-component-patterns/SKILL.md: sha256:f0a55c6c01fb67026c5ecd7c83eaa4fea7463e09cb41fa9100b39288be409970
   .agents/skills/ui-core-development/SKILL.md: sha256:72143be4cc559bea04e321d7246454e9ee84e4e2fb04b16315a84a8388ec8de9
   .agents/skills/ui-theme-and-vscode-webview/SKILL.md: sha256:aeff9e0efe9fa49b50cfd292e26ad781edc1fe15a4a7681943107fb37322961b
+  .agents/skills/update-docs/SKILL.md: sha256:d90e58bd0e9cde0b5b51cd0313ed56ce34393fa5f447c44155ec5924742bae3b
+  .claude/rules/docs-authoring.md: sha256:fb65f291a143c58e0b76a52a24d792a6f7a54c35813548e5d378341df89be806
   .claude/rules/ui-api-and-utilities.md: sha256:71aa40132c92c5861e02877fac639503defe750689e9b5019420180c9dda9a94
   .claude/rules/ui-component-patterns.md: sha256:6ea0cf80626c5e7a78b5d8e36ee5817cfdc8266afcf32b76c85e69d6702ffe1a
   .claude/rules/ui-core-development.md: sha256:cd27211d682f0c03809a67e30e7dbbc67c00145df56e3c0eb14c9b89ce6408d5
   .claude/rules/ui-theme-and-vscode-webview.md: sha256:b9c3fb0eb8853ff8fc98a27ac8ccbdb9f6755fd235addba7d44a5855b5b43a17
+  .claude/skills/docs-authoring/SKILL.md: sha256:15e202da6be41696fa2f5dccd7e88c58960365893a692ed29bb30cc1fa2d112b
   .claude/skills/ui-api-and-utilities/SKILL.md: sha256:c88f1c0204789a249055d485bab96b859b6be9b64fe30df9b792d56b3d3f6a3a
   .claude/skills/ui-component-patterns/SKILL.md: sha256:f0a55c6c01fb67026c5ecd7c83eaa4fea7463e09cb41fa9100b39288be409970
   .claude/skills/ui-core-development/SKILL.md: sha256:72143be4cc559bea04e321d7246454e9ee84e4e2fb04b16315a84a8388ec8de9
   .claude/skills/ui-theme-and-vscode-webview/SKILL.md: sha256:aeff9e0efe9fa49b50cfd292e26ad781edc1fe15a4a7681943107fb37322961b
+  .claude/skills/update-docs/SKILL.md: sha256:d90e58bd0e9cde0b5b51cd0313ed56ce34393fa5f447c44155ec5924742bae3b
+  .cursor/rules/docs-authoring.mdc: sha256:35b9632cef5d6994bd10797b1790a93ac43bce7b4c1fac43d1728d43bc01f532
   .cursor/rules/ui-api-and-utilities.mdc: sha256:2db0434f5f2c5d22240435520b454f7da4d900795a698563570bddddaec0db34
   .cursor/rules/ui-component-patterns.mdc: sha256:76114bbb23037926ccea5110a104dcc9cb0d67f4c1002b107f9a78980ac1ff19
   .cursor/rules/ui-core-development.mdc: sha256:b5fa4e22978c0b3ad030432ba96c8a8d268337d2e6f1b88de6689bbc84d8700f
