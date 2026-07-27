@@ -5,6 +5,5 @@
   "search.exclude": {
     "dist": true
   },
-  "typescript.tsc.autoDetect": "off",
-  "git.openRepositoryInParentFolders": "always"
+  "typescript.tsc.autoDetect": "off"
 }
