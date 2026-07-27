@@ -639,11 +639,17 @@ describe("McpServiceList", () => {
 
     const modalArg = mockShowModal.mock.calls[0][0] as {
       component: React.ReactElement<{
-        onSubmit: (name: string, desc: string) => Promise<void>;
+        onSubmit: (
+          name: string,
+          desc: string,
+          properties: Record<string, string>,
+        ) => Promise<void>;
       }>;
     };
     await expect(
-      modalArg.component.props.onSubmit("New", "desc"),
+      modalArg.component.props.onSubmit("New", "desc", {
+        identifier: "new-identifier",
+      }),
     ).rejects.toThrow("create failed");
 
     await waitFor(() =>

@@ -74,9 +74,13 @@ export const McpServiceList: React.FC = () => {
   }, [notificationService, searchString, filters]);
 
   const createSystem = useCallback(
-    async (name: string, description: string) => {
+    async (name: string, description: string, identifier: string) => {
       try {
-        const system = await api.createMcpSystem({ name, description });
+        const system = await api.createMcpSystem({
+          name,
+          description,
+          identifier,
+        });
         await navigate(`/services/mcp/${system.id}/parameters`);
       } catch (e) {
         notificationService.requestFailed("Failed to create MCP service", e);
@@ -261,7 +265,9 @@ export const McpServiceList: React.FC = () => {
       icon={<OverridableIcon name={"mcp"} />}
       extraActions={[filterButton, columnSettingsButton]}
       serviceType={IntegrationSystemType.MCP}
-      onCreate={(name, description) => createSystem(name, description)}
+      onCreate={(name, description, properties) =>
+        createSystem(name, description, properties["identifier"])
+      }
       onSearch={(value) => setSearchString(value)}
       onExport={() => void exportSystems(toStringIds(selectedRowKeys))}
       onImport={() => void loadSystems()}
