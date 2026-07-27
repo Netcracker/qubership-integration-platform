@@ -20,3 +20,5 @@ qip:
   standalone: true
   internal-services:
     runtime-catalog: qip-runtime-catalog
+  logging:
+    format: ${LOG_FORMAT:text}

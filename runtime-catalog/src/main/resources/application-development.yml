@@ -39,6 +39,8 @@ qip:
     engine: engine
   build:
     artifact-descriptor-version: ${ARTIFACT_DESCRIPTOR_VERSION:'0'}
+  logging:
+    format: ${LOG_FORMAT:text}
 
 consul:
   url: ${CONSUL_URL:http://consul:8500}
