@@ -170,6 +170,7 @@ export const ElementsLibrarySidebar = ({
               className={styles.libraryElements}
               mode="inline"
               items={items}
+              selectable={false}
               inlineIndent={0}
               openKeys={openKeysState}
               onOpenChange={(keys) => setOpenKeysState(keys)}
