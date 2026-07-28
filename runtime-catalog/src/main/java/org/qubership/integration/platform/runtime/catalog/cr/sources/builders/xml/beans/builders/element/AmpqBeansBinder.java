@@ -108,12 +108,15 @@ public class AmpqBeansBinder implements ElementBeansBuilder {
             tenantEnabled = Optional.ofNullable(element.getProperties().get(MAAS_CLASSIFIER_TENANT_ENABLED))
                     .map(Object::toString).orElse("false");
         } else { // Async API Trigger and Service Call elements
-            namespace = String.valueOf(ElementUtils.extractOperationAsyncProperties(element.getProperties())
-                    .get(CamelNames.MAAS_CLASSIFIER_NAMESPACE_PROP));
-            tenantId = String.valueOf(ElementUtils.extractOperationAsyncProperties(element.getProperties())
-                    .get(CamelNames.MAAS_CLASSIFIER_TENANT_ID_CAMEL_NAME));
-            tenantEnabled = String.valueOf(ElementUtils.extractOperationAsyncProperties(element.getProperties())
-                    .get(CamelNames.MAAS_CLASSIFIER_TENANT_ENABLED_CAMEL_NAME));
+            namespace = Optional.ofNullable(ElementUtils.extractOperationAsyncProperties(element.getProperties())
+                    .get(CamelNames.MAAS_CLASSIFIER_NAMESPACE_PROP))
+                    .map(Object::toString).orElse(null);
+            tenantId = Optional.ofNullable(ElementUtils.extractOperationAsyncProperties(element.getProperties())
+                    .get(CamelNames.MAAS_CLASSIFIER_TENANT_ID_CAMEL_NAME))
+                    .map(Object::toString).orElse(null);
+            tenantEnabled = Optional.ofNullable(ElementUtils.extractOperationAsyncProperties(element.getProperties())
+                    .get(CamelNames.MAAS_CLASSIFIER_TENANT_ENABLED_CAMEL_NAME))
+                    .map(Object::toString).orElse("false");
         }
         maasClassifierHelper.addMaasClassifierInfoBean(
                 streamWriter,
