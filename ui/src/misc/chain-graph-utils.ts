@@ -376,9 +376,14 @@ export function collectSubgraphByParents(
 export function edgesForSubgraph(
   allEdges: Edge[],
   nodesInSubgraph: ChainGraphNode[],
+  strict: boolean = true,
 ): Edge[] {
   const ids = new Set(nodesInSubgraph.map((n) => n.id));
-  return allEdges.filter((e) => ids.has(e.source) && ids.has(e.target));
+  return allEdges.filter((e) =>
+    strict
+      ? ids.has(e.source) && ids.has(e.target)
+      : ids.has(e.source) || ids.has(e.target),
+  );
 }
 
 export function sortParentsBeforeChildren<

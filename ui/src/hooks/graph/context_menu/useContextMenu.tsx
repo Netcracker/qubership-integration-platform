@@ -14,6 +14,7 @@ import {
 import {
   buildGraphNodes,
   collectChildren,
+  edgesForSubgraph,
   findLibraryElement,
   sortParentsBeforeChildren,
 } from "../../../misc/chain-graph-utils.ts";
@@ -161,13 +162,13 @@ export const useContextMenu = (props: ContextMenuItemsHookProps) => {
   const deleteElements = (selectedElements: Node<ChainGraphNodeData>[]) => {
     const nodesWithChildren: Node<ChainGraphNodeData>[] = [];
     for (const node of selectedElements) {
-      if (node.type === "container") {
+      if (node.type === "container" || node.type === "swimlane") {
         nodesWithChildren.push(...collectChildren(node.id, nodes));
       }
       nodesWithChildren.push(node);
     }
 
-    void handleDelete({ nodes: nodesWithChildren, edges: [] });
+    void handleDelete({ nodes: nodesWithChildren, edges: edgesForSubgraph(edges, nodesWithChildren, false) });
   };
 
   const copyElements = (selectedElements: Node<ChainGraphNodeData>[]) => {

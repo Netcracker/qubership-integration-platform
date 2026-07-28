@@ -949,7 +949,7 @@ export const useChainGraph = () => {
           Array.from(draftNodeById.values()),
         );
 
-        const hasCreatedSubtree = createdNodes.some(
+        const hasCreatedSubtree = newNode.type === "swimlane" || createdNodes.some(
           (node) => node.id !== newNode.id,
         );
 
