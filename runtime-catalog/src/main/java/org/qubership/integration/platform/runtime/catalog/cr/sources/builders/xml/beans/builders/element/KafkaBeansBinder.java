@@ -124,7 +124,7 @@ public class KafkaBeansBinder implements ElementBeansBuilder {
         maasClassifierHelper.addMaasClassifierInfoBean(
                 streamWriter,
                 element,
-                OPERATION_PROTOCOL_TYPE_AMQP,
+                OPERATION_PROTOCOL_TYPE_KAFKA,
                 maasClassifier,
                 namespace,
                 tenantId,

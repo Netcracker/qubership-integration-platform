@@ -7,15 +7,14 @@ import org.qubership.integration.platform.runtime.catalog.model.system.Environme
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
+import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
 import java.util.Optional;
 import javax.xml.stream.XMLStreamException;
 
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.MAAS_CLASSIFIER_NAME_PROP;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.OPERATION_ASYNC_PROPERTIES;
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.DEFAULT_VHOST_CLASSIFIER_NAME;
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.SYSTEM_ID;
 
@@ -34,9 +33,9 @@ public class MaasClassifierHelper {
     }
 
     public String getMaasClassifierForServiceCallOrAsyncApiElement(ChainElement element) {
-        return Optional.ofNullable(element.getPropertyAsString(OPERATION_ASYNC_PROPERTIES))
-                .map(Map.class::cast)
-                .map(m -> m.get(MAAS_CLASSIFIER_NAME_PROP))
+        return Optional.ofNullable(
+                        ElementUtils.extractOperationAsyncProperties(element.getProperties())
+                                .get(MAAS_CLASSIFIER_NAME_PROP))
                 .or(() -> Optional.ofNullable(element.getPropertyAsString(SYSTEM_ID))
                         .map(systemService::getByIdOrNull)
                         .map(system -> environmentService.getByIdForSystem(
