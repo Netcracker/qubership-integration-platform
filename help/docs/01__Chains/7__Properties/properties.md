@@ -2,16 +2,15 @@
 ## Description
 
 ---
-This tab allows to fill in the properties such name of the chain and choose the domain.
+This tab allows to fill in the properties of the chain.
 
 ## User Interface
 
 ---
-Properties are the following:
+The following properties are available:
 
 ### <ins>Web UI</ins>
-* **Name** - the user-defined identifier for the chain.
-* **Path** - defined URL.
+* **Name** - the user-defined chain name.
 * **Labels** - tags used for categorization or filtering.
 * **Description** - general description.
 * **Business Description** - non-tech description for better understanding.
@@ -20,14 +19,16 @@ Properties are the following:
 
 ### <ins>VS Code Extension</ins>
 * **Name** - the user-defined identifier for the chain.
-* **Path** - defined URL.
+* **Path** - the chain's folder path. Separate levels with `/` (for example, `payments/processing`). Each segment must not contain any of the following characters: `/ : * ? " < > | , ; \`.
 * **Labels** - tags used for categorization or filtering.
 * **Description** - general description.
 * **Business Description** - non-tech description for better understanding.
 * **Assumptions** - allowances that must be true for this chain to work.
 * **Out of Scope** - statements not covered by the chain.
-* **Domain** - one of the mandatory fields allowing to select domain when the chain will be run.
+* **Domain** (mandatory) - specified domain name for chain to be deployed.
 * **Deploy Action** - allows to select the following actions:
-  * **None** - the chain will be saved as a draft.
-  * **Snapshot** - the chain will be saved as a draft with created snapshot.
-  * **Deploy** - the chain will be deployed.
+  * _**None**_ - the chain will be saved as a draft.
+  * _**Snapshot**_ - the chain will be saved as a draft with created snapshot.
+  * _**Deploy**_ - the chain will be deployed.
+
+Once all necessary parameters are filled in, click "Apply" button to save the updates.
