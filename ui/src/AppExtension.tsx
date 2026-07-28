@@ -4,6 +4,7 @@ import {
   createMemoryRouter,
   createRoutesFromElements,
   RouterProvider,
+  Outlet,
 } from "react-router";
 import ChainPage from "./pages/ChainPage.tsx";
 import { App as AntdApp, ConfigProvider, Layout } from "antd";
@@ -33,12 +34,20 @@ import { reapplyCssVariables } from "./config/initConfig.ts";
 import { UserPermissionsProvider } from "./permissions/UserPermissionsProvider.tsx";
 import { McpServiceParametersPage } from "./components/services/mcp/McpServiceParametersPage.tsx";
 import { ChainDiffViewWebview } from "./components/chains/diff/ChainDiffViewWebview.tsx";
+import { BrowserTabTitle } from "./components/BrowserTabTitle.tsx";
 
 const { Content } = Layout;
 
+const ExtensionRouterLayout = () => (
+  <>
+    <BrowserTabTitle />
+    <Outlet />
+  </>
+);
+
 const router = createMemoryRouter(
   createRoutesFromElements(
-    <>
+    <Route element={<ExtensionRouterLayout />}>
       <Route path="/" element={<DefaultExtensionPage />} />
       <Route path="/batch-export" element={<BatchExportRunner />} />
       <Route path="/chains/diff" element={<ChainDiffViewWebview />} />
@@ -82,7 +91,7 @@ const router = createMemoryRouter(
         element={<ServiceParametersPage />}
       />
       <Route path="*" element={<NotImplemented />} />
-    </>,
+    </Route>,
   ),
 );
 
