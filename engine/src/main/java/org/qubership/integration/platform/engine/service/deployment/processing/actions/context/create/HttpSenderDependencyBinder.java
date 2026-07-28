@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create;
 
+import com.netcracker.cloud.security.core.utils.k8s.impl.UrlCache;
 import io.micrometer.core.instrument.binder.httpcomponents.hc5.MicrometerHttpClientInterceptor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.component.http.HttpClientConfigurer;
@@ -24,6 +25,7 @@ import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.protocol.HttpContext;
+import org.qubership.integration.platform.engine.client.http.interceptor.M2MFallbackHandler;
 import org.qubership.integration.platform.engine.model.ChainElementType;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
@@ -34,10 +36,12 @@ import org.qubership.integration.platform.engine.service.deployment.processing.a
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnAfterDeploymentContextCreated;
 import org.qubership.integration.platform.engine.service.testing.TestingService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.net.URISyntaxException;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 import static org.qubership.integration.platform.engine.service.deployment.processing.actions.context.create.helpers.ChainElementTypeHelper.isHttpTriggerElement;
 
@@ -48,16 +52,25 @@ public class HttpSenderDependencyBinder extends ElementProcessingAction {
     private final MetricsStore metricsStore;
     private final MetricTagsHelper metricTagsHelper;
     private final Optional<TestingService> testingService;
+    private final boolean m2mFallbackEnabled;
+    private final UrlCache m2mUrlCache;
+    private final Predicate<ElementProperties> m2mElementChecker;
 
     @Autowired
     public HttpSenderDependencyBinder(
         MetricsStore metricsStore,
         MetricTagsHelper metricTagsHelper,
-        Optional<TestingService> testingService
+        Optional<TestingService> testingService,
+        @Value("${qip.chains.http-client.m2m.fallback-interceptor.enabled}") boolean m2mFallbackEnabled,
+        UrlCache m2mUrlCache,
+        Predicate<ElementProperties> m2mElementChecker
     ) {
         this.metricsStore = metricsStore;
         this.metricTagsHelper = metricTagsHelper;
         this.testingService = testingService;
+        this.m2mFallbackEnabled = m2mFallbackEnabled;
+        this.m2mUrlCache = m2mUrlCache;
+        this.m2mElementChecker = m2mElementChecker;
     }
 
     @Override
@@ -72,6 +85,10 @@ public class HttpSenderDependencyBinder extends ElementProcessingAction {
         DeploymentInfo deploymentInfo
     ) {
         HttpClientConfigurer httpClientConfigurer = clientBuilder -> {
+            if (isKubernetesM2MEnabled(elementProperties)) {
+                clientBuilder.addExecInterceptorLast("m2m-fallback-interceptor", new M2MFallbackHandler(m2mUrlCache));
+            }
+
             if (metricsStore.isMetricsEnabled()) {
                 MicrometerHttpClientInterceptor interceptor = new MicrometerHttpClientInterceptor(
                     metricsStore.getMeterRegistry(),
@@ -116,6 +133,12 @@ public class HttpSenderDependencyBinder extends ElementProcessingAction {
         };
         String elementId = elementProperties.getElementId();
         context.getRegistry().bind(elementId, HttpClientConfigurer.class, httpClientConfigurer);
+    }
+
+    private boolean isKubernetesM2MEnabled(ElementProperties elementProperties) {
+        return m2mFallbackEnabled
+                && (Boolean.parseBoolean(elementProperties.getProperties().get(ChainProperties.M2M))
+                || m2mElementChecker.test(elementProperties));
     }
 
     private static boolean isHttpChainElement(ElementProperties properties) {

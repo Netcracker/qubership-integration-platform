@@ -23,7 +23,7 @@
   </parent>
   <properties>
     <revision>1.0.2</revision>
-    <changelist>-SNAPSHOT</changelist>
+    <changelist>-m2m-kuber-SNAPSHOT</changelist>
 
     <generated-sources>target/generated-sources/java</generated-sources>
     <generated-resources>target/generated-sources/resources</generated-resources>
@@ -242,6 +242,11 @@
         <groupId>com.netcracker.cloud</groupId>
         <artifactId>consul-config-provider-spring-resttemplate</artifactId>
     </dependency>
+    <dependency>
+      <groupId>com.netcracker.cloud.security.core.utils</groupId>
+      <artifactId>k8s-utils</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.cloud</groupId>
       <artifactId>spring-cloud-starter-consul-config</artifactId>

@@ -41,12 +41,13 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <!-- Cloud-Core -->
-        <dbaas-client-bom.version>8.4.3</dbaas-client-bom.version>
-        <maas-client-bom.version>11.1.3</maas-client-bom.version>
-        <dbaas-resttemplate.version>8.4.3</dbaas-resttemplate.version>
+        <dbaas-client-bom.version>9.1.8</dbaas-client-bom.version>
+        <maas-client-bom.version>12.2.6</maas-client-bom.version>
+        <dbaas-resttemplate.version>9.1.8</dbaas-resttemplate.version>
         <maas-kafka-declarative-client.version>6.2.1</maas-kafka-declarative-client.version>
         <consul-config-provider.version>6.2.2</consul-config-provider.version>
         <blue-green.version>1.3.2</blue-green.version>
+        <security-core-utils.version>3.1.4</security-core-utils.version>
 
         <!-- Common 3rd party dependency versions -->
         <kubernetes-client-java.version>25.0.0</kubernetes-client-java.version>
@@ -161,6 +162,11 @@
                 <groupId>com.netcracker.cloud</groupId>
                 <artifactId>blue-green-state-monitor-spring</artifactId>
                 <version>${blue-green.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.netcracker.cloud.security.core.utils</groupId>
+                <artifactId>k8s-utils</artifactId>
+                <version>${security-core-utils.version}</version>
             </dependency>
 
             <!-- Third party dependencies -->

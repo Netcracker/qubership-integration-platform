@@ -203,6 +203,7 @@ public final class CamelConstants {
         public static final String OPERATION_PATH_TOPIC = "integrationOperationPath";
         public static final String OPERATION_PATH_EXCHANGE = "integrationOperationPath";
         public static final String OPERATION_PATH = "integrationOperationPath";
+        public static final String M2M = "m2m";
 
         public static final String JMS_INITIAL_CONTEXT_FACTORY = "initialContextFactory";
         public static final String JMS_PROVIDER_URL = "providerUrl";

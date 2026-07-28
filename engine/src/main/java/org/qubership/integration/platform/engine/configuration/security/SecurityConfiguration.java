@@ -16,17 +16,51 @@
 
 package org.qubership.integration.platform.engine.configuration.security;
 
+import com.netcracker.cloud.security.core.auth.M2MManager;
+import com.netcracker.cloud.security.core.utils.k8s.AudienceName;
+import com.netcracker.cloud.security.core.utils.k8s.KubernetesAudienceToken;
+import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.engine.util.DevModeUtil;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.lang.Nullable;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
 
+import java.util.Optional;
 
+@Slf4j
 @Configuration
 public class SecurityConfiguration {
+
+    private static Optional<M2MManager> m2MManager = Optional.empty();
+    private static DevModeUtil devModeUtil;
+
+    public SecurityConfiguration(@Autowired Optional<M2MManager> m2MManager, DevModeUtil devModeUtil) {
+        SecurityConfiguration.m2MManager = m2MManager;
+        SecurityConfiguration.devModeUtil = devModeUtil;
+    }
+
+    @Deprecated
+    public static String getOldM2MToken() {
+        return m2MManager
+                .map(manager -> manager.getToken().getTokenValue())
+                .orElse("");
+    }
+
+    @Nullable
+    public static String getDefaultM2MToken() {
+        return getM2MToken(AudienceName.NETCRACKER);
+    }
+
+    @Nullable
+    public static String getM2MToken(String audience) {
+        return KubernetesAudienceToken.getToken(audience);
+    }
 
     @Bean
     @Primary

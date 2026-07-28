@@ -110,4 +110,9 @@ public class LocalDevMaaSAPIClient implements MaaSAPIClient {
         }
         return result;
     }
+
+    @Override
+    public void close() throws Exception {
+        // do nothing
+    }
 }

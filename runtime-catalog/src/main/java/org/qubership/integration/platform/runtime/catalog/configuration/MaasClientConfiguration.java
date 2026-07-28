@@ -54,7 +54,7 @@ public class MaasClientConfiguration {
     ) throws Exception {
         String token = HttpHeaders.encodeBasicAuth(username, password, null);
         Supplier<String> tokenSupplier = () -> token;
-        HttpClient httpClient = new HttpClient(tokenSupplier);
+        HttpClient httpClient = HttpClient.getMaasClient(tokenSupplier);
         try {
             OkHttpClient client = new OkHttpClient.Builder()
                     .sslSocketFactory(TlsUtils.getSslContext().getSocketFactory(), TlsUtils.getTrustManager())

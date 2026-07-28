@@ -24,7 +24,7 @@
 
   <properties>
     <revision>1.0.4</revision>
-    <changelist>-SNAPSHOT</changelist>
+    <changelist>-m2m-kuber-SNAPSHOT</changelist>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -287,6 +287,10 @@
     </dependencies>
   </dependencyManagement>
   <dependencies>
+    <dependency>
+      <groupId>com.netcracker.cloud.security.core.utils</groupId>
+      <artifactId>k8s-utils</artifactId>
+    </dependency>
     <!--    DbaaS dependencies    -->
     <dependency>
       <groupId>com.netcracker.cloud</groupId>

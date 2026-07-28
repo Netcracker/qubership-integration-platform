@@ -1,8 +1,7 @@
-FROM alpine/java:21-jdk
+FROM ghcr.io/netcracker/qubership-java-base:21-alpine-2.3.7
 
 USER root
-RUN chmod -R 755 /opt/java/openjdk \
-    && apk add --no-cache curl=8.14.1-r2
+RUN apk add --no-cache curl=8.21.0-r0
 
 USER 10001
 VOLUME /tmp

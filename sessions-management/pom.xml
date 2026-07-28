@@ -23,7 +23,7 @@
 
   <properties>
     <revision>1.0.2</revision>
-    <changelist>-SNAPSHOT</changelist>
+    <changelist>-m2m-kuber-SNAPSHOT</changelist>
 
     <!-- BOMs -->
     <!-- 3rd party dependencies -->
@@ -75,7 +75,10 @@
   </dependencyManagement>
   <dependencies>
     <!-- Cloud Core dependencies -->
-
+    <dependency>
+      <groupId>com.netcracker.cloud.security.core.utils</groupId>
+      <artifactId>k8s-utils</artifactId>
+    </dependency>
     <dependency>
       <groupId>com.netcracker.cloud</groupId>
       <artifactId>dbaas-client-opensearch-starter</artifactId>

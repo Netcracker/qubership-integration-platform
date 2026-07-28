@@ -348,6 +348,13 @@ qip:
   idempotency:
     expired-records-cleanup-cron: ${IDEMPOTENCY_RECORDS_CLEANUP_CRON:0 */5 * ? * *}
   chains:
+    http-client:
+      m2m:
+        fallback-interceptor:
+          enabled: ${HTTP_CLIENT_KUBERNETES_TOKEN_ENABLED:false}
+          url-cache:
+            size: 500
+            ttl-hours: 5
     external-routes:
       base-path: /qip-routes
 
