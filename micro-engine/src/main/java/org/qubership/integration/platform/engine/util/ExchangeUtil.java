@@ -72,19 +72,24 @@ public class ExchangeUtil {
     }
 
     public static void putToExchangeMap(String sessionId, Exchange exchange) {
-        Map<String, Exchange> exchanges = (Map<String, Exchange>) exchange.getProperty(
-                CamelConstants.Properties.EXCHANGES, Map.class).get(sessionId);
+        Map<String, Exchange> exchanges = getSessionExchangeMap(sessionId, exchange);
         if (exchanges != null) {
             exchanges.put(exchange.getExchangeId(), exchange);
         }
     }
 
     public static void removeFromExchangeMap(String sessionId, Exchange exchange) {
-        Map<String, Exchange> exchanges = (Map<String, Exchange>) exchange.getProperty(
-                CamelConstants.Properties.EXCHANGES, Map.class).get(sessionId);
+        Map<String, Exchange> exchanges = getSessionExchangeMap(sessionId, exchange);
         if (exchanges != null) {
             exchanges.remove(exchange.getExchangeId());
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Exchange> getSessionExchangeMap(String sessionId, Exchange exchange) {
+        Map<String, Map<String, Exchange>> exchangesBySessionId = exchange.getProperty(
+                CamelConstants.Properties.EXCHANGES, Map.class);
+        return exchangesBySessionId == null ? null : exchangesBySessionId.get(sessionId);
     }
 
     public static ExecutionStatus getEffectiveExecutionStatus(Exchange exchange, ExecutionStatus status) {
