@@ -181,6 +181,7 @@ jobs:
       - name: Update OpenAPI specifications
         working-directory: ${{ inputs.module }}
         env:
+          MAVEN_MODULE_NAME: ${{ inputs.module }}
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           FORCE_UPDATE: ${{ inputs.force-update }}
@@ -191,7 +192,11 @@ jobs:
           # com.netcracker.cloud artifacts this token can't read. Publishes nothing.
           UPDATE_FLAG=""
           if [ "$FORCE_UPDATE" = "true" ]; then UPDATE_FLAG="-U"; fi
-          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" test $UPDATE_FLAG -Dtest=OpenApiSpecGeneratorTest -DfailIfNoTests=false
+          if [ "$MAVEN_MODULE_NAME" = "micro-engine" ]; then
+            mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" build $UPDATE_FLAG -Dgpg.skip=true
+          else
+            mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" test $UPDATE_FLAG -Dtest=OpenApiSpecGeneratorTest -DfailIfNoTests=false
+          fi
       - name: Verify the specifications have no changes
         working-directory: ${{ inputs.module }}
         run: |
