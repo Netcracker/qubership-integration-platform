@@ -247,14 +247,12 @@ paths:
       tags:
       - live-exchanges-controller
       parameters:
-      - description: Amount of exchanges to view
+      - schema:
+          type: integer
+          default: 10
+          exclusiveMinimum: 0
         name: limit
         in: query
-        schema:
-          type: integer
-          format: int32
-          exclusiveMinimum: 0
-          default: "10"
       responses:
         "200":
           description: OK

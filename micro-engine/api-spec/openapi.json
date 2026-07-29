@@ -313,15 +313,13 @@
         "description" : "Get top N running exchanges ordered by execution time DESC",
         "tags" : [ "live-exchanges-controller" ],
         "parameters" : [ {
-          "description" : "Amount of exchanges to view",
-          "name" : "limit",
-          "in" : "query",
           "schema" : {
             "type" : "integer",
-            "format" : "int32",
-            "exclusiveMinimum" : 0,
-            "default" : "10"
-          }
+            "default" : 10,
+            "exclusiveMinimum" : 0
+          },
+          "name" : "limit",
+          "in" : "query"
         } ],
         "responses" : {
           "200" : {
