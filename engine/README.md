@@ -88,13 +88,13 @@ It also requires:
 
 ## OpenAPI Specification
 
-`OpenApiSpecGenerator` starts the application with the `development` profile active, the checkpoint
+`OpenApiSpecGeneratorTest` starts the application with the `development` profile active, the checkpoint
 and Quartz datasources, Flyway, and Consul mocked or stubbed, calls the `/v3/api-docs.yaml` endpoint, and
-writes the result to `api-spec/`. Its class name doesn't end in `Test`, so Surefire skips it during a
-normal build. Run it manually to regenerate `api-spec/openapi.yaml`:
+writes the result to `api-spec/`. It runs as part of the normal test suite, so `mvn test` keeps
+`api-spec/openapi.yaml` up to date. To run just this test:
 
 ```shell
-mvn test -Dtest=OpenApiSpecGenerator -DfailIfNoTests=false
+mvn test -Dtest=OpenApiSpecGeneratorTest
 ```
 
 ## Contribution

@@ -50,15 +50,15 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
  * object's keys alphabetically; {@link #assertKeysSorted} then walks the tree to catch any
  * regression of that behavior.
  *
- * <p>The class name deliberately doesn't end in {@code Test} so Surefire's default include
- * pattern skips it. To run it manually, see the command in README.md.
+ * <p>Runs as part of the normal test suite, so every {@code mvn test} keeps
+ * {@code api-spec/openapi.yaml} up to date. See README.md for the command to run just this test.
  */
 @SpringBootTest(webEnvironment = RANDOM_PORT, properties = {
         "NAMESPACE=local",
         "CONSUL_ADMIN_TOKEN=not-required",
         "CONSUL_URL=http://127.0.0.1:18502"
 })
-class OpenApiSpecGenerator {
+class OpenApiSpecGeneratorTest {
 
     private static final Path OUTPUT_DIR = Path.of("api-spec");
     private static final HttpServer CONSUL_STUB = startConsulStub();
@@ -101,9 +101,9 @@ class OpenApiSpecGenerator {
         if (node instanceof Map<?, ?> map) {
             List<String> keys = map.keySet().stream().map(Object::toString).toList();
             assertEquals(keys.stream().sorted().toList(), keys, () -> "unsorted keys: " + keys);
-            map.values().forEach(OpenApiSpecGenerator::assertKeysSorted);
+            map.values().forEach(OpenApiSpecGeneratorTest::assertKeysSorted);
         } else if (node instanceof List<?> list) {
-            list.forEach(OpenApiSpecGenerator::assertKeysSorted);
+            list.forEach(OpenApiSpecGeneratorTest::assertKeysSorted);
         }
     }
 }

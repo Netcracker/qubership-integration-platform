@@ -191,7 +191,7 @@ jobs:
           # com.netcracker.cloud artifacts this token can't read. Publishes nothing.
           UPDATE_FLAG=""
           if [ "$FORCE_UPDATE" = "true" ]; then UPDATE_FLAG="-U"; fi
-          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" test $UPDATE_FLAG -Dtest=OpenApiSpecGenerator -DfailIfNoTests=false
+          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" test $UPDATE_FLAG -Dtest=OpenApiSpecGeneratorTest -DfailIfNoTests=false
       - name: Verify the specifications have no changes
         working-directory: ${{ inputs.module }}
         run: |

@@ -48,12 +48,12 @@ It also requires Consul and OpenSearch services.
 
 ## OpenAPI Specification
 
-`OpenApiSpecGenerator` starts the application with Consul stubbed, calls the `/v3/api-docs.yaml` endpoint,
-and writes the result to `api-spec/`. Its class name doesn't end in `Test`, so Surefire skips it during
-a normal build. Run it manually to regenerate `api-spec/openapi.yaml`:
+`OpenApiSpecGeneratorTest` starts the application with Consul stubbed, calls the `/v3/api-docs.yaml`
+endpoint, and writes the result to `api-spec/`. It runs as part of the normal test suite, so `mvn test`
+keeps `api-spec/openapi.yaml` up to date. To run just this test:
 
 ```shell
-mvn test -Dtest=OpenApiSpecGenerator -DfailIfNoTests=false
+mvn test -Dtest=OpenApiSpecGeneratorTest
 ```
 
 ## Contribution
