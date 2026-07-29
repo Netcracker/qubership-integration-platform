@@ -17,6 +17,8 @@
 package org.qubership.integration.platform.engine.openapi;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,7 +38,10 @@ import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
 /**
@@ -65,6 +70,12 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
  *         string property.
  * </ul>
  *
+ * <p>The spec is fetched once as JSON, parsed into a generic {@code Map}/{@code List} tree, and
+ * written out as both JSON and YAML from that same tree so the two files stay consistent. Both
+ * mappers have {@link SerializationFeature#ORDER_MAP_ENTRIES_BY_KEYS} enabled, which sorts every
+ * nested object's keys alphabetically; {@link #assertKeysSorted} then walks the tree to catch
+ * any regression of that behavior.
+ *
  * <p>The class name deliberately doesn't end in {@code Test} so Surefire's default include
  * pattern skips it. To run it manually, see the command in README.md.
  */
@@ -82,6 +93,10 @@ class OpenApiSpecGenerator {
 
     private static final Path OUTPUT_DIR = Path.of("api-spec");
     private static final HttpServer CONSUL_STUB = startConsulStub();
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper()
+            .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+    private static final ObjectMapper YAML_MAPPER = new YAMLMapper()
+            .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
 
     @MockitoBean
     private FlywayInitializer flywayInitializer;
@@ -112,23 +127,28 @@ class OpenApiSpecGenerator {
     }
 
     @Test
-    @DisplayName("generate OpenAPI specification files")
+    @DisplayName("generate OpenAPI specification files with alphabetically sorted object keys")
     void generateOpenApiSpecFiles() throws IOException {
         Files.createDirectories(OUTPUT_DIR);
-        writeJson();
-        writeYaml();
-    }
-
-    private void writeJson() throws IOException {
         String rawJson = restTemplate.getForObject("/v3/api-docs", String.class);
-        ObjectMapper objectMapper = new ObjectMapper();
-        Object json = objectMapper.readValue(rawJson, Object.class);
-        String prettyJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(json);
+        Object spec = JSON_MAPPER.readValue(rawJson, Object.class);
+
+        String prettyJson = JSON_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(spec);
         Files.writeString(OUTPUT_DIR.resolve("openapi.json"), prettyJson);
+        Files.writeString(OUTPUT_DIR.resolve("openapi.yaml"), YAML_MAPPER.writeValueAsString(spec));
+
+        // ORDER_MAP_ENTRIES_BY_KEYS only reorders keys while writing, so re-read the file we
+        // just wrote rather than the original (still insertion-ordered) parsed object.
+        assertKeysSorted(JSON_MAPPER.readValue(prettyJson, Object.class));
     }
 
-    private void writeYaml() throws IOException {
-        String yaml = restTemplate.getForObject("/v3/api-docs.yaml", String.class);
-        Files.writeString(OUTPUT_DIR.resolve("openapi.yaml"), yaml);
+    private static void assertKeysSorted(Object node) {
+        if (node instanceof Map<?, ?> map) {
+            List<String> keys = map.keySet().stream().map(Object::toString).toList();
+            assertEquals(keys.stream().sorted().toList(), keys, () -> "unsorted keys: " + keys);
+            map.values().forEach(OpenApiSpecGenerator::assertKeysSorted);
+        } else if (node instanceof List<?> list) {
+            list.forEach(OpenApiSpecGenerator::assertKeysSorted);
+        }
     }
 }

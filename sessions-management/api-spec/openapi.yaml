@@ -1,176 +1,289 @@
-openapi: 3.1.0
-info:
-  title: Qubership Integration Platform Sessions Management
-  description: REST API of Qubership Integration Platform Sessions Management microservice
-  version: v1
-  x-api-kind: no-bwc
-servers:
-- url: /
-tags:
-- name: import-controller
-  description: Import Controller
-- name: session-controller
-  description: Session Controller
-- name: export-controller
-  description: Export Controller
-paths:
-  /v1/sessions/export:
-    get:
-      tags:
-      - export-controller
-      description: Export sessions by given sessionId's as a file
-      operationId: exportSessions
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: array
-              description: List of session Ids to export
-              items:
-                type: string
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                type: string
-    post:
-      tags:
-      - export-controller
-      description: Export sessions by given sessionId's as a file
-      operationId: exportSessions_1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: array
-              description: List of session Ids to export
-              items:
-                type: string
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                type: string
-  /v1/sessions:
-    post:
-      tags:
-      - session-controller
-      description: Get light list of sessions without session elements (steps) with
-        additional parameters
-      operationId: findAllByFilter
-      parameters:
-      - name: offset
-        in: query
-        description: Which session number should we start from
-        required: false
-        schema:
-          type: integer
-          format: int32
-          default: 0
-      - name: count
-        in: query
-        description: Amount of sessions received at a time
-        required: false
-        schema:
-          type: integer
-          format: int32
-          default: 20
-      - name: sortColumn
-        in: query
-        description: Name of column we should sort response by
-        required: false
-        schema:
-          type: string
-          default: sessionStarted
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/FilterRequestAndSearchDTO"
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/SessionSearchResponse"
-    delete:
-      tags:
-      - session-controller
-      description: Delete all sessions from all chains
-      operationId: deleteAllSessions
-      responses:
-        "200":
-          description: OK
-  /v1/sessions/import:
-    post:
-      tags:
-      - import-controller
-      description: Import session(s) from file
-      operationId: importSessions
-      parameters:
-      - name: files
-        in: query
-        description: List of files to import
-        required: true
-        schema:
-          type: array
+---
+components:
+  schemas:
+    ExceptionInfoElastic:
+      description: "Exception info object for session"
+      properties:
+        message:
+          description: "Message of the exception"
+          type: "string"
+        stackTrace:
+          description: "Stacktrace of the exception"
+          type: "string"
+      type: "object"
+    FilterRequest:
+      description: "Single request to filter output response"
+      properties:
+        condition:
+          description: "Filter condition"
+          enum:
+          - "IN"
+          - "NOT_IN"
+          - "IS_AFTER"
+          - "IS_BEFORE"
+          - "IS_WITHIN"
+          - "CONTAINS"
+          - "DOES_NOT_CONTAIN"
+          - "STARTS_WITH"
+          - "ENDS_WITH"
+          type: "string"
+        feature:
+          description: "Filter column"
+          enum:
+          - "CHAIN_NAME"
+          - "STATUS"
+          - "START_TIME"
+          - "FINISH_TIME"
+          - "ENGINE"
+          type: "string"
+        value:
+          description: "Value for the filter request"
+          type: "string"
+      type: "object"
+    FilterRequestAndSearchDTO:
+      description: "Additional filters request object"
+      properties:
+        filterRequestList:
+          description: "List of filter requests"
           items:
-            type: string
-            format: binary
+            $ref: "#/components/schemas/FilterRequest"
+          type: "array"
+        searchString:
+          description: "Value of full-text search request"
+          type: "string"
+      type: "object"
+    Session:
+      description: "Single session object"
+      properties:
+        chainId:
+          description: "Id of the chain it was executed on"
+          type: "string"
+        chainName:
+          description: "Name of the chain it was executed on"
+          type: "string"
+        correlationId:
+          description: "Correlation id for that execution (if it was set)"
+          type: "string"
+        domain:
+          description: "Domain on which chain was executed"
+          type: "string"
+        domainType:
+          description: "Type of the domain on which chain was executed"
+          type: "string"
+        duration:
+          description: "Duration of session execution in ms"
+          format: "int64"
+          type: "integer"
+        engineAddress:
+          description: "qubership-integration-platform-engine pod ip address on which\
+            \ chain was executed"
+          type: "string"
+        executionStatus:
+          description: "Status of the element or session"
+          enum:
+          - "IN_PROGRESS"
+          - "COMPLETED_NORMALLY"
+          - "COMPLETED_WITH_WARNINGS"
+          - "COMPLETED_WITH_ERRORS"
+          - "CANCELLED_OR_UNKNOWN"
+          type: "string"
+        externalSessionCipId:
+          description: "External id (if it was set during chain execution)"
+          type: "string"
+        finished:
+          description: "End time of session execution"
+          type: "string"
+        id:
+          description: "Id"
+          type: "string"
+        importedSession:
+          description: "Whether this is imported session"
+          type: "boolean"
+        loggingLevel:
+          description: "Value of logging level on a chain at a time chain was executed"
+          type: "string"
+        parentSessionId:
+          description: "Parent of session id for the current session"
+          type: "string"
+        sessionElements:
+          description: "List of session elements (steps) created by this session"
+          items:
+            $ref: "#/components/schemas/SessionElement"
+          type: "array"
+        snapshotName:
+          description: "Deployed snapshot name for the chain"
+          type: "string"
+        started:
+          description: "Start time of session execution"
+          type: "string"
+        syncDuration:
+          description: "Synchronous duration of session execution in ms"
+          format: "int64"
+          type: "integer"
+      type: "object"
+    SessionElement:
+      description: "Single element(step) from the session"
+      properties:
+        actualElementChainId:
+          description: "Id of the sub-chain element linked to session element in case\
+            \ (in case it is element from sub-chain)"
+          type: "string"
+        bodyAfter:
+          description: "Body after step execution"
+          type: "string"
+        bodyBefore:
+          description: "Body before step execution"
+          type: "string"
+        camelName:
+          description: "Type of the element if it is chain element step (not sub-step)"
+          type: "string"
+        chainElementId:
+          description: "Id of the chain element linked to session element"
+          type: "string"
+        children:
+          description: "List of child elements (sub-elements) for the current object\
+            \ (step)"
+          items:
+            $ref: "#/components/schemas/SessionElement"
+          type: "array"
+        contextAfter:
+          additionalProperties:
+            type: "string"
+          description: "Map of context properties after step execution"
+          type: "object"
+        contextBefore:
+          additionalProperties:
+            type: "string"
+          description: "Map of context properties before step execution"
+          type: "object"
+        duration:
+          description: "Duration of session execution in ms"
+          format: "int64"
+          type: "integer"
+        elementId:
+          description: "Id of the object"
+          type: "string"
+        elementName:
+          description: "Name of the object (step)"
+          type: "string"
+        exceptionInfo:
+          $ref: "#/components/schemas/ExceptionInfoElastic"
+        executionStatus:
+          description: "Status of the element or session"
+          enum:
+          - "IN_PROGRESS"
+          - "COMPLETED_NORMALLY"
+          - "COMPLETED_WITH_WARNINGS"
+          - "COMPLETED_WITH_ERRORS"
+          - "CANCELLED_OR_UNKNOWN"
+          type: "string"
+        finished:
+          description: "End time of session execution"
+          type: "string"
+        headersAfter:
+          additionalProperties:
+            type: "string"
+          description: "Map of headers after step execution"
+          type: "object"
+        headersBefore:
+          additionalProperties:
+            type: "string"
+          description: "Map of headers before step execution"
+          type: "object"
+        parentElement:
+          description: "Id of the parent object for current object"
+          type: "string"
+        previousElement:
+          description: "Previous object id in execution chain"
+          type: "string"
+        propertiesAfter:
+          additionalProperties:
+            $ref: "#/components/schemas/SessionElementProperty"
+          description: "Map of properties after step execution"
+          type: "object"
+        propertiesBefore:
+          additionalProperties:
+            $ref: "#/components/schemas/SessionElementProperty"
+          description: "Map of properties before step execution"
+          type: "object"
+        sessionId:
+          description: "Id of the session linked to session element"
+          type: "string"
+        started:
+          description: "Start time of session execution"
+          type: "string"
+        syncDuration:
+          description: "Synchronous duration of session execution in ms"
+          format: "int64"
+          type: "integer"
+      type: "object"
+    SessionElementProperty:
+      description: "Property object for session element (step)"
+      properties:
+        type:
+          description: "Java type of the property"
+          type: "string"
+        value:
+          description: "Value of the property"
+          type: "string"
+      type: "object"
+    SessionSearchResponse:
+      description: "Response object for list of sessions"
+      properties:
+        offset:
+          description: "Latest number of session in current response"
+          format: "int32"
+          type: "integer"
+        sessions:
+          description: "List of sessions"
+          items:
+            $ref: "#/components/schemas/Session"
+          type: "array"
+      type: "object"
+info:
+  description: "REST API of Qubership Integration Platform Sessions Management microservice"
+  title: "Qubership Integration Platform Sessions Management"
+  version: "v1"
+  x-api-kind: "no-bwc"
+openapi: "3.1.0"
+paths:
+  /v1/sessions:
+    delete:
+      description: "Delete all sessions from all chains"
+      operationId: "deleteAllSessions"
       responses:
         "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Session"
-  /v1/sessions/chains/{chainId}:
-    post:
+          description: "OK"
       tags:
-      - session-controller
-      description: Get light list of sessions for specified chain without session
-        elements (steps) with additional parameters
-      operationId: findByFilter
+      - "session-controller"
+    post:
+      description: "Get light list of sessions without session elements (steps) with\
+        \ additional parameters"
+      operationId: "findAllByFilter"
       parameters:
-      - name: chainId
-        in: path
-        description: Only sessions executed on chain with specified id will be shown
-        required: true
-        schema:
-          type: string
-      - name: offset
-        in: query
-        description: Which session number should we start from
+      - description: "Which session number should we start from"
+        in: "query"
+        name: "offset"
         required: false
         schema:
-          type: integer
-          format: int32
           default: 0
-      - name: count
-        in: query
-        description: Amount of sessions received at a time
+          format: "int32"
+          type: "integer"
+      - description: "Amount of sessions received at a time"
+        in: "query"
+        name: "count"
         required: false
         schema:
-          type: integer
-          format: int32
           default: 20
-      - name: sortColumn
-        in: query
-        description: Name of column we should sort response by
+          format: "int32"
+          type: "integer"
+      - description: "Name of column we should sort response by"
+        in: "query"
+        name: "sortColumn"
         required: false
         schema:
-          type: string
-          default: sessionStarted
+          default: "sessionStarted"
+          type: "string"
       requestBody:
         content:
           application/json:
@@ -179,407 +292,295 @@ paths:
         required: true
       responses:
         "200":
-          description: OK
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/SessionSearchResponse"
-    delete:
+          description: "OK"
       tags:
-      - session-controller
-      description: Delete all sessions for specified chain
-      operationId: deleteAllByChainId
-      parameters:
-      - name: chainId
-        in: path
-        description: Chain id
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          description: OK
+      - "session-controller"
   /v1/sessions/bulk-delete:
     post:
-      tags:
-      - session-controller
-      description: Bulk delete sessions
-      operationId: deleteByIds
+      description: "Bulk delete sessions"
+      operationId: "deleteByIds"
       requestBody:
         content:
           application/json:
             schema:
-              type: array
               items:
-                type: string
+                type: "string"
+              type: "array"
         required: true
       responses:
         "200":
-          description: OK
-  /v1/sessions/{sessionId}:
-    get:
+          description: "OK"
       tags:
-      - session-controller
-      description: Get session with all elements (steps) by session id
-      operationId: findById
-      parameters:
-      - name: sessionId
-        in: path
-        description: Session id
-        required: true
-        schema:
-          type: string
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/Session"
+      - "session-controller"
+  /v1/sessions/chains:
     delete:
-      tags:
-      - session-controller
-      description: Delete specified session
-      operationId: deleteById
+      description: "Delete all sessions for specified chains"
+      operationId: "deleteAllByChainIds"
       parameters:
-      - name: sessionId
-        in: path
-        description: Session id
+      - description: "List of chain ids separated by comma"
+        in: "query"
+        name: "chainIds"
         required: true
         schema:
-          type: string
+          items:
+            type: "string"
+          type: "array"
       responses:
         "200":
-          description: OK
-    head:
+          description: "OK"
       tags:
-      - session-controller
-      description: Find session by id if it exists
-      operationId: findExistingSession
+      - "session-controller"
+  /v1/sessions/chains/{chainId}:
+    delete:
+      description: "Delete all sessions for specified chain"
+      operationId: "deleteAllByChainId"
       parameters:
-      - name: sessionId
-        in: path
+      - description: "Chain id"
+        in: "path"
+        name: "chainId"
         required: true
         schema:
-          type: string
+          type: "string"
       responses:
         "200":
-          description: OK
+          description: "OK"
+      tags:
+      - "session-controller"
+    post:
+      description: "Get light list of sessions for specified chain without session\
+        \ elements (steps) with additional parameters"
+      operationId: "findByFilter"
+      parameters:
+      - description: "Only sessions executed on chain with specified id will be shown"
+        in: "path"
+        name: "chainId"
+        required: true
+        schema:
+          type: "string"
+      - description: "Which session number should we start from"
+        in: "query"
+        name: "offset"
+        required: false
+        schema:
+          default: 0
+          format: "int32"
+          type: "integer"
+      - description: "Amount of sessions received at a time"
+        in: "query"
+        name: "count"
+        required: false
+        schema:
+          default: 20
+          format: "int32"
+          type: "integer"
+      - description: "Name of column we should sort response by"
+        in: "query"
+        name: "sortColumn"
+        required: false
+        schema:
+          default: "sessionStarted"
+          type: "string"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FilterRequestAndSearchDTO"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/SessionSearchResponse"
+          description: "OK"
+      tags:
+      - "session-controller"
+  /v1/sessions/export:
+    get:
+      description: "Export sessions by given sessionId's as a file"
+      operationId: "exportSessions"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              description: "List of session Ids to export"
+              items:
+                type: "string"
+              type: "array"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: "string"
+          description: "OK"
+      tags:
+      - "export-controller"
+    post:
+      description: "Export sessions by given sessionId's as a file"
+      operationId: "exportSessions_1"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              description: "List of session Ids to export"
+              items:
+                type: "string"
+              type: "array"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: "string"
+          description: "OK"
+      tags:
+      - "export-controller"
+  /v1/sessions/external-id/{externalSessionId}:
+    get:
+      description: "Get session by specified external id"
+      operationId: "findByExternalId"
+      parameters:
+      - description: "External id that was specified during chain execution"
+        in: "path"
+        name: "externalSessionId"
+        required: true
+        schema:
+          type: "string"
+      - description: "Whether we need to include session elements(steps) in the response"
+        in: "query"
+        name: "includeDetails"
+        required: false
+        schema:
+          default: false
+          type: "boolean"
+      responses:
+        "200":
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/Session"
-      x-api-kind: bwc
+          description: "OK"
+      tags:
+      - "session-controller"
+      x-api-kind: "bwc"
+  /v1/sessions/import:
+    post:
+      description: "Import session(s) from file"
+      operationId: "importSessions"
+      parameters:
+      - description: "List of files to import"
+        in: "query"
+        name: "files"
+        required: true
+        schema:
+          items:
+            format: "binary"
+            type: "string"
+          type: "array"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                items:
+                  $ref: "#/components/schemas/Session"
+                type: "array"
+          description: "OK"
+      tags:
+      - "import-controller"
+  /v1/sessions/{sessionId}:
+    delete:
+      description: "Delete specified session"
+      operationId: "deleteById"
+      parameters:
+      - description: "Session id"
+        in: "path"
+        name: "sessionId"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          description: "OK"
+      tags:
+      - "session-controller"
+    get:
+      description: "Get session with all elements (steps) by session id"
+      operationId: "findById"
+      parameters:
+      - description: "Session id"
+        in: "path"
+        name: "sessionId"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Session"
+          description: "OK"
+      tags:
+      - "session-controller"
+    head:
+      description: "Find session by id if it exists"
+      operationId: "findExistingSession"
+      parameters:
+      - in: "path"
+        name: "sessionId"
+        required: true
+        schema:
+          type: "string"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/Session"
+          description: "OK"
+      tags:
+      - "session-controller"
+      x-api-kind: "bwc"
   /v1/sessions/{sessionId}/{elementId}:
     get:
-      tags:
-      - session-controller
-      description: Get element(step) with payload (body) for specified element(step)
-      operationId: getElementPayloadById
+      description: "Get element(step) with payload (body) for specified element(step)"
+      operationId: "getElementPayloadById"
       parameters:
-      - name: sessionId
-        in: path
-        description: Session id
+      - description: "Session id"
+        in: "path"
+        name: "sessionId"
         required: true
         schema:
-          type: string
-      - name: elementId
-        in: path
-        description: Element (step) id within specified session
+          type: "string"
+      - description: "Element (step) id within specified session"
+        in: "path"
+        name: "elementId"
         required: true
         schema:
-          type: string
+          type: "string"
       responses:
         "200":
-          description: OK
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/SessionElement"
-  /v1/sessions/external-id/{externalSessionId}:
-    get:
+          description: "OK"
       tags:
-      - session-controller
-      description: Get session by specified external id
-      operationId: findByExternalId
-      parameters:
-      - name: externalSessionId
-        in: path
-        description: External id that was specified during chain execution
-        required: true
-        schema:
-          type: string
-      - name: includeDetails
-        in: query
-        description: Whether we need to include session elements(steps) in the response
-        required: false
-        schema:
-          type: boolean
-          default: false
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/Session"
-      x-api-kind: bwc
-  /v1/sessions/chains:
-    delete:
-      tags:
-      - session-controller
-      description: Delete all sessions for specified chains
-      operationId: deleteAllByChainIds
-      parameters:
-      - name: chainIds
-        in: query
-        description: List of chain ids separated by comma
-        required: true
-        schema:
-          type: array
-          items:
-            type: string
-      responses:
-        "200":
-          description: OK
-components:
-  schemas:
-    FilterRequest:
-      type: object
-      description: Single request to filter output response
-      properties:
-        feature:
-          type: string
-          description: Filter column
-          enum:
-          - CHAIN_NAME
-          - STATUS
-          - START_TIME
-          - FINISH_TIME
-          - ENGINE
-        condition:
-          type: string
-          description: Filter condition
-          enum:
-          - IN
-          - NOT_IN
-          - IS_AFTER
-          - IS_BEFORE
-          - IS_WITHIN
-          - CONTAINS
-          - DOES_NOT_CONTAIN
-          - STARTS_WITH
-          - ENDS_WITH
-        value:
-          type: string
-          description: Value for the filter request
-    FilterRequestAndSearchDTO:
-      type: object
-      description: Additional filters request object
-      properties:
-        filterRequestList:
-          type: array
-          description: List of filter requests
-          items:
-            $ref: "#/components/schemas/FilterRequest"
-        searchString:
-          type: string
-          description: Value of full-text search request
-    ExceptionInfoElastic:
-      type: object
-      description: Exception info object for session
-      properties:
-        message:
-          type: string
-          description: Message of the exception
-        stackTrace:
-          type: string
-          description: Stacktrace of the exception
-    Session:
-      type: object
-      description: Single session object
-      properties:
-        started:
-          type: string
-          description: Start time of session execution
-        finished:
-          type: string
-          description: End time of session execution
-        duration:
-          type: integer
-          format: int64
-          description: Duration of session execution in ms
-        executionStatus:
-          type: string
-          description: Status of the element or session
-          enum:
-          - IN_PROGRESS
-          - COMPLETED_NORMALLY
-          - COMPLETED_WITH_WARNINGS
-          - COMPLETED_WITH_ERRORS
-          - CANCELLED_OR_UNKNOWN
-        syncDuration:
-          type: integer
-          format: int64
-          description: Synchronous duration of session execution in ms
-        id:
-          type: string
-          description: Id
-        importedSession:
-          type: boolean
-          description: Whether this is imported session
-        externalSessionCipId:
-          type: string
-          description: External id (if it was set during chain execution)
-        chainId:
-          type: string
-          description: Id of the chain it was executed on
-        chainName:
-          type: string
-          description: Name of the chain it was executed on
-        domain:
-          type: string
-          description: Domain on which chain was executed
-        domainType:
-          type: string
-          description: Type of the domain on which chain was executed
-        engineAddress:
-          type: string
-          description: qubership-integration-platform-engine pod ip address on which
-            chain was executed
-        loggingLevel:
-          type: string
-          description: Value of logging level on a chain at a time chain was executed
-        snapshotName:
-          type: string
-          description: Deployed snapshot name for the chain
-        correlationId:
-          type: string
-          description: Correlation id for that execution (if it was set)
-        parentSessionId:
-          type: string
-          description: Parent of session id for the current session
-        sessionElements:
-          type: array
-          description: List of session elements (steps) created by this session
-          items:
-            $ref: "#/components/schemas/SessionElement"
-    SessionElement:
-      type: object
-      description: Single element(step) from the session
-      properties:
-        started:
-          type: string
-          description: Start time of session execution
-        finished:
-          type: string
-          description: End time of session execution
-        duration:
-          type: integer
-          format: int64
-          description: Duration of session execution in ms
-        executionStatus:
-          type: string
-          description: Status of the element or session
-          enum:
-          - IN_PROGRESS
-          - COMPLETED_NORMALLY
-          - COMPLETED_WITH_WARNINGS
-          - COMPLETED_WITH_ERRORS
-          - CANCELLED_OR_UNKNOWN
-        syncDuration:
-          type: integer
-          format: int64
-          description: Synchronous duration of session execution in ms
-        elementId:
-          type: string
-          description: Id of the object
-        sessionId:
-          type: string
-          description: Id of the session linked to session element
-        chainElementId:
-          type: string
-          description: Id of the chain element linked to session element
-        actualElementChainId:
-          type: string
-          description: Id of the sub-chain element linked to session element in case
-            (in case it is element from sub-chain)
-        parentElement:
-          type: string
-          description: Id of the parent object for current object
-        previousElement:
-          type: string
-          description: Previous object id in execution chain
-        elementName:
-          type: string
-          description: Name of the object (step)
-        camelName:
-          type: string
-          description: Type of the element if it is chain element step (not sub-step)
-        bodyBefore:
-          type: string
-          description: Body before step execution
-        bodyAfter:
-          type: string
-          description: Body after step execution
-        headersBefore:
-          type: object
-          additionalProperties:
-            type: string
-          description: Map of headers before step execution
-        headersAfter:
-          type: object
-          additionalProperties:
-            type: string
-          description: Map of headers after step execution
-        propertiesBefore:
-          type: object
-          additionalProperties:
-            $ref: "#/components/schemas/SessionElementProperty"
-          description: Map of properties before step execution
-        propertiesAfter:
-          type: object
-          additionalProperties:
-            $ref: "#/components/schemas/SessionElementProperty"
-          description: Map of properties after step execution
-        contextBefore:
-          type: object
-          additionalProperties:
-            type: string
-          description: Map of context properties before step execution
-        contextAfter:
-          type: object
-          additionalProperties:
-            type: string
-          description: Map of context properties after step execution
-        children:
-          type: array
-          description: List of child elements (sub-elements) for the current object
-            (step)
-          items:
-            $ref: "#/components/schemas/SessionElement"
-        exceptionInfo:
-          $ref: "#/components/schemas/ExceptionInfoElastic"
-    SessionElementProperty:
-      type: object
-      description: Property object for session element (step)
-      properties:
-        type:
-          type: string
-          description: Java type of the property
-        value:
-          type: string
-          description: Value of the property
-    SessionSearchResponse:
-      type: object
-      description: Response object for list of sessions
-      properties:
-        offset:
-          type: integer
-          format: int32
-          description: Latest number of session in current response
-        sessions:
-          type: array
-          description: List of sessions
-          items:
-            $ref: "#/components/schemas/Session"
+      - "session-controller"
+servers:
+- url: "/"
+tags:
+- description: "Import Controller"
+  name: "import-controller"
+- description: "Session Controller"
+  name: "session-controller"
+- description: "Export Controller"
+  name: "export-controller"
