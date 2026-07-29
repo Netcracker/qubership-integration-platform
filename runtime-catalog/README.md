@@ -57,6 +57,16 @@ Application has 'development' Spring profile to run service locally with minimum
 - Access to Kubernetes API.
 - PostgreSQL database.
 
+## OpenAPI Specification
+
+`OpenApiSpecGenerator` starts the application with the datasource, Flyway, and Consul mocked or stubbed, calls the
+`/v3/api-docs` endpoint, and writes the result to `api-spec/`. Its class name doesn't end in `Test`, so Surefire skips
+it during a normal build. Run it manually to regenerate `api-spec/openapi.json` and `api-spec/openapi.yaml`:
+
+```shell
+mvn test -Dtest=OpenApiSpecGenerator -DfailIfNoTests=false
+```
+
 ## Contribution
 
 For the details on contribution, see [Contribution Guide](../CONTRIBUTING.md). For details on reporting of security issues see [Security Reporting Process](../SECURITY.md).

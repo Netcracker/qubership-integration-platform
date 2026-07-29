@@ -288,6 +288,7 @@ quarkus:
       "hibernate.temp.use_jdbc_metadata_defaults": false # disable connection during init
   smallrye-openapi:
     enable: true
+    store-schema-directory: api-spec
   camel:
     servlet:
       servlet-name: CamelServlet

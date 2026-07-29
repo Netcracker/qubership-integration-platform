@@ -1,0 +1,422 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "Qubership Integration Platform Engine",
+    "description" : "REST API of Qubership Integration Platform Engine Microservice",
+    "version" : "v1",
+    "x-api-kind" : "no-bwc"
+  },
+  "servers" : [ {
+    "url" : "/"
+  } ],
+  "tags" : [ {
+    "name" : "session-controller",
+    "description" : "Session Controller"
+  }, {
+    "name" : "checkpoint-session-controller",
+    "description" : "Checkpoint Session Controller"
+  }, {
+    "name" : "live-exchanges-controller",
+    "description" : "Live Exchanges Controller"
+  } ],
+  "paths" : {
+    "/v1/engine/chains/{chainId}/sessions/{sessionId}/retry" : {
+      "post" : {
+        "tags" : [ "checkpoint-session-controller" ],
+        "description" : "Execute chain retry from saved latest non-failed checkpoint",
+        "operationId" : "retryFromLastCheckpoint",
+        "parameters" : [ {
+          "name" : "chainId",
+          "in" : "path",
+          "description" : "Chain id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "sessionId",
+          "in" : "path",
+          "description" : "Session id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "authorization",
+          "in" : "header",
+          "description" : "If passed, Authorization header will be replaced with this value",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : ""
+          }
+        }, {
+          "name" : "traceMe",
+          "in" : "header",
+          "description" : "Enable TraceMe header, which will force session to be logged",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean",
+            "default" : false
+          }
+        }, {
+          "name" : "X-Idempotency-Key",
+          "in" : "header",
+          "description" : "Idempotency header, which will be used to identify duplicate request",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : ""
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string",
+                "description" : "If passed, request body will be replaced with this value"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "x-api-kind" : "bwc"
+      }
+    },
+    "/v1/engine/chains/{chainId}/sessions/{sessionId}/checkpoint-elements/{checkpointElementId}/retry" : {
+      "post" : {
+        "tags" : [ "checkpoint-session-controller" ],
+        "description" : "Execute chain retry from specified non-failed checkpoint",
+        "operationId" : "retryFromCheckpoint",
+        "parameters" : [ {
+          "name" : "chainId",
+          "in" : "path",
+          "description" : "Chain id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "sessionId",
+          "in" : "path",
+          "description" : "Session id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "checkpointElementId",
+          "in" : "path",
+          "description" : "Checkpoint element id (could be found on chain graph in checkpoint element itself)",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "authorization",
+          "in" : "header",
+          "description" : "If passed, Authorization header will be replaced with this value",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : ""
+          }
+        }, {
+          "name" : "traceMe",
+          "in" : "header",
+          "description" : "Enable TraceMe header, which will force session to be logged",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean",
+            "default" : false
+          }
+        }, {
+          "name" : "X-Idempotency-Key",
+          "in" : "header",
+          "description" : "Idempotency header, which will be used to identify duplicate request",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : ""
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "string",
+                "description" : "If passed, request body will be replaced with this value"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "x-api-kind" : "bwc"
+      }
+    },
+    "/v1/engine/sessions" : {
+      "get" : {
+        "tags" : [ "session-controller" ],
+        "description" : "List all sessions with available checkpoints by their ids",
+        "operationId" : "findSessions",
+        "parameters" : [ {
+          "name" : "ids",
+          "in" : "query",
+          "description" : "List of the session ids separated by comma",
+          "required" : false,
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/CheckpointSessionDTO"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/engine/live-exchanges" : {
+      "get" : {
+        "tags" : [ "live-exchanges-controller" ],
+        "description" : "Get top N running exchanges ordered by execution time DESC",
+        "operationId" : "getLiveExchanges",
+        "parameters" : [ {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Amount of exchanges to view",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 10,
+            "exclusiveMinimum" : 0
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/LiveExchangeDTO"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/engine/chains/{chainId}/sessions/failed" : {
+      "get" : {
+        "tags" : [ "checkpoint-session-controller" ],
+        "description" : "List all failed sessions with available checkpoints for specified chain",
+        "operationId" : "getFailedChainSessionsInfo",
+        "parameters" : [ {
+          "name" : "chainId",
+          "in" : "path",
+          "description" : "Chain id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/CheckpointSessionDTO"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-api-kind" : "bwc"
+      }
+    },
+    "/v1/engine/live-exchanges/{deploymentId}/{exchangeId}" : {
+      "delete" : {
+        "tags" : [ "live-exchanges-controller" ],
+        "description" : "Try to kill specified exchange",
+        "operationId" : "killExchange",
+        "parameters" : [ {
+          "name" : "deploymentId",
+          "in" : "path",
+          "description" : "Deployment ID",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "exchangeId",
+          "in" : "path",
+          "description" : "Exchange ID",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        }
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "CheckpointDTO" : {
+        "type" : "object",
+        "description" : "Information about checkpoint in session",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "description" : "Internal id of this record"
+          },
+          "checkpointElementId" : {
+            "type" : "string",
+            "description" : "Element id of passed checkpoint on chain graph"
+          },
+          "timestamp" : {
+            "type" : "string",
+            "description" : "Timestamp when checkpoint were passed"
+          }
+        }
+      },
+      "CheckpointSessionDTO" : {
+        "type" : "object",
+        "description" : "Single chain session with available checkpoints list",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "description" : "Id of the session"
+          },
+          "started" : {
+            "type" : "string",
+            "description" : "Date time of session start"
+          },
+          "finished" : {
+            "type" : "string",
+            "description" : "Date time of session end"
+          },
+          "duration" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Duration of session execution, in ms"
+          },
+          "executionStatus" : {
+            "type" : "string",
+            "description" : "Duration of session execution, in ms",
+            "enum" : [ "IN_PROGRESS", "COMPLETED_NORMALLY", "COMPLETED_WITH_WARNINGS", "COMPLETED_WITH_ERRORS", "CANCELLED_OR_UNKNOWN" ]
+          },
+          "chainId" : {
+            "type" : "string",
+            "description" : "Id of the chain it was executed on"
+          },
+          "chainName" : {
+            "type" : "string",
+            "description" : "Name of the chain it was executed on"
+          },
+          "engineAddress" : {
+            "type" : "string",
+            "description" : "engine pod ip address on which chain was executed"
+          },
+          "loggingLevel" : {
+            "type" : "string",
+            "description" : "Value of logging level on a chain at a time chain was executed"
+          },
+          "snapshotName" : {
+            "type" : "string",
+            "description" : "Deployed snapshot name for the chain"
+          },
+          "correlationId" : {
+            "type" : "string",
+            "description" : "Correlation id for that execution (if it was set)"
+          },
+          "checkpoints" : {
+            "type" : "array",
+            "description" : "List of available checkpoints for that session",
+            "items" : {
+              "$ref" : "#/components/schemas/CheckpointDTO"
+            }
+          }
+        }
+      },
+      "LiveExchangeDTO" : {
+        "type" : "object",
+        "description" : "Information about Live exchange",
+        "properties" : {
+          "exchangeId" : {
+            "type" : "string",
+            "description" : "Exchange id"
+          },
+          "deploymentId" : {
+            "type" : "string",
+            "description" : "Deployment id"
+          },
+          "sessionId" : {
+            "type" : "string",
+            "description" : "Session id"
+          },
+          "chainId" : {
+            "type" : "string",
+            "description" : "Chain id"
+          },
+          "duration" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Duration of current exchange, in ms"
+          },
+          "sessionDuration" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Duration of the whole session exchange participates in, in ms"
+          },
+          "sessionStartTime" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Session start timestamp"
+          },
+          "sessionLogLevel" : {
+            "type" : "string",
+            "description" : "Current session log level",
+            "enum" : [ "OFF", "ERROR", "INFO", "DEBUG" ]
+          },
+          "main" : {
+            "type" : "boolean",
+            "description" : "Is current exchange main (initial)"
+          }
+        }
+      }
+    }
+  }
+}

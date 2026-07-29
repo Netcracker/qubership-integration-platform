@@ -86,6 +86,17 @@ It also requires:
 - Redis (if idempotency support enabled).
 - Kafka (if kafka client enabled for sessions).
 
+## OpenAPI Specification
+
+`OpenApiSpecGenerator` starts the application with the `development` profile active, the checkpoint
+and Quartz datasources, Flyway, and Consul mocked or stubbed, calls the `/v3/api-docs` endpoint, and
+writes the result to `api-spec/`. Its class name doesn't end in `Test`, so Surefire skips it during a
+normal build. Run it manually to regenerate `api-spec/openapi.json` and `api-spec/openapi.yaml`:
+
+```shell
+mvn test -Dtest=OpenApiSpecGenerator -DfailIfNoTests=false
+```
+
 ## Contribution
 
 For the details on contribution, see [Contribution Guide](../CONTRIBUTING.md). For details on reporting of security issues see [Security Reporting Process](../SECURITY.md).

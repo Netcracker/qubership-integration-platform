@@ -1,0 +1,766 @@
+{
+  "openapi" : "3.1.0",
+  "info" : {
+    "title" : "Qubership Integration Platform Sessions Management",
+    "description" : "REST API of Qubership Integration Platform Sessions Management microservice",
+    "version" : "v1",
+    "x-api-kind" : "no-bwc"
+  },
+  "servers" : [ {
+    "url" : "/"
+  } ],
+  "tags" : [ {
+    "name" : "import-controller",
+    "description" : "Import Controller"
+  }, {
+    "name" : "session-controller",
+    "description" : "Session Controller"
+  }, {
+    "name" : "export-controller",
+    "description" : "Export Controller"
+  } ],
+  "paths" : {
+    "/v1/sessions/export" : {
+      "get" : {
+        "tags" : [ "export-controller" ],
+        "description" : "Export sessions by given sessionId's as a file",
+        "operationId" : "exportSessions",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "array",
+                "description" : "List of session Ids to export",
+                "items" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post" : {
+        "tags" : [ "export-controller" ],
+        "description" : "Export sessions by given sessionId's as a file",
+        "operationId" : "exportSessions_1",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "array",
+                "description" : "List of session Ids to export",
+                "items" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions" : {
+      "post" : {
+        "tags" : [ "session-controller" ],
+        "description" : "Get light list of sessions without session elements (steps) with additional parameters",
+        "operationId" : "findAllByFilter",
+        "parameters" : [ {
+          "name" : "offset",
+          "in" : "query",
+          "description" : "Which session number should we start from",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 0
+          }
+        }, {
+          "name" : "count",
+          "in" : "query",
+          "description" : "Amount of sessions received at a time",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 20
+          }
+        }, {
+          "name" : "sortColumn",
+          "in" : "query",
+          "description" : "Name of column we should sort response by",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : "sessionStarted"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/FilterRequestAndSearchDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SessionSearchResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "session-controller" ],
+        "description" : "Delete all sessions from all chains",
+        "operationId" : "deleteAllSessions",
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        }
+      }
+    },
+    "/v1/sessions/import" : {
+      "post" : {
+        "tags" : [ "import-controller" ],
+        "description" : "Import session(s) from file",
+        "operationId" : "importSessions",
+        "parameters" : [ {
+          "name" : "files",
+          "in" : "query",
+          "description" : "List of files to import",
+          "required" : true,
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "binary"
+            }
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/Session"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/chains/{chainId}" : {
+      "post" : {
+        "tags" : [ "session-controller" ],
+        "description" : "Get light list of sessions for specified chain without session elements (steps) with additional parameters",
+        "operationId" : "findByFilter",
+        "parameters" : [ {
+          "name" : "chainId",
+          "in" : "path",
+          "description" : "Only sessions executed on chain with specified id will be shown",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "offset",
+          "in" : "query",
+          "description" : "Which session number should we start from",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 0
+          }
+        }, {
+          "name" : "count",
+          "in" : "query",
+          "description" : "Amount of sessions received at a time",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 20
+          }
+        }, {
+          "name" : "sortColumn",
+          "in" : "query",
+          "description" : "Name of column we should sort response by",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : "sessionStarted"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/FilterRequestAndSearchDTO"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SessionSearchResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "session-controller" ],
+        "description" : "Delete all sessions for specified chain",
+        "operationId" : "deleteAllByChainId",
+        "parameters" : [ {
+          "name" : "chainId",
+          "in" : "path",
+          "description" : "Chain id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        }
+      }
+    },
+    "/v1/sessions/bulk-delete" : {
+      "post" : {
+        "tags" : [ "session-controller" ],
+        "description" : "Bulk delete sessions",
+        "operationId" : "deleteByIds",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "type" : "array",
+                "items" : {
+                  "type" : "string"
+                }
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        }
+      }
+    },
+    "/v1/sessions/{sessionId}" : {
+      "get" : {
+        "tags" : [ "session-controller" ],
+        "description" : "Get session with all elements (steps) by session id",
+        "operationId" : "findById",
+        "parameters" : [ {
+          "name" : "sessionId",
+          "in" : "path",
+          "description" : "Session id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Session"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "session-controller" ],
+        "description" : "Delete specified session",
+        "operationId" : "deleteById",
+        "parameters" : [ {
+          "name" : "sessionId",
+          "in" : "path",
+          "description" : "Session id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        }
+      },
+      "head" : {
+        "tags" : [ "session-controller" ],
+        "description" : "Find session by id if it exists",
+        "operationId" : "findExistingSession",
+        "parameters" : [ {
+          "name" : "sessionId",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Session"
+                }
+              }
+            }
+          }
+        },
+        "x-api-kind" : "bwc"
+      }
+    },
+    "/v1/sessions/{sessionId}/{elementId}" : {
+      "get" : {
+        "tags" : [ "session-controller" ],
+        "description" : "Get element(step) with payload (body) for specified element(step)",
+        "operationId" : "getElementPayloadById",
+        "parameters" : [ {
+          "name" : "sessionId",
+          "in" : "path",
+          "description" : "Session id",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "elementId",
+          "in" : "path",
+          "description" : "Element (step) id within specified session",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SessionElement"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/external-id/{externalSessionId}" : {
+      "get" : {
+        "tags" : [ "session-controller" ],
+        "description" : "Get session by specified external id",
+        "operationId" : "findByExternalId",
+        "parameters" : [ {
+          "name" : "externalSessionId",
+          "in" : "path",
+          "description" : "External id that was specified during chain execution",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "includeDetails",
+          "in" : "query",
+          "description" : "Whether we need to include session elements(steps) in the response",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean",
+            "default" : false
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Session"
+                }
+              }
+            }
+          }
+        },
+        "x-api-kind" : "bwc"
+      }
+    },
+    "/v1/sessions/chains" : {
+      "delete" : {
+        "tags" : [ "session-controller" ],
+        "description" : "Delete all sessions for specified chains",
+        "operationId" : "deleteAllByChainIds",
+        "parameters" : [ {
+          "name" : "chainIds",
+          "in" : "query",
+          "description" : "List of chain ids separated by comma",
+          "required" : true,
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        }
+      }
+    }
+  },
+  "components" : {
+    "schemas" : {
+      "FilterRequest" : {
+        "type" : "object",
+        "description" : "Single request to filter output response",
+        "properties" : {
+          "feature" : {
+            "type" : "string",
+            "description" : "Filter column",
+            "enum" : [ "CHAIN_NAME", "STATUS", "START_TIME", "FINISH_TIME", "ENGINE" ]
+          },
+          "condition" : {
+            "type" : "string",
+            "description" : "Filter condition",
+            "enum" : [ "IN", "NOT_IN", "IS_AFTER", "IS_BEFORE", "IS_WITHIN", "CONTAINS", "DOES_NOT_CONTAIN", "STARTS_WITH", "ENDS_WITH" ]
+          },
+          "value" : {
+            "type" : "string",
+            "description" : "Value for the filter request"
+          }
+        }
+      },
+      "FilterRequestAndSearchDTO" : {
+        "type" : "object",
+        "description" : "Additional filters request object",
+        "properties" : {
+          "filterRequestList" : {
+            "type" : "array",
+            "description" : "List of filter requests",
+            "items" : {
+              "$ref" : "#/components/schemas/FilterRequest"
+            }
+          },
+          "searchString" : {
+            "type" : "string",
+            "description" : "Value of full-text search request"
+          }
+        }
+      },
+      "ExceptionInfoElastic" : {
+        "type" : "object",
+        "description" : "Exception info object for session",
+        "properties" : {
+          "message" : {
+            "type" : "string",
+            "description" : "Message of the exception"
+          },
+          "stackTrace" : {
+            "type" : "string",
+            "description" : "Stacktrace of the exception"
+          }
+        }
+      },
+      "Session" : {
+        "type" : "object",
+        "description" : "Single session object",
+        "properties" : {
+          "started" : {
+            "type" : "string",
+            "description" : "Start time of session execution"
+          },
+          "finished" : {
+            "type" : "string",
+            "description" : "End time of session execution"
+          },
+          "duration" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Duration of session execution in ms"
+          },
+          "executionStatus" : {
+            "type" : "string",
+            "description" : "Status of the element or session",
+            "enum" : [ "IN_PROGRESS", "COMPLETED_NORMALLY", "COMPLETED_WITH_WARNINGS", "COMPLETED_WITH_ERRORS", "CANCELLED_OR_UNKNOWN" ]
+          },
+          "syncDuration" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Synchronous duration of session execution in ms"
+          },
+          "id" : {
+            "type" : "string",
+            "description" : "Id"
+          },
+          "importedSession" : {
+            "type" : "boolean",
+            "description" : "Whether this is imported session"
+          },
+          "externalSessionCipId" : {
+            "type" : "string",
+            "description" : "External id (if it was set during chain execution)"
+          },
+          "chainId" : {
+            "type" : "string",
+            "description" : "Id of the chain it was executed on"
+          },
+          "chainName" : {
+            "type" : "string",
+            "description" : "Name of the chain it was executed on"
+          },
+          "domain" : {
+            "type" : "string",
+            "description" : "Domain on which chain was executed"
+          },
+          "domainType" : {
+            "type" : "string",
+            "description" : "Type of the domain on which chain was executed"
+          },
+          "engineAddress" : {
+            "type" : "string",
+            "description" : "qubership-integration-platform-engine pod ip address on which chain was executed"
+          },
+          "loggingLevel" : {
+            "type" : "string",
+            "description" : "Value of logging level on a chain at a time chain was executed"
+          },
+          "snapshotName" : {
+            "type" : "string",
+            "description" : "Deployed snapshot name for the chain"
+          },
+          "correlationId" : {
+            "type" : "string",
+            "description" : "Correlation id for that execution (if it was set)"
+          },
+          "parentSessionId" : {
+            "type" : "string",
+            "description" : "Parent of session id for the current session"
+          },
+          "sessionElements" : {
+            "type" : "array",
+            "description" : "List of session elements (steps) created by this session",
+            "items" : {
+              "$ref" : "#/components/schemas/SessionElement"
+            }
+          }
+        }
+      },
+      "SessionElement" : {
+        "type" : "object",
+        "description" : "Single element(step) from the session",
+        "properties" : {
+          "started" : {
+            "type" : "string",
+            "description" : "Start time of session execution"
+          },
+          "finished" : {
+            "type" : "string",
+            "description" : "End time of session execution"
+          },
+          "duration" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Duration of session execution in ms"
+          },
+          "executionStatus" : {
+            "type" : "string",
+            "description" : "Status of the element or session",
+            "enum" : [ "IN_PROGRESS", "COMPLETED_NORMALLY", "COMPLETED_WITH_WARNINGS", "COMPLETED_WITH_ERRORS", "CANCELLED_OR_UNKNOWN" ]
+          },
+          "syncDuration" : {
+            "type" : "integer",
+            "format" : "int64",
+            "description" : "Synchronous duration of session execution in ms"
+          },
+          "elementId" : {
+            "type" : "string",
+            "description" : "Id of the object"
+          },
+          "sessionId" : {
+            "type" : "string",
+            "description" : "Id of the session linked to session element"
+          },
+          "chainElementId" : {
+            "type" : "string",
+            "description" : "Id of the chain element linked to session element"
+          },
+          "actualElementChainId" : {
+            "type" : "string",
+            "description" : "Id of the sub-chain element linked to session element in case (in case it is element from sub-chain)"
+          },
+          "parentElement" : {
+            "type" : "string",
+            "description" : "Id of the parent object for current object"
+          },
+          "previousElement" : {
+            "type" : "string",
+            "description" : "Previous object id in execution chain"
+          },
+          "elementName" : {
+            "type" : "string",
+            "description" : "Name of the object (step)"
+          },
+          "camelName" : {
+            "type" : "string",
+            "description" : "Type of the element if it is chain element step (not sub-step)"
+          },
+          "bodyBefore" : {
+            "type" : "string",
+            "description" : "Body before step execution"
+          },
+          "bodyAfter" : {
+            "type" : "string",
+            "description" : "Body after step execution"
+          },
+          "headersBefore" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "description" : "Map of headers before step execution"
+          },
+          "headersAfter" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "description" : "Map of headers after step execution"
+          },
+          "propertiesBefore" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "$ref" : "#/components/schemas/SessionElementProperty"
+            },
+            "description" : "Map of properties before step execution"
+          },
+          "propertiesAfter" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "$ref" : "#/components/schemas/SessionElementProperty"
+            },
+            "description" : "Map of properties after step execution"
+          },
+          "contextBefore" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "description" : "Map of context properties before step execution"
+          },
+          "contextAfter" : {
+            "type" : "object",
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "description" : "Map of context properties after step execution"
+          },
+          "children" : {
+            "type" : "array",
+            "description" : "List of child elements (sub-elements) for the current object (step)",
+            "items" : {
+              "$ref" : "#/components/schemas/SessionElement"
+            }
+          },
+          "exceptionInfo" : {
+            "$ref" : "#/components/schemas/ExceptionInfoElastic"
+          }
+        }
+      },
+      "SessionElementProperty" : {
+        "type" : "object",
+        "description" : "Property object for session element (step)",
+        "properties" : {
+          "type" : {
+            "type" : "string",
+            "description" : "Java type of the property"
+          },
+          "value" : {
+            "type" : "string",
+            "description" : "Value of the property"
+          }
+        }
+      },
+      "SessionSearchResponse" : {
+        "type" : "object",
+        "description" : "Response object for list of sessions",
+        "properties" : {
+          "offset" : {
+            "type" : "integer",
+            "format" : "int32",
+            "description" : "Latest number of session in current response"
+          },
+          "sessions" : {
+            "type" : "array",
+            "description" : "List of sessions",
+            "items" : {
+              "$ref" : "#/components/schemas/Session"
+            }
+          }
+        }
+      }
+    }
+  }
+}
