@@ -115,11 +115,25 @@ public class MaasService implements MaasParametersResolver {
     }
 
     private Map<String, String> resolveKafkaMaasParameters(MaasClassifierInfo maasClassifierInfo) {
+        String classifierName = variablesService.injectVariables(maasClassifierInfo.getClassifier());
+        String classifierNamespace = variablesService.injectVariables(maasClassifierInfo.getNamespace());
+        String classifierTenantId = variablesService.injectVariables(maasClassifierInfo.getTenantId());
+        String classifierTenantEnabled = variablesService.injectVariables(maasClassifierInfo.getTenantEnabled());
+
+        log.debug("Resolving Kafka MaaS classifier for element {}: "
+                        + "classifier [raw={}, resolved={}], namespace [raw={}, resolved={}], "
+                        + "tenantId [raw={}, resolved={}], tenantEnabled [raw={}, resolved={}]",
+                maasClassifierInfo.getElementId(),
+                maasClassifierInfo.getClassifier(), classifierName,
+                maasClassifierInfo.getNamespace(), classifierNamespace,
+                maasClassifierInfo.getTenantId(), classifierTenantId,
+                maasClassifierInfo.getTenantEnabled(), classifierTenantEnabled);
+
         TopicAddress kafkaTopic = getKafkaTopic(
-                variablesService.injectVariables(maasClassifierInfo.getClassifier()),
-                variablesService.injectVariables(maasClassifierInfo.getNamespace()),
-                variablesService.injectVariables(maasClassifierInfo.getTenantId()),
-                Boolean.parseBoolean(variablesService.injectVariables(maasClassifierInfo.getTenantEnabled()))
+                classifierName,
+                classifierNamespace,
+                classifierTenantId,
+                Boolean.parseBoolean(classifierTenantEnabled)
         );
 
         String protocol = MaasUtils.selectProtocol(kafkaTopic);
@@ -154,17 +168,24 @@ public class MaasService implements MaasParametersResolver {
             String classifierTenantId,
             boolean tenantTopicEnabled
     ) throws MaasException {
+        String effectiveNamespace = StringUtils.isNotEmpty(classifierNamespace)
+                ? classifierNamespace : applicationConfiguration.getNamespace();
+        String effectiveTenantId = StringUtils.isNotEmpty(classifierTenantId)
+                ? classifierTenantId : tenantConfiguration.getDefaultTenant();
+        log.info("Requesting Kafka topic from MaaS: classifier={}, namespace={} (explicit={}, engineNamespace={}), "
+                        + "tenantTopicEnabled={}, tenantId={}",
+                classifierName, effectiveNamespace, classifierNamespace, applicationConfiguration.getNamespace(),
+                tenantTopicEnabled, effectiveTenantId);
         try {
             Classifier classifier = new Classifier(classifierName);
-            classifier.namespace(StringUtils.isNotEmpty(classifierNamespace)
-                    ? classifierNamespace : applicationConfiguration.getNamespace());
+            classifier.namespace(effectiveNamespace);
             if (tenantTopicEnabled) {
-                classifier.tenantId(StringUtils.isNotEmpty(classifierTenantId)
-                        ? classifierTenantId : tenantConfiguration.getDefaultTenant());
+                classifier.tenantId(effectiveTenantId);
             }
             return kafkaMaasClient.getTopic(classifier).orElseThrow(() -> new TopicNotFoundException(
                     String.format("Failed to get classifier %s from MaaS. ", classifierName)));
         } catch (Exception e) {
+            log.error("Failed to get classifier {} (namespace={}) from MaaS", classifierName, effectiveNamespace, e);
             throw new MaasException("Failed to get classifier " + classifierName + " from MaaS. ", e);
         }
     }
@@ -179,6 +200,10 @@ public class MaasService implements MaasParametersResolver {
         }
 
         String classifierNamespace = variablesService.injectVariables(maasClassifierInfo.getNamespace());
+        log.debug("Resolving RabbitMQ MaaS classifier for element {}: classifier [raw={}, resolved={}], "
+                        + "namespace [raw={}, resolved={}]",
+                maasClassifierInfo.getElementId(), maasClassifierInfo.getClassifier(), classifierName,
+                maasClassifierInfo.getNamespace(), classifierNamespace);
         VHost vHost = getRabbitVhost(classifierName, classifierNamespace);
         try {
             URI address = new URI(vHost.getCnn());
@@ -202,18 +227,20 @@ public class MaasService implements MaasParametersResolver {
     }
 
     public VHost getRabbitVhost(String vHostName, String classifierNamespace) throws MaasException {
+        String effectiveNamespace = StringUtils.isNotEmpty(classifierNamespace)
+                ? classifierNamespace : applicationConfiguration.getNamespace();
+        log.info("Requesting RabbitMQ vHost from MaaS: classifier={}, namespace={} (explicit={}, engineNamespace={})",
+                vHostName, effectiveNamespace, classifierNamespace, applicationConfiguration.getNamespace());
         try {
             Classifier classifier = new Classifier(vHostName);
-            classifier.namespace(StringUtils.isNotEmpty(classifierNamespace)
-                    ? classifierNamespace
-                    : applicationConfiguration.getNamespace());
+            classifier.namespace(effectiveNamespace);
             VHost virtualHost = rabbitMaasClient.getVirtualHost(classifier);
             if (virtualHost == null) {
                 throw new RuntimeException("vHost not found");
             }
             return virtualHost;
         } catch (Exception e) {
-            log.error("Failed to get rabbitmq vHost from MaaS", e);
+            log.error("Failed to get rabbitmq vHost {} (namespace={}) from MaaS", vHostName, effectiveNamespace, e);
             throw new MaasException("Failed to get rabbitmq vHost from MaaS", e);
         }
     }
