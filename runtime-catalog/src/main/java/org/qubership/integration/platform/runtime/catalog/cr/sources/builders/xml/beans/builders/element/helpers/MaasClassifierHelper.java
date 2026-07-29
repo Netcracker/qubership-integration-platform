@@ -78,32 +78,25 @@ public class MaasClassifierHelper {
 
         streamWriter.writeStartElement("properties");
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "elementId");
-        streamWriter.writeAttribute("value", element.getOriginalId());
-
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "protocol");
-        streamWriter.writeAttribute("value", protocol);
-
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "classifier");
-        streamWriter.writeAttribute("value", classifier);
-
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "namespace");
-        streamWriter.writeAttribute("value", namespace);
-
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "tenantId");
-        streamWriter.writeAttribute("value", tenantId);
-
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "tenantEnabled");
-        streamWriter.writeAttribute("value", tenantEnabled);
+        writeProperty(streamWriter, "elementId", element.getOriginalId());
+        writeProperty(streamWriter, "protocol", protocol);
+        writeProperty(streamWriter, "classifier", classifier);
+        writeProperty(streamWriter, "namespace", namespace);
+        writeProperty(streamWriter, "tenantId", tenantId);
+        writeProperty(streamWriter, "tenantEnabled", tenantEnabled);
 
         streamWriter.writeEndElement();
         streamWriter.writeEndElement();
 
+    }
+
+    private void writeProperty(
+            XMLStreamWriter2 streamWriter,
+            String key,
+            String value
+    ) throws XMLStreamException {
+        streamWriter.writeEmptyElement("property");
+        streamWriter.writeAttribute("key", key);
+        streamWriter.writeAttribute("value", value == null ? "" : value);
     }
 }
