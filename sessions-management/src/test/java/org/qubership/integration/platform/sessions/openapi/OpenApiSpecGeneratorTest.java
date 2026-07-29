@@ -61,6 +61,7 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
 class OpenApiSpecGeneratorTest {
 
     private static final Path OUTPUT_DIR = Path.of("api-spec");
+    @SuppressWarnings("unused")
     private static final HttpServer CONSUL_STUB = startConsulStub();
     private static final ObjectMapper YAML_MAPPER = new YAMLMapper()
             .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
