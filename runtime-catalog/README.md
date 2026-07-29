@@ -60,8 +60,8 @@ Application has 'development' Spring profile to run service locally with minimum
 ## OpenAPI Specification
 
 `OpenApiSpecGenerator` starts the application with the datasource, Flyway, and Consul mocked or stubbed, calls the
-`/v3/api-docs` endpoint, and writes the result to `api-spec/`. Its class name doesn't end in `Test`, so Surefire skips
-it during a normal build. Run it manually to regenerate `api-spec/openapi.json` and `api-spec/openapi.yaml`:
+`/v3/api-docs.yaml` endpoint, and writes the result to `api-spec/`. Its class name doesn't end in `Test`, so Surefire skips
+it during a normal build. Run it manually to regenerate `api-spec/openapi.yaml`:
 
 ```shell
 mvn test -Dtest=OpenApiSpecGenerator -DfailIfNoTests=false

@@ -70,11 +70,11 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
  *         string property.
  * </ul>
  *
- * <p>The spec is fetched once as JSON, parsed into a generic {@code Map}/{@code List} tree, and
- * written out as both JSON and YAML from that same tree so the two files stay consistent. Both
- * mappers have {@link SerializationFeature#ORDER_MAP_ENTRIES_BY_KEYS} enabled, which sorts every
- * nested object's keys alphabetically; {@link #assertKeysSorted} then walks the tree to catch
- * any regression of that behavior.
+ * <p>The spec is fetched as YAML, parsed into a generic {@code Map}/{@code List} tree, and
+ * written back out from that tree with
+ * {@link SerializationFeature#ORDER_MAP_ENTRIES_BY_KEYS} enabled, which sorts every nested
+ * object's keys alphabetically; {@link #assertKeysSorted} then walks the tree to catch any
+ * regression of that behavior.
  *
  * <p>The class name deliberately doesn't end in {@code Test} so Surefire's default include
  * pattern skips it. To run it manually, see the command in README.md.
@@ -93,8 +93,6 @@ class OpenApiSpecGenerator {
 
     private static final Path OUTPUT_DIR = Path.of("api-spec");
     private static final HttpServer CONSUL_STUB = startConsulStub();
-    private static final ObjectMapper JSON_MAPPER = new ObjectMapper()
-            .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
     private static final ObjectMapper YAML_MAPPER = new YAMLMapper()
             .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
 
@@ -127,19 +125,18 @@ class OpenApiSpecGenerator {
     }
 
     @Test
-    @DisplayName("generate OpenAPI specification files with alphabetically sorted object keys")
-    void generateOpenApiSpecFiles() throws IOException {
+    @DisplayName("generate OpenAPI specification file with alphabetically sorted object keys")
+    void generateOpenApiSpecFile() throws IOException {
         Files.createDirectories(OUTPUT_DIR);
-        String rawJson = restTemplate.getForObject("/v3/api-docs", String.class);
-        Object spec = JSON_MAPPER.readValue(rawJson, Object.class);
+        String rawYaml = restTemplate.getForObject("/v3/api-docs.yaml", String.class);
+        Object spec = YAML_MAPPER.readValue(rawYaml, Object.class);
 
-        String prettyJson = JSON_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(spec);
-        Files.writeString(OUTPUT_DIR.resolve("openapi.json"), prettyJson);
-        Files.writeString(OUTPUT_DIR.resolve("openapi.yaml"), YAML_MAPPER.writeValueAsString(spec));
+        String sortedYaml = YAML_MAPPER.writeValueAsString(spec);
+        Files.writeString(OUTPUT_DIR.resolve("openapi.yaml"), sortedYaml);
 
         // ORDER_MAP_ENTRIES_BY_KEYS only reorders keys while writing, so re-read the file we
         // just wrote rather than the original (still insertion-ordered) parsed object.
-        assertKeysSorted(JSON_MAPPER.readValue(prettyJson, Object.class));
+        assertKeysSorted(YAML_MAPPER.readValue(sortedYaml, Object.class));
     }
 
     private static void assertKeysSorted(Object node) {
