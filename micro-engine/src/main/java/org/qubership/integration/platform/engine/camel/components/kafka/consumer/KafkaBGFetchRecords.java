@@ -289,7 +289,7 @@ public class KafkaBGFetchRecords implements Runnable {
         // temporary: backoff to avoid tight retry loop on persistent errors
         try {
             Thread.sleep(30000);
-        } catch (InterruptedException ie) {
+        } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
         }
     }
