@@ -37,6 +37,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.qubership.integration.platform.engine.configuration.camel.CamelServletConfiguration.CAMEL_ROUTES_PREFIX;
+import static org.qubership.integration.platform.engine.model.deployment.update.RouteType.isPrivateTriggerRoute;
+import static org.qubership.integration.platform.engine.model.deployment.update.RouteType.isPublicTriggerRoute;
 
 @Slf4j
 @Component("controlPlaneService")
@@ -174,10 +176,10 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
             List<RouteConfigurationResponse> routesList = getRoutesList();
 
             List<String> publicPathsToRemove = paths.stream()
-                .filter(pair -> pair.getRight() == RouteType.PRIVATE_TRIGGER || pair.getRight() == RouteType.INTERNAL_TRIGGER)
+                .filter(pair -> isPublicTriggerRoute(pair.getRight()) || pair.getRight() == RouteType.INTERNAL_TRIGGER)
                 .map(Pair::getKey).toList();
             List<String> privatePathsToRemove = paths.stream()
-                .filter(pair -> pair.getRight() == RouteType.EXTERNAL_TRIGGER || pair.getRight() == RouteType.INTERNAL_TRIGGER)
+                .filter(pair -> isPrivateTriggerRoute(pair.getRight()) || pair.getRight() == RouteType.INTERNAL_TRIGGER)
                 .map(Pair::getKey).toList();
 
             removeEngineRoutesByPathsAndEndpoint(publicPathsToRemove, routesList, PUBLIC_GATEWAY_SERVICE_NODEGROUP, deploymentName);

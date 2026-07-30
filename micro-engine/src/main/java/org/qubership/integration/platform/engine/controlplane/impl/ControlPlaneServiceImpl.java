@@ -29,6 +29,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.qubership.integration.platform.engine.metadata.RouteType.isPrivateTriggerRoute;
+import static org.qubership.integration.platform.engine.metadata.RouteType.isPublicTriggerRoute;
+
 
 @Slf4j
 public class ControlPlaneServiceImpl implements ControlPlaneService {
@@ -81,11 +84,11 @@ public class ControlPlaneServiceImpl implements ControlPlaneService {
             List<RouteConfigurationResponse> routesList = controlPlaneRestService.getRouteConfiguration();
 
             List<String> publicPathsToRemove = paths.stream()
-                    .filter(pair -> pair.getRight() == RouteType.PRIVATE_TRIGGER
+                    .filter(pair -> isPublicTriggerRoute(pair.getRight())
                             || pair.getRight() == RouteType.INTERNAL_TRIGGER)
                     .map(Pair::getKey).toList();
             List<String> privatePathsToRemove = paths.stream()
-                    .filter(pair -> pair.getRight() == RouteType.EXTERNAL_TRIGGER
+                    .filter(pair -> isPrivateTriggerRoute(pair.getRight())
                             || pair.getRight() == RouteType.INTERNAL_TRIGGER)
                     .map(Pair::getKey).toList();
 
