@@ -100,8 +100,8 @@ jest.mock("../../src/components/services/ServicesTreeTable", () => ({
   allServicesTreeTableColumns: [{ key: "name" }, { key: "protocol" }],
   getActionsColumn: () => ({ key: "actions" }),
   getServiceActions: () => [],
-  isSpecification: () => false,
-  isSpecificationGroup: () => false,
+  isApi: () => false,
+  isApiGroup: () => false,
   isIntegrationSystem: (r: unknown) =>
     !!(r as { type?: string })?.type &&
     (r as { type: string }).type !== "CONTEXT",

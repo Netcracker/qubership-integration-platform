@@ -16,8 +16,14 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.system;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+
 public enum SystemModelSource {
+    // CUSTOMER_MANUAL left this enum in this release: nothing ever produced it, but archives written before the
+    // removal carry it and would fail to deserialize. The alias reads them as MANUAL, which is what they meant.
+    // Rows already in the database are remapped by the api-model-storage migration — Hibernate maps the column by
+    // enum name and never sees this annotation.
+    @JsonAlias("CUSTOMER_MANUAL")
     MANUAL,
-    DISCOVERED,
-    CUSTOMER_MANUAL
+    DISCOVERED
 }

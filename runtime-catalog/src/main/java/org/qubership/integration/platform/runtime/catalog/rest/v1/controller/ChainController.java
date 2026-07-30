@@ -183,14 +183,14 @@ public class ChainController {
 
     @GetMapping("/{systemId}/specificationGroup")
     @Operation(description = "Find chains (without elements) which elements is using specified service grouped by specification group")
-    public ResponseEntity<List<ChainsBySpecificationGroup>> findBySystemIdGroupBySpecificationGroup(
+    public ResponseEntity<List<ChainsByApiGroup>> findBySystemIdGroupBySpecificationGroup(
             @PathVariable @Parameter(description = "Service id") String systemId
     ) {
         if (log.isDebugEnabled()) {
             log.debug("Request to find chains by system {} with specification groups information", systemId);
         }
-        Map<String, List<Chain>> specGroupsChains = elementHelperService.findBySystemIdGroupBySpecificationGroup(systemId);
-        List<ChainsBySpecificationGroup> chainsDto = chainMapper.asChainsBySpecificationGroup(specGroupsChains);
+        Map<String, List<Chain>> apiGroupsChains = elementHelperService.findBySystemIdGroupBySpecificationGroup(systemId);
+        List<ChainsByApiGroup> chainsDto = chainMapper.asChainsByApiGroup(apiGroupsChains);
         return ResponseEntity.ok(chainsDto);
     }
 

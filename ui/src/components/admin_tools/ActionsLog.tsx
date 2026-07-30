@@ -59,8 +59,18 @@ const operationFilterOptions = Object.values(LogOperation).map((value) => ({
   value,
 }));
 
+// `capitalize` lowercases everything after the first letter, so an acronym renders as "Api group" without an
+// override. Values whose default formatting reads wrong are listed here.
+const ENTITY_TYPE_LABELS: Partial<Record<EntityType, string>> = {
+  [EntityType.API_GROUP]: "API group",
+};
+
+export function formatEntityType(value: EntityType): string {
+  return ENTITY_TYPE_LABELS[value] ?? formatSnakeCased(capitalize(value));
+}
+
 const entityTypeFilterOptions = Object.values(EntityType).map((value) => ({
-  label: formatSnakeCased(capitalize(value)),
+  label: formatEntityType(value),
   value,
 }));
 
@@ -102,7 +112,7 @@ export const EntityTypeIconsMap: { [key: string]: React.ReactNode } = {
   [EntityType.IMPLEMENTED_SERVICE]: <OverridableIcon name="cluster" />,
   [EntityType.ENVIRONMENT]: <OverridableIcon name="api" />,
   [EntityType.SPECIFICATION]: <OverridableIcon name="fileDone" />,
-  [EntityType.SPECIFICATION_GROUP]: <OverridableIcon name="group" />,
+  [EntityType.API_GROUP]: <OverridableIcon name="group" />,
 
   [EntityType.SECRET]: <OverridableIcon name="fileUnknown" />,
   [EntityType.SECURED_VARIABLE]: <OverridableIcon name="unorderedList" />,
@@ -154,8 +164,7 @@ const entityLinkMap: Partial<
   [EntityType.INNER_CLOUD_SERVICE]: (/*entityId*/) => `/not-implemented`,
   [EntityType.IMPLEMENTED_SERVICE]: (/*entityId*/) => `/not-implemented`,
   [EntityType.ENVIRONMENT]: (/*parentId*/) => `/not-implemented`,
-  [EntityType.SPECIFICATION_GROUP]: (/*entityId, parentId*/) =>
-    `/not-implemented`,
+  [EntityType.API_GROUP]: (/*entityId, parentId*/) => `/not-implemented`,
   [EntityType.SPECIFICATION]: () => "/not-implemented",
   //TODO end
   [EntityType.SECRET]: (_entityId, _parentId, entityName) =>
@@ -387,7 +396,7 @@ export const ActionsLog: React.FC = () => {
         render: (_, actionLog) => (
           <>
             {getIconByEntityType(actionLog.entityType)}
-            {formatSnakeCased(capitalize(actionLog.entityType))}
+            {formatEntityType(actionLog.entityType)}
           </>
         ),
       },
@@ -561,7 +570,7 @@ export const ActionsLog: React.FC = () => {
                 {currentActionLog.entityId}
               </Descriptions.Item>
               <Descriptions.Item label="Entity Type">
-                {capitalize(currentActionLog.entityType)}
+                {formatEntityType(currentActionLog.entityType)}
               </Descriptions.Item>
               <Descriptions.Item label="Entity Name">
                 {renderEntityLink(currentActionLog)}

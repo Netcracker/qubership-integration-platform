@@ -104,7 +104,7 @@ public class SystemExportImportService {
     private final ImportInstructionsService importInstructionsService;
     private final ElementHelperService elementHelperService;
     private final ChainService chainService;
-    private final SpecificationGroupService specificationGroupService;
+    private final ApiGroupService apiGroupService;
 
     @Value("${qip.export.remove-unused-specifications}")
     private boolean removeUnusedSpecs;
@@ -125,7 +125,7 @@ public class SystemExportImportService {
             ImportInstructionsService importInstructionsService,
             ElementHelperService elementHelperService,
             ChainService chainService,
-            SpecificationGroupService specificationGroupService
+            ApiGroupService apiGroupService
     ) {
         this.transactionTemplate = transactionTemplate;
         this.yamlMapper = yamlExportImportMapper;
@@ -141,13 +141,13 @@ public class SystemExportImportService {
         this.importInstructionsService = importInstructionsService;
         this.elementHelperService = elementHelperService;
         this.chainService = chainService;
-        this.specificationGroupService = specificationGroupService;
+        this.apiGroupService = apiGroupService;
     }
 
     private void removeUnusedSpecifications(IntegrationSystem integrationSystem, List<String> usedSystemModelIds) {
-        List<SpecificationGroup> specificationGroupToRemove = new ArrayList<>();
+        List<ApiGroup> specificationGroupToRemove = new ArrayList<>();
 
-        for (SpecificationGroup specificationGroup : integrationSystem.getSpecificationGroups()) {
+        for (ApiGroup specificationGroup : integrationSystem.getApiGroups()) {
             List<SystemModel> systemModelsToRemove = new ArrayList<>();
 
             for (SystemModel systemModel : specificationGroup.getSystemModels()) {
@@ -163,7 +163,7 @@ public class SystemExportImportService {
             }
         }
 
-        integrationSystem.getSpecificationGroups().removeAll(specificationGroupToRemove);
+        integrationSystem.getApiGroups().removeAll(specificationGroupToRemove);
     }
 
     private ExportedSystemObject exportOneSystem(IntegrationSystem system, List<String> usedSystemModelIds) {
@@ -475,8 +475,8 @@ public class SystemExportImportService {
         } else {
             status = ImportSystemStatus.CREATED;
             prepareIntegrationSystemForCreate(system, deployLabel, messageHandler);
-            system.getSpecificationGroups().stream()
-                    .map(SpecificationGroup::getSystemModels)
+            system.getApiGroups().stream()
+                    .map(ApiGroup::getSystemModels)
                     .flatMap(Collection::stream)
                     .forEach(newSystemModels::add);
         }
@@ -516,7 +516,7 @@ public class SystemExportImportService {
 
     private void touchSystemFields(IntegrationSystem system) {
         system.getEnvironments().forEach(auditingHandler::markModified);
-        system.getSpecificationGroups().forEach(specificationGroup -> {
+        system.getApiGroups().forEach(specificationGroup -> {
             auditingHandler.markModified(specificationGroup);
             specificationGroup.getSystemModels().forEach(systemModel -> {
                 auditingHandler.markModified(systemModel);
@@ -588,10 +588,10 @@ public class SystemExportImportService {
             Set<String> technicalLabelsToAdd = technicalLabels.stream().filter(labelName -> newSystem.getLabels().stream().filter(AbstractLabel::isTechnical).noneMatch(l -> l.getName().equals(labelName))).collect(Collectors.toSet());
             technicalLabelsToAdd.forEach(labelName -> newSystem.addLabel(new IntegrationSystemLabel(labelName, newSystem, true)));
         }
-        newSystem.getSpecificationGroups().forEach(group -> replaceSpecificationGroupTechnicalLabels(group, technicalLabels));
+        newSystem.getApiGroups().forEach(group -> replaceSpecificationGroupTechnicalLabels(group, technicalLabels));
     }
 
-    private void replaceSpecificationGroupTechnicalLabels(SpecificationGroup specificationGroup, Set<String> technicalLabels) {
+    private void replaceSpecificationGroupTechnicalLabels(ApiGroup specificationGroup, Set<String> technicalLabels) {
         if (!CollectionUtils.isEmpty(technicalLabels)) {
             // Remove absent labels from db
             specificationGroup.getLabels().removeIf(label -> label.isTechnical() && !technicalLabels.contains(label.getName()));
@@ -599,9 +599,9 @@ public class SystemExportImportService {
             Set<String> currentSystemTechnicalLabels = specificationGroup.getLabels().stream().filter(AbstractLabel::isTechnical).map(AbstractLabel::getName).collect(Collectors.toSet());
             Set<String> technicalLabelsToAdd = technicalLabels.stream().filter(labelName -> !currentSystemTechnicalLabels.contains(labelName)).collect(Collectors.toSet());
 
-            technicalLabelsToAdd.forEach(labelName -> specificationGroup.addLabel(new SpecificationGroupLabel(labelName, specificationGroup, true)));
+            technicalLabelsToAdd.forEach(labelName -> specificationGroup.addLabel(new ApiGroupLabel(labelName, specificationGroup, true)));
         } else {
-            specificationGroup.getLabels().removeIf(SpecificationGroupLabel::isTechnical);
+            specificationGroup.getLabels().removeIf(ApiGroupLabel::isTechnical);
         }
         specificationGroup.getSystemModels().forEach(systemModel -> replaceSpecificationTechnicalLabels(systemModel, technicalLabels));
     }
@@ -628,17 +628,17 @@ public class SystemExportImportService {
         Collection<SystemModel> addedNewModels = new ArrayList<>();
 
         Map<String, SystemModel> oldModelsIdFlatMap = new HashMap<>();
-        Map<String, SpecificationGroup> oldSpecGroupsIdMap = new HashMap<>(oldSystem.getSpecificationGroups().size());
-        Map<String, SpecificationGroup> oldSpecGroupsNameMap = new HashMap<>(oldSystem.getSpecificationGroups().size());
-        for (SpecificationGroup oldGroup : oldSystem.getSpecificationGroups()) {
+        Map<String, ApiGroup> oldSpecGroupsIdMap = HashMap.newHashMap(oldSystem.getApiGroups().size());
+        Map<String, ApiGroup> oldSpecGroupsNameMap = HashMap.newHashMap(oldSystem.getApiGroups().size());
+        for (ApiGroup oldGroup : oldSystem.getApiGroups()) {
             oldModelsIdFlatMap.putAll(oldGroup.getSystemModels().stream().collect(Collectors.toMap(SystemModel::getId, Function.identity())));
             oldSpecGroupsIdMap.put(oldGroup.getId(), oldGroup);
             oldSpecGroupsNameMap.put(oldGroup.getName(), oldGroup);
         }
 
-        for (Iterator<SpecificationGroup> newSpecGroupIterator = newSystem.getSpecificationGroups().iterator(); newSpecGroupIterator.hasNext(); ) {
-            SpecificationGroup newSpecGroup = newSpecGroupIterator.next();
-            SpecificationGroup sameOldSpecGroup = null;
+        for (Iterator<ApiGroup> newSpecGroupIterator = newSystem.getApiGroups().iterator(); newSpecGroupIterator.hasNext(); ) {
+            ApiGroup newSpecGroup = newSpecGroupIterator.next();
+            ApiGroup sameOldSpecGroup = null;
             // <name, spec>
             Map<String, SystemModel> oldSpecGroupModelsNameMap = null;
 
@@ -680,7 +680,7 @@ public class SystemExportImportService {
                                 ? ("It already exists in specification group '" + sameOldSpecGroup.getName() + "'. ")
                                 : ("Specification with same version and different file(s) content already exists. ");
                         messageHandler.accept(SPECIFICATION_EXISTS_ERROR_MESSAGE_START + newSpecGroupModel.getName()
-                                              + "' from group '" + newSpecGroupModel.getSpecificationGroup().getName()
+                                              + "' from group '" + newSpecGroupModel.getApiGroup().getName()
                                               + SPECIFICATION_EXISTS_ERROR_MESSAGE_END + warnMessage);
                     } else {
                         // spec has a unique name in a group
@@ -712,7 +712,7 @@ public class SystemExportImportService {
         specification.addLabels(newLabels);
     }
 
-    private void addUniqueSpecificationGroupLabels(SpecificationGroup specGroup, Set<SpecificationGroupLabel> newLabels) {
+    private void addUniqueSpecificationGroupLabels(ApiGroup specGroup, Set<ApiGroupLabel> newLabels) {
         if (CollectionUtils.isEmpty(newLabels)) {
             return;
         }
@@ -726,16 +726,16 @@ public class SystemExportImportService {
     }
 
     private void addSuffixToSpecificationGroupName(
-            SpecificationGroup group,
+            ApiGroup group,
             IntegrationSystem oldSystem,
             IntegrationSystem newSystem
     ) {
         int counter = 0;
         String name = null;
         Set<String> existingNames = Stream.of(oldSystem, newSystem)
-                .map(IntegrationSystem::getSpecificationGroups)
+                .map(IntegrationSystem::getApiGroups)
                 .flatMap(Collection::stream)
-                .map(SpecificationGroup::getName)
+                .map(ApiGroup::getName)
                 .collect(Collectors.toSet());
         while (isNull(name) || existingNames.contains(name)) {
             counter++;
@@ -754,7 +754,7 @@ public class SystemExportImportService {
     }
 
     private void changeDiscoveredSourceLabels(IntegrationSystem system, boolean isNewSystem) {
-        for (SpecificationGroup specificationGroup : system.getSpecificationGroups()) {
+        for (ApiGroup specificationGroup : system.getApiGroups()) {
             for (SystemModel systemModel : specificationGroup.getSystemModels()) {
                 SystemModelSource modelSourceType = systemModel.getSource();
                 if (modelSourceType == null
@@ -822,18 +822,18 @@ public class SystemExportImportService {
 
     private void checkSpecificationUniqueness(IntegrationSystem system) {
         // check specification groups
-        if (isNotUniqueByName(system.getSpecificationGroups())) {
+        if (isNotUniqueByName(system.getApiGroups())) {
             throw new DuplicateKeyException("Specification group with not unique name found");
         }
 
         // check specifications
-        for (SpecificationGroup specificationGroup : system.getSpecificationGroups()) {
+        for (ApiGroup specificationGroup : system.getApiGroups()) {
             if (isNotUniqueByName(specificationGroup.getSystemModels())) {
                 throw new DuplicateKeyException("Specification with not unique version found in specification group " + specificationGroup.getName());
             }
         }
 
-        specificationGroupService.checkSpecificationGroupUniqueness(system);
+        apiGroupService.checkSpecificationGroupUniqueness(system);
         systemModelService.checkSystemModelUniqueness(system);
     }
 

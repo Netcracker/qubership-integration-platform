@@ -263,10 +263,10 @@ class SystemFilterSpecificationBuilderTest {
         @Test
         @DisplayName("Should throw IllegalStateException for unsupported ContextSystem features")
         void shouldThrowExceptionForUnsupportedFeature() {
-            // Given - SPECIFICATION_GROUP is valid for IntegrationSystem but NOT for
+            // Given - API_GROUP is valid for IntegrationSystem but NOT for
             // ContextSystem
             var filter = FilterRequestDTO.builder()
-                    .feature(FilterFeature.SPECIFICATION_GROUP)
+                    .feature(FilterFeature.API_GROUP)
                     .condition(FilterCondition.IS)
                     .value("test")
                     .build();
@@ -275,7 +275,7 @@ class SystemFilterSpecificationBuilderTest {
             var spec = builder.buildContextFilter(List.of(filter));
             assertThatThrownBy(() -> spec.toPredicate(root, query, criteriaBuilder))
                     .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("Unexpected feature value: SPECIFICATION_GROUP");
+                    .hasMessageContaining("Unexpected feature value: API_GROUP");
         }
     }
 }

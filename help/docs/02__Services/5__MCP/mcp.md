@@ -58,7 +58,7 @@ To create any service using VS Code Extension, follow the steps outlined below:
 Parameters tab contains the following information:
 - **Name** - mandatory service name.
 - **Description** - description of service.
-- **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
+- **Labels** - list of colored labels of the service, API group or specification, unique within particular entity of each type.
   It might contain **custom** labels, entered by user via Qubership Integration Platform UI or **technical** labels,
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
   **Technical** labels cannot be updated manually.

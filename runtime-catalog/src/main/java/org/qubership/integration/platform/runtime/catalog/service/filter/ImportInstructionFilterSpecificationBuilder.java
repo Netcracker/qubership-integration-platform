@@ -18,17 +18,22 @@ package org.qubership.integration.platform.runtime.catalog.service.filter;
 
 import jakarta.persistence.criteria.*;
 import org.apache.commons.collections4.CollectionUtils;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportEntityType;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.instructions.ImportInstruction;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 @Component
 public class ImportInstructionFilterSpecificationBuilder {
+
+    private static final String LEGACY_API_GROUP_VALUE = "SPECIFICATION_GROUP";
 
     private final FilterConditionPredicateBuilderFactory filterConditionPredicateBuilderFactory;
 
@@ -75,7 +80,7 @@ public class ImportInstructionFilterSpecificationBuilder {
         String filterValue = filter.getValue();
         return switch (filter.getFeature()) {
             case ID -> conditionPredicateBuilder.apply(root.get("id"), filterValue);
-            case ENTITY_TYPE -> conditionPredicateBuilder.apply(root.get("entityType"), filterValue);
+            case ENTITY_TYPE -> conditionPredicateBuilder.apply(root.get("entityType"), normalizeEntityTypeFilterValue(filterValue));
             case INSTRUCTION_ACTION -> conditionPredicateBuilder.apply(root.get("action"), filterValue);
             case OVERRIDDEN_BY -> conditionPredicateBuilder.apply(root.get("overriddenBy"), filterValue);
             case LABELS -> {
@@ -91,6 +96,19 @@ public class ImportInstructionFilterSpecificationBuilder {
             case MODIFIED_WHEN -> conditionPredicateBuilder.apply(root.get("modifiedWhen"), filterValue);
             default -> throw new IllegalStateException("Unexpected feature value: " + filter.getFeature());
         };
+    }
+
+    // The column is compared as a raw string, so a filter value predating the rename needs the same translation.
+    // IN and NOT_IN split the value on commas downstream, so every element is translated, not just a lone one.
+    private static String normalizeEntityTypeFilterValue(String value) {
+        if (value == null || !value.contains(LEGACY_API_GROUP_VALUE)) {
+            return value;
+        }
+        return Arrays.stream(value.split(",", -1))
+                .map(element -> LEGACY_API_GROUP_VALUE.equals(element.trim())
+                        ? ImportEntityType.API_GROUP.name()
+                        : element)
+                .collect(Collectors.joining(","));
     }
 
     private Join<ImportInstruction, ?> getJoin(Root<ImportInstruction> root, String attributeName) {

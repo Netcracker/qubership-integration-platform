@@ -17,13 +17,13 @@
 package org.qubership.integration.platform.runtime.catalog.service.codegen;
 
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 
 public class PackageNameUtil {
     public static String buildPackageName(String basePackage, SystemModel model) {
-        SpecificationGroup specificationGroup = model.getSpecificationGroup();
+        ApiGroup specificationGroup = model.getApiGroup();
         IntegrationSystem system = specificationGroup.getSystem();
         String systemPackageName = buildPackageName(system.getName(), "system", "system_");
         String groupPackageName = buildPackageName(specificationGroup.getName(), "group", "group_");

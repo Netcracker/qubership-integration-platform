@@ -112,6 +112,15 @@ public class FileMigrationService {
         return documentNode;
     }
 
+    /**
+     * Whether the export writes the legacy file format. This service owns the revert decision, so a caller whose
+     * branch has to agree with the shape of the reverted node reads the flag from here instead of injecting its own
+     * copy of the property.
+     */
+    public boolean isLegacyExport() {
+        return isLegacyExport;
+    }
+
     public ObjectNode revertMigrationIfNeeded(ObjectNode node) {
         if (node == null) {
             return null;

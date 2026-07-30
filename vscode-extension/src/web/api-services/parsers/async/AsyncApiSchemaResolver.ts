@@ -9,6 +9,8 @@ const DEFINITIONS_PREFIX = "#/definitions/";
 const SCHEMA_ID_DOMAIN = "http://system.catalog/schemas/";
 const PAYLOAD_FIELD_NAME = "payload";
 const HEADERS_FIELD_NAME = "headers";
+const NAME_FIELD_NAME = "name";
+const CONTENT_TYPE_FIELD_NAME = "contentType";
 const TYPE_FIELD_NAME = "type";
 const ITEMS_FIELD_NAME = "items";
 const PROPERTIES_FIELD_NAME = "properties";
@@ -38,6 +40,11 @@ export class AsyncApiSchemaResolver {
     const clonedComponents = deepClone(components);
     const schemaNode = this.getSchemaNode(schemaRef, clonedComponents);
     this.convertPayloadToSchemaNode(schemaNode);
+    // A message whose whole payload is a bare `{$ref}` (common for
+    // component-schema-backed messages) is fully dereferenced here, not
+    // left as a `$ref`/`definitions` indirection — only refs nested inside
+    // properties/items get that treatment (via getNestedRefs below).
+    this.inlineBareRef(schemaNode, clonedComponents);
 
     const schemaRefs = this.getNestedRefs(
       schemaNode,
@@ -94,6 +101,20 @@ export class AsyncApiSchemaResolver {
     if (componentNode[HEADERS_FIELD_NAME] !== undefined) {
       delete componentNode[HEADERS_FIELD_NAME];
     }
+    // Message metadata, not schema content — the backend never carries
+    // these into the resolved JSON schema.
+    delete componentNode[NAME_FIELD_NAME];
+    delete componentNode[CONTENT_TYPE_FIELD_NAME];
+  }
+
+  private inlineBareRef(schemaNode: JsonValue, componentsNode: JsonValue): void {
+    if (!isObject(schemaNode) || typeof schemaNode[REF_FIELD_NAME] !== "string") {
+      return;
+    }
+    const ref = schemaNode[REF_FIELD_NAME] as string;
+    const resolved = this.getSchemaNodeFromComponents(ref, componentsNode);
+    delete schemaNode[REF_FIELD_NAME];
+    Object.assign(schemaNode, resolved);
   }
 
   private getResolvedSchema(

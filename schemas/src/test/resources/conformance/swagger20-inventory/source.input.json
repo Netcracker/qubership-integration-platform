@@ -1,0 +1,72 @@
+{
+  "swagger": "2.0",
+  "info": { "title": "Inventory API", "version": "1.4.0" },
+  "basePath": "/v1",
+  "consumes": ["application/json"],
+  "produces": ["application/json"],
+  "paths": {
+    "/products": {
+      "get": {
+        "operationId": "listProducts",
+        "summary": "List products",
+        "parameters": [
+          { "name": "category", "in": "query", "type": "string" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Products",
+            "schema": { "type": "array", "items": { "$ref": "#/definitions/Product" } }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProduct",
+        "summary": "Create product",
+        "parameters": [
+          { "name": "body", "in": "body", "required": true, "schema": { "$ref": "#/definitions/Product" } }
+        ],
+        "responses": {
+          "201": { "description": "Created", "schema": { "$ref": "#/definitions/Product" } },
+          "400": { "description": "Bad request", "schema": { "$ref": "#/definitions/ApiError" } }
+        }
+      }
+    },
+    "/products/{sku}": {
+      "get": {
+        "operationId": "getProduct",
+        "parameters": [
+          { "name": "sku", "in": "path", "required": true, "type": "string" }
+        ],
+        "responses": {
+          "200": { "description": "Product", "schema": { "$ref": "#/definitions/Product" } },
+          "404": { "description": "Not found", "schema": { "$ref": "#/definitions/ApiError" } }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "Product": {
+      "type": "object",
+      "required": ["sku", "name"],
+      "properties": {
+        "sku": { "type": "string" },
+        "name": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "dimensions": {
+          "type": "object",
+          "properties": {
+            "width": { "type": "number" },
+            "height": { "type": "number" }
+          }
+        }
+      }
+    },
+    "ApiError": {
+      "type": "object",
+      "properties": {
+        "status": { "type": "integer" },
+        "detail": { "type": "string" }
+      }
+    }
+  }
+}

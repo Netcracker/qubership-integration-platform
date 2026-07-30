@@ -1,0 +1,1004 @@
+{
+    "typed": {
+        "type": "openapi",
+        "summary": "List assets",
+        "path": "/assets",
+        "method": "get",
+        "isDeprecated": null
+    },
+    "path": "/assets",
+    "method": "GET",
+    "modelId": "dc4cc3d4-83bc-46da-b536-7f5d41ba67c0-01-aperture-dam-3.1-2.4.0",
+    "sourceHash": "899ecc3509273442ff0718c33f3ca2c3f5c227c1109eafdc985d64c535596514",
+    "operationId": "listAssets",
+    "requestSchema": {
+        "parameters": [
+            {
+                "$ref": "#/components/parameters/PageCursor"
+            },
+            {
+                "$ref": "#/components/parameters/PageLimit"
+            },
+            {
+                "in": "query",
+                "name": "type",
+                "style": "form",
+                "schema": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/components/schemas/AssetKind"
+                    },
+                    "uniqueItems": true
+                },
+                "explode": false,
+                "required": false,
+                "description": "Filter by one or more asset kinds."
+            },
+            {
+                "in": "query",
+                "name": "tags",
+                "style": "deepObject",
+                "schema": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "explode": true,
+                "required": false,
+                "description": "Deep-object tag filters, e.g. tags[color]=red."
+            },
+            {
+                "in": "query",
+                "name": "createdAfter",
+                "style": "form",
+                "schema": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "explode": true,
+                "required": false
+            }
+        ]
+    },
+    "specification": {
+        "tags": [
+            "Assets"
+        ],
+        "summary": "List assets",
+        "security": [
+            {
+                "oauth2ClientCreds": [
+                    "assets.read"
+                ]
+            },
+            {
+                "apiKey": [
+                ]
+            }
+        ],
+        "responses": {
+            "200": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/AssetPage"
+                        },
+                        "examples": {
+                            "mixedPage": {
+                                "$ref": "#/components/examples/MixedAssetPage"
+                            }
+                        }
+                    },
+                    "application/vnd.aperture.compact+json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/AssetPage"
+                        }
+                    }
+                },
+                "headers": {
+                    "X-Total-Count": {
+                        "$ref": "#/components/headers/XTotalCount"
+                    },
+                    "X-RateLimit-Remaining": {
+                        "$ref": "#/components/headers/XRateLimitRemaining"
+                    }
+                },
+                "description": "A page of assets."
+            },
+            "4XX": {
+                "$ref": "#/components/responses/ClientError"
+            },
+            "5XX": {
+                "$ref": "#/components/responses/ServerError"
+            }
+        },
+        "parameters": [
+            {
+                "$ref": "#/components/parameters/PageCursor"
+            },
+            {
+                "$ref": "#/components/parameters/PageLimit"
+            },
+            {
+                "in": "query",
+                "name": "type",
+                "style": "form",
+                "schema": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/components/schemas/AssetKind"
+                    },
+                    "uniqueItems": true
+                },
+                "explode": false,
+                "required": false,
+                "description": "Filter by one or more asset kinds."
+            },
+            {
+                "in": "query",
+                "name": "tags",
+                "style": "deepObject",
+                "schema": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "explode": true,
+                "required": false,
+                "description": "Deep-object tag filters, e.g. tags[color]=red."
+            },
+            {
+                "in": "query",
+                "name": "createdAfter",
+                "style": "form",
+                "schema": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "explode": true,
+                "required": false
+            }
+        ],
+        "operationId": "listAssets"
+    },
+    "responseSchemas": {
+        "200": {
+            "application/json": {
+                "$id": "http://system.catalog/schemas/#/components/schemas/AssetPage",
+                "type": "object",
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "required": [
+                    "data",
+                    "page"
+                ],
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/definitions/Asset"
+                        }
+                    },
+                    "page": {
+                        "type": "object",
+                        "required": [
+                            "limit"
+                        ],
+                        "properties": {
+                            "limit": {
+                                "type": "integer"
+                            },
+                            "nextCursor": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "prevCursor": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+                "definitions": {
+                    "Asset": {
+                        "type": "object",
+                        "oneOf": [
+                            {
+                                "$ref": "#/definitions/ImageAsset"
+                            },
+                            {
+                                "$ref": "#/definitions/VideoAsset"
+                            },
+                            {
+                                "$ref": "#/definitions/AudioAsset"
+                            },
+                            {
+                                "$ref": "#/definitions/DocumentAsset"
+                            }
+                        ],
+                        "required": [
+                            "kind"
+                        ],
+                        "description": "Polymorphic asset; concrete shape selected by `kind`.",
+                        "discriminator": {
+                            "mapping": {
+                                "audio": "#/components/schemas/AudioAsset",
+                                "image": "#/components/schemas/ImageAsset",
+                                "video": "#/components/schemas/VideoAsset",
+                                "document": "#/components/schemas/DocumentAsset"
+                            },
+                            "propertyName": "kind"
+                        }
+                    },
+                    "AssetBase": {
+                        "type": "object",
+                        "required": [
+                            "createdAt",
+                            "id",
+                            "kind",
+                            "status"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+                                "readOnly": true
+                            },
+                            "kind": {
+                                "$ref": "#/definitions/AssetKind"
+                            },
+                            "tags": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "uniqueItems": true
+                            },
+                            "title": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 255
+                            },
+                            "custom": {
+                                "type": "object",
+                                "description": "Arbitrary tenant metadata.",
+                                "additionalProperties": true
+                            },
+                            "status": {
+                                "enum": [
+                                    "pending",
+                                    "processing",
+                                    "ready",
+                                    "failed"
+                                ],
+                                "type": "string"
+                            },
+                            "checksums": {
+                                "type": "object",
+                                "propertyNames": {
+                                    "enum": [
+                                        "sha256",
+                                        "md5",
+                                        "crc32"
+                                    ],
+                                    "type": "string"
+                                },
+                                "additionalProperties": {
+                                    "type": "string"
+                                }
+                            },
+                            "createdAt": {
+                                "type": "string",
+                                "format": "date-time",
+                                "readOnly": true
+                            },
+                            "updatedAt": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "format": "date-time",
+                                "readOnly": true
+                            },
+                            "notificationUrl": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "format": "uri",
+                                "description": "Where async callbacks are delivered."
+                            }
+                        },
+                        "unevaluatedProperties": false
+                    },
+                    "AssetKind": {
+                        "enum": [
+                            "image",
+                            "video",
+                            "audio",
+                            "document"
+                        ],
+                        "type": "string"
+                    },
+                    "AudioAsset": {
+                        "allOf": [
+                            {
+                                "$ref": "#/definitions/AssetBase"
+                            },
+                            {
+                                "type": "object",
+                                "required": [
+                                    "durationSeconds",
+                                    "kind",
+                                    "sampleRateHz"
+                                ],
+                                "properties": {
+                                    "kind": {
+                                        "const": "audio"
+                                    },
+                                    "channels": {
+                                        "type": "integer",
+                                        "maximum": 8,
+                                        "minimum": 1
+                                    },
+                                    "sampleRateHz": {
+                                        "enum": [
+                                            44100,
+                                            48000,
+                                            96000,
+                                            192000
+                                        ],
+                                        "type": "integer"
+                                    },
+                                    "durationSeconds": {
+                                        "type": "number",
+                                        "exclusiveMinimum": 0
+                                    }
+                                },
+                                "unevaluatedProperties": false
+                            }
+                        ]
+                    },
+                    "AudioTrack": {
+                        "type": "object",
+                        "required": [
+                            "codec",
+                            "language"
+                        ],
+                        "properties": {
+                            "codec": {
+                                "enum": [
+                                    "aac",
+                                    "opus",
+                                    "mp3",
+                                    "flac"
+                                ],
+                                "type": "string"
+                            },
+                            "language": {
+                                "type": "string",
+                                "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+                            },
+                            "isDefault": {
+                                "type": "boolean"
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "Dimensions": {
+                        "type": "object",
+                        "required": [
+                            "height",
+                            "width"
+                        ],
+                        "properties": {
+                            "width": {
+                                "type": "integer",
+                                "minimum": 1
+                            },
+                            "height": {
+                                "type": "integer",
+                                "minimum": 1
+                            },
+                            "aspectRatio": {
+                                "type": "array",
+                                "items": false,
+                                "description": "Tuple of [horizontal, vertical].",
+                                "prefixItems": [
+                                    {
+                                        "type": "integer",
+                                        "minimum": 1
+                                    },
+                                    {
+                                        "type": "integer",
+                                        "minimum": 1
+                                    }
+                                ]
+                            }
+                        },
+                        "description": "Width/height pair plus optional aspect ratio (prefixItems tuple).",
+                        "additionalProperties": false
+                    },
+                    "ImageAsset": {
+                        "allOf": [
+                            {
+                                "$ref": "#/definitions/AssetBase"
+                            },
+                            {
+                                "type": "object",
+                                "required": [
+                                    "colorSpace",
+                                    "dimensions",
+                                    "kind"
+                                ],
+                                "properties": {
+                                    "kind": {
+                                        "const": "image"
+                                    },
+                                    "hasAlpha": {
+                                        "type": "boolean",
+                                        "default": false
+                                    },
+                                    "colorSpace": {
+                                        "enum": [
+                                            "srgb",
+                                            "display-p3",
+                                            "adobe-rgb",
+                                            "cmyk"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    "dimensions": {
+                                        "$ref": "#/definitions/Dimensions"
+                                    },
+                                    "dominantColors": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "pattern": "^#(?:[0-9a-fA-F]{3}){1,2}$"
+                                        },
+                                        "maxItems": 8
+                                    }
+                                },
+                                "dependentRequired": {
+                                    "hasAlpha": [
+                                        "colorSpace"
+                                    ]
+                                },
+                                "unevaluatedProperties": false
+                            }
+                        ]
+                    },
+                    "VideoAsset": {
+                        "allOf": [
+                            {
+                                "$ref": "#/definitions/AssetBase"
+                            },
+                            {
+                                "if": {
+                                    "properties": {
+                                        "codec": {
+                                            "const": "av1"
+                                        }
+                                    }
+                                },
+                                "then": {
+                                    "required": [
+                                        "frameRate"
+                                    ]
+                                },
+                                "type": "object",
+                                "required": [
+                                    "codec",
+                                    "dimensions",
+                                    "durationSeconds",
+                                    "kind"
+                                ],
+                                "properties": {
+                                    "kind": {
+                                        "const": "video"
+                                    },
+                                    "codec": {
+                                        "enum": [
+                                            "h264",
+                                            "h265",
+                                            "av1",
+                                            "vp9"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    "frameRate": {
+                                        "type": "number",
+                                        "maximum": 240,
+                                        "minimum": 1
+                                    },
+                                    "dimensions": {
+                                        "$ref": "#/definitions/Dimensions"
+                                    },
+                                    "audioTracks": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/definitions/AudioTrack"
+                                        },
+                                        "contains": {
+                                            "$ref": "#/components/schemas/AudioTrack"
+                                        },
+                                        "minContains": 0
+                                    },
+                                    "durationSeconds": {
+                                        "type": "number",
+                                        "exclusiveMinimum": 0
+                                    }
+                                },
+                                "unevaluatedProperties": false
+                            }
+                        ]
+                    },
+                    "DocumentAsset": {
+                        "allOf": [
+                            {
+                                "$ref": "#/definitions/AssetBase"
+                            },
+                            {
+                                "type": "object",
+                                "required": [
+                                    "kind",
+                                    "mimeType",
+                                    "pageCount"
+                                ],
+                                "properties": {
+                                    "kind": {
+                                        "const": "document"
+                                    },
+                                    "mimeType": {
+                                        "type": "string"
+                                    },
+                                    "pageCount": {
+                                        "type": "integer",
+                                        "minimum": 1
+                                    },
+                                    "extractedText": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "contentMediaType": "text/plain"
+                                    }
+                                },
+                                "unevaluatedProperties": false
+                            }
+                        ]
+                    }
+                },
+                "additionalProperties": false
+            },
+            "application/vnd.aperture.compact+json": {
+                "$id": "http://system.catalog/schemas/#/components/schemas/AssetPage",
+                "type": "object",
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "required": [
+                    "data",
+                    "page"
+                ],
+                "properties": {
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/definitions/Asset"
+                        }
+                    },
+                    "page": {
+                        "type": "object",
+                        "required": [
+                            "limit"
+                        ],
+                        "properties": {
+                            "limit": {
+                                "type": "integer"
+                            },
+                            "nextCursor": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "prevCursor": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+                "definitions": {
+                    "Asset": {
+                        "type": "object",
+                        "oneOf": [
+                            {
+                                "$ref": "#/definitions/ImageAsset"
+                            },
+                            {
+                                "$ref": "#/definitions/VideoAsset"
+                            },
+                            {
+                                "$ref": "#/definitions/AudioAsset"
+                            },
+                            {
+                                "$ref": "#/definitions/DocumentAsset"
+                            }
+                        ],
+                        "required": [
+                            "kind"
+                        ],
+                        "description": "Polymorphic asset; concrete shape selected by `kind`.",
+                        "discriminator": {
+                            "mapping": {
+                                "audio": "#/components/schemas/AudioAsset",
+                                "image": "#/components/schemas/ImageAsset",
+                                "video": "#/components/schemas/VideoAsset",
+                                "document": "#/components/schemas/DocumentAsset"
+                            },
+                            "propertyName": "kind"
+                        }
+                    },
+                    "AssetBase": {
+                        "type": "object",
+                        "required": [
+                            "createdAt",
+                            "id",
+                            "kind",
+                            "status"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+                                "readOnly": true
+                            },
+                            "kind": {
+                                "$ref": "#/definitions/AssetKind"
+                            },
+                            "tags": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "uniqueItems": true
+                            },
+                            "title": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 255
+                            },
+                            "custom": {
+                                "type": "object",
+                                "description": "Arbitrary tenant metadata.",
+                                "additionalProperties": true
+                            },
+                            "status": {
+                                "enum": [
+                                    "pending",
+                                    "processing",
+                                    "ready",
+                                    "failed"
+                                ],
+                                "type": "string"
+                            },
+                            "checksums": {
+                                "type": "object",
+                                "propertyNames": {
+                                    "enum": [
+                                        "sha256",
+                                        "md5",
+                                        "crc32"
+                                    ],
+                                    "type": "string"
+                                },
+                                "additionalProperties": {
+                                    "type": "string"
+                                }
+                            },
+                            "createdAt": {
+                                "type": "string",
+                                "format": "date-time",
+                                "readOnly": true
+                            },
+                            "updatedAt": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "format": "date-time",
+                                "readOnly": true
+                            },
+                            "notificationUrl": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "format": "uri",
+                                "description": "Where async callbacks are delivered."
+                            }
+                        },
+                        "unevaluatedProperties": false
+                    },
+                    "AssetKind": {
+                        "enum": [
+                            "image",
+                            "video",
+                            "audio",
+                            "document"
+                        ],
+                        "type": "string"
+                    },
+                    "AudioAsset": {
+                        "allOf": [
+                            {
+                                "$ref": "#/definitions/AssetBase"
+                            },
+                            {
+                                "type": "object",
+                                "required": [
+                                    "durationSeconds",
+                                    "kind",
+                                    "sampleRateHz"
+                                ],
+                                "properties": {
+                                    "kind": {
+                                        "const": "audio"
+                                    },
+                                    "channels": {
+                                        "type": "integer",
+                                        "maximum": 8,
+                                        "minimum": 1
+                                    },
+                                    "sampleRateHz": {
+                                        "enum": [
+                                            44100,
+                                            48000,
+                                            96000,
+                                            192000
+                                        ],
+                                        "type": "integer"
+                                    },
+                                    "durationSeconds": {
+                                        "type": "number",
+                                        "exclusiveMinimum": 0
+                                    }
+                                },
+                                "unevaluatedProperties": false
+                            }
+                        ]
+                    },
+                    "AudioTrack": {
+                        "type": "object",
+                        "required": [
+                            "codec",
+                            "language"
+                        ],
+                        "properties": {
+                            "codec": {
+                                "enum": [
+                                    "aac",
+                                    "opus",
+                                    "mp3",
+                                    "flac"
+                                ],
+                                "type": "string"
+                            },
+                            "language": {
+                                "type": "string",
+                                "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+                            },
+                            "isDefault": {
+                                "type": "boolean"
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "Dimensions": {
+                        "type": "object",
+                        "required": [
+                            "height",
+                            "width"
+                        ],
+                        "properties": {
+                            "width": {
+                                "type": "integer",
+                                "minimum": 1
+                            },
+                            "height": {
+                                "type": "integer",
+                                "minimum": 1
+                            },
+                            "aspectRatio": {
+                                "type": "array",
+                                "items": false,
+                                "description": "Tuple of [horizontal, vertical].",
+                                "prefixItems": [
+                                    {
+                                        "type": "integer",
+                                        "minimum": 1
+                                    },
+                                    {
+                                        "type": "integer",
+                                        "minimum": 1
+                                    }
+                                ]
+                            }
+                        },
+                        "description": "Width/height pair plus optional aspect ratio (prefixItems tuple).",
+                        "additionalProperties": false
+                    },
+                    "ImageAsset": {
+                        "allOf": [
+                            {
+                                "$ref": "#/definitions/AssetBase"
+                            },
+                            {
+                                "type": "object",
+                                "required": [
+                                    "colorSpace",
+                                    "dimensions",
+                                    "kind"
+                                ],
+                                "properties": {
+                                    "kind": {
+                                        "const": "image"
+                                    },
+                                    "hasAlpha": {
+                                        "type": "boolean",
+                                        "default": false
+                                    },
+                                    "colorSpace": {
+                                        "enum": [
+                                            "srgb",
+                                            "display-p3",
+                                            "adobe-rgb",
+                                            "cmyk"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    "dimensions": {
+                                        "$ref": "#/definitions/Dimensions"
+                                    },
+                                    "dominantColors": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "pattern": "^#(?:[0-9a-fA-F]{3}){1,2}$"
+                                        },
+                                        "maxItems": 8
+                                    }
+                                },
+                                "dependentRequired": {
+                                    "hasAlpha": [
+                                        "colorSpace"
+                                    ]
+                                },
+                                "unevaluatedProperties": false
+                            }
+                        ]
+                    },
+                    "VideoAsset": {
+                        "allOf": [
+                            {
+                                "$ref": "#/definitions/AssetBase"
+                            },
+                            {
+                                "if": {
+                                    "properties": {
+                                        "codec": {
+                                            "const": "av1"
+                                        }
+                                    }
+                                },
+                                "then": {
+                                    "required": [
+                                        "frameRate"
+                                    ]
+                                },
+                                "type": "object",
+                                "required": [
+                                    "codec",
+                                    "dimensions",
+                                    "durationSeconds",
+                                    "kind"
+                                ],
+                                "properties": {
+                                    "kind": {
+                                        "const": "video"
+                                    },
+                                    "codec": {
+                                        "enum": [
+                                            "h264",
+                                            "h265",
+                                            "av1",
+                                            "vp9"
+                                        ],
+                                        "type": "string"
+                                    },
+                                    "frameRate": {
+                                        "type": "number",
+                                        "maximum": 240,
+                                        "minimum": 1
+                                    },
+                                    "dimensions": {
+                                        "$ref": "#/definitions/Dimensions"
+                                    },
+                                    "audioTracks": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/definitions/AudioTrack"
+                                        },
+                                        "contains": {
+                                            "$ref": "#/components/schemas/AudioTrack"
+                                        },
+                                        "minContains": 0
+                                    },
+                                    "durationSeconds": {
+                                        "type": "number",
+                                        "exclusiveMinimum": 0
+                                    }
+                                },
+                                "unevaluatedProperties": false
+                            }
+                        ]
+                    },
+                    "DocumentAsset": {
+                        "allOf": [
+                            {
+                                "$ref": "#/definitions/AssetBase"
+                            },
+                            {
+                                "type": "object",
+                                "required": [
+                                    "kind",
+                                    "mimeType",
+                                    "pageCount"
+                                ],
+                                "properties": {
+                                    "kind": {
+                                        "const": "document"
+                                    },
+                                    "mimeType": {
+                                        "type": "string"
+                                    },
+                                    "pageCount": {
+                                        "type": "integer",
+                                        "minimum": 1
+                                    },
+                                    "extractedText": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "contentMediaType": "text/plain"
+                                    }
+                                },
+                                "unevaluatedProperties": false
+                            }
+                        ]
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "4XX": {
+        },
+        "5XX": {
+        }
+    }
+}

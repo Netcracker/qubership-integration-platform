@@ -56,7 +56,6 @@ public class PropertyValidation {
         return valid;
     }
 
-
     @Data
     @Schema(description = "Property validation condition")
     static class PropertyCondition {

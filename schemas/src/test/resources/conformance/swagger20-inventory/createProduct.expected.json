@@ -1,0 +1,146 @@
+{
+    "typed": {
+        "type": "openapi",
+        "summary": "Create product",
+        "path": "/products",
+        "method": "post",
+        "isDeprecated": null
+    },
+    "path": "/products",
+    "method": "POST",
+    "modelId": "46c78b27-006b-499a-a0e0-168bca3d7630-Inventory API-1.4.0",
+    "sourceHash": "540323b5b114288343877ed2115cf55ed957ba3fe5cf2a76d4eb08db3e6bb985",
+    "operationId": "createProduct",
+    "requestSchema": {
+        "application/json": {
+            "$id": "http://system.catalog/schemas/#/components/schemas/Product",
+            "type": "object",
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "required": [
+                "name",
+                "sku"
+            ],
+            "properties": {
+                "sku": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "dimensions": {
+                    "type": "object",
+                    "properties": {
+                        "width": {
+                            "type": "number"
+                        },
+                        "height": {
+                            "type": "number"
+                        }
+                    }
+                }
+            },
+            "definitions": {
+            }
+        }
+    },
+    "specification": {
+        "summary": "Create product",
+        "responses": {
+            "201": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Product"
+                        }
+                    }
+                },
+                "description": "Created"
+            },
+            "400": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ApiError"
+                        }
+                    }
+                },
+                "description": "Bad request"
+            }
+        },
+        "operationId": "createProduct",
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/Product"
+                    }
+                }
+            },
+            "required": true
+        },
+        "x-codegen-request-body-name": "body"
+    },
+    "responseSchemas": {
+        "201": {
+            "application/json": {
+                "$id": "http://system.catalog/schemas/#/components/schemas/Product",
+                "type": "object",
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "required": [
+                    "name",
+                    "sku"
+                ],
+                "properties": {
+                    "sku": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "dimensions": {
+                        "type": "object",
+                        "properties": {
+                            "width": {
+                                "type": "number"
+                            },
+                            "height": {
+                                "type": "number"
+                            }
+                        }
+                    }
+                },
+                "definitions": {
+                }
+            }
+        },
+        "400": {
+            "application/json": {
+                "$id": "http://system.catalog/schemas/#/components/schemas/ApiError",
+                "type": "object",
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "properties": {
+                    "detail": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "integer"
+                    }
+                },
+                "definitions": {
+                }
+            }
+        }
+    }
+}

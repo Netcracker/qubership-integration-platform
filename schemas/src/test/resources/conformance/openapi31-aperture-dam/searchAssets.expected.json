@@ -1,0 +1,144 @@
+{
+    "typed": {
+        "type": "openapi",
+        "summary": "Faceted search",
+        "path": "/search",
+        "method": "get",
+        "isDeprecated": null
+    },
+    "path": "/search",
+    "method": "GET",
+    "modelId": "dc4cc3d4-83bc-46da-b536-7f5d41ba67c0-01-aperture-dam-3.1-2.4.0",
+    "sourceHash": "899ecc3509273442ff0718c33f3ca2c3f5c227c1109eafdc985d64c535596514",
+    "operationId": "searchAssets",
+    "requestSchema": {
+        "parameters": [
+            {
+                "in": "query",
+                "name": "q",
+                "style": "form",
+                "schema": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "explode": true,
+                "required": true
+            },
+            {
+                "in": "query",
+                "name": "facets",
+                "style": "form",
+                "schema": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "explode": true,
+                "required": false
+            }
+        ]
+    },
+    "specification": {
+        "tags": [
+            "Search"
+        ],
+        "summary": "Faceted search",
+        "responses": {
+            "200": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "required": [
+                                "facets",
+                                "results"
+                            ],
+                            "properties": {
+                                "facets": {
+                                    "type": "object",
+                                    "patternProperties": {
+                                        "^[a-z][a-z0-9_]*$": {
+                                            "type": "object",
+                                            "additionalProperties": {
+                                                "type": "integer",
+                                                "minimum": 0
+                                            }
+                                        }
+                                    },
+                                    "additionalProperties": false
+                                },
+                                "results": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/Asset"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "description": "Search results with facet counts."
+            }
+        },
+        "parameters": [
+            {
+                "in": "query",
+                "name": "q",
+                "style": "form",
+                "schema": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "explode": true,
+                "required": true
+            },
+            {
+                "in": "query",
+                "name": "facets",
+                "style": "form",
+                "schema": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "explode": true,
+                "required": false
+            }
+        ],
+        "operationId": "searchAssets"
+    },
+    "responseSchemas": {
+        "200": {
+            "application/json": {
+                "type": "object",
+                "required": [
+                    "facets",
+                    "results"
+                ],
+                "properties": {
+                    "facets": {
+                        "type": "object",
+                        "patternProperties": {
+                            "^[a-z][a-z0-9_]*$": {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                }
+                            }
+                        },
+                        "additionalProperties": false
+                    },
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Asset"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -45,7 +45,6 @@ definitions:
     enum:
       - MANUAL
       - DISCOVERED
-      - CUSTOMER_MANUAL
   SpecificationSource:
     type: object
     allOf:

@@ -38,7 +38,7 @@ public class IntegrationSystemDtoMapper implements ExternalEntityMapper<Integrat
 
     @Autowired
     public IntegrationSystemDtoMapper(
-            @Value("${qip.json.schemas.service:http://qubership.org/schemas/product/qip/service}") URI schemaUri,
+            @Value("${qip.json.schemas.service:http://qubership.org/schemas/product/qip/service.schema.yaml}") URI schemaUri,
             List<ServiceImportFileMigration> serviceImportFileMigrations
     ) {
         this.schemaUri = schemaUri;

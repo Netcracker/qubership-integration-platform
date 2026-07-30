@@ -6,7 +6,16 @@ import {
   buildServiceRecord,
 } from "../helpers/mocks";
 
-jest.mock("vscode", () => createVscodeMock(), { virtual: true });
+jest.mock(
+  "vscode",
+  () => {
+    // serviceApiModify uses both the default (`vscode.Uri` / `vscode.window`)
+    // and named (`Uri`) imports, so expose the mock as both.
+    const api = createVscodeMock();
+    return { __esModule: true, default: api, ...api };
+  },
+  { virtual: true },
+);
 jest.mock("yaml", () => ({ stringify: jest.fn(), parse: jest.fn() }));
 jest.mock("../../src/web/response/file/fileApiProvider", () => stubFileApi());
 jest.mock("../../src/web/response/serviceApiRead", () => ({
@@ -30,6 +39,11 @@ jest.mock("../../src/web/services/ProjectConfigService", () =>
 jest.mock("../../src/web/api-services/parsers/ContentParser", () => ({
   ContentParser: { parseContentFromFile: jest.fn() },
 }));
+const regenerateGroupApisSafely = jest.fn();
+const resolveGroupFile = jest.fn();
+jest.mock("../../src/web/api-services/ApiGroupService", () => ({
+  ApiGroupService: { regenerateGroupApisSafely, resolveGroupFile },
+}));
 jest.mock("@netcracker/qip-ui", () => ({}), { virtual: true });
 
 jest.mock("../../src/web/response/serviceApiUtils", () => {
@@ -47,12 +61,19 @@ import {
   IntegrationSystem,
 } from "../../src/web/api-services/servicesTypes";
 import { ApiSpecificationType } from "../../src/web/api-services/importApiTypes";
-import { updateService } from "../../src/web/response/serviceApiModify";
+import {
+  updateService,
+  updateSpecificationModel,
+  deprecateModel,
+  deleteSpecificationGroup,
+} from "../../src/web/response/serviceApiModify";
 import {
   getMainService,
   getService,
 } from "../../src/web/response/serviceApiRead";
 import { validateAllowedSystemProtocol } from "../../src/web/response/serviceApiUtils";
+import { fileApi } from "../../src/web/response/file/fileApiProvider";
+import { ContentParser } from "../../src/web/api-services/parsers/ContentParser";
 
 describe("updateService – validateAllowedSystemProtocol integration", () => {
   const serviceFileUri = {} as any;
@@ -105,5 +126,80 @@ describe("updateService – validateAllowedSystemProtocol integration", () => {
     } as Partial<IntegrationSystem>);
 
     expect(validateAllowedSystemProtocol).not.toHaveBeenCalled();
+  });
+});
+
+// apis[] is derived from each API file's parentId. Every writer must rebuild it
+// so a stale or hand-edited list is corrected on the next write. Removing any of
+// these hooks must fail a test.
+describe("apis[] regeneration wiring after a model write", () => {
+  const serviceFileUri = { path: "/svc/service.qip.yaml" } as any;
+  const MODEL_ID = "model-1";
+  const GROUP_ID = "group-1";
+  const SPEC_FILE = "model-1.api.qip.yaml";
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (fileApi.getSpecificationFiles as jest.Mock).mockResolvedValue([SPEC_FILE]);
+    (ContentParser.parseContentFromFile as jest.Mock).mockResolvedValue({
+      id: MODEL_ID,
+      name: "Model One",
+      content: { parentId: GROUP_ID },
+    });
+    (fileApi.writeFile as jest.Mock).mockResolvedValue(undefined);
+  });
+
+  test("updateSpecificationModel rebuilds the group apis[]", async () => {
+    await updateSpecificationModel(serviceFileUri, MODEL_ID, {
+      description: "updated",
+    });
+
+    expect(regenerateGroupApisSafely).toHaveBeenCalledWith(serviceFileUri, GROUP_ID);
+  });
+
+  test("deprecateModel rebuilds the group apis[]", async () => {
+    await deprecateModel(serviceFileUri, MODEL_ID);
+
+    expect(regenerateGroupApisSafely).toHaveBeenCalledWith(serviceFileUri, GROUP_ID);
+  });
+});
+
+// A group can have a file under both group extensions. Leaving one behind resurrects the group on the next
+// read, with its APIs already deleted.
+describe("deleteSpecificationGroup removes every file carrying the group id", () => {
+  const serviceFileUri = { path: "/svc/service.qip.yaml" } as any;
+  const GROUP_ID = "group-1";
+  const GROUP_FILE = "group-1.api-group.qip.yaml";
+  const LEGACY_GROUP_FILE = "group-1.specification-group.qip.yaml";
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (getMainService as jest.Mock).mockResolvedValue(
+      buildServiceRecord("svc-1"),
+    );
+    (fileApi.getSpecificationFiles as jest.Mock).mockResolvedValue([]);
+    (fileApi.deleteFile as jest.Mock).mockResolvedValue(undefined);
+    resolveGroupFile.mockResolvedValue({
+      fileName: GROUP_FILE,
+      info: { id: GROUP_ID, name: "Group One" },
+      duplicates: [LEGACY_GROUP_FILE],
+    });
+  });
+
+  test("deletes the resolved file and its pre-rename sibling", async () => {
+    await deleteSpecificationGroup(serviceFileUri, GROUP_ID);
+
+    const deleted = (fileApi.deleteFile as jest.Mock).mock.calls.map(
+      ([uri]) => uri.path,
+    );
+    expect(deleted).toEqual([GROUP_FILE, LEGACY_GROUP_FILE]);
+  });
+
+  test("throws when no file carries the group id", async () => {
+    resolveGroupFile.mockResolvedValue(null);
+
+    await expect(
+      deleteSpecificationGroup(serviceFileUri, GROUP_ID),
+    ).rejects.toThrow(GROUP_ID);
   });
 });

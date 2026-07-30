@@ -18,11 +18,12 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.API_FILE_POSTFIX;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.API_GROUP_FILE_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SPECIFICATION_FILE_POSTFIX;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SPECIFICATION_GROUP_FILE_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.YAML_FILE_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
 
@@ -30,7 +31,9 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 @Component
 public class ServiceConfigurationsToFilesConverter {
 
-    private static final String SPECIFICATION_FILE_NAME_FIELD_KEY = "fileName";
+    private static final String SPECIFICATION_FILE_PATH_FIELD_KEY = "filePath";
+    // Older packages still carry the pre-api field name; read both so their sources are not silently dropped.
+    private static final String LEGACY_SPECIFICATION_FILE_NAME_FIELD_KEY = "fileName";
 
     private final ObjectMapper objectMapper;
     private final String appPrefix;
@@ -69,9 +72,11 @@ public class ServiceConfigurationsToFilesConverter {
         for (Map.Entry<String, RolloutImportConfigurationItem> serviceConfig : serviceConfigs.entrySet()) {
             JsonNode contentNode = serviceConfig.getValue().getContent();
             if (contentNode instanceof ObjectNode serviceContent) {
+                // A package carries no version data, so the converter has to claim one. It claims only the versions
+                // whose migration is unsafe to re-run, leaving the rest to run on import.
                 serviceContent.putIfAbsent(
                         IMPORT_MIGRATIONS_FIELD,
-                        TextNode.valueOf(MigrationUtil.formatVersions(serviceImportFileMigrations))
+                        TextNode.valueOf(MigrationUtil.formatAppliedVersions(serviceImportFileMigrations))
                 );
             }
 
@@ -101,7 +106,7 @@ public class ServiceConfigurationsToFilesConverter {
             }
 
             Path serviceDirectory = Path.of(serviceId);
-            String specGroupFileName = specGroupId + SPECIFICATION_GROUP_FILE_POSTFIX + appPrefix + YAML_FILE_NAME_POSTFIX;
+            String specGroupFileName = specGroupId + API_GROUP_FILE_POSTFIX + appPrefix + YAML_FILE_NAME_POSTFIX;
             putYaml(files, serviceDirectory.resolve(specGroupFileName), specGroupConfig.getValue());
         }
     }
@@ -140,11 +145,13 @@ public class ServiceConfigurationsToFilesConverter {
             }
 
             Path serviceDirectory = Path.of(serviceId);
-            String specificationFileName = specificationId + SPECIFICATION_FILE_POSTFIX + appPrefix + YAML_FILE_NAME_POSTFIX;
+            String specificationFileName = specificationId + API_FILE_POSTFIX + appPrefix + YAML_FILE_NAME_POSTFIX;
             putYaml(files, serviceDirectory.resolve(specificationFileName), specificationConfig.getValue());
 
-            List<Path> specPaths = specificationConfig.getValue().getContent().findValuesAsText(SPECIFICATION_FILE_NAME_FIELD_KEY)
-                    .stream()
+            JsonNode specificationContent = specificationConfig.getValue().getContent();
+            List<Path> specPaths = Stream.concat(
+                            specificationContent.findValuesAsText(SPECIFICATION_FILE_PATH_FIELD_KEY).stream(),
+                            specificationContent.findValuesAsText(LEGACY_SPECIFICATION_FILE_NAME_FIELD_KEY).stream())
                     .map(Paths::get)
                     .toList();
             for (Path specPath : specPaths) {

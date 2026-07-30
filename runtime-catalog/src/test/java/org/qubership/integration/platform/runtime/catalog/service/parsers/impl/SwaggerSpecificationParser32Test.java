@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -60,11 +59,9 @@ class SwaggerSpecificationParser32Test extends AbstractSwaggerSpecificationParse
                 """;
 
         List<String> messages = new ArrayList<>();
-        SystemModel model = parse(spec, messages::add);
+        List<Operation> operations = parseOperations(spec, messages::add);
 
-        assertNotNull(model);
-
-        List<String> operationNames = model.getOperations().stream().map(Operation::getName).toList();
+        List<String> operationNames = operations.stream().map(Operation::getName).toList();
         assertTrue(operationNames.contains("createThing"), "path operation must be imported");
         assertFalse(operationNames.contains("queryThings"), "QUERY operation is unsupported and must be dropped");
 
@@ -73,7 +70,7 @@ class SwaggerSpecificationParser32Test extends AbstractSwaggerSpecificationParse
                 "import must warn that OpenAPI 3.2 was parsed with the 3.1 parser");
 
         // Multi-type ["integer","null"] survives as a JSON Schema type array.
-        Operation createThing = model.getOperations().stream()
+        Operation createThing = operations.stream()
                 .filter(operation -> "createThing".equals(operation.getName()))
                 .findFirst()
                 .orElseThrow();

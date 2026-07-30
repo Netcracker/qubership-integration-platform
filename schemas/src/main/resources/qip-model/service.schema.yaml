@@ -55,6 +55,13 @@ definitions:
     allOf:
       - $ref: "http://qubership.org/schemas/product/qip/common-properties/description-property.schema.yaml"
       - $ref: "http://qubership.org/schemas/product/qip/common-properties/labels-property.schema.yaml"
+      - if:
+          properties:
+            sourceType:
+              const: MANUAL
+        then:
+          required:
+            - address
     properties:
       id:
         type: string
@@ -68,15 +75,8 @@ definitions:
         $ref: "#/definitions/SourceType"
       properties:
         type: object
-      additionalProperties: true
+    additionalProperties: true
     required:
       - id
       - name
       - sourceType
-    if:
-      properties:
-        sourceType:
-          const: MANUAL
-    then:
-      required:
-        - address

@@ -1,0 +1,168 @@
+openapi: 3.0.3
+info:
+  title: Orders API
+  version: 2.1.0
+  description: Rich OpenAPI 3.0 sample with allOf/oneOf, arrays, and multiple responses.
+paths:
+  /orders:
+    get:
+      operationId: listOrders
+      summary: List orders
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [NEW, PAID, SHIPPED, CANCELLED]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Page of orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: createOrder
+      summary: Create an order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /orders/{orderId}:
+    get:
+      operationId: getOrder
+      summary: Get an order by id
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: The order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  schemas:
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+    OrderItem:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+        price:
+          $ref: "#/components/schemas/Money"
+    OrderBase:
+      type: object
+      required: [customerId, items]
+      properties:
+        customerId:
+          type: string
+          format: uuid
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/OrderItem"
+    OrderCreate:
+      allOf:
+        - $ref: "#/components/schemas/OrderBase"
+        - type: object
+          properties:
+            payment:
+              oneOf:
+                - $ref: "#/components/schemas/CardPayment"
+                - $ref: "#/components/schemas/InvoicePayment"
+    Order:
+      allOf:
+        - $ref: "#/components/schemas/OrderBase"
+        - type: object
+          required: [id, status, total]
+          properties:
+            id:
+              type: string
+              format: uuid
+            status:
+              type: string
+              enum: [NEW, PAID, SHIPPED, CANCELLED]
+            total:
+              $ref: "#/components/schemas/Money"
+    CardPayment:
+      type: object
+      required: [type, last4]
+      properties:
+        type:
+          type: string
+          enum: [card]
+        last4:
+          type: string
+    InvoicePayment:
+      type: object
+      required: [type, invoiceId]
+      properties:
+        type:
+          type: string
+          enum: [invoice]
+        invoiceId:
+          type: string
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string

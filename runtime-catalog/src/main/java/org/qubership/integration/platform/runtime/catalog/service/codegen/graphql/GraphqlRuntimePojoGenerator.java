@@ -76,7 +76,7 @@ public class GraphqlRuntimePojoGenerator {
     }
 
     public Map<String, String> generateCode(SystemModel model) throws Exception {
-        IntegrationSystem system = model.getSpecificationGroup().getSystem();
+        IntegrationSystem system = model.getApiGroup().getSystem();
         OperationProtocol protocol = system.getProtocol();
         if (!OperationProtocol.GRAPHQL.equals(protocol)) {
             String message = String.format("Wrong system type. Expected: %s. Got: %s.",

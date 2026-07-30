@@ -51,6 +51,14 @@ public class SystemModel extends AbstractSystemEntity {
     @Column
     private String version; // TODO version == name
 
+    // api.schema.yaml specificationType enum (openapi, asyncapi, graphql, protobuf, wsdl), set at import.
+    @Column
+    private String specificationType;
+
+    // Version of the specification standard the source document follows, e.g. openapi 3.0.3 or asyncapi 2.6.0.
+    @Column
+    private String specificationVersion;
+
     @Column
     @Enumerated(EnumType.STRING)
     private SystemModelSource source;
@@ -71,11 +79,12 @@ public class SystemModel extends AbstractSystemEntity {
     @JsonIdentityReference(alwaysAsId = true)
     @JsonProperty("parentId")
     @ManyToOne
-    @JoinColumn(name = "specification_group_id")
-    private SpecificationGroup specificationGroup;
+    @JoinColumn(name = "api_group_id")
+    private ApiGroup apiGroup;
 
     @Builder.Default
     @JsonManagedReference
+    @OrderBy("id")
     @OneToMany(mappedBy = "systemModel", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnoreProperties({"modifiedWhen"})
     private List<SpecificationSource> specificationSources = new LinkedList<>();
@@ -174,23 +183,11 @@ public class SystemModel extends AbstractSystemEntity {
         SystemModel that = (SystemModel) o;
         return super.equals(o, strict)
                 && this.isDeprecated() == that.isDeprecated()
-                && isEqualsSourceType(that.getSource(), strict)
+                && this.getSource() == that.getSource()
                 && isSourcesEquals(that.getSpecificationSources(), strict);
     }
 
     public boolean isSourcesEquals(List<SpecificationSource> sources, boolean strict) {
         return CompareListUtils.listEquals(this.getSpecificationSources(), sources, strict);
-    }
-
-    private boolean isEqualsSourceType(SystemModelSource newSource, boolean strict) {
-        SystemModelSource source = this.getSource();
-        if (source == newSource) {
-            return true;
-        }
-        if (!strict) {
-            return (source == SystemModelSource.DISCOVERED && newSource == SystemModelSource.MANUAL)
-                    || (newSource == SystemModelSource.DISCOVERED && source == SystemModelSource.MANUAL);
-        }
-        return false;
     }
 }

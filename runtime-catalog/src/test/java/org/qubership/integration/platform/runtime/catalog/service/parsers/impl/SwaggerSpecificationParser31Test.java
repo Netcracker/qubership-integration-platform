@@ -20,7 +20,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -87,12 +88,11 @@ class SwaggerSpecificationParser31Test extends AbstractSwaggerSpecificationParse
                 }
                 """;
 
-        SystemModel model = parse(spec);
+        List<Operation> operations = parseOperations(spec);
 
-        assertNotNull(model);
-        assertEquals(1, model.getOperations().size());
+        assertEquals(1, operations.size());
 
-        Operation op = model.getOperations().getFirst();
+        Operation op = operations.getFirst();
 
         JsonNode requestSchema = op.getRequestSchema().get("application/json");
         assertNotNull(requestSchema, "request schema for application/json is missing");
@@ -152,10 +152,9 @@ class SwaggerSpecificationParser31Test extends AbstractSwaggerSpecificationParse
                 }
                 """;
 
-        SystemModel model = parse(spec);
+        List<Operation> operations = parseOperations(spec);
 
-        assertNotNull(model);
-        Operation op = model.getOperations().getFirst();
+        Operation op = operations.getFirst();
         JsonNode requestSchema = op.getRequestSchema().get("application/json");
         assertNotNull(requestSchema, "request schema for application/json is missing");
 
@@ -212,10 +211,9 @@ class SwaggerSpecificationParser31Test extends AbstractSwaggerSpecificationParse
                 }
                 """;
 
-        SystemModel model = parse(spec);
+        List<Operation> operations = parseOperations(spec);
 
-        assertNotNull(model);
-        Operation op = model.getOperations().getFirst();
+        Operation op = operations.getFirst();
         JsonNode responseSchema = op.getResponseSchemas().get("200").get("application/json");
         assertNotNull(responseSchema, "response schema for 200/application/json is missing");
 
@@ -279,10 +277,9 @@ class SwaggerSpecificationParser31Test extends AbstractSwaggerSpecificationParse
                 }
                 """;
 
-        SystemModel model = parse(spec);
+        List<Operation> operations = parseOperations(spec);
 
-        assertNotNull(model);
-        Operation op = model.getOperations().getFirst();
+        Operation op = operations.getFirst();
         JsonNode requestSchema = op.getRequestSchema().get("application/json");
         assertNotNull(requestSchema, "request schema for application/json is missing");
 

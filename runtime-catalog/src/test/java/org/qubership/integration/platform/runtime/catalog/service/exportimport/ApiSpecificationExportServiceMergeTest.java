@@ -7,6 +7,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ApiSpecificationExportException;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.operations.OperationRepository;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelService;
 
 import java.lang.reflect.InvocationTargetException;
@@ -14,6 +16,7 @@ import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -292,6 +295,38 @@ class ApiSpecificationExportServiceMergeTest {
                 () -> buildAsyncApiSpecification.invoke(service, params));
         assertInstanceOf(ApiSpecificationExportException.class, ex.getCause());
         assertTrue(ex.getCause().getMessage().contains("No specification model"));
+    }
+
+    /**
+     * An operation whose slice was never rebuilt holds null, and dereferencing it turned the export into a 500. The
+     * method has to return an operation body, so there is nothing to degrade to: it fails with an actionable message
+     * instead, the way every other unrecoverable case in this service does.
+     */
+    @Test
+    void buildOperationForImplementedServiceTriggerRejectsAnOperationWithoutSpecification() throws Exception {
+        OperationRepository operationRepository = mock(OperationRepository.class);
+        Operation operation = new Operation();
+        operation.setId("op-1");
+        when(operationRepository.findById("op-1")).thenReturn(Optional.of(operation));
+
+        ApiSpecificationExportService exportService =
+                new ApiSpecificationExportService("/qip-routes", null, operationRepository, systemModelService);
+        Method buildOperation = ApiSpecificationExportService.class
+                .getDeclaredMethod("buildOperationForImplementedServiceTrigger", ChainElement.class);
+        buildOperation.setAccessible(true);
+
+        ChainElement element = createTriggerElement("model-1");
+        element.setId("element-1");
+        element.getProperties().put("integrationOperationId", "op-1");
+
+        InvocationTargetException ex = assertThrows(InvocationTargetException.class,
+                () -> buildOperation.invoke(exportService, element));
+
+        assertInstanceOf(ApiSpecificationExportException.class, ex.getCause());
+        String message = ex.getCause().getMessage();
+        assertTrue(message.contains("op-1"), "the message names the operation: " + message);
+        assertTrue(message.contains("model-1"), "the message names the specification: " + message);
+        assertTrue(message.contains("element-1"), "the message names the trigger element: " + message);
     }
 
     @Test

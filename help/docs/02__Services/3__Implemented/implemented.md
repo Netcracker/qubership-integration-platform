@@ -18,7 +18,7 @@ There are 2 options to configure the Implemented Service:
 
 Table with Implemented services is accessible by navigating to **Services** → **Implemented** tab. Next columns and elements are available for the table:
 
-- **Name** - clickable name of the service or specification group. When clicked, system navigates to respective entity.
+- **Name** - clickable name of the service or API group. When clicked, system navigates to respective entity.
 - **Protocol** - service's integration protocol. Possible values: **_http, soap, kafka, amqp, GraphQL, gRPC_**. Value for this parameter will be propagated from the firstly imported API specification. There is no ability to upload API specifications with another protocol after that.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
@@ -27,7 +27,7 @@ Table with Implemented services is accessible by navigating to **Services** → 
 - **Source** - specifies the way specification was created. Possible values:
   - **Manual** - uploaded manually.
   - **Discovered** - added as the result of service discovery. This is only applicable to Inner Cloud Services.
-- **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
+- **Labels** - list of colored labels of the service, API group or specification, unique within particular entity of each type.
 - **Created At** - datetime of entity creation.
 - **Created By** - shows the user, who created an entity.
 - **Modified At** - datetime of entity modifying (hidden by default).
@@ -35,7 +35,7 @@ Table with Implemented services is accessible by navigating to **Services** → 
 - **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu under each service. Contains next operations:
   - **Edit** ![edit](img/edit.svg) - opens pop-up to change service name, description or set of **custom** labels.
   - **Delete** ![delete](img/delete.svg) - deletes entity.
-  - **Add Specification Group** ![plus](img/plus.svg) - allows to add a specification group.
+  - **Add API Group** ![plus](img/plus.svg) - allows to add an API group.
   - **Expand All** ![column-height](img/column-height.svg) - fully expands the entity.
   - **Collapse All** ![vertical-align-middle](img/vertical-align-middle.svg) - fully collapses the entity.
   - **Export** ![cloud-upload](img/cloud-upload.svg) - allows to export the entity.
@@ -56,7 +56,7 @@ Parameters tab contains the following information:
 - **Name** - mandatory service name.
 - **Description** - description of service.
 - **Protocol** - service's integration protocol.
-- **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
+- **Labels** - list of colored labels of the service, API group or specification, unique within particular entity of each type.
   It might contain **custom** labels, entered by user via Qubership Integration Platform UI or **technical** labels,
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
   **Technical** labels cannot be updated manually.
@@ -66,9 +66,9 @@ For <ins>Web UI</ins> there are some additional information:
 - **Created** - datetime of entity creation.
 - **Modified** - datetime of entity modifying.
 
-### View Specification Groups
-When service is clicked, the system shows the table with all specification groups and specifications, available for clicked service. Next columns and elements are available for the table:
-- **Name** - clickable name of the specification group or specification. When clicked, system navigates to respective entity.
+### View API Groups
+When service is clicked, the system shows the table with all API groups and specifications, available for clicked service. Next columns and elements are available for the table:
+- **Name** - clickable name of the API group or specification. When clicked, system navigates to respective entity.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
   - 🟢 _**In Use**_ - status indicates that API Specification is utilized within at least one chain.
@@ -76,7 +76,7 @@ When service is clicked, the system shows the table with all specification group
 - **Source** - specifies the way specification was created. Possible values:
   - **Manual** - uploaded manually.
   - **Discovered** - added as the result of service discovery. This is only applicable to Inner Cloud Services.
-- **Labels** - list of colored labels of the specification group, unique within particular specification group.
+- **Labels** - list of colored labels of the API group, unique within particular API group.
 - **Used By** - expand, that contains the list of chains, where specification is being utilized. Each chain name under this expand is clickable and navigates to respective configuration graph.
 - **Created At** - datetime of entity creation.
 - **Created By** - shows the user, who created an entity.
@@ -101,10 +101,10 @@ In general at the right top the next operation is available only for <ins>Web UI
 
 
 ### View Specifications
-When particular specification group name is clicked, the system opens new page with the table of available specifications for clicked group. Next columns and elements are available for the table:
+When particular API group name is clicked, the system opens new page with the table of available specifications for clicked group. Next columns and elements are available for the table:
 
 - **Name** - specification name, which is also considered as a version. Specification name **must be unique** inside of
-  API Specification group for any type of service. For **Swagger** and **AsyncAPI** specifications version is retrieving
+  API group for any type of service. For **Swagger** and **AsyncAPI** specifications version is retrieving
   from appropriate _"version"_ parameter in specification file. For **WSDL, GraphQL, Protobuf** specifications -
   _filename_ will be considered as a specification version.
 - **Status** - API Specification status. Possible values:
@@ -164,8 +164,8 @@ Parameters tab contains minimal set of parameters, that allows to save the imple
 - **Name** - mandatory service name.
 - **Description** - description of service.
 - **Labels** - set of labels for service:
-- **Created** - non-editable. Datetime and author of specification group creation.
-- **Modified** - non-editable. Datetime and author of last specification group modification.
+- **Created** - non-editable. Datetime and author of service creation.
+- **Modified** - non-editable. Datetime and author of last service modification.
 
 Specify the required fields and click **"Save"**. Notification about successful saving means that implemented service is added to the list of implemented services.
 
@@ -179,10 +179,10 @@ To create any service using VS Code Extension, follow the steps outlined below:
 4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter some description and click Enter. Next, it opens "Parameters" tab of the created service.
 
 
-### Add Specification Group
-To add specification group to Implemented service:
-1. Select ![plus](img/plus.svg) "**Add Specification Group**" option.
-2. Specify the **name** of the specification group on the opened pop-up.
+### Add API Group
+To add an API group to the Implemented service:
+1. Select ![plus](img/plus.svg) "**Add API Group**" option.
+2. Specify the **name** of the API group on the opened pop-up.
 3. There are two options to add API Specification:
     - **Import File** - on this tab you can import file with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
     - **Import from Chains** - on this tab, it is possible to select existing [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) endpoint, configured within a particular chain and create API Specification from it.
@@ -190,15 +190,15 @@ To add specification group to Implemented service:
 
 4. Confirm operation with **"Import File"** button.
 
-When API specification is added you will see the specification group with respective name and dates. All specifications will be placed under this specification group.
+When API specification is added you will see the API group with respective name and dates. All specifications will be placed under this API group.
 
 ### Add API Specification
-To add API specification into existing specification group:
+To add API specification into existing API group:
 1. Select ![cloud-upload](img/cloud-upload.svg) "**Import Specification**" option for desired group.
 2. There are two options to add API Specification:
     - **Import File** - on this tab you can import file with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
     > ℹ️ **Note:**
-    > - API Specification **version must be unique inside of API Specification group for any type of service**. Import of API Specification with non-unique version will result in version duplication error.
+    > - API Specification **version must be unique inside of API group for any type of service**. Import of API Specification with non-unique version will result in version duplication error.
     > - OpenAPI 3.2.0 specifications are imported using the OpenAPI 3.1 parser. Features available only in OpenAPI 3.2.0 are not supported and will be dropped during import; the system shows a warning notification after such import.
 
     - **Import from Chains** - on this tab, it is possible to select existing [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) endpoint, configured within a particular chain and create API Specification from it.
@@ -262,8 +262,8 @@ API Specification version in archive **must be unique** for each API Specificati
 During the import, system follows next logic:
 - Verify Import Instructions, saved in the system. Proceed with the step below only if they exist:
   - Fetch the list of service IDs with **ignore** action and skip import process for them.
-- Find existing services, specification groups and specification by IDs from import archive:
-  - If there are specifications with IDs already exist in the system, regardless of their parent specification groups and services, system **ignores** them.
+- Find existing services, API groups and specification by IDs from import archive:
+  - If there are specifications with IDs already exist in the system, regardless of their parent API groups and services, system **ignores** them.
   - If system already has entities with IDs, specified in import archive:
     - Merge data from archive, including **custom labels**, into existing entities.
     - Technical labels are going to be removed from existing entities if they are updated as a part of import process.

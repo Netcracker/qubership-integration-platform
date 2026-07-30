@@ -4,14 +4,10 @@ export { FileParserService } from "./FileParserService";
 export { ProtocolDetectorService } from "./ProtocolDetectorService";
 export { QipSpecificationGenerator } from "./QipSpecificationGenerator";
 export {
-  QIP_SCHEMAS,
-  QIP_SCHEMA_URLS,
-  QipSchemaType,
-  ValidationResult,
-  ValidationError,
-  getQipSchemaType,
-  isQipSchema,
-  getSchemaUrl,
-} from "./qipSchemas";
+  SERVICE_MIGRATIONS,
+  MCP_SERVICE_MIGRATIONS,
+  CHAIN_MIGRATIONS,
+  repairMigrationsClaim,
+} from "./importMigrationVersions";
 export { ConfigApiProvider, ConfigApi } from "./ConfigApiProvider";
 export { ProjectConfig } from "./ProjectConfigService";

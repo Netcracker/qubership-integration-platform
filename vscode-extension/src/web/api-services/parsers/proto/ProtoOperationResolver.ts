@@ -85,16 +85,6 @@ export function buildProtoOperationSpecification(
     },
   };
 
-  specification["x-grpc"] = {
-    serviceName: operation.serviceName,
-    methodName: operation.rpcName,
-    servicePath: operation.path,
-    requestType: operation.requestType,
-    responseType: operation.responseType,
-    requestStream: operation.requestStream,
-    responseStream: operation.responseStream,
-  };
-
   return specification;
 }
 

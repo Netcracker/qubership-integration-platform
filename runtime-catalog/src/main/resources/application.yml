@@ -265,7 +265,7 @@ qip:
       check:
         enabled: true
   export:
-    legacy-format: ${QIP_EXPORT_LEGACY_FORMAT:false} # Deprecated since 25.3
+    legacy-format: ${QIP_EXPORT_LEGACY_FORMAT:false}
     remove-unused-specifications: ${QIP_EXPORT_REMOVE_UNUSED_SPECS:true}
   import:
     session-lifetime-minutes: 300
@@ -287,12 +287,14 @@ qip:
     artifact-descriptor-version: ${ARTIFACT_DESCRIPTOR_VERSION:'0'}
   json:
     schemas:
-      chain: ${CHAIN_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/chain}
-      service: ${SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/service}
-      context-service: ${CONTEXT_SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/context-service}
-      mcp-service: ${MCP_SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/mcp-service}
-      specification-group: ${SPECIFICATION_GROUP_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/specification-group}
-      specification: ${SPECIFICATION_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/specification}
+      chain: ${CHAIN_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/chain.schema.yaml}
+      service: ${SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/service.schema.yaml}
+      context-service: ${CONTEXT_SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/context-service.schema.yaml}
+      mcp-service: ${MCP_SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/mcp-service.schema.yaml}
+      specification-group: ${SPECIFICATION_GROUP_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/specification-group.schema.yaml}
+      api-group: ${API_GROUP_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/api-group.schema.yaml}
+      specification: ${SPECIFICATION_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/specification.schema.yaml}
+      api: ${API_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/api.schema.yaml}
   element-descriptors:
     # These properties are injected in element descriptors
     properties:

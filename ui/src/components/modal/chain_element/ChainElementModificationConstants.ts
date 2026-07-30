@@ -341,7 +341,7 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
       "ui:field": "serviceField",
     },
     integrationSpecificationId: {
-      "ui:title": "API Specification",
+      "ui:title": "API",
       "ui:field": "specificationField",
     },
     integrationOperationId: {

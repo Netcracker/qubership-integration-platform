@@ -9,7 +9,9 @@ export type FileExtensionsConfig = {
   contextService: string;
   mcpService: string;
   specificationGroup: string;
+  apiGroup: string;
   specification: string;
+  api: string;
 };
 
 export function buildDefaultExtensions(appName: string): FileExtensionsConfig {
@@ -20,7 +22,9 @@ export function buildDefaultExtensions(appName: string): FileExtensionsConfig {
     contextService: `.context-service.${appName}.yaml`,
     mcpService: `.mcp-service.${appName}.yaml`,
     specificationGroup: `.specification-group.${appName}.yaml`,
+    apiGroup: `.api-group.${appName}.yaml`,
     specification: `.specification.${appName}.yaml`,
+    api: `.api.${appName}.yaml`,
   };
 }
 
@@ -56,8 +60,10 @@ export function getCurrentFileContext(): string | null {
 export function extractAppNameFromExtension(filename: string): string {
   const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
 
+  // Factored alternation, same matches as spelling every type out: `context-` is optional on
+  // service, and `-group` is optional on both specification and api.
   const filenamePattern =
-    /\.(service\d*|context-service\d*|chain\d*|specification-group\d*|specification\d*)\.([^.]+)\.yaml$/;
+    /\.((?:context-)?service\d*|chain\d*|(?:specification|api)(?:-group)?\d*)\.([^.]+)\.yaml$/;
 
   if (workspaceUri) {
     try {
@@ -104,7 +110,9 @@ export function getExtensionsForFile(filename?: string): FileExtensionsConfig {
             mcpService: foundConfig.extensions.mcpService,
             service: foundConfig.extensions.service,
             specificationGroup: foundConfig.extensions.specificationGroup,
+            apiGroup: foundConfig.extensions.apiGroup,
             specification: foundConfig.extensions.specification,
+            api: foundConfig.extensions.api,
           };
         }
       }
@@ -150,7 +158,9 @@ export async function initializeContextFromFile(fileUri: Uri): Promise<void> {
     mcpService: config.extensions.mcpService,
     service: config.extensions.service,
     specificationGroup: config.extensions.specificationGroup,
+    apiGroup: config.extensions.apiGroup,
     specification: config.extensions.specification,
+    api: config.extensions.api,
   };
 }
 
@@ -164,6 +174,8 @@ export function getExtensionsFromConfig(): FileExtensionsConfig {
     contextService: config.extensions.contextService,
     mcpService: config.extensions.mcpService,
     specificationGroup: config.extensions.specificationGroup,
+    apiGroup: config.extensions.apiGroup,
     specification: config.extensions.specification,
+    api: config.extensions.api,
   };
 }

@@ -26,7 +26,7 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.S
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentDefaultParameters;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.model.system.asyncapi.AsyncapiSpecification;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelBaseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -46,11 +46,11 @@ public class ParserUtils {
         this.jsonMapper = jsonMapper;
     }
 
-    public String defineVersionName(SpecificationGroup specificationGroup, Object specificationObject) {
+    public String defineVersionName(ApiGroup specificationGroup, Object specificationObject) {
         return checkSimilarVersions(specificationGroup.getId(), defineVersion(specificationGroup, specificationObject));
     }
 
-    public String defineVersion(SpecificationGroup specificationGroup, Object specificationObject) {
+    public String defineVersion(ApiGroup specificationGroup, Object specificationObject) {
         if (specificationObject instanceof AsyncapiSpecification asyncSpec) {
             return defineVersion(specificationGroup, asyncSpec.getInfo().getVersion());
         }
@@ -64,7 +64,7 @@ public class ParserUtils {
         return defineVersion(specificationGroup, null);
     }
 
-    private String defineVersion(SpecificationGroup specificationGroup, String version) {
+    private String defineVersion(ApiGroup specificationGroup, String version) {
         return version == null ? generateVersion(specificationGroup.getId()) : version;
     }
 

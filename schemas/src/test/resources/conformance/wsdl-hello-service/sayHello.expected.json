@@ -1,0 +1,15 @@
+{
+    "typed": {
+        "type": "wsdl",
+        "protocol": "SOAP",
+        "binding": "HelloBinding"
+    },
+    "path": "",
+    "method": "POST",
+    "modelId": "2beb3855-c833-4ec4-be84-9f557543e891-Hello Service-1.0.0",
+    "sourceHash": "3d885a16246eb575c6eff1f11087de7a2eb58ce4e4a393d67d43605f6e229377",
+    "operationId": "sayHello",
+    "requestSchema": null,
+    "specification": null,
+    "responseSchemas": null
+}

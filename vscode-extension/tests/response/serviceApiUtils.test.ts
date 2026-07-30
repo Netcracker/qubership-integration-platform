@@ -18,6 +18,8 @@ import { ApiSpecificationType } from "../../src/web/api-services/importApiTypes"
 import { IntegrationSystemType } from "../../src/web/api-services/servicesTypes";
 import {
   ALLOWED_PROTOCOL_MAP,
+  getExtendedProtocol,
+  getSpecificationType,
   validateAllowedSystemProtocol,
 } from "../../src/web/response/serviceApiUtils";
 
@@ -118,5 +120,50 @@ describe("validateAllowedSystemProtocol", () => {
         `Specification type is not allowed for implemented system: ${protocol}`,
       );
     });
+  });
+});
+
+// Mirrors the backend's OperationProtocol.type, which SystemMapper maps onto
+// SystemDTO.specification. The value is derived, so the service file never
+// stores it and a stale file value can never contradict the protocol.
+describe("getSpecificationType", () => {
+  test.each([
+    ["HTTP", "swagger"],
+    ["AMQP", "asyncapi"],
+    ["KAFKA", "asyncapi"],
+    ["SOAP", "soap"],
+    ["GRAPHQL", "graphqlschema"],
+    ["METAMODEL", "metamodel"],
+    ["GRPC", "protobuf"],
+  ])("%s maps to %s", (protocol, expected) => {
+    expect(getSpecificationType(protocol)).toBe(expected);
+  });
+
+  test("accepts the lowercase form the read path returns", () => {
+    expect(getSpecificationType("http")).toBe("swagger");
+  });
+
+  test.each([[undefined], [""], ["NOT_A_PROTOCOL"]])(
+    "returns an empty string for %p",
+    (protocol) => {
+      expect(getSpecificationType(protocol)).toBe("");
+    },
+  );
+});
+
+// The protocol sub-type. SystemMapper derives it from the same protocol, so the
+// service file does not store it and cannot drift out of step with `protocol`.
+describe("getExtendedProtocol", () => {
+  test.each([
+    ["HTTP", "http"],
+    ["KAFKA", "kafka"],
+    ["SOAP", "soap"],
+    ["GRPC", "grpc"],
+  ])("%s maps to %s", (protocol, expected) => {
+    expect(getExtendedProtocol(protocol)).toBe(expected);
+  });
+
+  test.each([[undefined], [""]])("returns an empty string for %p", (value) => {
+    expect(getExtendedProtocol(value)).toBe("");
   });
 });

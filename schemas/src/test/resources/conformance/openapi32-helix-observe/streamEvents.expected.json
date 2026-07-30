@@ -1,0 +1,68 @@
+{
+    "typed": {
+        "type": "openapi",
+        "summary": "Tail live events (SSE)",
+        "path": "/datasets/{datasetId}/stream",
+        "method": "get",
+        "isDeprecated": null
+    },
+    "path": "/datasets/{datasetId}/stream",
+    "method": "GET",
+    "modelId": "27c9cb1e-d917-4301-8851-569ce18c0c8e-helix-observe-3.2-1.0.0",
+    "sourceHash": "79d17d02e6ec0ddce8ebb6f4190126aac57649bccf70d07b944a59d602b4c686",
+    "operationId": "streamEvents",
+    "requestSchema": {
+        "parameters": [
+            {
+                "in": "header",
+                "name": "Last-Event-ID",
+                "style": "simple",
+                "schema": {
+                    "type": "string"
+                },
+                "explode": false,
+                "required": false,
+                "description": "Resume the stream after this event id."
+            }
+        ]
+    },
+    "specification": {
+        "tags": [
+            "streams"
+        ],
+        "summary": "Tail live events (SSE)",
+        "responses": {
+            "200": {
+                "content": {
+                    "text/event-stream": {
+                    }
+                },
+                "description": "An open `text/event-stream` connection."
+            }
+        },
+        "parameters": [
+            {
+                "in": "header",
+                "name": "Last-Event-ID",
+                "style": "simple",
+                "schema": {
+                    "type": "string"
+                },
+                "explode": false,
+                "required": false,
+                "description": "Resume the stream after this event id."
+            },
+            {
+                "$ref": "#/components/parameters/DatasetId"
+            }
+        ],
+        "description": "A long-lived Server-Sent Events stream. Each SSE message carries one\n`TelemetryEvent` in its `data` field, described via `itemSchema`.\n",
+        "operationId": "streamEvents"
+    },
+    "responseSchemas": {
+        "200": {
+            "text/event-stream": {
+            }
+        }
+    }
+}

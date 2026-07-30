@@ -5,7 +5,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { Table, Button } from "antd";
+import { Table, Button, Tooltip } from "antd";
 import { confirmAndRun } from "../../misc/confirm-utils.ts";
 import type {
   FilterDropdownProps,
@@ -16,6 +16,7 @@ import { tableScroll } from "../table/tableScroll.ts";
 import { formatTimestamp } from "../../misc/format-utils";
 import { UsageStatusTag } from "./utils";
 import { SourceFlagTag } from "./ui/SourceFlagTag";
+import { OperationBadges, hasOperationBadges } from "./ui/OperationBadges";
 import { EntityLabels } from "../labels/EntityLabels";
 import {
   EntityLabel,
@@ -36,8 +37,8 @@ import {
   getTextColumnFilterFn,
 } from "../table/TextColumnFilterDropdown.tsx";
 import type {
-  SpecificationGroup,
-  Specification,
+  ApiGroup,
+  Api,
   SystemOperation,
   ContextSystem,
 } from "../../api/apiTypes";
@@ -59,8 +60,8 @@ const SERVICES_TREE_SELECTION_COLUMN_WIDTH = 48;
 
 export type ServiceEntity =
   | IntegrationSystem
-  | SpecificationGroup
-  | Specification
+  | ApiGroup
+  | Api
   | SystemOperation
   | ContextSystem;
 
@@ -70,15 +71,11 @@ export function isIntegrationSystem(
   return "type" in record && record["type"] !== IntegrationSystemType.CONTEXT;
 }
 
-export function isSpecificationGroup(
-  record: ServiceEntity,
-): record is SpecificationGroup {
+export function isApiGroup(record: ServiceEntity): record is ApiGroup {
   return "systemId" in record && "synchronization" in record;
 }
 
-export function isSpecification(
-  record: ServiceEntity,
-): record is Specification {
+export function isApi(record: ServiceEntity): record is Api {
   return (
     "specificationGroupId" in record &&
     "version" in record &&
@@ -89,7 +86,9 @@ export function isSpecification(
 export function isSystemOperation(
   record: ServiceEntity,
 ): record is SystemOperation {
-  return "method" in record && "path" in record && "modelId" in record;
+  // `modelId` is unique to an operation; test it alone so a WSDL or otherwise
+  // degraded operation with an empty or absent `path` still renders.
+  return "modelId" in record;
 }
 
 export function isContextSystem(
@@ -171,10 +170,10 @@ function getIcon(record: ServiceEntity): ReactNode {
         return <OverridableIcon name="global" style={iconStyle} />;
     }
   }
-  if (isSpecificationGroup(record)) {
+  if (isApiGroup(record)) {
     return <OverridableIcon name="inbox" style={iconStyle} />;
   }
-  if (isSpecification(record)) {
+  if (isApi(record)) {
     return <OverridableIcon name="fileText" style={iconStyle} />;
   }
   return null;
@@ -185,15 +184,35 @@ function getNavigationUrl(record: ServiceEntity): string | null {
     return `/services/systems/${record.id}/specificationGroups`;
   }
 
-  if (isSpecificationGroup(record)) {
+  if (isApiGroup(record)) {
     return `/services/systems/${record.systemId}/specificationGroups/${record.id}/specifications`;
   }
 
-  if (isSpecification(record)) {
+  if (isApi(record)) {
     return `/services/systems/${record.systemId}/specificationGroups/${record.specificationGroupId}/specifications/${record.id}/operations`;
   }
 
   return null;
+}
+
+/** Inline badges for an operation row's typed fields (protocol/rpcMethod/deprecated); each renders only when present. */
+function renderOperationBadges(record: SystemOperation): ReactNode {
+  if (!hasOperationBadges(record)) {
+    return null;
+  }
+
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        marginLeft: 8,
+      }}
+    >
+      <OperationBadges operation={record} />
+    </span>
+  );
 }
 
 const NameCell: React.FC<{ record: ServiceEntity }> = ({ record }) => {
@@ -237,17 +256,27 @@ const NameCell: React.FC<{ record: ServiceEntity }> = ({ record }) => {
     }
   }, [operationId, record.id, handleClick]);
 
+  const nameSpan = (
+    <span style={clickableStyle} onClick={() => void handleClick()}>
+      {getIcon(record)}
+      {record.name}
+    </span>
+  );
+
   return (
     <>
-      <span style={clickableStyle} onClick={() => void handleClick()}>
-        {getIcon(record)}
-        {record.name}
-      </span>
+      {isSystemOperation(record) && record.summary ? (
+        <Tooltip title={record.summary}>{nameSpan}</Tooltip>
+      ) : (
+        nameSpan
+      )}
+      {isSystemOperation(record) && renderOperationBadges(record)}
       {modalOpen && isSystemOperation(record) && (
         <OperationInfoModal
           visible={modalOpen}
           onClose={() => setModalOpen(false)}
           operationInfo={operationInfo}
+          operation={record}
           loading={loading}
         />
       )}
@@ -447,6 +476,20 @@ export const allServicesTreeTableColumns: ServicesTableColumn<ServiceEntity>[] =
       },
     },
     {
+      title: "API Format",
+      dataIndex: "specificationType",
+      key: "specificationType",
+      width: 130,
+      render: (value: unknown) => (typeof value === "string" ? value : ""),
+    },
+    {
+      title: "API Format Version",
+      dataIndex: "specificationVersion",
+      key: "specificationVersion",
+      width: 150,
+      render: (value: unknown) => (typeof value === "string" ? value : ""),
+    },
+    {
       title: "Method",
       dataIndex: "method",
       key: "method",
@@ -481,6 +524,8 @@ const serviceTreeResizeWidths: Record<string, number> = {
   createdBy: 130,
   modifiedWhen: 160,
   modifiedBy: 130,
+  specificationType: 130,
+  specificationVersion: 150,
   method: 100,
   url: 200,
 };
@@ -580,7 +625,15 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
 
   const [columnsOrder, setColumnsOrder] = useState<string[]>(() => {
     const storedOrder = localStorage.getItem(getColumnsOrderKey(storageKey));
-    return storedOrder ? (JSON.parse(storedOrder) as string[]) : allColumnKeys;
+    if (!storedOrder) {
+      return allColumnKeys;
+    }
+    const parsed = JSON.parse(storedOrder) as string[];
+    // Keep the user's saved order, drop keys that no longer exist, and append columns added since the
+    // order was persisted, so a stale stored order never hides new columns from the table or its picker.
+    const known = parsed.filter((key) => allColumnKeys.includes(key));
+    const added = allColumnKeys.filter((key) => !known.includes(key));
+    return [...known, ...added];
   });
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     const storedVisible = localStorage.getItem(

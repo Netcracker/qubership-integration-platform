@@ -70,11 +70,7 @@ public class OperationFilterRepositoryImpl implements OperationFilterRepository 
             predicates.add(cb.like(cb.lower(searchExpr), "%" + value.toLowerCase() + "%"));
         }
 
-        if (modelId.isBlank()) {
-            predicates.add(cb.equal(joinSystemModel.get("active"), true));
-        } else {
-            predicates.add(cb.equal(joinSystemModel.get("id"), modelId));
-        }
+        predicates.add(cb.equal(joinSystemModel.get("id"), modelId));
 
         List<Order> orders = new ArrayList<>();
         for (String column : sortColumns) {

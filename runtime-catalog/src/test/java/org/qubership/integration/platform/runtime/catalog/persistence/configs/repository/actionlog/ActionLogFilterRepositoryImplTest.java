@@ -28,12 +28,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.runtime.catalog.model.dto.actionlog.ActionLogFilterRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.model.filter.ActionLogFilterColumn;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Collections;
@@ -133,6 +136,56 @@ class ActionLogFilterRepositoryImplTest {
 
         assertThat(result).containsExactly(log);
         verify(criteriaBuilder).equal(entityIdPath, "entity-1");
+    }
+
+    /**
+     * All four conditions that compare a converted value run the pre-rename literal through the lenient parse. Before
+     * the fix only IN and NOT_IN did, so an IS filter carrying the old value silently matched nothing.
+     */
+    @ParameterizedTest
+    @EnumSource(value = FilterCondition.class, names = {"IS", "IS_NOT", "IN", "NOT_IN"})
+    @DisplayName("findActionLogsByFilter resolves the pre-rename SPECIFICATION_GROUP value to API_GROUP")
+    void findActionLogsByFilterAppliesLenientEntityTypeFilter(FilterCondition condition) {
+        ActionLogFilterRequestDTO filter = new ActionLogFilterRequestDTO();
+        filter.setColumn(ActionLogFilterColumn.ENTITY_TYPE);
+        filter.setCondition(condition);
+        filter.setValue("SPECIFICATION_GROUP");
+
+        ActionLog log = ActionLog.builder().id("log-1").entityType(EntityType.API_GROUP).build();
+
+        when(entityManager.getCriteriaBuilder()).thenReturn(criteriaBuilder);
+        when(criteriaBuilder.createQuery(ActionLog.class)).thenReturn(criteriaQuery);
+        when(criteriaQuery.from(ActionLog.class)).thenReturn(root);
+        when(criteriaQuery.select(root)).thenReturn(criteriaQuery);
+        when(root.get("entityType")).thenReturn(entityIdPath);
+        switch (condition) {
+            case IS -> when(criteriaBuilder.equal(entityIdPath, EntityType.API_GROUP)).thenReturn(predicate);
+            case IS_NOT -> when(criteriaBuilder.notEqual(entityIdPath, EntityType.API_GROUP)).thenReturn(predicate);
+            case IN -> when(entityIdPath.in(List.of(EntityType.API_GROUP))).thenReturn(predicate);
+            default -> {
+                when(entityIdPath.in(List.of(EntityType.API_GROUP))).thenReturn(predicate);
+                when(predicate.not()).thenReturn(predicate);
+            }
+        }
+        when(root.get("actionTime")).thenReturn(actionTimePath);
+        when(criteriaBuilder.desc(actionTimePath)).thenReturn(order);
+        when(criteriaBuilder.and(any(Predicate[].class))).thenReturn(predicate);
+        when(criteriaQuery.where(predicate)).thenReturn(criteriaQuery);
+        when(criteriaQuery.orderBy(order)).thenReturn(criteriaQuery);
+        when(entityManager.createQuery(criteriaQuery)).thenReturn(typedQuery);
+        when(typedQuery.setFirstResult(0)).thenReturn(typedQuery);
+        when(typedQuery.setMaxResults(100)).thenReturn(typedQuery);
+        when(typedQuery.getResultList()).thenReturn(List.of(log));
+
+        List<ActionLog> result = repository.findActionLogsByFilter(0, 100, List.of(filter));
+
+        assertThat(result).containsExactly(log);
+        // the old-value literal must never reach the query — it has to resolve to the renamed enum constant
+        switch (condition) {
+            case IS -> verify(criteriaBuilder).equal(entityIdPath, EntityType.API_GROUP);
+            case IS_NOT -> verify(criteriaBuilder).notEqual(entityIdPath, EntityType.API_GROUP);
+            default -> verify(entityIdPath).in(List.of(EntityType.API_GROUP));
+        }
     }
 
     private void stubEmptyFilterQuery() {

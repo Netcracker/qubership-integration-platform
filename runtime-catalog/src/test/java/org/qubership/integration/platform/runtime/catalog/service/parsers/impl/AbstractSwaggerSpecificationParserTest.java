@@ -7,9 +7,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
@@ -78,11 +79,30 @@ abstract class AbstractSwaggerSpecificationParserTest {
         );
     }
 
-    protected SystemModel parse(String specification) {
-        return parse(specification, message -> { });
+    // Schema production is exercised through the persistence-free core, the same path the extractor
+    // uses. Import (importSpec) no longer materializes schemas, so version-specific schema assertions
+    // run here instead.
+    protected List<Operation> parseOperations(String specification) {
+        return parseOperations(specification, message -> { });
     }
 
-    protected SystemModel parse(String specification, Consumer<String> messageHandler) {
+    protected List<Operation> parseOperations(String specification, Consumer<String> messageHandler) {
+        return parser.parseOperations(specification, true, messageHandler);
+    }
+
+    // Import path: structural operations only (withSchemas = false), matching OperationParserService.
+    protected SystemModel importSpec(String specification) {
+        return importSpec(specification, message -> { });
+    }
+
+    protected SystemModel importSpec(String specification, Consumer<String> messageHandler) {
+        SpecificationSource source = new SpecificationSource();
+        source.setSource(specification);
+        return importSources(List.of(source), messageHandler);
+    }
+
+    // Multi-source entry point: the sources are passed as given, so a test can control which one carries the flag.
+    protected SystemModel importSources(List<SpecificationSource> sources, Consumer<String> messageHandler) {
         // IMPLEMENTED system with one environment keeps resolverSwaggerEnvironment() happy
         // when swagger-parser injects a default server.
         IntegrationSystem system = new IntegrationSystem("sys-id");
@@ -91,13 +111,10 @@ abstract class AbstractSwaggerSpecificationParserTest {
         env.setId("env-id");
         system.addEnvironment(env);
 
-        SpecificationGroup group = SpecificationGroup.builder().name("grp").build();
+        ApiGroup group = ApiGroup.builder().name("grp").build();
         group.setId("grp-id");
         group.setSystem(system);
 
-        SpecificationSource source = new SpecificationSource();
-        source.setSource(specification);
-
-        return parser.enrichSpecificationGroup(group, List.of(source), new HashSet<>(), false, messageHandler);
+        return parser.enrichSpecificationGroup(group, sources, new HashSet<>(), false, false, messageHandler);
     }
 }

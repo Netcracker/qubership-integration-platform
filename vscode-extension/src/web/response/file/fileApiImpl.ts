@@ -8,6 +8,7 @@ import { QipFileType } from "../serviceApiUtils";
 import { FileFilter } from "../fileFilteringUtils";
 import {
   getExtensionsForFile,
+  getExtensionsForUri,
   extractFilename,
   FileExtensionsConfig,
 } from "./fileExtensions";
@@ -23,7 +24,26 @@ import {
   SERVICE_ROUTES,
 } from "../apiRouter";
 import { extractEntityId } from "../navigationUtils";
-const RESOURCES_FOLDER = "resources";
+import { shapeServiceFile, ServiceFileKind } from "./serviceFileShape";
+import {
+  CHAIN_MIGRATIONS,
+  MCP_SERVICE_MIGRATIONS,
+  repairMigrationsClaim,
+  SERVICE_MIGRATIONS,
+} from "../../services/importMigrationVersions";
+export const RESOURCES_FOLDER = "resources";
+
+/** Picks the key order to write with; the three kinds have different export DTOs. */
+function serviceFileKind(fileUri: Uri): ServiceFileKind {
+  const ext = getExtensionsForUri(fileUri);
+  if (fileUri.path.endsWith(ext.mcpService)) {
+    return "mcpService";
+  }
+  if (fileUri.path.endsWith(ext.contextService)) {
+    return "contextService";
+  }
+  return "service";
+}
 
 export class VSCodeFileApi implements FileApi {
   context: ExtensionContext;
@@ -138,10 +158,19 @@ export class VSCodeFileApi implements FileApi {
     directoryUri: Uri,
     extension: string,
   ): Promise<string[]> {
+    return this.getFilesByExtensionsInDirectory(directoryUri, [extension]);
+  }
+
+  private async getFilesByExtensionsInDirectory(
+    directoryUri: Uri,
+    extensions: string[],
+  ): Promise<string[]> {
     const entries = await readDirectory(directoryUri);
     return entries
       .filter(([, type]: [string, number]) => type === 1)
-      .filter(([name]: [string, number]) => name.endsWith(extension))
+      .filter(([name]: [string, number]) =>
+        extensions.some((extension) => name.endsWith(extension)),
+      )
       .map(([name]: [string, number]) => name);
   }
 
@@ -204,7 +233,12 @@ export class VSCodeFileApi implements FileApi {
     const cacheService = FileCacheService.getInstance();
 
     const cachedUri = cacheService.getFileUri(id, extension);
-    if (cachedUri) {
+    // Both group extensions share one cache entry per id, so a hit may be a file of the other extension.
+    // Honour the requested extension and rescan instead, or the caller's precedence order means nothing.
+    if (
+      cachedUri &&
+      (!extension || extractFilename(cachedUri).endsWith(extension))
+    ) {
       try {
         await vscode.workspace.fs.stat(cachedUri);
         return cachedUri;
@@ -238,8 +272,11 @@ export class VSCodeFileApi implements FileApi {
       extensions.contextService,
       extensions.service,
       extensions.chain,
+      // `.api-group.` before `.specification-group.`, matching ApiGroupService.resolveGroupFile's precedence.
+      extensions.apiGroup,
       extensions.specificationGroup,
       extensions.specification,
+      extensions.api,
     ];
 
     for (const ext of typesToTry) {
@@ -327,6 +364,9 @@ export class VSCodeFileApi implements FileApi {
       const parsed = await ContentParser.parseContentFromFile(fileUri);
 
       if (parsed && parsed.name) {
+        // A chain authored before the claim was written would be unimportable;
+        // the next save carries the repair into the file.
+        repairMigrationsClaim(parsed.content, CHAIN_MIGRATIONS);
         return parsed;
       }
       throw Error("Invalid chain file content");
@@ -469,6 +509,8 @@ export class VSCodeFileApi implements FileApi {
       const parsed = await ContentParser.parseContentFromFile(serviceFileUri);
 
       if (parsed && parsed.id === serviceId) {
+        // Context services run through the service migration list.
+        repairMigrationsClaim(parsed.content, SERVICE_MIGRATIONS);
         return parsed;
       }
       throw Error("Invalid service file content or service ID mismatch");
@@ -486,6 +528,7 @@ export class VSCodeFileApi implements FileApi {
       const parsed = await ContentParser.parseContentFromFile(serviceFileUri);
 
       if (parsed && parsed.id === serviceId) {
+        repairMigrationsClaim(parsed.content, MCP_SERVICE_MIGRATIONS);
         return parsed;
       }
       throw Error("Invalid service file content or service ID mismatch");
@@ -504,7 +547,8 @@ export class VSCodeFileApi implements FileApi {
   }
 
   async writeServiceFile(fileUri: Uri, serviceData: any): Promise<void> {
-    const yamlString = yaml.stringify(serviceData);
+    const shaped = shapeServiceFile(serviceData, serviceFileKind(fileUri));
+    const yamlString = yaml.stringify(shaped);
     const bytes = new TextEncoder().encode(yamlString);
 
     try {
@@ -603,7 +647,9 @@ export class VSCodeFileApi implements FileApi {
         $schema: config.schemaUrls.chain,
         id: chainId,
         name: chainName,
-        content: {},
+        content: {
+          migrations: CHAIN_MIGRATIONS,
+        },
       };
       const bytes = new TextEncoder().encode(yaml.stringify(chain));
 
@@ -703,6 +749,12 @@ export class VSCodeFileApi implements FileApi {
             })
           : "";
 
+      // Dismissing the prompt leaves the identifier empty, and the MCP schema
+      // requires it — cancel instead of writing a file that fails validation.
+      if (serviceType.value === "MCP" && !identifier?.trim()) {
+        return null;
+      }
+
       const serviceDescription = await vscode.window.showInputBox({
         prompt: "Enter service description (optional)",
         placeHolder: "Description of the service",
@@ -718,45 +770,44 @@ export class VSCodeFileApi implements FileApi {
 
       const config = ProjectConfigService.getConfig();
 
-      const service =
-        serviceType.value === "CONTEXT"
-          ? {
-              $schema: config.schemaUrls.contextService,
-              id: serviceId,
-              name: serviceName.trim(),
-              content: {
-                description: serviceDescription?.trim() || "",
-                migrations: [],
-              },
-            }
-          : serviceType.value === "MCP"
-            ? {
-                $schema: config.schemaUrls.mcpService,
-                id: serviceId,
-                name: serviceName.trim(),
-                content: {
-                  identifier: identifier?.trim() || "",
-                  instructions: "",
-                  description: serviceDescription?.trim() || "",
-                  migrations: [],
-                },
-              }
-            : {
-                $schema: config.schemaUrls.service,
-                id: serviceId,
-                name: serviceName.trim(),
-                content: {
-                  description: serviceDescription?.trim() || "",
-                  activeEnvironmentId: "",
-                  integrationSystemType: serviceType.value,
-                  protocol: "",
-                  extendedProtocol: "",
-                  specification: "",
-                  environments: [],
-                  labels: [],
-                  migrations: [],
-                },
-              };
+      // Only what the prompts collected: a service created here has no
+      // protocol, environments or labels yet, and writeServiceFile prunes an
+      // empty description rather than writing a blank line into the file.
+      const service = ((): object => {
+        if (serviceType.value === "CONTEXT") {
+          return {
+            $schema: config.schemaUrls.contextService,
+            id: serviceId,
+            name: serviceName.trim(),
+            content: {
+              description: serviceDescription?.trim(),
+              migrations: SERVICE_MIGRATIONS,
+            },
+          };
+        }
+        if (serviceType.value === "MCP") {
+          return {
+            $schema: config.schemaUrls.mcpService,
+            id: serviceId,
+            name: serviceName.trim(),
+            content: {
+              identifier: identifier?.trim(),
+              description: serviceDescription?.trim(),
+              migrations: MCP_SERVICE_MIGRATIONS,
+            },
+          };
+        }
+        return {
+          $schema: config.schemaUrls.service,
+          id: serviceId,
+          name: serviceName.trim(),
+          content: {
+            description: serviceDescription?.trim(),
+            integrationSystemType: serviceType.value,
+            migrations: SERVICE_MIGRATIONS,
+          },
+        };
+      })();
 
       const extension =
         serviceType.value === "CONTEXT"
@@ -848,31 +899,26 @@ export class VSCodeFileApi implements FileApi {
     return await readDirectory(mainFolderUri);
   }
 
-  private async getFilesByExtension(
-    serviceFileUri: Uri,
-    extension: string,
-  ): Promise<string[]> {
-    const serviceFolderUri = await this.getParentDirectoryUri(serviceFileUri);
-    return await this.getFilesByExtensionInDirectory(
-      serviceFolderUri,
-      extension,
-    );
-  }
-
   async getSpecificationGroupFiles(serviceFileUri: Uri): Promise<string[]> {
     const extensions = this.getExtensionsForContext(serviceFileUri);
-    return await this.getFilesByExtension(
-      serviceFileUri,
+    const serviceFolderUri = await this.getParentDirectoryUri(serviceFileUri);
+    // A project may store the group file as `.specification-group.<app>.yaml` (pre-rename)
+    // or `.api-group.<app>.yaml`, both at the same depth. Scan for either.
+    return await this.getFilesByExtensionsInDirectory(serviceFolderUri, [
       extensions.specificationGroup,
-    );
+      extensions.apiGroup,
+    ]);
   }
 
   async getSpecificationFiles(serviceFileUri: Uri): Promise<string[]> {
     const extensions = this.getExtensionsForContext(serviceFileUri);
-    return await this.getFilesByExtension(
-      serviceFileUri,
+    const serviceFolderUri = await this.getParentDirectoryUri(serviceFileUri);
+    // A project may store the API file as `.specification.<app>.yaml` (pre-rename)
+    // or `.api.<app>.yaml`, both at the same depth. Scan for either.
+    return await this.getFilesByExtensionsInDirectory(serviceFolderUri, [
       extensions.specification,
-    );
+      extensions.api,
+    ]);
   }
 
   async getSpecApiFiles(): Promise<Uri[]> {

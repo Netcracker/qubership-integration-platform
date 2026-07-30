@@ -8,14 +8,18 @@ configs:
       mcpService: .mcp-service.qip.yaml
       service: .service.qip.yaml
       specificationGroup: .specification-group.qip.yaml
+      apiGroup: .api-group.qip.yaml
       specification: .specification.qip.yaml
+      api: .api.qip.yaml
     schemaUrls:
-      contextService: http://qubership.org/schemas/product/qip/context-service
-      mcpService: http://qubership.org/schemas/product/qip/mcp-service
-      service: http://qubership.org/schemas/product/qip/service
-      chain: http://qubership.org/schemas/product/qip/chain
-      specification: http://qubership.org/schemas/product/qip/specification
-      specificationGroup: http://qubership.org/schemas/product/qip/specification-group
+      contextService: http://qubership.org/schemas/product/qip/context-service.schema.yaml
+      mcpService: http://qubership.org/schemas/product/qip/mcp-service.schema.yaml
+      service: http://qubership.org/schemas/product/qip/service.schema.yaml
+      chain: http://qubership.org/schemas/product/qip/chain.schema.yaml
+      specification: http://qubership.org/schemas/product/qip/specification.schema.yaml
+      specificationGroup: http://qubership.org/schemas/product/qip/specification-group.schema.yaml
+      apiGroup: http://qubership.org/schemas/product/qip/api-group.schema.yaml
+      api: http://qubership.org/schemas/product/qip/api.schema.yaml
 
 cache:
   ttl: 60000

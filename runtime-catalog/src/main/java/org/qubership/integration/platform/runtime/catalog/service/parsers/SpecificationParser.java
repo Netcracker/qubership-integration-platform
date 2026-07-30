@@ -17,8 +17,8 @@
 package org.qubership.integration.platform.runtime.catalog.service.parsers;
 
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarIdException;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 
@@ -34,11 +34,37 @@ public interface SpecificationParser {
      String ID_SEPARATOR = "-";
 
      SystemModel enrichSpecificationGroup(
-             SpecificationGroup group,
+             ApiGroup group,
              Collection<SpecificationSource> sources,
              Set<String> oldSystemModelsIds,
              boolean isDiscovered,
+             boolean withSchemas,
              Consumer<String> messageHandler);
+
+     /**
+      * Picks the source a single-document parser reads. The persisted main-source flag is authoritative: import
+      * guarantees exactly one (see {@code SpecificationImportService}, which promotes the first uploaded file when
+      * none flags itself). The first-of-collection fallback only serves legacy rows carrying no flag, and is
+      * deterministic because {@code SystemModel.specificationSources} is {@code @OrderBy("id")}; drop that ordering
+      * and this read turns flaky.
+      *
+      * <p>Import and on-demand extraction both call this, so a multi-source model parses the same document either way.
+      */
+     static SpecificationSource mainSource(Collection<SpecificationSource> sources) {
+          if (sources == null) {
+               return null;
+          }
+          return sources.stream()
+                  .filter(SpecificationSource::isMainSource)
+                  .findFirst()
+                  .orElseGet(() -> sources.stream().findFirst().orElse(null));
+     }
+
+     /** Content of {@link #mainSource}, or {@code null} when there is no source to read. */
+     static String mainSourceText(Collection<SpecificationSource> sources) {
+          SpecificationSource source = mainSource(sources);
+          return source == null ? null : source.getSource();
+     }
 
      default void checkSpecId(Set<String> oldSystemModelsIds, String systemModelId) throws SpecificationSimilarIdException {
           // skip spec if one already exists (by id) in a system

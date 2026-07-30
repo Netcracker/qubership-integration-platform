@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.filter;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Column name for a filter")
@@ -43,7 +44,8 @@ public enum FilterFeature {
     LABELS,
     ELEMENT,
     CREATED,
-    SPECIFICATION_GROUP,
+    @JsonAlias("SPECIFICATION_GROUP")
+    API_GROUP,
     SPECIFICATION_VERSION,
     URL,
     PROTOCOL,

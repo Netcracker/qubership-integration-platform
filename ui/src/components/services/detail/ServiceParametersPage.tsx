@@ -226,7 +226,7 @@ export const ServiceParametersPage: React.FC = () => {
     },
     {
       key: "api-specs",
-      label: "API Specifications",
+      label: "APIs",
       children: <ServiceApiSpecsTab />,
     },
     {

@@ -28,7 +28,7 @@ On this tab user can set the endpoint parameters by which chain could be trigger
 | Parameter         | Mandatory | Data Type | Description                                                                                                             | Sample                                                                 |
 | ----------------- | :-------- | :-------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | Service           | M         | List      | List, that contains implemented services, available for selection. Only services with API Specifications are available. | Entry point of the chain                                               |
-| API Specification | M         | List      | List with specifications, grouped by specification groups.                                                              | Trigger for mobile application for getting info about customer account |
+| API Specification | M         | List      | List with specifications, grouped by API groups.                                                                        | Trigger for mobile application for getting info about customer account |
 | Operation         | M         | List      | List with all operations, available for selected API Specification.                                                     | POST /createPet                                                        |
 | Base path         | M         | String    | Automatically built base path for the endpoint. Non-editable parameter.                                                 | /qip-routes                                                            |
 

@@ -7,14 +7,28 @@ interface CacheEntry {
   timestamp: number;
 }
 
+// A group file lives under either `.api-group.<app>.yaml` or the pre-rename `.specification-group.<app>.yaml`,
+// and both share one cache. `endsWith` matches a filename, `equals` an extension passed in by the caller.
+function isGroupExtension(
+  config: { extensions: { specificationGroup: string; apiGroup: string } },
+  value: string,
+  mode: "endsWith" | "equals",
+): boolean {
+  const { specificationGroup, apiGroup } = config.extensions;
+  return mode === "endsWith"
+    ? value.endsWith(specificationGroup) || value.endsWith(apiGroup)
+    : value === specificationGroup || value === apiGroup;
+}
+
 export class FileCacheService {
   private static instance: FileCacheService;
-  private serviceCache: Map<string, CacheEntry> = new Map();
-  private contextServiceCache: Map<string, CacheEntry> = new Map();
-  private mcpServiceCache: Map<string, CacheEntry> = new Map();
-  private chainCache: Map<string, CacheEntry> = new Map();
-  private specificationGroupCache: Map<string, CacheEntry> = new Map();
-  private specificationCache: Map<string, CacheEntry> = new Map();
+  private readonly serviceCache: Map<string, CacheEntry> = new Map();
+  private readonly contextServiceCache: Map<string, CacheEntry> = new Map();
+  private readonly mcpServiceCache: Map<string, CacheEntry> = new Map();
+  private readonly chainCache: Map<string, CacheEntry> = new Map();
+  private readonly specificationGroupCache: Map<string, CacheEntry> = new Map();
+  private readonly specificationCache: Map<string, CacheEntry> = new Map();
+  private readonly apiCache: Map<string, CacheEntry> = new Map();
 
   private constructor() {}
 
@@ -148,6 +162,22 @@ export class FileCacheService {
     this.specificationCache.clear();
   }
 
+  getApiUri(apiId: string): Uri | null {
+    return this.getUri(apiId, this.apiCache);
+  }
+
+  setApiUri(apiId: string, uri: Uri): void {
+    this.setUri(apiId, uri, this.apiCache);
+  }
+
+  invalidateApi(apiId: string): void {
+    this.apiCache.delete(apiId);
+  }
+
+  clearApiCache(): void {
+    this.apiCache.clear();
+  }
+
   invalidateByUri(uri: Uri): void {
     try {
       const filename = extractFilename(uri);
@@ -161,10 +191,12 @@ export class FileCacheService {
         this.invalidateByUriInCache(this.mcpServiceCache, uri);
       } else if (filename.endsWith(config.extensions.chain)) {
         this.invalidateByUriInCache(this.chainCache, uri);
-      } else if (filename.endsWith(config.extensions.specificationGroup)) {
+      } else if (isGroupExtension(config, filename, "endsWith")) {
         this.invalidateByUriInCache(this.specificationGroupCache, uri);
       } else if (filename.endsWith(config.extensions.specification)) {
         this.invalidateByUriInCache(this.specificationCache, uri);
+      } else if (filename.endsWith(config.extensions.api)) {
+        this.invalidateByUriInCache(this.apiCache, uri);
       }
     } catch (error) {
       console.error(
@@ -203,10 +235,12 @@ export class FileCacheService {
         return this.getMCPServiceUri(id);
       } else if (extension === config.extensions.chain) {
         return this.getChainUri(id);
-      } else if (extension === config.extensions.specificationGroup) {
+      } else if (isGroupExtension(config, extension, "equals")) {
         return this.getSpecificationGroupUri(id);
       } else if (extension === config.extensions.specification) {
         return this.getSpecificationUri(id);
+      } else if (extension === config.extensions.api) {
+        return this.getApiUri(id);
       }
     } catch (error) {
       console.error("[FileCacheService] Error getting file URI:", error);
@@ -231,10 +265,12 @@ export class FileCacheService {
         this.setMCPServiceUri(id, uri);
       } else if (extension === config.extensions.chain) {
         this.setChainUri(id, uri);
-      } else if (extension === config.extensions.specificationGroup) {
+      } else if (isGroupExtension(config, extension, "equals")) {
         this.setSpecificationGroupUri(id, uri);
       } else if (extension === config.extensions.specification) {
         this.setSpecificationUri(id, uri);
+      } else if (extension === config.extensions.api) {
+        this.setApiUri(id, uri);
       }
     } catch (error) {
       console.error("[FileCacheService] Error setting file URI:", error);
@@ -248,5 +284,6 @@ export class FileCacheService {
     this.clearChainCache();
     this.clearSpecificationGroupCache();
     this.clearSpecificationCache();
+    this.clearApiCache();
   }
 }

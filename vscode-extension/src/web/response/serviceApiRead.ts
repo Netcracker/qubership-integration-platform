@@ -1,8 +1,8 @@
 import {
   IntegrationSystem,
   Environment,
-  SpecificationGroup,
-  Specification,
+  ApiGroup,
+  Api,
   SystemOperation,
   OperationInfo,
   BaseEntity,
@@ -11,10 +11,22 @@ import {
 import { Uri } from "vscode";
 import * as vscode from "vscode";
 import { fileApi } from "./file/fileApiProvider";
+import { RESOURCES_FOLDER } from "./file/fileApiImpl";
+import { isSafeResourcePath } from "./file/resourcePath";
 import { LabelUtils } from "../api-services/LabelUtils";
-import { getExtensionsForUri } from "./file/fileExtensions";
+import {
+  getExtensionsForUri,
+  FileExtensionsConfig,
+} from "./file/fileExtensions";
 import { Chain, ContextSystem, MCPSystem } from "@netcracker/qip-ui";
 import { ContentParser } from "../api-services/parsers/ContentParser";
+import { OperationSchemaExtractor } from "../api-services/parsers/OperationSchemaExtractor";
+import {
+  deriveMethod,
+  derivePath,
+  isTypedOperation,
+} from "../api-services/parsers/deriveTypedMethodPath";
+import { getExtendedProtocol, getSpecificationType } from "./serviceApiUtils";
 
 export async function getCurrentServiceId(
   serviceFileUri: Uri,
@@ -60,8 +72,8 @@ export async function getService(
     integrationSystemType: service.content?.integrationSystemType || "",
     type: service.content?.integrationSystemType || "",
     protocol: (service.content?.protocol || "").toLowerCase(),
-    extendedProtocol: service.content?.extendedProtocol || "",
-    specification: service.content?.specification || "",
+    extendedProtocol: getExtendedProtocol(service.content?.protocol),
+    specification: getSpecificationType(service.content?.protocol),
     environments: service.content?.environments || [],
     labels: LabelUtils.toEntityLabels(service.content?.labels || []),
   };
@@ -226,10 +238,12 @@ function parseEnvironments(environments: any[]): Environment[] {
   return result;
 }
 
+// Reads the Service → Group level. Each group's `specifications[]` wire field
+// holds its APIs (see getSpecificationModel).
 export async function getApiSpecifications(
   currentFile: Uri,
   serviceId: string,
-): Promise<SpecificationGroup[]> {
+): Promise<ApiGroup[]> {
   const ext = getExtensionsForUri(currentFile);
   const serviceFileUri = currentFile.path.endsWith(ext.service)
     ? currentFile
@@ -247,13 +261,31 @@ export async function getApiSpecifications(
   const specGroupFiles =
     await fileApi.getSpecificationGroupFiles(serviceFileUri);
   const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
-  const result: SpecificationGroup[] = [];
+  const result: ApiGroup[] = [];
 
+  // A group may have a file under both extensions. List it once, from the same file
+  // ApiGroupService.resolveGroupFile picks, so the tree and the editor never disagree.
+  const groupExtension = getExtensionsForUri(serviceFileUri).apiGroup;
+  const parsedByGroupId = new Map<string, { fileName: string; parsed: any }>();
   for (const fileName of specGroupFiles) {
     try {
-      const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-      const parsed = await fileApi.parseFile(fileUri);
+      const parsed = await fileApi.parseFile(
+        vscode.Uri.joinPath(serviceFolderUri, fileName),
+      );
+      if (!parsed?.id) {
+        continue;
+      }
+      const current = parsedByGroupId.get(parsed.id);
+      if (!current?.fileName.endsWith(groupExtension)) {
+        parsedByGroupId.set(parsed.id, { fileName, parsed });
+      }
+    } catch (e) {
+      console.error(`Failed to parse specification group file ${fileName}`, e);
+    }
+  }
 
+  for (const { fileName, parsed } of parsedByGroupId.values()) {
+    try {
       if (parsed && parsed.content && parsed.content.parentId === serviceId) {
         const specifications = await getSpecificationModel(
           serviceFileUri,
@@ -289,8 +321,8 @@ export async function getApiSpecifications(
 export async function getLatestApiSpecification(
   currentFile: Uri,
   serviceId: string,
-): Promise<Specification | undefined> {
-  const specGroups: SpecificationGroup[] = await getApiSpecifications(
+): Promise<Api | undefined> {
+  const specGroups: ApiGroup[] = await getApiSpecifications(
     currentFile,
     serviceId,
   );
@@ -307,11 +339,12 @@ export async function getLatestApiSpecification(
   return result;
 }
 
+// Reads the API level under a group: files whose parentId === groupId.
 export async function getSpecificationModel(
   serviceFileUri: Uri,
   serviceId: string,
   groupId: string,
-): Promise<Specification[]> {
+): Promise<Api[]> {
   let actualServiceFileUri = serviceFileUri;
   const ext = getExtensionsForUri(serviceFileUri);
 
@@ -327,13 +360,32 @@ export async function getSpecificationModel(
 
   const specFiles = await fileApi.getSpecificationFiles(actualServiceFileUri);
   const serviceFolderUri = vscode.Uri.joinPath(actualServiceFileUri, "..");
-  const result: Specification[] = [];
+  const result: Api[] = [];
 
+  // An API may have a file under both extensions. List it once, from the newer
+  // `.api.` one, the same rule the group level above follows.
+  const parsedByApiId = new Map<
+    string,
+    { fileName: string; fileUri: Uri; parsed: any }
+  >();
   for (const fileName of specFiles) {
     try {
       const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
       const parsed = await fileApi.parseFile(fileUri);
+      if (!parsed?.id) {
+        continue;
+      }
+      const current = parsedByApiId.get(parsed.id);
+      if (!current?.fileName.endsWith(ext.api)) {
+        parsedByApiId.set(parsed.id, { fileName, fileUri, parsed });
+      }
+    } catch (e) {
+      console.error(`Failed to parse specification file ${fileName}`, e);
+    }
+  }
 
+  for (const { fileName, fileUri, parsed } of parsedByApiId.values()) {
+    try {
       if (parsed && parsed.content && parsed.content.parentId === groupId) {
         const operations = await parseOperations(
           parsed.content.operations,
@@ -357,6 +409,8 @@ export async function getSpecificationModel(
           operations: operations,
           chains: chains,
           createdWhen: await fileApi.getFileCreatedWhen(fileUri),
+          specificationType: parsed.content.specificationType,
+          specificationVersion: parsed.content.specificationVersion,
         };
         result.push(spec);
       }
@@ -368,6 +422,8 @@ export async function getSpecificationModel(
   return result;
 }
 
+// Reads operations for an API (`modelId` is the API's id, same as the former
+// specification/model id).
 export async function getOperations(
   serviceFileUri: Uri,
   modelId: string,
@@ -404,7 +460,7 @@ export async function getOperations(
       }
     }
   } else {
-    const specFileUri = await fileApi.findFileById(modelId, ext.specification);
+    const specFileUri = await findModelFileById(ext, modelId);
     try {
       const parsed = await fileApi.parseFile(specFileUri);
 
@@ -415,6 +471,20 @@ export async function getOperations(
   }
 
   return [];
+}
+
+// The model file may be stored as `.specification.<app>.yaml` (today's import
+// output) or `.api.<app>.yaml`, the renamed model level. Resolve by id against
+// the specification extension first, then fall back to the api one.
+async function findModelFileById(
+  ext: FileExtensionsConfig,
+  modelId: string,
+): Promise<Uri> {
+  try {
+    return await fileApi.findFileById(modelId, ext.specification);
+  } catch {
+    return await fileApi.findFileById(modelId, ext.api);
+  }
 }
 
 export async function getOperationInfo(
@@ -456,11 +526,23 @@ export async function getOperationInfo(
           return op.id === operationId || operationId.endsWith(`-${op.id}`);
         });
         if (operation) {
+          const {
+            specification: derivedSpecification,
+            requestSchema,
+            responseSchemas,
+          } = await extractOperationSchemas(
+            serviceFolderUri,
+            parsed.content,
+            operation,
+          );
           return {
             id: operation.id,
-            specification: operation.specification || {},
-            requestSchema: operation.requestSchema || {},
-            responseSchemas: operation.responseSchemas || {},
+            // The stored node wins, even when it is an empty object; derivation
+            // only fills a value the file does not carry (backend parity, see
+            // ServiceDeserializer.fillMissingOperationSpecifications).
+            specification: operation.specification ?? derivedSpecification,
+            requestSchema,
+            responseSchemas,
           };
         }
       }
@@ -472,6 +554,116 @@ export async function getOperationInfo(
   throw new Error(`Operation with id ${operationId} not found`);
 }
 
+// Recomputes an operation's request/response schemas and its `specification`
+// slice on demand from the raw specification source rather than trusting
+// whatever was materialized onto the operation at import time (see
+// OperationSchemaExtractor). A backend-exported `.api` file no longer carries
+// `specification`, so without this the async MaaS classifier and the HTTP
+// parameters the UI auto-fills from are lost.
+//
+// The extractor matches by (path, method). A backend-exported `.api` file
+// carries only the typed fields for non-openapi protocols, so path/method must
+// be derived the same way parseOperations derives them, or the match — and
+// everything it returns — comes back empty for AsyncAPI/gRPC operations.
+async function extractOperationSchemas(
+  serviceFolderUri: Uri,
+  specificationContent: any,
+  operation: any,
+): Promise<{
+  specification: Record<string, unknown>;
+  requestSchema: Record<string, unknown>;
+  responseSchemas: Record<string, unknown>;
+}> {
+  try {
+    const rawSource = await readMainSpecificationSource(
+      serviceFolderUri,
+      specificationContent,
+    );
+    return await OperationSchemaExtractor.extract(
+      rawSource,
+      specificationContent?.format,
+      resolveOperationPath(operation),
+      resolveOperationMethod(operation),
+    );
+  } catch (e) {
+    console.warn(`Failed to extract schemas for operation ${operation.id}`, e);
+    return { specification: {}, requestSchema: {}, responseSchemas: {} };
+  }
+}
+
+// The main raw source file lives at `<serviceFolder>/resources/<filePath>`.
+// The api format lists sources in `specifications[]` with `filePath`/`isRoot`;
+// the legacy specification format used `specificationSources[]` with
+// `fileName`/`mainSource`. Both formats are read.
+async function readMainSpecificationSource(
+  serviceFolderUri: Uri,
+  specificationContent: any,
+): Promise<string | null> {
+  const fileName =
+    resolveMainSourcePath(specificationContent) ??
+    resolveLegacyMainSourcePath(specificationContent);
+  // Reject `..` segments so a crafted source path cannot escape the service's
+  // resources folder.
+  if (!isSafeResourcePath(fileName)) {
+    return null;
+  }
+
+  const sourceUri = vscode.Uri.joinPath(
+    serviceFolderUri,
+    RESOURCES_FOLDER,
+    fileName,
+  );
+  return await fileApi.readFileContent(sourceUri);
+}
+
+// api format: `specifications[]` with `filePath`, root marked by `isRoot`.
+function resolveMainSourcePath(content: any): string | undefined {
+  const sources = content?.specifications;
+  if (!Array.isArray(sources) || sources.length === 0) {
+    return undefined;
+  }
+  const mainSource = sources.find((s: any) => s.isRoot) ?? sources[0];
+  return mainSource?.filePath;
+}
+
+/**
+ * Reads the legacy specification format: `specificationSources[]` with `fileName`, root
+ * marked by `mainSource`. Superseded by the api format's `specifications[]` / `filePath` /
+ * `isRoot`, and needed only while both formats are read. Drop it once every file is written
+ * in the api format.
+ */
+function resolveLegacyMainSourcePath(content: any): string | undefined {
+  const sources = content?.specificationSources;
+  if (!Array.isArray(sources) || sources.length === 0) {
+    return undefined;
+  }
+  const mainSource = sources.find((s: any) => s.mainSource) ?? sources[0];
+  return mainSource?.fileName;
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function resolveOperationMethod(op: any): string {
+  // A typed operation derives its method the backend's way (openapi uppercases its lowercase schema value), so a
+  // backend `.api` file's raw `method: "get"` must not win over the derived "GET". Legacy ops carry no `type` and
+  // keep their flat field.
+  return (
+    (isTypedOperation(op) ? deriveMethod(op) : undefined) ??
+    nonEmptyString(op.method) ??
+    ""
+  );
+}
+
+function resolveOperationPath(op: any): string {
+  return (
+    nonEmptyString(op.path) ??
+    (isTypedOperation(op) ? (derivePath(op) ?? undefined) : undefined) ??
+    ""
+  );
+}
+
 async function parseOperations(
   operations: any[],
   modelId: string,
@@ -480,14 +672,35 @@ async function parseOperations(
 
   if (operations && Array.isArray(operations)) {
     for (const op of operations) {
+      // A backend-exported `.api` file carries only the typed discriminated
+      // fields for non-openapi protocols (asyncapi has no `path`;
+      // protobuf/graphql/wsdl have neither `method` nor `path`). Derive the
+      // missing ones the same way the backend derives its columns, or the
+      // Kafka/AMQP URL fallback and every element's `integrationOperationPath`
+      // read empty. Extension-written files fill the flat fields, so the
+      // derivation only fires when they are absent.
       const operation: SystemOperation = {
         id: op.id,
         name: op.name,
         description: op.description || "",
-        method: op.method || "",
-        path: op.path || "",
+        method: resolveOperationMethod(op),
+        path: resolveOperationPath(op),
         modelId: modelId,
         chains: await getChainsUsingOperation(modelId, op.id),
+        channel: op.channel,
+        operationType: op.operationType,
+        binding: op.binding,
+        protocol: op.protocol,
+        rpcMethod: op.rpcMethod,
+        summary: op.summary,
+        isDeprecated: op.isDeprecated,
+        // In the api file each operation is discriminated by `type`; the flat
+        // read surface names that field `operationKind` (matches the REST DTO).
+        operationKind: op.type,
+        package: op.package,
+        service: op.service,
+        sdl: op.sdl,
+        javaPackage: op.javaPackage,
       };
       result.push(operation);
     }

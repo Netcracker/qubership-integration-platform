@@ -20,8 +20,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.MappingTarget;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.discovery.DiscoveredServiceDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.discovery.DiscoveredServiceGroupDTO;
@@ -47,12 +47,12 @@ public abstract class DiscoveryServiceMapper {
 
     @AfterMapping
     protected void after(IntegrationSystem system, @MappingTarget DiscoveredServiceDTO discoveredServiceDTO) {
-        if (system.getSpecificationGroups() == null) {
+        if (system.getApiGroups() == null) {
             return;
         }
 
         List<DiscoveredServiceGroupDTO> groupList = new ArrayList<>();
-        for (SpecificationGroup group : system.getSpecificationGroups()) {
+        for (ApiGroup group : system.getApiGroups()) {
             if (StringUtils.isBlank(group.getUrl())) { // Not discovered group
                 continue;
             }
@@ -68,10 +68,10 @@ public abstract class DiscoveryServiceMapper {
         }
     }
 
-    public abstract DiscoveredServiceGroupDTO toDiscoveredServiceGroupDTO(SpecificationGroup group);
+    public abstract DiscoveredServiceGroupDTO toDiscoveredServiceGroupDTO(ApiGroup group);
 
     @AfterMapping
-    protected void afterGroup(SpecificationGroup group, @MappingTarget DiscoveredServiceGroupDTO discoveredServiceGroupDTO) {
+    protected void afterGroup(ApiGroup group, @MappingTarget DiscoveredServiceGroupDTO discoveredServiceGroupDTO) {
         SystemModel model = systemModelService.getLastDiscoveredSystemModelInGroup(group.getId());
         if (model != null) {
             discoveredServiceGroupDTO.setSpecificationId(model.getId());
@@ -81,6 +81,6 @@ public abstract class DiscoveryServiceMapper {
 
     public abstract List<DiscoveredServiceDTO> toDiscoveredServiceDTOs(List<IntegrationSystem> systems);
 
-    public abstract List<DiscoveredServiceGroupDTO> toDiscoveredServiceGroupDTOs(List<SpecificationGroup> groups);
+    public abstract List<DiscoveredServiceGroupDTO> toDiscoveredServiceGroupDTOs(List<ApiGroup> groups);
 
 }

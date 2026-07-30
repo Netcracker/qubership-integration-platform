@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 class V102ServiceImportFileMigrationTest {
     @Test
-    public void testMigration() throws JsonProcessingException {
+    void testMigration() throws JsonProcessingException {
         YAMLMapper mapper = new YAMLMapper();
         JsonNode node = mapper.readTree("""
                 ---
@@ -35,6 +35,36 @@ class V102ServiceImportFileMigrationTest {
                 .path("operations").path(0).path("name").asText());
         assertEquals("bar-publish-user/notify", result.path("content")
                 .path("operations").path(1).path("name").asText());
+    }
+
+    @Test
+    void namesApiShapedOperationsFromTheirTypedLocators() throws JsonProcessingException {
+        YAMLMapper mapper = new YAMLMapper();
+        JsonNode node = mapper.readTree("""
+                ---
+                content:
+                  operations:
+                  - id: "async"
+                    type: "asyncapi"
+                    method: "subscribe"
+                    channel: "user/signed-up"
+                  - id: "grpc"
+                    type: "protobuf"
+                    rpcMethod: "Authorize"
+                    package: "acme.payments.v1"
+                    service: "PaymentService"
+                  - id: "gql"
+                    type: "graphql"
+                    operationType: "query"
+                """);
+
+        V102ServiceImportFileMigration migration = new V102ServiceImportFileMigration();
+        ObjectNode result = migration.makeMigration((ObjectNode) node);
+
+        JsonNode operations = result.path("content").path("operations");
+        assertEquals("async-subscribe-user/signed-up", operations.path(0).path("name").asText());
+        assertEquals("grpc-Authorize-acme.payments.v1.PaymentService", operations.path(1).path("name").asText());
+        assertEquals("gql-query", operations.path(2).path("name").asText());
     }
 
 }

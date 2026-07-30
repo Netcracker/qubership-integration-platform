@@ -40,7 +40,7 @@ properties:
         conditions:
           - property: connectionSourceType
             equalTo: 'maas'
-            mandatoryProperties: [ 'topicsClassifierName' ]
+            mandatoryProperties: ['topicsClassifierName']
           - property: connectionSourceType
             equalTo: 'manual'
             mandatoryProperties: [

@@ -1,5 +1,3 @@
-import { ProjectConfigService } from "./ProjectConfigService";
-
 export class QipSpecificationGenerator {
   // OpenAPI 3.0/3.1 path-item methods. `trace` matches the backend
   // (`PathItem.readOperations()`). `query` is omitted on purpose: it is a
@@ -15,64 +13,17 @@ export class QipSpecificationGenerator {
     "trace",
   ];
 
-  private static buildSpecification(
-    specId: string,
-    name: string,
-    version: string,
-    operations: any[],
-    fileName: string,
-    sourceData: any,
-    extraContent: Record<string, any> = {},
-  ) {
-    const config = ProjectConfigService.getConfig();
-    return {
-      $schema: config.schemaUrls.specification,
-      id: specId,
-      name,
-      content: {
-        deprecated: false,
-        version,
-        source: "MANUAL",
-        operations,
-        specificationSources: this.buildSpecificationSources(
-          specId,
-          fileName,
-          sourceData,
-        ),
-        ...extraContent,
-      },
-    };
-  }
-
-  private static buildSpecificationSources(
-    specId: string,
-    fileName: string,
-    sourceData: any,
-  ) {
-    return [
-      {
-        id: this.generateId(),
-        name: fileName,
-        sourceHash: this.calculateHash(JSON.stringify(sourceData)),
-        fileName: `source-${specId}/${fileName}`,
-        mainSource: true,
-      },
-    ];
-  }
-
   /**
-   * Creates QIP specification from OpenAPI 3.0 or Swagger 2.0
+   * Builds QIP operations from an OpenAPI 3.x or Swagger 2.0 document. The
+   * caller wraps them into the api-format model file; this factory produces
+   * only the operation objects.
    */
-  static createQipSpecificationFromOpenApi(
-    openApiSpec: any,
-    fileName: string,
-    specificationId: string,
-  ): any {
-    // Determine OpenAPI version and convert Swagger 2.0 to OpenAPI 3.0 if needed
-    const isOpenApi3 =
-      openApiSpec.openapi && openApiSpec.openapi.startsWith("3.");
-    const isSwagger2 =
-      openApiSpec.swagger && openApiSpec.swagger.startsWith("2.");
+  static buildOperations(openApiSpec: any, specificationId: string): any[] {
+    // Determine OpenAPI version and convert Swagger 2.0 to OpenAPI 3.0 if needed.
+    // Boolean(...), not the bare `&&`: the chain yields `undefined` rather than
+    // `false` when the key is absent, and the helpers below take a required boolean.
+    const isOpenApi3 = Boolean(openApiSpec.openapi?.startsWith("3."));
+    const isSwagger2 = Boolean(openApiSpec.swagger?.startsWith("2."));
 
     if (!isOpenApi3 && !isSwagger2) {
       throw new Error("Invalid OpenAPI/Swagger specification");
@@ -89,6 +40,9 @@ export class QipSpecificationGenerator {
     if (processedSpec.paths) {
       for (const [path, pathItem] of Object.entries(processedSpec.paths)) {
         const pathItemObj = pathItem as any;
+        const pathItemParameters = Array.isArray(pathItemObj.parameters)
+          ? pathItemObj.parameters
+          : [];
 
         for (const [method, operation] of Object.entries(pathItemObj)) {
           if (this.HTTP_METHODS.includes(method.toLowerCase())) {
@@ -99,6 +53,8 @@ export class QipSpecificationGenerator {
               path,
               processedSpec,
               specificationId,
+              isOpenApi3,
+              pathItemParameters,
             );
             operations.push(qipOperation);
           }
@@ -106,18 +62,15 @@ export class QipSpecificationGenerator {
       }
     }
 
-    return this.buildSpecification(
-      specificationId,
-      openApiSpec.info?.version || "1.0.0",
-      openApiSpec.info?.version || "1.0.0",
-      operations,
-      fileName,
-      openApiSpec,
-    );
+    return operations;
   }
 
   /**
-   * Creates QIP operation from OpenAPI operation
+   * Creates QIP operation from OpenAPI operation. `pathItemParameters` are
+   * shared across every operation on the path (OpenAPI Path Item Object) —
+   * they fold into the specification's `parameters` list, but backend
+   * parity keeps them out of `requestSchema.parameters`, which reflects only
+   * the operation's own declared parameters.
    */
   private static createQipOperation(
     operation: any,
@@ -125,17 +78,50 @@ export class QipSpecificationGenerator {
     path: string,
     openApiSpec: any,
     specificationId: string,
+    isOpenApi3: boolean,
+    pathItemParameters: any[],
   ): any {
     const operationId =
       operation.operationId || this.generateOperationId(method, path);
+    const { requestSchema, responseSchemas } = this.createOperationSchemas(
+      operation,
+      openApiSpec,
+      isOpenApi3,
+    );
 
     return {
       id: `${specificationId}-${operationId}`,
       name: operationId,
+      // Lifted out of the raw operation: the backend stores it on the typed
+      // operation and exports it, and the api file drops the raw slice.
+      summary: operation.summary,
       method: method,
       path: path,
-      specification: this.reorderSpecificationFields(operation),
-      requestSchema: this.createRequestSchema(operation, openApiSpec),
+      specification: this.reorderSpecificationFields(
+        operation,
+        isOpenApi3,
+        pathItemParameters,
+      ),
+      requestSchema,
+      responseSchemas,
+    };
+  }
+
+  /**
+   * Produces the request/response schema pair for a single raw OpenAPI/Swagger
+   * operation node, with every `$ref` expanded inline.
+   */
+  private static createOperationSchemas(
+    operation: any,
+    openApiSpec: any,
+    isOpenApi3: boolean,
+  ): { requestSchema: any; responseSchemas: any } {
+    return {
+      requestSchema: this.createRequestSchema(
+        operation,
+        openApiSpec,
+        isOpenApi3,
+      ),
       responseSchemas: this.createResponseSchemas(operation, openApiSpec),
     };
   }
@@ -143,7 +129,11 @@ export class QipSpecificationGenerator {
   /**
    * Reorders fields in specification object according to backend order
    */
-  private static reorderSpecificationFields(operation: any): any {
+  private static reorderSpecificationFields(
+    operation: any,
+    isOpenApi3: boolean,
+    pathItemParameters: any[],
+  ): any {
     const orderedSpec: any = {};
 
     // Field order as in backend
@@ -162,15 +152,34 @@ export class QipSpecificationGenerator {
 
     // Add fields in correct order
     for (const field of fieldOrder) {
-      if (operation[field] !== undefined) {
-        if (field === "parameters") {
-          // Handle parameters specially - wrap in schema
-          orderedSpec[field] = this.processParametersForSpecification(
-            operation[field],
+      if (field === "parameters") {
+        // Parameters combine the operation's own list with any parameters
+        // shared at the path-item level — checked separately since a path
+        // item can be the only source (empty own list is still `undefined`).
+        const merged = [
+          ...(Array.isArray(operation.parameters) ? operation.parameters : []),
+          ...pathItemParameters,
+        ];
+        if (merged.length > 0) {
+          orderedSpec.parameters = this.processParametersForSpecification(
+            merged,
+            isOpenApi3,
           );
-        } else {
-          orderedSpec[field] = operation[field];
         }
+      } else if (field === "responses") {
+        if (operation.responses !== undefined) {
+          orderedSpec.responses = this.processResponsesForSpecification(
+            operation.responses,
+          );
+        }
+      } else if (field === "requestBody") {
+        if (operation.requestBody !== undefined) {
+          orderedSpec.requestBody = this.processRequestBodyForSpecification(
+            operation.requestBody,
+          );
+        }
+      } else if (operation[field] !== undefined) {
+        orderedSpec[field] = operation[field];
       }
     }
 
@@ -181,28 +190,168 @@ export class QipSpecificationGenerator {
       }
     }
 
-    return orderedSpec;
+    // Backend parity: the Java schema model sorts every `required` array
+    // (a Set under the hood) and always types a `propertyNames` schema as
+    // "string" — applied once, over the whole specification slice, rather
+    // than threading it through every nested field individually.
+    return this.normalizeSchemaLikeNode(orderedSpec);
   }
 
   /**
-   * Processes parameters for specification object - wraps in schema
+   * Defaults `style` (and, for headers, `explode`) on an OpenAPI Encoding
+   * Object and its nested header map — mirrors the backend's Encoding/Header
+   * object model, which always carries these even when the source omits
+   * them.
    */
-  private static processParametersForSpecification(parameters: any[]): any[] {
+  private static processRequestBodyForSpecification(requestBody: any): any {
+    if (
+      !requestBody ||
+      typeof requestBody !== "object" ||
+      typeof requestBody.content !== "object"
+    ) {
+      return requestBody;
+    }
+
+    const content: Record<string, any> = {};
+    for (const [mediaType, mediaObj] of Object.entries(
+      requestBody.content as Record<string, any>,
+    )) {
+      if (mediaObj && typeof mediaObj === "object" && mediaObj.encoding) {
+        content[mediaType] = {
+          ...mediaObj,
+          encoding: this.processEncodingForSpecification(mediaObj.encoding),
+        };
+      } else {
+        content[mediaType] = mediaObj;
+      }
+    }
+
+    return { ...requestBody, content };
+  }
+
+  private static processEncodingForSpecification(encoding: any): any {
+    const result: Record<string, any> = {};
+    for (const [name, enc] of Object.entries(encoding as Record<string, any>)) {
+      const encObj = enc as Record<string, any>;
+      result[name] = {
+        ...encObj,
+        style: encObj.style ?? "form",
+        ...(encObj.headers
+          ? { headers: this.processHeadersForSpecification(encObj.headers) }
+          : {}),
+      };
+    }
+    return result;
+  }
+
+  /**
+   * Recursively sorts every `required` string array and types every
+   * `propertyNames` schema as `"string"` when absent. Mirrors artifacts of
+   * the backend's typed Schema object model (a `Set<String>` for required
+   * fields; `propertyNames` is inherently string-keyed) that a raw
+   * parse/passthrough would otherwise never reproduce.
+   */
+  // Code-unit order, matching the backend's natural String ordering. localeCompare would
+  // order by the runtime's locale and break parity on some machines.
+  private static compareByCodeUnit(a: string, b: string): number {
+    if (a === b) {
+      return 0;
+    }
+    return a < b ? -1 : 1;
+  }
+
+  private static normalizeSchemaLikeNode(node: any): any {
+    if (Array.isArray(node)) {
+      return node.map((item) => this.normalizeSchemaLikeNode(item));
+    }
+    if (!node || typeof node !== "object") {
+      return node;
+    }
+
+    const result: Record<string, any> = {};
+    for (const [key, value] of Object.entries(node)) {
+      if (
+        key === "required" &&
+        Array.isArray(value) &&
+        value.every((item): item is string => typeof item === "string")
+      ) {
+        result[key] = [...value].sort(this.compareByCodeUnit);
+      } else {
+        result[key] = this.normalizeSchemaLikeNode(value);
+      }
+    }
+
+    // Backend parity: a schema fragment with a string enum but no declared
+    // type infers "string" — covers `propertyNames` and any ad hoc
+    // enum-only fragment (e.g. under `dependentSchemas`).
+    if (
+      result.type === undefined &&
+      Array.isArray(result.enum) &&
+      result.enum.length > 0 &&
+      result.enum.every((item: any) => typeof item === "string")
+    ) {
+      result.type = "string";
+    }
+
+    return result;
+  }
+
+  /**
+   * Processes parameters for specification object - wraps in schema.
+   * A `$ref` parameter is left untouched (backend parity: parameter refs at
+   * the operation level stay unresolved in the specification slice).
+   */
+  private static processParametersForSpecification(
+    parameters: any[],
+    isOpenApi3: boolean,
+  ): any[] {
     if (!parameters || !Array.isArray(parameters)) {
       return parameters;
     }
 
-    return parameters.map((param: any) => this.processParameter(param));
+    return parameters.map((param: any) =>
+      this.isRefObject(param)
+        ? param
+        : this.processParameter(param, isOpenApi3),
+    );
   }
 
+  private static isRefObject(value: any): boolean {
+    return (
+      !!value && typeof value === "object" && typeof value.$ref === "string"
+    );
+  }
+
+  // OpenAPI 3.x default `style`/`explode` per parameter location (spec-mandated).
+  private static defaultParameterStyle(paramIn: string): string {
+    return paramIn === "query" || paramIn === "cookie" ? "form" : "simple";
+  }
+
+  private static readonly PARAMETER_PASSTHROUGH_FIELDS = [
+    "description",
+    "deprecated",
+    "allowEmptyValue",
+    "example",
+    "examples",
+  ];
+
   /**
-   * Processes single parameter
+   * Processes single parameter. `required`/`style`/`explode` are only
+   * defaulted for genuine OpenAPI 3.x sources — the real Parameter object
+   * model always carries them, while Swagger 2.0 (no such concept) is
+   * converted upstream and must not pick up 3.x-only fields it never had.
    */
-  private static processParameter(param: any): any {
+  private static processParameter(param: any, isOpenApi3: boolean): any {
     const paramObj: any = {
       in: param.in,
       name: param.name,
     };
+
+    for (const field of this.PARAMETER_PASSTHROUGH_FIELDS) {
+      if (param[field] !== undefined) {
+        paramObj[field] = param[field];
+      }
+    }
 
     // If there's a schema, use it, otherwise create from type/format
     if (param.schema) {
@@ -213,8 +362,14 @@ export class QipSpecificationGenerator {
       paramObj.schema = {};
     }
 
-    paramObj.required = param.required;
-    paramObj.description = param.description;
+    if (isOpenApi3) {
+      const style = param.style ?? this.defaultParameterStyle(param.in);
+      paramObj.required = param.required ?? false;
+      paramObj.style = style;
+      paramObj.explode = param.explode ?? style === "form";
+    } else {
+      paramObj.required = param.required;
+    }
 
     return paramObj;
   }
@@ -249,20 +404,23 @@ export class QipSpecificationGenerator {
   /**
    * Creates request schema
    */
-  private static createRequestSchema(operation: any, openApiSpec: any): any {
+  private static createRequestSchema(
+    operation: any,
+    openApiSpec: any,
+    isOpenApi3: boolean,
+  ): any {
     const requestSchema: any = {};
 
-    // Handle parameters (only path, query, header parameters)
+    // Handle parameters: the operation's own list only — path-item-inherited
+    // parameters never appear here, even though they do in the
+    // specification slice. A `$ref` parameter passes through unresolved,
+    // same as in the specification.
     if (operation.parameters && operation.parameters.length > 0) {
-      const nonBodyParams = operation.parameters.filter(
-        (param: any) =>
-          param.in && ["path", "query", "header"].includes(param.in),
+      requestSchema.parameters = operation.parameters.map((param: any) =>
+        this.isRefObject(param)
+          ? param
+          : this.processParameter(param, isOpenApi3),
       );
-      if (nonBodyParams.length > 0) {
-        requestSchema.parameters = nonBodyParams.map((param: any) =>
-          this.processParameter(param),
-        );
-      }
     }
 
     // Handle requestBody (OpenAPI 3.0)
@@ -274,17 +432,69 @@ export class QipSpecificationGenerator {
 
       for (const contentType of sortedContentTypes) {
         const content = operation.requestBody.content[contentType] as any;
-        if (content.schema) {
-          // For requestSchema always do full expansion
-          requestSchema[contentType] = this.expandSchema(
-            content.schema,
-            openApiSpec,
-          );
-        }
+        requestSchema[contentType] = this.buildContentSchema(
+          contentType,
+          content,
+          openApiSpec,
+        );
       }
     }
 
     return requestSchema;
+  }
+
+  /**
+   * Full `$ref` expansion only fires when the schema reduces to a reference
+   * to a single named component — a bare `{ $ref }` (any content type,
+   * including e.g. `application/xml`), or an array wrapping one
+   * (`{ type: "array", items: { $ref } }`). An inline/anonymous schema with
+   * its own `properties` — even one that nests a `$ref` several levels down
+   * — is left exactly as declared, unresolved, matching the backend: it
+   * only walks a document far enough to answer "is this whole body just a
+   * pointer to one component?" A content entry with no `schema` still gets
+   * a placeholder `{}` so the media-type key itself is preserved.
+   */
+  private static buildContentSchema(
+    contentType: string,
+    content: any,
+    openApiSpec: any,
+  ): any {
+    if (!content?.schema) {
+      return {};
+    }
+    if (this.isExpandableSchemaRoot(content.schema)) {
+      return this.normalizeSchemaLikeNode(
+        this.expandSchema(content.schema, openApiSpec),
+      );
+    }
+    // Even a schema left otherwise untouched still gets the same
+    // required-sort/enum-type normalization (backend parity — see
+    // normalizeSchemaLikeNode).
+    return this.normalizeSchemaLikeNode(
+      JSON.parse(JSON.stringify(content.schema)),
+    );
+  }
+
+  private static isBareRef(node: any): boolean {
+    return (
+      !!node &&
+      typeof node === "object" &&
+      !Array.isArray(node) &&
+      typeof node.$ref === "string" &&
+      Object.keys(node).length === 1
+    );
+  }
+
+  private static isExpandableSchemaRoot(schema: any): boolean {
+    if (this.isBareRef(schema)) {
+      return true;
+    }
+    return (
+      !!schema &&
+      typeof schema === "object" &&
+      schema.type === "array" &&
+      this.isBareRef(schema.items)
+    );
   }
 
   /**
@@ -318,19 +528,72 @@ export class QipSpecificationGenerator {
 
           for (const contentType of sortedContentTypes) {
             const content = response.content[contentType] as any;
-            if (content.schema) {
-              // For responseSchemas always do full expansion
-              responseSchemas[statusCode][contentType] = this.expandSchema(
-                content.schema,
-                openApiSpec,
-              );
-            }
+            responseSchemas[statusCode][contentType] = this.buildContentSchema(
+              contentType,
+              content,
+              openApiSpec,
+            );
           }
         }
       }
     }
 
     return responseSchemas;
+  }
+
+  /**
+   * Processes the operation's raw `responses` map for the specification
+   * slice: defaults each header's `style`/`explode` the way the backend's
+   * OpenAPI 3.x Header object model does (default style "simple", explode
+   * true only for style "form"), and drops `summary` — an OpenAPI 3.2-only
+   * Response Object field the backend's 3.1-based model has no slot for, so
+   * it never survives a real parse/reserialize round trip. Response-level
+   * `$ref`s and content/schema `$ref`s stay untouched.
+   */
+  private static processResponsesForSpecification(responses: any): any {
+    if (!responses || typeof responses !== "object") {
+      return responses;
+    }
+
+    const result: any = {};
+    for (const [status, response] of Object.entries(responses)) {
+      if (
+        this.isRefObject(response) ||
+        !response ||
+        typeof response !== "object"
+      ) {
+        result[status] = response;
+        continue;
+      }
+      const { summary, ...responseObj } = response as Record<string, any>;
+      result[status] = responseObj.headers
+        ? {
+            ...responseObj,
+            headers: this.processHeadersForSpecification(responseObj.headers),
+          }
+        : responseObj;
+    }
+    return result;
+  }
+
+  private static processHeadersForSpecification(headers: any): any {
+    const result: any = {};
+    for (const [name, header] of Object.entries(
+      headers as Record<string, any>,
+    )) {
+      if (this.isRefObject(header)) {
+        result[name] = header;
+        continue;
+      }
+      const headerObj = header as Record<string, any>;
+      const style = headerObj.style ?? "simple";
+      result[name] = {
+        ...headerObj,
+        style,
+        explode: headerObj.explode ?? style === "form",
+      };
+    }
+    return result;
   }
 
   /**
@@ -362,6 +625,15 @@ export class QipSpecificationGenerator {
       );
     }
 
+    if (schema.type === "array" && this.isBareRef(schema.items)) {
+      return this.expandArrayOfBareRef(
+        schema,
+        openApiSpec,
+        visited,
+        definitions,
+      );
+    }
+
     const expandedSchema = this.expandSchemaInternal(
       schema,
       openApiSpec,
@@ -375,6 +647,49 @@ export class QipSpecificationGenerator {
       Object.keys(definitions).length > 0 ? definitions : {};
 
     return expandedSchema;
+  }
+
+  /**
+   * Backend parity for `{ type: "array", items: { $ref } }`: the referenced
+   * schema's own body is inlined directly under `items` (not left as a
+   * `$ref`/`definitions` pointer), `$id` names the item schema rather than
+   * the array, and the item's own nested refs are hoisted into the shared
+   * top-level `definitions` map. A schema whose body has no own `type`
+   * (e.g. a bare `allOf` composition) gets an explicit `type: null` — the
+   * one artifact of the backend's typed Schema model that shows up only in
+   * this inlined-item position.
+   */
+  private static expandArrayOfBareRef(
+    schema: any,
+    openApiSpec: any,
+    visited: Set<string>,
+    definitions: Record<string, any>,
+  ): any {
+    const itemRef = schema.items.$ref as string;
+    const itemSchemaName = this.extractSchemaNameFromRef(itemRef);
+    const resolvedItemSchema = this.resolveRef(itemRef, openApiSpec);
+    const newVisited = new Set(visited);
+    newVisited.add(itemRef);
+
+    const expandedItem = this.expandSchemaInternal(
+      resolvedItemSchema,
+      openApiSpec,
+      itemSchemaName,
+      newVisited,
+      definitions,
+      false,
+    );
+    if (expandedItem.type === undefined) {
+      expandedItem.type = null;
+    }
+
+    return {
+      ...schema,
+      $id: `http://system.catalog/schemas/#/components/schemas/${itemSchemaName || "Schema"}`,
+      $schema: "http://json-schema.org/draft-07/schema#",
+      items: expandedItem,
+      definitions,
+    };
   }
 
   private static expandSchemaInternal(
@@ -406,6 +721,8 @@ export class QipSpecificationGenerator {
     }
 
     if (expanded.required && Array.isArray(expanded.required)) {
+      // Sorted for backend parity by normalizeSchemaLikeNode, once, at the
+      // top of expandSchema's two external call sites.
       expanded.required = expanded.required.map((item: any) =>
         typeof item === "string" ? `${item}` : item,
       );
@@ -620,13 +937,6 @@ export class QipSpecificationGenerator {
   }
 
   /**
-   * Generates ID
-   */
-  private static generateId(): string {
-    return crypto.randomUUID();
-  }
-
-  /**
    * Generates operation ID
    */
   private static generateOperationId(method: string, path: string): string {
@@ -725,13 +1035,10 @@ export class QipSpecificationGenerator {
 
         if ((response as any).schema) {
           const schema = (response as any).schema;
-          // Convert #/definitions to #/components/schemas for OpenAPI 3.0
-          if (schema.$ref && schema.$ref.startsWith("#/definitions/")) {
-            schema.$ref = schema.$ref.replace(
-              "#/definitions/",
-              "#/components/schemas/",
-            );
-          }
+          // Convert #/definitions to #/components/schemas for OpenAPI 3.0,
+          // including refs nested inside an array/object wrapper (not just
+          // a bare top-level $ref).
+          this.convertRefsInSchema(schema);
           openApiResponse.content = {
             "application/json": {
               schema: schema,
@@ -745,7 +1052,11 @@ export class QipSpecificationGenerator {
 
     // Convert parameters to requestBody
     if (operation.parameters) {
-      this.convertParametersToRequestBody(operation, openApiOperation);
+      this.convertParametersToRequestBody(
+        operation,
+        openApiOperation,
+        swagger2Spec,
+      );
     }
 
     return openApiOperation;
@@ -757,6 +1068,7 @@ export class QipSpecificationGenerator {
   private static convertParametersToRequestBody(
     operation: any,
     openApiOperation: any,
+    swagger2Spec: any,
   ): void {
     const bodyParams = operation.parameters.filter((p: any) => p.in === "body");
     const formParams = operation.parameters.filter(
@@ -767,13 +1079,20 @@ export class QipSpecificationGenerator {
     );
 
     if (bodyParams.length > 0) {
-      this.convertBodyParameters(bodyParams, openApiOperation);
+      const consumes = operation.consumes ||
+        swagger2Spec.consumes || ["application/json"];
+      this.convertBodyParameters(bodyParams, openApiOperation, consumes);
     } else if (formParams.length > 0) {
       this.convertFormParameters(formParams, openApiOperation);
     }
 
-    // Keep only non-body parameters
-    openApiOperation.parameters = nonBodyParams;
+    // Keep only non-body parameters; omit the field entirely when there
+    // are none, rather than leaving an empty array on the operation.
+    if (nonBodyParams.length > 0) {
+      openApiOperation.parameters = nonBodyParams;
+    } else {
+      delete openApiOperation.parameters;
+    }
   }
 
   /**
@@ -782,6 +1101,7 @@ export class QipSpecificationGenerator {
   private static convertBodyParameters(
     bodyParams: any[],
     openApiOperation: any,
+    consumes: string[],
   ): void {
     const bodySchema = bodyParams[0].schema;
     // Convert #/definitions to #/components/schemas for OpenAPI 3.0
@@ -796,17 +1116,17 @@ export class QipSpecificationGenerator {
       );
     }
 
+    const content: Record<string, any> = {};
+    for (const mediaType of consumes) {
+      content[mediaType] = { schema: bodySchema };
+    }
+
     openApiOperation.requestBody = {
-      content: {
-        "application/json": {
-          schema: bodySchema,
-        },
-        "application/xml": {
-          schema: bodySchema,
-        },
-      },
+      content,
       required: bodyParams[0].required || false,
-      description: bodyParams[0].description || "Request body",
+      ...(bodyParams[0].description
+        ? { description: bodyParams[0].description }
+        : {}),
     };
 
     // Add x-codegen-request-body-name
@@ -954,18 +1274,5 @@ export class QipSpecificationGenerator {
       };
     }
     return securitySchemes;
-  }
-
-  /**
-   * Calculates string hash
-   */
-  private static calculateHash(str: string): string {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32bit integer
-    }
-    return Math.abs(hash).toString(16);
   }
 }

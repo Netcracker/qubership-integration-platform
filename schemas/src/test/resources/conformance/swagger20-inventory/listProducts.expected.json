@@ -1,0 +1,96 @@
+{
+    "typed": {
+        "type": "openapi",
+        "summary": "List products",
+        "path": "/products",
+        "method": "get",
+        "isDeprecated": null
+    },
+    "path": "/products",
+    "method": "GET",
+    "modelId": "46c78b27-006b-499a-a0e0-168bca3d7630-Inventory API-1.4.0",
+    "sourceHash": "540323b5b114288343877ed2115cf55ed957ba3fe5cf2a76d4eb08db3e6bb985",
+    "operationId": "listProducts",
+    "requestSchema": {
+        "parameters": [
+            {
+                "in": "query",
+                "name": "category",
+                "schema": {
+                    "type": "string"
+                }
+            }
+        ]
+    },
+    "specification": {
+        "summary": "List products",
+        "responses": {
+            "200": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/components/schemas/Product"
+                            }
+                        }
+                    }
+                },
+                "description": "Products"
+            }
+        },
+        "parameters": [
+            {
+                "in": "query",
+                "name": "category",
+                "schema": {
+                    "type": "string"
+                }
+            }
+        ],
+        "operationId": "listProducts"
+    },
+    "responseSchemas": {
+        "200": {
+            "application/json": {
+                "$id": "http://system.catalog/schemas/#/components/schemas/Product",
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": [
+                        "name",
+                        "sku"
+                    ],
+                    "properties": {
+                        "sku": {
+                            "type": "string"
+                        },
+                        "name": {
+                            "type": "string"
+                        },
+                        "tags": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "dimensions": {
+                            "type": "object",
+                            "properties": {
+                                "width": {
+                                    "type": "number"
+                                },
+                                "height": {
+                                    "type": "number"
+                                }
+                            }
+                        }
+                    }
+                },
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "definitions": {
+                }
+            }
+        }
+    }
+}

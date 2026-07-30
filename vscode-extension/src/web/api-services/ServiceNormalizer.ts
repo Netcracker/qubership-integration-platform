@@ -1,85 +1,35 @@
+import {
+  repairMigrationsClaim,
+  SERVICE_MIGRATIONS,
+} from "../services/importMigrationVersions";
+
 /**
- * Utility for normalizing service objects
- * Ensures that service.content always exists with valid default values
+ * Fills in a service object read from disk with the two values the write path
+ * cannot reconstruct on its own: the migrations claim the backend import
+ * requires, and the environment `sourceType` the service schema marks required.
+ *
+ * Blank strings and empty collections are deliberately left out. Every reader
+ * defaults them itself — `getService` and `parseEnvironment` in serviceApiRead,
+ * the update paths in serviceApiModify and EnvironmentService — and
+ * `writeServiceFile` prunes empty values on the way out, so filling them in
+ * only produced placeholders that the write boundary deleted again.
  */
 export class ServiceNormalizer {
-  /**
-   * Normalizes a service object by ensuring content field exists with all required properties
-   * If content is missing or empty, creates a default content object
-   */
   static normalizeService(service: any): any {
     if (!service) {
       return service;
     }
 
     if (!service.content || typeof service.content !== "object") {
-      const now = Date.now();
-      service.content = {
-        description: "",
-        activeEnvironmentId: "",
-        integrationSystemType: "",
-        protocol: "",
-        extendedProtocol: "",
-        specification: "",
-        environments: [],
-        labels: [],
-        migrations: [],
-      };
-    } else {
-      const now = Date.now();
-      if (service.content.description === undefined) {
-        service.content.description = "";
-      }
-      if (service.content.activeEnvironmentId === undefined) {
-        service.content.activeEnvironmentId = "";
-      }
-      if (service.content.integrationSystemType === undefined) {
-        service.content.integrationSystemType = "";
-      }
-      if (service.content.protocol === undefined) {
-        service.content.protocol = "";
-      }
-      if (service.content.extendedProtocol === undefined) {
-        service.content.extendedProtocol = "";
-      }
-      if (service.content.specification === undefined) {
-        service.content.specification = "";
-      }
-      if (!service.content.environments) {
-        service.content.environments = [];
-      }
-      if (!service.content.labels) {
-        service.content.labels = [];
-      }
-      if (!service.content.migrations) {
-        service.content.migrations = [];
-      }
+      service.content = {};
+    }
+    repairMigrationsClaim(service.content, SERVICE_MIGRATIONS);
 
-      // Normalize environments
-      if (
-        service.content.environments &&
-        Array.isArray(service.content.environments)
-      ) {
-        service.content.environments = service.content.environments.map(
-          (env: any) => {
-            if (!env.properties) {
-              env.properties = {};
-            }
-            if (!env.labels) {
-              env.labels = [];
-            }
-            if (env.sourceType === undefined) {
-              env.sourceType = "MANUAL";
-            }
-            if (env.description === undefined) {
-              env.description = "";
-            }
-            if (env.address === undefined) {
-              env.address = "";
-            }
-            return env;
-          },
-        );
+    if (Array.isArray(service.content.environments)) {
+      for (const environment of service.content.environments) {
+        if (environment && environment.sourceType === undefined) {
+          environment.sourceType = "MANUAL";
+        }
       }
     }
 

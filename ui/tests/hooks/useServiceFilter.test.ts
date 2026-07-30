@@ -49,12 +49,26 @@ jest.mock("../../src/hooks/useChainFilter", () => ({
   LabelsStringTableFilter,
 }));
 
-import { useServiceFilters } from "../../src/hooks/useServiceFilter";
+import {
+  SERVICE_FILTER_COLUMNS,
+  useServiceFilters,
+} from "../../src/hooks/useServiceFilter";
 
 describe("useServiceFilter", () => {
   it("returns empty filters array and a filterButton element", () => {
     const { result } = renderHook(() => useServiceFilters());
     expect(result.current.filters).toEqual([]);
     expect(result.current.filterButton).toBeDefined();
+  });
+
+  // The column id is the backend FilterFeature value; the old SPECIFICATION_GROUP silently matches nothing now.
+  it("exposes the API group column under the renamed filter feature id", () => {
+    const ids = SERVICE_FILTER_COLUMNS.map((column) => column.id);
+
+    expect(ids).toContain("API_GROUP");
+    expect(ids).not.toContain("SPECIFICATION_GROUP");
+    expect(
+      SERVICE_FILTER_COLUMNS.find((column) => column.id === "API_GROUP")?.name,
+    ).toBe("API Group");
   });
 });

@@ -1,0 +1,95 @@
+{
+    "typed": {
+        "type": "openapi",
+        "summary": "Upload an ordered multipart payload",
+        "path": "/attachments",
+        "method": "post",
+        "isDeprecated": null
+    },
+    "path": "/attachments",
+    "method": "POST",
+    "modelId": "27c9cb1e-d917-4301-8851-569ce18c0c8e-helix-observe-3.2-1.0.0",
+    "sourceHash": "79d17d02e6ec0ddce8ebb6f4190126aac57649bccf70d07b944a59d602b4c686",
+    "operationId": "uploadAttachment",
+    "requestSchema": {
+        "multipart/mixed": {
+            "type": "array",
+            "prefixItems": [
+                {
+                    "$ref": "#/components/schemas/AttachmentManifest"
+                },
+                {
+                    "type": "string",
+                    "format": "binary"
+                }
+            ]
+        }
+    },
+    "specification": {
+        "tags": [
+            "ingest",
+            "beta"
+        ],
+        "summary": "Upload an ordered multipart payload",
+        "responses": {
+            "201": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Acknowledgement"
+                        }
+                    }
+                },
+                "description": "The attachment was stored."
+            }
+        },
+        "description": "Demonstrates positional multipart parts via `prefixEncoding`: the\nfirst part is the manifest, the second is the binary blob.\n",
+        "operationId": "uploadAttachment",
+        "requestBody": {
+            "content": {
+                "multipart/mixed": {
+                    "schema": {
+                        "type": "array",
+                        "prefixItems": [
+                            {
+                                "$ref": "#/components/schemas/AttachmentManifest"
+                            },
+                            {
+                                "type": "string",
+                                "format": "binary"
+                            }
+                        ]
+                    }
+                }
+            },
+            "required": true
+        }
+    },
+    "responseSchemas": {
+        "201": {
+            "application/json": {
+                "$id": "http://system.catalog/schemas/#/components/schemas/Acknowledgement",
+                "type": "object",
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "required": [
+                    "status"
+                ],
+                "properties": {
+                    "status": {
+                        "enum": [
+                            "accepted",
+                            "queued",
+                            "done"
+                        ],
+                        "type": "string"
+                    },
+                    "reference": {
+                        "type": "string"
+                    }
+                },
+                "definitions": {
+                }
+            }
+        }
+    }
+}

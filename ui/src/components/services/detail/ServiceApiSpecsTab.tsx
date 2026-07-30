@@ -2,13 +2,13 @@ import React, { useEffect, useState, useMemo, useRef } from "react";
 import { Flex, Spin, Button } from "antd";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { api } from "../../../api/api";
-import { SpecificationGroup, Specification } from "../../../api/apiTypes";
+import { ApiGroup, Api, IntegrationSystemType } from "../../../api/apiTypes";
 import {
   useServicesTreeTable,
   ServiceEntity,
   isSystemOperation,
-  isSpecification,
-  isSpecificationGroup,
+  isApi,
+  isApiGroup,
   ActionConfig,
 } from "../ServicesTreeTable";
 import { getActionsColumn } from "../ServicesTreeTable";
@@ -25,7 +25,6 @@ import {
   useServiceContext,
   useServiceParametersToolbar,
 } from "./ServiceParametersPage";
-import { IntegrationSystemType } from "../../../api/apiTypes";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
 import { endpointColumnTitleForProtocol } from "../endpointColumnTitle.ts";
@@ -94,7 +93,7 @@ const buildOperationDefaultVisibleKeys = () => [
   "usedBy",
 ];
 
-const getGroupActions =
+export const getGroupActions =
   (
     expandedRowKeys: string[],
     setExpandedRowKeys: (keys: string[]) => void,
@@ -107,8 +106,8 @@ const getGroupActions =
     loadGroups: (systemId: string) => Promise<void>,
   ) =>
   (record: ServiceEntity): ActionConfig<ServiceEntity>[] => {
-    if (isSpecification(record)) return [];
-    const group = record as SpecificationGroup;
+    if (isApi(record)) return [];
+    const group = record as ApiGroup;
     return [
       {
         key: expandedRowKeys.includes(group.id) ? "collapse" : "expand",
@@ -128,7 +127,7 @@ const getGroupActions =
       },
       {
         key: "add",
-        label: "Add Specification",
+        label: "Add API",
         icon: <OverridableIcon name="plus" />,
         require: { specificationGroup: ["create"] },
         onClick: () => {
@@ -157,15 +156,14 @@ const getGroupActions =
           void (async () => {
             try {
               await api.deleteSpecificationGroup(group.id);
-              message.success("Specification group deleted");
+              message.success("API group deleted");
               await refreshGroups();
             } catch (e) {
               notify.requestFailed("Delete failed", e);
             }
           })(),
         confirm: {
-          title:
-            "Are you sure you want to permanently delete this specification group?",
+          title: "Are you sure you want to permanently delete this API group?",
           okText: "Delete",
           cancelText: "Cancel",
         },
@@ -173,7 +171,7 @@ const getGroupActions =
     ];
   };
 
-const getSpecActions =
+export const getSpecActions =
   (
     expandedRowKeys: string[],
     setExpandedRowKeys: (keys: string[]) => void,
@@ -184,7 +182,7 @@ const getSpecActions =
     if (isSystemOperation(record)) {
       return [];
     }
-    const spec = record as Specification;
+    const spec = record as Api;
     return [
       {
         key: expandedRowKeys.includes(spec.id) ? "collapse" : "expand",
@@ -212,14 +210,14 @@ const getSpecActions =
               onClick: async () => {
                 try {
                   await api.deleteSpecificationModel(spec.id);
-                  message.success("Specification deleted");
+                  message.success("API deleted");
                   await refreshModels();
                 } catch (e) {
                   notify.requestFailed("Delete failed", e);
                 }
               },
               confirm: {
-                title: "Delete this specification?",
+                title: "Delete this API?",
                 okText: "Delete",
                 cancelText: "Cancel",
               },
@@ -236,14 +234,14 @@ const getSpecActions =
               onClick: async () => {
                 try {
                   await api.deprecateModel(spec.id);
-                  message.success("Specification deprecated");
+                  message.success("API deprecated");
                   await refreshModels();
                 } catch (e) {
                   notify.requestFailed("Deprecate failed", e);
                 }
               },
               confirm: {
-                title: "Deprecate this specification?",
+                title: "Deprecate this API?",
                 okText: "Deprecate",
                 cancelText: "Cancel",
               },
@@ -261,12 +259,12 @@ const getSpecActions =
   };
 
 async function handleExportSpecifications(
-  selected: Specification[],
+  selected: Api[],
   notify: ReturnType<typeof useNotificationService>,
 ) {
   return (async () => {
     if (!selected.length) {
-      message.info("There are no selected specifications");
+      message.info("There are no selected APIs");
       return;
     }
     try {
@@ -399,7 +397,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
     ),
     onUpdateLabels: async (record, labels) => {
       if (!systemId) return;
-      if (isSpecificationGroup(record)) {
+      if (isApiGroup(record)) {
         await api.updateApiSpecificationGroup(record.id, {
           ...record,
           labels: labels.map((name) => ({ name, technical: false })),
@@ -440,16 +438,15 @@ export const ServiceApiSpecsTab: React.FC = () => {
       ),
     ),
     enableSelection: true,
-    isRootEntity: (record) =>
-      Array.isArray((record as Specification).operations),
+    isRootEntity: (record) => Array.isArray((record as Api).operations),
     selectedRowKeys: selectedSpecRowKeys,
     onSelectedRowKeysChange: setSelectedSpecRowKeys,
     onExportSelected: (selected) => {
-      void handleExportSpecifications(selected as Specification[], notify);
+      void handleExportSpecifications(selected as Api[], notify);
     },
     onUpdateLabels: async (record, labels) => {
       if (!systemId || !groupId) return;
-      if (isSpecification(record)) {
+      if (isApi(record)) {
         await api.updateSpecificationModel(record.id, {
           ...record,
           labels: labels.map((name) => ({ name, technical: false })),
@@ -553,7 +550,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
                 void goToTable("specs", { groupId });
               }}
             >
-              To Specifications
+              To APIs
             </Button>
           )}
           {currentTable === "specs" && (
@@ -562,7 +559,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
                 void goToTable("groups");
               }}
             >
-              To Specification Groups
+              To API Groups
             </Button>
           )}
         </div>
@@ -605,7 +602,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
               )}
               <ProtectedButton
                 require={{ specificationGroup: ["import"] }}
-                tooltipProps={{ title: "Add Specification Group" }}
+                tooltipProps={{ title: "Add API Group" }}
                 buttonProps={{
                   type: "primary",
                   iconName: "plus",
@@ -624,7 +621,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
             <Flex vertical={false} gap={4}>
               <ProtectedButton
                 require={{ specification: ["import"] }}
-                tooltipProps={{ title: "Import Specification" }}
+                tooltipProps={{ title: "Import API" }}
                 buttonProps={{
                   iconName: "cloudUpload",
                   onClick: onImportSpecClick,
@@ -634,7 +631,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
                 <ProtectedButton
                   require={{ specification: ["export"] }}
                   tooltipProps={{
-                    title: "Export selected specifications",
+                    title: "Export selected APIs",
                     placement: "bottom",
                   }}
                   buttonProps={{
@@ -642,9 +639,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
                     onClick: () => {
                       void (async () => {
                         if (selectedSpecRowKeys.length === 0) {
-                          message.info(
-                            "There are no selected specifications yet",
-                          );
+                          message.info("There are no selected APIs yet");
                           return;
                         }
                         const selected = (models ?? []).filter((m) =>
@@ -671,7 +666,7 @@ export const ServiceApiSpecsTab: React.FC = () => {
                 <ProtectedButton
                   require={{ specification: ["export"] }}
                   tooltipProps={{
-                    title: "Export specification",
+                    title: "Export API",
                     placement: "bottom",
                   }}
                   buttonProps={{

@@ -212,7 +212,7 @@ export class AmqpSpecificationResolver extends AbstractAsyncApiResolver {
   getSpecificationJsonNode(
     _channelName: string,
     channel: AsyncApiChannel,
-    _operationObject: AsyncApiOperationObject,
+    operationObject: AsyncApiOperationObject,
   ): Record<string, unknown> {
     const specification: Record<string, unknown> = {};
     const amqp = channel?.bindings?.amqp;
@@ -228,6 +228,10 @@ export class AmqpSpecificationResolver extends AbstractAsyncApiResolver {
       if (exchangeName != null) {
         specification.exchangeName = exchangeName;
       }
+    }
+    const classifier = getMaasClassifier(operationObject);
+    if (classifier !== undefined) {
+      specification.maasClassifierName = classifier;
     }
     return specification;
   }
