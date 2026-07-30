@@ -27,6 +27,11 @@ on:
           Enable for modules with private GitHub Packages deps (micro-engine):
           the OWNER/* wildcard repo intermittently fails under load, and Maven
           negative-caches the miss across runs (cache: maven). -U defeats that.
+      ensure-openapi-spec:
+        required: false
+        type: boolean
+        default: false
+        description: Ensure that OpenAPI specification files are up-to-date.
     secrets:
       SONAR_TOKEN:
         required: false
@@ -151,3 +156,54 @@ jobs:
             -Dsonar.organization="$SONAR_ORGANIZATION" \
             -Dsonar.host.url="$SONAR_HOST_URL" \
             -Dsonar.qualitygate.wait=true
+
+  ensure-openapi-spec:
+    needs: build
+    if: ${{ inputs.ensure-openapi-spec }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          # GitHub Packages credentials live in .github/maven-settings.xml (passed via -s).
+          cache: "maven"
+
+      - name: Update OpenAPI specifications
+        working-directory: ${{ inputs.module }}
+        env:
+          MAVEN_MODULE_NAME: ${{ inputs.module }}
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_UPDATE: ${{ inputs.force-update }}
+        run: |
+          set -eu
+          # Run from the module dir so Maven reads only this module + parent (via
+          # relativePath), never siblings — micro-engine pulls private
+          # com.netcracker.cloud artifacts this token can't read. Publishes nothing.
+          UPDATE_FLAG=""
+          if [ "$FORCE_UPDATE" = "true" ]; then UPDATE_FLAG="-U"; fi
+          if [ "$MAVEN_MODULE_NAME" = "micro-engine" ]; then
+            mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" build $UPDATE_FLAG -Dgpg.skip=true
+          else
+            mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" test $UPDATE_FLAG -Dtest=OpenApiSpecGeneratorTest -DfailIfNoTests=false
+          fi
+      - name: Verify the specifications have no changes
+        working-directory: ${{ inputs.module }}
+        run: |
+          if [ -n "$(git status --porcelain api-spec)" ]; then
+            echo "Error: The OpenAPI specifications are out-of-date:"
+            git status api-spec
+            exit 1
+          else
+          echo "OpenAPI specifications are up-to-date."
+          fi

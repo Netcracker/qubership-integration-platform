@@ -86,6 +86,17 @@ It also requires:
 - Redis (if idempotency support enabled).
 - Kafka (if kafka client enabled for sessions).
 
+## OpenAPI Specification
+
+`OpenApiSpecGeneratorTest` starts the application with the `development` profile active, the checkpoint
+and Quartz datasources, Flyway, and Consul mocked or stubbed, calls the `/v3/api-docs.yaml` endpoint, and
+writes the result to `api-spec/`. It runs as part of the normal test suite, so `mvn test` keeps
+`api-spec/openapi.yaml` up to date. To run just this test:
+
+```shell
+mvn test -Dtest=OpenApiSpecGeneratorTest
+```
+
 ## Contribution
 
 For the details on contribution, see [Contribution Guide](../CONTRIBUTING.md). For details on reporting of security issues see [Security Reporting Process](../SECURITY.md).
