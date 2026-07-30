@@ -286,6 +286,12 @@ public class KafkaBGFetchRecords implements Runnable {
         bridge.handleException(e);
         // skip this poison message and seek to next message
         seekToNextOffset(lastCommitMarker, currentCommitMarker, kafkaRecordProcessor);
+        // temporary: backoff to avoid tight retry loop on persistent errors
+        try {
+            Thread.sleep(30000);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void handlePollReconnect() {
