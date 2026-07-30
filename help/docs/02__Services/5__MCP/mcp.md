@@ -41,7 +41,11 @@ All services created using VS Code Extension appears under "Services" folder. Th
 ### Add MCP Service
 <ins>Web UI</ins>
 
-To add new MCP service, click **"Create service"** button at the top right of the screen. Specify service name and description on a newly opened pop-up and click **"Create"** button.
+To add new MCP service, click **"Create service"** button at the top right of the screen. Fill in the following fields on the newly opened pop-up and click **"Create"** button:
+
+- **Name** - mandatory service name.
+- **Identifier** - mandatory unique identifier of the MCP service.
+- **Description** - optional description of the service.
 
 System opens new window with **Common Parameters** section.
 
