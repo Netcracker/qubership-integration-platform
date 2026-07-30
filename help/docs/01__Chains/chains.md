@@ -12,7 +12,7 @@ When the chain configuration was completed, it should be deployed at least on on
 ### Chains and Folders View
 <ins>Web UI</ins>
 
-Screen shows the table of chains (marked with icon ![file](img/file.svg)) and chain folders (marked with icon ![folder](img/folder.svg)). To see all the chains & folders under the particular folder, you can click ![right](img/right.svg) icon near folder name. Next control elements are available on top of the table:
+Screen shows the table of chains (marked with icon ![chain](img/chain.svg)) and chain folders (marked with icon ![folder](img/folder.svg)). To see all the chains & folders under the particular folder, you can click ![right](img/right.svg) icon near folder name. Next control elements are available on top of the table:
 - **Search field** - search box, provides ability to find respective data in the table. To find a particular chain/folder by a specific feature (case-insensitive) use search field at the top of the screen with the text "Full text search" and a lens icon ![search](img/search.svg). Full-text search is applicable by the following data:
   - Chain fields:
     - Chain name

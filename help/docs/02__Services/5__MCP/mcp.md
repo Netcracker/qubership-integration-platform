@@ -19,10 +19,10 @@ Table with MCP services is accessible by navigating to **Services** -> **MCP** t
 - **Identifier** - unique identifier of the MCP service.
 - **Labels** - list of colored labels of the MCP service, unique within particular entity.
 - **Used by** - list of chains where the MCP service is used.
-- **Created At** - datetime of entity creation.
-- **Created By** - shows the user, who created an entity.
-- **Modified At** - datetime of entity modifying.
-- **Modified By** - shows the user, who modified an entity.
+- **Created At** - datetime of entity creation (hidden by default).
+- **Created By** - shows the user, who created an entity (hidden by default).
+- **Modified At** - datetime of entity modifying (hidden by default).
+- **Modified By** - shows the user, who modified an entity (hidden by default).
 - **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu under each service. Contains next operations:
   - **Delete** ![delete](img/delete.svg) - deletes entity.
   - **Export** ![cloud-download](img/cloud-download.svg) - allows to export the entity.
