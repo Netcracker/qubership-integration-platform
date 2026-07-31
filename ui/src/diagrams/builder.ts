@@ -893,10 +893,15 @@ const BRANCH_RANKS: Record<string, number> = {
 const DEFAULT_BRANCH_RANK = 1;
 
 function getBranchRank(element: Element): number {
+  // longest match wins, so a longer type keeps its rank when a shorter one also fits
   const prefix = Object.keys(BRANCH_RANKS)
     .filter((candidate) => element.type.startsWith(candidate))
-    .sort((left, right) => right.length - left.length)[0];
-  return prefix === undefined ? DEFAULT_BRANCH_RANK : BRANCH_RANKS[prefix];
+    .reduce(
+      (longest, candidate) =>
+        candidate.length > longest.length ? candidate : longest,
+      "",
+    );
+  return prefix === "" ? DEFAULT_BRANCH_RANK : BRANCH_RANKS[prefix];
 }
 
 function getBranchPriority(element: Element): number {
@@ -915,22 +920,37 @@ function orderBranchElements(elements: Element[] | undefined): Element[] {
   });
 }
 
+function getBranches(
+  element: Element,
+  context: DiagramBuildContext,
+  getLabel: (branch: Element) => string,
+): Branch[] {
+  return orderBranchElements(element.children).map((branch) => ({
+    type: "branch" as const,
+    label: getLabel(branch),
+    actions: getActionsForChildren(branch, context),
+  }));
+}
+
+/** Condition and choice differ only in the branch type that carries the expression. */
+function getConditionalBranchLabel(
+  branch: Element,
+  typePrefix: string,
+): string {
+  const condition =
+    (branch.properties["condition"] as string) ?? EMPTY_PROPERTY_STUB;
+  return branch.type.startsWith(typePrefix)
+    ? `${branch.name}, on condition ${condition}`
+    : branch.name;
+}
+
 function getConditionActions(
   element: Element,
   context: DiagramBuildContext,
 ): Action[] {
-  const branches: Branch[] = orderBranchElements(element.children).map((e) => {
-    const condition =
-      (e.properties["condition"] as string) ?? EMPTY_PROPERTY_STUB;
-    const label = e.type.startsWith("if")
-      ? `${e.name}, on condition ${condition}`
-      : e.name;
-    return {
-      type: "branch" as const,
-      label,
-      actions: getActionsForChildren(e, context),
-    };
-  });
+  const branches = getBranches(element, context, (branch) =>
+    getConditionalBranchLabel(branch, "if"),
+  );
   return [{ type: "alternatives", branches }];
 }
 
@@ -938,18 +958,9 @@ function getChoiceActions(
   element: Element,
   context: DiagramBuildContext,
 ): Action[] {
-  const branches: Branch[] = orderBranchElements(element.children).map((e) => {
-    const condition =
-      (e.properties["condition"] as string) ?? EMPTY_PROPERTY_STUB;
-    const label = e.type.startsWith("when")
-      ? `${e.name}, on condition ${condition}`
-      : e.name;
-    return {
-      type: "branch" as const,
-      label,
-      actions: getActionsForChildren(e, context),
-    };
-  });
+  const branches = getBranches(element, context, (branch) =>
+    getConditionalBranchLabel(branch, "when"),
+  );
   return [{ type: "alternatives", branches }];
 }
 
@@ -993,11 +1004,7 @@ function getSplitAsyncActions(
   element: Element,
   context: DiagramBuildContext,
 ): Action[] {
-  const branches: Branch[] = orderBranchElements(element.children).map((e) => ({
-    type: "branch" as const,
-    label: e.name,
-    actions: getActionsForChildren(e, context),
-  }));
+  const branches = getBranches(element, context, (branch) => branch.name);
   return [{ type: "parallel", branches }];
 }
 
@@ -1047,17 +1054,12 @@ function getTryCatchFinallyActions(
   element: Element,
   context: DiagramBuildContext,
 ): Action[] {
-  const branches: Branch[] = orderBranchElements(element.children).map((e) => {
+  const branches = getBranches(element, context, (branch) => {
     const exception =
-      (e.properties["exception"] as string) ?? EMPTY_PROPERTY_STUB;
-    const label = e.type.startsWith("catch")
-      ? `${e.name}, on exception ${exception}`
-      : e.name;
-    return {
-      type: "branch" as const,
-      label,
-      actions: getActionsForChildren(e, context),
-    };
+      (branch.properties["exception"] as string) ?? EMPTY_PROPERTY_STUB;
+    return branch.type.startsWith("catch")
+      ? `${branch.name}, on exception ${exception}`
+      : branch.name;
   });
   return [{ type: "alternatives", branches }];
 }
@@ -1066,17 +1068,13 @@ function getCircuitBreakerActions(
   element: Element,
   context: DiagramBuildContext,
 ): Action[] {
-  const branches: Branch[] = orderBranchElements(element.children).map((e) => {
+  const branches = getBranches(element, context, (branch) => {
     const failureRateThreshold =
-      (e.properties["failureRateThreshold"] as string) ?? EMPTY_PROPERTY_STUB;
-    const label = e.type.startsWith("circuit-breaker-configuration")
+      (branch.properties["failureRateThreshold"] as string) ??
+      EMPTY_PROPERTY_STUB;
+    return branch.type.startsWith("circuit-breaker-configuration")
       ? `Failure rate < ${failureRateThreshold}%`
-      : e.name;
-    return {
-      type: "branch" as const,
-      label,
-      actions: getActionsForChildren(e, context),
-    };
+      : branch.name;
   });
   return [{ type: "alternatives", branches }];
 }
