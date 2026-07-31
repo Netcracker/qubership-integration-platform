@@ -180,10 +180,11 @@ export async function buildSequenceDiagram(
     })
     .forEach((action) => actions.push(action));
 
-  const filteredActions =
+  const filteredActions = filterActions(actions, (message) =>
     mode === DiagramMode.SIMPLE
-      ? filterInternalActions(actions, context.chain.id)
-      : actions;
+      ? !isInternalMessage(message, context.chain.id)
+      : true,
+  );
 
   const usedParticipantIds = collectParticipantIds(filteredActions);
   usedParticipantIds.add(chainParticipant.id);
@@ -229,11 +230,19 @@ function collectParticipantIds(actions: Action[]): Set<string> {
   return ids;
 }
 
-function filterInternalActions(actions: Action[], chainId: string): Action[] {
+/**
+ * Keeps the messages the predicate accepts and drops every composite block left
+ * without content. An empty block carries no information and renders as a
+ * zero-width box whose label wraps to one character per line.
+ */
+function filterActions(
+  actions: Action[],
+  keepMessage: (message: Message) => boolean,
+): Action[] {
   return actions.reduce<Action[]>((result, action) => {
     switch (action.type) {
       case "message": {
-        if (action.fromId === chainId && action.toId === chainId) {
+        if (!keepMessage(action)) {
           return result;
         }
         result.push(action);
@@ -242,7 +251,7 @@ function filterInternalActions(actions: Action[], chainId: string): Action[] {
       case "group":
       case "loop":
       case "optional": {
-        const filtered = filterInternalActions(action.actions, chainId);
+        const filtered = filterActions(action.actions, keepMessage);
         if (filtered.length > 0) {
           result.push({ ...action, actions: filtered });
         }
@@ -253,7 +262,7 @@ function filterInternalActions(actions: Action[], chainId: string): Action[] {
         const filteredBranches = action.branches
           .map((branch) => ({
             ...branch,
-            actions: filterInternalActions(branch.actions, chainId),
+            actions: filterActions(branch.actions, keepMessage),
           }))
           .filter((branch) => branch.actions.length > 0);
         if (filteredBranches.length > 0) {
@@ -266,6 +275,10 @@ function filterInternalActions(actions: Action[], chainId: string): Action[] {
         return result;
     }
   }, []);
+}
+
+function isInternalMessage(message: Message, chainId: string): boolean {
+  return message.fromId === chainId && message.toId === chainId;
 }
 
 function getAppName(): string {
