@@ -253,7 +253,7 @@ const getSpecActions =
       {
         key: "export",
         label: "Export",
-        icon: <OverridableIcon name="export" />,
+        icon: <OverridableIcon name="cloudDownload" />,
         require: { specification: ["export" as const] },
         onClick: () => void handleExportSpecifications([spec], notify),
       },
