@@ -304,6 +304,8 @@ public class DesignGeneratorService {
                 .sorted(containerProcessor.getComparator())
                 .toList();
 
+        SequenceDiagramBuilder.Checkpoint checkpoint = builder.checkpoint();
+
         containerProcessor.processBefore(refChainId, builder, currentElement);
 
         for (ChainElement child : sortedChildren) {
@@ -327,7 +329,22 @@ public class DesignGeneratorService {
         }
 
         containerProcessor.processAfter(refChainId, builder, currentElement);
+
+        dropBlockWithoutContent(builder, checkpoint);
+
         toNextElements(refChainId, builder, fromElementMap, elementsTo, elementsToProcessIds, mode);
+    }
+
+    /**
+     * Drops the block just written when its children put no interaction on the diagram.
+     *
+     * Mermaid sizes a block from the interactions inside it, so an empty one collapses
+     * to zero width and wraps its label to one character per line.
+     */
+    private static void dropBlockWithoutContent(SequenceDiagramBuilder builder, SequenceDiagramBuilder.Checkpoint checkpoint) {
+        if (!builder.hasContentSince(checkpoint)) {
+            builder.revertTo(checkpoint);
+        }
     }
 
     private void processContainerWithDesignParams(String refChainId, SequenceDiagramBuilder builder,
@@ -340,6 +357,8 @@ public class DesignGeneratorService {
         // <element_type, list<elements>>
         Map<String, List<ChainElement>> innerElementsMap = currentElement.getElements().stream()
                 .collect(Collectors.groupingBy(ChainElement::getType, Collectors.mapping(Function.identity(), Collectors.toList())));
+
+        SequenceDiagramBuilder.Checkpoint checkpoint = builder.checkpoint();
 
         boolean firstChildrenDetected = false;
         boolean atLeastOneChildHasDependency = false;
@@ -398,6 +417,8 @@ public class DesignGeneratorService {
                         DiagramBuilderEscapeUtil.substituteReferences(refChainId, currentElement, endOperation.getArgs()));
             }
         }
+
+        dropBlockWithoutContent(builder, checkpoint);
 
         toNextElements(refChainId, builder, fromElementMap, elementsTo, elementsToProcessIds, mode);
     }
