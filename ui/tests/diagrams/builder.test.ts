@@ -1415,6 +1415,107 @@ describe("buildSequenceDiagram", () => {
     });
   });
 
+  describe("Branch order", () => {
+    const findBranchLabels = (actions: unknown[]): string[] | undefined => {
+      for (const a of actions) {
+        const act = a as Record<string, unknown>;
+        if (act.branches) {
+          return (act.branches as Record<string, unknown>[]).map(
+            (b) => b.label as string,
+          );
+        }
+        if (act.actions) {
+          const found = findBranchLabels(act.actions as unknown[]);
+          if (found) return found;
+        }
+      }
+      return undefined;
+    };
+
+    it("should order try, catch and finally when the children arrive shuffled", async () => {
+      const trigger = makeElement({
+        id: "trigger-1",
+        name: "HTTP Trigger",
+        type: "http-trigger",
+        properties: { contextPath: "/test" } as never,
+      });
+      const branch = (id: string, name: string, type: string) =>
+        makeElement({
+          id,
+          name,
+          type,
+          parentElementId: "tcf-1",
+          children: [makeStep(`${id}-step`, id)],
+        });
+      const tcf = makeElement({
+        id: "tcf-1",
+        name: "Try Catch Finally",
+        type: "try-catch-finally-2",
+        children: [
+          branch("finally-1", "Finally", "finally-2"),
+          branch("catch-1", "Catch", "catch-2"),
+          branch("try-1", "Try", "try-2"),
+        ],
+      });
+      const chain = makeChain(
+        [trigger, tcf],
+        [{ from: "trigger-1", to: "tcf-1" }],
+      );
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      const labels = findBranchLabels(diagram.actions);
+      expect(labels?.[0]).toBe("Try");
+      expect(labels?.[1]).toContain("Catch");
+      expect(labels?.[2]).toBe("Finally");
+    });
+
+    it("should sort if branches by priority and keep else last", async () => {
+      const trigger = makeElement({
+        id: "trigger-1",
+        name: "HTTP Trigger",
+        type: "http-trigger",
+        properties: { contextPath: "/test" } as never,
+      });
+      const ifBranch = (id: string, name: string, priority: number) =>
+        makeElement({
+          id,
+          name,
+          type: "if",
+          parentElementId: "cond-1",
+          properties: { condition: "x > 0", priority } as never,
+          children: [makeStep(`${id}-step`, id)],
+        });
+      const condition = makeElement({
+        id: "cond-1",
+        name: "Condition",
+        type: "condition",
+        children: [
+          makeElement({
+            id: "else-1",
+            name: "Else",
+            type: "else",
+            parentElementId: "cond-1",
+            children: [makeStep("else-step", "else-1")],
+          }),
+          ifBranch("if-2", "Second", 1),
+          ifBranch("if-1", "First", 0),
+        ],
+      });
+      const chain = makeChain(
+        [trigger, condition],
+        [{ from: "trigger-1", to: "cond-1" }],
+      );
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      const labels = findBranchLabels(diagram.actions);
+      expect(labels?.[0]).toContain("First");
+      expect(labels?.[1]).toContain("Second");
+      expect(labels?.[2]).toBe("Else");
+    });
+  });
+
   describe("Split Async", () => {
     it("should create parallel branches", async () => {
       const trigger = makeElement({
