@@ -949,10 +949,6 @@ export class VSCodeExtensionApi implements Api {
     throw new Error("Method getPathToFolder not implemented.");
   }
 
-  getPathToFolderByName(): Promise<FolderItem[]> {
-    throw new Error("Method getPathToFolder not implemented.");
-  }
-
   listFolder(): Promise<(FolderItem | ChainItem)[]> {
     throw new Error("Method listFolder not implemented.");
   }
