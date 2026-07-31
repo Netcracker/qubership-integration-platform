@@ -237,7 +237,28 @@ This means:
 - REMOVE is delete-by-path: matching rules drop out; everything else,
   including other chains' rules, is preserved.
 
-### 5. Error handling
+### 5. Concurrency
+
+`KubeOperator.createOrReplaceCustomObject` does a plain get-resourceVersion-
+then-replace with no retry on a 409 conflict, and the merge operation in §4 is
+itself a read-modify-write. Two chains deploying/undeploying at the same time
+from within the same engine pod could race on the same tier's CR.
+
+`IstioRoutesRegistrationService` synchronizes its three public methods
+(`postPublicEngineRoutes`, `postPrivateEngineRoutes`, `removeEngineRoutes`) on
+a single lock, so only one merge operation runs at a time per instance. This
+serializes every mutating CR call from one pod — including cases where
+`postPublicEngineRoutes` and `postPrivateEngineRoutes` touch different tiers
+and could otherwise run concurrently — which is an acceptable trade-off given
+deploy/undeploy isn't a hot path.
+
+This covers races between chains within one pod. It does **not** cover races
+between multiple replica pods of the same engine deployment writing to the
+same CR name (`cloudServiceName` is shared across replicas, not just within
+one pod) — that's a known residual gap, accepted for this pass rather than
+addressed by cross-pod coordination or conflict-retry.
+
+### 6. Error handling
 
 `KubeApiException` (already thrown by `KubeOperator` on API failure) is
 caught and rewrapped as `ControlPlaneException`, matching
@@ -249,7 +270,7 @@ keeps working unchanged.
 `postEgressGatewayRoutes` throws `UnsupportedOperationException` with a
 message pointing at the open egress design gap (see Non-goals).
 
-### 6. Testing
+### 7. Testing
 
 `ControlPlaneDefaultService` has no existing unit tests, but this class has
 enough non-trivial branching (merge-vs-delete, tier splitting, preserving
@@ -270,14 +291,13 @@ create/replace/delete calls, covering at minimum:
   with just the remaining rules.
 - `postEgressGatewayRoutes` → throws `UnsupportedOperationException`.
 
+`KubeOperator`'s two new methods also get their own unit tests, independent of
+`IstioRoutesRegistrationService`'s tests: `getCustomObject` returning a parsed
+`KubeCustomObject` on a 200, empty `Optional` on a 404, and propagating
+`KubeApiException` on other failures; `deleteCustomObject` succeeding on a 200
+and treating a 404 as a no-op rather than an error.
+
 ## Open questions for the implementation plan
 
 - Exact `HTTPRouteSpec` POJO field names/Jackson annotations (snake vs. camel
   case handling for Gateway API's YAML field names).
-- Whether `KubeOperator`'s new methods need their own unit tests beyond what
-  `IstioRoutesRegistrationService`'s tests exercise indirectly.
-- Concurrency: `createOrReplaceCustomObject` does a get-resourceVersion-then-
-  replace with no retry on a 409 conflict. If two chains deploy/undeploy
-  concurrently against the same shared CR, one could lose an update. Not
-  addressed in this pass; worth deciding whether to add conflict-retry here
-  or treat it as a follow-up.
