@@ -25,6 +25,17 @@ jest.mock("react-router", () => ({
   useNavigate: () => jest.fn(),
 }));
 
+const mockConfirmAndRun = jest.fn(
+  ({ onOk }: { onOk: () => void | Promise<void> }) => {
+    void onOk();
+  },
+);
+
+jest.mock("../../../../src/misc/confirm-utils.ts", () => ({
+  confirmAndRun: (opts: { onOk: () => void | Promise<void> }) =>
+    mockConfirmAndRun(opts),
+}));
+
 jest.mock("../../../../src/icons/IconProvider", () => ({
   OverridableIcon: ({ name, ...props }: any) => (
     <span data-testid={`icon-${name}`} {...props} />
@@ -478,6 +489,53 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
     });
   });
 
+  describe("Redeploy Confirmation Dialog", () => {
+    it("shows a confirmation dialog before redeploying selected chains", async () => {
+      const mockBulkDeploy = jest.fn().mockResolvedValue(undefined);
+      const roles = [
+        createMockAccessControlData({
+          chainId: "chain-1",
+          elementId: "elem-1",
+          unsavedChanges: true,
+          deploymentStatus: ["DEPLOYED"],
+        }),
+      ];
+
+      mockUseAccessControl.mockReturnValue({
+        ...mockUseAccessControl(),
+        accessControlData: { offset: 0, roles },
+        bulkDeployAccessControl: mockBulkDeploy,
+      });
+
+      mockConfirmAndRun.mockClear();
+
+      render(<AccessControl />);
+
+      await waitFor(() => {
+        const table = getDataTable();
+        const selectAll = table.querySelector('input[type="checkbox"]')!;
+        fireEvent.click(selectAll);
+      });
+
+      await waitFor(() => {
+        const redeployBtn = screen.getByTestId("Redeploy");
+        expect(redeployBtn).toBeEnabled();
+        fireEvent.click(redeployBtn);
+      });
+
+      await waitFor(() => {
+        expect(mockConfirmAndRun).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: "Redeploy Chains",
+            content:
+              "Are you sure you want to redeploy all selected chains to apply the changes?",
+          }),
+        );
+        expect(mockBulkDeploy).toHaveBeenCalled();
+      });
+    });
+  });
+
   describe("Bulk Deploy with Unsaved Changes Filter", () => {
     it("only deploys records that have both chainId AND unsaved changes", async () => {
       const mockBulkDeploy = jest.fn().mockResolvedValue(undefined);
@@ -565,8 +623,6 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
 
 function getDataTable() {
   const tables = screen.getAllByRole("table");
-  // Real antd Table with scroll renders two tables (header + body);
-  // LightweightTable mock renders one. Pick the last one (body data).
   return tables[tables.length - 1];
 }
 

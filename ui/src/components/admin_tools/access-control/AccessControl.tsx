@@ -44,6 +44,7 @@ import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeA
 import { matchesByFields } from "../../table/tableSearch.ts";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
+import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 
 const typeOptions = [
   { label: "External", value: "External" },
@@ -540,7 +541,12 @@ export const AccessControl: React.FC = () => {
                   },
                 );
                 if (selectedRecords.length > 0) {
-                  void handleBulkDeploy(selectedRecords);
+                  confirmAndRun({
+                    title: "Redeploy Chains",
+                    content:
+                      "Are you sure you want to redeploy all selected chains to apply the changes?",
+                    onOk: () => handleBulkDeploy(selectedRecords),
+                  });
                 } else {
                   notificationService.info(
                     "Error",
