@@ -8,7 +8,8 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { Button, Tabs, Flex, Alert, Typography } from "antd";
+import { Button, Tabs, Flex, Alert, Typography, ConfigProvider } from "antd";
+import type { ThemeConfig } from "antd";
 import { useModalContext } from "../../../ModalContextProvider.tsx";
 import styles from "./ChainElementModification.module.css";
 import {
@@ -243,6 +244,18 @@ const FIELDS = {
 const TEMPLATES = {
   ObjectFieldTemplate: CustomObjectFieldTemplate,
   FieldTemplate: DescriptionTooltipFieldTemplate,
+};
+
+// RJSF sets labelCol/wrapperCol to span 24, so Ant Design treats each field as a
+// horizontal item and the label box keeps its 32px height for ~20px of text.
+const FORM_THEME: ThemeConfig = {
+  components: {
+    Form: {
+      labelHeight: "auto",
+      verticalLabelPadding: "0 0 2px",
+      itemMarginBottom: 10,
+    },
+  },
 };
 
 const FORM_DEFAULT_STATE_BEHAVIOR = {
@@ -1019,27 +1032,29 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
               onKeyDownCapture={markUserInteracted}
               onMouseDownCapture={markUserInteracted}
             >
-              <Form
-                ref={formRef}
-                className={styles["parameters-form"]}
-                schema={schema}
-                formData={formData}
-                disabled={isUnsupported}
-                validator={validator}
-                uiSchema={uiSchema}
-                transformErrors={transformErrors}
-                onError={handleRjsfFormErrors}
-                liveValidate={"onChange"}
-                showErrorList={false}
-                experimental_defaultFormStateBehavior={
-                  FORM_DEFAULT_STATE_BEHAVIOR
-                }
-                formContext={formContext}
-                templates={TEMPLATES}
-                fields={FIELDS}
-                widgets={WIDGETS}
-                onChange={handleFormChange}
-              />
+              <ConfigProvider theme={FORM_THEME}>
+                <Form
+                  ref={formRef}
+                  className={styles["parameters-form"]}
+                  schema={schema}
+                  formData={formData}
+                  disabled={isUnsupported}
+                  validator={validator}
+                  uiSchema={uiSchema}
+                  transformErrors={transformErrors}
+                  onError={handleRjsfFormErrors}
+                  liveValidate={"onChange"}
+                  showErrorList={false}
+                  experimental_defaultFormStateBehavior={
+                    FORM_DEFAULT_STATE_BEHAVIOR
+                  }
+                  formContext={formContext}
+                  templates={TEMPLATES}
+                  fields={FIELDS}
+                  widgets={WIDGETS}
+                  onChange={handleFormChange}
+                />
+              </ConfigProvider>
             </div>
           </>
         )}

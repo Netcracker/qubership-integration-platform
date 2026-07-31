@@ -61,6 +61,10 @@ jest.mock("../../../../src/hooks/useDeployments", () => ({
     .mockReturnValue({ isLoading: false, deployments: [] }),
 }));
 
+jest.mock("../../../../src/misc/confirm-utils.ts", () => ({
+  confirmAndRun: ({ onOk }: { onOk: () => void | Promise<void> }) => onOk(),
+}));
+
 jest.mock(
   "../../../../src/components/admin_tools/access-control/AbacAttributesPopUp",
   () => ({

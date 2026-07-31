@@ -1,4 +1,7 @@
+/* Used on both a <button> and a <div>; border-box keeps min-height at the
+   control height of 32px for either. */
 .inlineEditValueWrap {
+  box-sizing: border-box;
   padding: 5px 12px;
   cursor: pointer;
   min-height: 32px;

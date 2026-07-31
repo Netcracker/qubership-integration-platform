@@ -528,31 +528,33 @@ export const AccessControl: React.FC = () => {
               iconName: "send",
               disabled: redeployButtonDisabled(),
               onClick: () => {
-                if (selectedRowKeys.length === 0) {
-                  notificationService.info(
-                    "No selection",
-                    "Please select at least one row to modify",
-                  );
-                  return;
-                }
-                const selectedRecords = (accessControlData?.roles ?? []).filter(
-                  (record: AccessControlData) => {
-                    return selectedRowKeys.includes(buildRowKey(record));
+                confirmAndRun({
+                  title: "Redeploy Chains",
+                  content:
+                    "Are you sure you want to redeploy all selected chains to apply the changes?",
+                  onOk: () => {
+                    if (selectedRowKeys.length === 0) {
+                      notificationService.info(
+                        "No selection",
+                        "Please select at least one row to modify",
+                      );
+                      return;
+                    }
+                    const selectedRecords = (
+                      accessControlData?.roles ?? []
+                    ).filter((record: AccessControlData) => {
+                      return selectedRowKeys.includes(buildRowKey(record));
+                    });
+                    if (selectedRecords.length > 0) {
+                      void handleBulkDeploy(selectedRecords);
+                    } else {
+                      notificationService.info(
+                        "Error",
+                        "Selected records not found",
+                      );
+                    }
                   },
-                );
-                if (selectedRecords.length > 0) {
-                  confirmAndRun({
-                    title: "Redeploy Chains",
-                    content:
-                      "Are you sure you want to redeploy all selected chains to apply the changes?",
-                    onOk: () => handleBulkDeploy(selectedRecords),
-                  });
-                } else {
-                  notificationService.info(
-                    "Error",
-                    "Selected records not found",
-                  );
-                }
+                });
               },
             }}
           />
