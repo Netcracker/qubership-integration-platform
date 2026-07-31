@@ -138,7 +138,7 @@ describe("buildSequenceDiagram", () => {
       const loopAction = diagram.actions
         .flatMap((a) => {
           const act = a as Record<string, unknown>;
-          return act.actions ? (act.actions) : [a];
+          return act.actions ? act.actions : [a];
         })
         .find((a) => (a as Record<string, unknown>).type === "loop") as
         | Record<string, unknown>
@@ -169,7 +169,7 @@ describe("buildSequenceDiagram", () => {
       const loopAction = diagram.actions
         .flatMap((a) => {
           const act = a as Record<string, unknown>;
-          return act.actions ? (act.actions) : [a];
+          return act.actions ? act.actions : [a];
         })
         .find((a) => (a as Record<string, unknown>).type === "loop") as
         | Record<string, unknown>
@@ -678,6 +678,102 @@ describe("buildSequenceDiagram", () => {
 
       const messages = collectMessages(diagram.actions);
       expect(messages.some((m) => m === "Inner Script")).toBe(true);
+    });
+  });
+
+  describe("Participants of elements without steps", () => {
+    it("should not create a participant when the element is not reachable from a trigger", async () => {
+      const trigger = makeElement({
+        id: "trigger-1",
+        name: "HTTP Trigger",
+        type: "http-trigger",
+        properties: { contextPath: "/test" } as never,
+      });
+      const unreachable = makeElement({
+        id: "sftp-1",
+        name: "SFTP Upload",
+        type: "sftp-upload",
+        properties: { connectUrl: "sftp://host", fileName: "x.txt" } as never,
+      });
+      const chain = makeChain([trigger, unreachable]);
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      expect(
+        diagram.participants.some((p) => p.id.includes("sftp://host")),
+      ).toBe(false);
+    });
+
+    it("should not create a participant when no reference points at the reuse", async () => {
+      const trigger = makeElement({
+        id: "trigger-1",
+        name: "HTTP Trigger",
+        type: "http-trigger",
+        properties: { contextPath: "/test" } as never,
+      });
+      const reuseChild = makeElement({
+        id: "child-1",
+        name: "Inner SFTP",
+        type: "sftp-upload",
+        parentElementId: "reuse-1",
+        properties: { connectUrl: "sftp://unused", fileName: "x.txt" } as never,
+      });
+      const reuse = makeElement({
+        id: "reuse-1",
+        name: "Reuse",
+        type: "reuse",
+        children: [reuseChild],
+      });
+      const chain = makeChain([trigger, reuse, reuseChild]);
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      expect(
+        diagram.participants.some((p) => p.id.includes("sftp://unused")),
+      ).toBe(false);
+    });
+
+    it("should keep the chain participant when the chain has no steps", async () => {
+      const chain = makeChain([]);
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      expect(diagram.participants.map((p) => p.id)).toEqual(["chain-1"]);
+    });
+  });
+
+  describe("Trigger inside a group container", () => {
+    it("should build steps when the trigger is wrapped in a container", async () => {
+      const trigger = makeElement({
+        id: "trigger-1",
+        name: "HTTP Trigger",
+        type: "http-trigger",
+        parentElementId: "container-1",
+        properties: { contextPath: "/test" } as never,
+      });
+      const sftp = makeElement({
+        id: "sftp-1",
+        name: "SFTP Upload",
+        type: "sftp-upload",
+        parentElementId: "container-1",
+        properties: { connectUrl: "sftp://host", fileName: "x.txt" } as never,
+      });
+      const container = makeElement({
+        id: "container-1",
+        name: "Container",
+        type: "container",
+        children: [trigger, sftp],
+      });
+      const chain = makeChain(
+        [container],
+        [{ from: "trigger-1", to: "sftp-1" }],
+      );
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      const messages = collectMessages(diagram.actions);
+      expect(messages.some((m) => m.includes("/test"))).toBe(true);
+      expect(messages.some((m) => m.includes("x.txt"))).toBe(true);
     });
   });
 

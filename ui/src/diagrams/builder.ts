@@ -18,6 +18,9 @@ import { api } from "../api/api.ts";
 const EMPTY_PROPERTY_STUB = "%empty_property%";
 const DEFAULT_RESPONSE_TITLE = "Response";
 
+// Purely visual groupings: they add no step of their own, but may hold a trigger.
+const GROUPING_CONTAINERS = ["container"];
+
 const TRIGGERS = [
   "async-api-trigger",
   "chain-trigger",
@@ -182,12 +185,48 @@ export async function buildSequenceDiagram(
       ? filterInternalActions(actions, context.chain.id)
       : actions;
 
+  const usedParticipantIds = collectParticipantIds(filteredActions);
+  usedParticipantIds.add(chainParticipant.id);
+
   return {
     autonumber: true,
     chainParticipantId: chainParticipant.id,
-    participants,
+    participants: participants.filter((p) => usedParticipantIds.has(p.id)),
     actions: filteredActions,
   };
+}
+
+/**
+ * Collects every participant that takes part in at least one action.
+ *
+ * Elements the chain never reaches, such as an unconnected element on the canvas
+ * or the body of a reuse that no reference points at, produce no action, and
+ * their participants would otherwise render as empty lifelines.
+ */
+function collectParticipantIds(actions: Action[]): Set<string> {
+  const ids = new Set<string>();
+  const visit = (items: Action[]): void => {
+    for (const action of items) {
+      switch (action.type) {
+        case "message":
+          ids.add(action.fromId);
+          ids.add(action.toId);
+          break;
+        case "activate":
+        case "deactivate":
+          ids.add(action.participantId);
+          break;
+        case "alternatives":
+        case "parallel":
+          action.branches.forEach((branch) => visit(branch.actions));
+          break;
+        default:
+          visit(action.actions);
+      }
+    }
+  };
+  visit(actions);
+  return ids;
 }
 
 function filterInternalActions(actions: Action[], chainId: string): Action[] {
@@ -322,7 +361,18 @@ function isTrigger(type: string): boolean {
 }
 
 function getTriggers(context: DiagramBuildContext): Element[] {
-  return context.chain.elements.filter((element) => isTrigger(element.type));
+  return collectTriggers(context.chain.elements);
+}
+
+function collectTriggers(elements: Element[]): Element[] {
+  return elements.flatMap((element) => {
+    if (isTrigger(element.type)) {
+      return [element];
+    }
+    return GROUPING_CONTAINERS.includes(element.type)
+      ? collectTriggers(element.children ?? [])
+      : [];
+  });
 }
 
 function createChainParticipant(context: DiagramBuildContext): Participant {

@@ -5,6 +5,7 @@ import {
   Participant,
   SequenceDiagram,
 } from "./model.ts";
+import { toDiagramIdentifier } from "./identifiers.ts";
 
 export function exportAsPlantUml(diagram: SequenceDiagram): string {
   const lines: string[] = [];
@@ -120,20 +121,5 @@ function _escape(text: string): string {
 }
 
 function escapeId(text: string): string {
-  return replaceUnsupportedCharacters(text);
-}
-
-function isAllowedInId(c: string): boolean {
-  return /[_0-9a-zA-Z]/.test(c);
-}
-
-function replaceUnsupportedCharacter(c: string): string {
-  return `_${c.charCodeAt(0)}_`;
-}
-
-function replaceUnsupportedCharacters(text: string) {
-  return text
-    .split("")
-    .map((c) => (isAllowedInId(c) ? c : replaceUnsupportedCharacter(c)))
-    .join("");
+  return toDiagramIdentifier(text);
 }
