@@ -4,7 +4,6 @@ import io.quarkus.arc.properties.IfBuildProperty;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.engine.configuration.ApplicationConfiguration;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneService;
@@ -15,6 +14,7 @@ import org.qubership.integration.platform.engine.util.SimpleHttpUriUtils;
 import java.net.MalformedURLException;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static java.util.Objects.nonNull;
 
@@ -54,11 +54,12 @@ public class RouteRegistrationService {
                         .filter(route -> RouteType.isPrivateTriggerRoute(route.getType())).toList(),
                 applicationConfiguration.getCloudServiceName());
 
-        // cleanup triggers routes if necessary (for internal triggers)
-        controlPlaneService.removeEngineRoutesByPathsAndEndpoint(
+        // Purge each route from the gateway tier it no longer belongs to (visibility
+        // changed public<->private, or downgraded to internal).
+        controlPlaneService.removeEngineRoutes(
                 routes.stream()
                         .filter(route -> RouteType.triggerRouteCleanupNeeded(route.getType()))
-                        .map(route -> Pair.of(route.getPath(), route.getType()))
+                        .flatMap(RouteRegistrationService::opposingTierRemovals)
                         .toList(),
                 applicationConfiguration.getCloudServiceName());
 
@@ -67,6 +68,27 @@ public class RouteRegistrationService {
                 .filter(route -> route.getType() == RouteType.EXTERNAL_SENDER
                         || route.getType() == RouteType.EXTERNAL_SERVICE)
                 .forEach(route -> controlPlaneService.postEgressGatewayRoutes(formatServiceRoutes(route)));
+    }
+
+    public void unregisterRoutes(Collection<RouteRegistrationInfo> routes) {
+        controlPlaneService.removeEngineRoutes(
+                routes.stream()
+                        .filter(route -> RouteType.triggerRouteWithGateway(route.getType()))
+                        .toList(),
+                applicationConfiguration.getCloudServiceName());
+    }
+
+    // Re-tags a route with the type of the tier(s) it must be purged from, since
+    // ControlPlaneService.removeEngineRoutes keys removal off type alone.
+    private static Stream<RouteRegistrationInfo> opposingTierRemovals(RouteRegistrationInfo route) {
+        return switch (route.getType()) {
+            case EXTERNAL_TRIGGER -> Stream.of(route.toBuilder().type(RouteType.PRIVATE_TRIGGER).build());
+            case PRIVATE_TRIGGER -> Stream.of(route.toBuilder().type(RouteType.EXTERNAL_TRIGGER).build());
+            case INTERNAL_TRIGGER -> Stream.of(
+                route.toBuilder().type(RouteType.EXTERNAL_TRIGGER).build(),
+                route.toBuilder().type(RouteType.PRIVATE_TRIGGER).build());
+            default -> Stream.empty();
+        };
     }
 
     private Collection<RouteRegistrationInfo> resolveVariablesInRoutes(Collection<RouteRegistrationInfo> routes) {

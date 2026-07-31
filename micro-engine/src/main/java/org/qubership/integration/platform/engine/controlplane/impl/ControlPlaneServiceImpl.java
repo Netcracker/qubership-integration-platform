@@ -4,7 +4,6 @@ import com.netcracker.cloud.routesregistration.common.gateway.route.Constants;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.engine.configuration.ApplicationConfiguration;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneException;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneService;
@@ -69,28 +68,26 @@ public class ControlPlaneServiceImpl implements ControlPlaneService {
     }
 
     @Override
-    public void removeEngineRoutesByPathsAndEndpoint(
-            List<Pair<String, RouteType>> paths,
+    public void removeEngineRoutes(
+            List<RouteRegistrationInfo> routes,
             String endpoint
     ) throws ControlPlaneException {
         try {
-            if (paths.isEmpty() || endpoint.isEmpty()) {
+            if (routes.isEmpty() || endpoint.isEmpty()) {
                 return;
             }
 
             List<RouteConfigurationResponse> routesList = controlPlaneRestService.getRouteConfiguration();
 
-            List<String> publicPathsToRemove = paths.stream()
-                    .filter(pair -> pair.getRight() == RouteType.PRIVATE_TRIGGER
-                            || pair.getRight() == RouteType.INTERNAL_TRIGGER)
-                    .map(Pair::getKey).toList();
-            List<String> privatePathsToRemove = paths.stream()
-                    .filter(pair -> pair.getRight() == RouteType.EXTERNAL_TRIGGER
-                            || pair.getRight() == RouteType.INTERNAL_TRIGGER)
-                    .map(Pair::getKey).toList();
+            List<String> publicPaths = routes.stream()
+                    .filter(route -> RouteType.isPublicTriggerRoute(route.getType()))
+                    .map(RouteRegistrationInfo::getPath).toList();
+            List<String> privatePaths = routes.stream()
+                    .filter(route -> RouteType.isPrivateTriggerRoute(route.getType()))
+                    .map(RouteRegistrationInfo::getPath).toList();
 
-            removeEngineRoutes(publicPathsToRemove, routesList, Constants.PUBLIC_GATEWAY_SERVICE, endpoint);
-            removeEngineRoutes(privatePathsToRemove, routesList, Constants.PRIVATE_GATEWAY_SERVICE, endpoint);
+            removeRoutesFromGateway(publicPaths, routesList, Constants.PUBLIC_GATEWAY_SERVICE, endpoint);
+            removeRoutesFromGateway(privatePaths, routesList, Constants.PRIVATE_GATEWAY_SERVICE, endpoint);
         } catch (Exception e) {
             log.error("Failed to remove routes from control plane: {}", e.getMessage());
             throw new ControlPlaneException("Failed to remove routes from control plane.", e);
@@ -219,7 +216,7 @@ public class ControlPlaneServiceImpl implements ControlPlaneService {
         }
     }
 
-    private void removeEngineRoutes(
+    private void removeRoutesFromGateway(
             List<String> paths,
             List<RouteConfigurationResponse> routesList,
             @NonNull String gatewayNodegroup,
