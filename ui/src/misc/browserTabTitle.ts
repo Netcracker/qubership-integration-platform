@@ -6,6 +6,8 @@ const SERVICES_HASH_TITLES: Record<string, string> = {
   external: "External Services",
   internal: "Inner Services",
   implemented: "Implemented Services",
+  mcp: "MCP",
+  context: "Context",
 };
 
 const ADMIN_PATH_TITLES: Array<{ prefix: string; title: string }> = [

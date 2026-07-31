@@ -75,13 +75,11 @@ async function resolveChainTabTitle(chainId: string): Promise<string | null> {
 
 export function useBrowserTabTitle(): void {
   const { pathname, hash } = useLocation();
-  const [servicesHash, setServicesHash] = useState(() =>
-    window.location.hash.slice(1),
-  );
+  const [hashTick, setHashTick] = useState(0);
 
   useEffect(() => {
     const onHashChange = () => {
-      setServicesHash(window.location.hash.slice(1));
+      setHashTick((tick) => tick + 1);
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
@@ -97,7 +95,8 @@ export function useBrowserTabTitle(): void {
     };
 
     const resolve = async () => {
-      const effectiveHash = servicesHash || hash.replace(/^#/, "");
+      const effectiveHash =
+        window.location.hash.slice(1) || hash.replace(/^#/, "");
       const staticTitle = getStaticBrowserTabTitle(pathname, effectiveHash);
       if (staticTitle) {
         applyTitle(staticTitle);
@@ -125,5 +124,5 @@ export function useBrowserTabTitle(): void {
     return () => {
       cancelled = true;
     };
-  }, [pathname, hash, servicesHash]);
+  }, [pathname, hash, hashTick]);
 }
