@@ -189,7 +189,10 @@ builds today (`http://<endpoint>:8080`).
 - `matches`: `[{path: {type: PathPrefix, value: baseRoutePrefix + route.getPath()}}]`
 - `filters`: a `URLRewrite` filter rewriting to
   `CAMEL_ROUTES_PREFIX + route.getPath()` (mirrors today's `prefixRewrite`)
-- `timeouts.request`: from `route.getConnectTimeout()` when set (positive).
+- `timeouts.request`: from `route.getConnectTimeout()` when set (positive),
+  formatted as `"<milliseconds>ms"` (e.g. `"30000ms"`) per the
+  `core-mesh-crs-to-gatewayapi` skill's Rule mapping
+  (`timeout *int64 → timeouts.request: "<value>ms"`).
   Core Mesh's separate `idleTimeout` has no Gateway API `HTTPRoute`
   equivalent and is dropped, consistent with how the migration skill already
   treats fields with no Gateway API analogue elsewhere (flag and omit, don't
@@ -200,6 +203,12 @@ builds today (`http://<endpoint>:8080`).
 own DELETE-by-UUID lookup already relies on (matched by path + host-rewrite,
 not by any chain/deployment ID) — trigger paths are assumed unique within a
 gateway tier regardless of which chain registered them.
+
+**Field naming:** all Gateway API field names are camelCase (no snake_case
+anywhere in `HTTPRoute`), so the new POJOs need no Jackson naming
+configuration — plain Lombok classes with camelCase fields, the same pattern
+`model.controlplane.v3.post` already uses with zero `@JsonProperty`
+annotations (e.g. `RouteV3`, `Metadata`).
 
 ### 4. Shared merge operation
 
@@ -296,8 +305,3 @@ create/replace/delete calls, covering at minimum:
 `KubeCustomObject` on a 200, empty `Optional` on a 404, and propagating
 `KubeApiException` on other failures; `deleteCustomObject` succeeding on a 200
 and treating a 404 as a no-op rather than an error.
-
-## Open questions for the implementation plan
-
-- Exact `HTTPRouteSpec` POJO field names/Jackson annotations (snake vs. camel
-  case handling for Gateway API's YAML field names).
