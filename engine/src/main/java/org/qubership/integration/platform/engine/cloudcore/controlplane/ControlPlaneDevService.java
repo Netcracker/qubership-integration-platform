@@ -1,12 +1,10 @@
 package org.qubership.integration.platform.engine.cloudcore.controlplane;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneException;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneService;
 import org.qubership.integration.platform.engine.model.controlplane.v1.get.RouteConfigurationResponse;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentRouteUpdate;
-import org.qubership.integration.platform.engine.model.deployment.update.RouteType;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
@@ -31,7 +29,7 @@ public class ControlPlaneDevService implements ControlPlaneService {
     }
 
     @Override
-    public void removeEngineRoutesByPathsAndEndpoint(List<Pair<String, RouteType>> paths, String deploymentName)
+    public void removeEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String deploymentName)
         throws ControlPlaneException {
 
     }

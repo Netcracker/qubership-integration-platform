@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneException;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneService;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
@@ -165,23 +164,23 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
     }
 
     @Override
-    public void removeEngineRoutesByPathsAndEndpoint(List<Pair<String, RouteType>> paths, String deploymentName) throws ControlPlaneException {
+    public void removeEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String deploymentName) throws ControlPlaneException {
         try {
-            if (paths.isEmpty() || deploymentName.isEmpty()) {
+            if (deploymentRoutes.isEmpty() || deploymentName.isEmpty()) {
                 return;
             }
 
             List<RouteConfigurationResponse> routesList = getRoutesList();
 
-            List<String> publicPathsToRemove = paths.stream()
-                .filter(pair -> pair.getRight() == RouteType.PRIVATE_TRIGGER || pair.getRight() == RouteType.INTERNAL_TRIGGER)
-                .map(Pair::getKey).toList();
-            List<String> privatePathsToRemove = paths.stream()
-                .filter(pair -> pair.getRight() == RouteType.EXTERNAL_TRIGGER || pair.getRight() == RouteType.INTERNAL_TRIGGER)
-                .map(Pair::getKey).toList();
+            List<String> publicPaths = deploymentRoutes.stream()
+                .filter(route -> RouteType.isPublicTriggerRoute(route.getType()))
+                .map(DeploymentRouteUpdate::getPath).toList();
+            List<String> privatePaths = deploymentRoutes.stream()
+                .filter(route -> RouteType.isPrivateTriggerRoute(route.getType()))
+                .map(DeploymentRouteUpdate::getPath).toList();
 
-            removeEngineRoutesByPathsAndEndpoint(publicPathsToRemove, routesList, PUBLIC_GATEWAY_SERVICE_NODEGROUP, deploymentName);
-            removeEngineRoutesByPathsAndEndpoint(privatePathsToRemove, routesList, PRIVATE_GATEWAY_SERVICE_NODEGROUP, deploymentName);
+            removeEngineRoutesByPathsAndEndpoint(publicPaths, routesList, PUBLIC_GATEWAY_SERVICE_NODEGROUP, deploymentName);
+            removeEngineRoutesByPathsAndEndpoint(privatePaths, routesList, PRIVATE_GATEWAY_SERVICE_NODEGROUP, deploymentName);
         } catch (ControlPlaneException e) {
             throw e;
         } catch (Exception e) {
