@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.builders.element;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.codehaus.stax2.XMLStreamWriter2;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.SourceBuilderContext;
@@ -9,6 +10,7 @@ import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNa
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
+import org.qubership.integration.platform.runtime.catalog.util.MaasUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +22,7 @@ import static org.qubership.integration.platform.runtime.catalog.cr.sources.buil
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.*;
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.*;
 
+@Slf4j
 @Component
 public class AmpqBeansBinder implements ElementBeansBuilder {
     private static final Set<String> RABBITMQ_ELEMENTS = Set.of(
@@ -90,6 +93,17 @@ public class AmpqBeansBinder implements ElementBeansBuilder {
 
         if (useMaas) {
             addMaasClassifierInfoBean(streamWriter, element);
+        } else if (!MaasUtils.getMaasParams(element).isEmpty()) {
+            log.warn(
+                    "RabbitMQ element '{}' (id={}, originalId={}) uses MaaS URI placeholders but MaasClassifierInfo "
+                            + "bean will not be generated: classifier name is blank. connectionSourceType={}, "
+                            + "vhostClassifierName={}",
+                    element.getName(),
+                    element.getId(),
+                    element.getOriginalId(),
+                    element.getPropertyAsString(CONNECTION_SOURCE_TYPE_PROP),
+                    element.getPropertyAsString(MAAS_VHOST_CLASSIFIER_NAME_PROP)
+            );
         }
     }
 
