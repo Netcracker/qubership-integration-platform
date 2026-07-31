@@ -72,7 +72,7 @@ class McpTriggerPropertiesBuilderTest {
         assertThat(result.keySet(), containsInAnyOrder(
                 "mcpServiceIds", "name", "title", "description",
                 "inputSchema", "outputSchema", "readOnly", "destructive",
-                "idempotent", "openWorld", "requiresLocal"
+                "idempotent", "openWorld"
         ));
     }
 
@@ -90,7 +90,6 @@ class McpTriggerPropertiesBuilderTest {
         properties.put("destructive", false);
         properties.put("idempotent", true);
         properties.put("openWorld", false);
-        properties.put("requiresLocal", true);
 
         ChainElement element = ChainElement.builder()
                 .type("mcp-trigger")
@@ -109,8 +108,7 @@ class McpTriggerPropertiesBuilderTest {
                 hasEntry("readOnly", "true"),
                 hasEntry("destructive", "false"),
                 hasEntry("idempotent", "true"),
-                hasEntry("openWorld", "false"),
-                hasEntry("requiresLocal", "true")
+                hasEntry("openWorld", "false")
         ));
     }
 
@@ -157,12 +155,12 @@ class McpTriggerPropertiesBuilderTest {
     }
 
     @Test
-    @DisplayName("build returns exactly 11 entries")
-    void buildReturnsExactly11Entries() {
+    @DisplayName("build returns exactly 10 entries")
+    void buildReturnsExactly10Entries() {
         ChainElement element = ChainElement.builder().type("mcp-trigger").build();
 
         Map<String, String> result = builder.build(element);
 
-        assertThat(result.size(), equalTo(11));
+        assertThat(result.size(), equalTo(10));
     }
 }

@@ -99,6 +99,7 @@ public class MCPSystemFilterSpecificationBuilder {
             case DESCRIPTION -> conditionPredicateBuilder.apply(root.get("description"), value);
             case INSTRUCTIONS -> conditionPredicateBuilder.apply(root.get("instructions"), value);
             case IDENTIFIER -> conditionPredicateBuilder.apply(root.get("identifier"), value);
+            case CREATED -> conditionPredicateBuilder.apply(root.get("createdWhen"), value);
             case LABELS -> {
                 Predicate predicate = conditionPredicateBuilder.apply(getJoin(root, "labels").get("name"), value);
                 boolean negativeLabelFilter =

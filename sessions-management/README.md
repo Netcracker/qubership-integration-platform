@@ -17,6 +17,7 @@ Application parameters can be set by environment variables.
 | Environment variable                    | Default value        | Description                                                                                                                  |
 |-----------------------------------------|----------------------|------------------------------------------------------------------------------------------------------------------------------|
 | ROOT_LOG_LEVEL                          | INFO                 | Logging level                                                                                                                |
+| LOG_FORMAT                              | json                 | Logging format. Values: json, text                                                                                                                 |
 | CONSUL_URL                              | `http://consul:8500` | Consul URL                                                                                                                   |
 | CONSUL_ADMIN_TOKEN                      |                      | Consul assess token                                                                                                          |
 | MAX_UPLOAD_MULTIPART_FILE_SIZE          | 25                   | Maximum file size to upload, MB. Limits data size for upload operations like sessions import.                                |
@@ -44,6 +45,16 @@ Application has 'development' Spring profile to run service locally with minimum
 
 This service relies on [Runtime Catalog Service](https://github.com/Netcracker/qubership-integration-runtime-catalog), which is used to provide integration chain names.
 It also requires Consul and OpenSearch services.
+
+## OpenAPI Specification
+
+`OpenApiSpecGeneratorTest` starts the application with Consul stubbed, calls the `/v3/api-docs.yaml`
+endpoint, and writes the result to `api-spec/`. It runs as part of the normal test suite, so `mvn test`
+keeps `api-spec/openapi.yaml` up to date. To run just this test:
+
+```shell
+mvn test -Dtest=OpenApiSpecGeneratorTest
+```
 
 ## Contribution
 

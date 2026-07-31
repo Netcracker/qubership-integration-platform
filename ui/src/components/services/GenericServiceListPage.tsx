@@ -22,7 +22,11 @@ type GenericServiceListPageProps = PropsWithChildren & {
   onSearch: (searchString: string) => void;
   onExport: () => void;
   onImport: () => void;
-  onCreate: (name: string, description: string) => Promise<void>;
+  onCreate: (
+    name: string,
+    description: string,
+    properties: Record<string, string>,
+  ) => Promise<void>;
 };
 
 function getSystemTypeName(systemType: IntegrationSystemType): string {
@@ -126,6 +130,7 @@ export const GenericServiceListPage: React.FC<GenericServiceListPageProps> = ({
                 showModal({
                   component: (
                     <CreateServiceModal
+                      serviceType={serviceType}
                       defaultName={`New ${getSystemTypeName(serviceType)} service`}
                       onSubmit={onCreate}
                     />

@@ -335,6 +335,9 @@ qip:
       password: ''
     certs:
       location: :/tmp/cert/${SSL_SECRET:defaultsslcertificate}
+  logging:
+    format: ${LOG_FORMAT:json}
+    fields-max-size: ${LOG_FIELDS_MAX_SIZE:4096}
   production-mode:
     enabled: ${PRODUCTION_MODE:false}
   internal-services:

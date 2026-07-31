@@ -5853,23 +5853,6 @@
                 "multiple": false,
                 "reference": false,
                 "default": "false"
-              },
-              {
-                "name": "requiresLocal",
-                "title": "Tool needs local resources or execution",
-                "description": "A specialized hint (common in Azure MCP) indicating the tool needs local resources or execution.",
-                "type": "boolean",
-                "resetValueOnCopy": false,
-                "unique": false,
-                "caseInsensitive": false,
-                "mandatory": false,
-                "autofocus": false,
-                "query": false,
-                "allowedValues": [],
-                "allowCustomValue": true,
-                "multiple": false,
-                "reference": false,
-                "default": "false"
               }
             ],
             "advanced": [],

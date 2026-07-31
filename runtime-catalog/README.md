@@ -19,6 +19,7 @@ Application parameters can be set by environment variables.
 |-----------------------------------|------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
 | TOMCAT_PORT                       | 8080                                                 | Port to listen                                                                                                                         |
 | ROOT_LOG_LEVEL                    | INFO                                                 | Logging level                                                                                                                          |
+| LOG_FORMAT                        | json                                                 | Logging format. Values: json, text                                                                                                                           |
 | CONSUL_URL                        | `http://consul:8500/`                                | Consul URL                                                                                                                             |
 | CONSUL_ADMIN_TOKEN                |                                                      | Consul assess token                                                                                                                    |
 | ACTION_LOG_CLEANUP_INTERVAL       | 14 days                                              | Maximum age of action log records. Records older than specified value will be deleted. Examples: '1 hour', '7 days', '2 years 3 month' |
@@ -55,6 +56,16 @@ Application has 'development' Spring profile to run service locally with minimum
 - Consul service.
 - Access to Kubernetes API.
 - PostgreSQL database.
+
+## OpenAPI Specification
+
+`OpenApiSpecGeneratorTest` starts the application with the datasource, Flyway, and Consul mocked or stubbed,
+calls the `/v3/api-docs.yaml` endpoint, and writes the result to `api-spec/`. It runs as part of the normal
+test suite, so `mvn test` keeps `api-spec/openapi.yaml` up to date. To run just this test:
+
+```shell
+mvn test -Dtest=OpenApiSpecGeneratorTest
+```
 
 ## Contribution
 

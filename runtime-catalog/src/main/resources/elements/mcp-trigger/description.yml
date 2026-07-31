@@ -71,8 +71,3 @@ properties:
       default: false
       title: Tool may interact with external entities beyond its local environment
       description: Defines if the tool interacts with an unpredictable external environment (like a web search) or a closed, well-defined system.
-    - name: requiresLocal
-      type: boolean
-      default: false
-      title: Tool needs local resources or execution
-      description: A specialized hint (common in Azure MCP) indicating the tool needs local resources or execution.

@@ -19,5 +19,6 @@ jobs:
     with:
       module: engine
       sonar-project-key: ${{ vars.SONAR_ENGINE_PROJECT_KEY }}
+      ensure-openapi-spec: true
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

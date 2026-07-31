@@ -2,18 +2,26 @@ import React, { useCallback, useState } from "react";
 import { Modal, Input, Button, Form, Alert } from "antd";
 import { getErrorMessage } from "../../../misc/error-utils";
 import { useModalContext } from "../../../ModalContextProvider.tsx";
+import { IntegrationSystemType } from "../../../api/apiTypes.ts";
 
 interface CreateServiceModalProps {
+  serviceType: IntegrationSystemType;
   defaultName?: string;
-  onSubmit: (name: string, description: string) => Promise<void>;
+  onSubmit: (
+    name: string,
+    description: string,
+    properties: Record<string, string>,
+  ) => Promise<void>;
 }
 
 type CreateServiceFormValues = {
   name: string;
+  identifier?: string; // MCP service identifier
   description: string;
 };
 
 export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
+  serviceType,
   defaultName,
   onSubmit,
 }) => {
@@ -23,11 +31,14 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
   const [errorText, setErrorText] = useState<string | null>(null);
 
   const handleOk = useCallback(
-    async ({ name, description }: CreateServiceFormValues) => {
+    async ({ name, description, identifier }: CreateServiceFormValues) => {
       try {
         setIsLoading(true);
         setErrorText(null);
-        await onSubmit(name, description);
+        const properties: Record<string, string> = identifier
+          ? { identifier }
+          : {};
+        await onSubmit(name, description, properties);
         closeContainingModal();
       } catch (e) {
         setErrorText(getErrorMessage(e));
@@ -75,10 +86,19 @@ export const CreateServiceModal: React.FC<CreateServiceModalProps> = ({
         >
           <Input autoFocus maxLength={128} />
         </Form.Item>
+        {serviceType === IntegrationSystemType.MCP ? (
+          <Form.Item
+            label="Identifier"
+            name="identifier"
+            rules={[{ required: true, message: "Enter service identifier" }]}
+          >
+            <Input maxLength={128} />
+          </Form.Item>
+        ) : null}
         <Form.Item label="Description" name="description">
           <Input.TextArea maxLength={512} />
         </Form.Item>
-        {errorText && <Alert message={errorText} type="error" showIcon />}
+        {errorText && <Alert title={errorText} type="error" showIcon />}
       </Form>
     </Modal>
   );

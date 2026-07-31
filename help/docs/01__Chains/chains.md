@@ -12,7 +12,7 @@ When the chain configuration was completed, it should be deployed at least on on
 ### Chains and Folders View
 <ins>Web UI</ins>
 
-Screen shows the table of chains (marked with icon ![file](img/file.svg)) and chain folders (marked with icon ![folder](img/folder.svg)). To see all the chains & folders under the particular folder, you can click ![right](img/right.svg) icon near folder name. Next control elements are available on top of the table:
+Screen shows the table of chains (marked with icon ![chain](img/chain.svg)) and chain folders (marked with icon ![folder](img/folder.svg)). To see all the chains & folders under the particular folder, you can click ![right](img/right.svg) icon near folder name. Next control elements are available on top of the table:
 - **Search field** - search box, provides ability to find respective data in the table. To find a particular chain/folder by a specific feature (case-insensitive) use search field at the top of the screen with the text "Full text search" and a lens icon ![search](img/search.svg). Full-text search is applicable by the following data:
   - Chain fields:
     - Chain name
@@ -46,7 +46,7 @@ Each **chain** contains the following parameters on table view:
   - 🔵 **_Progressing_** - chain deployment is in progress on one or multiple engines. If status stays for long period of time, it may indicate that system awaits crucial data, specified within a chain (e.g. classifiers in MaaS).
   - 🔴 **_Failed_** - chain deployment failed on one or multiple engines.
   - 🟢 **_Deployed_** - chain is successfully deployed on all requested engines.
-- **Labels** - list of colored chain labels, unique within particular chain. It might contain **custom** labels, entered on the chain by user via Qubership Integration Platform UI or **technical** labels, populated as part of the deployment via Samples Repository. **Technical** labels cannot be updated manually.
+- **Labels** - list of colored chain labels, unique within particular chain. It might contain **custom** labels, entered on the chain by user on the <ins>Web UI</ins> or **technical** labels, populated as part of the deployment via Samples Repository. **Technical** labels cannot be updated manually.
 - **Modified At** - date of last chain modification.
 - **Modified By** - name of the user who modified the chain last.
 - **Actions menu** - list of operations, accessed via menu symbol ![more](img/more.svg), contains the list of available operations with the chain:
@@ -59,7 +59,6 @@ Each **chain** contains the following parameters on table view:
   - _**Duplicate**_ - duplicates chain. New chain will be duplicated with the  **"- copy"** postfix.
   - _**Delete**_ - deletes chain.
 
-
 **Folder** contains the following parameters on table view:
 - **Name** - clickable reference to the page with folder content.
 - **Actions menu** - list of operations, accessed via menu symbol ![more](img/more.svg), contains the list of available operations with the folder:
@@ -68,21 +67,17 @@ Each **chain** contains the following parameters on table view:
   - **_Expand All_** - expands all folders (regardless of the nesting level) under the current one.
   - **_Collapse All_** - collapses all child folders and the current one.
   - **_Copy link_** - copies folder link to clipboard. Following the link, you will open the same "**Chains**" page with expanded and highlighted folder.
-  - **_Edit_** - opens pop-up to update folder name or description.
+  - **_Edit_** - opens pop-up to update the folder name.
   - **_Export_** - exports all the chains under the folder.
   - **_Cut_** - cuts the chain folder (with all folder content). To paste folder, click "paste" ![carry-out](img/carry-out.svg) icon button, available on top of the screen.
   - **_Paste_** - pastes copied chain or folder.
   - _**Delete**_ - deletes folder with all content under it.
 
-
-> ℹ️ **Notes:**
->
-> - You can **move chain/folder** to the folder via drag&drop operation (instead of Cut and Paste). To **move it to the root directory**, drop chain/folder to the ![home](img/home.svg) at the right top above the table.
-> - Mentioned "Chains" window **does not validate** the uniqueness of the names, neither folders nor the chains. Hence, it is possible that multiple chains (or folders) might have the same names.
+> ℹ️ Mentioned "Chains" window **does not validate** the uniqueness of the names, neither folders nor the chains. Hence, it is possible that multiple chains (or folders) might have the same names.
 
 <ins>VS Code Extension</ins>
 
-All chains configured using VS Code Extension appears under "Chains" folder. The "Chains" folder is located by expanding "QIP" in the left bottom. Under "Chains" folder, a list of created chains is available. Expanding the chain a list of its elements are available.
+All chains configured using VS Code Extension appears under the "Chains" section, which is located by expanding "QIP" in the left bottom. Under "Chains" section, a list of created chains is available. Expand the chain to view a list of included elements.
 
 ### Chain Details Side Panel
 **`⛔ Not available via VS Code extension`**
@@ -111,22 +106,22 @@ More chain details are available via **right side panel**. To open it, click on 
 To create a new chain or a folder, click button **"Create"** on the top right of the screen and select either **"New chain"** or **"New folder"** from the list menu.
 
 You will be presented with the window. Fill in the following fields:
-For Folders:
-- **Name**  - in this mandatory field, you could populate a name for new chain or a folder.
-- **Description** - here you could add detailed description for new chain or a folder.
+
+For a new folder:
+- **Name** - mandatory field for the folder name. The name must not contain any of the following characters: `/ : * ? " < > | , ; \`.
 - At the bottom, users can choose to open the newly created folder immediately after submitting it by selecting **Open folder**. Alternatively, they can opt to open it in a **new tab**. If neither option is selected, the system simply returns to the list of chains.
 
-For Chains:
-Two tabs appear: **General Info** and **Extended Description**.
+For a new chain:
+- In the **"General Info"** tab:
+  - **Name**  - in this mandatory field, you could populate a name for new chain or a folder.
+  - **Labels**  - customizable list of chain labels. To populate new label to the list, specify its value and then press **`Enter`**.
+  - **Description** - here you could add detailed description for new chain or a folder.
+  - At the bottom, users can choose to open the newly created chain immediately after submitting it by selecting **Open chain**. Alternatively, they can opt to open it in a **new tab**. If neither option is selected, the system simply returns to the list of chains.
 
-In the **General Info** tab:
-- **Name**  - in this mandatory field, you could populate a name for new chain or a folder.
-- **Labels**  - customizable list of chain labels. To populate new label to the list, specify its value and then press **`Enter`**.
-- **Description** - here you could add detailed description for new chain or a folder.
-- At the bottom, users can choose to open the newly created chain immediately after submitting it by selecting **Open chain**. Alternatively, they can opt to open it in a **new tab**. If neither option is selected, the system simply returns to the list of chains.
-
-In the **Extended Description** tab:
-- Optional fields include _Business Description_, _Assumptions_, and _Out of Scope_.
+- In the **"Extended Description"** tab (all the following fields are optional):
+  - **Business Description** - non-tech description for better understanding.
+  - **Assumptions** - allowances that must be true for this chain to work.
+  - **Out of Scope** - statements that are not covered by the chain.
 
 When all necessary parameters are filled, click **"Submit"** button or use the combination of **`Ctrl+Enter`**.
 
@@ -135,8 +130,13 @@ When all necessary parameters are filled, click **"Submit"** button or use the c
 To create a chain using VS Code Extension, follow the steps outlined below:
 1. Open "VS Code Extension" in Visual Studio Code.
 2. In the left bottom find QIP section and expand it.
-3. Near the "Chain" folder click on appearing button "QIP Create a chain under current directory".
+3. Near the "Chains" section click on appearing button "QIP Create a chain in the current directory".
 4. At the top of Visual Studio Code enter the name of the chain and click `Enter`. Next, it opens the QIP Extension UI with the "blueprint-like" environment on the "Graph" tab to design and configure the chain logic.
+
+### Move Chain or Folder
+**`⛔ Not available via VS Code extension`**
+
+To move chain/folder to the folder (instead of Cut and Paste), drag & drop chain/folder to the target folder. To **move it to the root directory**, drag & drop the chain/folder to ![home](img/home.svg) at the right top above the table.
 
 ### Import Chain(s)
 **`⛔ Not available via VS Code extension`**
@@ -204,7 +204,6 @@ There is a table with the following columns:
   - **Error on Override** - override process failed.
   - **No action** - specified instruction has not applied during the import.
 
----
 After all actions it is necessary to click on the "import" button at the bottom right. The next step is the processing of import. The user has to wait for it.
 
 The last step is the result of import. In each tab the specified field "Status" is added as a result of import that is described at the end of each table.

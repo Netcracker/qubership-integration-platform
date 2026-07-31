@@ -38,8 +38,7 @@ public class McpTriggerBeansBuilder implements ElementBeansBuilder {
                 "readOnly",
                 "destructive",
                 "idempotent",
-                "openWorld",
-                "requiresLocal"
+                "openWorld"
         );
 
         for (String propertyName : propertyNames) {

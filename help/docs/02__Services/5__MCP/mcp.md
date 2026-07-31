@@ -19,10 +19,10 @@ Table with MCP services is accessible by navigating to **Services** -> **MCP** t
 - **Identifier** - unique identifier of the MCP service.
 - **Labels** - list of colored labels of the MCP service, unique within particular entity.
 - **Used by** - list of chains where the MCP service is used.
-- **Created At** - datetime of entity creation.
-- **Created By** - shows the user, who created an entity.
-- **Modified At** - datetime of entity modifying.
-- **Modified By** - shows the user, who modified an entity.
+- **Created At** - datetime of entity creation (hidden by default).
+- **Created By** - shows the user, who created an entity (hidden by default).
+- **Modified At** - datetime of entity modifying (hidden by default).
+- **Modified By** - shows the user, who modified an entity (hidden by default).
 - **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu under each service. Contains next operations:
   - **Delete** ![delete](img/delete.svg) - deletes entity.
   - **Export** ![cloud-download](img/cloud-download.svg) - allows to export the entity.
@@ -41,7 +41,11 @@ All services created using VS Code Extension appears under "Services" folder. Th
 ### Add MCP Service
 <ins>Web UI</ins>
 
-To add new MCP service, click **"Create service"** button at the top right of the screen. Specify service name and description on a newly opened pop-up and click **"Create"** button.
+To add new MCP service, click **"Create service"** button at the top right of the screen. Fill in the following fields on the newly opened pop-up and click **"Create"** button:
+
+- **Name** - mandatory service name.
+- **Identifier** - mandatory unique identifier of the MCP service.
+- **Description** - optional description of the service.
 
 System opens new window with **Common Parameters** section.
 
