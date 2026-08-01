@@ -47,7 +47,7 @@
         <maas-kafka-declarative-client.version>6.2.1</maas-kafka-declarative-client.version>
         <consul-config-provider.version>6.2.2</consul-config-provider.version>
         <blue-green.version>1.3.2</blue-green.version>
-        <security-core-utils.version>3.1.4</security-core-utils.version>
+        <security-core-utils.version>3.1.8</security-core-utils.version>
 
         <!-- Common 3rd party dependency versions -->
         <kubernetes-client-java.version>25.0.0</kubernetes-client-java.version>
