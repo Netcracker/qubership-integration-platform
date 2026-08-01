@@ -122,7 +122,7 @@ public class KubeOperator {
                         request.getResourceNamePlural(),
                         getNotNullCustomResourceName(request),
                         request.getBody()
-                );
+                ).execute();
             } else {
                 customObjectsApi.createNamespacedCustomObject(
                         request.getGroup(),
@@ -130,7 +130,7 @@ public class KubeOperator {
                         getNotNullNamespace(),
                         request.getResourceNamePlural(),
                         request.getBody()
-                );
+                ).execute();
             }
         } catch (Exception e) {
             if (!isDevmode()) {

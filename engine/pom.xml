@@ -23,7 +23,7 @@
   </parent>
   <properties>
     <revision>1.0.3</revision>
-    <changelist>-kube-cr-fix-SNAPSHOT</changelist>
+    <changelist>-1-kube-cr-fix-SNAPSHOT</changelist>
 
     <generated-sources>target/generated-sources/java</generated-sources>
     <generated-resources>target/generated-sources/resources</generated-resources>
