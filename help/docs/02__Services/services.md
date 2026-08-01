@@ -31,7 +31,7 @@ Services consist of next entities:
   - **multiple** environments:  for **External services**.
   - **no** environments: for **Context** and **MCP services**
 
-> ℹ️ **Note:** Environment's address field for **http**-based services may be inactive, which means that route registration on Egress is globally disabled in CMBD. In this case, registration must be performed manually.
+> ℹ️ **Note:** Environment's address field for **http**-based services may be inactive, which means that route registration on Egress is globally disabled in CMDB. In this case, registration must be performed manually.
 
 ### API Specification Status Lifecycle
 ![API Specification Status Lifecycle](img/spec_lc.svg)

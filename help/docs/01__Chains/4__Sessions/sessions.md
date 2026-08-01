@@ -9,7 +9,7 @@ Session represents chain processing step by step. Chain session is being created
 
 ### Async Request & Callback Linkage in Sessions
 There are technical specifics available for asynchronous integrations, that can cause losing linkage between request and callback.
-Due to the fact that callback for such integration type is being provided with a significant delay, it leads to the challenges related to identifying of the original request.
+Due to the fact that callback for such integration type is being provided with a significant delay, it leads to the challenges related to identifying the original request.
 To deal with this challenge, Qubership Integration Platform links request and callbacks with correlation id.
 This also gives an ability to group up sessions with the same id on the table **"Sessions"**, available for each chain.
 
@@ -20,7 +20,7 @@ Correlation id can be passed by the following chain modules:
 - [GraphQL Sender](../1__Graph/1__Elements_Library/7__Senders/7__GraphQL_Sender/graphql_sender.md)
 
 
-In case of asynchronous request during chain design time user have to configure correlation id source and its name (key).
+In case of asynchronous request during chain design time user has to configure correlation id source and its name (key).
 
 > ℹ️ **Note**: Correlation id will be added to the list of camel exchange properties in Runtime.
 
@@ -39,7 +39,7 @@ Table contains current chain's sessions, aggregated by correlation identifier, i
   - 🔵 _**In Progress**_ - session is in progress. Finalized status will be available in some time.
   - ⚫ _**Cancelled Or Unknown**_ - session processing has been interrupted by chain itself. For example, this status might indicate that one of the Split element branches failed while this element has option "Stop On Exception" selected, which caused interruption of all other branches.
 - **Start Time** - start datetime of the session.
-- **Finish Time** - finish datetime of the session
+- **Finish Time** - finish datetime of the session.
 - **Session level** - shows level of logging for specific session.
 - **Duration** - shows 2 time values: 1st one is a duration of synchronous main session thread, 2nd one (in brackets) is summary duration of all synchronous and asynchronous threads. In case value is more than 1 second, it will be displayed in seconds, otherwise in milliseconds.
 - **Snapshot** - snapshot version of deployment.
@@ -71,7 +71,7 @@ Next information is available, when element's name clicked and window with its d
 - **Headers** tab - contains the list of headers and their before/after values. Slider **"Only modified"** filters out unmodified headers.
     > ℹ️ **Note**: For **HTTP Sender** and **Service Call** header **"CamelHttpUri"** will contain full URI, with resource and query parameters in it.
 - **Exchange properties** tab - contains list of exchange properties. There are specific properties, available for failed elements in sessions, please refer to the [Building Logic Around Failed Elements](../../00__Overview/6__Building_Logic_Around_Failed_Elements/failed_elements_logic.md) article for more details.
-- **Technical context** tab - contains the list of context headers, that has been received by the chain.
+- **Technical context** tab - contains the list of context headers, that have been received by the chain.
 
 There is also "**View diff**" switch, available for "**Headers**", "**Exchange properties**" and "**Technical context**" tabs, that could be used to only show records that were modified during the processing.
 

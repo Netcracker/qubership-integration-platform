@@ -7,7 +7,7 @@ When it is required to enter a script in the specific QIP element, it must be en
 ## Application in QIP
 
 ---
-According to groovy, you can set a suitable kind of scripts, error handling, input/output messages. System displays the code completion popup automatically as user types.
+According to Groovy, you can set a suitable kind of scripts, error handling, input/output messages. System displays the code completion popup automatically as user types.
 
 There is a list of modules where you can use Groovy:
 
@@ -57,7 +57,7 @@ requestJSON.put("fieldName", "fieldValue");
 
 #### 6. Set property to Camel Exchange
 
-> **ℹ️Note**: Property setting might be useful for storing values, that are necessary for the further chain processing (in another scripting modules, Choice, etc.)
+> **ℹ️Note**: Property setting might be useful for storing values, that are necessary for the further chain processing (in other scripting modules, Choice, etc.)
 
 ```groovy
 exchange.setProperty("propertyName", "propertyValue");
@@ -112,7 +112,7 @@ The result of first option would be:
 def builder = new groovy.json.JsonBuilder()
 def root = builder {
     person {
-        firstName 'Guillame'
+        firstName 'Guillaume'
         lastName 'Laforge'                // Named arguments are valid values for objects too
         address(
             city: 'Paris',
@@ -130,7 +130,7 @@ The result of second option would be:
 ```json
 {
     "person": {
-        "firstName": "Guillame",
+        "firstName": "Guillaume",
         "lastName": "Laforge",
         "address": {"city": "Paris", "country": "France", "zip": 12345},
         "married": true,
@@ -153,7 +153,7 @@ The result would be having customized message "Invalid data", instead of standar
 ```groovy
 exchange.getMessage().setHeader("Content-Type", "application/json");
 exchange.getMessage().setBody(JsonOutput.toJson("{"id":"1"}"));
-exchange.setBody(slurper.parseText(exchange.getProperty("requestQuote", String.class));
+exchange.setBody(slurper.parseText(exchange.getProperty("requestQuote", String.class)))
 ```
 
 #### 12. Remove header & body
@@ -180,10 +180,10 @@ def query_parameter = exchange.getMessage().getHeader("query_parameter_name");
 
 #### 15. Get variable value
 
-> **ℹ️Note**: More detailed information about secured variables available in [Variables](../../../../../../03__Admin_Tools/2__Variables/variables.md)
+> **ℹ️Note**: More detailed information about secured variables is available in [Variables](../../../../../../03__Admin_Tools/2__Variables/variables.md)
 
 ```groovy
-def somevalue = #{secured_variable_name};
+def someValue = #{secured_variable_name};
 String urlEncodedBody = "username=" + "#{username}".encodeURL();
 ```
 
@@ -196,7 +196,7 @@ def uuid = UUID.randomUUID();
 #### 17. Get data from technical context
 
 ```groovy
-import.context.propagation.core.ContextManager;
+import context.propagation.core.ContextManager;
 ContextManager.get(x_request_id);
 ```
 
