@@ -101,10 +101,21 @@ export function stubProjectConfigService(
   return {
     ProjectConfigService: {
       getConfig: jest.fn().mockReturnValue({
-        schemaUrls: { service: "", specification: "", specificationGroup: "" },
+        schemaUrls: {
+          service: "",
+          specification: "",
+          specificationGroup:
+            "http://qubership.org/schemas/product/qip/specification-group.schema.yaml",
+          apiGroup:
+            "http://qubership.org/schemas/product/qip/api-group.schema.yaml",
+          api: "http://qubership.org/schemas/product/qip/api.schema.yaml",
+        },
         extensions: {
           service: ".qip-service.yaml",
           specification: ".spec.yaml",
+          specificationGroup: ".specification-group.qip.yaml",
+          apiGroup: ".api-group.qip.yaml",
+          api: ".api.qip.yaml",
         },
         ...configOverrides,
       }),
@@ -175,3 +186,16 @@ export function buildMockContext() {
     subscriptions: [],
   } as any;
 }
+
+/** The default `qip` file extensions, as `getExtensionsForUri` returns them. */
+export const QIP_FILE_EXTENSIONS = {
+  appName: "qip",
+  chain: ".chain.qip.yaml",
+  service: ".service.qip.yaml",
+  contextService: ".context-service.qip.yaml",
+  mcpService: ".mcp-service.qip.yaml",
+  specificationGroup: ".specification-group.qip.yaml",
+  apiGroup: ".api-group.qip.yaml",
+  specification: ".specification.qip.yaml",
+  api: ".api.qip.yaml",
+};

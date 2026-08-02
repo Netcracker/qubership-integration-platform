@@ -111,11 +111,11 @@ public class SystemModelBaseService {
     }
 
     public List<SystemModel> getSystemModelsBySpecificationGroupId(String specificationGroupId) {
-        return systemModelRepository.findAllBySpecificationGroupId(specificationGroupId);
+        return systemModelRepository.findAllByApiGroupId(specificationGroupId);
     }
 
     public long countBySpecificationGroupIdAndVersion(String specificationGroupId, String version) {
-        return systemModelRepository.countBySpecificationGroupIdAndVersion(specificationGroupId, version);
+        return systemModelRepository.countByApiGroupIdAndVersion(specificationGroupId, version);
     }
 
     @Transactional
@@ -138,7 +138,7 @@ public class SystemModelBaseService {
     @Transactional
     public void updateCompiledLibrariesForSystem(String systemId) {
         systemModelRepository
-                .findSystemModelsBySpecificationGroupSystemId(systemId)
+                .findSystemModelsByApiGroupSystemId(systemId)
                 .forEach(this::patchModelWithCompiledLibrary);
     }
 
@@ -157,12 +157,12 @@ public class SystemModelBaseService {
         compiledLibrary.setData(data);
     }
 
-    protected void logModelAction(SystemModel model, SpecificationGroup group, LogOperation operation) {
+    protected void logModelAction(SystemModel model, ApiGroup group, LogOperation operation) {
         actionLogger.logAction(ActionLog.builder()
                 .entityType(EntityType.SPECIFICATION)
                 .entityId(model.getId())
                 .entityName(model.getName())
-                .parentType(group == null ? null : EntityType.SPECIFICATION_GROUP)
+                .parentType(group == null ? null : EntityType.API_GROUP)
                 .parentId(group == null ? null : group.getId())
                 .parentName(group == null ? null : group.getName())
                 .operation(operation)
@@ -170,7 +170,7 @@ public class SystemModelBaseService {
     }
 
     private String buildJarFileName(SystemModel model) {
-        IntegrationSystem system = model.getSpecificationGroup().getSystem();
+        IntegrationSystem system = model.getApiGroup().getSystem();
         return String.format("%s-%s-%s.jar", system.getProtocol().name().toLowerCase(),
                 sanitizeString(system.getName()).toLowerCase(), sanitizeString(model.getName()).toLowerCase());
     }
@@ -211,8 +211,8 @@ public class SystemModelBaseService {
 
     private SystemModelCodeGenerator getCodeGenerator(SystemModel model) {
         OperationProtocol protocol = Optional.ofNullable(model)
-                .map(SystemModel::getSpecificationGroup)
-                .map(SpecificationGroup::getSystem)
+                .map(SystemModel::getApiGroup)
+                .map(ApiGroup::getSystem)
                 .map(IntegrationSystem::getProtocol)
                 .orElse(null);
         if (isNull(protocol)) {

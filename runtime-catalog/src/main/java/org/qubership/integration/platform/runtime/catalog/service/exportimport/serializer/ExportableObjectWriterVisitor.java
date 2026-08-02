@@ -52,11 +52,11 @@ public class ExportableObjectWriterVisitor {
                 yamlMapper.writeValueAsString(exportedIntegrationSystem.getObjectNode()));
     }
 
-    public void visit(ExportedSpecificationGroup exportedSpecificationGroup, ZipOutputStream zipOut, String entryPath) throws IOException {
+    public void visit(ExportedApiGroup exportedApiGroup, ZipOutputStream zipOut, String entryPath) throws IOException {
         ExportImportUtils.writeSystemObject(zipOut,
                 entryPath
-                + ExportImportUtils.generateSpecificationGroupFileExportName(exportedSpecificationGroup.getId(), appName, isLegacyExport),
-                yamlMapper.writeValueAsString(exportedSpecificationGroup.getObjectNode()));
+                + ExportImportUtils.generateSpecificationGroupFileExportName(exportedApiGroup.getId(), appName, isLegacyExport),
+                yamlMapper.writeValueAsString(exportedApiGroup.getObjectNode()));
     }
 
     public void visit(ExportedSpecification exportedSpecification, ZipOutputStream zipOut, String entryPath) throws IOException {

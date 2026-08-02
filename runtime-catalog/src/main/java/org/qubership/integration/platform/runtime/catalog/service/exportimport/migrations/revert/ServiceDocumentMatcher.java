@@ -1,0 +1,65 @@
+package org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import java.util.Set;
+
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.API_GROUPS;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTENT;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.DEPENDENCIES;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.DEPLOY_ACTION;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.ELEMENTS;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SPECIFICATION_GROUPS;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
+
+/**
+ * Recognizes the three documents that stamp {@code content.migrations} from the service migration list: service,
+ * context service, and MCP service. A revert migration that strips its own version has to match all three, or a
+ * legacy export keeps claiming a version the importing QIP does not have and is rejected outright. It must also
+ * leave a chain alone, because the chain sequence numbers its own migrations independently.
+ *
+ * <p>The match reads {@code $schema}, the type tag every exporter stamps and only {@link V101RevertMigration} — last
+ * in the revert order — strips. Matching on content fields instead misses a service whose type, protocol, and
+ * environments are all absent, which is what {@code @JsonInclude(NON_EMPTY)} leaves on a bare service. The field
+ * shape is kept as a fallback for a document that carries no {@code $schema} at all.
+ */
+@Component
+public class ServiceDocumentMatcher {
+
+    private static final String SCHEMA = "$schema";
+    private static final String INTEGRATION_SYSTEM_TYPE = "integrationSystemType";
+    private static final String PROTOCOL = "protocol";
+    private static final String ENVIRONMENTS = "environments";
+
+    private final Set<String> serviceSchemas;
+
+    @Autowired
+    public ServiceDocumentMatcher(ApplicationJsonSchemaProperties schemas) {
+        this.serviceSchemas = Set.of(schemas.getService(), schemas.getContextService(), schemas.getMcpService());
+    }
+
+    public boolean matches(ObjectNode node) {
+        if (!(node.get(CONTENT) instanceof ObjectNode content)) {
+            return false;
+        }
+        JsonNode schema = node.get(SCHEMA);
+        if (schema != null && schema.isTextual()) {
+            return serviceSchemas.contains(schema.asText());
+        }
+        return !isChain(content) && (content.has(IMPORT_MIGRATIONS_FIELD) || hasServiceFields(content));
+    }
+
+    private static boolean isChain(ObjectNode content) {
+        return content.has(ELEMENTS) || content.has(DEPENDENCIES) || content.has(DEPLOY_ACTION);
+    }
+
+    // Read both group-list names: the fallback also sees a document V104 has already reverted.
+    private static boolean hasServiceFields(ObjectNode content) {
+        return content.has(INTEGRATION_SYSTEM_TYPE) || content.has(PROTOCOL) || content.has(ENVIRONMENTS)
+                || content.has(API_GROUPS) || content.has(SPECIFICATION_GROUPS);
+    }
+}

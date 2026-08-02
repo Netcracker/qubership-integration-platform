@@ -1,0 +1,35 @@
+type Query {
+  customer(id: ID!): Customer
+  searchCustomers(term: String!, limit: Int = 20): [Customer!]!
+}
+
+type Mutation {
+  createCustomer(input: CustomerInput!): Customer!
+  deactivateCustomer(id: ID!): Boolean!
+}
+
+type Customer {
+  id: ID!
+  name: String!
+  email: String
+  addresses: [Address!]!
+  tier: Tier!
+}
+
+type Address {
+  street: String!
+  city: String!
+  country: String!
+}
+
+input CustomerInput {
+  name: String!
+  email: String
+  tier: Tier = STANDARD
+}
+
+enum Tier {
+  STANDARD
+  GOLD
+  PLATINUM
+}

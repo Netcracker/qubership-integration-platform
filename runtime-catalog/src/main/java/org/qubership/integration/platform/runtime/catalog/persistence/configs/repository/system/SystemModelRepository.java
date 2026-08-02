@@ -25,17 +25,17 @@ import java.util.Collection;
 import java.util.List;
 
 public interface SystemModelRepository extends JpaRepository<SystemModel, String> {
-    List<SystemModel> findSystemModelsBySpecificationGroupSystemId(String systemId);
+    List<SystemModel> findSystemModelsByApiGroupSystemId(String systemId);
 
-    SystemModel findFirstBySpecificationGroupIdAndSourceEqualsOrderByCreatedWhenDesc(String specificationGroupId, SystemModelSource source);
+    SystemModel findFirstByApiGroupIdAndSourceEqualsOrderByCreatedWhenDesc(String apiGroupId, SystemModelSource source);
 
-    SystemModel findFirstBySpecificationGroupSystemIdOrderByCreatedWhenDesc(String systemId);
+    SystemModel findFirstByApiGroupSystemIdOrderByCreatedWhenDesc(String systemId);
 
-    SystemModel findFirstBySpecificationGroupIdAndVersion(String specificationGroupId, String version);
+    SystemModel findFirstByApiGroupIdAndVersion(String apiGroupId, String version);
 
-    List<SystemModel> findAllBySpecificationGroupId(String specificationGroupId);
+    List<SystemModel> findAllByApiGroupId(String apiGroupId);
 
-    long countBySpecificationGroupIdAndVersion(String specificationId, String version);
+    long countByApiGroupIdAndVersion(String specificationId, String version);
 
     @Query("select model.id, lib.modifiedWhen "
             + "from SystemModel model "
@@ -46,5 +46,5 @@ public interface SystemModelRepository extends JpaRepository<SystemModel, String
     @Query(nativeQuery = true, value = "SELECT model.version from catalog.models model where model.id=:id")
     String findVersionById(String id);
 
-    SystemModel findByIdInAndSpecificationGroupIdNot(Collection<String> ids, String specificationGroupId);
+    SystemModel findByIdInAndApiGroupIdNot(Collection<String> ids, String apiGroupId);
 }

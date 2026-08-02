@@ -5,6 +5,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.service.resolvers.wsdl.WsdlVersionParser;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -13,6 +14,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
+import javax.xml.parsers.SAXParserFactory;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -24,7 +26,8 @@ class ProtocolExtractionServiceV3Test {
     void setUp() {
         ObjectMapper objectMapper = new ObjectMapper();
         YAMLMapper yamlMapper = new YAMLMapper();
-        service = new ProtocolExtractionService(objectMapper, yamlMapper);
+        WsdlVersionParser wsdlVersionParser = new WsdlVersionParser(SAXParserFactory.newDefaultInstance());
+        service = new ProtocolExtractionService(objectMapper, yamlMapper, wsdlVersionParser);
     }
 
     @Test

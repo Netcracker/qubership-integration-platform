@@ -39,6 +39,7 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.S
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarIdException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarVersionException;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
+import org.qubership.integration.platform.runtime.catalog.model.system.typed.OpenapiOperation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBaseService;
@@ -46,6 +47,7 @@ import org.qubership.integration.platform.runtime.catalog.service.parsers.OpenAp
 import org.qubership.integration.platform.runtime.catalog.service.parsers.Parser;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.ParserUtils;
 import org.qubership.integration.platform.runtime.catalog.service.parsers.SpecificationParser;
+import org.qubership.integration.platform.runtime.catalog.service.parsers.preprocessing.SpecificationPreprocessing;
 import org.qubership.integration.platform.runtime.catalog.service.resolvers.swagger.SwaggerSchemaResolver;
 import org.qubership.integration.platform.runtime.catalog.service.schemas.Processor;
 import org.qubership.integration.platform.runtime.catalog.service.schemas.SchemaProcessor;
@@ -73,8 +75,6 @@ public class SwaggerSpecificationParser implements SpecificationParser {
     private static final String INVALID_SWAGGER_FILE_ERROR_MESSAGE = "Error during processing file";
     private static final String PARAMETERS_NODE = "parameters";
     private static final String ERROR_CONVERTING_OPERATION_MESSAGE = "Error during converting Operation to JSON";
-    private static final String OPENAPI_32_VERSION_PREFIX = "3.2";
-    private static final String OPENAPI_31_FALLBACK_VERSION = "3.1.0";
 
     private final SystemModelRepository systemModelRepository;
     private final SwaggerSchemaResolver swaggerSchemaResolver;
@@ -108,24 +108,22 @@ public class SwaggerSpecificationParser implements SpecificationParser {
 
     @Override
     public SystemModel enrichSpecificationGroup(
-            SpecificationGroup group,
+            ApiGroup group,
             Collection<SpecificationSource> sources,
             Set<String> oldSystemModelsIds, boolean isDiscovered,
+            boolean withSchemas,
             Consumer<String> messageHandler
     ) {
         try {
             SystemModel systemModel;
-            String specificationText = sources.stream().map(SpecificationSource::getSource).findFirst().orElse("");
-            JsonNode specificationNode = DeserializationUtils.deserializeIntoTree(specificationText, "file");
-            String parseableText = downgradeUnsupportedOpenApiVersion(specificationNode, specificationText, messageHandler.andThen(log::warn));
-            OpenAPI importedOpenAPI = getSwaggerParser(specificationNode).readContents(parseableText, null, new ParseOptions()).getOpenAPI();
-            if (importedOpenAPI == null) {
-                throw new SpecificationImportException(INVALID_SWAGGER_FILE_ERROR_MESSAGE);
-            }
-            ObjectMapper specMapper = openApiMapperResolver.forVersion(importedOpenAPI.getSpecVersion());
+            // Same pick as the on-demand extractor: honor the main-source flag, not the list position, or a
+            // multi-source model imports one document and re-derives its schemas from another.
+            String specificationText = Objects.requireNonNullElse(SpecificationParser.mainSourceText(sources), "");
+            ParsedOpenApi parsed = parseOpenApi(specificationText, messageHandler.andThen(log::warn));
+            OpenAPI importedOpenAPI = parsed.openAPI();
             String systemModelName = parserUtils.defineVersionName(group, importedOpenAPI);
             String systemModelId = buildId(group.getId(), systemModelName);
-            List<Operation> operationList = separate(importedOpenAPI, specMapper, messageHandler.andThen(log::warn));
+            List<Operation> operationList = separate(importedOpenAPI, parsed.specMapper(), withSchemas, messageHandler.andThen(log::warn));
 
             checkSpecId(oldSystemModelsIds, systemModelId);
 
@@ -160,36 +158,38 @@ public class SwaggerSpecificationParser implements SpecificationParser {
         }
     }
 
-    /**
-     * Rewrites an OpenAPI 3.2 version field to 3.1 so the specification can be parsed.
-     *
-     * <p>swagger-parser 2.1.x ships no 3.2 deserializer and rejects the version outright.
-     * OpenAPI 3.2 stays backward compatible with 3.1, so 3.2 documents are parsed as 3.1;
-     * 3.2-only constructs (the QUERY method, {@code $self}, extended media-type keys) are
-     * dropped rather than failing the import. Only the text handed to the parser changes —
-     * the stored specification source keeps its original version.
-     */
-    private String downgradeUnsupportedOpenApiVersion(JsonNode specificationNode, String specificationText, Consumer<String> messageHandler) {
+    // Persistence-free core: structural fields always populated; request/response schemas only when withSchemas.
+    // The swagger-parser deserializer throws raw runtime exceptions (e.g. SnakeException) on malformed content;
+    // wrap them like the GraphQL/AsyncAPI/Protobuf cores so the on-demand read path degrades to null schemas
+    // instead of surfacing a raw parser exception as a 500.
+    public List<Operation> parseOperations(String specificationText, boolean withSchemas, Consumer<String> messageHandler) {
         try {
-            if (specificationNode == null || !specificationNode.has(OPEN_API_LABEL)) {
-                return specificationText;
-            }
-            String version = specificationNode.get(OPEN_API_LABEL).asText("");
-            if (!version.startsWith(OPENAPI_32_VERSION_PREFIX)) {
-                return specificationText;
-            }
-            ((ObjectNode) specificationNode).put(OPEN_API_LABEL, OPENAPI_31_FALLBACK_VERSION);
-            messageHandler.accept(String.format(
-                    "OpenAPI %s imported with the 3.1 parser. 3.2-only features may be dropped. ",
-                    version));
-            return specificationNode.toString();
+            ParsedOpenApi parsed = parseOpenApi(specificationText, messageHandler);
+            return separate(parsed.openAPI(), parsed.specMapper(), withSchemas, messageHandler);
+        } catch (SpecificationImportException e) {
+            throw e;
         } catch (Exception e) {
-            log.warn("Could not normalize the OpenAPI version; passing the specification to the parser unchanged", e);
-            return specificationText;
+            throw new SpecificationImportException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
         }
     }
 
-    private List<Operation> separate(OpenAPI importedOpenAPI, ObjectMapper specMapper, Consumer<String> messageHandler) {
+    private ParsedOpenApi parseOpenApi(String specificationText, Consumer<String> messageHandler) {
+        JsonNode specificationNode = DeserializationUtils.deserializeIntoTree(specificationText, "file");
+        String parseableText = SpecificationPreprocessing.downgradeUnsupportedOpenApiVersion(
+                specificationNode, specificationText, messageHandler);
+        OpenAPI importedOpenAPI = getSwaggerParser(specificationNode)
+                .readContents(parseableText, null, new ParseOptions()).getOpenAPI();
+        if (importedOpenAPI == null) {
+            throw new SpecificationImportException(INVALID_SWAGGER_FILE_ERROR_MESSAGE);
+        }
+        ObjectMapper specMapper = openApiMapperResolver.forVersion(importedOpenAPI.getSpecVersion());
+        return new ParsedOpenApi(importedOpenAPI, specMapper);
+    }
+
+    private record ParsedOpenApi(OpenAPI openAPI, ObjectMapper specMapper) {
+    }
+
+    private List<Operation> separate(OpenAPI importedOpenAPI, ObjectMapper specMapper, boolean withSchemas, Consumer<String> messageHandler) {
         Map<String, PathItem> pathItems = new LinkedHashMap<>();
         if (importedOpenAPI.getPaths() != null) {
             importedOpenAPI.getPaths().forEach((pathName, pathItem) -> {
@@ -198,13 +198,14 @@ public class SwaggerSpecificationParser implements SpecificationParser {
                 }
             });
         }
-        return generateOperationsList(pathItems, importedOpenAPI, specMapper, messageHandler);
+        return generateOperationsList(pathItems, importedOpenAPI, specMapper, withSchemas, messageHandler);
     }
 
     private List<Operation> generateOperationsList(
             Map<String, PathItem> pathItems,
             OpenAPI importedOpenAPI,
             ObjectMapper specMapper,
+            boolean withSchemas,
             Consumer<String> messageHandler
     ) {
         List<Operation> generatedOperations = new ArrayList<>();
@@ -236,14 +237,17 @@ public class SwaggerSpecificationParser implements SpecificationParser {
                         specificationParameters.addAll(pathItemParams);
                         specification.set(PARAMETERS_NODE, specificationParameters);
                     }
-                    Operation resultOperation = Operation.builder()
+                    var operationBuilder = Operation.builder()
                             .path(pathName)
                             .name(operation.getOperationId())
                             .method(method.getKey().name())
-                            .specification(specification)
-                            .requestSchema(generateRequest(operation, importedComponentsString, specMapper))
-                            .responseSchemas(generateResponsesMap(operation, importedComponentsString, specMapper))
-                            .build();
+                            .specification(specification);
+                    if (withSchemas) {
+                        operationBuilder
+                                .requestSchema(generateRequest(operation, importedComponentsString, specMapper))
+                                .responseSchemas(generateResponsesMap(operation, importedComponentsString, specMapper));
+                    }
+                    Operation resultOperation = operationBuilder.build();
 
                     if (resultOperation.getName() == null) {
                         StringBuilder operationName = new StringBuilder(generateName(pathName, method.getKey().name(), operation));
@@ -266,6 +270,12 @@ public class SwaggerSpecificationParser implements SpecificationParser {
 
                         resultOperation.setName(operationName.toString());
                     }
+                    // Not via the builder: passing typed into it skips method/path derivation.
+                    resultOperation.setTyped(new OpenapiOperation(
+                            operation.getSummary(),
+                            pathName,
+                            method.getKey().name().toLowerCase(Locale.ROOT),
+                            operation.getDeprecated()));
                     generatedOperations.add(resultOperation);
                 }
             }
@@ -368,13 +378,13 @@ public class SwaggerSpecificationParser implements SpecificationParser {
         return "[" + operationId + "]";
     }
 
-    private void resolverSwaggerEnvironment(SpecificationGroup specificationGroup, OpenAPI importedOpenAPI) {
+    private void resolverSwaggerEnvironment(ApiGroup specificationGroup, OpenAPI importedOpenAPI) {
         if (importedOpenAPI.getServers() != null && !importedOpenAPI.getServers().isEmpty()) {
             switch (specificationGroup.getSystem().getIntegrationSystemType()) {
                 case EXTERNAL:
                     if (specificationGroup.getSystem().getEnvironments().isEmpty()) {
                         for (Server server : importedOpenAPI.getServers()) {
-                            String name = "Environment for " + specificationGroup.getName() + " specification group";
+                            String name = "Environment for " + specificationGroup.getName() + " API group";
                             if (server.getDescription() != null) {
                                 name = server.getDescription();
                             }
@@ -405,7 +415,7 @@ public class SwaggerSpecificationParser implements SpecificationParser {
         }
     }
 
-    private Environment setDefaultProperties(SpecificationGroup specificationGroup) {
+    private Environment setDefaultProperties(ApiGroup specificationGroup) {
         Environment environment = specificationGroup.getSystem().getEnvironments().getFirst();
         environmentBaseService.setDefaultProperties(environment);
         return environment;

@@ -57,7 +57,7 @@ public class ElementTemplateUtils {
         }
         Operation operation;
         try {
-            operation = operationService.getOperation(operationId);
+            operation = operationService.getOperationWithSchemas(operationId);
         } catch (EntityNotFoundException e) {
             return;
         }

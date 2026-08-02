@@ -135,12 +135,10 @@ const SWAGGER_20 = {
 
 describe("QipSpecificationGenerator", () => {
   it("builds operations from a rich OpenAPI 3.0 document", () => {
-    const spec = QipSpecificationGenerator.createQipSpecificationFromOpenApi(
+    const operations = QipSpecificationGenerator.buildOperations(
       OPENAPI_30,
-      "spec",
       "spec-1",
     );
-    const operations = spec.content.operations;
     const names = operations.map((o: any) => o.name);
     expect(names).toEqual(
       expect.arrayContaining(["getUser", "createUser", "replaceUser"]),
@@ -164,12 +162,10 @@ describe("QipSpecificationGenerator", () => {
   });
 
   it("converts Swagger 2.0 to OpenAPI 3.0 and resolves definitions", () => {
-    const spec = QipSpecificationGenerator.createQipSpecificationFromOpenApi(
+    const operations = QipSpecificationGenerator.buildOperations(
       SWAGGER_20,
-      "spec",
       "spec-2",
     );
-    const operations = spec.content.operations;
     expect(operations).toHaveLength(1);
     const op = operations[0];
     expect(op.name).toBe("listThings");
@@ -179,7 +175,7 @@ describe("QipSpecificationGenerator", () => {
   });
 
   it("converts Swagger 2.0 form-data parameters and generates a missing operationId", () => {
-    const spec = QipSpecificationGenerator.createQipSpecificationFromOpenApi(
+    const operations = QipSpecificationGenerator.buildOperations(
       {
         swagger: "2.0",
         info: { title: "Forms", version: "1.0.0" },
@@ -206,10 +202,9 @@ describe("QipSpecificationGenerator", () => {
           },
         },
       },
-      "spec",
       "spec-form",
     );
-    const op = spec.content.operations[0];
+    const op = operations[0];
     expect(op.name).toBe("postUpload");
     const form = op.requestSchema["multipart/form-data"];
     expect(form.properties.file.format).toBe("binary");
@@ -217,8 +212,14 @@ describe("QipSpecificationGenerator", () => {
     expect(form.properties.count.minimum).toBe(1);
   });
 
-  it("expands root-level allOf and additionalProperties and a typed parameter without a schema", () => {
-    const spec = QipSpecificationGenerator.createQipSpecificationFromOpenApi(
+  it("leaves an anonymous root-level allOf/additionalProperties composition unresolved, and expands a typed parameter without a schema", () => {
+    // Backend parity: full $ref expansion only fires when the response body
+    // reduces to a reference to one named component (a bare `$ref`, or an
+    // array wrapping one) — an anonymous inline composition at the root,
+    // even one built from `allOf`, is left exactly as declared. Proven by
+    // the conformance corpus's openapi31-aperture-dam/searchAssets case
+    // (see QipSpecificationGenerator.isExpandableSchemaRoot).
+    const operations = QipSpecificationGenerator.buildOperations(
       {
         openapi: "3.0.0",
         info: { title: "Edge", version: "1.0.0" },
@@ -247,20 +248,18 @@ describe("QipSpecificationGenerator", () => {
           schemas: { Base: { type: "object", properties: { id: { type: "string" } } } },
         },
       },
-      "spec",
       "spec-edge",
     );
-    const op = spec.content.operations[0];
+    const op = operations[0];
     const response = op.responseSchemas["200"]["application/json"];
-    expect(response.allOf[0].$ref).toBe("#/definitions/Base");
-    expect(response.definitions.Base).toBeDefined();
+    expect(response.allOf[0].$ref).toBe("#/components/schemas/Base");
+    expect(response.definitions).toBeUndefined();
   });
 
   it("rejects content that is neither OpenAPI 3.x nor Swagger 2.0", () => {
     expect(() =>
-      QipSpecificationGenerator.createQipSpecificationFromOpenApi(
+      QipSpecificationGenerator.buildOperations(
         { info: { version: "1.0.0" } },
-        "spec",
         "spec-3",
       ),
     ).toThrow();

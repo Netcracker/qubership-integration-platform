@@ -162,7 +162,7 @@ describe("ServiceApiSpecsTab toolbar (groups)", () => {
     );
     expect(buttons[2]).toHaveAttribute(
       "data-testid",
-      "api-specs-action-add-specification-group",
+      "api-specs-action-add-api-group",
     );
     expect(buttons[2]).toHaveAttribute("data-button-type", "primary");
   });

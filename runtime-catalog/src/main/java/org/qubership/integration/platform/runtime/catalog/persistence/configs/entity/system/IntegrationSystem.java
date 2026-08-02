@@ -44,7 +44,7 @@ import static jakarta.persistence.CascadeType.*;
 @Entity
 @SuperBuilder
 @NoArgsConstructor
-@JsonIgnoreProperties(value = {"specificationGroups"}, allowSetters = true)
+@JsonIgnoreProperties(value = {"apiGroups"}, allowSetters = true)
 @FieldNameConstants
 public class IntegrationSystem extends AbstractSystemEntity {
 
@@ -73,7 +73,7 @@ public class IntegrationSystem extends AbstractSystemEntity {
     @OrderBy("id")
     @OneToMany(mappedBy = "system", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @JsonIgnoreProperties({"modifiedWhen"})
-    private List<SpecificationGroup> specificationGroups = new LinkedList<>();
+    private List<ApiGroup> apiGroups = new LinkedList<>();
 
     @Builder.Default
     @OneToMany(mappedBy = "system",
@@ -100,14 +100,14 @@ public class IntegrationSystem extends AbstractSystemEntity {
         }
     }
 
-    public void addSpecificationGroup(SpecificationGroup specificationGroup) {
-        getSpecificationGroups().add(specificationGroup);
-        specificationGroup.setSystem(this);
+    public void addApiGroup(ApiGroup apiGroup) {
+        getApiGroups().add(apiGroup);
+        apiGroup.setSystem(this);
     }
 
-    public void removeSpecificationGroup(SpecificationGroup specificationGroup) {
-        getSpecificationGroups().remove(specificationGroup);
-        specificationGroup.setSystem(null);
+    public void removeApiGroup(ApiGroup apiGroup) {
+        getApiGroups().remove(apiGroup);
+        apiGroup.setSystem(null);
     }
 
     public void addLabel(IntegrationSystemLabel label) {
@@ -146,7 +146,7 @@ public class IntegrationSystem extends AbstractSystemEntity {
                 && StringUtils.equals(this.getInternalServiceName(), that.getInternalServiceName())
                 && isLabelsEquals(that.getLabels(), strict)
                 && isEnvironmentEquals(that.getEnvironments(), strict)
-                && isSpecificationGroupEquals(that.getSpecificationGroups(), strict);
+                && isApiGroupEquals(that.getApiGroups(), strict);
     }
 
     private boolean isLabelsEquals(Set<IntegrationSystemLabel> newLabels, boolean strict) {
@@ -157,8 +157,8 @@ public class IntegrationSystem extends AbstractSystemEntity {
         return CompareListUtils.listEquals(this.getEnvironments(), newEnvironments, strict);
     }
 
-    private boolean isSpecificationGroupEquals(List<SpecificationGroup> newSpecificationGroups, boolean strict) {
-        return CompareListUtils.listEquals(this.getSpecificationGroups(), newSpecificationGroups, strict);
+    private boolean isApiGroupEquals(List<ApiGroup> newApiGroups, boolean strict) {
+        return CompareListUtils.listEquals(this.getApiGroups(), newApiGroups, strict);
     }
 
     @JsonGetter("labels")
@@ -195,6 +195,6 @@ public class IntegrationSystem extends AbstractSystemEntity {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), getActiveEnvironmentId(), getIntegrationSystemType(),
-                getInternalServiceName(), getProtocol(), getEnvironments(), getSpecificationGroups());
+                getInternalServiceName(), getProtocol(), getEnvironments(), getApiGroups());
     }
 }

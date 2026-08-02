@@ -22,11 +22,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
-import org.qubership.integration.platform.runtime.catalog.service.SpecificationGroupService;
+import org.qubership.integration.platform.runtime.catalog.service.ApiGroupService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelService;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,14 +46,14 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 @Slf4j
 public class SpecificationExportService {
     private final SystemModelService systemModelService;
-    private final SpecificationGroupService specificationGroupService;
+    private final ApiGroupService apiGroupService;
     private final ActionsLogService actionLogger;
 
     @Autowired
-    SpecificationExportService(SystemModelService systemModelService, SpecificationGroupService specificationGroupService,
+    SpecificationExportService(SystemModelService systemModelService, ApiGroupService apiGroupService,
                                ActionsLogService actionLogger) {
         this.systemModelService = systemModelService;
-        this.specificationGroupService = specificationGroupService;
+        this.apiGroupService = apiGroupService;
         this.actionLogger = actionLogger;
     }
 
@@ -75,7 +75,7 @@ public class SpecificationExportService {
             } else {
                 try (ZipOutputStream zipOut = new ZipOutputStream(fos)) {
                     if (StringUtils.isNotBlank(specificationGroupId)) {
-                        SpecificationGroup specificationGroup = specificationGroupService.getById(specificationGroupId);
+                        ApiGroup specificationGroup = apiGroupService.getById(specificationGroupId);
 
                         for (SystemModel systemModel : specificationGroup.getSystemModels()) {
                             if (specificationIds == null || specificationIds.contains(systemModel.getId())) {
@@ -113,9 +113,9 @@ public class SpecificationExportService {
                 .entityType(EntityType.SPECIFICATION)
                 .entityId(specification.getId())
                 .entityName(specification.getName())
-                .parentType(EntityType.SPECIFICATION_GROUP)
-                .parentId(specification.getSpecificationGroup().getId())
-                .parentName(specification.getSpecificationGroup().getName())
+                .parentType(EntityType.API_GROUP)
+                .parentId(specification.getApiGroup().getId())
+                .parentName(specification.getApiGroup().getName())
                 .operation(LogOperation.EXPORT)
                 .build());
     }

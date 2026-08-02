@@ -186,6 +186,25 @@ class AMQPSpecificationResolverTest {
     }
 
     @Test
+    void getSpecificationJsonNodeWithMaasClassifier() {
+        Channel channel = new Channel();
+        OperationObject op = new OperationObject();
+        op.setMaasClassifierName("my-classifier");
+
+        JsonNode node = resolver.getSpecificationJsonNode("notifications", channel, op);
+        assertEquals("my-classifier", node.get("maasClassifierName").asText());
+    }
+
+    @Test
+    void getSpecificationJsonNodeWithoutMaasClassifier() {
+        Channel channel = new Channel();
+        OperationObject op = new OperationObject();
+
+        JsonNode node = resolver.getSpecificationJsonNode("notifications", channel, op);
+        assertFalse(node.has("maasClassifierName"));
+    }
+
+    @Test
     void getSpecificationJsonNodeWithNullBindings() {
         Channel channel = new Channel();
         channel.setBindings(null);

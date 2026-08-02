@@ -35,6 +35,8 @@ import java.util.stream.Collectors;
 @Component
 public class SystemFilterSpecificationBuilder {
 
+    private static final String API_GROUPS_ATTRIBUTE = "apiGroups";
+
     private final FilterConditionPredicateBuilderFactory filterConditionPredicateBuilderFactory;
 
     @Autowired
@@ -105,11 +107,11 @@ public class SystemFilterSpecificationBuilder {
         return switch (filter.getFeature()) {
             case ID -> conditionPredicateBuilder.apply(root.get("id"), value);
             case NAME -> conditionPredicateBuilder.apply(root.get("name"), value);
-            case SPECIFICATION_GROUP -> conditionPredicateBuilder.apply(root.join("specificationGroups").get("name"), value);
-            case SPECIFICATION_VERSION -> conditionPredicateBuilder.apply(root.join("specificationGroups")
+            case API_GROUP -> conditionPredicateBuilder.apply(root.join(API_GROUPS_ATTRIBUTE).get("name"), value);
+            case SPECIFICATION_VERSION -> conditionPredicateBuilder.apply(root.join(API_GROUPS_ATTRIBUTE)
                                                                             .join("systemModels")
                                                                             .get("version"), value);
-            case URL -> conditionPredicateBuilder.apply(root.join("specificationGroups")
+            case URL -> conditionPredicateBuilder.apply(root.join(API_GROUPS_ATTRIBUTE)
                     .join("systemModels")
                     .join("operations")
                     .get("path"), value);

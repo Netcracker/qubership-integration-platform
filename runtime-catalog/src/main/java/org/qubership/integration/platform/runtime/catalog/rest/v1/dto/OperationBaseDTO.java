@@ -17,7 +17,10 @@
 package org.qubership.integration.platform.runtime.catalog.rest.v1.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.AccessLevel;
 import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import org.qubership.integration.platform.runtime.catalog.model.dto.BaseResponse;
 
 import java.util.List;
@@ -37,6 +40,36 @@ public class OperationBaseDTO {
     private String path;
     @Schema(description = "Specification id")
     private String modelId;
+    @Schema(description = "Protocol discriminator: openapi, asyncapi, wsdl, graphql or protobuf")
+    private String operationKind;
+    @Schema(description = "Channel (asyncapi)")
+    private String channel;
+    @Schema(description = "Summary (openapi, asyncapi)")
+    private String summary;
+    @Schema(description = "Whether the operation is deprecated (openapi)")
+    private Boolean isDeprecated;
+    @Schema(description = "Operation type: query or mutation (graphql)")
+    private String operationType;
+    @Schema(description = "Binding (wsdl)")
+    private String binding;
+    @Schema(description = "RPC method (protobuf)")
+    private String rpcMethod;
+    @Schema(description = "Service (protobuf)")
+    private String service;
     @Schema(description = "List of chains using current operation")
     private List<BaseResponse> chains;
+
+    // "package" is a Java keyword, so the field is named packageName and its accessors expose the "package" property.
+    @Getter(AccessLevel.NONE)
+    @Setter(AccessLevel.NONE)
+    @Schema(description = "Proto package (protobuf)")
+    private String packageName;
+
+    public String getPackage() {
+        return packageName;
+    }
+
+    public void setPackage(String packageName) {
+        this.packageName = packageName;
+    }
 }

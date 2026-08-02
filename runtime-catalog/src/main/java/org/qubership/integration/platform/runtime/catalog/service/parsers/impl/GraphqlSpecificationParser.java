@@ -28,8 +28,9 @@ import graphql.parser.ParserOptions;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarIdException;
+import org.qubership.integration.platform.runtime.catalog.model.system.typed.GraphqlOperation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
@@ -75,9 +76,10 @@ public class GraphqlSpecificationParser implements SpecificationParser {
 
     @Override
     public SystemModel enrichSpecificationGroup(
-            SpecificationGroup group,
+            ApiGroup group,
             Collection<SpecificationSource> sources,
             Set<String> oldSystemModelsIds, boolean isDiscovered,
+            boolean withSchemas,
             Consumer<String> messageHandler
     ) {
         try {
@@ -103,6 +105,17 @@ public class GraphqlSpecificationParser implements SpecificationParser {
             return systemModel;
         } catch (SpecificationSimilarIdException e) {
             throw e;
+        } catch (Exception e) {
+            throw new SpecificationImportException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
+        }
+    }
+
+    // Persistence-free core. GraphQL operations carry only a specification slice (the SDL); no request/response schemas.
+    // A malformed SDL throws graphql.GraphQLException (e.g. InvalidSyntaxException) from the parser; wrap it so the
+    // on-demand read path degrades to null schemas instead of surfacing a raw parser exception as a 500.
+    public List<Operation> parseOperations(String specificationText) {
+        try {
+            return getParsedOperations(specificationText);
         } catch (Exception e) {
             throw new SpecificationImportException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
         }
@@ -134,7 +147,7 @@ public class GraphqlSpecificationParser implements SpecificationParser {
         return objectTypeDefinition.getFieldDefinitions().stream()
                 .map(field -> {
                     String operationDefString = AstPrinter.printAst(field);
-                    return Operation.builder()
+                    Operation operation = Operation.builder()
                             .name(field.getName())
                             .method(method)
                             .path(operationDefString)
@@ -144,6 +157,9 @@ public class GraphqlSpecificationParser implements SpecificationParser {
                                             Map.of(OPERATION_IN_SPEC_KEY, operationDefString),
                                             JsonNode.class))
                             .build();
+                    // Not via the builder: passing typed into it skips method/path derivation.
+                    operation.setTyped(new GraphqlOperation(method, operationDefString));
+                    return operation;
                 })
                 .collect(Collectors.toList());
     }

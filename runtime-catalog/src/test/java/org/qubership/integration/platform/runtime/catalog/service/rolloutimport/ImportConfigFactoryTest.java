@@ -17,11 +17,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ImportConfigFactoryTest {
 
-    private static final String CHAIN_SCHEMA = "http://qubership.org/schemas/product/qip/chain";
-    private static final String SERVICE_SCHEMA = "http://qubership.org/schemas/product/qip/service";
-    private static final String CONTEXT_SERVICE_SCHEMA = "http://qubership.org/schemas/product/qip/context-service";
-    private static final String SPECIFICATION_GROUP_SCHEMA = "http://qubership.org/schemas/product/qip/specification-group";
-    private static final String SPECIFICATION_SCHEMA = "http://qubership.org/schemas/product/qip/specification";
+    private static final String CHAIN_SCHEMA = "http://qubership.org/schemas/product/qip/chain.schema.yaml";
+    private static final String SERVICE_SCHEMA = "http://qubership.org/schemas/product/qip/service.schema.yaml";
+    private static final String CONTEXT_SERVICE_SCHEMA = "http://qubership.org/schemas/product/qip/context-service.schema.yaml";
+    private static final String SPECIFICATION_GROUP_SCHEMA = "http://qubership.org/schemas/product/qip/specification-group.schema.yaml";
+    private static final String API_GROUP_SCHEMA = "http://qubership.org/schemas/product/qip/api-group.schema.yaml";
+    private static final String SPECIFICATION_SCHEMA = "http://qubership.org/schemas/product/qip/specification.schema.yaml";
+    private static final String API_SCHEMA = "http://qubership.org/schemas/product/qip/api.schema.yaml";
 
     private static final String CHAIN_CONFIG_ID = "chain-1";
     private static final String SERVICE_CONFIG_ID = "svc-1";
@@ -92,6 +94,16 @@ class ImportConfigFactoryTest {
     }
 
     @Test
+    @DisplayName("Configuration with the renamed api-group schema is also routed to specificationGroups map")
+    void apiGroupSchemaRoutedToSpecGroups() {
+        RolloutImportConfigurationItem item = configItem("sg-1", API_GROUP_SCHEMA);
+
+        ImportConfig result = factory.fromConfigurationsAndResources(List.of(item), null);
+
+        assertThat(result.getSpecificationGroups()).containsKey("sg-1");
+    }
+
+    @Test
     @DisplayName("Configuration with specification schema is routed to specifications map")
     void specificationSchemaRoutedToSpecifications() {
         RolloutImportConfigurationItem item = configItem("spec-1", SPECIFICATION_SCHEMA);
@@ -99,6 +111,16 @@ class ImportConfigFactoryTest {
         ImportConfig result = factory.fromConfigurationsAndResources(List.of(item), null);
 
         assertThat(result.getSpecifications()).containsKey("spec-1");
+    }
+
+    @Test
+    @DisplayName("Configuration with api schema is routed to specifications map")
+    void apiSchemaRoutedToSpecifications() {
+        RolloutImportConfigurationItem item = configItem("api-1", API_SCHEMA);
+
+        ImportConfig result = factory.fromConfigurationsAndResources(List.of(item), null);
+
+        assertThat(result.getSpecifications()).containsKey("api-1");
     }
 
     @Test

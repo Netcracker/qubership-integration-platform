@@ -33,6 +33,20 @@ function getCSSVariable(name: string, fallback: string = ""): string {
   return value || fallback;
 }
 
+/**
+ * VS Code registers no `border` color, so `--vscode-border` exists only in the
+ * browser fallbacks and reads empty inside the webview — which sent every
+ * bordered antd component (Select above all, since it has no CSS override) to
+ * the hard-coded default while `.ant-input` followed the IDE. Read the real
+ * variable the inputs use first.
+ */
+function getBorderColor(isDark: boolean): string {
+  return (
+    getCSSVariable("--vscode-editorGroup-border") ||
+    getCSSVariable("--vscode-border", isDark ? "#303030" : "#d9d9d9")
+  );
+}
+
 export function getThemeTokens(isDark: boolean): Partial<AliasToken> {
   const editorBg = getCSSVariable(
     "--vscode-editor-background",
@@ -46,10 +60,7 @@ export function getThemeTokens(isDark: boolean): Partial<AliasToken> {
     "--vscode-foreground",
     isDark ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)",
   );
-  const border = getCSSVariable(
-    "--vscode-border",
-    isDark ? "#303030" : "#d9d9d9",
-  );
+  const border = getBorderColor(isDark);
   const buttonBg = getCSSVariable("--vscode-button-background", "#0078d4");
   const buttonHover = getCSSVariable(
     "--vscode-button-hoverBackground",
@@ -170,10 +181,7 @@ export function getAntdThemeConfig(
     tokens.colorText ??
       (isDark ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)"),
   );
-  const borderColor = getCSSVariable(
-    "--vscode-border",
-    isDark ? "#303030" : "#d9d9d9",
-  );
+  const borderColor = getBorderColor(isDark);
   const iconHover = getCSSVariable(
     "--vscode-button-hoverBackground",
     "#106ebe",
@@ -224,14 +232,8 @@ export function getAntdThemeConfig(
           "--vscode-list-hoverBackground",
           isDark ? "#262626" : "#f5f5f5",
         ),
-        colorBorder: getCSSVariable(
-          "--vscode-editorGroup-border",
-          isDark ? "#303030" : "#d9d9d9",
-        ),
-        colorBorderSecondary: getCSSVariable(
-          "--vscode-border",
-          isDark ? "#303030" : "#d9d9d9",
-        ),
+        colorBorder: getBorderColor(isDark),
+        colorBorderSecondary: getBorderColor(isDark),
         colorBgContainer: getCSSVariable(
           "--vscode-editor-background",
           isDark ? "#141414" : "#ffffff",
@@ -259,10 +261,7 @@ export function getAntdThemeConfig(
           "--vscode-editor-background",
           isDark ? "#141414" : "#ffffff",
         ),
-        defaultBorderColor: getCSSVariable(
-          "--vscode-editorGroup-border",
-          isDark ? "#303030" : "#d9d9d9",
-        ),
+        defaultBorderColor: getBorderColor(isDark),
         defaultColor: getCSSVariable(
           "--vscode-foreground",
           isDark ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)",
@@ -303,10 +302,7 @@ export function getAntdThemeConfig(
           "--vscode-foreground",
           isDark ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)",
         ),
-        colorBorder: getCSSVariable(
-          "--vscode-border",
-          isDark ? "#303030" : "#d9d9d9",
-        ),
+        colorBorder: getBorderColor(isDark),
       },
       List: {
         colorBgContainer: getCSSVariable(
@@ -337,10 +333,7 @@ export function getAntdThemeConfig(
           "--vscode-foreground",
           isDark ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)",
         ),
-        colorBorder: getCSSVariable(
-          "--vscode-border",
-          isDark ? "#303030" : "#d9d9d9",
-        ),
+        colorBorder: getBorderColor(isDark),
       },
       FloatButton: {
         colorBgElevated: getCSSVariable(
@@ -351,10 +344,7 @@ export function getAntdThemeConfig(
           "--vscode-foreground",
           isDark ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)",
         ),
-        colorBorder: getCSSVariable(
-          "--vscode-border",
-          isDark ? "#303030" : "#d9d9d9",
-        ),
+        colorBorder: getBorderColor(isDark),
         colorPrimary: getCSSVariable("--vscode-button-background", "#0078d4"),
         colorPrimaryHover: getCSSVariable(
           "--vscode-button-hoverBackground",

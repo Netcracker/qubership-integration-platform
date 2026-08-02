@@ -32,7 +32,6 @@ import org.apache.woden.WSDLException;
 import org.apache.woden.WSDLFactory;
 import org.apache.woden.WSDLReader;
 import org.apache.woden.internal.resolver.SimpleURIResolver;
-import org.apache.woden.wsdl20.BindingOperation;
 import org.apache.woden.wsdl20.Description;
 import org.apache.woden.wsdl20.Endpoint;
 import org.apache.woden.wsdl20.xml.DescriptionElement;
@@ -42,6 +41,7 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.S
 import org.qubership.integration.platform.runtime.catalog.model.dto.system.EnvironmentRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.EnvironmentMapper;
 import org.qubership.integration.platform.runtime.catalog.model.system.WsdlVersion;
+import org.qubership.integration.platform.runtime.catalog.model.system.typed.WsdlOperation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentBaseService;
@@ -63,6 +63,7 @@ import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.xml.namespace.QName;
 
 import static java.util.Objects.nonNull;
 import static org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType.EXTERNAL;
@@ -101,9 +102,10 @@ public class WSDLSpecificationParser implements SpecificationParser {
 
     @Override
     public SystemModel enrichSpecificationGroup(
-            SpecificationGroup group,
+            ApiGroup group,
             Collection<SpecificationSource> sources,
             Set<String> oldSystemModelsIds, boolean isDiscovered,
+            boolean withSchemas,
             Consumer<String> messageHandler
     ) {
         try {
@@ -132,8 +134,27 @@ public class WSDLSpecificationParser implements SpecificationParser {
         }
     }
 
+    /**
+     * Reparses a WSDL main source into typed operations keyed by operation name, so the backfill can recover
+     * the protocol and binding of pre-migration rows. Reuses the same V1/V2 branch and protocol/binding
+     * formats as import, keeping backfilled and freshly imported rows in agreement.
+     */
+    public Map<String, WsdlOperation> reparseTypedOperations(String mainSource) {
+        ApiGroup group = ApiGroup.builder().build();
+        group.setId(UUID.randomUUID().toString());
+        SpecificationSource source = new SpecificationSource();
+        source.setSource(mainSource);
+        source.setMainSource(true);
+        return getParsedOperations(group, List.of(source)).stream()
+                .filter(operation -> operation.getTyped() instanceof WsdlOperation)
+                .collect(Collectors.toMap(
+                        Operation::getName,
+                        operation -> (WsdlOperation) operation.getTyped(),
+                        (first, second) -> first));
+    }
+
     private List<Operation> getParsedOperations(
-            SpecificationGroup specificationGroup,
+            ApiGroup specificationGroup,
             Collection<SpecificationSource> sources
     ) throws SpecificationImportException {
         SpecificationSource mainSource = getMainSource(sources);
@@ -163,7 +184,7 @@ public class WSDLSpecificationParser implements SpecificationParser {
     }
 
     private List<Operation> extractOperationsFromWsdlV2(
-            SpecificationGroup specificationGroup,
+            ApiGroup specificationGroup,
             Collection<SpecificationSource> sources,
             SpecificationSource mainSource
     ) {
@@ -205,7 +226,7 @@ public class WSDLSpecificationParser implements SpecificationParser {
     }
 
     private List<Operation> extractOperationsFromWsdlV1(
-            SpecificationGroup specificationGroup,
+            ApiGroup specificationGroup,
             Collection<SpecificationSource> sources,
             SpecificationSource mainSource
     ) {
@@ -274,12 +295,16 @@ public class WSDLSpecificationParser implements SpecificationParser {
                 .stream()
                 .flatMap(service -> service.getPorts().stream())
                 .flatMap(port -> port.getBinding().getOperations().stream())
-                .map(bindingOperation -> Operation.builder()
-                        .name(bindingOperation.getName())
-                        .method(POST_VERB_NAME)
-                        .path(DEFAULT_PATH)
-                        .build()
-                )
+                .map(bindingOperation -> {
+                    Operation operation = Operation.builder()
+                            .name(bindingOperation.getName())
+                            .method(POST_VERB_NAME)
+                            .path(DEFAULT_PATH)
+                            .build();
+                    // Not via the builder: passing typed into it skips method/path derivation.
+                    operation.setTyped(soapV1TypedOperation(bindingOperation.getBinding()));
+                    return operation;
+                })
                 .collect(Collectors.toList());
     }
 
@@ -287,18 +312,56 @@ public class WSDLSpecificationParser implements SpecificationParser {
         return Arrays.stream(description.getServices())
                 .flatMap(service -> Arrays.stream(service.getEndpoints()))
                 .map(Endpoint::getBinding)
-                .flatMap(binding -> Arrays.stream(binding.getBindingOperations()))
-                .map(BindingOperation::toElement)
-                .map(bindingOperationElement -> Operation.builder()
-                        .name(bindingOperationElement.getRef().getLocalPart())
-                        .method(POST_VERB_NAME)
-                        .path(DEFAULT_PATH)
-                        .build()
-                )
+                .flatMap(binding -> Arrays.stream(binding.getBindingOperations())
+                        .map(bindingOperation -> {
+                            Operation operation = Operation.builder()
+                                    .name(bindingOperation.toElement().getRef().getLocalPart())
+                                    .method(POST_VERB_NAME)
+                                    .path(DEFAULT_PATH)
+                                    .build();
+                            // Not via the builder: passing typed into it skips method/path derivation.
+                            operation.setTyped(soapV2TypedOperation(binding));
+                            return operation;
+                        }))
                 .collect(Collectors.toList());
     }
 
-    private void setUpSOAEnvironment(SpecificationGroup specificationGroup, Definitions definitions) {
+    // WSDL 1.1 (predic8): protocol is the SOAP11/SOAP12/HTTP token, binding is the binding name.
+    private static WsdlOperation soapV1TypedOperation(com.predic8.wsdl.Binding binding) {
+        if (binding == null) {
+            return new WsdlOperation(null, null);
+        }
+        Object protocol = binding.getProtocol();
+        return new WsdlOperation(normalizeProtocol(protocol == null ? null : protocol.toString()), binding.getName());
+    }
+
+    // WSDL 2.0 (woden): protocol is the binding type URI, binding is the binding QName local part.
+    private static WsdlOperation soapV2TypedOperation(org.apache.woden.wsdl20.Binding binding) {
+        if (binding == null) {
+            return new WsdlOperation(null, null);
+        }
+        URI type = binding.getType();
+        QName name = binding.getName();
+        return new WsdlOperation(
+                normalizeProtocol(type == null ? null : type.toString()),
+                name == null ? null : name.getLocalPart());
+    }
+
+    // Fold a raw WSDL binding token or type URI to the schema's SOAP/HTTP enum; unknown or null passes through.
+    private static String normalizeProtocol(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        if (StringUtils.containsIgnoreCase(raw, "soap")) {
+            return "SOAP";
+        }
+        if (StringUtils.containsIgnoreCase(raw, "http")) {
+            return "HTTP";
+        }
+        return raw;
+    }
+
+    private void setUpSOAEnvironment(ApiGroup specificationGroup, Definitions definitions) {
         if (specificationGroup.getSystem() != null) {
             if (EXTERNAL.equals(specificationGroup.getSystem().getIntegrationSystemType())) {
                 definitions.getServices()
@@ -309,7 +372,7 @@ public class WSDLSpecificationParser implements SpecificationParser {
         }
     }
 
-    private void setUpWoodenEnvironment(SpecificationGroup specificationGroup, Description description) {
+    private void setUpWoodenEnvironment(ApiGroup specificationGroup, Description description) {
         if (specificationGroup.getSystem() != null) {
             if (EXTERNAL.equals(specificationGroup.getSystem().getIntegrationSystemType())) {
                 Arrays.stream(description.getServices())
@@ -320,7 +383,7 @@ public class WSDLSpecificationParser implements SpecificationParser {
         }
     }
 
-    private void addEnvironment(SpecificationGroup specificationGroup, String envName, String envURL) {
+    private void addEnvironment(ApiGroup specificationGroup, String envName, String envURL) {
         UrlValidator urlValidator = new UrlValidator();
         if (urlValidator.isValid(envURL)) {
             EnvironmentRequestDTO requestDTO = new EnvironmentRequestDTO();

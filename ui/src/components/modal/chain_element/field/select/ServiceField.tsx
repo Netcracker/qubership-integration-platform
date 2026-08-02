@@ -12,7 +12,7 @@ import { useNotificationService } from "../../../../../hooks/useNotificationServ
 import { SelectTag } from "./SelectTag.tsx";
 import { SourceFlagTag } from "../../../../services/ui/SourceFlagTag.tsx";
 import { capitalize } from "../../../../../misc/format-utils.ts";
-import { normalizeProtocol } from "../../../../../misc/protocol-utils.ts";
+import { protocolForContext } from "../../../../../misc/protocol-utils.ts";
 import { SelectAndNavigateField } from "./SelectAndNavigateField.tsx";
 import styles from "./selectOptionValue.module.css";
 
@@ -100,7 +100,8 @@ const ServiceField: React.FC<FieldProps<string, JSONSchema7, FormContext>> = ({
     (newValue: string) => {
       setServiceId(newValue);
       const newService: IntegrationSystem = servicesMap.get(newValue)!;
-      const protocol = normalizeProtocol(newService?.protocol) ?? "http";
+      // This is the value SystemOperationField reads back instead of re-fetching the service.
+      const protocol = protocolForContext(newService?.protocol);
 
       registry.formContext?.updateContext?.({
         integrationSystemId: newValue,

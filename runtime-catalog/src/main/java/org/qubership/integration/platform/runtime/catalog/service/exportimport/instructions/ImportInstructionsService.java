@@ -78,7 +78,7 @@ public class ImportInstructionsService {
     private final ChainService chainService;
     private final DeploymentService deploymentService;
     private final SystemService systemService;
-    private final SpecificationGroupService specificationGroupService;
+    private final ApiGroupService apiGroupService;
     private final SystemModelService systemModelService;
     private final CommonVariablesInstructionsMapper commonVariablesInstructionsMapper;
     private final EntityValidator entityValidator;
@@ -95,7 +95,7 @@ public class ImportInstructionsService {
             ChainService chainService,
             DeploymentService deploymentService,
             SystemService systemService,
-            SpecificationGroupService specificationGroupService,
+            ApiGroupService apiGroupService,
             SystemModelService systemModelService,
             CommonVariablesInstructionsMapper commonVariablesInstructionsMapper,
             EntityValidator entityValidator,
@@ -111,7 +111,7 @@ public class ImportInstructionsService {
         this.chainService = chainService;
         this.deploymentService = deploymentService;
         this.systemService = systemService;
-        this.specificationGroupService = specificationGroupService;
+        this.apiGroupService = apiGroupService;
         this.systemModelService = systemModelService;
         this.commonVariablesInstructionsMapper = commonVariablesInstructionsMapper;
         this.entityValidator = entityValidator;
@@ -257,7 +257,7 @@ public class ImportInstructionsService {
                 switch (nodeEntry.getKey()) {
                     case "chains" -> importInstructionsYaml.append("# chains section might contain delete, ignore and override actions\n");
                     case "services" -> importInstructionsYaml.append("# services section might contain delete and ignore actions\n");
-                    case "specificationGroups" -> importInstructionsYaml.append("# specification groups section might contain only delete action\n");
+                    case "apiGroups" -> importInstructionsYaml.append("# API groups section might contain only delete action\n");
                     case "specifications" -> importInstructionsYaml.append("# specifications section might contain only delete action\n");
                     case "commonVariables" -> importInstructionsYaml.append("# common variables section might contain delete and ignore actions\n");
                 }
@@ -562,7 +562,7 @@ public class ImportInstructionsService {
 
     private List<ImportInstructionResult> performSpecificationGroupDeleteInstructions(GeneralImportInstructionsConfig instructionsConfig) {
         if (
-                Optional.ofNullable(instructionsConfig.getSpecificationGroups())
+                Optional.ofNullable(instructionsConfig.getApiGroups())
                         .map(ImportInstructionsConfig::getDelete)
                         .filter(deleteInstructions -> !deleteInstructions.isEmpty())
                         .isEmpty()
@@ -571,30 +571,30 @@ public class ImportInstructionsService {
         }
 
         List<ImportInstructionResult> results = new ArrayList<>();
-        for (String specificationGroupId : instructionsConfig.getSpecificationGroups().getDelete()) {
+        for (String specificationGroupId : instructionsConfig.getApiGroups().getDelete()) {
             try {
-                specificationGroupService.deleteByIdExists(specificationGroupId).ifPresentOrElse(
+                apiGroupService.deleteByIdExists(specificationGroupId).ifPresentOrElse(
                         specificationGroup -> {
-                            log.info("Specification Group {} deleted as a part of import instructions list", specificationGroup.getId());
+                            log.info("API group {} deleted as a part of import instructions list", specificationGroup.getId());
 
                             results.add(ImportInstructionResult.builder()
                                     .id(specificationGroup.getId())
                                     .name(specificationGroup.getName())
-                                    .entityType(ImportEntityType.SPECIFICATION_GROUP)
+                                    .entityType(ImportEntityType.API_GROUP)
                                     .status(ImportInstructionStatus.DELETED)
                                     .build());
                         },
                         () -> results.add(ImportInstructionResult.builder()
                                 .id(specificationGroupId)
-                                .entityType(ImportEntityType.SPECIFICATION_GROUP)
+                                .entityType(ImportEntityType.API_GROUP)
                                 .status(ImportInstructionStatus.NO_ACTION)
                                 .build())
                 );
             } catch (Exception e) {
-                log.warn("Failed to delete specification group {} as a part of import instructions list", specificationGroupId, e);
+                log.warn("Failed to delete API group {} as a part of import instructions list", specificationGroupId, e);
                 results.add(ImportInstructionResult.builder()
                         .id(specificationGroupId)
-                        .entityType(ImportEntityType.SPECIFICATION_GROUP)
+                        .entityType(ImportEntityType.API_GROUP)
                         .status(ImportInstructionStatus.ERROR_ON_DELETE)
                         .errorMessage(e.getMessage())
                         .build());
@@ -759,8 +759,9 @@ public class ImportInstructionsService {
                 errorMessage = "Service instruction does not support the OVERRIDE action";
 
             }
-            case SPECIFICATION_GROUP -> {
+            case API_GROUP -> {
                 failed = action == ImportInstructionAction.IGNORE || action == ImportInstructionAction.OVERRIDE;
+                // Wording kept as-is: this string leaves the v1 upload endpoint in the error response body.
                 errorMessage = "Specification Group instruction does not support action IGNORE and OVERRIDE";
             }
             case SPECIFICATION -> {

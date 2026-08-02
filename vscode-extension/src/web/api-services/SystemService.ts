@@ -5,6 +5,10 @@ import { fileApi } from "../response/file/fileApiProvider";
 import { getMainService } from "../response/serviceApiRead";
 import { getExtensionsForFile } from "../response/file/fileExtensions";
 import { LabelUtils } from "./LabelUtils";
+import {
+  getExtendedProtocol,
+  getSpecificationType,
+} from "../response/serviceApiUtils";
 
 /**
  * Service for managing integration systems
@@ -29,8 +33,8 @@ export class SystemService {
           integrationSystemType: service.content?.integrationSystemType || "",
           type: service.content?.integrationSystemType || "",
           protocol: service.content?.protocol || "",
-          extendedProtocol: service.content?.extendedProtocol || "",
-          specification: service.content?.specification || "",
+          extendedProtocol: getExtendedProtocol(service.content?.protocol),
+          specification: getSpecificationType(service.content?.protocol),
           labels: LabelUtils.toEntityLabels(service.content?.labels || []),
         };
       }
@@ -80,8 +84,6 @@ export class SystemService {
       service.content.protocol = system.protocol
         ? system.protocol.toUpperCase()
         : system.protocol;
-      service.content.extendedProtocol = system.extendedProtocol;
-      service.content.specification = system.specification;
       service.content.labels = LabelUtils.fromEntityLabels(system.labels);
 
       await fileApi.writeMainService(serviceFileUri, service);

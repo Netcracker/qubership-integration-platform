@@ -1,4 +1,4 @@
-import type { Api } from "../api/api.ts";
+import type { ApiClient } from "../api/api.ts";
 
 export type ExportAdditionsOptions = {
   exportServices: boolean;
@@ -6,7 +6,7 @@ export type ExportAdditionsOptions = {
 };
 
 export async function exportAdditionsForChains(params: {
-  api: Api;
+  api: ApiClient;
   chainIdsForUsedSystems: string[];
   options: ExportAdditionsOptions;
 }): Promise<File[]> {

@@ -31,7 +31,7 @@ export function getServiceActions({
   isRootEntity,
   isExpandAvailable,
   onExportSelected,
-  onAddSpecificationGroup,
+  onAddApiGroup,
 }: {
   onEdit: (record: ServiceEntity) => void;
   onDelete: (record: ServiceEntity) => void;
@@ -40,7 +40,7 @@ export function getServiceActions({
   isRootEntity: (record: ServiceEntity) => boolean;
   isExpandAvailable: (record: ServiceEntity) => boolean;
   onExportSelected?: (selected: ServiceEntity[]) => void;
-  onAddSpecificationGroup?: (record: ServiceEntity) => void;
+  onAddApiGroup?: (record: ServiceEntity) => void;
 }) {
   return (record: ServiceEntity): ActionConfig<ServiceEntity>[] => {
     if (!isRootEntity(record)) return [];
@@ -65,12 +65,12 @@ export function getServiceActions({
         require: { service: ["delete"] },
       },
     ];
-    if (onAddSpecificationGroup && isIntegrationServiceRow(record)) {
+    if (onAddApiGroup && isIntegrationServiceRow(record)) {
       actions.push({
-        key: "addSpecificationGroup",
-        label: "Add Specification Group",
+        key: "addApiGroup",
+        label: "Add API Group",
         icon: <OverridableIcon name="plus" />,
-        onClick: onAddSpecificationGroup,
+        onClick: onAddApiGroup,
         require: { specificationGroup: ["import"] },
       });
     }

@@ -24,11 +24,11 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.AbstractSystemEntity;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.operations.OperationRepository;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationGroupRepository;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.ApiGroupRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SpecificationSourceRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
@@ -43,10 +43,13 @@ import java.util.function.Consumer;
 @Slf4j
 public class OperationParserService {
 
+    // Import produces structural operations only; schemas are rebuilt on demand by OperationSchemaExtractor.
+    private static final boolean IMPORT_WITH_SCHEMAS = false;
+
     private final Map<String, SpecificationParser> parsers = new HashMap<>();
     private final OperationRepository operationRepository;
     private final SystemModelRepository systemModelRepository;
-    private final SpecificationGroupRepository specificationGroupRepository;
+    private final ApiGroupRepository apiGroupRepository;
     private final SpecificationSourceRepository specificationSourceRepository;
     private final ActionsLogService actionLogger;
     private final TransactionHandler transactionHandler;
@@ -55,13 +58,13 @@ public class OperationParserService {
     public OperationParserService(List<SpecificationParser> parsers,
                                   OperationRepository operationRepository,
                                   SystemModelRepository systemModelRepository,
-                                  SpecificationGroupRepository specificationGroupRepository,
+                                  ApiGroupRepository apiGroupRepository,
                                   SpecificationSourceRepository specificationSourceRepository,
                                   ActionsLogService actionLogger,
                                   TransactionHandler transactionHandler) {
         this.operationRepository = operationRepository;
         this.systemModelRepository = systemModelRepository;
-        this.specificationGroupRepository = specificationGroupRepository;
+        this.apiGroupRepository = apiGroupRepository;
         this.specificationSourceRepository = specificationSourceRepository;
         this.actionLogger = actionLogger;
         this.transactionHandler = transactionHandler;
@@ -82,16 +85,20 @@ public class OperationParserService {
                                                 Collection<SpecificationSource> specificationSources,
                                                 boolean isDiscovered,
                                                 Set<String> oldSystemModelsIds,
+                                                String specificationType,
+                                                String specificationVersion,
                                                 Consumer<String> messageHandler) {
         String requestId = RequestIdContext.get();
         return CompletableFuture.supplyAsync(() -> {
             RequestIdContext.set(requestId);
             return transactionHandler.supplyInNewTransaction(() -> {
-                SpecificationGroup specificationGroup = specificationGroupRepository.getReferenceById(specificationGroupId);
+                ApiGroup specificationGroup = apiGroupRepository.getReferenceById(specificationGroupId);
                 SpecificationParser parser = getParser(parserName);
 
-                SystemModel systemModel = parser.enrichSpecificationGroup(specificationGroup, specificationSources, oldSystemModelsIds, isDiscovered, messageHandler);
+                SystemModel systemModel = parser.enrichSpecificationGroup(specificationGroup, specificationSources, oldSystemModelsIds, isDiscovered, IMPORT_WITH_SCHEMAS, messageHandler);
                 systemModel.setSource(SystemModelSource.MANUAL);
+                systemModel.setSpecificationType(specificationType);
+                systemModel.setSpecificationVersion(specificationVersion);
 
                 List<SpecificationSource> specSources = specificationSourceRepository.saveAll(specificationSources);
                 specSources.forEach(systemModel::addProvidedSpecificationSource);
@@ -106,14 +113,14 @@ public class OperationParserService {
         });
     }
 
-    private void logSystemModelAction(AbstractSystemEntity object, SpecificationGroup parent, LogOperation logOperation) {
+    private void logSystemModelAction(AbstractSystemEntity object, ApiGroup parent, LogOperation logOperation) {
         actionLogger.logAction(ActionLog.builder()
                 .entityType(EntityType.SPECIFICATION)
                 .entityId(object.getId())
                 .entityName(object.getName())
                 .parentId(parent == null ? null : parent.getId())
                 .parentName(parent == null ? null : parent.getName())
-                .parentType(parent == null ? null : EntityType.SPECIFICATION_GROUP)
+                .parentType(parent == null ? null : EntityType.API_GROUP)
                 .operation(logOperation)
                 .build());
     }

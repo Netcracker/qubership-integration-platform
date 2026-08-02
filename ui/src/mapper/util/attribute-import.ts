@@ -154,15 +154,9 @@ export class AttributeImporter {
         return DataTypes.referenceType(definitionId, [], schema.metadata);
       }
     }
-    if (schema.enum && !schema.type) {
-      throw new Error("Enumerable types not supported");
-    }
-    if ((schema as JSONSchema7).if) {
-      throw new Error("Conditional schemas not supported");
-    }
-    if (schema.not) {
-      throw new Error('"Not" schemas not supported');
-    }
+    // `if`/`then`/`else` and `not` restrict which instances are valid; they describe no structure a
+    // DataType can hold, so skip them the way `required`, `minimum` and `pattern` are already skipped.
+    // OpenAPI 3.1 puts them deep inside `allOf`, where failing dropped the whole schema.
     if (Array.isArray(schema.type)) {
       const schemas = (schema.type as JSONSchema7TypeName[]).map((t) => ({
         ...schema,
@@ -198,6 +192,16 @@ export class AttributeImporter {
         root,
         definitionMap,
       );
+    }
+    if (!schema.type) {
+      const inferredType = this.inferTypeFromValues(schema);
+      if (inferredType) {
+        return this.buildDataTypeFromJsonSchema(
+          { ...schema, type: inferredType },
+          root,
+          definitionMap,
+        );
+      }
     }
     switch (schema.type) {
       case "null":
@@ -275,6 +279,48 @@ export class AttributeImporter {
           definitionMap,
         );
     }
+  }
+
+  /**
+   * Reads the type off the values a schema enumerates. `const` and `enum` pin the allowed values
+   * without naming a type, which OpenAPI 3.1 does constantly (`kind: {const: "video"}`), and such an
+   * attribute would otherwise import as null. Values of mixed type yield a `type` array, which the
+   * caller already turns into a oneOf. Returns undefined when a value is an object or an array —
+   * there the type name alone would describe nothing.
+   */
+  private static inferTypeFromValues(
+    schema: JsonSchema,
+  ): JSONSchema7TypeName | JSONSchema7TypeName[] | undefined {
+    const enumValues = Array.isArray(schema.enum) ? schema.enum : [];
+    const values =
+      "const" in schema ? [(schema as JSONSchema7).const] : enumValues;
+    if (values.length === 0) {
+      return undefined;
+    }
+
+    const typeNames: JSONSchema7TypeName[] = [];
+    for (const value of values) {
+      if (value === null) {
+        typeNames.push("null");
+        continue;
+      }
+      switch (typeof value) {
+        case "string":
+          typeNames.push("string");
+          break;
+        case "number":
+          typeNames.push("number");
+          break;
+        case "boolean":
+          typeNames.push("boolean");
+          break;
+        default:
+          return undefined;
+      }
+    }
+
+    const distinct = Array.from(new Set(typeNames));
+    return distinct.length === 1 ? distinct[0] : distinct;
   }
 
   public static buildCompoundType(

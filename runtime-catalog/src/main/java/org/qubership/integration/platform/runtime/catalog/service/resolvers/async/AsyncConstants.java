@@ -21,6 +21,14 @@ public final class AsyncConstants {
     public static final String KAFKA_BINDING_CLASS = "kafka";
     public static final String AMQP_BINDING_CLASS = "amqp";
 
-    public static final String CONVERTING_OPERATION_TO_JSON_ERROR = "Error during converting Operation to JSON";
+    // Keys the resolvers write into Operation.specification — one contract, read back by the UI and the extension.
+    // Names the resolvers read out of an AsyncAPI document stay with their resolver: those belong to AsyncAPI's
+    // binding vocabulary, not to this node. Same reason CamelOptions.EXCHANGE is not this "exchangeName".
+    public static final String SPEC_PROPERTY_TOPIC = "topic";
+    public static final String SPEC_PROPERTY_QUEUE_NAME = "queue";
+    public static final String SPEC_PROPERTY_EXCHANGE_NAME = "exchangeName";
+    public static final String SPEC_PROPERTY_USERNAME = "username";
+    // The element/env-facing canonical key for this one is CamelNames.MAAS_CLASSIFIER_NAME_PROP.
+    public static final String SPEC_PROPERTY_MAAS_CLASSIFIER_NAME = "maasClassifierName";
 
 }

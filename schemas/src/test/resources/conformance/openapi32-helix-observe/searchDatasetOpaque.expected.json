@@ -1,0 +1,91 @@
+{
+    "typed": {
+        "type": "openapi",
+        "summary": "Search with an opaque query language",
+        "path": "/datasets/{datasetId}/search",
+        "method": "get",
+        "isDeprecated": null
+    },
+    "path": "/datasets/{datasetId}/search",
+    "method": "GET",
+    "modelId": "27c9cb1e-d917-4301-8851-569ce18c0c8e-helix-observe-3.2-1.0.0",
+    "sourceHash": "79d17d02e6ec0ddce8ebb6f4190126aac57649bccf70d07b944a59d602b4c686",
+    "operationId": "searchDatasetOpaque",
+    "requestSchema": {
+    },
+    "specification": {
+        "tags": [
+            "query",
+            "beta"
+        ],
+        "summary": "Search with an opaque query language",
+        "responses": {
+            "200": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/QueryResult"
+                        }
+                    }
+                },
+                "description": "Rows matching the HelixQL expression."
+            }
+        },
+        "parameters": [
+            {
+                "$ref": "#/components/parameters/DatasetId"
+            }
+        ],
+        "description": "The full query string is one opaque expression (HelixQL).",
+        "operationId": "searchDatasetOpaque"
+    },
+    "responseSchemas": {
+        "200": {
+            "application/json": {
+                "$id": "http://system.catalog/schemas/#/components/schemas/QueryResult",
+                "type": "object",
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "required": [
+                    "columns",
+                    "rows"
+                ],
+                "properties": {
+                    "rows": {
+                        "type": "array",
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "type": [
+                                    "string",
+                                    "number",
+                                    "boolean",
+                                    "null"
+                                ]
+                            }
+                        }
+                    },
+                    "stats": {
+                        "type": "object",
+                        "properties": {
+                            "scanned": {
+                                "type": "integer"
+                            },
+                            "elapsedMs": {
+                                "type": "number"
+                            }
+                        }
+                    },
+                    "columns": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "definitions": {
+                },
+                "additionalProperties": false
+            }
+        }
+    }
+}

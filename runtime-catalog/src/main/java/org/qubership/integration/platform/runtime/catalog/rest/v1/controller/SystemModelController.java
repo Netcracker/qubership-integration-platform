@@ -24,7 +24,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.SystemModelDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.SystemModelMapper;
@@ -100,7 +100,7 @@ public class SystemModelController {
         if (systemModel != null) {
             systemModel.setDeprecated(true);
             systemModel = systemModelService.update(systemModel);
-            logSpecAction(systemModel, systemModel.getSpecificationGroup(), LogOperation.DEPRECATE);
+            logSpecAction(systemModel, systemModel.getApiGroup(), LogOperation.DEPRECATE);
             return ResponseEntity.ok(systemModelMapper.toSystemModelDTO(systemModel));
         } else {
             return ResponseEntity.notFound().build();
@@ -135,12 +135,12 @@ public class SystemModelController {
         return systemModelMapper.toSystemModelDTO(systemModel);
     }
 
-    private void logSpecAction(SystemModel spec, SpecificationGroup group, LogOperation operation) {
+    private void logSpecAction(SystemModel spec, ApiGroup group, LogOperation operation) {
         actionLogger.logAction(ActionLog.builder()
                 .entityType(EntityType.SPECIFICATION)
                 .entityId(spec.getId())
                 .entityName(spec.getName())
-                .parentType(group == null ? null : EntityType.SPECIFICATION_GROUP)
+                .parentType(group == null ? null : EntityType.API_GROUP)
                 .parentId(group == null ? null : group.getId())
                 .parentName(group == null ? null : group.getName())
                 .operation(operation)

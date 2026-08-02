@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services;
 
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SpecificationSourceDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelContentDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
@@ -29,17 +30,22 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
+import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Component
 public class SystemModelDtoMapper implements ExternalEntityMapper<SystemModel, SystemModelDto> {
     private final URI schemaUri;
+    private final ApiOperationDtoMapper apiOperationDtoMapper;
 
     @Autowired
     public SystemModelDtoMapper(
-            @Value("${qip.json.schemas.specification:http://qubership.org/schemas/product/qip/specification}") URI schemaUri
+            @Value("${qip.json.schemas.api:http://qubership.org/schemas/product/qip/api.schema.yaml}") URI schemaUri,
+            ApiOperationDtoMapper apiOperationDtoMapper
     ) {
         this.schemaUri = schemaUri;
+        this.apiOperationDtoMapper = apiOperationDtoMapper;
     }
 
     @Override
@@ -54,8 +60,10 @@ public class SystemModelDtoMapper implements ExternalEntityMapper<SystemModel, S
                 .modifiedWhen(systemModelDto.getContent().getModifiedWhen())
                 .deprecated(systemModelDto.getContent().isDeprecated())
                 .version(systemModelDto.getContent().getVersion())
+                .specificationType(systemModelDto.getContent().getSpecificationType())
+                .specificationVersion(systemModelDto.getContent().getSpecificationVersion())
                 .source(systemModelDto.getContent().getSource())
-                .operations(systemModelDto.getContent().getOperations())
+                .operations(apiOperationDtoMapper.toEntities(systemModelDto.getContent().getOperations()))
                 .build();
         systemModel.getOperations().forEach(operation -> operation.setSystemModel(systemModel));
         systemModel.getSpecificationSources().forEach(specificationSource -> specificationSource.setSystemModel(systemModel));
@@ -70,6 +78,16 @@ public class SystemModelDtoMapper implements ExternalEntityMapper<SystemModel, S
 
     @Override
     public SystemModelDto toExternalEntity(SystemModel systemModel) {
+        List<SpecificationSourceDto> specificationSources = systemModel.getSpecificationSources()
+                .stream()
+                .filter(source -> source.getSource() != null)
+                .map(this::toSpecificationSourceDto)
+                .toList();
+        if (specificationSources.isEmpty()) {
+            log.warn("Model {} has no specification source with content, so it exports an empty specifications list "
+                    + "that the api schema rejects (minItems: 1). Re-import the model with its source files to repair it.",
+                    systemModel.getId());
+        }
         return SystemModelDto.builder()
                 .id(systemModel.getId())
                 .name(systemModel.getName())
@@ -78,15 +96,13 @@ public class SystemModelDtoMapper implements ExternalEntityMapper<SystemModel, S
                         .description(systemModel.getDescription())
                         .deprecated(systemModel.isDeprecated())
                         .version(systemModel.getVersion())
+                        .specificationType(systemModel.getSpecificationType())
+                        .specificationVersion(systemModel.getSpecificationVersion())
                         .source(systemModel.getSource())
-                        .operations(systemModel.getOperations())
-                        .parentId(systemModel.getSpecificationGroup().getId())
+                        .operations(apiOperationDtoMapper.toDtos(systemModel.getOperations()))
+                        .parentId(systemModel.getApiGroup().getId())
                         .labels(systemModel.getLabels().stream().map(SystemModelLabel::getName).toList())
-                        .specificationSources(systemModel.getSpecificationSources()
-                                .stream()
-                                .filter(model -> model.getSource() != null)
-                                .map(this::toSpecificationSourceDto)
-                                .toList())
+                        .specificationSources(specificationSources)
                         .build())
                 .build();
     }
@@ -95,7 +111,6 @@ public class SystemModelDtoMapper implements ExternalEntityMapper<SystemModel, S
         return SpecificationSourceDto.builder()
                 .id(specificationSource.getId())
                 .name(specificationSource.getName())
-                .sourceHash(specificationSource.getSourceHash())
                 .mainSource(specificationSource.isMainSource())
                 .fileName(ExportImportUtils.getFullSpecificationFileName(specificationSource))
                 .build();

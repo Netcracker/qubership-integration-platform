@@ -84,6 +84,8 @@ public class MapperAutoConfiguration {
         return yamlMapper;
     }
 
+    // No filter provider here: this returns the shared swagger-core singleton, so setting one would mutate global
+    // state for every swagger consumer in the JVM. It only ever serializes OpenAPI models, never export DTOs.
     @Bean("openApiObjectMapper")
     public ObjectMapper openApiObjectMapper() {
         return Json.mapper();
@@ -91,18 +93,20 @@ public class MapperAutoConfiguration {
 
     @Bean("defaultYamlMapper")
     public YAMLMapper defaultYamlMapper() {
-        return new YAMLMapper(createCustomYamlFactory());
+        YAMLMapper yamlMapper = new YAMLMapper(createCustomYamlFactory());
+        yamlMapper.setFilterProvider(new SimpleFilterProvider().setFailOnUnknownId(false));
+        return yamlMapper;
     }
 
     @Bean("yamlExportImportMapper")
     public YAMLMapper yamlExportImportMapper() {
+        // Applies to every class annotated @JsonFilter("baseEntityFilter"), see model/exportimport. Audit fields are
+        // machine-local and would make an archive differ between two installations holding the same data; sourceHash
+        // is recomputed from the source file the archive already ships.
         final String[] excludedFields = {
                 "createdWhen",
                 "createdBy",
                 "modifiedBy",
-                "classifier",
-                "classifierV3",
-                "status",
                 "sourceHash"
         };
 
@@ -110,7 +114,12 @@ public class MapperAutoConfiguration {
 
         SimpleModule serializeModule = new SimpleModule();
 
-        yamlMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        // NON_EMPTY rather than NON_NULL: an entity serialized without its own @JsonInclude — Environment, for one —
+        // would otherwise export every empty collection, so the same absent data appeared as `[]` in one place and as
+        // a missing key in another. Content inclusion stays NON_NULL, because an empty string inside a free-form map
+        // such as a chain element's properties is a value the element chose, not an absent one.
+        yamlMapper.setDefaultPropertyInclusion(
+                JsonInclude.Value.construct(JsonInclude.Include.NON_EMPTY, JsonInclude.Include.NON_NULL));
         yamlMapper.registerModule(serializeModule);
         SimpleFilterProvider simpleFilterProvider = new SimpleFilterProvider().setFailOnUnknownId(false);
         simpleFilterProvider.addFilter("baseEntityFilter",
@@ -129,6 +138,7 @@ public class MapperAutoConfiguration {
         serializeModule.addSerializer(ChainElement.class, new CodeviewChainElementSerializer());
         serializeModule.addDeserializer(ChainElement.class, new CodeviewChainElementDeserializer(objectMapper));
         yamlMapper.registerModule(serializeModule);
+        yamlMapper.setFilterProvider(new SimpleFilterProvider().setFailOnUnknownId(false));
 
         return yamlMapper;
     }
@@ -156,28 +166,15 @@ public class MapperAutoConfiguration {
         return yamlMapper;
     }
 
-    @Bean("variablesYamlImportExportMapper")
-    public YAMLMapper variablesYamlImportExportMapper() {
-        final String[] excludedFields = {"createdWhen", "modifiedWhen", "createdBy", "modifiedBy"};
-
-        YAMLMapper yamlMapper = new YAMLMapper();
-        SimpleModule serializeModule = new SimpleModule();
-
-        yamlMapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        yamlMapper.registerModule(serializeModule);
-        SimpleFilterProvider simpleFilterProvider = new SimpleFilterProvider().setFailOnUnknownId(false);
-        simpleFilterProvider.addFilter("commonVariableFilter",
-                SimpleBeanPropertyFilter.serializeAllExcept(excludedFields));
-        yamlMapper.setFilterProvider(simpleFilterProvider);
-        yamlMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
-        return yamlMapper;
-    }
-
     private YAMLFactory createCustomYamlFactory() {
         LoaderOptions loaderOptions = new LoaderOptions();
         loaderOptions.setCodePointLimit(CODE_POINT_LIMIT_MB * 1024 * 1024);
-        return YAMLFactory.builder().loaderOptions(loaderOptions).build();
+        return YAMLFactory.builder()
+                .loaderOptions(loaderOptions)
+                // Jackson writes the `---` document-start marker by default. Every document produced here is a
+                // single-document file, so the marker only adds a line for a reader to skip.
+                .disable(YAMLGenerator.Feature.WRITE_DOC_START_MARKER)
+                .build();
     }
 
     @Bean

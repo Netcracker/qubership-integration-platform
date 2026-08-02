@@ -27,7 +27,6 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.Operati
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.OperationSchemasMapper;
 import org.qubership.integration.platform.runtime.catalog.service.OperationService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.InvalidDataAccessResourceUsageException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -73,17 +72,12 @@ public class OperationController {
         if (log.isDebugEnabled()) {
             log.debug("Request to get operation by model {}", modelId);
         }
-        List<Operation> operations;
-        try {
-            operations = operationService.getOperationsByModel(
-                    modelId,
-                    offset,
-                    count,
-                    searchFilter,
-                    sortColumns);
-        } catch (InvalidDataAccessResourceUsageException e) {
-            return ResponseEntity.badRequest().build();
-        }
+        List<Operation> operations = operationService.getOperationsByModel(
+                modelId,
+                offset,
+                count,
+                searchFilter,
+                sortColumns);
         return ResponseEntity.ok(operationMapper.toOperationDTOs(operations));
     }
 
@@ -99,7 +93,7 @@ public class OperationController {
             operation = operationService.getOperationLight(operationId);
             return operationSchemasMapper.toOperationSchemasDTO(operation);
         }
-        operation = operationService.getOperation(operationId);
+        operation = operationService.getOperationWithSchemas(operationId);
         return operationSchemasMapper.toOperationSchemasDTO(operation);
     }
 
@@ -109,7 +103,7 @@ public class OperationController {
         if (log.isDebugEnabled()) {
             log.debug("Request to get operation {} info", operationId);
         }
-        return ResponseEntity.ok(operationMapper.toOperationInfoDTO(operationService.getOperation(operationId)));
+        return ResponseEntity.ok(operationMapper.toOperationInfoDTO(operationService.getOperationWithSchemas(operationId)));
     }
 
     @GetMapping(value = "/{operationId}/specification", produces = "application/json")

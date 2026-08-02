@@ -15,8 +15,8 @@ Context Services are being used as a temporary storage of chain contexts. Chain 
 
 Table with **Context** services is accessible by navigating to **Services** → **Context** tab. Next columns and elements are available for the table:
 
-- **Name** - clickable name of the service or specification group. When clicked, system navigates to respective entity.
-- **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
+- **Name** - clickable name of the service or API group. When clicked, system navigates to respective entity.
+- **Labels** - list of colored labels of the service, API group or specification, unique within particular entity of each type.
 - **Used By** - shows the chains using this service.
 - **Created At** - datetime of entity creation (hidden by default).
 - **Created By** - shows the user, who created an entity (hidden by default).
@@ -42,7 +42,7 @@ All services created using VS Code Extension appears under "Services" folder. Th
 Parameters tab contains the following information:
 - **Name** - mandatory service name.
 - **Description** - description of service.
-- **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
+- **Labels** - list of colored labels of the service, API group or specification, unique within particular entity of each type.
 
 For <ins>Web UI</ins> there are some additional information:
 

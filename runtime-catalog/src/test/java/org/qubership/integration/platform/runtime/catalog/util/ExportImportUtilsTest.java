@@ -40,6 +40,18 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 
 class ExportImportUtilsTest {
 
+    /**
+     * The write side of the export-import filename contract. `ServiceDeserializer` matches the group file by name
+     * before anything is parsed, so a typo in either constant produces an import with zero API groups and no error.
+     */
+    @Test
+    void generatesTheApiGroupPostfixNameAndKeepsTheLegacyPrefixName() {
+        assertEquals("group-1.api-group.qip.yaml",
+                ExportImportUtils.generateSpecificationGroupFileExportName("group-1", "qip", false));
+        assertEquals("specGroup-group-1.yaml",
+                ExportImportUtils.generateSpecificationGroupFileExportName("group-1", "qip", true));
+    }
+
     @Test
     void testExtractSystemIdFromFileNameWithLegacyServicePrefix() {
         File file = new File("service-myServiceId.yaml");

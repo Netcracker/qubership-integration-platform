@@ -3,8 +3,8 @@ import {
   EnvironmentRequest,
   IntegrationSystem,
   IntegrationSystemType,
-  Specification,
-  SpecificationGroup,
+  Api,
+  ApiGroup,
   SystemRequest,
 } from "../api-services/servicesTypes";
 import * as yaml from "yaml";
@@ -18,11 +18,18 @@ import vscode, { ExtensionContext, Uri } from "vscode";
 import { ContentParser } from "../api-services/parsers/ContentParser";
 import { getExtensionsForFile } from "./file/fileExtensions";
 import { fileApi } from "./file/fileApiProvider";
+import { isSafeResourcePath } from "./file/resourcePath";
 import { refreshQipExplorer } from "../extension";
 import { LabelUtils } from "../api-services/LabelUtils";
 import { ProjectConfigService } from "../services/ProjectConfigService";
 import { ContextSystem, MCPSystem } from "@netcracker/qip-ui";
-import { validateAllowedSystemProtocol } from "./serviceApiUtils";
+import {
+  getExtendedProtocol,
+  getSpecificationType,
+  validateAllowedSystemProtocol,
+} from "./serviceApiUtils";
+import { SERVICE_MIGRATIONS } from "../services/importMigrationVersions";
+import { ApiGroupService } from "../api-services/ApiGroupService";
 
 export async function updateContextService(
   serviceFileUri: Uri,
@@ -125,12 +132,6 @@ export async function updateService(
   if (serviceRequest.protocol !== undefined) {
     service.content.protocol = serviceRequest.protocol.toUpperCase();
   }
-  if (serviceRequest.extendedProtocol !== undefined) {
-    service.content.extendedProtocol = serviceRequest.extendedProtocol;
-  }
-  if (serviceRequest.specification !== undefined) {
-    service.content.specification = serviceRequest.specification;
-  }
   if (serviceRequest.activeEnvironmentId !== undefined) {
     service.content.activeEnvironmentId = serviceRequest.activeEnvironmentId;
   }
@@ -150,21 +151,21 @@ export async function createService(
     const serviceId = crypto.randomUUID();
     const config = ProjectConfigService.getConfig();
 
+    // A new service has neither environments nor an active one, so the file
+    // carries only what the request supplied. `writeServiceFile` drops the
+    // fields that stayed empty.
+    const content = {
+      description: serviceRequest.description,
+      integrationSystemType: serviceRequest.type || "EXTERNAL",
+      protocol: serviceRequest.protocol?.toUpperCase(),
+      labels: LabelUtils.fromEntityLabels(serviceRequest.labels || []),
+      migrations: SERVICE_MIGRATIONS,
+    };
     const service = {
       $schema: config.schemaUrls.service,
       id: serviceId,
       name: serviceRequest.name,
-      content: {
-        description: serviceRequest.description || "",
-        activeEnvironmentId: "",
-        integrationSystemType: serviceRequest.type || "EXTERNAL",
-        protocol: (serviceRequest.protocol || "").toUpperCase(),
-        extendedProtocol: serviceRequest.extendedProtocol || "",
-        specification: serviceRequest.specification || "",
-        environments: [],
-        labels: LabelUtils.fromEntityLabels(serviceRequest.labels || []),
-        migrations: [],
-      },
+      content,
     };
 
     const serviceFolderUri = vscode.Uri.joinPath(mainFolderUri, serviceId);
@@ -176,17 +177,16 @@ export async function createService(
     await fileApi.writeServiceFile(serviceFileUri, service);
 
     return {
-      id: service.id,
-      name: service.name,
-      description: service.content.description || "",
-      activeEnvironmentId: service.content.activeEnvironmentId || "",
-      integrationSystemType:
-        service.content.integrationSystemType || "EXTERNAL",
-      protocol: service.content.protocol || "",
-      extendedProtocol: service.content.extendedProtocol || "",
-      specification: service.content.specification || "",
-      environments: service.content.environments || [],
-      labels: LabelUtils.toEntityLabels(service.content.labels || []),
+      id: serviceId,
+      name: serviceRequest.name,
+      description: content.description || "",
+      activeEnvironmentId: "",
+      integrationSystemType: content.integrationSystemType,
+      protocol: content.protocol || "",
+      extendedProtocol: getExtendedProtocol(content.protocol),
+      specification: getSpecificationType(content.protocol),
+      environments: [],
+      labels: LabelUtils.toEntityLabels(content.labels),
     };
   } catch (error) {
     console.error("createService: Error creating service:", error);
@@ -271,13 +271,15 @@ export async function createEnvironment(
   }
 
   const environmentId = crypto.randomUUID();
+  // `sourceType` is a real default the schema marks required; the other fields
+  // go in as given, and the response fills the blanks its type demands.
   const environment = {
     id: environmentId,
     name: environmentRequest.name,
-    description: environmentRequest.description || "",
+    description: environmentRequest.description,
     address: environmentRequest.address,
     sourceType: environmentRequest.sourceType || "MANUAL",
-    properties: environmentRequest.properties || {},
+    properties: environmentRequest.properties,
     labels: LabelUtils.fromEntityLabels(environmentRequest.labels || []),
   };
 
@@ -286,6 +288,8 @@ export async function createEnvironment(
 
   return {
     ...environment,
+    description: environment.description ?? "",
+    properties: environment.properties ?? {},
     labels: LabelUtils.toEntityLabels(environment.labels),
   };
 }
@@ -332,8 +336,8 @@ async function writeMainService(serviceFileUri: Uri, service: any) {
 export async function updateApiSpecificationGroup(
   serviceFileUri: Uri,
   groupId: string,
-  groupRequest: Partial<SpecificationGroup>,
-): Promise<SpecificationGroup> {
+  groupRequest: Partial<ApiGroup>,
+): Promise<ApiGroup> {
   try {
     const { groupFile, groupInfo } = await getSpecificationFilesByGroup(
       serviceFileUri,
@@ -368,12 +372,10 @@ export async function updateApiSpecificationGroup(
     return {
       ...groupInfo,
       labels: LabelUtils.toEntityLabels(groupInfo.content?.labels || []),
-    } as SpecificationGroup;
+    } as ApiGroup;
   } catch (error) {
     console.error("updateApiSpecificationGroup: Error:", error);
-    vscode.window.showErrorMessage(
-      `Failed to update specification group: ${error}`,
-    );
+    vscode.window.showErrorMessage(`Failed to update API group: ${error}`);
     throw error;
   }
 }
@@ -381,8 +383,8 @@ export async function updateApiSpecificationGroup(
 export async function updateSpecificationModel(
   serviceFileUri: Uri,
   modelId: string,
-  modelRequest: Partial<Specification>,
-): Promise<Specification> {
+  modelRequest: Partial<Api>,
+): Promise<Api> {
   try {
     const { specificationFile, specificationInfo } =
       await findSpecificationFileById(serviceFileUri, modelId);
@@ -439,12 +441,17 @@ export async function updateSpecificationModel(
     const bytes = new TextEncoder().encode(yamlContent);
     await fileApi.writeFile(specificationFileUri, bytes);
 
+    await ApiGroupService.regenerateGroupApisSafely(
+      serviceFileUri,
+      specificationInfo.content?.parentId,
+    );
+
     return {
       ...specificationInfo,
       labels: LabelUtils.toEntityLabels(
         specificationInfo.content?.labels || [],
       ),
-    } as Specification;
+    } as Api;
   } catch (error) {
     console.error("updateSpecificationModel: Error:", error);
     vscode.window.showErrorMessage(`Failed to update specification: ${error}`);
@@ -455,7 +462,7 @@ export async function updateSpecificationModel(
 export async function deprecateModel(
   serviceFileUri: Uri,
   modelId: string,
-): Promise<Specification> {
+): Promise<Api> {
   try {
     const { specificationFile, specificationInfo } =
       await findSpecificationFileById(serviceFileUri, modelId);
@@ -474,11 +481,16 @@ export async function deprecateModel(
     const bytes = new TextEncoder().encode(yamlContent);
     await fileApi.writeFile(specificationFileUri, bytes);
 
-    vscode.window.showInformationMessage(
-      `Specification "${specificationInfo.name}" has been deprecated successfully!`,
+    await ApiGroupService.regenerateGroupApisSafely(
+      serviceFileUri,
+      specificationInfo.content?.parentId,
     );
 
-    return specificationInfo as Specification;
+    vscode.window.showInformationMessage(
+      `API "${specificationInfo.name}" has been deprecated successfully!`,
+    );
+
+    return specificationInfo as Api;
   } catch (error) {
     console.error("[deprecateModel] Error:", error);
     vscode.window.showErrorMessage(
@@ -493,6 +505,7 @@ async function getSpecificationFilesByGroup(
   groupId: string,
 ): Promise<{
   groupFile: string;
+  duplicateGroupFiles: string[];
   groupInfo: any;
   specificationFiles: string[];
 }> {
@@ -501,32 +514,12 @@ async function getSpecificationFilesByGroup(
     throw new Error("Service not found");
   }
 
-  const groupFiles = await fileApi.getSpecificationGroupFiles(serviceFileUri);
-
-  let groupFileToDelete: string | null = null;
-  let groupInfo: any = null;
-
-  for (const fileName of groupFiles) {
-    try {
-      const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
-      const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-      const parsed = await ContentParser.parseContentFromFile(fileUri);
-
-      if (parsed.id === groupId) {
-        groupFileToDelete = fileName;
-        groupInfo = parsed;
-        break;
-      }
-    } catch (error) {
-      console.error(
-        `Error reading specification group file ${fileName}:`,
-        error,
-      );
-    }
-  }
-
-  if (!groupFileToDelete || !groupInfo) {
-    throw new Error(`Specification group with id ${groupId} not found`);
+  const resolved = await ApiGroupService.resolveGroupFile(
+    serviceFileUri,
+    groupId,
+  );
+  if (!resolved) {
+    throw new Error(`API group with id ${groupId} not found`);
   }
 
   const specificationFiles =
@@ -548,8 +541,9 @@ async function getSpecificationFilesByGroup(
   }
 
   return {
-    groupFile: groupFileToDelete,
-    groupInfo,
+    groupFile: resolved.fileName,
+    duplicateGroupFiles: resolved.duplicates,
+    groupInfo: resolved.info,
     specificationFiles: groupSpecificationFiles,
   };
 }
@@ -581,7 +575,7 @@ async function findSpecificationFileById(
   }
 
   if (!specificationFileToDelete || !specificationInfo) {
-    throw new Error(`Specification with id ${modelId} not found`);
+    throw new Error(`API with id ${modelId} not found`);
   }
 
   return {
@@ -594,18 +588,29 @@ async function deleteSourceFilesFromSpecificationSources(
   serviceFileUri: Uri,
   specificationInfo: any,
 ): Promise<void> {
-  if (
-    !specificationInfo.content?.specificationSources ||
-    specificationInfo.content.specificationSources.length === 0
-  ) {
+  // The api format renames `specificationSources[]` to `specifications[]` and
+  // `fileName` to `filePath`. Read both, or an api-format file's source files
+  // are never deleted — a silent leak.
+  const sources =
+    specificationInfo.content?.specifications ??
+    specificationInfo.content?.specificationSources;
+  if (!Array.isArray(sources) || sources.length === 0) {
     return;
   }
 
   const foldersToCheck: string[] = [];
 
-  for (const source of specificationInfo.content.specificationSources) {
+  for (const source of sources) {
     try {
-      const filePath = source.fileName;
+      const filePath = source.filePath ?? source.fileName;
+      if (filePath && !isSafeResourcePath(filePath)) {
+        // A `..` segment could delete a file outside the service's resources
+        // folder. Skip; do not echo the offending path.
+        console.warn(
+          "Skipped an API source file with an unsafe path during delete.",
+        );
+        continue;
+      }
       if (filePath) {
         const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
         const sourceFileUri = vscode.Uri.joinPath(
@@ -624,12 +629,15 @@ async function deleteSourceFilesFromSpecificationSources(
           if (
             !(error instanceof Error && error.message.includes("not empty"))
           ) {
-            console.error(`Error deleting source file ${source.name}:`, error);
+            console.error(`Error deleting source file ${filePath}:`, error);
           }
         }
       }
     } catch (error) {
-      console.error(`Error processing source file ${source.name}:`, error);
+      console.error(
+        `Error processing source file ${source.filePath ?? source.fileName}:`,
+        error,
+      );
     }
   }
 
@@ -655,7 +663,7 @@ export async function deleteSpecificationGroup(
   groupId: string,
 ): Promise<void> {
   try {
-    const { groupFile, groupInfo, specificationFiles } =
+    const { groupFile, duplicateGroupFiles, groupInfo, specificationFiles } =
       await getSpecificationFilesByGroup(serviceFileUri, groupId);
 
     for (const specFileName of specificationFiles) {
@@ -690,17 +698,18 @@ export async function deleteSpecificationGroup(
     }
 
     const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
-    const groupFileUri = vscode.Uri.joinPath(serviceFolderUri, groupFile);
-    await fileApi.deleteFile(groupFileUri);
+    // Delete every file that carries this group id, not only the resolved one. A leftover sibling under the
+    // other group extension would resurrect the group on the next read, with its APIs already gone.
+    for (const fileName of [groupFile, ...duplicateGroupFiles]) {
+      await fileApi.deleteFile(vscode.Uri.joinPath(serviceFolderUri, fileName));
+    }
 
     vscode.window.showInformationMessage(
-      `Specification group "${groupInfo.name}" has been deleted successfully!`,
+      `API group "${groupInfo.name}" has been deleted successfully!`,
     );
   } catch (error) {
     console.error("deleteSpecificationGroup: Error:", error);
-    vscode.window.showErrorMessage(
-      `Failed to delete specification group: ${error}`,
-    );
+    vscode.window.showErrorMessage(`Failed to delete API group: ${error}`);
     throw error;
   }
 }
@@ -712,6 +721,7 @@ export async function deleteSpecificationModel(
   try {
     const { specificationFile, specificationInfo } =
       await findSpecificationFileById(serviceFileUri, modelId);
+    const parentId = specificationInfo.content?.parentId;
 
     await deleteSourceFilesFromSpecificationSources(
       serviceFileUri,
@@ -725,8 +735,11 @@ export async function deleteSpecificationModel(
     );
     await fileApi.deleteFile(specificationFileUri);
 
+    // The deleted API's file is gone, so rescanning drops its id from apis[].
+    await ApiGroupService.regenerateGroupApisSafely(serviceFileUri, parentId);
+
     vscode.window.showInformationMessage(
-      `Specification "${specificationInfo.name}" has been deleted successfully!`,
+      `API "${specificationInfo.name}" has been deleted successfully!`,
     );
   } catch (error) {
     console.error("[deleteSpecificationModel] Error:", error);
@@ -805,7 +818,6 @@ export async function createEmptyService() {
       description: serviceDescription?.trim() || "",
       type: serviceType.value,
       protocol: "",
-      extendedProtocol: "",
       labels: [],
     };
 

@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package payments;
+
+message PayRequest {
+  string account = 1;
+  int64 amount = 2;
+}
+
+message PayResponse {
+  string transaction_id = 1;
+  bool accepted = 2;
+}
+
+service PaymentService {
+  rpc Pay (PayRequest) returns (PayResponse);
+}

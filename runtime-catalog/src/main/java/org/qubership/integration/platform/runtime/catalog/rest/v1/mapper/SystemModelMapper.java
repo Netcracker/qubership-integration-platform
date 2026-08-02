@@ -36,9 +36,9 @@ public interface SystemModelMapper {
 
     @Mapping(target = "id", source = "systemModel.id")
     @Mapping(target = "name", source = "systemModel.name")
-    @Mapping(target = "specificationGroupId", source = "systemModel.specificationGroup.id")
+    @Mapping(target = "specificationGroupId", source = "systemModel.apiGroup.id")
     @Mapping(target = "deprecated", source = "systemModel.deprecated")
-    @Mapping(target = "systemId", source = "systemModel.specificationGroup.system.id")
+    @Mapping(target = "systemId", source = "systemModel.apiGroup.system.id")
     SystemModelDTO toSystemModelDTO(SystemModel systemModel);
 
     List<SystemModelDTO> toSystemModelDTOs(List<SystemModel> systemModels);

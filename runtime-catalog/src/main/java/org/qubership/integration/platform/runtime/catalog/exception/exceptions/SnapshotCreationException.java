@@ -44,7 +44,7 @@ public class SnapshotCreationException extends CatalogRuntimeException {
         super(message, exception);
         this.elementId = isNull(element) ? "" : extractElementId(element);
         this.elementName = isNull(element) ? "" : element.getName();
-        this.chainId = isNull(element) || isNull(element.getChain()) ? "" : element.getChain().getName();
+        this.chainId = isNull(element) || isNull(element.getChain()) ? "" : element.getChain().getId();
     }
 
     public SnapshotCreationException(String message, String chainId, ChainElement element, Exception exception) {

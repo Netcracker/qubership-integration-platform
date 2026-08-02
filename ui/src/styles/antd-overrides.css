@@ -19,23 +19,14 @@
     color-mix(in srgb, var(--vscode-focusBorder, #1677ff) 15%, transparent) !important;
 }
 
-.ant-select-selector {
-  background-color: var(--vscode-input-background) !important;
-  color: var(--vscode-input-foreground) !important;
-  border-color: var(--vscode-editorGroup-border) !important;
-}
-
-.ant-select-focused .ant-select-selector {
-  border-color: var(--vscode-focusBorder, #1677ff) !important;
-  box-shadow: 0 0 0 2px
-    color-mix(in srgb, var(--vscode-focusBorder, #1677ff) 15%, transparent) !important;
-}
+/* Select carries no overrides: antd v6 dropped `.ant-select-selector` and moved
+   the border and background onto the root, where the colorBorder /
+   colorBgContainer tokens already resolve to the same VS Code variables. */
 
 /* Validation error state: red border */
 .ant-form-item-has-error .ant-input,
 .ant-form-item-has-error .ant-input-affix-wrapper,
-.ant-form-item-has-error .ant-input-number,
-.ant-form-item-has-error .ant-select-selector {
+.ant-form-item-has-error .ant-input-number {
   border-color: var(--vscode-errorForeground, #ff4d4f) !important;
 }
 
@@ -52,12 +43,8 @@
     color-mix(in srgb, var(--vscode-errorForeground, #ff4d4f) 15%, transparent) !important;
 }
 
-.ant-form-item-has-error .ant-select-focused .ant-select-selector {
-  border-color: var(--vscode-errorForeground, #ff4d4f) !important;
-  box-shadow: 0 0 0 2px
-    color-mix(in srgb, var(--vscode-errorForeground, #ff4d4f) 15%, transparent) !important;
-}
-
+/* `.ant-select-selection-placeholder` belongs to DatePicker in v6; the Select
+   tag labels still use `.ant-select-selection-item`. */
 .ant-select-selection-placeholder,
 .ant-select-selection-item {
   color: var(--vscode-input-foreground) !important;

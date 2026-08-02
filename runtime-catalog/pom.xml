@@ -658,6 +658,13 @@
       <testResource>
         <directory>${pom.basedir}/src/main/resources</directory>
       </testResource>
+      <!-- Shared conformance corpus (parity oracle) lives in the schemas module,
+           which is not part of this reactor. targetPath is required: the resources
+           above copy to the classpath root, so the corpus must be namespaced. -->
+      <testResource>
+        <directory>${project.basedir}/../schemas/src/test/resources/conformance</directory>
+        <targetPath>conformance</targetPath>
+      </testResource>
     </testResources>
   </build>
 </project>

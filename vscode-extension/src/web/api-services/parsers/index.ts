@@ -16,3 +16,5 @@ export type {
   GraphQLOperation,
   GraphQLType,
 } from "./parserTypes";
+export { OperationSchemaExtractor } from "./OperationSchemaExtractor";
+export type { ExtractedOperationSchemas } from "./OperationSchemaExtractor";

@@ -15,7 +15,7 @@ Service Call support operations from **Swagger/WSDL/AsyncAPI/GraphQL/Protobuf** 
 | Parameter           | Mandatory | Data Type | Description                                                                                                                   | Sample           |
 | ------------------- | :-------- | :-------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------- |
 | Integration Service | M         | List      | List with all services, available to be selected. Services without a single API specification won't be presented in the list. | Petstore         |
-| API Specification   | M         | List      | List with specifications, grouped by specification groups.                                                                    | v1.0.0           |
+| API Specification   | M         | List      | List with specifications, grouped by API groups.                                                                              | v1.0.0           |
 | Operation           | M         | List      | List with all operations, available for selected API Specification.                                                           | GET /pet/{petId} |
 
 Depending on the selected service, specification and operation, additional section(s) with parameters will appear:

@@ -1,0 +1,290 @@
+{
+    "typed": {
+        "type": "openapi",
+        "summary": "Create an order",
+        "path": "/orders",
+        "method": "post",
+        "isDeprecated": null
+    },
+    "path": "/orders",
+    "method": "POST",
+    "modelId": "3c51d3e1-a68f-4cfd-869e-2232c3af8612-Orders API-2.1.0",
+    "sourceHash": "c5111456a17d28c5dc64f46c2b26b0250a91622219a5d8ee9ffa87af3f58d0f6",
+    "operationId": "createOrder",
+    "requestSchema": {
+        "application/json": {
+            "$id": "http://system.catalog/schemas/#/components/schemas/OrderCreate",
+            "allOf": [
+                {
+                    "$ref": "#/definitions/OrderBase"
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "payment": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/definitions/CardPayment"
+                                },
+                                {
+                                    "$ref": "#/definitions/InvoicePayment"
+                                }
+                            ]
+                        }
+                    }
+                }
+            ],
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "definitions": {
+                "Money": {
+                    "type": "object",
+                    "required": [
+                        "amount",
+                        "currency"
+                    ],
+                    "properties": {
+                        "amount": {
+                            "type": "number",
+                            "format": "double"
+                        },
+                        "currency": {
+                            "type": "string",
+                            "maxLength": 3,
+                            "minLength": 3
+                        }
+                    }
+                },
+                "OrderBase": {
+                    "type": "object",
+                    "required": [
+                        "customerId",
+                        "items"
+                    ],
+                    "properties": {
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/OrderItem"
+                            },
+                            "minItems": 1
+                        },
+                        "customerId": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                },
+                "OrderItem": {
+                    "type": "object",
+                    "required": [
+                        "productId",
+                        "quantity"
+                    ],
+                    "properties": {
+                        "price": {
+                            "$ref": "#/definitions/Money"
+                        },
+                        "quantity": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "productId": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "CardPayment": {
+                    "type": "object",
+                    "required": [
+                        "last4",
+                        "type"
+                    ],
+                    "properties": {
+                        "type": {
+                            "enum": [
+                                "card"
+                            ],
+                            "type": "string"
+                        },
+                        "last4": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "InvoicePayment": {
+                    "type": "object",
+                    "required": [
+                        "invoiceId",
+                        "type"
+                    ],
+                    "properties": {
+                        "type": {
+                            "enum": [
+                                "invoice"
+                            ],
+                            "type": "string"
+                        },
+                        "invoiceId": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "specification": {
+        "summary": "Create an order",
+        "responses": {
+            "201": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Order"
+                        }
+                    }
+                },
+                "description": "Created"
+            },
+            "422": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                },
+                "description": "Validation error"
+            }
+        },
+        "operationId": "createOrder",
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/OrderCreate"
+                    }
+                }
+            },
+            "required": true
+        }
+    },
+    "responseSchemas": {
+        "201": {
+            "application/json": {
+                "$id": "http://system.catalog/schemas/#/components/schemas/Order",
+                "allOf": [
+                    {
+                        "$ref": "#/definitions/OrderBase"
+                    },
+                    {
+                        "type": "object",
+                        "required": [
+                            "id",
+                            "status",
+                            "total"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "format": "uuid"
+                            },
+                            "total": {
+                                "$ref": "#/definitions/Money"
+                            },
+                            "status": {
+                                "enum": [
+                                    "NEW",
+                                    "PAID",
+                                    "SHIPPED",
+                                    "CANCELLED"
+                                ],
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "definitions": {
+                    "Money": {
+                        "type": "object",
+                        "required": [
+                            "amount",
+                            "currency"
+                        ],
+                        "properties": {
+                            "amount": {
+                                "type": "number",
+                                "format": "double"
+                            },
+                            "currency": {
+                                "type": "string",
+                                "maxLength": 3,
+                                "minLength": 3
+                            }
+                        }
+                    },
+                    "OrderBase": {
+                        "type": "object",
+                        "required": [
+                            "customerId",
+                            "items"
+                        ],
+                        "properties": {
+                            "items": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/definitions/OrderItem"
+                                },
+                                "minItems": 1
+                            },
+                            "customerId": {
+                                "type": "string",
+                                "format": "uuid"
+                            }
+                        }
+                    },
+                    "OrderItem": {
+                        "type": "object",
+                        "required": [
+                            "productId",
+                            "quantity"
+                        ],
+                        "properties": {
+                            "price": {
+                                "$ref": "#/definitions/Money"
+                            },
+                            "quantity": {
+                                "type": "integer",
+                                "minimum": 1
+                            },
+                            "productId": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "422": {
+            "application/json": {
+                "$id": "http://system.catalog/schemas/#/components/schemas/Error",
+                "type": "object",
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "required": [
+                    "code",
+                    "message"
+                ],
+                "properties": {
+                    "code": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                },
+                "definitions": {
+                }
+            }
+        }
+    }
+}

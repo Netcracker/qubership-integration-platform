@@ -62,6 +62,13 @@ export class ProtoSpecificationParser {
         name: operation.operationId,
         method: operation.rpcName,
         path: operation.path,
+        // Typed fields the api writer needs to reconstruct path on import:
+        // path = (javaPackage ?? package) + "." + service. Kept alongside the
+        // flat method/path so a re-read stays consistent.
+        package: protoData.packageName,
+        service: operation.serviceName,
+        rpcMethod: operation.rpcName,
+        javaPackage: protoData.javaPackage,
         specification: buildProtoOperationSpecification(
           operation,
           requestSchema,

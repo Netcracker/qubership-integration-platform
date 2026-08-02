@@ -101,7 +101,7 @@ public class ContextExportImportService {
             ArchiveWriter archiveWriter,
             ImportSessionService importProgressService,
             ImportInstructionsService importInstructionsService,
-            @Value("${qip.json.schemas.context-service:http://qubership.org/schemas/product/qip/context-service}") URI contextServiceSchemaUri
+            @Value("${qip.json.schemas.context-service:http://qubership.org/schemas/product/qip/context-service.schema.yaml}") URI contextServiceSchemaUri
     ) {
         this.transactionTemplate = transactionTemplate;
         this.contextBaseService = contextBaseService;

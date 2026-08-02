@@ -16,6 +16,8 @@
 
 package org.qubership.integration.platform.runtime.catalog.model.exportimport.system;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonFilter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
@@ -37,6 +39,7 @@ import java.util.*;
 @Jacksonized
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonFilter("baseEntityFilter")
 public class IntegrationSystemContentDto {
     private String description;
     private Timestamp createdWhen;
@@ -52,8 +55,11 @@ public class IntegrationSystemContentDto {
     @JsonIgnoreProperties({"createdWhen", "modifiedWhen", "createdBy", "modifiedBy"})
     private List<Environment> environments = new ArrayList<>();
 
+    // Covers a document that reaches Jackson before V104 renames the field: unknown keys are ignored here, so the
+    // inline group list would otherwise be dropped in silence.
     @Builder.Default
-    private List<SpecificationGroupDto> specificationGroups = new ArrayList<>();
+    @JsonAlias("specificationGroups")
+    private List<ApiGroupDto> apiGroups = new ArrayList<>();
 
     @Builder.Default
     private List<String> labels = new ArrayList<>();

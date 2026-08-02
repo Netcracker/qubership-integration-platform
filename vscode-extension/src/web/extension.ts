@@ -15,9 +15,10 @@ import {
   setPendingExportImagesRequest,
   startExportImagesProgress,
 } from "./response/apiRouter";
-import { setFileApi } from "./response/file";
-import { VSCodeFileApi } from "./response/file/fileApiImpl";
+import { fileApi, setFileApi } from "./response/file";
+import { RESOURCES_FOLDER, VSCodeFileApi } from "./response/file/fileApiImpl";
 import {
+  FileExtensionsConfig,
   getExtensionsForUri,
   initializeContextFromFile,
 } from "./response/file/fileExtensions";
@@ -34,7 +35,10 @@ import {
   CONFIG_FILENAME,
   ProjectConfig,
 } from "./services/ProjectConfigService";
-import { ConfigApiProvider } from "./services/ConfigApiProvider";
+import {
+  ConfigApiProvider,
+  ExternalConfigData,
+} from "./services/ConfigApiProvider";
 import {
   getAndClearNavigationStateValue,
   initNavigationState,
@@ -56,23 +60,7 @@ type VSCodeMessageWrapper = {
 export interface QipExtensionAPI {
   loadConfigFromPath(configUri: Uri): Promise<void>;
 
-  registerConfig(
-    appName: string,
-    configData: {
-      extensions?: {
-        chain?: string;
-        service?: string;
-        specificationGroup?: string;
-        specification?: string;
-      };
-      schemaUrls?: {
-        service?: string;
-        chain?: string;
-        specification?: string;
-        specificationGroup?: string;
-      };
-    },
-  ): void;
+  registerConfig(appName: string, configData: ExternalConfigData): void;
 
   unregisterConfig(appName: string): void;
 
@@ -542,52 +530,109 @@ async function deleteServiceWithRelatedFiles(
   const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
   const rootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
   const cacheService = FileCacheService.getInstance();
+  const ext = getExtensionsForUri(serviceFileUri);
 
-  try {
-    const entries = await vscode.workspace.fs.readDirectory(serviceFolderUri);
-    const ext = getExtensionsForUri(serviceFileUri);
+  for (const fileUri of await collectServiceOwnedFiles(serviceFileUri)) {
+    await vscode.workspace.fs.delete(fileUri, { recursive: true });
+    cacheService.invalidateByUri(fileUri);
+  }
 
-    const filesToDelete: Uri[] = [];
+  let remainingEntries =
+    await vscode.workspace.fs.readDirectory(serviceFolderUri);
 
-    for (const [fileName, fileType] of entries) {
-      if (fileType === vscode.FileType.File) {
-        if (
-          fileName.endsWith(ext.specificationGroup) ||
-          fileName.endsWith(ext.specification) ||
-          fileName.endsWith(ext.service) ||
-          fileName.endsWith(ext.contextService) ||
-          fileName.endsWith(ext.mcpService)
-        ) {
-          filesToDelete.push(vscode.Uri.joinPath(serviceFolderUri, fileName));
-        }
-      } else if (
-        fileType === vscode.FileType.Directory &&
-        fileName === "resources"
-      ) {
-        filesToDelete.push(vscode.Uri.joinPath(serviceFolderUri, fileName));
-      }
-    }
-
-    for (const fileUri of filesToDelete) {
-      await vscode.workspace.fs.delete(fileUri, { recursive: true });
-      cacheService.invalidateByUri(fileUri);
-    }
-
-    const isRootFolder = rootUri && serviceFolderUri.fsPath === rootUri.fsPath;
-
-    if (!isRootFolder) {
-      const remainingEntries =
-        await vscode.workspace.fs.readDirectory(serviceFolderUri);
-      if (remainingEntries.length === 0) {
-        await vscode.workspace.fs.delete(serviceFolderUri, { recursive: true });
-      }
-    }
-
-    vscode.window.showInformationMessage(
-      `Service "${serviceName}" and all related files deleted successfully`,
+  // A flat layout shares one `resources/` folder between the services of a folder, and a resource
+  // file carries no owner, so drop the folder only once no other service is left to read it.
+  const otherServiceLeft = remainingEntries.some(
+    ([fileName, fileType]) =>
+      fileType === vscode.FileType.File && isServiceFileName(fileName, ext),
+  );
+  const resourcesEntry = remainingEntries.find(
+    ([fileName, fileType]) =>
+      fileType === vscode.FileType.Directory && fileName === RESOURCES_FOLDER,
+  );
+  if (!otherServiceLeft && resourcesEntry) {
+    const resourcesUri = vscode.Uri.joinPath(
+      serviceFolderUri,
+      RESOURCES_FOLDER,
     );
+    await vscode.workspace.fs.delete(resourcesUri, { recursive: true });
+    cacheService.invalidateByUri(resourcesUri);
+    remainingEntries = remainingEntries.filter(
+      (entry) => entry !== resourcesEntry,
+    );
+  }
+
+  const isRootFolder = rootUri && serviceFolderUri.fsPath === rootUri.fsPath;
+  if (!isRootFolder && remainingEntries.length === 0) {
+    await vscode.workspace.fs.delete(serviceFolderUri, { recursive: true });
+  }
+
+  vscode.window.showInformationMessage(
+    `Service "${serviceName}" and all related files deleted successfully`,
+  );
+}
+
+function isServiceFileName(
+  fileName: string,
+  ext: FileExtensionsConfig,
+): boolean {
+  return (
+    fileName.endsWith(ext.service) ||
+    fileName.endsWith(ext.contextService) ||
+    fileName.endsWith(ext.mcpService)
+  );
+}
+
+// The files the deleted service owns: its own file, the groups whose parentId is the service, and the
+// APIs whose parentId is one of those groups. A folder may hold several services (the flat layout the
+// explorer supports, the workspace root included), so anything else in it belongs to a sibling.
+// A group with a file under both group extensions yields both, or the deleted group resurrects.
+async function collectServiceOwnedFiles(serviceFileUri: Uri): Promise<Uri[]> {
+  const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
+  const ownedFiles: Uri[] = [serviceFileUri];
+
+  const service = await parseFileOrUndefined(serviceFileUri);
+  const serviceId = service?.id;
+  if (!serviceId) {
+    return ownedFiles;
+  }
+
+  const groupIds = new Set<string>();
+  const groupFileNames =
+    await fileApi.getSpecificationGroupFiles(serviceFileUri);
+  for (const fileName of groupFileNames) {
+    const groupFileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
+    const parsed = await parseFileOrUndefined(groupFileUri);
+    if (parsed?.id && parsed.content?.parentId === serviceId) {
+      groupIds.add(parsed.id);
+      ownedFiles.push(groupFileUri);
+    }
+  }
+
+  if (groupIds.size === 0) {
+    return ownedFiles;
+  }
+
+  const apiFileNames = await fileApi.getSpecificationFiles(serviceFileUri);
+  for (const fileName of apiFileNames) {
+    const apiFileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
+    const parsed = await parseFileOrUndefined(apiFileUri);
+    const parentId = parsed?.content?.parentId;
+    if (typeof parentId === "string" && groupIds.has(parentId)) {
+      ownedFiles.push(apiFileUri);
+    }
+  }
+
+  return ownedFiles;
+}
+
+// An unreadable file cannot be claimed by the service, so it is left in place.
+async function parseFileOrUndefined(fileUri: Uri): Promise<any> {
+  try {
+    return await fileApi.parseFile(fileUri);
   } catch (error) {
-    throw error;
+    console.error(`Failed to parse file ${fileUri.path}`, error);
+    return undefined;
   }
 }
 

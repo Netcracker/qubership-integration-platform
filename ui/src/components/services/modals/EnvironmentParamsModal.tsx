@@ -52,6 +52,28 @@ type EnvPropRow =
       value: string;
     };
 
+// Raw env jsonb keys that hold the MaaS-by-classifier deployment scope. The dedicated
+// sub-form reads and writes these directly, and the deploy path reads the same keys.
+// They are excluded from the free-form properties table so the scope is edited in one place.
+const MAAS_CLASSIFIER_NAMESPACE_KEY = "maas.classifier.namespace";
+const MAAS_CLASSIFIER_TENANT_ID_KEY = "maas.classifier.tenantId";
+const MAAS_CLASSIFIER_TENANT_ENABLED_KEY = "maas.classifier.tenantEnabled";
+const MAAS_CLASSIFIER_SCOPE_PROPERTY_KEYS = new Set([
+  MAAS_CLASSIFIER_NAMESPACE_KEY,
+  MAAS_CLASSIFIER_TENANT_ID_KEY,
+  MAAS_CLASSIFIER_TENANT_ENABLED_KEY,
+]);
+
+function omitMaasClassifierScopeKeys<T>(
+  properties: Record<string, T>,
+): Record<string, T> {
+  return Object.fromEntries(
+    Object.entries(properties).filter(
+      ([key]) => !MAAS_CLASSIFIER_SCOPE_PROPERTY_KEYS.has(key),
+    ),
+  );
+}
+
 export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
   open,
   environment,
@@ -104,17 +126,29 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
   useEffect(() => {
     if (open && environment) {
       setDirty(false);
+      const props = environment.properties ?? {};
+      const tenantEnabledRaw = props[MAAS_CLASSIFIER_TENANT_ENABLED_KEY];
       form.setFieldsValue({
         name: environment.name,
         address: environment.address,
         labels: environment.labels,
+        maasClassifierNamespace: props[MAAS_CLASSIFIER_NAMESPACE_KEY] as
+          | string
+          | undefined,
+        maasClassifierTenantId: props[MAAS_CLASSIFIER_TENANT_ID_KEY] as
+          | string
+          | undefined,
+        maasClassifierTenantEnabled:
+          tenantEnabledRaw === true || tenantEnabledRaw === "true",
       });
       setPropertiesObj(
-        Object.fromEntries(
-          Object.entries(environment.properties || {}).map(([k, v]) => [
-            k,
-            String(v),
-          ]),
+        omitMaasClassifierScopeKeys(
+          Object.fromEntries(
+            Object.entries(environment.properties || {}).map(([k, v]) => [
+              k,
+              String(v),
+            ]),
+          ),
         ),
       );
       setAddingRows([]);
@@ -205,11 +239,34 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
         address?: string;
         labels?: string[];
         sourceType?: EnvironmentSourceType;
+        maasClassifierNamespace?: string;
+        maasClassifierTenantId?: string;
+        maasClassifierTenantEnabled?: boolean;
       };
       const draftProps = Object.fromEntries(
         addingRows.filter((r) => r.key && r.value).map((r) => [r.key, r.value]),
       );
-      const mergedProps = { ...propertiesObj, ...draftProps };
+      const mergedProps = omitMaasClassifierScopeKeys({
+        ...propertiesObj,
+        ...draftProps,
+      });
+      const isMaasByClassifier =
+        currentSourceType === EnvironmentSourceType.MAAS_BY_CLASSIFIER;
+      if (isMaasByClassifier) {
+        // Store the scope as raw env properties; the deploy path reads these keys directly.
+        // An empty namespace or tenant ID omits its key (falls back to the current namespace / default tenant).
+        // tenantEnabled is a "true"/"false" string, matching how env properties encode booleans.
+        if (values.maasClassifierNamespace) {
+          mergedProps[MAAS_CLASSIFIER_NAMESPACE_KEY] =
+            values.maasClassifierNamespace;
+        }
+        if (values.maasClassifierTenantId) {
+          mergedProps[MAAS_CLASSIFIER_TENANT_ID_KEY] =
+            values.maasClassifierTenantId;
+        }
+        mergedProps[MAAS_CLASSIFIER_TENANT_ENABLED_KEY] =
+          values.maasClassifierTenantEnabled ? "true" : "false";
+      }
       const envRequest: EnvironmentRequest = {
         name: values.name,
         address:
@@ -427,6 +484,9 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
     currentSourceType === EnvironmentSourceType.MAAS ||
     currentSourceType === EnvironmentSourceType.MAAS_BY_CLASSIFIER;
 
+  const isMaasByClassifierSelected =
+    currentSourceType === EnvironmentSourceType.MAAS_BY_CLASSIFIER;
+
   return (
     <Modal
       open={open}
@@ -545,6 +605,24 @@ export const EnvironmentParamsModal: React.FC<EnvironmentParamsModalProps> = ({
             <Input />
           </Form.Item>
         </div>
+
+        {isMaasByClassifierSelected && (
+          <div data-testid="maas-classifier-scope-form">
+            <Form.Item label="Namespace" name="maasClassifierNamespace">
+              <Input placeholder="MaaS namespace" />
+            </Form.Item>
+            <Form.Item label="Tenant ID" name="maasClassifierTenantId">
+              <Input placeholder="MaaS tenant ID" />
+            </Form.Item>
+            <Form.Item
+              label="Tenant Enabled"
+              name="maasClassifierTenantEnabled"
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+          </div>
+        )}
 
         <div
           style={{

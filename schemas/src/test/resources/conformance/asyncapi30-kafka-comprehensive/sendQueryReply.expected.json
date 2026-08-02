@@ -1,0 +1,41 @@
+{
+    "typed": {
+        "type": "asyncapi",
+        "summary": null,
+        "channel": "query.responses",
+        "method": "receive"
+    },
+    "path": "query.responses",
+    "method": "receive",
+    "modelId": "bb9ab025-a7ec-4092-9780-650d44b52120-kafka-v3-comprehensive-2.0.0",
+    "sourceHash": "4f470ec36a5e0b4771a7c76c901610c2988d19c39bb99d5d846da8c088c186c3",
+    "operationId": "sendQueryReply",
+    "requestSchema": {
+    },
+    "specification": {
+        "topic": "query.responses"
+    },
+    "responseSchemas": {
+        "QueryResponse": {
+            "$id": "http://system.catalog/schemas/QueryResponse",
+            "type": "object",
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "hasMore": {
+                    "type": "boolean"
+                },
+                "totalCount": {
+                    "type": "integer"
+                }
+            },
+            "definitions": {
+            }
+        }
+    }
+}

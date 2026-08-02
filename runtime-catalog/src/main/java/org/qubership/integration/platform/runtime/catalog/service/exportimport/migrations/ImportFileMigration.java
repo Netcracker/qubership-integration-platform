@@ -27,4 +27,13 @@ public interface ImportFileMigration {
     int getVersion();
 
     ObjectNode makeMigration(ObjectNode fileNode) throws JsonProcessingException;
+
+    /**
+     * Whether running this migration again on a document that already went through it changes nothing.
+     * The rollout import path has no version data of its own, so it claims every version as applied except the
+     * idempotent ones, which then still run.
+     */
+    default boolean isIdempotent() {
+        return false;
+    }
 }

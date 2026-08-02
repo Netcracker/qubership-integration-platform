@@ -1,0 +1,107 @@
+{
+    "typed": {
+        "type": "openapi",
+        "summary": "Ingest a batch of events",
+        "path": "/datasets/{datasetId}/events",
+        "method": "post",
+        "isDeprecated": null
+    },
+    "path": "/datasets/{datasetId}/events",
+    "method": "POST",
+    "modelId": "27c9cb1e-d917-4301-8851-569ce18c0c8e-helix-observe-3.2-1.0.0",
+    "sourceHash": "79d17d02e6ec0ddce8ebb6f4190126aac57649bccf70d07b944a59d602b4c686",
+    "operationId": "ingestEvents",
+    "requestSchema": {
+        "application/json": {
+            "type": "array",
+            "items": {
+                "$ref": "#/components/schemas/TelemetryEvent"
+            }
+        },
+        "application/jsonl": {
+        }
+    },
+    "specification": {
+        "tags": [
+            "ingest"
+        ],
+        "summary": "Ingest a batch of events",
+        "security": [
+            {
+                "deviceOAuth": [
+                    "telemetry.write"
+                ]
+            },
+            {
+                "ingestKey": [
+                ]
+            }
+        ],
+        "responses": {
+            "202": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/IngestReceipt"
+                        }
+                    }
+                },
+                "description": "Events were accepted for asynchronous indexing."
+            },
+            "422": {
+                "$ref": "#/components/responses/ValidationError"
+            }
+        },
+        "parameters": [
+            {
+                "$ref": "#/components/parameters/DatasetId"
+            }
+        ],
+        "description": "Accepts either a JSON array or a line-delimited JSON stream. For\n`application/jsonl` the body is a sequence of items, each validated\nby `itemSchema`.\n",
+        "operationId": "ingestEvents",
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TelemetryEvent"
+                        }
+                    }
+                },
+                "application/jsonl": {
+                }
+            },
+            "required": true
+        }
+    },
+    "responseSchemas": {
+        "202": {
+            "application/json": {
+                "$id": "http://system.catalog/schemas/#/components/schemas/IngestReceipt",
+                "type": "object",
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "required": [
+                    "accepted"
+                ],
+                "properties": {
+                    "batchId": {
+                        "type": "string"
+                    },
+                    "accepted": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "rejected": {
+                        "type": "integer",
+                        "minimum": 0
+                    }
+                },
+                "definitions": {
+                }
+            }
+        },
+        "422": {
+        }
+    }
+}

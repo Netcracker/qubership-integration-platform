@@ -1,0 +1,95 @@
+{
+    "typed": {
+        "type": "asyncapi",
+        "summary": null,
+        "channel": "users.profiles",
+        "method": "send"
+    },
+    "path": "users.profiles",
+    "method": "send",
+    "modelId": "bb9ab025-a7ec-4092-9780-650d44b52120-kafka-v3-comprehensive-2.0.0",
+    "sourceHash": "4f470ec36a5e0b4771a7c76c901610c2988d19c39bb99d5d846da8c088c186c3",
+    "operationId": "sendProfileUpdate",
+    "requestSchema": {
+    },
+    "specification": {
+        "topic": "users.profiles"
+    },
+    "responseSchemas": {
+        "ProfileUpdate": {
+            "$id": "http://system.catalog/schemas/ProfileUpdate",
+            "type": "object",
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "required": [
+                "userId",
+                "changes"
+            ],
+            "properties": {
+                "userId": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "changes": {
+                    "type": "object",
+                    "properties": {
+                        "contactInfo": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/definitions/EmailContact"
+                                },
+                                {
+                                    "$ref": "#/definitions/PhoneContact"
+                                }
+                            ]
+                        },
+                        "displayName": {
+                            "type": "string"
+                        },
+                        "preferences": {
+                            "type": "object",
+                            "properties": {
+                                "locale": {
+                                    "type": "string"
+                                },
+                                "timezone": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "definitions": {
+                "EmailContact": {
+                    "type": "object",
+                    "required": [
+                        "email"
+                    ],
+                    "properties": {
+                        "email": {
+                            "type": "string",
+                            "format": "email"
+                        },
+                        "verified": {
+                            "type": "boolean"
+                        }
+                    }
+                },
+                "PhoneContact": {
+                    "type": "object",
+                    "required": [
+                        "phone"
+                    ],
+                    "properties": {
+                        "phone": {
+                            "type": "string"
+                        },
+                        "countryCode": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

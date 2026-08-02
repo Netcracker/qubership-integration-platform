@@ -18,12 +18,14 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.mapper;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.ReportingPolicy;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.OperationBaseDTO;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring", uses = ChainBaseMapper.class)
+// unmappedTargetPolicy = ERROR: the typed fields must resolve to a delegating getter or the build fails.
+@Mapper(componentModel = "spring", uses = ChainBaseMapper.class, unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface OperationBaseMapper {
 
     @Mapping(target = "modelId", source = "operation.systemModel.id")

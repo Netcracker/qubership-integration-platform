@@ -164,7 +164,7 @@ public class ExportImportUtils {
     public static String generateSpecificationFileExportName(String id, String appName, boolean isLegacyExport) {
         return isLegacyExport
                 ? SPECIFICATION_FILE_PREFIX + id + "." + YAML_EXTENSION
-                : id + SPECIFICATION_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
+                : id + API_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
     }
 
     public static void writeZip(ZipOutputStream zipOut, SystemModel systemModel) {
@@ -195,7 +195,7 @@ public class ExportImportUtils {
             return source.getName();
         }
 
-        OperationProtocol protocol = source.getSystemModel().getSpecificationGroup().getSystem().getProtocol();
+        OperationProtocol protocol = source.getSystemModel().getApiGroup().getSystem().getProtocol();
         return source.getId() + "." + getFallbackExtensionByProtocol(protocol);
     }
 
@@ -242,7 +242,7 @@ public class ExportImportUtils {
     public static String generateSpecificationGroupFileExportName(String id, String appName, boolean isLegacyExport) {
         return isLegacyExport
                 ? SPECIFICATION_GROUP_FILE_PREFIX + id + "." + YAML_EXTENSION
-                : id + SPECIFICATION_GROUP_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
+                : id + API_GROUP_FILE_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
     }
 
     public static ResponseEntity<Object> convertFileToResponse(byte[] payload, String fileName) {

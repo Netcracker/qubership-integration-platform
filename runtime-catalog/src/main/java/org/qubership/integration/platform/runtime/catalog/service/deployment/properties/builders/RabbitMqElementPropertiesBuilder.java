@@ -126,15 +126,15 @@ public class RabbitMqElementPropertiesBuilder implements ElementPropertiesBuilde
             );
             elementProperties.put(
                     MAAS_CLASSIFIER_NAMESPACE_PROP,
-                    (String) ElementUtils.extractOperationAsyncProperties(element.getProperties()).get(CamelNames.MAAS_CLASSIFIER_NAMESPACE_PROP)
+                    MaasPropertiesUtils.envScopeValue(element, CamelNames.MAAS_CLASSIFIER_NAMESPACE_PROP, null)
             );
             elementProperties.put(
                     MaasPropertiesUtils.MAAS_CLASSIFIER_TENANT_ENABLED_PROP,
-                    (String) ElementUtils.extractOperationAsyncProperties(element.getProperties()).get(MaasPropertiesUtils.MAAS_CLASSIFIER_TENANT_ENABLED_CAMEL_NAME)
+                    MaasPropertiesUtils.envScopeValue(element, MaasPropertiesUtils.MAAS_CLASSIFIER_TENANT_ENABLED_CAMEL_NAME, "false")
             );
             elementProperties.put(
                     MaasPropertiesUtils.MAAS_CLASSIFIER_TENANT_ID_PROP,
-                    (String) ElementUtils.extractOperationAsyncProperties(element.getProperties()).get(MaasPropertiesUtils.MAAS_CLASSIFIER_TENANT_ID_CAMEL_NAME)
+                    MaasPropertiesUtils.envScopeValue(element, MaasPropertiesUtils.MAAS_CLASSIFIER_TENANT_ID_CAMEL_NAME, null)
             );
             return;
         }

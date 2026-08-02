@@ -42,11 +42,16 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
             ActionLogFilterColumn.PARENT_NAME, Pair.of("parentName", Function.identity()),
             ActionLogFilterColumn.REQUEST_ID, Pair.of("requestId", Function.identity()),
             ActionLogFilterColumn.OPERATION, Pair.of("operation", LogOperation::valueOf),
-            ActionLogFilterColumn.ENTITY_TYPE, Pair.of("entityType", EntityType::valueOf),
+            ActionLogFilterColumn.ENTITY_TYPE, Pair.of("entityType", ActionLogFilterRepositoryImpl::parseEntityType),
             ActionLogFilterColumn.ACTION_TIME, Pair.of("actionTime", Function.identity()),
             ActionLogFilterColumn.INITIATOR, Pair.of("user.username", Function.identity())
     );
     private static final String ACTION_TIME_COLUMN = "actionTime";
+
+    // a saved filter or bookmark can still carry the pre-rename value
+    private static EntityType parseEntityType(String value) {
+        return "SPECIFICATION_GROUP".equals(value) ? EntityType.API_GROUP : EntityType.valueOf(value);
+    }
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -163,8 +168,11 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
                         valuePath = valuePath.get(path);
                     }
                     switch (filter.getCondition()) {
-                        case IS -> predicates.add(builder.equal(valuePath, value));
-                        case IS_NOT -> predicates.add(builder.notEqual(valuePath, value));
+                        // IS/IS_NOT run the same valueConverter as IN/NOT_IN below, so a filter carrying a
+                        // pre-rename enum value (e.g. entityType=SPECIFICATION_GROUP) still matches the
+                        // renamed data instead of silently comparing against a raw string that no row has.
+                        case IS -> predicates.add(builder.equal(valuePath, valueConverter.apply(value)));
+                        case IS_NOT -> predicates.add(builder.notEqual(valuePath, valueConverter.apply(value)));
                         case CONTAINS -> predicates.add(
                                 builder.like(
                                         builder.lower(valuePath),

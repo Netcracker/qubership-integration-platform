@@ -48,9 +48,9 @@ Audit allows tracking most of the actions in UI. Click on the expandable section
 | API Specification | Deprecate | Deprecate specification. |
 | API Specification | Delete | Delete specification. |
 | API Specification | Export | Export specification. |
-| Specification Group | Create | <ul><li>Add new specification group manually.</li><li>Create specification group by service discovery.</li></ul> |
-| Specification Group | Update | Change labels. |
-| Specification Group | Delete | Delete Specification Group. |
+| API Group | Create | <ul><li>Add new API group manually.</li><li>Create API group by service discovery.</li></ul> |
+| API Group | Update | Change labels. |
+| API Group | Delete | Delete API group. |
 | Service discovery | Start | When service discovery was started. |
 | Service discovery | Execute | When service discovery was completed. |
 | Common/ Secured Variable | Create | Create secured variable. |
@@ -77,6 +77,7 @@ There is a specific **"Audit"** tab available in QIP UI, that could be utilized 
 > - In case of bulk operations, audit page will register separate action per each entity (e.g. bulk chain import/export, bulk snapshot deletion, etc.)
 > - For manual import of complex entities, such as chains, services, etc. system may register both IMPORT and CREATE/UPDATE operations, depending on how imported entities are handled.
 > - In some scenarios, when the platform does not identify the exact operation type, it sets "Create and Update" as a value for the record.
+> - The API Group entity type is filtered and exported as **API_GROUP**, which replaced **SPECIFICATION_GROUP**. Excel exports carry the new value, and filters that still send the old one keep working.
 ## User Interface
 
 ---

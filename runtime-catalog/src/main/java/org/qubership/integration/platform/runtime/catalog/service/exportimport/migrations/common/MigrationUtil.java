@@ -71,6 +71,21 @@ public class MigrationUtil {
             .toString();
     }
 
+    /**
+     * The versions a caller that cannot inspect the document may claim as applied. An idempotent migration is left
+     * out, so it still runs instead of being skipped on a claim nobody verified.
+     */
+    public static String formatAppliedVersions(Collection<? extends ImportFileMigration> migrations) {
+        return formatVersions(migrations.stream().filter(migration -> !migration.isIdempotent()).toList());
+    }
+
+    /** Renames a field in place, preserving its value; a no-op when the source field is absent. */
+    public static void renameField(ObjectNode node, String from, String to) {
+        if (node.has(from)) {
+            node.set(to, node.remove(from));
+        }
+    }
+
     public static void removeMigrationVersion(ObjectNode root, String version) {
         JsonNode migrationsNode = root.get("migrations");
         if (migrationsNode == null || !migrationsNode.isTextual()) {

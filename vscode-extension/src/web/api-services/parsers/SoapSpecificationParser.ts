@@ -1,7 +1,6 @@
 import { WsdlParser } from "./soap/WsdlParser";
 import type { WsdlParseResult } from "./soap/WsdlTypes";
 import { WsdlLoader, WsdlResolver } from "./soap/WsdlLoader";
-import { SoapSchemaGenerator } from "./soap/SoapSchemaGenerator";
 
 const wsdlParser = new WsdlParser();
 
@@ -50,14 +49,15 @@ export class SoapSpecificationParser {
     return wsdlParser.parse(resources, mainUri);
   }
 
+  // SOAP operations carry structural identity only: no specification slice and no
+  // request/response schemas. That is by design and matches the backend, which skips
+  // schema extraction for SOAP entirely rather than parsing the WSDL for schemas.
   static createOperationsFromWsdl(
     wsdlData: WsdlParseResult,
     specificationId: string,
   ): any[] {
     const operations: any[] = [];
     const seen = new Set<string>();
-    const schemaGenerator = new SoapSchemaGenerator(wsdlData);
-    const schemaMap = schemaGenerator.buildOperationSchemas();
 
     wsdlData.operations.forEach((operationName) => {
       if (seen.has(operationName)) {
@@ -65,18 +65,14 @@ export class SoapSpecificationParser {
       }
       seen.add(operationName);
 
-      const schemas = schemaMap.get(operationName);
-
       operations.push({
         id: `${specificationId}-${operationName}`,
         name: operationName,
         method: "POST",
         path: "",
-        specification: {
-          operationId: operationName,
-        },
-        requestSchema: schemas?.request ?? {},
-        responseSchemas: schemas?.response ?? {},
+        specification: null,
+        requestSchema: {},
+        responseSchemas: {},
       });
     });
 

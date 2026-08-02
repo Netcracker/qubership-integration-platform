@@ -9,9 +9,9 @@ import {
 
 const mockValidateAllowedSystemProtocol = jest.fn();
 const mockGetSystemById = jest.fn();
-const mockCreateSpecificationGroup = jest.fn();
-const mockSaveSpecificationGroupFile = jest.fn();
-const mockGetSpecificationGroupById = jest.fn();
+const mockCreateApiGroup = jest.fn();
+const mockSaveApiGroupFile = jest.fn();
+const mockGetApiGroupById = jest.fn();
 const mockFailImportSession = jest.fn();
 
 jest.mock("vscode", () => createVscodeMock(), { virtual: true });
@@ -36,13 +36,15 @@ jest.mock("../../src/web/api-services/SystemService", () => ({
     saveSystem: jest.fn(),
   })),
 }));
-jest.mock("../../src/web/api-services/SpecificationGroupService", () => ({
-  SpecificationGroupService: jest.fn().mockImplementation(() => ({
-    createSpecificationGroup: mockCreateSpecificationGroup,
-    saveSpecificationGroupFile: mockSaveSpecificationGroupFile,
-    getSpecificationGroupById: mockGetSpecificationGroupById,
-  })),
-}));
+jest.mock("../../src/web/api-services/ApiGroupService", () => {
+  const ApiGroupService: any = jest.fn().mockImplementation(() => ({
+    createApiGroup: mockCreateApiGroup,
+    saveApiGroupFile: mockSaveApiGroupFile,
+    getApiGroupById: mockGetApiGroupById,
+  }));
+  ApiGroupService.regenerateGroupApisSafely = jest.fn();
+  return { ApiGroupService };
+});
 jest.mock("../../src/web/api-services/SpecificationProcessorService", () => ({
   SpecificationProcessorService: jest.fn().mockImplementation(() => ({
     processSpecificationFiles: jest.fn().mockResolvedValue([]),
@@ -106,7 +108,7 @@ describe("SpecificationImportService – validateAllowedSystemProtocol in runImp
     mockGetSystemById.mockResolvedValue(
       buildSystem({ integrationSystemType: IntegrationSystemType.IMPLEMENTED }),
     );
-    mockCreateSpecificationGroup.mockResolvedValue({
+    mockCreateApiGroup.mockResolvedValue({
       id: "grp-1",
       name: "Test Group",
       specifications: [],

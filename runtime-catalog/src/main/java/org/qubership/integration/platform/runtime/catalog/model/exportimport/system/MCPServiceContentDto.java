@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.model.exportimport.system;
 
+import com.fasterxml.jackson.annotation.JsonFilter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
@@ -19,6 +20,7 @@ import java.util.List;
 @Jacksonized
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonFilter("baseEntityFilter")
 public class MCPServiceContentDto {
     private String description;
     private String identifier;

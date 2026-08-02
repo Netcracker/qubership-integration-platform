@@ -11,7 +11,10 @@ import {
 
 import { MethodBadge } from "../../../../services/ui/MethodBadge.tsx";
 import { SelectTag } from "./SelectTag.tsx";
-import { normalizeProtocol } from "../../../../../misc/protocol-utils.ts";
+import {
+  normalizeProtocol,
+  protocolForContext,
+} from "../../../../../misc/protocol-utils.ts";
 import { SelectAndNavigateField } from "./SelectAndNavigateField.tsx";
 import { OperationPath } from "../../../../services/ui/OperationPath.tsx";
 import styles from "./selectOptionValue.module.css";
@@ -226,7 +229,7 @@ const SystemOperationField: React.FC<
       // `integrationOperationId` and republishes on change. We just switch
       // operation identifiers here and clear stale path/query overrides.
       const apply = (proto: string) => {
-        const protocolType = normalizeProtocol(proto) ?? "http";
+        const protocolType = protocolForContext(proto);
 
         registry.formContext.updateContext?.({
           integrationOperationId: newValue,
@@ -240,7 +243,18 @@ const SystemOperationField: React.FC<
         });
       };
 
-      if (systemId) {
+      // The protocol belongs to the service, not to the operation: operationKind
+      // reads "asyncapi" for both kafka and amqp, and the oneOf branches, the
+      // Validations tab and isKafkaProtocol all match the service spelling.
+      // ServiceField already puts it in the context and nothing between there and
+      // here clears it, so the service is fetched only to recover the value for an
+      // element saved before the property was written.
+      const knownProtocol =
+        registry.formContext?.integrationOperationProtocolType;
+
+      if (knownProtocol) {
+        apply(knownProtocol);
+      } else if (systemId) {
         void api
           .getService(systemId)
           .then((s) => apply(s.protocol))

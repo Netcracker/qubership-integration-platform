@@ -3,7 +3,7 @@ import styles from "./Services.module.css";
 import { message } from "../../misc/antd-app.ts";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/api";
-import { IntegrationSystemType, Specification } from "../../api/apiTypes";
+import { IntegrationSystemType, Api } from "../../api/apiTypes";
 import { useNotificationService } from "../../hooks/useNotificationService";
 import { useServiceFilters } from "../../hooks/useServiceFilter";
 import {
@@ -13,14 +13,14 @@ import {
   getServiceActions,
   ServiceEntity,
   ServicesTableColumn,
-  isSpecification,
-  isSpecificationGroup,
+  isApi,
+  isApiGroup,
   isIntegrationSystem,
 } from "./ServicesTreeTable";
 import type {
   ContextSystem,
   IntegrationSystem,
-  SpecificationGroup,
+  ApiGroup,
 } from "../../api/apiTypes";
 import { downloadFile } from "../../misc/download-utils";
 import { invalidateServiceCache, prepareFile } from "./utils.tsx";
@@ -53,12 +53,10 @@ export type ServicesListProps = {
 export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
   const [services, setServices] = useState<IntegrationSystem[]>([]);
-  const [specGroupsByService, setSpecGroupsByService] = useState<
-    Record<string, SpecificationGroup[]>
+  const [apiGroupsByService, setApiGroupsByService] = useState<
+    Record<string, ApiGroup[]>
   >({});
-  const [specsByGroup, setSpecsByGroup] = useState<
-    Record<string, Specification[]>
-  >({});
+  const [specsByGroup, setSpecsByGroup] = useState<Record<string, Api[]>>({});
   const [loadingRows, setLoadingRows] = useState<string[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [searchString, setSearchString] = useState("");
@@ -104,7 +102,7 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
 
   const buildDataSource = useMemo((): ServiceEntity[] => {
     return services.map((service: IntegrationSystem | ContextSystem) => {
-      const groups = specGroupsByService[service.id];
+      const groups = apiGroupsByService[service.id];
       return {
         ...service,
         children:
@@ -119,25 +117,25 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
             : [],
       };
     });
-  }, [services, specGroupsByService, specsByGroup]);
+  }, [services, apiGroupsByService, specsByGroup]);
 
   const handleExpand = async (expanded: boolean, record: ServiceEntity) => {
     if (!expanded) return;
-    if (isIntegrationSystem(record) && !specGroupsByService[record.id]) {
+    if (isIntegrationSystem(record) && !apiGroupsByService[record.id]) {
       setLoadingRows((rows) => [...rows, record.id]);
       try {
         const groups = await api.getApiSpecifications(record.id);
-        setSpecGroupsByService((prev) => ({ ...prev, [record.id]: groups }));
+        setApiGroupsByService((prev) => ({ ...prev, [record.id]: groups }));
       } catch (e: unknown) {
         notificationService.requestFailed(
-          getErrorMessage(e, "Specifications load error"),
+          getErrorMessage(e, "APIs load error"),
           e,
         );
       } finally {
         setLoadingRows((rows) => rows.filter((id) => id !== record.id));
       }
     }
-    if (isSpecificationGroup(record) && !specsByGroup[record.id]) {
+    if (isApiGroup(record) && !specsByGroup[record.id]) {
       setLoadingRows((rows) => [...rows, record.id]);
       try {
         setSpecsByGroup((prev) => ({
@@ -162,7 +160,7 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
     rowExpandable: (record: ServiceEntity) => {
       if (isIntegrationSystem(record)) return true;
       return (
-        isSpecificationGroup(record) &&
+        isApiGroup(record) &&
         Array.isArray(record.specifications) &&
         record.specifications.length > 0
       );
@@ -184,8 +182,8 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
   const handleExpandAll = async () => {
     const roots = services;
 
-    const groupsMap: Record<string, SpecificationGroup[]> = {
-      ...specGroupsByService,
+    const groupsMap: Record<string, ApiGroup[]> = {
+      ...apiGroupsByService,
     };
     await Promise.all(
       roots.map(async (service) => {
@@ -193,7 +191,7 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
           try {
             const groups = await api.getApiSpecifications(service.id);
             groupsMap[service.id] = groups;
-            setSpecGroupsByService((prev) => ({
+            setApiGroupsByService((prev) => ({
               ...prev,
               [service.id]: groups,
             }));
@@ -207,7 +205,7 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
       }),
     );
 
-    const specsMap: Record<string, Specification[]> = { ...specsByGroup };
+    const specsMap: Record<string, Api[]> = { ...specsByGroup };
     const allGroups = Object.values(groupsMap).flat();
 
     allGroups.forEach((group) => {
@@ -240,7 +238,7 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
     }
   };
 
-  const handleAddSpecificationGroup = useCallback(
+  const handleAddApiGroup = useCallback(
     (record: ServiceEntity) => {
       if (!isIntegrationSystem(record)) return;
       showModal({
@@ -275,7 +273,7 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
       onExportSelected: (selected) => {
         void handleExportSelected(selected);
       },
-      onAddSpecificationGroup: handleAddSpecificationGroup,
+      onAddApiGroup: handleAddApiGroup,
     }),
   );
 
@@ -315,10 +313,10 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
       if (isIntegrationSystem(record)) {
         await api.updateService(record.id, updated);
         await loadServices();
-      } else if (isSpecificationGroup(record)) {
+      } else if (isApiGroup(record)) {
         const res = await api.updateApiSpecificationGroup(record.id, updated);
-        setSpecGroupsByService((prev) => updateLabelsInMap(prev, res));
-      } else if (isSpecification(record)) {
+        setApiGroupsByService((prev) => updateLabelsInMap(prev, res));
+      } else if (isApi(record)) {
         const res = await api.updateSpecificationModel(record.id, updated);
         setSpecsByGroup((prev) => updateLabelsInMap(prev, res));
       }
@@ -336,7 +334,7 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
       }
       if (isIntegrationSystem(record)) {
         void navigate(`/services/systems/${record.id}/specificationGroups`);
-      } else if (isSpecificationGroup(record)) {
+      } else if (isApiGroup(record)) {
         setExpandedRowKeys((keys) =>
           keys.includes(record.id)
             ? keys.filter((k) => k !== record.id)

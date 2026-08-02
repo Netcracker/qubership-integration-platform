@@ -58,13 +58,15 @@ export class EnvironmentService {
         ? { ...defaultProperties, ...requestedProperties }
         : defaultProperties;
 
+      // No systemId: the environment is stored inside its own service file, so
+      // the back-reference is implicit. The backend does not export one either
+      // (Environment.system is @JsonBackReference).
       const environment: Environment = {
         id: crypto.randomUUID(),
         name: request.name,
         address: request.address,
         description: request.description || "",
         sourceType: requestedSourceType as any,
-        systemId,
         properties: mergedProperties,
         labels: LabelUtils.toEntityLabels([]),
       };
@@ -110,7 +112,7 @@ export class EnvironmentService {
       const environmentIndex =
         system.content.environments?.findIndex(
           (env: Environment) => env.id === environmentId,
-        ) || -1;
+        ) ?? -1;
       if (environmentIndex === -1) {
         return null;
       }
@@ -154,7 +156,7 @@ export class EnvironmentService {
       const environmentIndex =
         system.content.environments?.findIndex(
           (env: Environment) => env.id === environmentId,
-        ) || -1;
+        ) ?? -1;
       if (environmentIndex === -1) {
         return false;
       }

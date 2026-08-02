@@ -1,0 +1,17 @@
+{
+    "typed": {
+        "type": "graphql",
+        "operationType": "query",
+        "sdl": "customer(id: ID!): Customer"
+    },
+    "path": "customer(id: ID!): Customer",
+    "method": "query",
+    "modelId": "37532b14-9cc5-49b3-99c7-1f2c269b23dc-Catalog GraphQL-1.0.0",
+    "sourceHash": "c26fb288dfa0a08b0600c087af8aa93866a5be4384939d107e8f790947ae68f3",
+    "operationId": "customer",
+    "requestSchema": null,
+    "specification": {
+        "operation": "customer(id: ID!): Customer"
+    },
+    "responseSchemas": null
+}

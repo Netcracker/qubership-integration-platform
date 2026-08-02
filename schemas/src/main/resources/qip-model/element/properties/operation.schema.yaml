@@ -141,7 +141,7 @@ properties:
     title: Service ID
   integrationSpecificationGroupId:
     type: string
-    title: Specification group ID
+    title: API Group ID
   integrationSpecificationId:
     type: string
     title: Specification ID

@@ -254,3 +254,35 @@ export function validateAllowedSystemProtocol(
     throw new Error(errorMessage);
   }
 }
+
+// Mirrors the backend's OperationProtocol.type, which SystemMapper maps onto
+// SystemDTO.specification.
+const SPECIFICATION_TYPE_BY_PROTOCOL: ReadonlyMap<string, string> = new Map([
+  ["HTTP", "swagger"],
+  ["AMQP", "asyncapi"],
+  ["KAFKA", "asyncapi"],
+  ["SOAP", "soap"],
+  ["GRAPHQL", "graphqlschema"],
+  ["METAMODEL", "metamodel"],
+  ["GRPC", "protobuf"],
+]);
+
+/**
+ * The `specification` field of a service API response. It is derived from the
+ * protocol, so the service file does not store it.
+ */
+export function getSpecificationType(protocol?: string): string {
+  return (
+    SPECIFICATION_TYPE_BY_PROTOCOL.get((protocol ?? "").toUpperCase()) ?? ""
+  );
+}
+
+/**
+ * The `extendedProtocol` field of a service API response — the protocol sub-type.
+ * `SystemMapper` derives it from the same protocol it derives `protocol` from,
+ * so the service file does not store it either. The two differ only for SOAP,
+ * where the transport is HTTP and the sub-type is SOAP.
+ */
+export function getExtendedProtocol(protocol?: string): string {
+  return (protocol ?? "").toLowerCase();
+}

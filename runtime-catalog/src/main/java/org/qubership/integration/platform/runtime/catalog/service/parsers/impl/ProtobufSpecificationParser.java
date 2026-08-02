@@ -27,8 +27,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationSimilarIdException;
+import org.qubership.integration.platform.runtime.catalog.model.system.typed.ProtobufOperation;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.ApiGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.system.SystemModelRepository;
@@ -60,6 +61,9 @@ import static org.qubership.integration.platform.runtime.catalog.service.schemas
 @Scope(value = ConfigurableBeanFactory.SCOPE_SINGLETON)
 public class ProtobufSpecificationParser implements SpecificationParser {
     private static final String JAVA_PACKAGE_OPTION_NAME = "java_package";
+    private static final String PROTOBUF_PACKAGE_MISSING_ERROR =
+            "Protobuf specification '%s' declares no package. Add a `package` statement to the .proto file; "
+                    + "QIP identifies gRPC operations by their package-qualified service name.";
     private static final Pattern MAP_TYPE_REGEX =
             Pattern.compile("^map<\\s*([a-zA-Z0-9_\\-.]+)\\s*,\\s*([a-zA-Z0-9_\\-.]+)\\s*>$");
 
@@ -80,9 +84,10 @@ public class ProtobufSpecificationParser implements SpecificationParser {
 
     @Override
     public SystemModel enrichSpecificationGroup(
-            SpecificationGroup group,
+            ApiGroup group,
             Collection<SpecificationSource> sources,
             Set<String> oldSystemModelsIds, boolean isDiscovered,
+            boolean withSchemas,
             Consumer<String> messageHandler
     ) {
         try {
@@ -90,9 +95,11 @@ public class ProtobufSpecificationParser implements SpecificationParser {
             String systemModelName = parserUtils.defineVersionName(group, null);
             String systemModelVersion = parserUtils.defineVersion(group, null);
 
-            List<ProtoFileElement> protoFiles = parseProtoFiles(sources);
-            ObjectNode typeDefinitions = buildTypeDefinitions(protoFiles);
-            List<Operation> operations = getOperations(protoFiles, typeDefinitions);
+            // Import-only guard: a package-less .proto would leak a "null." namespace or NPE downstream,
+            // so reject it here while the read path keeps degrading gracefully.
+            validatePackagesDeclared(sources);
+
+            List<Operation> operations = parseOperations(sources, withSchemas);
 
             String systemModelId = buildId(group.getId(), systemModelName);
             systemModel = SystemModel.builder().id(systemModelId).build();
@@ -109,8 +116,41 @@ public class ProtobufSpecificationParser implements SpecificationParser {
             group.addSystemModel(systemModel);
 
             return systemModel;
-        } catch (SpecificationSimilarIdException e) {
+        } catch (SpecificationSimilarIdException | SpecificationImportException e) {
             throw e;
+        } catch (Exception e) {
+            throw new SpecificationImportException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
+        }
+    }
+
+    // Rejects a package-less .proto at import. Parses each source once more (cheap for spec-sized files) so the
+    // offending file name can be named; a malformed .proto still falls through to the generic parse-error wrap.
+    private void validatePackagesDeclared(Collection<SpecificationSource> sources) {
+        for (SpecificationSource source : sources) {
+            if (!isProtobufFile(source)) {
+                continue;
+            }
+            ProtoFileElement protoFile = parseProtobuf(source);
+            if (StringUtils.isBlank(protoFile.getPackageName())) {
+                throw new SpecificationImportException(String.format(PROTOBUF_PACKAGE_MISSING_ERROR, source.getName()));
+            }
+        }
+    }
+
+    // Persistence-free core: parses every .proto source together so imports resolve across files.
+    // Structural fields always populated; request/response schemas only when withSchemas.
+    // Wire's parser throws IllegalStateException (and other native failures) on malformed .proto content;
+    // wrap it so the on-demand read path degrades to null schemas instead of surfacing a raw parser exception as a 500.
+    public List<Operation> parseOperations(Collection<SpecificationSource> sources, boolean withSchemas) {
+        // gRPC parses every source, so it skips the extractor's main-source guard and is the one protocol
+        // that can arrive here with nothing to read. Degrade to no operations instead of throwing.
+        if (sources == null || sources.isEmpty()) {
+            return List.of();
+        }
+        try {
+            List<ProtoFileElement> protoFiles = parseProtoFiles(sources);
+            ObjectNode typeDefinitions = buildTypeDefinitions(protoFiles);
+            return getOperations(protoFiles, typeDefinitions, withSchemas);
         } catch (Exception e) {
             throw new SpecificationImportException(SPECIFICATION_FILE_PROCESSING_ERROR, e);
         }
@@ -315,8 +355,8 @@ public class ProtobufSpecificationParser implements SpecificationParser {
         }
     }
 
-    private List<Operation> getOperations(Collection<ProtoFileElement> protoFiles, ObjectNode typeDefinitions) {
-        return protoFiles.stream().flatMap(protoFile -> extractOperations(protoFile, typeDefinitions))
+    private List<Operation> getOperations(Collection<ProtoFileElement> protoFiles, ObjectNode typeDefinitions, boolean withSchemas) {
+        return protoFiles.stream().flatMap(protoFile -> extractOperations(protoFile, typeDefinitions, withSchemas))
                 .collect(Collectors.toList());
     }
 
@@ -358,7 +398,7 @@ public class ProtobufSpecificationParser implements SpecificationParser {
         return node;
     }
 
-    private Stream<Operation> extractOperations(ProtoFileElement protoFile, ObjectNode typeDefinitions) {
+    private Stream<Operation> extractOperations(ProtoFileElement protoFile, ObjectNode typeDefinitions, boolean withSchemas) {
         return protoFile.getServices().stream().flatMap(service ->
             service.getRpcs().stream().map(rpc -> {
                 String packageName = protoFile.getPackageName();
@@ -368,16 +408,20 @@ public class ProtobufSpecificationParser implements SpecificationParser {
                 operation.setName(operationName);
                 operation.setMethod(rpc.getName());
                 operation.setPath(buildFullyQualifiedName(javaPackageName, service.getName()));
+                // setTyped derives method and path; javaPackageName falls back to the proto package when java_package is absent.
+                operation.setTyped(new ProtobufOperation(packageName, service.getName(), rpc.getName(), javaPackageName));
 
                 JsonNode requestSchema = buildSchema(packageName, operationName, rpc.getRequestType(), "requests", typeDefinitions);
                 JsonNode responseSchema = buildSchema(packageName, operationName, rpc.getResponseType(), "responses", typeDefinitions);
 
-                operation.setRequestSchema(Map.of("application/json", requestSchema));
+                if (withSchemas) {
+                    operation.setRequestSchema(Map.of("application/json", requestSchema));
 
-                ObjectNode responseSpecification = objectMapper.createObjectNode();
-                responseSpecification.set("application/json", responseSchema);
+                    ObjectNode responseSpecification = objectMapper.createObjectNode();
+                    responseSpecification.set("application/json", responseSchema);
 
-                operation.setResponseSchemas(Map.of("200", responseSpecification));
+                    operation.setResponseSchemas(Map.of("200", responseSpecification));
+                }
                 operation.setSpecification(buildOperationSpecification(rpc, operationName, requestSchema, responseSchema));
                 return operation;
             })

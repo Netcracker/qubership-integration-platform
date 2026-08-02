@@ -77,7 +77,7 @@ public class DiscoveryService {
     private final EnvironmentService environmentService;
     private final SystemModelService systemModelService;
     private final SpecificationImportService specificationImportService;
-    private final SpecificationGroupService specificationGroupService;
+    private final ApiGroupService apiGroupService;
     private final YAMLMapper yamlMapper;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
@@ -92,7 +92,7 @@ public class DiscoveryService {
             EnvironmentService environmentService,
             SystemModelService systemModelService,
             SpecificationImportService specificationImportService,
-            SpecificationGroupService specificationGroupService,
+            ApiGroupService apiGroupService,
             YAMLMapper yamlMapper,
             @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
             RestTemplate restTemplateMS,
@@ -105,7 +105,7 @@ public class DiscoveryService {
         this.environmentService = environmentService;
         this.systemModelService = systemModelService;
         this.specificationImportService = specificationImportService;
-        this.specificationGroupService = specificationGroupService;
+        this.apiGroupService = apiGroupService;
         this.yamlMapper = yamlMapper;
         this.objectMapper = objectMapper;
         this.restTemplate = restTemplateMS;
@@ -155,7 +155,7 @@ public class DiscoveryService {
     @AllArgsConstructor
     @Getter
     private static class SpecificationChanges {
-        private List<SpecificationGroup> createdGroups;
+        private List<ApiGroup> createdGroups;
         private List<SystemModel> createdSpecifications;
     }
 
@@ -264,9 +264,9 @@ public class DiscoveryService {
                                                          List<SpecificationDiscoveryErrorMsg> errorMessages,
                                                          List<KubeService> services) {
         List<String> ignoreUrl = Collections.emptyList();
-        if (system.getSpecificationGroups() != null) {
-            ignoreUrl = system.getSpecificationGroups().stream().filter(group -> !group.isSynchronization())
-                    .map(SpecificationGroup::getUrl).filter(Objects::nonNull).collect(Collectors.toList());
+        if (system.getApiGroups() != null) {
+            ignoreUrl = system.getApiGroups().stream().filter(group -> !group.isSynchronization())
+                    .map(ApiGroup::getUrl).filter(Objects::nonNull).collect(Collectors.toList());
         }
 
         KubeService service = findCorrespondingService(system, services);
@@ -284,23 +284,23 @@ public class DiscoveryService {
         Set<String> oldSystemModelsIds = systemModelService.getSystemModelsBySystemId(system.getId()).stream()
                 .map(AbstractEntity::getId).collect(Collectors.toSet());
 
-        List<SpecificationGroup> createdGroups = new ArrayList<>();
+        List<ApiGroup> createdGroups = new ArrayList<>();
         List<SystemModel> createdSpecifications = new ArrayList<>();
         for (SpecificationDiscoveryDTO specificationDTO : specificationDiscoveryResult.getSpecificationDiscoveryDTOS()) {
-            SpecificationGroup specificationGroup = specificationGroupService.getById(
-                    specificationGroupService.buildSpecificationGroupId(system, specificationDTO.getName()));
+            ApiGroup specificationGroup = apiGroupService.getById(
+                    apiGroupService.buildSpecificationGroupId(system, specificationDTO.getName()));
             if (specificationGroup == null) {
-                specificationGroup = specificationGroupService.getSpecificationGroupByNameAndSystem(
+                specificationGroup = apiGroupService.getSpecificationGroupByNameAndSystem(
                         specificationDTO.getName(), system);
             }
             if (specificationGroup == null) {
-                specificationGroup = specificationGroupService.createAndSaveUniqueSpecificationGroup(
+                specificationGroup = apiGroupService.createAndSaveUniqueSpecificationGroup(
                         system, specificationDTO.getName(), specificationDTO.getType(), specificationDTO.getUrl(), true);
                 createdGroups.add(specificationGroup);
             } else if (isNull(specificationGroup.getUrl()) || !specificationGroup.getUrl().equals(specificationDTO.getUrl())) {
                 specificationGroup.setUrl(specificationDTO.getUrl());
                 specificationGroup.setSynchronization(true);
-                specificationGroupService.update(specificationGroup);
+                apiGroupService.update(specificationGroup);
             }
 
             // skip spec if one already exists (by name) in a spec group
@@ -343,7 +343,7 @@ public class DiscoveryService {
 
         DiscoveryResultDTO discoveryResultDTO = new DiscoveryResultDTO();
 
-        List<SpecificationGroup> discoveredGroups = specificationChanges.stream()
+        List<ApiGroup> discoveredGroups = specificationChanges.stream()
                 .map(SpecificationChanges::getCreatedGroups).flatMap(List::stream).collect(Collectors.toList());
         List<SystemModel> discoveredSpecifications = specificationChanges.stream()
                 .map(SpecificationChanges::getCreatedSpecifications).flatMap(List::stream).collect(Collectors.toList());
@@ -354,8 +354,8 @@ public class DiscoveryService {
                 discoveredGroups.stream().map(AbstractSystemEntity::getId).collect(Collectors.toList()));
         discoveryResultDTO.setDiscoveredSpecificationIds(
                 discoveredSpecifications.stream().map(AbstractSystemEntity::getId).collect(Collectors.toList()));
-        discoveryResultDTO.setUpdatedSystemsIds(discoveredSpecifications.stream().map(SystemModel::getSpecificationGroup)
-                .map(SpecificationGroup::getSystem)
+        discoveryResultDTO.setUpdatedSystemsIds(discoveredSpecifications.stream().map(SystemModel::getApiGroup)
+                .map(ApiGroup::getSystem)
                 .map(AbstractSystemEntity::getId)
                 .collect(Collectors.toList()));
         discoveryResultDTO.setErrorMessages(errorMessages.stream().map(
@@ -365,7 +365,7 @@ public class DiscoveryService {
         return discoveryResultDTO;
     }
 
-    private SystemModel createSpecification(SpecificationGroup specificationGroup,
+    private SystemModel createSpecification(ApiGroup specificationGroup,
                                             SpecificationDiscoveryDTO specificationDTO,
                                             Set<String> oldSystemModelsIds,
                                             Consumer<String> messageHandler) {
@@ -395,14 +395,14 @@ public class DiscoveryService {
         }
     }
 
-    private String getSourceFileName(SpecificationGroup specificationGroup, SpecificationDiscoveryDTO specificationDTO) {
+    private String getSourceFileName(ApiGroup specificationGroup, SpecificationDiscoveryDTO specificationDTO) {
         return StringUtils.isBlank(specificationDTO.getSourceFileName())
                 ? buildSpecificationFileName(specificationGroup, specificationDTO)
                 : specificationDTO.getSourceFileName();
     }
 
     private String buildSpecificationFileName(
-            SpecificationGroup specificationGroup,
+            ApiGroup specificationGroup,
             SpecificationDiscoveryDTO specificationDiscoveryDTO
     ) {
         StringBuilder sb = new StringBuilder();
@@ -526,7 +526,7 @@ public class DiscoveryService {
             environment = environmentService.create(environment, system);
 
             for (SpecificationDiscoveryDTO specificationDTO : discoveryResult.getSpecificationDiscoveryDTOS()) {
-                SpecificationGroup specificationGroup = specificationGroupService.createAndSaveUniqueSpecificationGroup(
+                ApiGroup specificationGroup = apiGroupService.createAndSaveUniqueSpecificationGroup(
                         system, specificationDTO.getName(), specificationDTO.getType(), specificationDTO.getUrl(), true);
                 try {
                     createSpecification(

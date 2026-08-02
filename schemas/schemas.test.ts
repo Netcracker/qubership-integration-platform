@@ -58,7 +58,7 @@ describe("Test schemas over samples", () => {
       verbose: true,
       allErrors: true,
       discriminator: true,
-      keywords: ["subtype", "resourceType", "metaInfo"]
+      keywords: ["subtype", "resourceType", "metaInfo", "$refSchema"]
     });
     getSchemas()
       .map((document) => document.content)
@@ -85,4 +85,20 @@ describe("Test schemas over samples", () => {
       expect(result).toBe(expected);
     },
   );
+});
+
+// The api-group schema is the renamed twin of the pre-rename specification-group one, and both must keep accepting
+// the identical document shape. Nothing else stops them from drifting apart.
+test("The api-group and specification-group schemas differ only in identity", () => {
+  const identityKeys = ["$id", "title"];
+  const read = (name: string) => {
+    const schema = parseYaml(
+      fs.readFileSync(`src/main/resources/qip-model/${name}.schema.yaml`, "utf8"),
+    );
+    identityKeys.forEach((key) => delete schema[key]);
+    delete schema.metaInfo.fileExtension;
+    return schema;
+  };
+
+  expect(read("api-group")).toEqual(read("specification-group"));
 });

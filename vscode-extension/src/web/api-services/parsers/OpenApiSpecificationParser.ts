@@ -106,13 +106,10 @@ export class OpenApiSpecificationParser {
     openApiData: OpenApiData,
     specificationId: string,
   ): any[] {
-    // Create full QIP specification using QipSpecificationGenerator
-    const qipSpec = QipSpecificationGenerator.createQipSpecificationFromOpenApi(
+    const operations = QipSpecificationGenerator.buildOperations(
       openApiData,
-      "specification",
       specificationId,
     );
-    const operations = qipSpec.content?.operations || [];
 
     return operations.map((operation: any) => ({
       ...operation,
