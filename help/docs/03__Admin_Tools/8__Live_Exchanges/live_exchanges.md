@@ -26,9 +26,9 @@ The table displays a list of active exchanges, aggregated by session identifier.
 
 ### Control panel
 The control panel is positioned at the top right of the table and provides the following capabilities:
-- Placeholder **"exchanges per engine"** - allows user to adjust the number of exchanges displayed per engine instance.
+- Placeholder **"exchanges per engine"** - allows the user to adjust the number of exchanges displayed per engine instance.
 - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Session ID**.
-- ![filter](img/filter.svg) - open filter pop-up.
+- ![filter](img/filter.svg) - opens filter pop-up.
 - ![setting](img/setting.svg) - column settings.
 - ![redo](img/redo.svg) - refresh the table.
 
@@ -36,4 +36,4 @@ The control panel is positioned at the top right of the table and provides the f
 ### Terminate Exchange
 To terminate a live exchange, locate the relevant row in the Live Exchanges table, click  ![stop](img/stop.svg) ("Terminate" button) at the far right, and then click the "Yes" button to confirm your choice.
 
-> ℹ️ **Note:** Once the "Terminate" button is clicked, termination of exchange will occur only after ongoing chain element will be executed (not starting execution of next element). Ensure the exchange is no longer required before initiating termination.
+> ℹ️ **Note:** Once the "Terminate" button is clicked, termination occurs only after the current chain element finishes executing (the next element will not start). Ensure the exchange is no longer required before initiating termination.
