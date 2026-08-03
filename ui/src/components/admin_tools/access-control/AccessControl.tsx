@@ -44,6 +44,7 @@ import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeA
 import { matchesByFields } from "../../table/tableSearch.ts";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
+import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 
 const typeOptions = [
   { label: "External", value: "External" },
@@ -527,26 +528,33 @@ export const AccessControl: React.FC = () => {
               iconName: "send",
               disabled: redeployButtonDisabled(),
               onClick: () => {
-                if (selectedRowKeys.length === 0) {
-                  notificationService.info(
-                    "No selection",
-                    "Please select at least one row to modify",
-                  );
-                  return;
-                }
-                const selectedRecords = (accessControlData?.roles ?? []).filter(
-                  (record: AccessControlData) => {
-                    return selectedRowKeys.includes(buildRowKey(record));
+                confirmAndRun({
+                  title: "Redeploy Chains",
+                  content:
+                    "Are you sure you want to redeploy all selected chains to apply the changes?",
+                  onOk: () => {
+                    if (selectedRowKeys.length === 0) {
+                      notificationService.info(
+                        "No selection",
+                        "Please select at least one row to modify",
+                      );
+                      return;
+                    }
+                    const selectedRecords = (
+                      accessControlData?.roles ?? []
+                    ).filter((record: AccessControlData) => {
+                      return selectedRowKeys.includes(buildRowKey(record));
+                    });
+                    if (selectedRecords.length > 0) {
+                      void handleBulkDeploy(selectedRecords);
+                    } else {
+                      notificationService.info(
+                        "Error",
+                        "Selected records not found",
+                      );
+                    }
                   },
-                );
-                if (selectedRecords.length > 0) {
-                  void handleBulkDeploy(selectedRecords);
-                } else {
-                  notificationService.info(
-                    "Error",
-                    "Selected records not found",
-                  );
-                }
+                });
               },
             }}
           />
