@@ -18,30 +18,37 @@ package org.qubership.integration.platform.engine.service.deployment.processing.
 
 import org.apache.camel.spring.SpringCamelContext;
 import org.qubership.integration.platform.engine.configuration.ApplicationAutoConfiguration;
+import org.qubership.integration.platform.engine.controlplane.ChainRouteRegistry;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneException;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneService;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
-import org.qubership.integration.platform.engine.model.deployment.update.RouteType;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentRouteUpdate;
 import org.qubership.integration.platform.engine.service.deployment.processing.DeploymentProcessingAction;
 import org.qubership.integration.platform.engine.service.deployment.processing.qualifiers.OnStopDeploymentContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Optional;
 
 @Component
 @OnStopDeploymentContext
 public class RemoveRoutesFromControlPlaneAction implements DeploymentProcessingAction {
     private final ControlPlaneService controlPlaneService;
     private final ApplicationAutoConfiguration applicationConfiguration;
+    private final ChainRouteRegistry chainRouteRegistry;
 
     @Autowired
     public RemoveRoutesFromControlPlaneAction(
         ControlPlaneService controlPlaneService,
-        ApplicationAutoConfiguration applicationConfiguration
+        ApplicationAutoConfiguration applicationConfiguration,
+        ChainRouteRegistry chainRouteRegistry
     ) {
         this.controlPlaneService = controlPlaneService;
         this.applicationConfiguration = applicationConfiguration;
+        this.chainRouteRegistry = chainRouteRegistry;
     }
 
     @Override
@@ -50,12 +57,14 @@ public class RemoveRoutesFromControlPlaneAction implements DeploymentProcessingA
         DeploymentInfo deploymentInfo,
         DeploymentConfiguration deploymentConfiguration
     ) {
+        Optional<List<DeploymentRouteUpdate>> routes = chainRouteRegistry.getIfCurrentOwner(
+            deploymentInfo.getChainId(), deploymentInfo.getDeploymentId());
+        if (routes.isEmpty()) {
+            return;
+        }
         try {
-            controlPlaneService.removeEngineRoutes(
-                deploymentConfiguration.getRoutes().stream()
-                    .filter(route -> RouteType.triggerRouteWithGateway(route.getType()))
-                    .toList(),
-                applicationConfiguration.getDeploymentName());
+            controlPlaneService.removeEngineRoutes(routes.get(), applicationConfiguration.getDeploymentName());
+            chainRouteRegistry.clearIfCurrentOwner(deploymentInfo.getChainId(), deploymentInfo.getDeploymentId());
         } catch (ControlPlaneException e) {
             throw new DeploymentRetriableException(e);
         }

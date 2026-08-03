@@ -21,6 +21,7 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.qubership.integration.platform.engine.configuration.ApplicationAutoConfiguration;
+import org.qubership.integration.platform.engine.controlplane.ChainRouteRegistry;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneException;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneService;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
@@ -47,16 +48,19 @@ public class RegisterRoutesInControlPlaneAction implements DeploymentProcessingA
     private final VariablesService variablesService;
     private final ControlPlaneService controlPlaneService;
     private final ApplicationAutoConfiguration applicationConfiguration;
+    private final ChainRouteRegistry chainRouteRegistry;
 
     @Autowired
     public RegisterRoutesInControlPlaneAction(
         VariablesService variablesService,
         ControlPlaneService controlPlaneService,
-        ApplicationAutoConfiguration applicationConfiguration
+        ApplicationAutoConfiguration applicationConfiguration,
+        ChainRouteRegistry chainRouteRegistry
     ) {
         this.variablesService = variablesService;
         this.controlPlaneService = controlPlaneService;
         this.applicationConfiguration = applicationConfiguration;
+        this.chainRouteRegistry = chainRouteRegistry;
     }
 
     @Override
@@ -84,6 +88,9 @@ public class RegisterRoutesInControlPlaneAction implements DeploymentProcessingA
                 gatewayTriggersRoutes.stream()
                     .filter(route -> RouteType.isPrivateTriggerRoute(route.getType())).toList(),
                 applicationConfiguration.getDeploymentName());
+
+            chainRouteRegistry.register(
+                deploymentInfo.getChainId(), deploymentInfo.getDeploymentId(), gatewayTriggersRoutes);
 
             // Purge each route from the gateway tier it no longer belongs to (visibility
             // changed public<->private, or downgraded to internal).
