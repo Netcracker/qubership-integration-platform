@@ -171,7 +171,6 @@ For inner services, that are discovered in K8S namespace, system uses their name
 
 > ℹ️ **Note:** Depending on the capacity, network and environment state, Discovery process might take some time to complete.
 
-
 ### Add Inner Cloud Service
 <ins>Web UI</ins>
 
@@ -208,7 +207,7 @@ To add specification group to Inner Cloud service:
 > ℹ️ **Note:**
 > - For the service with _**grpc**_ protocol there could be uploaded `.zip` archive with more than one `.proto` file.
 > - For **WSDL**, **GraphQL**, **Protobuf** specifications, system will generate the name by autoincrement (e.g. 1.0.0 -> 2.0.0), rename if required.
-5. Confirm operation with **"Import File"** button.
+4. Confirm operation with **"Import File"** button.
 
 When API specification is added you will see the specification group with respective name and dates. All specifications will be placed under this specification group.
 

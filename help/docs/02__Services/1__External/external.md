@@ -40,7 +40,7 @@ Table with External services is accessible by navigating to **Services** → **E
   - **Collapse All** ![vertical-align-middle](img/vertical-align-middle.svg) - fully collapses the entity.
   - **Export** ![cloud-download](img/cloud-download.svg) - allows to export the entity.
 
-**Control panel** 
+**Control panel**
 
 At the top of the table the following options are available:
   - **Search field** - search box, provides ability to find respective data in the table.
