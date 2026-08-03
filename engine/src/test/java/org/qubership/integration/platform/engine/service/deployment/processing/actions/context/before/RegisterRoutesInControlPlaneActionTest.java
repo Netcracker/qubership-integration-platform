@@ -12,7 +12,6 @@ import org.qubership.integration.platform.engine.model.deployment.update.RouteTy
 import org.qubership.integration.platform.engine.service.VariablesService;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -51,10 +50,9 @@ class RegisterRoutesInControlPlaneActionTest {
 
         action.execute(null, deploymentInfo(), configuration);
 
-        Optional<List<DeploymentRouteUpdate>> registered =
-                chainRouteRegistry.getIfCurrentOwner(CHAIN_ID, DEPLOYMENT_ID);
-        assertTrue(registered.isPresent());
-        assertEquals(List.of("/public", "/private"), registered.get().stream()
+        List<DeploymentRouteUpdate> registered =
+                chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID);
+        assertEquals(List.of("/public", "/private"), registered.stream()
                 .map(DeploymentRouteUpdate::getPath).toList());
     }
 
@@ -65,10 +63,9 @@ class RegisterRoutesInControlPlaneActionTest {
 
         action.execute(null, deploymentInfo(), configuration);
 
-        Optional<List<DeploymentRouteUpdate>> registered =
-                chainRouteRegistry.getIfCurrentOwner(CHAIN_ID, DEPLOYMENT_ID);
-        assertTrue(registered.isPresent());
-        assertTrue(registered.get().isEmpty());
+        List<DeploymentRouteUpdate> registered =
+                chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID);
+        assertTrue(registered.isEmpty());
     }
 
     @Test

@@ -5,7 +5,6 @@ import org.qubership.integration.platform.engine.model.deployment.update.Deploym
 import org.qubership.integration.platform.engine.model.deployment.update.RouteType;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,68 +19,87 @@ class ChainRouteRegistryTest {
     private final ChainRouteRegistry registry = new ChainRouteRegistry();
 
     @Test
-    void getIfCurrentOwnerReturnsRegisteredRoutesForOwningDeployment() {
+    void getUnsharedRoutesReturnsAllRoutesWhenNoOtherDeploymentIsRegisteredForTheChain() {
         List<DeploymentRouteUpdate> routes = List.of(route("/chain-1"));
         registry.register(CHAIN_ID, DEPLOYMENT_ID_A, routes);
 
-        Optional<List<DeploymentRouteUpdate>> result = registry.getIfCurrentOwner(CHAIN_ID, DEPLOYMENT_ID_A);
+        List<DeploymentRouteUpdate> result = registry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A);
 
-        assertTrue(result.isPresent());
-        assertEquals(routes, result.get());
+        assertEquals(routes, result);
     }
 
     @Test
-    void getIfCurrentOwnerReturnsEmptyForNonOwningDeployment() {
+    void getUnsharedRoutesReturnsEmptyListForADeploymentThatNeverRegistered() {
         registry.register(CHAIN_ID, DEPLOYMENT_ID_A, List.of(route("/chain-1")));
 
-        Optional<List<DeploymentRouteUpdate>> result = registry.getIfCurrentOwner(CHAIN_ID, DEPLOYMENT_ID_B);
+        List<DeploymentRouteUpdate> result = registry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_B);
 
         assertTrue(result.isEmpty());
     }
 
     @Test
-    void getIfCurrentOwnerReturnsEmptyWhenChainWasNeverRegistered() {
-        Optional<List<DeploymentRouteUpdate>> result = registry.getIfCurrentOwner(CHAIN_ID, DEPLOYMENT_ID_A);
+    void getUnsharedRoutesReturnsEmptyListWhenTheChainWasNeverRegistered() {
+        List<DeploymentRouteUpdate> result = registry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A);
 
         assertTrue(result.isEmpty());
     }
 
     @Test
-    void registerOverwritesPreviousDeploymentForSameChain() {
+    void getUnsharedRoutesExcludesPathsClaimedByAnotherRegisteredDeployment() {
+        // A and B both claim /shared (the redeploy overlap window); A alone claims /old-only.
+        DeploymentRouteUpdate shared = route("/shared");
+        registry.register(CHAIN_ID, DEPLOYMENT_ID_A, List.of(shared, route("/old-only")));
+        registry.register(CHAIN_ID, DEPLOYMENT_ID_B, List.of(shared, route("/new-only")));
+
+        List<DeploymentRouteUpdate> result = registry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A);
+
+        assertEquals(List.of("/old-only"), result.stream().map(DeploymentRouteUpdate::getPath).toList());
+    }
+
+    @Test
+    void getUnsharedRoutesIsSymmetricFromTheOtherDeploymentsSide() {
+        // Same registry state as above, computed from B's side: the C-1 scenario, where B's
+        // own start-failure teardown must not remove A's still-running route.
+        DeploymentRouteUpdate shared = route("/shared");
+        registry.register(CHAIN_ID, DEPLOYMENT_ID_A, List.of(shared, route("/old-only")));
+        registry.register(CHAIN_ID, DEPLOYMENT_ID_B, List.of(shared, route("/new-only")));
+
+        List<DeploymentRouteUpdate> result = registry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_B);
+
+        assertEquals(List.of("/new-only"), result.stream().map(DeploymentRouteUpdate::getPath).toList());
+    }
+
+    @Test
+    void registerOverwritesThisDeploymentsPreviousRoutesWithoutAffectingOtherDeployments() {
+        registry.register(CHAIN_ID, DEPLOYMENT_ID_A, List.of(route("/first-attempt")));
+        registry.register(CHAIN_ID, DEPLOYMENT_ID_B, List.of(route("/other")));
+
+        registry.register(CHAIN_ID, DEPLOYMENT_ID_A, List.of(route("/retried-attempt")));
+
+        assertEquals(List.of("/retried-attempt"),
+                registry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A).stream()
+                        .map(DeploymentRouteUpdate::getPath).toList());
+        assertEquals(List.of("/other"),
+                registry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_B).stream()
+                        .map(DeploymentRouteUpdate::getPath).toList());
+    }
+
+    @Test
+    void unregisterRemovesOnlyTheNamedDeploymentsEntryLeavingOthersIntact() {
         registry.register(CHAIN_ID, DEPLOYMENT_ID_A, List.of(route("/old")));
         registry.register(CHAIN_ID, DEPLOYMENT_ID_B, List.of(route("/new")));
 
-        assertTrue(registry.getIfCurrentOwner(CHAIN_ID, DEPLOYMENT_ID_A).isEmpty());
-        Optional<List<DeploymentRouteUpdate>> result = registry.getIfCurrentOwner(CHAIN_ID, DEPLOYMENT_ID_B);
-        assertTrue(result.isPresent());
-        assertEquals("/new", result.get().get(0).getPath());
+        registry.unregister(CHAIN_ID, DEPLOYMENT_ID_A);
+
+        assertTrue(registry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A).isEmpty());
+        assertEquals(List.of("/new"),
+                registry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_B).stream()
+                        .map(DeploymentRouteUpdate::getPath).toList());
     }
 
     @Test
-    void clearIfCurrentOwnerRemovesEntryWhenDeploymentIdMatches() {
-        registry.register(CHAIN_ID, DEPLOYMENT_ID_A, List.of(route("/chain-1")));
-
-        registry.clearIfCurrentOwner(CHAIN_ID, DEPLOYMENT_ID_A);
-
-        assertTrue(registry.getIfCurrentOwner(CHAIN_ID, DEPLOYMENT_ID_A).isEmpty());
-    }
-
-    @Test
-    void clearIfCurrentOwnerDoesNothingWhenDeploymentIdDoesNotMatch() {
-        registry.register(CHAIN_ID, DEPLOYMENT_ID_A, List.of(route("/old")));
-        registry.register(CHAIN_ID, DEPLOYMENT_ID_B, List.of(route("/new")));
-
-        // A stale clear from the superseded deployment must not clear the newer registration.
-        registry.clearIfCurrentOwner(CHAIN_ID, DEPLOYMENT_ID_A);
-
-        Optional<List<DeploymentRouteUpdate>> result = registry.getIfCurrentOwner(CHAIN_ID, DEPLOYMENT_ID_B);
-        assertTrue(result.isPresent());
-        assertEquals("/new", result.get().get(0).getPath());
-    }
-
-    @Test
-    void clearIfCurrentOwnerDoesNothingWhenChainWasNeverRegistered() {
-        assertDoesNotThrow(() -> registry.clearIfCurrentOwner(CHAIN_ID, DEPLOYMENT_ID_A));
+    void unregisterDoesNothingWhenTheChainWasNeverRegistered() {
+        assertDoesNotThrow(() -> registry.unregister(CHAIN_ID, DEPLOYMENT_ID_A));
     }
 
     private DeploymentRouteUpdate route(String path) {

@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -73,7 +74,7 @@ class RemoveRoutesFromControlPlaneActionTest {
 
         removeAction.execute(null, deploymentInfo(DEPLOYMENT_ID_A), null);
 
-        assertTrue(chainRouteRegistry.getIfCurrentOwner(CHAIN_ID, DEPLOYMENT_ID_A).isEmpty());
+        assertTrue(chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A).isEmpty());
     }
 
     @Test
@@ -87,13 +88,16 @@ class RemoveRoutesFromControlPlaneActionTest {
     void doesNothingWhenANewerDeploymentHasAlreadySupersededThisOne() {
         // Simulates a redeploy: deployment A's routes get overwritten by deployment B's
         // registration before A's stop action runs (register-then-stop ordering).
+        // With multi-registration, both A and B are registered; A alone claims /old.
         chainRouteRegistry.register(CHAIN_ID, DEPLOYMENT_ID_A, List.of(route("/old")));
         chainRouteRegistry.register(CHAIN_ID, DEPLOYMENT_ID_B, List.of(route("/new")));
 
         removeAction.execute(null, deploymentInfo(DEPLOYMENT_ID_A), null);
 
-        verify(controlPlaneService, never()).removeEngineRoutes(any(), any());
-        assertTrue(chainRouteRegistry.getIfCurrentOwner(CHAIN_ID, DEPLOYMENT_ID_B).isPresent());
+        verify(controlPlaneService).removeEngineRoutes(
+                argThat(routes -> routes.size() == 1 && routes.get(0).getPath().equals("/old")),
+                any());
+        assertTrue(!chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_B).isEmpty());
     }
 
     @Test
@@ -106,7 +110,7 @@ class RemoveRoutesFromControlPlaneActionTest {
         assertThrows(DeploymentRetriableException.class, () ->
                 removeAction.execute(null, deploymentInfo(DEPLOYMENT_ID_A), null));
 
-        assertTrue(chainRouteRegistry.getIfCurrentOwner(CHAIN_ID, DEPLOYMENT_ID_A).isPresent());
+        assertTrue(!chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A).isEmpty());
     }
 
     @Test

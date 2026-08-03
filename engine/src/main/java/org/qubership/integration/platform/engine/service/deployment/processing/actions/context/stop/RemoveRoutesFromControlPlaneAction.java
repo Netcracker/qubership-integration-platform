@@ -31,7 +31,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Optional;
 
 @Component
 @OnStopDeploymentContext
@@ -57,14 +56,14 @@ public class RemoveRoutesFromControlPlaneAction implements DeploymentProcessingA
         DeploymentInfo deploymentInfo,
         DeploymentConfiguration deploymentConfiguration
     ) {
-        Optional<List<DeploymentRouteUpdate>> routes = chainRouteRegistry.getIfCurrentOwner(
+        List<DeploymentRouteUpdate> routes = chainRouteRegistry.getUnsharedRoutes(
             deploymentInfo.getChainId(), deploymentInfo.getDeploymentId());
         if (routes.isEmpty()) {
             return;
         }
         try {
-            controlPlaneService.removeEngineRoutes(routes.get(), applicationConfiguration.getDeploymentName());
-            chainRouteRegistry.clearIfCurrentOwner(deploymentInfo.getChainId(), deploymentInfo.getDeploymentId());
+            controlPlaneService.removeEngineRoutes(routes, applicationConfiguration.getDeploymentName());
+            chainRouteRegistry.unregister(deploymentInfo.getChainId(), deploymentInfo.getDeploymentId());
         } catch (ControlPlaneException e) {
             throw new DeploymentRetriableException(e);
         }
