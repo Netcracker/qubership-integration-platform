@@ -31,6 +31,13 @@ import static java.util.Objects.isNull;
 @ManagedResource(description = "Managed XML RoutesBuilderLoader")
 @RoutesLoader(XmlRoutesBuilderLoader.EXTENSION)
 public class CustomXmlRoutesBuilderLoader extends XmlRoutesBuilderLoader {
+
+    /**
+     * Appended to the source location so {@link XmlRoutesBuilderLoader} does not reuse the
+     * resource/xmlInfo cache populated by {@link #preParseRoute} from the raw file.
+     */
+    static final String PREPROCESSED_LOCATION_SUFFIX = "#preprocessed";
+
     private ResourceContentPreprocessingService preprocessingService;
     private ErrorHandlerFactory errorHandlerFactory;
     private SourceProcessingNotifier sourceProcessingNotifier;
@@ -62,7 +69,7 @@ public class CustomXmlRoutesBuilderLoader extends XmlRoutesBuilderLoader {
         content = preprocessingService.preprocess(content);
         return new SimpleResource(
                 input.getScheme(),
-                input.getLocation(),
+                input.getLocation() + PREPROCESSED_LOCATION_SUFFIX,
                 content.getBytes(StandardCharsets.UTF_8)
         );
     }

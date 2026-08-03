@@ -28,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.CamelContext;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Strings;
+import org.apache.commons.text.StringEscapeUtils;
 import org.qubership.integration.platform.engine.camel.dsl.preprocess.preprocessors.MaasParametersResolver;
 import org.qubership.integration.platform.engine.configuration.ApplicationConfiguration;
 import org.qubership.integration.platform.engine.configuration.tenant.TenantConfiguration;
@@ -69,12 +70,22 @@ public class MaasService implements MaasParametersResolver {
 
     @Override
     public String resolveMaasParameters(String content) {
+        Collection<MaasClassifierInfo> classifierInfos =
+                camelContext.getRegistry().findByType(MaasClassifierInfo.class);
+
         Map<String, String> replacementMap = new HashMap<>();
-        for (MaasClassifierInfo info
-                : camelContext.getRegistry().findByType(MaasClassifierInfo.class)) {
+        for (MaasClassifierInfo info : classifierInfos) {
             replacementMap.putAll(updateKeysToPlaceholders(info.getElementId(), resolveMaasParameters(info)));
         }
-        return replacePropertiesPlaceholders(content, replacementMap);
+        String result = replacePropertiesPlaceholders(content, replacementMap);
+        if (result != null && result.contains("%%{")) {
+            log.warn("MaaS parameter placeholders remain unresolved after preprocessing. "
+                        + "Registered MaasClassifierInfo elementIds: {}, MaasClassifierInfo beans size: {}",
+                classifierInfos.stream().map(MaasClassifierInfo::getElementId).toList(), classifierInfos.size()
+            );
+        }
+
+        return result;
     }
 
     private Map<String, String> resolveMaasParameters(MaasClassifierInfo maasClassifierInfo) {
@@ -101,7 +112,7 @@ public class MaasService implements MaasParametersResolver {
             String replacement = Optional.ofNullable(entry.getValue()).orElse("");
             content = StringUtils.isBlank(replacement)
                 ? removePropertyPlaceholder(content, entry.getKey())
-                : content.replace(entry.getKey(), replacement);
+                : content.replace(entry.getKey(), StringEscapeUtils.escapeXml10(replacement));
         }
         return content;
     }

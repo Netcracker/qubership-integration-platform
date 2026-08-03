@@ -87,7 +87,7 @@ class CustomXmlRoutesBuilderLoaderTest {
     }
 
     @Test
-    void shouldPreprocessInputAndReturnSimpleResourceWithOriginalSchemeAndLocation() throws Exception {
+    void shouldPreprocessInputAndReturnResourceWithDistinctLocationToBypassCamelCache() throws Exception {
         when(resource.getInputStream()).thenReturn(new ByteArrayInputStream("original content".getBytes()));
         when(resource.getScheme()).thenReturn("classpath");
         when(resource.getLocation()).thenReturn("routes/test.xml");
@@ -96,7 +96,9 @@ class CustomXmlRoutesBuilderLoaderTest {
         Resource result = preprocessInput(resource);
 
         assertEquals("classpath", result.getScheme());
-        assertEquals("routes/test.xml", result.getLocation());
+        assertEquals(
+                "routes/test.xml" + CustomXmlRoutesBuilderLoader.PREPROCESSED_LOCATION_SUFFIX,
+                result.getLocation());
         assertEquals("processed content", new String(result.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
     }
 
