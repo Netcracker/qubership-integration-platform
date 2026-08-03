@@ -136,7 +136,7 @@ public class KubeOperator {
                         request.getResourceNamePlural(),
                         getNotNullCustomResourceName(request),
                         request.getBody()
-                );
+                ).execute();
             } else {
                 customObjectsApi.createNamespacedCustomObject(
                         request.getGroup(),
@@ -144,7 +144,7 @@ public class KubeOperator {
                         getNotNullNamespace(),
                         request.getResourceNamePlural(),
                         request.getBody()
-                );
+                ).execute();
             }
         } catch (Exception e) {
             if (!isDevmode()) {
@@ -223,6 +223,14 @@ public class KubeOperator {
             JsonNode responseNode = objectMapper.convertValue(response, JsonNode.class);
             JsonNode resourceVersion = responseNode.path("metadata").path("resourceVersion");
             return resourceVersion.isMissingNode() || resourceVersion.isNull() ? null : resourceVersion.asText();
+        } catch (ApiException e) {
+            if (e.getCode() == 404) {
+                return null;
+            }
+            if (!isDevmode()) {
+                log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
+            }
+            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
         } catch (Exception e) {
             if (!isDevmode()) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
