@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -67,6 +68,20 @@ public class KubeOperator {
 
         customObjectsApi = new CustomObjectsApi(client);
 
+        this.namespace = namespace;
+        this.devmode = devmode;
+    }
+
+    KubeOperator(
+            ObjectMapper objectMapper,
+            CoreV1Api coreApi,
+            CustomObjectsApi customObjectsApi,
+            String namespace,
+            Boolean devmode
+    ) {
+        this.objectMapper = objectMapper;
+        this.coreApi = coreApi;
+        this.customObjectsApi = customObjectsApi;
         this.namespace = namespace;
         this.devmode = devmode;
     }
@@ -131,6 +146,58 @@ public class KubeOperator {
                         request.getBody()
                 );
             }
+        } catch (Exception e) {
+            if (!isDevmode()) {
+                log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
+            }
+            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getMessage(), e);
+        }
+    }
+
+    public Optional<KubeCustomObject> getCustomObject(KubeCustomObjectRequest request) {
+        try {
+            Object response = customObjectsApi.getNamespacedCustomObject(
+                    request.getGroup(),
+                    request.getVersion(),
+                    getNotNullNamespace(),
+                    request.getResourceNamePlural(),
+                    getNotNullCustomResourceName(request)
+            ).execute();
+
+            return Optional.of(objectMapper.convertValue(response, KubeCustomObject.class));
+        } catch (ApiException e) {
+            if (e.getCode() == 404) {
+                return Optional.empty();
+            }
+            if (!isDevmode()) {
+                log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
+            }
+            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
+        } catch (Exception e) {
+            if (!isDevmode()) {
+                log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
+            }
+            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getMessage(), e);
+        }
+    }
+
+    public void deleteCustomObject(KubeCustomObjectRequest request) {
+        try {
+            customObjectsApi.deleteNamespacedCustomObject(
+                    request.getGroup(),
+                    request.getVersion(),
+                    getNotNullNamespace(),
+                    request.getResourceNamePlural(),
+                    getNotNullCustomResourceName(request)
+            ).execute();
+        } catch (ApiException e) {
+            if (e.getCode() == 404) {
+                return;
+            }
+            if (!isDevmode()) {
+                log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
+            }
+            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
         } catch (Exception e) {
             if (!isDevmode()) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
