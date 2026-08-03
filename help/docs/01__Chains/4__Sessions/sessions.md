@@ -45,7 +45,10 @@ Table contains current chain's sessions, aggregated by correlation identifier, i
 - **Snapshot** - snapshot version of deployment.
     > ℹ️ **Note**: **After manual [snapshot](../2__Snapshots/snapshots.md) renaming, current parameter's value will not be updated automatically (even for the new sessions)**. To see updated snapshot name, it is required to redeploy the chain.
 - **Engine** - name of the session engine domain with pod address (without port) in parentheses.
-- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+
+**Control panel**
+
+Placed on top of the table. Provides next capabilities:
   - **Search field** - search box, provides ability to find particular session(s) by body field name, body field value, header name or header value.
     > ℹ️ **Note**: When searching for long or complex entity name, please consider specifying its **full name** or **first part of the name** for proper search result.
   - ![delete](img/delete.svg) - deletes selected session(s).
@@ -62,18 +65,28 @@ Click **Session ID value** in the respective row of sessions table to see the li
 - **Finish Time** - processing end datetime.
 - **Element Type** - type of the element, according to the library of elements.
 
+**Control panel**
+
+- **Search field** - search box, provides ability to find particular session element by body/header/property field name or value.
+- ![Settings|20](img/setting.svg)- opens pop-up with table properties that allows to adjust visibility and sequence of columns except **ID**.
+- ![arrows-alt](img/arrows-alt.svg) - expand all session elements.
+- ![shrink](img/shrink.svg) - collapse all session elements.
+- ![Download|20](img/cloud-download.svg) - exports selected sessions.
+
+To go back, use "breadcrumb" navigation element.
+
 ### Session's element view
 Under each element it is possible to get additional information including its state before and after it has been executed. Click on ![right](img/right.svg) to expand.
 
 Next information is available, when element's name clicked and window with its details presented:
 - **Previous/Next** buttons - navigation buttons, that allow to open previous or next session element.
-- **Body** tab - contains before/after states of request body, participated in the processing.
-- **Headers** tab - contains the list of headers and their before/after values. Slider **"Only modified"** filters out unmodified headers.
+- **Body** tab - contains before/after states of request body, participated in the processing.  Slider **"View diff"** highlights payloads differences.
+- **Headers** tab - contains the list of headers and their before/after values.
     > ℹ️ **Note**: For **HTTP Sender** and **Service Call** header **"CamelHttpUri"** will contain full URI, with resource and query parameters in it.
 - **Exchange properties** tab - contains list of exchange properties. There are specific properties, available for failed elements in sessions, please refer to the [Building Logic Around Failed Elements](../../00__Overview/6__Building_Logic_Around_Failed_Elements/failed_elements_logic.md) article for more details.
 - **Technical context** tab - contains the list of context headers, that have been received by the chain.
 
-There is also "**View diff**" switch, available for "**Headers**", "**Exchange properties**" and "**Technical context**" tabs, that could be used to only show records that were modified during the processing.
+There is also "**Only modified**" switch, available for "**Headers**", "**Exchange properties**" and "**Technical context**" tabs, that could be used to only show records that were modified during the processing.
 
 ### Retry Failed Session
 To retry failed session, find it in the table and click retry ![Redo|20](img/redo.svg) button. Retry can only be performed if at least one [Checkpoint](../1__Graph/1__Elements_Library/3__Composite_Triggers/1__Checkpoint/checkpoint.md) element was configured in the chain at the time of session failure.

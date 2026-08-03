@@ -31,7 +31,10 @@ After navigation to "Import Instructions" tab, system initially displays a table
 - **Overridden By** - editable value, applicable only for "Override" action. Specifies the ID of the chain that overrides the original chain. When the overriding chain exists in QIP, its name is displayed as a clickable link; clicking it opens the chain's Configuration Graph in a new tab.
 - **Labels** - list of colored **technical labels**, optional populated during import instructions upload via API.
 - **Modified At** - date and time of the last entity modification.
-- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - **Search field** - search box, provides ability to find respective data in the table. To find a particular entity by its id or name, specify criteria in search field and click "**Enter**".
   - ![20](img/setting.svg)- opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Id**.
   - ![20](img/filter.svg) - opens the pop-up, that allows to apply filtering to the table.

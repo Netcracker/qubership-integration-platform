@@ -16,6 +16,8 @@ The table of masking fields consists of the following columns and elements:
 - **Modified By** - name of the user, who last modified the field (hidden by default for <ins>VS Code Extension</ins>).
 - **Modified At** - shows date and time when a field was updated (hidden by default for <ins>VS Code Extension</ins>).
 
+**Control panel**
+
 At the top of the table the following options are available:
 - **Search masked field** - search box, provides ability to find respective data in the table.
 - ![setting](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns.

@@ -24,7 +24,8 @@ The table displays a list of active exchanges, aggregated by session identifier.
 - ![stop](img/stop.svg) - button (located at the extreme right of each row) allows users to terminate live exchange, halting its execution immediately.
 
 
-### Control panel
+**Control panel**
+
 The control panel is positioned at the top right of the table and provides the following capabilities:
 - Placeholder **"exchanges per engine"** - allows the user to adjust the number of exchanges displayed per engine instance.
 - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Session ID**.

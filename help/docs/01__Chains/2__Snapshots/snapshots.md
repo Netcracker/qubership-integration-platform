@@ -23,7 +23,10 @@ There is a **"Snapshots"** tab, available for each particular chain. By navigati
   - ![rollback](img/rollback.svg)**Revert to** - reverts to the selected snapshot version.
   - ![file-text](img/file-text.svg)**Show XML** - opens pop-up with XML definition for the snapshot.
   - ![column-width](img/column-width.svg) **Show Diagram** - opens snapshot sequence diagram.
-- **Control panel** - panel, placed on the top of the table. Provides next capabilities:
+
+**Control panel**
+
+Placed on the top of the table. Provides next capabilities:
   - **Search snapshots** - search box, provides ability to find respective data in the table. To find a particular snapshot use search field at the top of the screen and a lens icon ![search](img/search.svg).
   - ![plus](img/plus.svg) - allows to create new snapshot.
   - ![delete](img/delete.svg) - deletes the snapshot(s), selected via checkbox.

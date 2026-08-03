@@ -33,7 +33,10 @@ Qubership Integration Platform provides view-only window where domain's informat
 - **Desired engines** - count of engines under domain.
 - **Namespace** - K8S namespace.
 - ![20](img/down.svg) - expands/collapses the domain.
-- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - **Search domains** - search box, provides ability to find particular domain(s).
   - ![Table settings icon](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns.
 

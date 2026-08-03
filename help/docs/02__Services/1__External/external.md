@@ -39,7 +39,10 @@ Table with External services is accessible by navigating to **Services** → **E
   - **Expand All** ![column-height](img/column-height.svg) - fully expands the entity.
   - **Collapse All** ![vertical-align-middle](img/vertical-align-middle.svg) - fully collapses the entity.
   - **Export** ![cloud-download](img/cloud-download.svg) - allows to export the entity.
-- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+
+**Control panel** 
+
+At the top of the table the following options are available:
   - **Search field** - search box, provides ability to find respective data in the table.
   - ![filter](img/filter.svg) - opens filter pop-up.
   - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
@@ -96,6 +99,8 @@ Column visibility and order can be adjusted using the ![setting](img/setting.svg
 - **Add Specification** ![plus](img/plus.svg) - allows to add a new specification to the group.
 - **Delete** ![delete](img/delete.svg) - deletes entity.
 
+**Control panel**
+
 In general at the right top the next operation is available only for <ins>Web UI</ins>:
 - ![cloud-download](img/cloud-download.svg) - Export service.
 
@@ -134,6 +139,8 @@ To add new information, click on the button ![setting](img/setting.svg) located 
 - ![stop](img/stop.svg) - deprecates the specification, that makes it unavailable for newly added chain elements.
 - ![cloud-download](img/cloud-download.svg) - exports the specification.
 
+**Control panel**
+
 In general at the right top the following operations are available:
 - ![cloud-upload](img/cloud-upload.svg) - opens pop-up for the specification import.
 - ![cloud-download](img/cloud-download.svg) - exports the specification (available only for <ins>Web UI</ins>).
@@ -149,7 +156,10 @@ identified in the **path** (parameters, mentioned in the **{ }** are ignored). R
 - **Channel** - channel used for queuing, publishing and consuming messages. Only applicable for services using **AMQP** protocol.
 - **Operation** - GraphQL operation definition (without operation type). Only applicable for services using **GraphQL** protocol.
 - **Used by** - list, that contains references to the chains, utilizing this operation.
-- **Control panel** - panel placed on the top of the table. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - ![cloud-download](img/cloud-download.svg) - export specification (available only for <ins>Web UI</ins>).
 
 ### Add External Service

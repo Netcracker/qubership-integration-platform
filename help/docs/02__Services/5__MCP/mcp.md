@@ -26,7 +26,10 @@ Table with MCP services is accessible by navigating to **Services** -> **MCP** t
 - **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu under each service. Contains next operations:
   - **Delete** ![delete](img/delete.svg) - deletes entity.
   - **Export** ![cloud-download](img/cloud-download.svg) - allows to export the entity.
-- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - **Search services** - search box, provides ability to find respective data in the table.
   - ![filter](img/filter.svg) - opens filter pop-up.
   - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.

@@ -66,7 +66,10 @@ After navigation to "Variables" tab, the table with common variables will be ini
 
 - **Key** - non-editable name of the variable.
 - **Value** - editable variable's value. When column is clicked, the same options are available.
-- **Control panel** - panel, placed on the right top. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - **Search variables** - search box, provides ability to find respective data in the table.
   - ![delete](img/delete.svg) - deletes the variable(s), selected via checkbox.
   - ![cloud-download](img/cloud-download.svg) - exports variables, selected via checkbox. If no specific variables were selected before clicking, then system will export all of them at once.

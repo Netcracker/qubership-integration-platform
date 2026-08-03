@@ -19,7 +19,10 @@ To view all templates, available in the system, navigate to "**Admin Tools**" an
   - **Built-in** - template, that comes with the build. Such template can't be removed.
   - **Custom** - custom template, uploaded manually.
 - **Created At** - template creation datetime.
-- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - **Search templates** - search box, provides ability to find respective data in the table.
   - ![delete](img/delete.svg)- deletes selected templates.
   - ![setting](img/setting.svg)- opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
