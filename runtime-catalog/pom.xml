@@ -23,7 +23,7 @@
   </parent>
 
   <properties>
-    <revision>1.0.4-fix-async</revision>
+    <revision>1.0.4</revision>
     <changelist>-SNAPSHOT</changelist>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

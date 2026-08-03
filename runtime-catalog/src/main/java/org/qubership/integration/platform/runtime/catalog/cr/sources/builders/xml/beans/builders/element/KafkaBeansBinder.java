@@ -61,17 +61,6 @@ public class KafkaBeansBinder implements ElementBeansBuilder {
         String maasClassifier = getMaasClassifier(element);
         if (StringUtils.isNotBlank(maasClassifier)) {
             addMaasClassifierInfoBean(streamWriter, element);
-        } else if (!MaasUtils.getMaasParams(element).isEmpty()) {
-            log.warn(
-                    "Kafka element '{}' (id={}, originalId={}) uses MaaS URI placeholders but MaasClassifierInfo "
-                            + "bean will not be generated: classifier name is blank. connectionSourceType={}, "
-                            + "topicsClassifierName={}",
-                    element.getName(),
-                    element.getId(),
-                    element.getOriginalId(),
-                    element.getPropertyAsString(CONNECTION_SOURCE_TYPE_PROP),
-                    element.getPropertyAsString(MAAS_TOPICS_CLASSIFIER_NAME_PROP)
-            );
         }
     }
 

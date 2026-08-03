@@ -93,17 +93,6 @@ public class AmpqBeansBinder implements ElementBeansBuilder {
 
         if (useMaas) {
             addMaasClassifierInfoBean(streamWriter, element);
-        } else if (!MaasUtils.getMaasParams(element).isEmpty()) {
-            log.warn(
-                    "RabbitMQ element '{}' (id={}, originalId={}) uses MaaS URI placeholders but MaasClassifierInfo "
-                            + "bean will not be generated: classifier name is blank. connectionSourceType={}, "
-                            + "vhostClassifierName={}",
-                    element.getName(),
-                    element.getId(),
-                    element.getOriginalId(),
-                    element.getPropertyAsString(CONNECTION_SOURCE_TYPE_PROP),
-                    element.getPropertyAsString(MAAS_VHOST_CLASSIFIER_NAME_PROP)
-            );
         }
     }
 
