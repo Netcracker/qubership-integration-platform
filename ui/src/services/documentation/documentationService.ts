@@ -411,7 +411,7 @@ export class DocumentationService {
       console.log("Documentation mapping rule not found");
     }
     const mappedPath =
-      mappingRule?.doc || `${DOCUMENTATION_ROUTE_BASE}/not-found`;
+      mappingRule?.doc?.replace(".md", "") || `${DOCUMENTATION_ROUTE_BASE}/not-found`;
     console.log("Documentation mapping:", path, "->", mappedPath);
     return mappedPath;
   }
