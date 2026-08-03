@@ -40,6 +40,7 @@ import static org.qubership.integration.platform.engine.configuration.camel.Came
 @Slf4j
 @Component("controlPlaneService")
 @ConditionalOnProperty(value = "qip.control-plane.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "qip.control-plane.mesh-type", havingValue = "Core", matchIfMissing = true)
 public class ControlPlaneDefaultService implements ControlPlaneService {
 
     private static final String CAMEL_ROUTES_REWRITE_PREFIX = CAMEL_ROUTES_PREFIX;

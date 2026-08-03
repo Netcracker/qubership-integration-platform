@@ -1,0 +1,238 @@
+package org.qubership.integration.platform.engine.cloudcore.controlplane;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.qubership.integration.platform.engine.kubernetes.KubeCustomObject;
+import org.qubership.integration.platform.engine.kubernetes.KubeCustomObjectRequest;
+import org.qubership.integration.platform.engine.kubernetes.KubeOperator;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentRouteUpdate;
+import org.qubership.integration.platform.engine.model.deployment.update.RouteType;
+import org.qubership.integration.platform.engine.model.gatewayapi.HTTPBackendRef;
+import org.qubership.integration.platform.engine.model.gatewayapi.HTTPPathMatch;
+import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteMatch;
+import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteRule;
+import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteSpec;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+class IstioRoutesRegistrationServiceTest {
+
+    private static final String NAMESPACE = "qip";
+    private static final String BASE_PATH = "/api/v1";
+    private static final String CLOUD_SERVICE_NAME = "engine-service";
+
+    private KubeOperator kubeOperator;
+    private IstioRoutesRegistrationService service;
+
+    @BeforeEach
+    void setUp() {
+        kubeOperator = mock(KubeOperator.class);
+        service = new IstioRoutesRegistrationService(kubeOperator, new ObjectMapper(), NAMESPACE, BASE_PATH);
+    }
+
+    @Test
+    void postPublicEngineRoutesCreatesCrWhenNoneExists() {
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
+        DeploymentRouteUpdate route = route("/chain-a", RouteType.EXTERNAL_TRIGGER, 5000L);
+
+        service.postPublicEngineRoutes(List.of(route), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
+        verify(kubeOperator, never()).deleteCustomObject(any());
+
+        KubeCustomObjectRequest request = captor.getValue();
+        assertEquals("gateway.networking.k8s.io", request.getGroup());
+        assertEquals("v1", request.getVersion());
+        assertEquals("httproutes", request.getResourceNamePlural());
+        assertEquals(CLOUD_SERVICE_NAME + "-chain-public-routes", request.getBody().getMetadata().getName());
+        assertEquals(NAMESPACE, request.getBody().getMetadata().getNamespace());
+
+        HTTPRouteSpec spec = new ObjectMapper().convertValue(request.getBody().getSpec(), HTTPRouteSpec.class);
+        assertEquals(1, spec.getParentRefs().size());
+        assertEquals("public-gateway", spec.getParentRefs().get(0).getName());
+        assertEquals(1, spec.getRules().size());
+        assertEquals(BASE_PATH + "/chain-a", spec.getRules().get(0).getMatches().get(0).getPath().getValue());
+        assertEquals(CLOUD_SERVICE_NAME, spec.getRules().get(0).getBackendRefs().get(0).getName());
+        assertEquals("5000ms", spec.getRules().get(0).getTimeouts().getRequest());
+    }
+
+    @Test
+    void postPublicEngineRoutesPreservesOtherChainsRules() {
+        HTTPRouteRule otherChainRule = rule("/chain-b", "other-service");
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(otherChainRule))));
+
+        service.postPublicEngineRoutes(List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
+
+        HTTPRouteSpec spec = new ObjectMapper().convertValue(captor.getValue().getBody().getSpec(), HTTPRouteSpec.class);
+        assertEquals(2, spec.getRules().size());
+        List<String> paths = spec.getRules().stream()
+                .map(r -> r.getMatches().get(0).getPath().getValue())
+                .toList();
+        assertTrue(paths.contains(BASE_PATH + "/chain-b"));
+        assertTrue(paths.contains(BASE_PATH + "/chain-a"));
+    }
+
+    @Test
+    void postPublicEngineRoutesReplacesOwnStaleRuleInsteadOfDuplicating() {
+        HTTPRouteRule staleRule = rule("/chain-a", CLOUD_SERVICE_NAME);
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(staleRule))));
+
+        service.postPublicEngineRoutes(List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
+
+        HTTPRouteSpec spec = new ObjectMapper().convertValue(captor.getValue().getBody().getSpec(), HTTPRouteSpec.class);
+        assertEquals(1, spec.getRules().size());
+    }
+
+    @Test
+    void postPublicEngineRoutesWithEmptyListAndOtherChainsPresentDoesNothing() {
+        service.postPublicEngineRoutes(List.of(), CLOUD_SERVICE_NAME);
+
+        verify(kubeOperator, never()).getCustomObject(any());
+        verify(kubeOperator, never()).createOrReplaceCustomObject(any());
+        verify(kubeOperator, never()).deleteCustomObject(any());
+    }
+
+    @Test
+    void postPrivateEngineRoutesTargetsPrivateGatewayAndCr() {
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
+
+        service.postPrivateEngineRoutes(List.of(route("/chain-a", RouteType.PRIVATE_TRIGGER, null)), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
+
+        KubeCustomObjectRequest request = captor.getValue();
+        assertEquals(CLOUD_SERVICE_NAME + "-chain-private-routes", request.getBody().getMetadata().getName());
+
+        HTTPRouteSpec spec = new ObjectMapper().convertValue(request.getBody().getSpec(), HTTPRouteSpec.class);
+        assertEquals("private-gateway", spec.getParentRefs().get(0).getName());
+    }
+
+    @Test
+    void removeEngineRoutesDoesNothingWhenCrDoesNotExist() {
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
+
+        assertDoesNotThrow(() -> service.removeEngineRoutes(
+                List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME));
+
+        verify(kubeOperator, never()).createOrReplaceCustomObject(any());
+        verify(kubeOperator, never()).deleteCustomObject(any());
+    }
+
+    @Test
+    void removeEngineRoutesDeletesCrWhenItBecomesEmpty() {
+        HTTPRouteRule onlyRule = rule("/chain-a", CLOUD_SERVICE_NAME);
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(onlyRule))));
+
+        service.removeEngineRoutes(List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
+
+        verify(kubeOperator).deleteCustomObject(any());
+        verify(kubeOperator, never()).createOrReplaceCustomObject(any());
+    }
+
+    @Test
+    void removeEngineRoutesLeavesOtherChainsRulesInPlace() {
+        HTTPRouteRule ownRule = rule("/chain-a", CLOUD_SERVICE_NAME);
+        HTTPRouteRule otherChainRule = rule("/chain-b", "other-service");
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(ownRule, otherChainRule))));
+
+        service.removeEngineRoutes(List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
+        verify(kubeOperator, never()).deleteCustomObject(any());
+
+        HTTPRouteSpec spec = new ObjectMapper().convertValue(captor.getValue().getBody().getSpec(), HTTPRouteSpec.class);
+        assertEquals(1, spec.getRules().size());
+        assertEquals(BASE_PATH + "/chain-b", spec.getRules().get(0).getMatches().get(0).getPath().getValue());
+    }
+
+    @Test
+    void removeEngineRoutesSplitsByTierUsingGivenType() {
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
+        DeploymentRouteUpdate publicRoute = route("/chain-a", RouteType.EXTERNAL_TRIGGER, null);
+        DeploymentRouteUpdate privateRoute = route("/chain-b", RouteType.PRIVATE_TRIGGER, null);
+
+        service.removeEngineRoutes(List.of(publicRoute, privateRoute), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator, times(2)).getCustomObject(captor.capture());
+        List<String> requestedNames = captor.getAllValues().stream()
+                .map(r -> r.getBody().getMetadata().getName())
+                .toList();
+        assertTrue(requestedNames.contains(CLOUD_SERVICE_NAME + "-chain-public-routes"));
+        assertTrue(requestedNames.contains(CLOUD_SERVICE_NAME + "-chain-private-routes"));
+    }
+
+    @Test
+    void postEgressGatewayRoutesThrowsUnsupportedOperationException() {
+        DeploymentRouteUpdate route = route("http://external/api", RouteType.EXTERNAL_SERVICE, null);
+
+        assertThrows(UnsupportedOperationException.class, () -> service.postEgressGatewayRoutes(route));
+    }
+
+    private DeploymentRouteUpdate route(String path, RouteType type, Long connectTimeout) {
+        DeploymentRouteUpdate.DeploymentRouteUpdateBuilder builder = DeploymentRouteUpdate.builder()
+                .path(path)
+                .type(type);
+        if (connectTimeout != null) {
+            builder.connectTimeout(connectTimeout);
+        }
+        return builder.build();
+    }
+
+    private HTTPRouteRule rule(String path, String backendName) {
+        return HTTPRouteRule.builder()
+                .matches(List.of(HTTPRouteMatch.builder()
+                        .path(HTTPPathMatch.builder()
+                                .type("PathPrefix")
+                                .value(BASE_PATH + path)
+                                .build())
+                        .build()))
+                .filters(List.of())
+                .backendRefs(List.of(HTTPBackendRef.builder()
+                        .group("")
+                        .kind("Service")
+                        .name(backendName)
+                        .port(8080)
+                        .weight(1)
+                        .build()))
+                .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private KubeCustomObject existingCr(List<HTTPRouteRule> rules) {
+        HTTPRouteSpec spec = HTTPRouteSpec.builder()
+                .parentRefs(List.of())
+                .rules(rules)
+                .build();
+        Map<String, Object> specMap = new ObjectMapper().convertValue(spec, Map.class);
+
+        V1ObjectMeta metadata = new V1ObjectMeta();
+        metadata.setName(CLOUD_SERVICE_NAME + "-chain-public-routes");
+        metadata.setNamespace(NAMESPACE);
+
+        return KubeCustomObject.builder()
+                .apiVersion("gateway.networking.k8s.io/v1")
+                .kind("HTTPRoute")
+                .metadata(metadata)
+                .spec(specMap)
+                .build();
+    }
+}

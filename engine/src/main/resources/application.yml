@@ -268,6 +268,7 @@ qip:
       max-size: 3
   control-plane:
     enabled: false
+    mesh-type: ${SERVICE_MESH_TYPE:Core}
   context-service:
     cleanup:
       cron: ${CONTEXT_RECORDS_CLEANUP_CRON:0 0 0 ? * SAT} #  Cleanup task schedule in cron expression format
