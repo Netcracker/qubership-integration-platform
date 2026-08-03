@@ -19,8 +19,7 @@ public class QuartzSchedulerProvider {
         SchedulerFactory schedulerFactory = new StdSchedulerFactory(getSchedulerProperties());
         Scheduler scheduler = schedulerFactory.getScheduler();
         // Without this, beans that require an active RequestScoped context (e.g. security
-        // identity lookups used by context propagation) fail whenever a chain is triggered
-        // by the scheduler instead of an HTTP request. See RequestContextActivatingJobListener.
+        // identity lookups used by context propagation) fail when a chain is triggered by the scheduler
         scheduler.getListenerManager().addJobListener(
                 new RequestContextActivatingJobListener(), EverythingMatcher.allJobs());
         return scheduler;

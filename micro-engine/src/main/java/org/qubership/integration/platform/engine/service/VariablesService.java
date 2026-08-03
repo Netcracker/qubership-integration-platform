@@ -112,12 +112,6 @@ public class VariablesService {
             return null;
         }
 
-        boolean hasReferences = hasVariableReferences(text);
-        if (hasReferences && log.isDebugEnabled()) {
-            log.debug("Resolving variable references (escapeDesignTimeVariables={}) in: {}",
-                    escapeDesignTimeVariables, text);
-        }
-
         lock.readLock().lock();
         try {
             // remove empty properties in components
@@ -138,10 +132,6 @@ public class VariablesService {
 
         } finally {
             lock.readLock().unlock();
-        }
-
-        if (hasReferences && log.isDebugEnabled()) {
-            log.debug("Resolved variable references, result: {}", text);
         }
 
         Matcher matcher = VARIABLE_PATTERN.matcher(text);
