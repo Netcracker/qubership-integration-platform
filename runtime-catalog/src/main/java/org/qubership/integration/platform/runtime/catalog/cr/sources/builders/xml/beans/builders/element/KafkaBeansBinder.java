@@ -10,7 +10,6 @@ import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNa
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
-import org.qubership.integration.platform.runtime.catalog.util.MaasUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
