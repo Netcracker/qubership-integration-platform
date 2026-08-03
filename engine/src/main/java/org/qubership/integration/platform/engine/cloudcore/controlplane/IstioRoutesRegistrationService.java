@@ -3,9 +3,9 @@ package org.qubership.integration.platform.engine.cloudcore.controlplane;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneException;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneService;
-import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
 import org.qubership.integration.platform.engine.kubernetes.KubeCustomObject;
 import org.qubership.integration.platform.engine.kubernetes.KubeCustomObjectRequest;
 import org.qubership.integration.platform.engine.kubernetes.KubeOperator;
@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 
 import static org.qubership.integration.platform.engine.configuration.camel.CamelServletConfiguration.CAMEL_ROUTES_PREFIX;
 
+@Slf4j
 @Component("controlPlaneService")
 @ConditionalOnProperty(value = "qip.control-plane.enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnProperty(name = "qip.control-plane.mesh-type", havingValue = "Istio")
@@ -149,7 +150,10 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
                     .build();
             tierRequest.getBody().setSpec(objectMapper.convertValue(spec, new TypeReference<Map<String, Object>>() {}));
             kubeOperator.createOrReplaceCustomObject(tierRequest);
-        } catch (KubeApiException e) {
+        } catch (ControlPlaneException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to update Istio HTTPRoute for control plane routes: {}", e.getMessage());
             throw new ControlPlaneException("Failed to update Istio HTTPRoute for control plane routes", e);
         }
     }

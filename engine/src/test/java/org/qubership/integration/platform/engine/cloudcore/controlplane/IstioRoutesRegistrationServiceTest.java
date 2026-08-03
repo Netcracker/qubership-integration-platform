@@ -5,6 +5,7 @@ import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.qubership.integration.platform.engine.controlplane.ControlPlaneException;
 import org.qubership.integration.platform.engine.kubernetes.KubeCustomObject;
 import org.qubership.integration.platform.engine.kubernetes.KubeCustomObjectRequest;
 import org.qubership.integration.platform.engine.kubernetes.KubeOperator;
@@ -185,6 +186,23 @@ class IstioRoutesRegistrationServiceTest {
         DeploymentRouteUpdate route = route("http://external/api", RouteType.EXTERNAL_SERVICE, null);
 
         assertThrows(UnsupportedOperationException.class, () -> service.postEgressGatewayRoutes(route));
+    }
+
+    @Test
+    void postPublicEngineRoutesWrapsMalformedExistingRuleAsControlPlaneException() {
+        HTTPRouteRule ruleWithNoMatches = HTTPRouteRule.builder()
+                .matches(List.of())
+                .filters(List.of())
+                .backendRefs(List.of())
+                .build();
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(ruleWithNoMatches))));
+
+        ControlPlaneException exception = assertThrows(ControlPlaneException.class, () ->
+                service.postPublicEngineRoutes(List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME));
+
+        assertInstanceOf(IndexOutOfBoundsException.class, exception.getCause());
+        verify(kubeOperator, never()).createOrReplaceCustomObject(any());
+        verify(kubeOperator, never()).deleteCustomObject(any());
     }
 
     private DeploymentRouteUpdate route(String path, RouteType type, Long connectTimeout) {
