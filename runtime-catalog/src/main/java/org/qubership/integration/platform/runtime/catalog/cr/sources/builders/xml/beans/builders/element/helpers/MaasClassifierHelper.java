@@ -2,12 +2,11 @@ package org.qubership.integration.platform.runtime.catalog.cr.sources.builders.x
 
 import org.codehaus.stax2.XMLStreamWriter2;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
-import org.qubership.integration.platform.runtime.catalog.model.constant.ConnectionSourceType;
-import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
 import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
+import org.qubership.integration.platform.runtime.catalog.util.MaasConnectionSourceUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -47,8 +46,7 @@ public class MaasClassifierHelper {
 
     public String getMaasClassifierForKafkaElement(ChainElement element) {
         String sourceType = element.getPropertyAsString(CamelOptions.CONNECTION_SOURCE_TYPE_PROP);
-        return ConnectionSourceType.MAAS.toString().equals(sourceType)
-                || EnvironmentSourceType.MAAS_BY_CLASSIFIER.toString().equals(sourceType)
+        return MaasConnectionSourceUtils.isMaasOrMaasByClassifierConnectionSource(sourceType)
                 ? Optional.ofNullable(element.getPropertyAsString(CamelOptions.MAAS_TOPICS_CLASSIFIER_NAME_PROP))
                   .orElse("")
                 : "";
@@ -56,8 +54,7 @@ public class MaasClassifierHelper {
 
     public String getMaasClassifierForAmpqElement(ChainElement element) {
         String sourceType = element.getPropertyAsString(CamelOptions.CONNECTION_SOURCE_TYPE_PROP);
-        return ConnectionSourceType.MAAS.toString().equals(sourceType)
-                || EnvironmentSourceType.MAAS_BY_CLASSIFIER.toString().equals(sourceType)
+        return MaasConnectionSourceUtils.isMaasOrMaasByClassifierConnectionSource(sourceType)
                 ? Optional.ofNullable(element.getPropertyAsString(CamelOptions.MAAS_VHOST_CLASSIFIER_NAME_PROP))
                   .orElse(DEFAULT_VHOST_CLASSIFIER_NAME)
                 : "";

@@ -18,7 +18,6 @@ package org.qubership.integration.platform.runtime.catalog.util;
 
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SnapshotCreationException;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
-import org.qubership.integration.platform.runtime.catalog.model.constant.ConnectionSourceType;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.model.system.ServiceEnvironment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -64,12 +63,14 @@ public class MaasUtils {
                             }
                         }
                         case CamelNames.KAFKA_SENDER_2_COMPONENT, CamelNames.KAFKA_TRIGGER_2_COMPONENT -> {
-                            if (ConnectionSourceType.MAAS.toString().equalsIgnoreCase((String) elementProperties.get(CONNECTION_SOURCE_TYPE_PROP))) {
+                            if (MaasConnectionSourceUtils.isMaasConnectionSource(
+                                    (String) elementProperties.get(CONNECTION_SOURCE_TYPE_PROP))) {
                                 return KAFKA_MAAS_PARAM_LIST;
                             }
                         }
                         case CamelNames.RABBITMQ_SENDER_2_COMPONENT, CamelNames.RABBITMQ_TRIGGER_2_COMPONENT  -> {
-                            if (ConnectionSourceType.MAAS.toString().equalsIgnoreCase((String) elementProperties.get(CONNECTION_SOURCE_TYPE_PROP))) {
+                            if (MaasConnectionSourceUtils.isMaasConnectionSource(
+                                    (String) elementProperties.get(CONNECTION_SOURCE_TYPE_PROP))) {
                                 return AMQP_MAAS_PARAM_LIST;
                             }
                         }
