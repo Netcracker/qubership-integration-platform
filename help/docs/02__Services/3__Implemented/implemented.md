@@ -49,7 +49,7 @@ Table with Implemented services is accessible by navigating to **Services** → 
 
 <ins>VS Code Extension</ins>
 
-All services created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
+All services created using VS Code Extension appear under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
 
 ### View Parameters
 Parameters tab contains the following information:
@@ -61,7 +61,7 @@ Parameters tab contains the following information:
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
   **Technical** labels cannot be updated manually.
 
-For <ins>Web UI</ins> there are some additional information:
+For <ins>Web UI</ins> there is some additional information:
 
 - **Created** - datetime of entity creation.
 - **Modified** - datetime of entity modifying.
@@ -104,8 +104,8 @@ In general at the right top the next operation is available only for <ins>Web UI
 When particular specification group name is clicked, the system opens new page with the table of available specifications for clicked group. Next columns and elements are available for the table:
 
 - **Name** - specification name, which is also considered as a version. Specification name **must be unique** inside of
-  API Specification group for any type of service. For **Swagger** and **AsyncAPI** specifications version is retrieving
-  from appropriate _"version"_ parameter in specification file. For **WSDL, GraphQL, Protobuf** specifications -
+  API Specification group for any type of service. For **Swagger** and **AsyncAPI** specifications, version is retrieved
+  from the appropriate _"version"_ parameter in the specification file. For **WSDL, GraphQL, Protobuf** specifications -
   _filename_ will be considered as a specification version.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
@@ -119,7 +119,7 @@ When particular specification group name is clicked, the system opens new page w
 - **Method** - method of the operation, mentioned in the specification (GET, POST, etc.)
 - **URL** - operation path.
 
-To add new information, click on the button ![setting](img/setting.svg) located on the right side. The following field are available:
+To add new information, click on the button ![setting](img/setting.svg) located on the right side. The following fields are available:
 
 - **Protocol** - shows what protocol is used.
 - **Extended Protocol** - shows special rules for the service protocol.
@@ -263,7 +263,7 @@ During the import, system follows next logic:
 - Verify Import Instructions, saved in the system. Proceed with the step below only if they exist:
   - Fetch the list of service IDs with **ignore** action and skip import process for them.
 - Find existing services, specification groups and specification by IDs from import archive:
-  - If there are specifications with IDs already exist in the system, regardless of their parent specification groups and services, system **ignores** them.
+  - If there are specifications with IDs that already exist in the system, regardless of their parent specification groups and services, system **ignores** them.
   - If system already has entities with IDs, specified in import archive:
     - Merge data from archive, including **custom labels**, into existing entities.
     - Technical labels are going to be removed from existing entities if they are updated as a part of import process.

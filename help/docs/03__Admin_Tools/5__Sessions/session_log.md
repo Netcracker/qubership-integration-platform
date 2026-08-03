@@ -48,7 +48,7 @@ Click **Session ID value** in the respective row of sessions table to see the li
 - **Finish Time** - processing end datetime.
 - **Element Type** - type of the element, according to the library of elements.
 
-Only one available actions is to Export session ![Download|20](img/cloud-download.svg).
+The only available action is to Export session ![Download|20](img/cloud-download.svg).
 
 To go back, click "**To Sessions**" button or use "breadcrumb" navigation element.
 

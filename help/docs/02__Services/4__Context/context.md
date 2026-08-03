@@ -36,7 +36,7 @@ Table with **Context** services is accessible by navigating to **Services** → 
 
 <ins>VS Code Extension</ins>
 
-All services created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
+All services created using VS Code Extension appear under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
 
 ### View Parameters
 Parameters tab contains the following information:
@@ -44,7 +44,7 @@ Parameters tab contains the following information:
 - **Description** - description of service.
 - **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
 
-For <ins>Web UI</ins> there are some additional information:
+For <ins>Web UI</ins> there is some additional information:
 
 - **Created** - datetime of entity creation.
 - **Modified** - datetime of entity modifying.

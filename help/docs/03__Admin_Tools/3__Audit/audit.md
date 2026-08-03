@@ -69,7 +69,7 @@ Audit allows tracking most of the actions in UI. Click on the expandable section
 
 </details>
 
-There is a specific **"Audit"** tab available in QIP UI, that could be utilized by user to view the logs.
+A dedicated **"Audit"** tab is available in QIP UI for viewing the logs.
 
 > ℹ️ **Notes:**
 >
