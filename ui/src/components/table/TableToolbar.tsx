@@ -22,6 +22,7 @@ export type TableToolbarSearch = Pick<
 export type TableToolbarProps = {
   variant?: TableToolbarVariant;
   search?: TableToolbarSearch;
+  filterButton?: ReactNode;
   columnSettingsButton?: ReactNode;
   actions?: ReactNode;
   leading?: ReactNode;
@@ -47,6 +48,7 @@ export const TableToolbar: React.FC<TableToolbarProps> = ({
   variant = "default",
   search,
   columnSettingsButton,
+  filterButton,
   actions,
   leading,
   middle,
@@ -56,7 +58,7 @@ export const TableToolbar: React.FC<TableToolbarProps> = ({
   "data-testid": dataTestId,
 }) => {
   const hasLeading = Boolean(leading || middle);
-  const hasActions = Boolean(columnSettingsButton || actions || trailing);
+  const hasActions = Boolean(filterButton || columnSettingsButton || actions || trailing);
 
   return (
     <Flex
@@ -104,6 +106,7 @@ export const TableToolbar: React.FC<TableToolbarProps> = ({
             actionsClassName,
           )}
         >
+          {filterButton}
           {columnSettingsButton}
           {actions}
           {trailing}

@@ -265,13 +265,13 @@ describe("VariablesTable", () => {
   });
 
   it("renders without error when enableKeySort and enableKeyFilter are enabled", () => {
-    renderTable({ enableKeySort: true, enableKeyFilter: true });
+    renderTable({ enableKeySort: true });
     const keyHeaders = screen.getAllByText("Key");
     expect(keyHeaders.length).toBeGreaterThan(0);
   });
 
   it("renders without error when enableValueSort and enableValueFilter are enabled", () => {
-    renderTable({ enableValueSort: true, enableValueFilter: true });
+    renderTable({ enableValueSort: true });
     const valueHeaders = screen.getAllByText("Value");
     expect(valueHeaders.length).toBeGreaterThan(0);
   });

@@ -43,7 +43,12 @@ async function resolveServiceTabTitle(
       if (model?.name) {
         return model.name;
       }
-    } catch {}
+    } catch (error) {
+      console.error(
+        `Unable to get specification: systemId=${route.systemId}, groupId=${route.groupId}`,
+        error,
+      );
+    }
   }
 
   if (route.groupId) {
@@ -53,7 +58,12 @@ async function resolveServiceTabTitle(
       if (group?.name) {
         return group.name;
       }
-    } catch {}
+    } catch (error) {
+      console.error(
+        `Unable to get specification: systemId=${route.systemId}, groupId=${route.groupId}`,
+        error,
+      );
+    }
   }
 
   try {

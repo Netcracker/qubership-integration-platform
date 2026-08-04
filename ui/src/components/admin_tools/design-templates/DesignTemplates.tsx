@@ -2,7 +2,7 @@ import { Flex, Table, Tag } from "antd";
 import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService";
 import commonStyles from "../CommonStyle.module.css";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../../api/api";
 import { DetailedDesignTemplate } from "../../../api/apiTypes";
 import { formatTimestamp } from "../../../misc/format-utils";
@@ -19,6 +19,7 @@ import { tableScroll } from "../../table/tableScroll.ts";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
+import { useDesignTemplatesFilter } from "../../../hooks/filter/useDesignTemplatesFilter.ts";
 
 const DESIGN_TEMPLATES_SELECTION_COLUMN_WIDTH = 48;
 
@@ -41,11 +42,19 @@ export const DesignTemplates: React.FC = () => {
   const [tableData, setTableData] = useState<DetailedDesignTemplate[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const { filterButton, matchFilters } = useDesignTemplatesFilter();
 
   const filteredTableData = useMemo(
     () =>
-      tableData.filter((row) => designTemplateMatchesSearch(row, searchTerm)),
-    [tableData, searchTerm],
+      tableData
+        .filter((row) => designTemplateMatchesSearch(row, searchTerm))
+        .filter((row) =>
+          matchFilters({
+            ...row,
+            typeLabel: row.builtIn ? "Built-in" : "Custom",
+          }),
+        ),
+    [tableData, searchTerm, matchFilters],
   );
 
   const columns: ColumnsTypeWithSettings<DetailedDesignTemplate> = [
@@ -113,6 +122,22 @@ export const DesignTemplates: React.FC = () => {
     setSelectedRowKeys(newSelectedRowKeys);
   };
 
+  const loadTemplates = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const templates: DetailedDesignTemplate[] =
+        await api.getDetailedDesignTemplates(false);
+      setTableData(templates);
+    } catch (error) {
+      notificationService.requestFailed(
+        "Error while loading design templates",
+        error,
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [notificationService]);
+
   const rowSelection: TableRowSelection<DetailedDesignTemplate> = {
     type: "checkbox",
     selectedRowKeys,
@@ -122,7 +147,7 @@ export const DesignTemplates: React.FC = () => {
 
   useEffect(() => {
     void loadTemplates();
-  }, []);
+  }, [loadTemplates]);
 
   const clearSelectedRowKeys = () => {
     setSelectedRowKeys([]);
@@ -142,22 +167,6 @@ export const DesignTemplates: React.FC = () => {
     }
 
     return result;
-  };
-
-  const loadTemplates = async () => {
-    setIsLoading(true);
-    try {
-      const templates: DetailedDesignTemplate[] =
-        await api.getDetailedDesignTemplates(false);
-      setTableData(templates);
-    } catch (error) {
-      notificationService.requestFailed(
-        "Error while loading design templates",
-        error,
-      );
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const handleTemplateCreated = (template: DetailedDesignTemplate) => {
@@ -231,6 +240,7 @@ export const DesignTemplates: React.FC = () => {
               allowClear: true,
             }}
             columnSettingsButton={columnSettingsButton}
+            filterButton={filterButton}
             actions={
               <>
                 <ProtectedButton

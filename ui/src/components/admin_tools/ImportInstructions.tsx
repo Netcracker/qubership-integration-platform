@@ -36,18 +36,7 @@ import {
   formatTimestampShort,
   PLACEHOLDER,
 } from "../../misc/format-utils.ts";
-import {
-  TextColumnFilterDropdown,
-  getTextColumnFilterFn,
-  getTextListColumnFilterFn,
-} from "../table/TextColumnFilterDropdown.tsx";
-import { makeEnumColumnFilterDropdown } from "../EnumColumnFilterDropdown.tsx";
-import {
-  TimestampColumnFilterDropdown,
-  getTimestampColumnFilterFn,
-} from "../table/TimestampColumnFilterDropdown.tsx";
 import { downloadFile } from "../../misc/download-utils.ts";
-import type { FilterDropdownProps } from "antd/lib/table/interface";
 import { EntityLabels } from "../labels/EntityLabels.tsx";
 import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
 import { usePermissions } from "../../permissions/usePermissions.tsx";
@@ -64,18 +53,10 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../table/useColumnSettingsButton.tsx";
+import { useImportInstructionsFilter } from "../../hooks/filter/useImportInstructionsFilter.ts";
 
 const columnSettingsWithTestId = (button: React.ReactNode) => (
   <span data-testid="import-instructions-column-settings">{button}</span>
-);
-
-// Ant Design requires a stable component reference for filterDropdown.
-// Passing an inline function causes the filter popover to reset on every re-render.
-const TextFilterDropdown: React.FC<FilterDropdownProps> = (props) => (
-  <TextColumnFilterDropdown {...props} />
-);
-const TimestampFilterDropdown: React.FC<FilterDropdownProps> = (props) => (
-  <TimestampColumnFilterDropdown {...props} />
 );
 
 type InstructionEntityType = "Chain" | "Service" | "Common Variable";
@@ -208,17 +189,6 @@ const ACTION_OPTIONS_CHAIN = [
 const ACTION_OPTIONS_SERVICE_OR_VAR = [
   { label: "Ignore", value: ImportInstructionAction.IGNORE },
 ];
-
-const ACTION_FILTER_OPTIONS = [
-  { label: "Ignore", value: ImportInstructionAction.IGNORE },
-  { label: "Override", value: ImportInstructionAction.OVERRIDE },
-  { label: "Delete", value: ImportInstructionAction.DELETE },
-];
-
-const { filterDropdown: ACTION_FILTER_DROPDOWN } = makeEnumColumnFilterDropdown<
-  "action",
-  ImportInstructionAction
->(ACTION_FILTER_OPTIONS, "action", true);
 
 type ApiItem = {
   id: string;
@@ -433,10 +403,15 @@ export const ImportInstructions: React.FC = () => {
     );
   }, [permissions]);
 
+  const { filters, filterButton } = useImportInstructionsFilter();
+
   const fetchInstructions = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.getImportInstructions();
+      const data =
+        filters.length > 0
+          ? await api.filterImportInstructions(filters)
+          : await api.getImportInstructions();
       setInstructions(data);
     } catch (err: unknown) {
       notificationService.requestFailed(
@@ -446,7 +421,7 @@ export const ImportInstructions: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [notificationService]);
+  }, [notificationService, filters]);
 
   useEffect(() => {
     void fetchInstructions();
@@ -533,13 +508,6 @@ export const ImportInstructions: React.FC = () => {
           (a.name ?? a.id).localeCompare(b.name ?? b.id, undefined, {
             sensitivity: "base",
           }),
-        filterDropdown: TextFilterDropdown,
-        onFilter: (value: React.Key | boolean, record: InstructionRow) => {
-          if (record.isGroup) return true;
-          return getTextColumnFilterFn<InstructionRow>((r) =>
-            `${r.id} ${r.name ?? ""}`.trim(),
-          )(value, record);
-        },
         render: (_, row) => {
           if (row.isGroup)
             return (
@@ -570,13 +538,6 @@ export const ImportInstructions: React.FC = () => {
           String(a.action).localeCompare(String(b.action), undefined, {
             sensitivity: "base",
           }),
-        filterDropdown: ACTION_FILTER_DROPDOWN,
-        onFilter: (value, record) => {
-          if (record.isGroup) return true;
-          const vals = Array.isArray(value) ? value : [value];
-          if (vals.length === 0) return true;
-          return vals.includes(record.action);
-        },
         render: (_, row) => {
           if (row.isGroup) return "";
           const options =
@@ -644,13 +605,6 @@ export const ImportInstructions: React.FC = () => {
             undefined,
             { sensitivity: "base" },
           ),
-        filterDropdown: TextFilterDropdown,
-        onFilter: (value: React.Key | boolean, record: InstructionRow) => {
-          if (record.isGroup) return true;
-          return getTextColumnFilterFn<InstructionRow>(
-            (r) => r.overriddenById ?? r.overriddenByName ?? "",
-          )(value, record);
-        },
         render: (_, row) => {
           if (row.isGroup) return "";
           const showOverriddenBy =
@@ -695,13 +649,6 @@ export const ImportInstructions: React.FC = () => {
             .localeCompare((b.labels ?? []).join(","), undefined, {
               sensitivity: "base",
             }),
-        filterDropdown: TextFilterDropdown,
-        onFilter: (value: React.Key | boolean, record: InstructionRow) => {
-          if (record.isGroup) return true;
-          return getTextListColumnFilterFn<InstructionRow>(
-            (r) => r.labels ?? [],
-          )(value, record);
-        },
         render: (_, row) => {
           if (row.isGroup) return "";
           return (
@@ -718,13 +665,6 @@ export const ImportInstructions: React.FC = () => {
         title: "Modified At",
         key: "modifiedWhen",
         width: 160,
-        filterDropdown: TimestampFilterDropdown,
-        onFilter: (value: React.Key | boolean, record: InstructionRow) => {
-          if (record.isGroup) return true;
-          return getTimestampColumnFilterFn<InstructionRow>(
-            (r) => r.modifiedWhen ?? 0,
-          )(value, record);
-        },
         render: (_: unknown, row: InstructionRow) => {
           if (row.isGroup) return "";
           const ts = row.modifiedWhen;
@@ -779,6 +719,7 @@ export const ImportInstructions: React.FC = () => {
         placeholder: "Search...",
         allowClear: true,
       }}
+      filterButton={filterButton}
       columnSettingsButton={columnSettingsWithTestId(columnSettingsButton)}
       actions={
         <>

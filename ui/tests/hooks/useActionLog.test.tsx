@@ -55,7 +55,7 @@ describe("useActionLog", () => {
       actionLogs: [makeLog("1", 100)],
     });
 
-    const { result } = renderHook(() => useActionLog(), {
+    const { result } = renderHook(() => useActionLog([]), {
       wrapper: createWrapper(),
     });
 
@@ -75,7 +75,7 @@ describe("useActionLog", () => {
       actionLogs: [makeLog("older", 100), makeLog("newer", 200)],
     });
 
-    const { result } = renderHook(() => useActionLog(), {
+    const { result } = renderHook(() => useActionLog([]), {
       wrapper: createWrapper(),
     });
 
@@ -93,7 +93,7 @@ describe("useActionLog", () => {
       actionLogs: [makeLog("only-one", 100)],
     });
 
-    const { result } = renderHook(() => useActionLog(), {
+    const { result } = renderHook(() => useActionLog([]), {
       wrapper: createWrapper(),
     });
 
@@ -111,7 +111,7 @@ describe("useActionLog", () => {
       actionLogs: fullPage,
     });
 
-    const { result } = renderHook(() => useActionLog(), {
+    const { result } = renderHook(() => useActionLog([]), {
       wrapper: createWrapper(),
     });
 
@@ -165,7 +165,7 @@ describe("useActionLog", () => {
     const error = new Error("catalog unavailable");
     mockLoadCatalogActionsLogV2.mockRejectedValue(error);
 
-    const { result } = renderHook(() => useActionLog(), {
+    const { result } = renderHook(() => useActionLog([]), {
       wrapper: createWrapper(),
     });
 
@@ -185,7 +185,7 @@ describe("useActionLog", () => {
       actionLogs: [makeLog("1", 100)],
     });
 
-    const { result } = renderHook(() => useActionLog(), {
+    const { result } = renderHook(() => useActionLog([]), {
       wrapper: createWrapper(),
     });
 
