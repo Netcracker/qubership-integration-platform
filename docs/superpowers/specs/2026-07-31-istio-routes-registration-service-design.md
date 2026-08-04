@@ -41,12 +41,16 @@ the route's `type` field, flipped or not), `removeEngineRoutes`'s
 implementation never needs to know which caller invoked it or why — it only
 needs to remove each given route from the tier its type indicates.
 
-**Redeploy ordering:** on a chain redeployment, `RemoveRoutesFromControlPlaneAction`
-(stop, on the *old* deployment context) always runs before
-`RegisterRoutesInControlPlaneAction` (register, on the *new* context) — so a
-route dropped entirely from a chain (not moved to another tier, just deleted)
-is already cleared by the stop step before the new registration posts. Neither
-caller needs to separately account for "silently dropped" paths.
+**Redeploy ordering:** on a chain redeployment, `RegisterRoutesInControlPlaneAction`
+(register, on the *new* context) runs before `RemoveRoutesFromControlPlaneAction`
+(stop, on the *old* context), not the reverse. `ChainRouteRegistry` handles the
+resulting overlap: it tracks every currently-registered deployment per chain, and
+a stop action removes only the paths no other registered deployment still claims.
+A route dropped entirely from a chain (not moved to another tier, just deleted) is
+still cleared correctly, since no other deployment claims it either. See
+`docs/superpowers/specs/2026-08-03-chain-route-registry-design.md` and
+`docs/superpowers/specs/2026-08-03-chain-route-registry-multi-registration-design.md`
+for the full mechanism.
 
 ### `endpoint` is not per-chain
 
