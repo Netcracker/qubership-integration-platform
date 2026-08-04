@@ -710,8 +710,15 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         return DeploymentStatus.REMOVED;
     }
 
-    private void stopDeploymentContext(SpringCamelContext context, DeploymentInfo deploymentInfo) {
-        deploymentProcessingService.processStopContext(context, deploymentInfo, null);
+    void stopDeploymentContext(SpringCamelContext context, DeploymentInfo deploymentInfo) {
+        RuntimeException stopActionFailure = null;
+        try {
+            deploymentProcessingService.processStopContext(context, deploymentInfo, null);
+        } catch (RuntimeException e) {
+            log.error("Deployment processing actions on context stop failed for deployment {}: {}",
+                deploymentInfo.getDeploymentId(), e.getMessage(), e);
+            stopActionFailure = e;
+        }
         if (nonNull(context)) {
             quartzSchedulerService.removeSchedulerJobsFromContexts(
                 Collections.singletonList(context));
@@ -719,6 +726,9 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
                 log.debug("Stopping context for deployment: {}", deploymentInfo.getDeploymentId());
                 context.stop();
             }
+        }
+        if (stopActionFailure != null) {
+            throw stopActionFailure;
         }
     }
 
