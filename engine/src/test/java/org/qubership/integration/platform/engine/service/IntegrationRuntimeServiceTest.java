@@ -5,7 +5,6 @@ import org.apache.camel.spring.SpringCamelContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.engine.camel.converters.FormDataConverter;
-import org.qubership.integration.platform.engine.errorhandling.RouteRegistrationException;
 import org.qubership.integration.platform.engine.camel.converters.SecurityAccessPolicyConverter;
 import org.qubership.integration.platform.engine.camel.history.FilteringMessageHistoryFactory.FilteringEntity;
 import org.qubership.integration.platform.engine.cloudcore.maas.MaasService;
@@ -13,6 +12,7 @@ import org.qubership.integration.platform.engine.configuration.ServerConfigurati
 import org.qubership.integration.platform.engine.configuration.TracingConfiguration;
 import org.qubership.integration.platform.engine.consul.DeploymentReadinessService;
 import org.qubership.integration.platform.engine.consul.EngineStateReporter;
+import org.qubership.integration.platform.engine.errorhandling.RouteRegistrationException;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
