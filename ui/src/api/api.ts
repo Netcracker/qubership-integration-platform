@@ -610,6 +610,10 @@ export interface Api {
   // Admin Tools: Import Instructions
   getImportInstructions(): Promise<GeneralImportInstructions>;
 
+  filterImportInstructions(
+    filters: EntityFilterModel[],
+  ): Promise<GeneralImportInstructions>;
+
   addImportInstruction(
     request: ImportInstructionRequest,
   ): Promise<void | ImportInstruction>;

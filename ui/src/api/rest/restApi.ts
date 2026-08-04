@@ -2209,6 +2209,28 @@ export class RestApi implements Api {
     };
   };
 
+  filterImportInstructions = async (
+    filters: EntityFilterModel[],
+  ): Promise<GeneralImportInstructions> => {
+    const catalog = await this.instance.post<GeneralImportInstructions>(
+      `${this.v1()}/catalog/import-instructions/filter`,
+      filters,
+    );
+    return {
+      chains: catalog.data.chains ?? { delete: [], ignore: [], override: [] },
+      services: catalog.data.services ?? { delete: [], ignore: [] },
+      specificationGroups: catalog.data.specificationGroups ?? {
+        delete: [],
+        ignore: [],
+      },
+      specifications: catalog.data.specifications ?? { delete: [], ignore: [] },
+      commonVariables: catalog.data.commonVariables ?? {
+        delete: [],
+        ignore: [],
+      },
+    };
+  };
+
   addImportInstruction = async (
     request: ImportInstructionRequest,
   ): Promise<void | ImportInstruction> => {
