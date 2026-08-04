@@ -178,6 +178,24 @@ function generateIndexes(dest) {
   }
 }
 
+function copyAssets(dest) {
+  const source = path.resolve(
+    process.cwd(),
+    "src/assets/doc/context-doc-mapping.json",
+  );
+
+  if (!fs.existsSync(source)) {
+    console.warn(
+      `[Documentation] Asset not found: ${source}, skipping asset copy`,
+    );
+    return;
+  }
+
+  const target = path.join(dest, "context-doc-mapping.json");
+  fs.copyFileSync(source, target);
+  console.log(`[Documentation] Copied asset to ${target}`);
+}
+
 function main() {
   console.log("[Documentation] Starting documentation fetch...");
 
@@ -202,6 +220,9 @@ function main() {
 
     console.log("[Documentation] Generating indexes...");
     generateIndexes(dest);
+
+    console.log("[Documentation] Copying assets...");
+    copyAssets(dest);
 
     console.log("[Documentation] Done!");
   } catch (error) {
