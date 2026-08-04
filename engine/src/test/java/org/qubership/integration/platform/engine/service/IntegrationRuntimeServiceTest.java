@@ -5,6 +5,7 @@ import org.apache.camel.spring.SpringCamelContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.engine.camel.converters.FormDataConverter;
+import org.qubership.integration.platform.engine.errorhandling.RouteRegistrationException;
 import org.qubership.integration.platform.engine.camel.converters.SecurityAccessPolicyConverter;
 import org.qubership.integration.platform.engine.camel.history.FilteringMessageHistoryFactory.FilteringEntity;
 import org.qubership.integration.platform.engine.cloudcore.maas.MaasService;
@@ -164,5 +165,31 @@ class IntegrationRuntimeServiceTest {
         assertEquals(0, startFailure.getSuppressed().length);
         verify(quartzSchedulerService).commitScheduledJobs();
         verify(deploymentProcessingService).processStopContext(context, deploymentInfo, configuration);
+    }
+
+    @Test
+    void stopSupersededContextLogsAndDoesNotThrowWhenRouteRegistrationExceptionOccurs() {
+        SpringCamelContext context = mock(SpringCamelContext.class);
+        when(context.isRunning()).thenReturn(true);
+        DeploymentInfo deploymentInfo = DeploymentInfo.builder().deploymentId("old").chainId("c1").build();
+        doThrow(new RouteRegistrationException("route removal failed"))
+                .when(deploymentProcessingService).processStopContext(context, deploymentInfo, null);
+
+        assertDoesNotThrow(() -> service.stopSupersededContext(context, deploymentInfo));
+
+        verify(context).stop();
+    }
+
+    @Test
+    void stopSupersededContextRethrowsOtherRuntimeExceptions() {
+        SpringCamelContext context = mock(SpringCamelContext.class);
+        DeploymentInfo deploymentInfo = DeploymentInfo.builder().deploymentId("old").chainId("c1").build();
+        RuntimeException unexpected = new IllegalStateException("boom");
+        doThrow(unexpected).when(deploymentProcessingService).processStopContext(context, deploymentInfo, null);
+
+        RuntimeException thrown = assertThrows(RuntimeException.class,
+                () -> service.stopSupersededContext(context, deploymentInfo));
+
+        assertSame(unexpected, thrown);
     }
 }

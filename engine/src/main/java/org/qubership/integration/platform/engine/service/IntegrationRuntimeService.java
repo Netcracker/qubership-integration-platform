@@ -46,6 +46,7 @@ import org.qubership.integration.platform.engine.consul.DeploymentReadinessServi
 import org.qubership.integration.platform.engine.consul.EngineStateReporter;
 import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
+import org.qubership.integration.platform.engine.errorhandling.RouteRegistrationException;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.events.ConsulSessionCreatedEvent;
 import org.qubership.integration.platform.engine.forms.FormData;
@@ -453,7 +454,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
             throw e;
         }
 
-        contextsToStop.stream().forEach(p -> stopDeploymentContext(p.getRight(), p.getLeft()));
+        contextsToStop.forEach(p -> stopSupersededContext(p.getRight(), p.getLeft()));
 
         quartzSchedulerService.commitScheduledJobs();
         if (log.isDebugEnabled()) {
@@ -728,6 +729,15 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         }
         if (stopActionFailure != null) {
             throw stopActionFailure;
+        }
+    }
+
+    void stopSupersededContext(SpringCamelContext context, DeploymentInfo deploymentInfo) {
+        try {
+            stopDeploymentContext(context, deploymentInfo);
+        } catch (RouteRegistrationException e) {
+            log.error("Failed to remove control plane routes while stopping the superseded deployment {} for chain {}: {}",
+                    deploymentInfo.getDeploymentId(), deploymentInfo.getChainId(), e.getMessage(), e);
         }
     }
 
