@@ -153,23 +153,27 @@ public void execute(
         if (!routesToRemove.isEmpty()) {
             controlPlaneService.removeEngineRoutes(routesToRemove, applicationConfiguration.getDeploymentName());
         }
-        chainRouteRegistry.unregister(chainId, deploymentId);
     } catch (ControlPlaneException e) {
         throw new RouteRegistrationException("Failed to remove control plane routes for chain " + chainId, e);
+    } finally {
+        chainRouteRegistry.unregister(chainId, deploymentId);
     }
 }
 ```
 
 `unregister` runs in a `finally` block, unconditionally — including when `removeEngineRoutes` throws.
 The original design left the entry in place on failure, on the theory that a future retry would
-recompute `getUnsharedRoutes` against still-accurate state; that retry never happens, because
-`RouteRegistrationException` is non-retriable and `stop()` has already removed this deployment's Camel
-context from the cache before this action runs. Leaving the entry in place therefore didn't enable a
-retry — it permanently poisoned the chain, since every later redeploy would see this dead deployment
-still "claiming" its paths and skip removing them. Unregistering unconditionally means a failed removal
-still leaks that one attempt's routes in the control plane (unchanged from today — there is no
-mechanism that retries this specific failure either way), but the chain itself is never poisoned beyond
-that single attempt.
+recompute `getUnsharedRoutes` against still-accurate state. That retry is only opportunistic, not
+guaranteed: a failed STOP leaves the deployment `FAILED` in `IntegrationRuntimeService`'s deployment
+cache, so `buildExcludeDeploymentsMap` keeps reporting it, and `runtime-catalog`'s
+`DeploymentRepository.findDeploymentsToRemove` re-issues the STOP the next time it runs for that
+domain — but nothing forces that to happen soon, or at all, if the domain sees no further activity.
+Leaving the entry in place until then meant a poisoned chain for the whole gap: every redeploy of the
+same chain in the meantime would see the dead deployment still "claiming" its paths and skip removing
+them. Unregistering unconditionally trades that for a bounded leak: a failed removal still leaks that
+one attempt's routes in the control plane until the opportunistic retry eventually clears it (or
+indefinitely, if it never fires), but the chain itself is never poisoned for other redeploys in the
+meantime.
 
 ### 4. `RouteRegistrationException`: fail the deployment instead of mis-retrying it
 
@@ -231,5 +235,5 @@ I-1 without touching the shared retry-queue machinery (`retryProcessingDeploys`,
 - `RemoveRoutesFromControlPlaneActionTest` gets new/updated cases: the C2 and C-1 scenarios directly (two
   registrations sharing a path, removal from either side is a no-op for the shared path but still
   unregisters the caller), a case with a genuinely unshared path (gets removed), and a failed removal
-  throwing `RouteRegistrationException` (not `DeploymentRetriableException`) while leaving the registry
-  entry in place.
+  throwing `RouteRegistrationException` (not `DeploymentRetriableException`) while still unregistering
+  the caller, so a failed removal can't permanently poison the chain for future redeploys.

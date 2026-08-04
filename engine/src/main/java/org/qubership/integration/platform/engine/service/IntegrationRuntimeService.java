@@ -530,7 +530,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         }
 
         contextsToRemove.stream().filter(p -> p.getRight().isRunning())
-            .forEach(p -> stopDeploymentContext(p.getRight(), p.getLeft()));
+            .forEach(p -> stopSupersededContext(p.getRight(), p.getLeft()));
     }
 
     private List<Pair<DeploymentInfo, SpringCamelContext>> getContextsRelatedToDeployment(
@@ -736,7 +736,8 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         try {
             stopDeploymentContext(context, deploymentInfo);
         } catch (RouteRegistrationException e) {
-            log.error("Failed to remove control plane routes while stopping the superseded deployment {} for chain {}: {}",
+            log.error(ErrorCode.UNEXPECTED_DEPLOYMENT_ERROR,
+                    "Failed to remove control plane routes while stopping the superseded deployment {} for chain {}: {}",
                     deploymentInfo.getDeploymentId(), deploymentInfo.getChainId(), e.getMessage(), e);
         }
     }
