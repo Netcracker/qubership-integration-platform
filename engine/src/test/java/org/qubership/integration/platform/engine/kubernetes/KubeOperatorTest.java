@@ -7,6 +7,7 @@ import io.kubernetes.client.openapi.apis.CustomObjectsApi;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.engine.errorhandling.KubeApiConflictException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
 
 import java.util.LinkedHashMap;
@@ -121,13 +122,7 @@ class KubeOperatorTest {
     }
 
     @Test
-    void createOrReplaceCustomObjectCreatesWhenNoResourceVersionExists() throws ApiException {
-        CustomObjectsApi.APIgetNamespacedCustomObjectRequest getRequest =
-                mock(CustomObjectsApi.APIgetNamespacedCustomObjectRequest.class);
-        when(customObjectsApi.getNamespacedCustomObject(GROUP, VERSION, NAMESPACE, PLURAL, NAME))
-                .thenReturn(getRequest);
-        when(getRequest.execute()).thenThrow(new ApiException(404, "Not Found"));
-
+    void createOrReplaceCustomObjectCreatesWhenNoResourceVersionIsSet() throws ApiException {
         CustomObjectsApi.APIcreateNamespacedCustomObjectRequest createRequest =
                 mock(CustomObjectsApi.APIcreateNamespacedCustomObjectRequest.class);
         when(customObjectsApi.createNamespacedCustomObject(eq(GROUP), eq(VERSION), eq(NAMESPACE), eq(PLURAL), any(KubeCustomObject.class)))
@@ -137,24 +132,13 @@ class KubeOperatorTest {
         assertDoesNotThrow(() -> kubeOperator.createOrReplaceCustomObject(request()));
 
         verify(createRequest).execute();
+        verify(customObjectsApi, never()).getNamespacedCustomObject(any(), any(), any(), any(), any());
     }
 
     @Test
-    void createOrReplaceCustomObjectReplacesWhenResourceVersionExists() throws ApiException {
-        Map<String, Object> existingResource = new LinkedHashMap<>();
-        existingResource.put("apiVersion", GROUP + "/" + VERSION);
-        existingResource.put("kind", "HTTPRoute");
-        Map<String, Object> metadata = new LinkedHashMap<>();
-        metadata.put("name", NAME);
-        metadata.put("resourceVersion", "12345");
-        existingResource.put("metadata", metadata);
-        existingResource.put("spec", new LinkedHashMap<>());
-
-        CustomObjectsApi.APIgetNamespacedCustomObjectRequest getRequest =
-                mock(CustomObjectsApi.APIgetNamespacedCustomObjectRequest.class);
-        when(customObjectsApi.getNamespacedCustomObject(GROUP, VERSION, NAMESPACE, PLURAL, NAME))
-                .thenReturn(getRequest);
-        when(getRequest.execute()).thenReturn(existingResource);
+    void createOrReplaceCustomObjectReplacesWhenResourceVersionIsSet() throws ApiException {
+        KubeCustomObjectRequest req = request();
+        req.getBody().getMetadata().setResourceVersion("12345");
 
         CustomObjectsApi.APIreplaceNamespacedCustomObjectRequest replaceRequest =
                 mock(CustomObjectsApi.APIreplaceNamespacedCustomObjectRequest.class);
@@ -163,44 +147,55 @@ class KubeOperatorTest {
                 .thenReturn(replaceRequest);
         when(replaceRequest.execute()).thenReturn(new Object());
 
-        KubeCustomObjectRequest req = request();
         assertDoesNotThrow(() -> kubeOperator.createOrReplaceCustomObject(req));
 
         verify(replaceRequest).execute();
-        assertEquals("12345", req.getBody().getMetadata().getResourceVersion());
+        verify(customObjectsApi, never()).getNamespacedCustomObject(any(), any(), any(), any(), any());
     }
 
     @Test
-    void createOrReplaceCustomObjectThrowsKubeApiExceptionOnCreateFailure() throws ApiException {
-        CustomObjectsApi.APIgetNamespacedCustomObjectRequest getRequest =
-                mock(CustomObjectsApi.APIgetNamespacedCustomObjectRequest.class);
-        when(customObjectsApi.getNamespacedCustomObject(GROUP, VERSION, NAMESPACE, PLURAL, NAME))
-                .thenReturn(getRequest);
-        when(getRequest.execute()).thenThrow(new ApiException(404, "Not Found"));
+    void createOrReplaceCustomObjectThrowsConflictExceptionOn409DuringCreate() throws ApiException {
+        CustomObjectsApi.APIcreateNamespacedCustomObjectRequest createRequest =
+                mock(CustomObjectsApi.APIcreateNamespacedCustomObjectRequest.class);
+        when(customObjectsApi.createNamespacedCustomObject(eq(GROUP), eq(VERSION), eq(NAMESPACE), eq(PLURAL), any(KubeCustomObject.class)))
+                .thenReturn(createRequest);
+        when(createRequest.execute()).thenThrow(new ApiException(409, "AlreadyExists"));
 
+        assertThrows(KubeApiConflictException.class, () -> kubeOperator.createOrReplaceCustomObject(request()));
+    }
+
+    @Test
+    void createOrReplaceCustomObjectThrowsConflictExceptionOn409DuringReplace() throws ApiException {
+        KubeCustomObjectRequest req = request();
+        req.getBody().getMetadata().setResourceVersion("12345");
+
+        CustomObjectsApi.APIreplaceNamespacedCustomObjectRequest replaceRequest =
+                mock(CustomObjectsApi.APIreplaceNamespacedCustomObjectRequest.class);
+        when(customObjectsApi.replaceNamespacedCustomObject(
+                eq(GROUP), eq(VERSION), eq(NAMESPACE), eq(PLURAL), eq(NAME), any(KubeCustomObject.class)))
+                .thenReturn(replaceRequest);
+        when(replaceRequest.execute()).thenThrow(new ApiException(409, "Conflict"));
+
+        assertThrows(KubeApiConflictException.class, () -> kubeOperator.createOrReplaceCustomObject(req));
+    }
+
+    @Test
+    void createOrReplaceCustomObjectThrowsKubeApiExceptionOnOtherCreateFailure() throws ApiException {
         CustomObjectsApi.APIcreateNamespacedCustomObjectRequest createRequest =
                 mock(CustomObjectsApi.APIcreateNamespacedCustomObjectRequest.class);
         when(customObjectsApi.createNamespacedCustomObject(eq(GROUP), eq(VERSION), eq(NAMESPACE), eq(PLURAL), any(KubeCustomObject.class)))
                 .thenReturn(createRequest);
         when(createRequest.execute()).thenThrow(new ApiException(500, "Internal Server Error"));
 
-        assertThrows(KubeApiException.class, () -> kubeOperator.createOrReplaceCustomObject(request()));
+        KubeApiException exception = assertThrows(KubeApiException.class,
+                () -> kubeOperator.createOrReplaceCustomObject(request()));
+        assertFalse(exception instanceof KubeApiConflictException);
     }
 
     @Test
-    void createOrReplaceCustomObjectThrowsKubeApiExceptionOnReplaceFailure() throws ApiException {
-        Map<String, Object> existingResource = new LinkedHashMap<>();
-        existingResource.put("apiVersion", GROUP + "/" + VERSION);
-        Map<String, Object> metadata = new LinkedHashMap<>();
-        metadata.put("name", NAME);
-        metadata.put("resourceVersion", "12345");
-        existingResource.put("metadata", metadata);
-
-        CustomObjectsApi.APIgetNamespacedCustomObjectRequest getRequest =
-                mock(CustomObjectsApi.APIgetNamespacedCustomObjectRequest.class);
-        when(customObjectsApi.getNamespacedCustomObject(GROUP, VERSION, NAMESPACE, PLURAL, NAME))
-                .thenReturn(getRequest);
-        when(getRequest.execute()).thenReturn(existingResource);
+    void createOrReplaceCustomObjectThrowsKubeApiExceptionOnOtherReplaceFailure() throws ApiException {
+        KubeCustomObjectRequest req = request();
+        req.getBody().getMetadata().setResourceVersion("12345");
 
         CustomObjectsApi.APIreplaceNamespacedCustomObjectRequest replaceRequest =
                 mock(CustomObjectsApi.APIreplaceNamespacedCustomObjectRequest.class);
@@ -209,7 +204,9 @@ class KubeOperatorTest {
                 .thenReturn(replaceRequest);
         when(replaceRequest.execute()).thenThrow(new ApiException(500, "Internal Server Error"));
 
-        assertThrows(KubeApiException.class, () -> kubeOperator.createOrReplaceCustomObject(request()));
+        KubeApiException exception = assertThrows(KubeApiException.class,
+                () -> kubeOperator.createOrReplaceCustomObject(req));
+        assertFalse(exception instanceof KubeApiConflictException);
     }
 
     private KubeCustomObjectRequest request() {

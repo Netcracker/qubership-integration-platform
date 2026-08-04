@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneException;
+import org.qubership.integration.platform.engine.errorhandling.KubeApiConflictException;
 import org.qubership.integration.platform.engine.kubernetes.KubeCustomObject;
 import org.qubership.integration.platform.engine.kubernetes.KubeCustomObjectRequest;
 import org.qubership.integration.platform.engine.kubernetes.KubeOperator;
@@ -203,6 +204,56 @@ class IstioRoutesRegistrationServiceTest {
         assertInstanceOf(IndexOutOfBoundsException.class, exception.getCause());
         verify(kubeOperator, never()).createOrReplaceCustomObject(any());
         verify(kubeOperator, never()).deleteCustomObject(any());
+    }
+
+    @Test
+    void postPublicEngineRoutesCarriesTheObservedResourceVersionIntoTheWrite() {
+        KubeCustomObject existing = existingCr(List.of());
+        existing.getMetadata().setResourceVersion("42");
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existing));
+
+        service.postPublicEngineRoutes(List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
+        assertEquals("42", captor.getValue().getBody().getMetadata().getResourceVersion());
+    }
+
+    @Test
+    void postPublicEngineRoutesLeavesResourceVersionNullWhenNoCrExists() {
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
+
+        service.postPublicEngineRoutes(List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
+        assertNull(captor.getValue().getBody().getMetadata().getResourceVersion());
+    }
+
+    @Test
+    void postPublicEngineRoutesRetriesOnceOnConflictThenSucceeds() {
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
+        doThrow(new KubeApiConflictException("conflict"))
+                .doNothing()
+                .when(kubeOperator).createOrReplaceCustomObject(any());
+
+        assertDoesNotThrow(() -> service.postPublicEngineRoutes(
+                List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME));
+
+        verify(kubeOperator, times(2)).getCustomObject(any());
+        verify(kubeOperator, times(2)).createOrReplaceCustomObject(any());
+    }
+
+    @Test
+    void postPublicEngineRoutesGivesUpAfterThreeConflictsAndWrapsAsControlPlaneException() {
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
+        doThrow(new KubeApiConflictException("conflict")).when(kubeOperator).createOrReplaceCustomObject(any());
+
+        assertThrows(ControlPlaneException.class, () -> service.postPublicEngineRoutes(
+                List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME));
+
+        verify(kubeOperator, times(3)).getCustomObject(any());
+        verify(kubeOperator, times(3)).createOrReplaceCustomObject(any());
     }
 
     private DeploymentRouteUpdate route(String path, RouteType type, Long connectTimeout) {

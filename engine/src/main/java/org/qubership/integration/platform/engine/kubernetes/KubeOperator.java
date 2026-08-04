@@ -16,7 +16,6 @@
 
 package org.qubership.integration.platform.engine.kubernetes;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
@@ -27,6 +26,7 @@ import io.kubernetes.client.openapi.models.V1Secret;
 import io.kubernetes.client.openapi.models.V1SecretList;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.engine.errorhandling.KubeApiConflictException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
 
 import java.util.HashMap;
@@ -125,10 +125,9 @@ public class KubeOperator {
     }
 
     public void createOrReplaceCustomObject(KubeCustomObjectRequest request) {
-        String resourceVersion = getCustomObjectResourceVersion(request);
+        String resourceVersion = request.getBody().getMetadata().getResourceVersion();
         try {
             if (resourceVersion != null) {
-                request.getBody().getMetadata().setResourceVersion(resourceVersion);
                 customObjectsApi.replaceNamespacedCustomObject(
                         request.getGroup(),
                         request.getVersion(),
@@ -146,6 +145,14 @@ public class KubeOperator {
                         request.getBody()
                 ).execute();
             }
+        } catch (ApiException e) {
+            if (e.getCode() == 409) {
+                throw new KubeApiConflictException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
+            }
+            if (!isDevmode()) {
+                log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
+            }
+            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
         } catch (Exception e) {
             if (!isDevmode()) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
@@ -208,35 +215,6 @@ public class KubeOperator {
 
     public Boolean isDevmode() {
         return devmode;
-    }
-
-    private String getCustomObjectResourceVersion(KubeCustomObjectRequest request) {
-        try {
-            Object response = customObjectsApi.getNamespacedCustomObject(
-                    request.getGroup(),
-                    request.getVersion(),
-                    getNotNullNamespace(),
-                    request.getResourceNamePlural(),
-                    getNotNullCustomResourceName(request)
-            ).execute();
-
-            JsonNode responseNode = objectMapper.convertValue(response, JsonNode.class);
-            JsonNode resourceVersion = responseNode.path("metadata").path("resourceVersion");
-            return resourceVersion.isMissingNode() || resourceVersion.isNull() ? null : resourceVersion.asText();
-        } catch (ApiException e) {
-            if (e.getCode() == 404) {
-                return null;
-            }
-            if (!isDevmode()) {
-                log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
-            }
-            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
-        } catch (Exception e) {
-            if (!isDevmode()) {
-                log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
-            }
-            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getMessage(), e);
-        }
     }
 
     private String getNotNullNamespace() {

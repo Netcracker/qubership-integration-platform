@@ -6,6 +6,7 @@ import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneException;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneService;
+import org.qubership.integration.platform.engine.errorhandling.KubeApiConflictException;
 import org.qubership.integration.platform.engine.kubernetes.KubeCustomObject;
 import org.qubership.integration.platform.engine.kubernetes.KubeCustomObjectRequest;
 import org.qubership.integration.platform.engine.kubernetes.KubeOperator;
@@ -104,6 +105,8 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
                         + "see docs/superpowers/specs/2026-07-31-istio-routes-registration-service-design.md");
     }
 
+    private static final int MAX_MERGE_ATTEMPTS = 3;
+
     private void mergeTierRoutes(
             KubeCustomObjectRequest tierRequest,
             List<DeploymentRouteUpdate> givenRoutes,
@@ -115,47 +118,71 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
             return;
         }
         try {
-            Optional<KubeCustomObject> current = kubeOperator.getCustomObject(tierRequest);
-            List<HTTPRouteRule> existingRules = current
-                    .map(obj -> objectMapper.convertValue(obj.getSpec(), HTTPRouteSpec.class))
-                    .map(HTTPRouteSpec::getRules)
-                    .filter(Objects::nonNull)
-                    .orElse(List.of());
-
-            Set<String> touchedPaths = givenRoutes.stream()
-                    .map(route -> baseRoutePrefix + route.getPath())
-                    .collect(Collectors.toSet());
-
-            List<HTTPRouteRule> preservedRules = existingRules.stream()
-                    .filter(rule -> !touchedPaths.contains(matchPath(rule)))
-                    .toList();
-
-            List<HTTPRouteRule> newRules = buildRules
-                    ? givenRoutes.stream().map(route -> buildRule(route, backendName)).toList()
-                    : List.of();
-
-            List<HTTPRouteRule> mergedRules = new ArrayList<>(preservedRules);
-            mergedRules.addAll(newRules);
-
-            if (mergedRules.isEmpty()) {
-                if (current.isPresent()) {
-                    kubeOperator.deleteCustomObject(tierRequest);
+            for (int attempt = 1; attempt <= MAX_MERGE_ATTEMPTS; attempt++) {
+                try {
+                    attemptMergeTierRoutes(tierRequest, givenRoutes, gatewayName, backendName, buildRules);
+                    return;
+                } catch (KubeApiConflictException e) {
+                    if (attempt == MAX_MERGE_ATTEMPTS) {
+                        throw e;
+                    }
+                    log.warn("Concurrent update detected for {} on attempt {}/{}, retrying",
+                            tierRequest.getBody().getMetadata().getName(), attempt, MAX_MERGE_ATTEMPTS);
                 }
-                return;
             }
-
-            HTTPRouteSpec spec = HTTPRouteSpec.builder()
-                    .parentRefs(parentRefs(gatewayName))
-                    .rules(mergedRules)
-                    .build();
-            tierRequest.getBody().setSpec(objectMapper.convertValue(spec, new TypeReference<Map<String, Object>>() {}));
-            kubeOperator.createOrReplaceCustomObject(tierRequest);
         } catch (ControlPlaneException e) {
             throw e;
         } catch (Exception e) {
             log.error("Failed to update Istio HTTPRoute for control plane routes: {}", e.getMessage());
             throw new ControlPlaneException("Failed to update Istio HTTPRoute for control plane routes", e);
         }
+    }
+
+    private void attemptMergeTierRoutes(
+            KubeCustomObjectRequest tierRequest,
+            List<DeploymentRouteUpdate> givenRoutes,
+            String gatewayName,
+            String backendName,
+            boolean buildRules
+    ) {
+        Optional<KubeCustomObject> current = kubeOperator.getCustomObject(tierRequest);
+        List<HTTPRouteRule> existingRules = current
+                .map(obj -> objectMapper.convertValue(obj.getSpec(), HTTPRouteSpec.class))
+                .map(HTTPRouteSpec::getRules)
+                .filter(Objects::nonNull)
+                .orElse(List.of());
+
+        Set<String> touchedPaths = givenRoutes.stream()
+                .map(route -> baseRoutePrefix + route.getPath())
+                .collect(Collectors.toSet());
+
+        List<HTTPRouteRule> preservedRules = existingRules.stream()
+                .filter(rule -> !touchedPaths.contains(matchPath(rule)))
+                .toList();
+
+        List<HTTPRouteRule> newRules = buildRules
+                ? givenRoutes.stream().map(route -> buildRule(route, backendName)).toList()
+                : List.of();
+
+        List<HTTPRouteRule> mergedRules = new ArrayList<>(preservedRules);
+        mergedRules.addAll(newRules);
+
+        tierRequest.getBody().getMetadata().setResourceVersion(
+                current.map(obj -> obj.getMetadata().getResourceVersion()).orElse(null));
+
+        if (mergedRules.isEmpty()) {
+            if (current.isPresent()) {
+                kubeOperator.deleteCustomObject(tierRequest);
+            }
+            return;
+        }
+
+        HTTPRouteSpec spec = HTTPRouteSpec.builder()
+                .parentRefs(parentRefs(gatewayName))
+                .rules(mergedRules)
+                .build();
+        tierRequest.getBody().setSpec(objectMapper.convertValue(spec, new TypeReference<Map<String, Object>>() {}));
+        kubeOperator.createOrReplaceCustomObject(tierRequest);
     }
 
     private String matchPath(HTTPRouteRule rule) {
