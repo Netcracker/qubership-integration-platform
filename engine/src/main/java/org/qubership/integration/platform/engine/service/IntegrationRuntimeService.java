@@ -449,8 +449,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         try {
             startContext(context);
         } catch (Exception e) {
-            quartzSchedulerService.commitScheduledJobs();
-            deploymentProcessingService.processStopContext(context, deploymentInfo, configuration);
+            attachStopFailureToStartFailure(e, context, deploymentInfo, configuration);
             throw e;
         }
 
@@ -729,6 +728,20 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         }
         if (stopActionFailure != null) {
             throw stopActionFailure;
+        }
+    }
+
+    void attachStopFailureToStartFailure(
+        Exception startFailure,
+        SpringCamelContext context,
+        DeploymentInfo deploymentInfo,
+        DeploymentConfiguration configuration
+    ) {
+        quartzSchedulerService.commitScheduledJobs();
+        try {
+            deploymentProcessingService.processStopContext(context, deploymentInfo, configuration);
+        } catch (RuntimeException stopFailure) {
+            startFailure.addSuppressed(stopFailure);
         }
     }
 

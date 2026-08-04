@@ -12,6 +12,7 @@ import org.qubership.integration.platform.engine.configuration.ServerConfigurati
 import org.qubership.integration.platform.engine.configuration.TracingConfiguration;
 import org.qubership.integration.platform.engine.consul.DeploymentReadinessService;
 import org.qubership.integration.platform.engine.consul.EngineStateReporter;
+import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
@@ -28,6 +29,7 @@ import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -131,5 +133,36 @@ class IntegrationRuntimeServiceTest {
 
         assertSame(failure, thrown);
         verify(quartzSchedulerService, never()).removeSchedulerJobsFromContexts(any());
+    }
+
+    @Test
+    void attachesStopFailureAsSuppressedAndDoesNotReplaceTheOriginalStartFailure() {
+        SpringCamelContext context = mock(SpringCamelContext.class);
+        DeploymentInfo deploymentInfo = DeploymentInfo.builder().deploymentId("d1").chainId("c1").build();
+        DeploymentConfiguration configuration = DeploymentConfiguration.builder().build();
+        Exception startFailure = new RuntimeException("bad xml");
+        RuntimeException stopFailure = new RuntimeException("route removal failed");
+        doThrow(stopFailure).when(deploymentProcessingService)
+                .processStopContext(context, deploymentInfo, configuration);
+
+        service.attachStopFailureToStartFailure(startFailure, context, deploymentInfo, configuration);
+
+        assertEquals(1, startFailure.getSuppressed().length);
+        assertSame(stopFailure, startFailure.getSuppressed()[0]);
+        verify(quartzSchedulerService).commitScheduledJobs();
+    }
+
+    @Test
+    void doesNotAddASuppressedExceptionWhenStopActionsSucceed() {
+        SpringCamelContext context = mock(SpringCamelContext.class);
+        DeploymentInfo deploymentInfo = DeploymentInfo.builder().deploymentId("d1").chainId("c1").build();
+        DeploymentConfiguration configuration = DeploymentConfiguration.builder().build();
+        Exception startFailure = new RuntimeException("bad xml");
+
+        service.attachStopFailureToStartFailure(startFailure, context, deploymentInfo, configuration);
+
+        assertEquals(0, startFailure.getSuppressed().length);
+        verify(quartzSchedulerService).commitScheduledJobs();
+        verify(deploymentProcessingService).processStopContext(context, deploymentInfo, configuration);
     }
 }
