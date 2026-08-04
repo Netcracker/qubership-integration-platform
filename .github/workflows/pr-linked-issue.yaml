@@ -39,6 +39,8 @@ jobs:
         run: |
           set -euo pipefail
 
+          # GraphQL variables, not shell expansion
+          # shellcheck disable=SC2016
           query_count() {
             gh api graphql \
               -f query='
@@ -105,6 +107,7 @@ jobs:
                 already_referenced=true
                 continue
               fi
+              # shellcheck disable=SC2016
               kind=$(gh api graphql \
                 -f query='
                   query($owner: String!, $repo: String!, $number: Int!) {
