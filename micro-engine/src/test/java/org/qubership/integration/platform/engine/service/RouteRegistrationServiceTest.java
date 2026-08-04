@@ -85,27 +85,6 @@ class RouteRegistrationServiceTest {
     }
 
     @Test
-    void shouldUnregisterOnlyRoutesWithGateway() {
-        RouteRegistrationInfo publicRoute = route("/public", RouteType.EXTERNAL_TRIGGER);
-        RouteRegistrationInfo privateRoute = route("/private", RouteType.PRIVATE_TRIGGER);
-        RouteRegistrationInfo publicPrivateRoute = route("/public-private", RouteType.EXTERNAL_PRIVATE_TRIGGER);
-        RouteRegistrationInfo internalRoute = route("/internal", RouteType.INTERNAL_TRIGGER);
-        when(applicationConfiguration.getCloudServiceName()).thenReturn(ENDPOINT);
-
-        routeRegistrationService.unregisterRoutes(List.of(
-                publicRoute,
-                privateRoute,
-                publicPrivateRoute,
-                internalRoute));
-
-        @SuppressWarnings({"rawtypes", "unchecked"})
-        ArgumentCaptor<List<RouteRegistrationInfo>> routesCaptor = (ArgumentCaptor) ArgumentCaptor.forClass(List.class);
-        verify(controlPlaneService).removeEngineRoutes(routesCaptor.capture(), eq(ENDPOINT));
-
-        assertEquals(List.of(publicRoute, privateRoute, publicPrivateRoute), routesCaptor.getValue());
-    }
-
-    @Test
     void shouldResolveVariablesAndRegisterEgressGatewayRoutes() {
         RouteRegistrationInfo senderRoute = route("http://#{senderHost}/orders", RouteType.EXTERNAL_SENDER)
                 .toBuilder()

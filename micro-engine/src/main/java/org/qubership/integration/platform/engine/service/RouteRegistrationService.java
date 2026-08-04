@@ -70,14 +70,6 @@ public class RouteRegistrationService {
                 .forEach(route -> controlPlaneService.postEgressGatewayRoutes(formatServiceRoutes(route)));
     }
 
-    public void unregisterRoutes(Collection<RouteRegistrationInfo> routes) {
-        controlPlaneService.removeEngineRoutes(
-                routes.stream()
-                        .filter(route -> RouteType.triggerRouteWithGateway(route.getType()))
-                        .toList(),
-                applicationConfiguration.getCloudServiceName());
-    }
-
     // Re-tags a route with the type of the tier(s) it must be purged from, since
     // ControlPlaneService.removeEngineRoutes keys removal off type alone.
     private static Stream<RouteRegistrationInfo> opposingTierRemovals(RouteRegistrationInfo route) {
