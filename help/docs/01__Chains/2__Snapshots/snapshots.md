@@ -23,7 +23,10 @@ There is a **"Snapshots"** tab, available for each particular chain. By navigati
   - ![rollback](img/rollback.svg)**Revert to** - reverts to the selected snapshot version.
   - ![file-text](img/file-text.svg)**Show XML** - opens pop-up with XML definition for the snapshot.
   - ![column-width](img/column-width.svg) **Show Diagram** - opens snapshot sequence diagram.
-- **Control panel** - panel, placed on the top of the table. Provides next capabilities:
+
+**Control panel**
+
+Placed on the top of the table. Provides next capabilities:
   - **Search snapshots** - search box, provides ability to find respective data in the table. To find a particular snapshot use search field at the top of the screen and a lens icon ![search](img/search.svg).
   - ![plus](img/plus.svg) - allows to create new snapshot.
   - ![delete](img/delete.svg) - deletes the snapshot(s), selected via checkbox.
@@ -37,7 +40,7 @@ To create snapshot, click button ![plus](img/plus.svg). If chain graph is valid,
 ### Delete Snapshot
 To delete snapshot(s), mark all suitable rows with ticks in the snapshot table view and click ![delete](img/delete.svg) on control panel or select "**Delete**" option in actions menu for each row.
 
-> ℹ️ **Note**: Besides the UI option for manual deletion, a scheduled task automatically deletes snapshots older that the configured interval *(default is set to 14 days)*. Once deleted, these snapshots cannot be restored.
+> ℹ️ **Note**: Besides the UI option for manual deletion, a scheduled task automatically deletes snapshots older than the configured interval *(default is set to 14 days)*. Once deleted, these snapshots cannot be restored.
 
 
 ### Revert Chain to the Particular Snapshot
@@ -71,7 +74,7 @@ Comparison could be done in three different views, that could be switched anytim
    - **Removed (red)** - the element or dependency does not exist in the compared chain version.
    - **Created (green)** - a new element or dependency exists in the compared chain version.
 
-Clicking the element in one area makes another area also selecting it, allowing to quickly find comparable elements. Double-clicking the element opens another window with text-based comparator, complied on the basis of the element's data.
+Clicking the element in one area makes another area also selecting it, allowing to quickly find comparable elements. Double-clicking the element opens another window with text-based comparator, compiled on the basis of the element's data.
 
 - **Table View** - Select **Table** in the **Graph/Table/Text** switcher to display the comparison results as a table. Each row represents a detected difference. The table contains the following columns:
 

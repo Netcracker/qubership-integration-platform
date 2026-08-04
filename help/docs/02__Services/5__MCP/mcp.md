@@ -26,7 +26,10 @@ Table with MCP services is accessible by navigating to **Services** -> **MCP** t
 - **Actions menu** - list of operations, accessed via ![more](img/more.svg) menu under each service. Contains next operations:
   - **Delete** ![delete](img/delete.svg) - deletes entity.
   - **Export** ![cloud-download](img/cloud-download.svg) - allows to export the entity.
-- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - **Search services** - search box, provides ability to find respective data in the table.
   - ![filter](img/filter.svg) - opens filter pop-up.
   - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
@@ -36,7 +39,7 @@ Table with MCP services is accessible by navigating to **Services** -> **MCP** t
 
 <ins>VS Code Extension</ins>
 
-All services created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
+All services created using VS Code Extension appear under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
 
 ### Add MCP Service
 <ins>Web UI</ins>
@@ -69,7 +72,7 @@ Parameters tab contains the following information:
 - **Identifier** - unique identifier of the MCP service. This identifier is used when selecting MCP services in [MCP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/10__MCP_Trigger/mcp_trigger.md).
 - **Instructions** - Instructions that describe how MCP clients should use this service.
 
-For <ins>Web UI</ins> there are some additional information:
+For <ins>Web UI</ins> there is some additional information:
 
 - **Created** - datetime of entity creation.
 - **Modified** - datetime of entity modifying.

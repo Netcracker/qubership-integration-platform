@@ -39,7 +39,10 @@ Table with External services is accessible by navigating to **Services** → **E
   - **Expand All** ![column-height](img/column-height.svg) - fully expands the entity.
   - **Collapse All** ![vertical-align-middle](img/vertical-align-middle.svg) - fully collapses the entity.
   - **Export** ![cloud-download](img/cloud-download.svg) - allows to export the entity.
-- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - **Search field** - search box, provides ability to find respective data in the table.
   - ![filter](img/filter.svg) - opens filter pop-up.
   - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
@@ -49,7 +52,7 @@ Table with External services is accessible by navigating to **Services** → **E
 
 <ins>VS Code Extension</ins>
 
-All services created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
+All services created using VS Code Extension appear under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
 
 ### View Parameters
 Parameters tab contains the following information:
@@ -61,7 +64,7 @@ Parameters tab contains the following information:
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
   **Technical** labels cannot be updated manually.
 
-For <ins>Web UI</ins> there are some additional information:
+For <ins>Web UI</ins> there is some additional information:
 
 - **Created** - datetime of entity creation.
 - **Modified** - datetime of entity modifying.
@@ -96,6 +99,8 @@ Column visibility and order can be adjusted using the ![setting](img/setting.svg
 - **Add Specification** ![plus](img/plus.svg) - allows to add a new specification to the group.
 - **Delete** ![delete](img/delete.svg) - deletes entity.
 
+**Control panel**
+
 In general at the right top the next operation is available only for <ins>Web UI</ins>:
 - ![cloud-download](img/cloud-download.svg) - Export service.
 
@@ -103,7 +108,7 @@ In general at the right top the next operation is available only for <ins>Web UI
 When particular specification group name is clicked, the system opens new page with the table of available specifications for clicked group. Next columns and elements are available for the table:
 
 - **Name** - specification name, which is also considered as a version. Specification name **must be unique** inside of
-  API Specification group for any type of service. For **Swagger** and **AsyncAPI** specifications version is retrieving
+  API Specification group for any type of service. For **Swagger** and **AsyncAPI** specifications version is retrieved
   from appropriate _"version"_ parameter in specification file. For **WSDL, GraphQL, Protobuf** specifications -
   _filename_ will be considered as a specification version.
 - **Status** - API Specification status. Possible values:
@@ -118,7 +123,7 @@ When particular specification group name is clicked, the system opens new page w
 - **Method** - method of the operation, mentioned in the specification (GET, POST, etc.)
 - **URL** - operation path.
 
-To add new information, click on the button ![setting](img/setting.svg) located on the right side. The following field are available:
+To add new information, click on the button ![setting](img/setting.svg) located on the right side. The following fields are available:
 
 - **Protocol** - shows what protocol is used.
 - **Extended Protocol** - shows special rules for the service protocol.
@@ -133,6 +138,8 @@ To add new information, click on the button ![setting](img/setting.svg) located 
 - ![down](img/down.svg) / ![up](img/up.svg) - expands the specification and shows all operations under it or collapses the specification and hides operations under it.
 - ![stop](img/stop.svg) - deprecates the specification, that makes it unavailable for newly added chain elements.
 - ![cloud-download](img/cloud-download.svg) - exports the specification.
+
+**Control panel**
 
 In general at the right top the following operations are available:
 - ![cloud-upload](img/cloud-upload.svg) - opens pop-up for the specification import.
@@ -149,13 +156,16 @@ identified in the **path** (parameters, mentioned in the **{ }** are ignored). R
 - **Channel** - channel used for queuing, publishing and consuming messages. Only applicable for services using **AMQP** protocol.
 - **Operation** - GraphQL operation definition (without operation type). Only applicable for services using **GraphQL** protocol.
 - **Used by** - list, that contains references to the chains, utilizing this operation.
-- **Control panel** - panel placed on the top of the table. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - ![cloud-download](img/cloud-download.svg) - export specification (available only for <ins>Web UI</ins>).
 
 ### Add External Service
 <ins>Web UI</ins>
 
-To add new external service, click **"Create service"** button marked with ![plus](img/plus.svg)  at the top right of the screen. Specify service name and description on a newly opened pop-up and click "**Create**" button. System opens new window with three tabs:
+To add new external service, click **"Create service"** button marked with ![plus](img/plus.svg) at the top right of the screen. Specify service name and description on a newly opened pop-up and click "**Create**" button. System opens new window with three tabs:
 - **Parameters**
 - **API Specifications**
 - **Environments**
@@ -299,7 +309,7 @@ During the import, system follows next logic:
 - Otherwise, if entities, that are being imported, don't exist, they are going to be created with the next specifics:
   - For all new services system will increment standard UUID, so it is possible to operate with it in order to maintain services uniqueness.
   - For **Swagger** and **AsyncAPI** system will build specification version from "version" parameter in specification file.
-  - For **WSDL**, **GraphQL** and **Protobuf** API specification's, their versions will be generated by autoincrement (1.0.0, 2.0.0, etc.), but it is also possible to manually rename specifications before import.
+  - For **WSDL**, **GraphQL** and **Protobuf** API specifications, their versions will be generated by autoincrement (1.0.0, 2.0.0, etc.), but it is also possible to manually rename specifications before import.
 
 > ⚠️ **Warning:** When importing **grpc** services, it is absolutely required to have protobuf files properly
 > structured within the archive, according to the native logic, described in public

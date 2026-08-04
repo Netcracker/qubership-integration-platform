@@ -21,11 +21,11 @@ Context Storage provides an ability to manage context data through the chain usi
 Depending on selected operation, **additional** parameters will be presented:
 - **Create context**
 
-| Parameter    | Mandatory | Data Type | Description                                                                                                                              | Sample      |
-|--------------|-----------|-----------|------------------------------------------------------------------------------------------------------------------------------------------|-------------|
-| Key          | M         | String    | Mandatory key name to store the context.                                                                                                 | Context Key |
-| Value        | O         | String    | Context value. When blank value is passed and there is a context data already exist for given session id, this data will be cleared out. | Text        |
-| Time to live | M         | Integer   | Time period (in seconds) by which Context is active.<br>**Default value:** 21600<br><br>ℹ️**Note**: Value cannot be less than 1 second.  | 21600       |
+| Parameter    | Mandatory | Data Type | Description                                                                                                                                      | Sample      |
+|--------------|-----------|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------|-------------|
+| Key          | M         | String    | Mandatory key name to store the context.                                                                                                         | Context Key |
+| Value        | O         | String    | Context value. When blank value is passed and there is context data that already exists for the given session id, this data will be cleared out. | Text        |
+| Time to live | M         | Integer   | Time period (in seconds) by which Context is active.<br>**Default value:** 21600<br><br>ℹ️**Note**: Value cannot be less than 1 second.          | 21600       |
 
 > ℹ️ **Note:** Updating any parameter (Key, Value or Lifetime) renews the object’s expiration time, setting it to **`currentTime + lifeTime`**
 

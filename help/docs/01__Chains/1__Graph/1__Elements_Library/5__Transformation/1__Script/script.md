@@ -8,7 +8,7 @@
 
 ---
 ### "Script" Tab
-This tab allows to write transformation script in Groovy programming language for further processing. System displays the code completion popup automatically during the typing.
+This tab allows to write transformation script in Groovy programming language for further processing. System displays the code completion popup automatically while typing.
 
 For example, next code might be utilized to set a new Exchange Body:
 
@@ -16,7 +16,7 @@ For example, next code might be utilized to set a new Exchange Body:
 exchange.getMessage().setBody("Body")
 ```
 
-For the quick navigation in the code block, use search bar, accessed by clicking combination of Ctrl+F. Refer to [Tutorial Page](1__Tutorial_on_the_Apache_Groovy/tutorial_apache_groovy.md) for additional samples and hints.
+For quick navigation in the code block, use search bar, accessed by clicking combination of Ctrl+F. Refer to [Tutorial Page](1__Tutorial_on_the_Apache_Groovy/tutorial_apache_groovy.md) for additional samples and hints.
 
 ### "Parameters" Tab
 | Parameter   | Mandatory | Data Type | Description                                                                                                                         | Sample                  |

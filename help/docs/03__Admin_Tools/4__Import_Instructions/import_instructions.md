@@ -6,7 +6,7 @@
 
 ---
 
-This page allows to manage Import Instructions, that supposed to extend existing import logic. Import Instruction is a configuration, that contains pair of entity and its action during the import. This instructions might be utilized for the following purposes:
+This page allows managing Import Instructions, which are intended to extend the existing import logic. An Import Instruction is a configuration that contains a pair of an entity and its action during import. These instructions can be used for the following purposes:
 
 - Removal of unnecessary entities such as chains, services, specification groups and specifications and common variables.
 - Ignore of specific entities desired to be taken from import process completely.
@@ -31,7 +31,10 @@ After navigation to "Import Instructions" tab, system initially displays a table
 - **Overridden By** - editable value, applicable only for "Override" action. Specifies the ID of the chain that overrides the original chain. When the overriding chain exists in QIP, its name is displayed as a clickable link; clicking it opens the chain's Configuration Graph in a new tab.
 - **Labels** - list of colored **technical labels**, optional populated during import instructions upload via API.
 - **Modified At** - date and time of the last entity modification.
-- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - **Search field** - search box, provides ability to find respective data in the table. To find a particular entity by its id or name, specify criteria in search field and click "**Enter**".
   - ![20](img/setting.svg)- opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Id**.
   - ![20](img/filter.svg) - opens the pop-up, that allows to apply filtering to the table.
@@ -80,7 +83,7 @@ commonVariables:
     - "RETAIL_PARTNER_ID"                                    #variable_name2
 ```
 
-Before further processing system shows confirmation dialog. When operation is confirmed, system performs the next steps:
+Before further processing, the system shows a confirmation dialog. When the operation is confirmed, the system performs the following steps:
 
 - Validate that file corresponds to the following criteria:
   - There are no parameters with empty value.

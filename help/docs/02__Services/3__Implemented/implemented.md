@@ -39,7 +39,10 @@ Table with Implemented services is accessible by navigating to **Services** → 
   - **Expand All** ![column-height](img/column-height.svg) - fully expands the entity.
   - **Collapse All** ![vertical-align-middle](img/vertical-align-middle.svg) - fully collapses the entity.
   - **Export** ![cloud-upload](img/cloud-upload.svg) - allows to export the entity.
-- **Control panel** - panel, placed on top of the table. Provides next capabilities:
+
+**Control panel**
+
+At the top of the table the following options are available:
   - **Search field** - search box, provides ability to find respective data in the table.
   - ![filter](img/filter.svg) - opens filter pop-up.
   - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
@@ -49,7 +52,7 @@ Table with Implemented services is accessible by navigating to **Services** → 
 
 <ins>VS Code Extension</ins>
 
-All services created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
+All services created using VS Code Extension appear under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
 
 ### View Parameters
 Parameters tab contains the following information:
@@ -61,7 +64,7 @@ Parameters tab contains the following information:
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
   **Technical** labels cannot be updated manually.
 
-For <ins>Web UI</ins> there are some additional information:
+For <ins>Web UI</ins> there is some additional information:
 
 - **Created** - datetime of entity creation.
 - **Modified** - datetime of entity modifying.
@@ -96,7 +99,9 @@ Column visibility and order can be adjusted using the ![setting](img/setting.svg
 - **Add Specification** ![plus](img/plus.svg) - allows to add a new specification to the group.
 - **Delete** ![delete](img/delete.svg) - deletes entity.
 
-In general at the right top the next operation is available only for <ins>Web UI</ins>:
+**Control panel**
+
+At the right top the next operation is available only for <ins>Web UI</ins>:
 - ![cloud-download](img/cloud-download.svg) - Export service.
 
 
@@ -104,8 +109,8 @@ In general at the right top the next operation is available only for <ins>Web UI
 When particular specification group name is clicked, the system opens new page with the table of available specifications for clicked group. Next columns and elements are available for the table:
 
 - **Name** - specification name, which is also considered as a version. Specification name **must be unique** inside of
-  API Specification group for any type of service. For **Swagger** and **AsyncAPI** specifications version is retrieving
-  from appropriate _"version"_ parameter in specification file. For **WSDL, GraphQL, Protobuf** specifications -
+  API Specification group for any type of service. For **Swagger** and **AsyncAPI** specifications, version is retrieved
+  from the appropriate _"version"_ parameter in the specification file. For **WSDL, GraphQL, Protobuf** specifications -
   _filename_ will be considered as a specification version.
 - **Status** - API Specification status. Possible values:
   - 🔵 _**New**_ - initial state of API specification, uploaded manually or imported by service discovery.
@@ -119,7 +124,7 @@ When particular specification group name is clicked, the system opens new page w
 - **Method** - method of the operation, mentioned in the specification (GET, POST, etc.)
 - **URL** - operation path.
 
-To add new information, click on the button ![setting](img/setting.svg) located on the right side. The following field are available:
+To add new information, click on the button ![setting](img/setting.svg) located on the right side. The following fields are available:
 
 - **Protocol** - shows what protocol is used.
 - **Extended Protocol** - shows special rules for the service protocol.
@@ -135,7 +140,9 @@ To add new information, click on the button ![setting](img/setting.svg) located 
 - ![stop](img/stop.svg) - deprecates the specification, that makes it unavailable for newly added chain elements.
 - ![cloud-download](img/cloud-download.svg) - exports the specification.
 
-In general at the right top the following operations are available:
+**Control panel**
+
+At the right top the following operations are available:
 - ![cloud-upload](img/cloud-upload.svg) - opens pop-up for the specification import.
 - ![cloud-download](img/cloud-download.svg) - exports the specification (available only for <ins>Web UI</ins>).
 
@@ -151,6 +158,11 @@ When specification is clicked, the system opens new page with the table of avail
 - **Method** - method of the operation, mentioned in the specification (GET, POST, etc.)
 - **URL** - operation path.
 - **Used by** - list, that contains references to the chains, utilizing this operation.
+
+**Control panel**
+
+At the top of the table the following options are available:
+- ![cloud-download](img/cloud-download.svg) - export specification (available only for <ins>Web UI</ins>).
 
 ### Add Implemented Service
 <ins>Web UI</ins>
@@ -177,7 +189,6 @@ To create any service using VS Code Extension, follow the steps outlined below:
 2. In the left bottom find QIP section and expand it.
 3. Near the "Services" folder click on appearing button "QIP Create service".
 4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter some description and click Enter. Next, it opens "Parameters" tab of the created service.
-
 
 ### Add Specification Group
 To add specification group to Implemented service:
@@ -263,7 +274,7 @@ During the import, system follows next logic:
 - Verify Import Instructions, saved in the system. Proceed with the step below only if they exist:
   - Fetch the list of service IDs with **ignore** action and skip import process for them.
 - Find existing services, specification groups and specification by IDs from import archive:
-  - If there are specifications with IDs already exist in the system, regardless of their parent specification groups and services, system **ignores** them.
+  - If there are specifications with IDs that already exist in the system, regardless of their parent specification groups and services, system **ignores** them.
   - If system already has entities with IDs, specified in import archive:
     - Merge data from archive, including **custom labels**, into existing entities.
     - Technical labels are going to be removed from existing entities if they are updated as a part of import process.
