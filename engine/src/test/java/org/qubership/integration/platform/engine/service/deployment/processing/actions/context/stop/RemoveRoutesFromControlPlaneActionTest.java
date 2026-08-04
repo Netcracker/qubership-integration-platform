@@ -6,7 +6,7 @@ import org.qubership.integration.platform.engine.configuration.ApplicationAutoCo
 import org.qubership.integration.platform.engine.controlplane.ChainRouteRegistry;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneException;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneService;
-import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
+import org.qubership.integration.platform.engine.errorhandling.RouteRegistrationException;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentRouteUpdate;
@@ -17,10 +17,10 @@ import org.qubership.integration.platform.engine.service.deployment.processing.a
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -59,7 +59,7 @@ class RemoveRoutesFromControlPlaneActionTest {
     }
 
     @Test
-    void removesRoutesRegisteredByTheSameDeployment() {
+    void removesRoutesRegisteredByTheSameDeploymentWhenNothingElseClaimsThem() {
         List<DeploymentRouteUpdate> routes = List.of(route("/chain-1"));
         chainRouteRegistry.register(CHAIN_ID, DEPLOYMENT_ID_A, routes);
 
@@ -85,39 +85,56 @@ class RemoveRoutesFromControlPlaneActionTest {
     }
 
     @Test
-    void doesNothingWhenANewerDeploymentHasAlreadySupersededThisOne() {
-        // Simulates a redeploy: deployment A's routes get overwritten by deployment B's
-        // registration before A's stop action runs (register-then-stop ordering).
-        // With multi-registration, both A and B are registered; A alone claims /old.
-        chainRouteRegistry.register(CHAIN_ID, DEPLOYMENT_ID_A, List.of(route("/old")));
-        chainRouteRegistry.register(CHAIN_ID, DEPLOYMENT_ID_B, List.of(route("/new")));
+    void redeployOverlapRemovesOnlyThePathsNotClaimedByTheNewerDeploymentAndStillUnregistersTheCaller() {
+        // C2: A's stop runs after B already registered the identical trigger path, plus A has
+        // a path B dropped.
+        DeploymentRouteUpdate shared = route("/shared");
+        DeploymentRouteUpdate dropped = route("/dropped");
+        chainRouteRegistry.register(CHAIN_ID, DEPLOYMENT_ID_A, List.of(shared, dropped));
+        chainRouteRegistry.register(CHAIN_ID, DEPLOYMENT_ID_B, List.of(shared, route("/added")));
 
         removeAction.execute(null, deploymentInfo(DEPLOYMENT_ID_A), null);
 
-        verify(controlPlaneService).removeEngineRoutes(
-                argThat(routes -> routes.size() == 1 && routes.get(0).getPath().equals("/old")),
-                any());
-        assertTrue(!chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_B).isEmpty());
+        verify(controlPlaneService).removeEngineRoutes(List.of(dropped), DEPLOYMENT_NAME);
+        assertTrue(chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A).isEmpty());
+        assertEquals(List.of("/shared", "/added"),
+                chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_B).stream()
+                        .map(DeploymentRouteUpdate::getPath).toList());
     }
 
     @Test
-    void leavesTheRegistryEntryInPlaceWhenRemovalFailsSoARetryCanFindItAgain() {
+    void mirrorSideStartFailureTeardownDoesNotRemoveTheStillRunningOldDeploymentsRoutes() {
+        // C-1: B's own start-failure teardown runs while A is still the running deployment,
+        // and both share the identical trigger path.
+        DeploymentRouteUpdate shared = route("/shared");
+        chainRouteRegistry.register(CHAIN_ID, DEPLOYMENT_ID_A, List.of(shared));
+        chainRouteRegistry.register(CHAIN_ID, DEPLOYMENT_ID_B, List.of(shared));
+
+        removeAction.execute(null, deploymentInfo(DEPLOYMENT_ID_B), null);
+
+        verify(controlPlaneService, never()).removeEngineRoutes(any(), any());
+        assertTrue(chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_B).isEmpty());
+        assertEquals(List.of(shared), chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A));
+    }
+
+    @Test
+    void throwsRouteRegistrationExceptionAndLeavesTheRegistryEntryInPlaceWhenRemovalFails() {
         List<DeploymentRouteUpdate> routes = List.of(route("/chain-1"));
         chainRouteRegistry.register(CHAIN_ID, DEPLOYMENT_ID_A, routes);
         doThrow(new ControlPlaneException("boom"))
                 .when(controlPlaneService).removeEngineRoutes(routes, DEPLOYMENT_NAME);
 
-        assertThrows(DeploymentRetriableException.class, () ->
+        assertThrows(RouteRegistrationException.class, () ->
                 removeAction.execute(null, deploymentInfo(DEPLOYMENT_ID_A), null));
 
-        assertTrue(!chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A).isEmpty());
+        assertEquals(routes, chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A));
     }
 
     @Test
     void endToEndRedeployOrderingDoesNotDeleteTheNewDeploymentsJustRegisteredRoutes() {
-        // Reproduces the real IntegrationRuntimeService.update() ordering: the new
-        // deployment registers first (via the real RegisterRoutesInControlPlaneAction,
-        // sharing this same registry), then the old deployment's stop action runs.
+        // Reproduces the real IntegrationRuntimeService.update() ordering: the new deployment
+        // registers first (via the real RegisterRoutesInControlPlaneAction, sharing this same
+        // registry), then the old deployment's stop action runs.
         VariablesService variablesService = mock(VariablesService.class);
         RegisterRoutesInControlPlaneAction registerAction = new RegisterRoutesInControlPlaneAction(
                 variablesService, controlPlaneService, applicationConfiguration, chainRouteRegistry);
@@ -134,11 +151,12 @@ class RemoveRoutesFromControlPlaneActionTest {
         registerAction.execute(null, deploymentInfo(DEPLOYMENT_ID_B), configuration);
         clearInvocations(controlPlaneService);
 
-        // Now the old deployment A's stop runs, as IntegrationRuntimeService does after
-        // the new context has already started.
+        // Now the old deployment A's stop runs, as IntegrationRuntimeService does after the
+        // new context has already started.
         removeAction.execute(null, deploymentInfo(DEPLOYMENT_ID_A), null);
 
         verify(controlPlaneService, never()).removeEngineRoutes(any(), any());
+        assertTrue(chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A).isEmpty());
     }
 
     private DeploymentInfo deploymentInfo(String deploymentId) {

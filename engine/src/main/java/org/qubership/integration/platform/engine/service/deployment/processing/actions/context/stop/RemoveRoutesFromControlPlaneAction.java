@@ -21,7 +21,7 @@ import org.qubership.integration.platform.engine.configuration.ApplicationAutoCo
 import org.qubership.integration.platform.engine.controlplane.ChainRouteRegistry;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneException;
 import org.qubership.integration.platform.engine.controlplane.ControlPlaneService;
-import org.qubership.integration.platform.engine.errorhandling.DeploymentRetriableException;
+import org.qubership.integration.platform.engine.errorhandling.RouteRegistrationException;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentConfiguration;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentInfo;
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentRouteUpdate;
@@ -56,16 +56,17 @@ public class RemoveRoutesFromControlPlaneAction implements DeploymentProcessingA
         DeploymentInfo deploymentInfo,
         DeploymentConfiguration deploymentConfiguration
     ) {
-        List<DeploymentRouteUpdate> routes = chainRouteRegistry.getUnsharedRoutes(
-            deploymentInfo.getChainId(), deploymentInfo.getDeploymentId());
-        if (routes.isEmpty()) {
-            return;
-        }
+        String chainId = deploymentInfo.getChainId();
+        String deploymentId = deploymentInfo.getDeploymentId();
+
+        List<DeploymentRouteUpdate> routesToRemove = chainRouteRegistry.getUnsharedRoutes(chainId, deploymentId);
         try {
-            controlPlaneService.removeEngineRoutes(routes, applicationConfiguration.getDeploymentName());
-            chainRouteRegistry.unregister(deploymentInfo.getChainId(), deploymentInfo.getDeploymentId());
+            if (!routesToRemove.isEmpty()) {
+                controlPlaneService.removeEngineRoutes(routesToRemove, applicationConfiguration.getDeploymentName());
+            }
+            chainRouteRegistry.unregister(chainId, deploymentId);
         } catch (ControlPlaneException e) {
-            throw new DeploymentRetriableException(e);
+            throw new RouteRegistrationException("Failed to remove control plane routes for chain " + chainId, e);
         }
     }
 }
