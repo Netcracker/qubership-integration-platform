@@ -21,7 +21,9 @@ import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
+import io.kubernetes.client.openapi.models.V1DeleteOptions;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.V1Preconditions;
 import io.kubernetes.client.openapi.models.V1Secret;
 import io.kubernetes.client.openapi.models.V1SecretList;
 import lombok.extern.slf4j.Slf4j;
@@ -189,17 +191,26 @@ public class KubeOperator {
     }
 
     public void deleteCustomObject(KubeCustomObjectRequest request) {
+        String resourceVersion = request.getBody().getMetadata().getResourceVersion();
         try {
-            customObjectsApi.deleteNamespacedCustomObject(
+            CustomObjectsApi.APIdeleteNamespacedCustomObjectRequest deleteRequest = customObjectsApi.deleteNamespacedCustomObject(
                     request.getGroup(),
                     request.getVersion(),
                     getNotNullNamespace(),
                     request.getResourceNamePlural(),
                     getNotNullCustomResourceName(request)
-            ).execute();
+            );
+            if (resourceVersion != null) {
+                deleteRequest.body(new V1DeleteOptions()
+                        .preconditions(new V1Preconditions().resourceVersion(resourceVersion)));
+            }
+            deleteRequest.execute();
         } catch (ApiException e) {
             if (e.getCode() == 404) {
                 return;
+            }
+            if (e.getCode() == 409) {
+                throw new KubeApiConflictException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
             }
             if (!isDevmode()) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());

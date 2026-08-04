@@ -149,6 +149,21 @@ class IstioRoutesRegistrationServiceTest {
     }
 
     @Test
+    void removeEngineRoutesRetriesOnceOnConflictDuringDeleteThenSucceeds() {
+        HTTPRouteRule onlyRule = rule("/chain-a", CLOUD_SERVICE_NAME);
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(onlyRule))));
+        doThrow(new KubeApiConflictException("conflict"))
+                .doNothing()
+                .when(kubeOperator).deleteCustomObject(any());
+
+        assertDoesNotThrow(() -> service.removeEngineRoutes(
+                List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME));
+
+        verify(kubeOperator, times(2)).getCustomObject(any());
+        verify(kubeOperator, times(2)).deleteCustomObject(any());
+    }
+
+    @Test
     void removeEngineRoutesLeavesOtherChainsRulesInPlace() {
         HTTPRouteRule ownRule = rule("/chain-a", CLOUD_SERVICE_NAME);
         HTTPRouteRule otherChainRule = rule("/chain-b", "other-service");

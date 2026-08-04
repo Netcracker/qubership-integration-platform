@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
+import io.kubernetes.client.openapi.models.V1DeleteOptions;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiConflictException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
 
@@ -119,6 +121,39 @@ class KubeOperatorTest {
         when(deleteRequest.execute()).thenThrow(new ApiException(500, "Internal Server Error"));
 
         assertThrows(KubeApiException.class, () -> kubeOperator.deleteCustomObject(request()));
+    }
+
+    @Test
+    void deleteCustomObjectPassesResourceVersionAsPreconditionWhenSet() throws ApiException {
+        KubeCustomObjectRequest req = request();
+        req.getBody().getMetadata().setResourceVersion("12345");
+
+        CustomObjectsApi.APIdeleteNamespacedCustomObjectRequest deleteRequest =
+                mock(CustomObjectsApi.APIdeleteNamespacedCustomObjectRequest.class);
+        when(customObjectsApi.deleteNamespacedCustomObject(GROUP, VERSION, NAMESPACE, PLURAL, NAME))
+                .thenReturn(deleteRequest);
+        when(deleteRequest.execute()).thenReturn(new Object());
+
+        assertDoesNotThrow(() -> kubeOperator.deleteCustomObject(req));
+
+        ArgumentCaptor<V1DeleteOptions> optionsCaptor = ArgumentCaptor.forClass(V1DeleteOptions.class);
+        verify(deleteRequest).body(optionsCaptor.capture());
+        assertEquals("12345", optionsCaptor.getValue().getPreconditions().getResourceVersion());
+        verify(deleteRequest).execute();
+    }
+
+    @Test
+    void deleteCustomObjectThrowsConflictExceptionOn409() throws ApiException {
+        KubeCustomObjectRequest req = request();
+        req.getBody().getMetadata().setResourceVersion("12345");
+
+        CustomObjectsApi.APIdeleteNamespacedCustomObjectRequest deleteRequest =
+                mock(CustomObjectsApi.APIdeleteNamespacedCustomObjectRequest.class);
+        when(customObjectsApi.deleteNamespacedCustomObject(GROUP, VERSION, NAMESPACE, PLURAL, NAME))
+                .thenReturn(deleteRequest);
+        when(deleteRequest.execute()).thenThrow(new ApiException(409, "Conflict"));
+
+        assertThrows(KubeApiConflictException.class, () -> kubeOperator.deleteCustomObject(req));
     }
 
     @Test
