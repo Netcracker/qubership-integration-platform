@@ -64,9 +64,10 @@ public class RemoveRoutesFromControlPlaneAction implements DeploymentProcessingA
             if (!routesToRemove.isEmpty()) {
                 controlPlaneService.removeEngineRoutes(routesToRemove, applicationConfiguration.getDeploymentName());
             }
-            chainRouteRegistry.unregister(chainId, deploymentId);
         } catch (ControlPlaneException e) {
             throw new RouteRegistrationException("Failed to remove control plane routes for chain " + chainId, e);
+        } finally {
+            chainRouteRegistry.unregister(chainId, deploymentId);
         }
     }
 }

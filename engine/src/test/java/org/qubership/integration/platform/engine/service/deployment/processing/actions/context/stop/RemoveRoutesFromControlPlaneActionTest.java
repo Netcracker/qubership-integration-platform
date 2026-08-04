@@ -118,7 +118,7 @@ class RemoveRoutesFromControlPlaneActionTest {
     }
 
     @Test
-    void throwsRouteRegistrationExceptionAndLeavesTheRegistryEntryInPlaceWhenRemovalFails() {
+    void throwsRouteRegistrationExceptionAndUnregistersEvenWhenRemovalFails() {
         List<DeploymentRouteUpdate> routes = List.of(route("/chain-1"));
         chainRouteRegistry.register(CHAIN_ID, DEPLOYMENT_ID_A, routes);
         doThrow(new ControlPlaneException("boom"))
@@ -127,7 +127,7 @@ class RemoveRoutesFromControlPlaneActionTest {
         assertThrows(RouteRegistrationException.class, () ->
                 removeAction.execute(null, deploymentInfo(DEPLOYMENT_ID_A), null));
 
-        assertEquals(routes, chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A));
+        assertTrue(chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A).isEmpty());
     }
 
     @Test

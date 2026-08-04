@@ -160,11 +160,16 @@ public void execute(
 }
 ```
 
-`unregister` still runs only after a needed removal succeeds (or is skipped entirely when
-`routesToRemove` is empty, since there's nothing that can fail) — preserving the original design's
-retry-safety intent: on failure, this deployment's registration entry stays in place, so recomputing
-`getUnsharedRoutes` later (whether via a future manual retry or a subsequent redeploy of the same chain)
-reflects the still-accurate current state rather than a stale snapshot.
+`unregister` runs in a `finally` block, unconditionally — including when `removeEngineRoutes` throws.
+The original design left the entry in place on failure, on the theory that a future retry would
+recompute `getUnsharedRoutes` against still-accurate state; that retry never happens, because
+`RouteRegistrationException` is non-retriable and `stop()` has already removed this deployment's Camel
+context from the cache before this action runs. Leaving the entry in place therefore didn't enable a
+retry — it permanently poisoned the chain, since every later redeploy would see this dead deployment
+still "claiming" its paths and skip removing them. Unregistering unconditionally means a failed removal
+still leaks that one attempt's routes in the control plane (unchanged from today — there is no
+mechanism that retries this specific failure either way), but the chain itself is never poisoned beyond
+that single attempt.
 
 ### 4. `RouteRegistrationException`: fail the deployment instead of mis-retrying it
 
