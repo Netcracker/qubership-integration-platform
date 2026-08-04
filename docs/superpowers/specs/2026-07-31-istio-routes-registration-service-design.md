@@ -252,24 +252,29 @@ This means:
 
 ### 5. Concurrency
 
-`KubeOperator.createOrReplaceCustomObject` does a plain get-resourceVersion-
-then-replace with no retry on a 409 conflict, and the merge operation in §4 is
-itself a read-modify-write. Two chains deploying/undeploying at the same time
-from within the same engine pod could race on the same tier's CR.
-
 `IstioRoutesRegistrationService` synchronizes its three public methods
 (`postPublicEngineRoutes`, `postPrivateEngineRoutes`, `removeEngineRoutes`) on
-a single lock, so only one merge operation runs at a time per instance. This
+a single lock, so only one merge operation runs at a time per pod. This
 serializes every mutating CR call from one pod — including cases where
 `postPublicEngineRoutes` and `postPrivateEngineRoutes` touch different tiers
 and could otherwise run concurrently — which is an acceptable trade-off given
 deploy/undeploy isn't a hot path.
 
-This covers races between chains within one pod. It does **not** cover races
-between multiple replica pods of the same engine deployment writing to the
-same CR name (`cloudServiceName` is shared across replicas, not just within
-one pod) — that's a known residual gap, accepted for this pass rather than
-addressed by cross-pod coordination or conflict-retry.
+Across pods, `mergeTierRoutes` uses Kubernetes' optimistic concurrency
+correctly: it carries the resourceVersion observed by its own read into both
+the write (`KubeOperator.createOrReplaceCustomObject`) and the delete
+(`KubeOperator.deleteCustomObject`). A concurrent write from another replica
+between the read and the write is rejected with an HTTP 409, not silently
+overwritten. `mergeTierRoutes` retries the whole read-merge-write cycle
+against fresh state up to three times on a genuine 409
+(`KubeApiConflictException`). A conflict on the third attempt surfaces as
+`ControlPlaneException`: `RegisterRoutesInControlPlaneAction` retries it via
+`DeploymentRetriableException`, while `RemoveRoutesFromControlPlaneAction`
+fails permanently via `RouteRegistrationException`.
+
+The residual risk is contention under a rolling restart with many replicas:
+each retry round-trips the Kubernetes API, so a busy CR can add latency to a
+deploy or undeploy, but it no longer loses a write.
 
 ### 6. Error handling
 
