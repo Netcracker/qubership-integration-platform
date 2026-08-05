@@ -20,6 +20,8 @@ import java.time.Instant;
 import java.util.*;
 
 import static java.util.Objects.isNull;
+import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.HttpRouteResourceBuilder.PRIVATE_HTTP_ROUTE_CACHE_KEY;
+import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.HttpRouteResourceBuilder.PUBLIC_HTTP_ROUTE_CACHE_KEY;
 import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.SourceConfigMapBuilder.CHAIN_ID_LABEL;
 import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.SourceConfigMapBuilder.SNAPSHOT_ID_LABEL;
 import static org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil.getName;
@@ -133,10 +135,10 @@ public class CustomResourceBuildContextFactory {
             CustomResourceService.IntegrationResources resources
     ) {
         if (resources.publicHttpRoute() != null) {
-            context.getBuildCache().put("publicHttpRoute", resources.publicHttpRoute().getSpec());
+            context.getBuildCache().put(PUBLIC_HTTP_ROUTE_CACHE_KEY, resources.publicHttpRoute().getSpec());
         }
         if (resources.privateHttpRoute() != null) {
-            context.getBuildCache().put("privateHttpRoute", resources.privateHttpRoute().getSpec());
+            context.getBuildCache().put(PRIVATE_HTTP_ROUTE_CACHE_KEY, resources.privateHttpRoute().getSpec());
         }
     }
 
