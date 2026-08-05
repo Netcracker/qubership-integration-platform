@@ -110,7 +110,8 @@ public class SystemController {
     }
 
     @PutMapping(value = "/{systemId}", produces = "application/json")
-    @Operation(description = "Modify specified service")
+    @Operation(description = "Modify specified service."
+            + " Answers 404 if the id is unknown. Use POST /v1/systems to create a service.")
     public ResponseEntity<SystemDTO> updateSystem(@PathVariable @Parameter(description = "Service id") String systemId,
                                                   @RequestBody @Parameter(description = "Service modifying request object") SystemRequestDTO systemDto) {
         log.info("Request to update system {}", systemId);
@@ -131,23 +132,25 @@ public class SystemController {
     }
 
     @PatchMapping(value = "/{systemId}", produces = "application/json")
-    @Operation(description = "Partially update service")
+    @Operation(description = "Partially update service."
+            + " Answers 404 if the id is unknown. Use POST /v1/systems to create a service.")
     public ResponseEntity<SystemDTO> updateSyncStatus(@PathVariable @Parameter(description = "Service id") String systemId,
                                                       @RequestBody @Parameter(description = "Service modifying request object") SystemRequestDTO systemDto) {
         log.info("Request to update system sync status {}", systemId);
         IntegrationSystem system = systemService.getByIdOrNull(systemId);
-        if (system != null) {
-            String name = system.getName();
-            systemMapper.patchMergeWithoutLabels(systemDto, system);
-            systemService.replaceLabels(system, systemMapper.asLabelRequests(systemDto.getLabels()));
-            system = systemService.save(system);
-            if (!system.getName().equals(name)) {
-                systemService.updateSystemModelCompiledLibraryAsync(system);
-            }
-            return ResponseEntity.ok(systemMapper.toDTO(system));
-        } else {
-            return ResponseEntity.badRequest().build();
+        // The second door onto a service, so it answers an unknown id the way PUT does, with a message.
+        if (system == null) {
+            throw new EntityNotFoundException(SYSTEM_WITH_ID_NOT_FOUND + systemId
+                    + ". Create the service with POST /v1/systems. Nothing was updated.");
         }
+        String name = system.getName();
+        systemMapper.patchMergeWithoutLabels(systemDto, system);
+        systemService.replaceLabels(system, systemMapper.asLabelRequests(systemDto.getLabels()));
+        system = systemService.save(system);
+        if (!system.getName().equals(name)) {
+            systemService.updateSystemModelCompiledLibraryAsync(system);
+        }
+        return ResponseEntity.ok(systemMapper.toDTO(system));
     }
 
     @DeleteMapping(value = "/{systemId}")

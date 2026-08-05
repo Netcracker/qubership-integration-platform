@@ -241,6 +241,23 @@ class ExportImportUtilsTest {
     }
 
     /**
+     * The compatibility claim the whole of #553 rests on, asserted: a pre-#553 QIP scanned for {@code .service.} and
+     * the flat prefix only, so it never discovers a post-#553 plain service — such a service is silently absent from
+     * its import result rather than reported as an error. Change a postfix so that it does match and this fails.
+     */
+    @Test
+    void aPre553ScanFindsNoneOfTheNewServiceFileNames(@TempDir Path tempDir) throws IOException {
+        writeServiceFile(tempDir, "svc-a", "svc-a.external-service.qip.yaml");
+        writeServiceFile(tempDir, "svc-b", "svc-b.internal-service.qip.yaml");
+        writeServiceFile(tempDir, "svc-c", "svc-c.implemented-service.qip.yaml");
+
+        List<File> found = ExportImportUtils.extractSystemsFromImportDirectory(
+                tempDir.toAbsolutePath().toString(), SERVICE_YAML_NAME_POSTFIX);
+
+        assertEquals(Collections.emptyList(), found);
+    }
+
+    /**
      * Why discovery takes the postfixes together rather than one at a time: the flat prefix is ORed in on every call,
      * so four single-postfix calls return a legacy-named file four times and the archive imports it four times over.
      */

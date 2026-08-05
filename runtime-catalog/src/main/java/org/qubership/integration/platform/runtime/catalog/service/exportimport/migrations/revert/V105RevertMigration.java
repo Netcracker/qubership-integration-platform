@@ -65,10 +65,11 @@ public class V105RevertMigration implements RevertMigration {
 
     @Override
     public ObjectNode revert(ObjectNode node) {
-        ObjectNode result = node.deepCopy();
-        if (!(result.get(CONTENT) instanceof ObjectNode content)) {
-            return result;
+        if (!(node.get(CONTENT) instanceof ObjectNode)) {
+            return node;
         }
+        ObjectNode result = node.deepCopy();
+        ObjectNode content = (ObjectNode) result.get(CONTENT);
         typeFromSchema(result).ifPresent(type -> {
             content.put(INTEGRATION_SYSTEM_TYPE, type.name());
             result.set(SCHEMA, TextNode.valueOf(serviceSchemaUri));

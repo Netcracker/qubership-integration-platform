@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.model.dto.system.EnvironmentDTO;
@@ -28,6 +29,7 @@ import org.qubership.integration.platform.runtime.catalog.model.system.Environme
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentService;
+import org.qubership.integration.platform.runtime.catalog.service.SystemBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -89,7 +91,12 @@ public class EnvironmentController {
         }
         Environment environment = environmentMapper.toEnvironment(environmentRequestDTO);
         IntegrationSystem system = systemService.getByIdOrNull(systemId);
-        systemService.validateEnvironmentCount(system, system.getEnvironments().size() + 1);
+        // An unknown id used to reach the next line and answer 500. PUT /v1/systems/{id} reports the same case as 404.
+        if (system == null) {
+            throw new EntityNotFoundException("Can't find system with id: " + systemId
+                    + ". Create the service with POST /v1/systems. No environment was created.");
+        }
+        SystemBaseService.validateEnvironmentCount(system, system.getEnvironments().size() + 1);
         environment = environmentService.create(environment, system);
         return new ResponseEntity<>(environmentMapper.toDTO(environment), HttpStatus.CREATED);
     }

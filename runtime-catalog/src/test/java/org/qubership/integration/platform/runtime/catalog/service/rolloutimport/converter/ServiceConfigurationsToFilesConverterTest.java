@@ -7,7 +7,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationItem;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiOperationDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.V103ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.V104ServiceImportFileMigration;
@@ -57,6 +61,39 @@ class ServiceConfigurationsToFilesConverterTest {
         Path expected = Path.of(SERVICE_ID).resolve(SERVICE_ID + ".service." + APP_PREFIX + ".yaml");
 
         Map<Path, byte[]> result = converter.convert(services, emptyConfigMap(), emptyConfigMap(), emptyConfigMap(), emptyResourceMap());
+
+        assertThat(result).containsKey(expected);
+    }
+
+    /**
+     * A package built after #553 carries no {@code content.integrationSystemType}, so a plain {@code .service.} name
+     * would leave the importer with no type to resolve. The file name has to state it instead.
+     */
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    @DisplayName("A service stating its type is written under the per-type file name")
+    void serviceStatingItsTypeIsWrittenUnderThePerTypeFileName(IntegrationSystemType type)
+            throws JsonProcessingException {
+        ObjectNode content = objectMapper.createObjectNode().put("integrationSystemType", type.name());
+        Map<String, RolloutImportConfigurationItem> services = Map.of(SERVICE_ID, item(SERVICE_ID, content));
+        Path expected = Path.of(SERVICE_ID)
+                .resolve(SERVICE_ID + ServiceTypeFiles.postfix(type) + APP_PREFIX + ".yaml");
+
+        Map<Path, byte[]> result = converter.convert(
+                services, emptyConfigMap(), emptyConfigMap(), emptyConfigMap(), emptyResourceMap());
+
+        assertThat(result).containsKey(expected);
+    }
+
+    @Test
+    @DisplayName("A service stating an unknown type keeps the plain service file name")
+    void serviceStatingAnUnknownTypeKeepsThePlainName() throws JsonProcessingException {
+        ObjectNode content = objectMapper.createObjectNode().put("integrationSystemType", "NOT_A_TYPE");
+        Map<String, RolloutImportConfigurationItem> services = Map.of(SERVICE_ID, item(SERVICE_ID, content));
+        Path expected = Path.of(SERVICE_ID).resolve(SERVICE_ID + ".service." + APP_PREFIX + ".yaml");
+
+        Map<Path, byte[]> result = converter.convert(
+                services, emptyConfigMap(), emptyConfigMap(), emptyConfigMap(), emptyResourceMap());
 
         assertThat(result).containsKey(expected);
     }

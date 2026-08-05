@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 
+import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,7 +15,6 @@ import org.qubership.integration.platform.runtime.catalog.model.system.Integrati
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentService;
-import org.qubership.integration.platform.runtime.catalog.service.SystemBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -27,8 +27,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -49,12 +47,6 @@ class EnvironmentControllerTest {
     @BeforeEach
     void setUp() {
         controller = new EnvironmentController(environmentService, environmentMapper, systemService);
-        // Run the real limit rule rather than a stub, so the controller is tested against the rule it shares.
-        SystemBaseService validator = new SystemBaseService(null, null, null);
-        lenient().doAnswer(invocation -> {
-            validator.validateEnvironmentCount(invocation.getArgument(0), invocation.getArgument(1));
-            return null;
-        }).when(systemService).validateEnvironmentCount(any(), anyInt());
     }
 
     @Test
@@ -140,7 +132,20 @@ class EnvironmentControllerTest {
 
         assertThat(response.getStatusCode(), equalTo(HttpStatus.OK));
         verify(environmentService).update(existing);
-        verify(systemService, never()).validateEnvironmentCount(any(), anyInt());
+        verify(systemService, never()).getByIdOrNull(any());
+    }
+
+    /** The unknown id used to reach a dereference and answer 500; PUT /v1/systems/{id} reports it as 404. */
+    @Test
+    @DisplayName("creating an environment for an unknown service id is reported, not dereferenced")
+    void unknownServiceIdIsReported() {
+        when(systemService.getByIdOrNull(SYSTEM_ID)).thenReturn(null);
+
+        EntityNotFoundException exception = assertThrows(EntityNotFoundException.class,
+                () -> controller.createEnvironment(SYSTEM_ID, new EnvironmentRequestDTO()));
+
+        assertThat(exception.getMessage(), containsString(SYSTEM_ID));
+        verify(environmentService, never()).create(any(), any());
     }
 
     private Environment acceptEnvironmentCreation() {

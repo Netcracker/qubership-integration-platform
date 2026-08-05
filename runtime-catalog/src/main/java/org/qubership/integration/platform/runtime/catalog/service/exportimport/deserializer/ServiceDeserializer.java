@@ -67,7 +67,6 @@ public class ServiceDeserializer {
     private final FileMigrationService fileMigrationService;
     private final Collection<ServiceImportFileMigration> importFileMigrations;
     private final OperationSchemaExtractor operationSchemaExtractor;
-    private final ServiceTypeFiles serviceTypeFiles;
 
     @Value("${app.prefix}")
     private String appName;
@@ -81,8 +80,7 @@ public class ServiceDeserializer {
             SystemModelDtoMapper systemModelDtoMapper,
             FileMigrationService fileMigrationService,
             Collection<ServiceImportFileMigration> importFileMigrations,
-            OperationSchemaExtractor operationSchemaExtractor,
-            ServiceTypeFiles serviceTypeFiles
+            OperationSchemaExtractor operationSchemaExtractor
     ) {
         this.yamlMapper = yamlExportImportMapper;
         this.versionsGetterService = versionsGetterService;
@@ -92,7 +90,6 @@ public class ServiceDeserializer {
         this.fileMigrationService = fileMigrationService;
         this.importFileMigrations = importFileMigrations;
         this.operationSchemaExtractor = operationSchemaExtractor;
-        this.serviceTypeFiles = serviceTypeFiles;
     }
 
     public IntegrationSystem deserializeSystem(File serviceFile) {
@@ -154,10 +151,13 @@ public class ServiceDeserializer {
      *
      * <p>A type missing from both sources fails the import instead of persisting a null. The column is nullable, and a
      * null surfaces much later as an NPE in {@code EntityType.getSystemType}.
+     *
+     * <p>Public because the import preview runs the same rule over the same file: a document the commit path will
+     * refuse has to be reported as an error row before the user commits, not after.
      */
-    private void resolveServiceType(IntegrationSystem system, File serviceFile) {
+    public void resolveServiceType(IntegrationSystem system, File serviceFile) {
         String fileName = serviceFile.getName();
-        IntegrationSystemType fromFileName = serviceTypeFiles.typeFromFileName(fileName).orElse(null);
+        IntegrationSystemType fromFileName = ServiceTypeFiles.typeFromFileName(fileName).orElse(null);
         IntegrationSystemType fromDocument = system.getIntegrationSystemType();
 
         if (fromFileName == null && fromDocument == null) {

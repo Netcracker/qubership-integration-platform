@@ -121,8 +121,9 @@ Facts that shaped the design, established across two review rounds:
 
 Dependencies identified:
 
-- The frontends (plan 2, `20260805-service-type-frontends.md`) depend on the migration version this plan introduces
-  (105) and on the file postfixes it defines. **Plan 1 must merge before plan 2 starts.**
+- The frontends (plan 2 — the UI and the VS Code extension, planned separately and not committed alongside this file)
+  depend on the migration version this plan introduces (105) and on the file postfixes it defines. **Plan 1 must merge
+  before plan 2 starts.**
 
 ## Development Approach
 
@@ -425,7 +426,9 @@ call: `allowedProtocols()` is on the specification-import path, and the sets are
 
 [decision] the shared check lives in `SystemBaseService.validateEnvironmentCount(system, count)`, next to the existing
 `validateSpecificationProtocol` — the same per-type validation shape, and both call sites already hold a `SystemService`,
-so no new bean or injection. It takes the count the service *would* end up with, because the REST create path checks
+so no new bean or injection. **Revised in review: the method is `static`.** It reads none of the service's fields, and
+routing a pure rule through an injected bean made two test classes build a `SystemBaseService(null, null, null)` and
+delegate a Mockito stub back to it just to exercise the real rule. It takes the count the service *would* end up with, because the REST create path checks
 `existing + 1` while the import paths check the count the file carries.
 
 [decision] a null type skips the check rather than raising. Today `IntegrationSystemType.INTERNAL.equals(null)` is false
@@ -503,6 +506,10 @@ current-format pre-#553 `.service.` name, which is a separate resolution source 
 build the deserializer by hand (`V103RevertMigrationTest`, `V104RevertMigrationTest`, `V104ServiceImportFileMigrationTest`)
 pass `new ServiceTypeFiles(new ApplicationJsonSchemaProperties())` — the class-field defaults Task 5 added make that
 instance equivalent to the wired one.
+
+**Revised in review.** `typeFromFileName` reads only the static postfix map, so it is now `static` and the injection is
+gone: `ServiceDeserializer` lost its ninth constructor parameter and the four hand-wired test sites lost their
+`new ServiceTypeFiles(...)`. Only the schema URIs come from configuration, and only the revert migration reads them.
 
 ### Task 7: Add V105 as a compatibility barrier
 
@@ -660,6 +667,14 @@ services call them unchanged, and one implementation cannot drift from the other
 service. It runs before the per-file loop, so no service has been written yet, and answering 400 with the id and both
 file names is the only outcome the caller can act on. `getSystemsImportPreview:251` needed a `catch (BadRequestException)`
 rethrow so its blanket `catch (Exception)` does not bury the message in "Error while extracting systems".
+
+**Revised in review.** "No service has been written yet" holds for services and not for the session:
+`GeneralImportService.importDirectoryAsync` applies import instructions and common variables *before*
+`importSystems`, and runs chains, context services, and MCP services *after*, so the throw ended the session with part
+of it already committed — while the message said "Nothing is imported from this archive." The colliding id now
+degrades to one error row (`SystemCompareAction.ERROR` on the preview, `ImportSystemStatus.ERROR` on the commit) and
+the rest of the archive imports, which is how every other per-service failure on this path behaves. The
+`catch (BadRequestException)` rethrow went with it.
 
 [decision] `ServiceDeserializerTest.writeService` now defaults to the current per-type name (`.external-service.`), with
 `writePre553Service` for the two cases that need a file stating no type of its own. Every other case in that suite states
@@ -865,6 +880,28 @@ maxEnvironments`, `EntityType.getSystemType:56-62`, the three schema `$id`s and 
 
 *Items requiring manual intervention or external systems — no checkboxes, informational only*
 
+**Breaking changes — copy into the release note for this drop.**
+
+The 14 commits of this plan carry no `BREAKING CHANGE:` footer, and their history is published, so it is not rewritten.
+This is the single place the release process reads them from:
+
+1. **An archive exported by this version does not import into a pre-#553 Runtime Catalog.** A plain service is written
+   as `<id>.external-service.<app>.yaml` / `.internal-service.` / `.implemented-service.`, and the older discovery
+   matches only `service-` and `.service.` — so plain services are *silently absent* from its import result, with no
+   error row. A context service in the same archive *is* reported, as `ImportSystemStatus.ERROR`, because it claims
+   format version 105. Workaround: export with `QIP_EXPORT_LEGACY_FORMAT=true`.
+2. **`PUT /v1/systems/{id}` answers 404 for an unknown id** instead of creating the service under a caller-chosen type.
+   `PATCH /v1/systems/{id}` does the same, where it used to answer a bodiless 400. Create services with
+   `POST /v1/systems`.
+3. **An IMPLEMENTED or INTERNAL service is limited to one environment on every path.** The limit was previously
+   enforced for INTERNAL only, and only on import-update and REST-create. It now also covers import-create,
+   IMPLEMENTED, and `POST /v1/systems/{id}/environments`; a `PUT` of an unknown environment id against a full service
+   falls through to create and is therefore rejected too. Existing data may violate the limit — check for IMPLEMENTED
+   services carrying more than one environment before upgrading.
+4. **An archive holding two service files for one service id imports neither of them.** That id is reported with
+   `ImportSystemStatus.ERROR` (or `SystemCompareAction.ERROR` on the preview); the rest of the archive still imports.
+   An archive can acquire such a pair when a service changes type, since each type writes its own file name.
+
 **Manual verification:**
 
 - Export a service of each type from the local stack; confirm the file name, `$schema`, and absent type field.
@@ -883,14 +920,18 @@ maxEnvironments`, `EntityType.getSystemType:56-62`, the three schema `$id`s and 
 
 **Deferred, deliberately out of scope:**
 
-- The rollout-import converter (`ServiceConfigurationsToFilesConverter`) keeps writing `.service.` file names. Its
-  input comes from stored entity content, which still carries the type, so Task 6's second resolution source handles
-  it. Renaming those files would be cosmetic.
+- ~~The rollout-import converter (`ServiceConfigurationsToFilesConverter`) keeps writing `.service.` file names.~~
+  **Closed in review.** It was not cosmetic: a package authored after #553 carries no `content.integrationSystemType`,
+  so a `.service.` name left the importer with nothing to resolve the type from. The converter now derives the per-type
+  postfix from `content.integrationSystemType` when the package states one, and `ImportConfigFactory` was taught the
+  three per-type `$schema` URIs — without that, such an item fell through every branch of the classifier and was
+  dropped in silence.
 
 **External system updates:**
 
-- **Plan 2** (`20260805-service-type-frontends.md`) — the UI and the VS Code extension. It depends on migration
-  version 105 and the file postfixes defined here; do not start it until this plan is merged.
+- **Plan 2** — the UI and the VS Code extension, planned separately (`docs/plans/20260805-service-type-frontends.md`
+  in the authoring checkout; not committed with this plan). It depends on migration version 105 and the file postfixes
+  defined here; do not start it until this plan is merged.
 - `qip-schemas` needs an npm and Maven release before the frontends consume the new schemas outside the workspace
   symlinks. runtime-catalog needs no release coordination — it has no dependency on the artifact.
 - `qubership-integration-help` may need its service documentation updated to describe three file kinds.

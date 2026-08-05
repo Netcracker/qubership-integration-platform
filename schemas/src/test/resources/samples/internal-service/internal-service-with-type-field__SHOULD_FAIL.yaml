@@ -1,0 +1,13 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/internal-service.schema.yaml"
+id: "5c9a2e70-8b31-4f46-a02d-7e6b4c8d1935"
+name: "Internal service restating its type"
+content:
+  description: "The file name states the type, so the document must not carry the field"
+  integrationSystemType: "INTERNAL"
+  protocol: "HTTP"
+  environments:
+    - id: "1d7f5b28-3e64-4a09-95c1-8b2a6d0e4f37"
+      name: "Default"
+      address: "http://order-manager:8080"
+      sourceType: "MANUAL"

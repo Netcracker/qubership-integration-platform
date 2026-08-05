@@ -11,7 +11,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportSystemsAndInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.IgnoreResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionsConfig;
@@ -26,7 +25,6 @@ import org.qubership.integration.platform.runtime.catalog.service.ActionsLogServ
 import org.qubership.integration.platform.runtime.catalog.service.ApiGroupService;
 import org.qubership.integration.platform.runtime.catalog.service.ChainService;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentService;
-import org.qubership.integration.platform.runtime.catalog.service.SystemBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemModelService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ServiceDeserializer;
@@ -60,10 +58,8 @@ import static java.util.Objects.requireNonNull;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -130,12 +126,6 @@ class SystemExportImportServiceTest {
             TransactionCallback<?> callback = invocation.getArgument(0);
             return callback.doInTransaction(mock(TransactionStatus.class));
         });
-        // Run the real limit rule rather than a stub, so the import path is tested against the rule it shares.
-        SystemBaseService validator = new SystemBaseService(null, null, null);
-        lenient().doAnswer(invocation -> {
-            validator.validateEnvironmentCount(invocation.getArgument(0), invocation.getArgument(1));
-            return null;
-        }).when(systemService).validateEnvironmentCount(any(), anyInt());
     }
 
     @Test
@@ -357,31 +347,85 @@ class SystemExportImportServiceTest {
 
     /**
      * Two files for one id can only be resolved by guessing, and the per-file loop would import both in separate
-     * transactions, letting the last one win. The archive is refused whole, before anything is written.
+     * transactions, letting the last one win. The id gets an error row and the rest of the archive still imports —
+     * a throw here would end the whole import session, which by then has already applied instructions and variables.
      */
     @Test
-    void anArchiveWithTwoServiceFilesForOneServiceIsRejected(@TempDir Path archive) throws IOException {
-        writeServiceFile(archive, "svc-external.external-service.qip.yaml");
-        writeServiceFile(archive, "svc-external.internal-service.qip.yaml");
+    void twoServiceFilesForOneServiceArePreviewedAsAnError(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, "svc-external", "svc-external.external-service.qip.yaml");
+        writeServiceFile(archive, "svc-external", "svc-external.internal-service.qip.yaml");
+        writeServiceFile(archive, "svc-internal", "svc-internal.internal-service.qip.yaml");
 
-        BadRequestException exception = assertThrows(BadRequestException.class, () -> service.getSystemsImportPreview(
-                archive.toFile(), ImportInstructionsConfig.builder().build()));
+        List<ImportSystemResult> preview = service.getSystemsImportPreview(
+                archive.toFile(), ImportInstructionsConfig.builder().build());
 
-        assertThat(exception.getMessage(), containsString("svc-external"));
-        assertThat(exception.getMessage(), containsString("svc-external.external-service.qip.yaml"));
-        assertThat(exception.getMessage(), containsString("svc-external.internal-service.qip.yaml"));
+        ImportSystemResult colliding = resultFor(preview, "svc-external");
+        assertThat(colliding.getRequiredAction(), equalTo(SystemCompareAction.ERROR));
+        assertThat(colliding.getMessage(), containsString("svc-external.external-service.qip.yaml"));
+        assertThat(colliding.getMessage(), containsString("svc-external.internal-service.qip.yaml"));
+        assertThat(resultFor(preview, "svc-internal").getRequiredAction(), equalTo(SystemCompareAction.CREATE));
     }
 
     @Test
-    void anArchiveWithTwoServiceFilesForOneServiceImportsNothing(@TempDir Path archive) throws IOException {
-        writeServiceFile(archive, "svc-external.external-service.qip.yaml");
-        writeServiceFile(archive, "service-svc-external.yaml");
+    void twoServiceFilesForOneServiceImportNeitherOfThem(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, "svc-external", "svc-external.external-service.qip.yaml");
+        writeServiceFile(archive, "svc-external", "service-svc-external.yaml");
+        importingEveryDiscoveredId();
 
-        assertThrows(BadRequestException.class, () -> serviceWithRealDeserializer().importSystems(
-                archive.toFile(), new SystemsCommitRequest(), "import-1", Set.of()));
+        ImportSystemsAndInstructionsResult result = serviceWithRealDeserializer().importSystems(
+                archive.toFile(), new SystemsCommitRequest(), "import-1", Set.of());
 
+        assertThat(statusesOf(result.importSystemResults()), equalTo(Set.of(ImportSystemStatus.ERROR)));
         verify(systemService, never()).create(any(), anyBoolean());
         verify(systemService, never()).update(any());
+    }
+
+    /** The same degradation through the zip entry point, whose temp directory is also cleaned up on the way out. */
+    @Test
+    void twoServiceFilesForOneServiceAreReportedThroughTheZipRequest(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, "svc-external", "svc-external.external-service.qip.yaml");
+        writeServiceFile(archive, "svc-external", "svc-external.internal-service.qip.yaml");
+        importingEveryDiscoveredId();
+
+        List<ImportSystemResult> results = serviceWithRealDeserializer()
+                .importSystemRequest(archiveOf(archive, "duplicates"), null, null, Set.of());
+
+        assertThat(idsOf(results), equalTo(List.of("svc-external")));
+        assertThat(statusesOf(results), equalTo(Set.of(ImportSystemStatus.ERROR)));
+        verify(systemService, never()).create(any(), anyBoolean());
+    }
+
+    // --- the service type on the preview path ------------------------------------------------------------------------
+
+    /**
+     * The preview runs the commit path's type rule, so a file whose name and document disagree is an error row here
+     * rather than a clean CREATE followed by a failure the user only sees after committing.
+     */
+    @Test
+    void aFileWhoseNameAndDocumentDisagreeOnTheTypeIsPreviewedAsAnError(@TempDir Path archive) throws IOException {
+        Path path = archive.resolve("services").resolve("svc-external")
+                .resolve("svc-external.internal-service.qip.yaml");
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, "id: svc-external\nname: Orders service\ncontent:\n"
+                + "  integrationSystemType: EXTERNAL\n");
+
+        List<ImportSystemResult> preview = serviceWithRealDeserializer().getSystemsImportPreview(
+                archive.toFile(), ImportInstructionsConfig.builder().build());
+
+        ImportSystemResult result = resultFor(preview, "svc-external");
+        assertThat(result.getRequiredAction(), equalTo(SystemCompareAction.ERROR));
+        assertThat(result.getMessage(), containsString("INTERNAL"));
+        assertThat(result.getMessage(), containsString("EXTERNAL"));
+    }
+
+    @Test
+    void aFileStatingNoTypeAtAllIsPreviewedAsAnError(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, "svc-external", "svc-external.service.qip.yaml");
+
+        List<ImportSystemResult> preview = serviceWithRealDeserializer().getSystemsImportPreview(
+                archive.toFile(), ImportInstructionsConfig.builder().build());
+
+        assertThat(resultFor(preview, "svc-external").getRequiredAction(), equalTo(SystemCompareAction.ERROR));
     }
 
     // --- helpers ---------------------------------------------------------------------------------------------------
@@ -391,9 +435,13 @@ class SystemExportImportServiceTest {
     }
 
     private void importingEverything() {
+        importingEveryDiscoveredId();
+        when(systemService.getByIdOrNull(any())).thenReturn(null);
+    }
+
+    private void importingEveryDiscoveredId() {
         when(importInstructionsService.performServiceIgnoreInstructions(any(), anyBoolean()))
                 .thenAnswer(invocation -> new IgnoreResult(invocation.getArgument(0), List.of()));
-        when(systemService.getByIdOrNull(any())).thenReturn(null);
     }
 
     private SystemExportImportService serviceWithRealDeserializer() {
@@ -434,7 +482,10 @@ class SystemExportImportServiceTest {
 
     /** A golden set, zipped the way an exported archive is laid out: every entry under {@code services/}. */
     private static MockMultipartFile archiveOf(String setName) throws IOException {
-        Path root = GoldenServiceCorpus.set(setName);
+        return archiveOf(GoldenServiceCorpus.set(setName), setName);
+    }
+
+    private static MockMultipartFile archiveOf(Path root, String setName) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (ZipOutputStream zip = new ZipOutputStream(bytes); Stream<Path> walk = Files.walk(root)) {
             for (Path file : walk.filter(Files::isRegularFile).sorted().toList()) {
@@ -446,10 +497,17 @@ class SystemExportImportServiceTest {
         return new MockMultipartFile("file", setName + ".zip", "application/zip", bytes.toByteArray());
     }
 
-    private static void writeServiceFile(Path archive, String fileName) throws IOException {
-        Path path = archive.resolve("services").resolve("svc-external").resolve(fileName);
+    private static void writeServiceFile(Path archive, String serviceId, String fileName) throws IOException {
+        Path path = archive.resolve("services").resolve(serviceId).resolve(fileName);
         Files.createDirectories(path.getParent());
-        Files.writeString(path, "id: svc-external\nname: Orders service\n");
+        Files.writeString(path, "id: " + serviceId + "\nname: Orders service\n");
+    }
+
+    private static ImportSystemResult resultFor(List<ImportSystemResult> results, String serviceId) {
+        return results.stream()
+                .filter(result -> serviceId.equals(result.getId()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no result for " + serviceId + " in " + idsOf(results)));
     }
 
     private static IntegrationSystem systemWith(IntegrationSystemType type, int environmentCount) {

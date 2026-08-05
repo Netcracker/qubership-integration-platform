@@ -1,10 +1,12 @@
 package org.qubership.integration.platform.runtime.catalog.service.rolloutimport;
 
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.model.ImportConfig;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationItem;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportPackageContent;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportResourceItem;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -14,13 +16,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Component
 public class ImportConfigFactory {
 
     private final ApplicationJsonSchemaProperties schemas;
+    private final ServiceTypeFiles serviceTypeFiles;
 
-    public ImportConfigFactory(ApplicationJsonSchemaProperties schemas) {
+    public ImportConfigFactory(ApplicationJsonSchemaProperties schemas, ServiceTypeFiles serviceTypeFiles) {
         this.schemas = schemas;
+        this.serviceTypeFiles = serviceTypeFiles;
     }
 
     public ImportConfig fromPackageContent(RolloutImportPackageContent packageContent) {
@@ -51,7 +56,7 @@ public class ImportConfigFactory {
                 String id = configuration.getId();
                 if (schemas.getChain().equals(schema)) {
                     chains.put(id, configuration);
-                } else if (schemas.getService().equals(schema)) {
+                } else if (isService(schema)) {
                     services.put(id, configuration);
                 } else if (schemas.getSpecificationGroup().equals(schema) || schemas.getApiGroup().equals(schema)) {
                     specificationGroups.put(id, configuration);
@@ -59,6 +64,8 @@ public class ImportConfigFactory {
                     specifications.put(id, configuration);
                 } else if (schemas.getContextService().equals(schema)) {
                     contextServices.put(id, configuration);
+                } else {
+                    log.warn("Package item {} carries an unknown $schema {} and is not imported", id, schema);
                 }
             }
         }
@@ -78,6 +85,12 @@ public class ImportConfigFactory {
                 contextServices,
                 resources
         );
+    }
+
+    // Since #553 a service states its type in the $schema too, so all four URIs land in the service bucket. Leave the
+    // per-type ones out and such an item falls through every branch and is dropped without an error row.
+    private boolean isService(String schema) {
+        return schemas.getService().equals(schema) || serviceTypeFiles.typeFromSchemaUri(schema).isPresent();
     }
 
     public ImportConfig empty() {

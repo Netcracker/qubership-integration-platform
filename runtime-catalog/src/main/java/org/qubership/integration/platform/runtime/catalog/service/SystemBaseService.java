@@ -39,8 +39,9 @@ import static java.util.Objects.isNull;
 public class SystemBaseService {
 
     private static final String SYSTEM_WITH_ID_NOT_FOUND = "Can't find system with id: ";
+    // Only a bounded type ever reaches this message, and every bounded type allows exactly one environment.
     private static final String ENVIRONMENT_LIMIT_MESSAGE =
-            "Service '%s' (id %s) is %s and accepts at most %d environment%s, but %d were given. "
+            "Service '%s' (id %s) is %s and accepts at most %d environment, but %d were given. "
             + "Remove the extra environments and retry.";
 
     protected final SystemRepository systemRepository;
@@ -117,23 +118,25 @@ public class SystemBaseService {
         }
         IntegrationSystemType systemType = system.getIntegrationSystemType();
         if (isNull(systemType)) {
-            throw new RuntimeException(String.format(
+            throw new BadRequestException(String.format(
                     "Service %s has no type, so specification type %s can't be validated",
                     system.getId(), protocol.getType()));
         }
         if (!systemType.allowedProtocols().contains(protocol)) {
             String message = String.format("Specification type is not allowed for %s system: %s",
                     systemType.name().toLowerCase(), protocol.getType());
-            throw new RuntimeException(message);
+            throw new BadRequestException(message);
         }
     }
 
     /**
-     * Shared by the REST and the import paths, so all of them reject an over-populated service alike.
+     * Shared by the REST and the import paths, so all of them reject an over-populated service alike. Static: the rule
+     * reads nothing but its arguments, and a caller that has to route it through an injected service ends up mocking
+     * the rule it means to test.
      *
      * @param environmentCount the count the service would end up with, not the count it has now
      */
-    public void validateEnvironmentCount(IntegrationSystem system, int environmentCount) {
+    public static void validateEnvironmentCount(IntegrationSystem system, int environmentCount) {
         IntegrationSystemType systemType = system.getIntegrationSystemType();
         // The column is nullable, and a typeless row has no limit to compare against.
         if (isNull(systemType)) {
@@ -146,7 +149,6 @@ public class SystemBaseService {
                     system.getId(),
                     systemType.name().toLowerCase(),
                     maxEnvironments,
-                    maxEnvironments == 1 ? "" : "s",
                     environmentCount));
         }
     }

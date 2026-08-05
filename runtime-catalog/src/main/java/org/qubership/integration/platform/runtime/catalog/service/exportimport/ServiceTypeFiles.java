@@ -57,24 +57,24 @@ public class ServiceTypeFiles {
         return schemaUrisByType.get(Objects.requireNonNull(type, "service type"));
     }
 
-    /** Every per-type schema URI, for the revert-migration gate. */
-    public Collection<String> schemaUris() {
-        return List.copyOf(schemaUrisByType.values());
-    }
-
     /**
      * The type a service file name states, or empty when it states none — the legacy {@code service-<id>.yaml} name
      * and the pre-#553 {@code .service.} postfix both carry the type in the document instead. A context or MCP service
-     * name matches nothing here: neither contains a per-type postfix.
+     * name matches nothing here: neither contains a per-type postfix. A name carrying two postfixes states no single
+     * type either, so it resolves to none rather than to whichever the enum happens to declare first.
+     *
+     * <p>Static like {@link #postfix(IntegrationSystemType)}: the postfixes are compile-time constants, and only the
+     * schema URIs come from configuration.
      */
-    public Optional<IntegrationSystemType> typeFromFileName(String fileName) {
+    public static Optional<IntegrationSystemType> typeFromFileName(String fileName) {
         if (fileName == null) {
             return Optional.empty();
         }
-        return POSTFIXES_BY_TYPE.entrySet().stream()
+        List<IntegrationSystemType> stated = POSTFIXES_BY_TYPE.entrySet().stream()
                 .filter(entry -> fileName.contains(entry.getValue()))
                 .map(Map.Entry::getKey)
-                .findFirst();
+                .toList();
+        return stated.size() == 1 ? Optional.of(stated.get(0)) : Optional.empty();
     }
 
     /**

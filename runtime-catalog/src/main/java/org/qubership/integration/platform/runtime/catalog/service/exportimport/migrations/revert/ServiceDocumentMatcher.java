@@ -6,6 +6,7 @@ import org.qubership.integration.platform.runtime.catalog.configuration.Applicat
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Set;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.API_GROUPS;
@@ -44,13 +45,15 @@ public class ServiceDocumentMatcher {
 
     @Autowired
     public ServiceDocumentMatcher(ApplicationJsonSchemaProperties schemas) {
-        this.serviceSchemas = Set.of(
+        // copyOf, not Set.of: every URI is operator-configurable, and Set.of would fail bean creation on two
+        // properties pointed at the same value.
+        this.serviceSchemas = Set.copyOf(List.of(
                 schemas.getService(),
                 schemas.getExternalService(),
                 schemas.getInternalService(),
                 schemas.getImplementedService(),
                 schemas.getContextService(),
-                schemas.getMcpService());
+                schemas.getMcpService()));
     }
 
     public boolean matches(ObjectNode node) {

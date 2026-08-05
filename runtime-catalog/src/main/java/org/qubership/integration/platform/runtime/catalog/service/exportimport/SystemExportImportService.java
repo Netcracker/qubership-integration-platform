@@ -23,7 +23,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServicesNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportSystemsAndInstructionsResult;
@@ -75,6 +74,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Objects.isNull;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTENT;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.ZIP_EXTENSION;
 import static org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils.*;
@@ -91,6 +91,7 @@ public class SystemExportImportService {
     private static final String SPECIFICATION_EXISTS_BY_ID_ERROR_MESSAGE_START = "Specification with id '";
     private static final String SPECIFICATION_EXISTS_ERROR_MESSAGE_END = "' was not imported. ";
     protected static final String CONFIG_DEPLOY_LABELS = "deployLabels";
+    private static final String INTEGRATION_SYSTEM_TYPE = "integrationSystemType";
 
     // Every name a plain service file can carry: the three per-type postfixes #553 writes, plus the pre-#553
     // `.service.`. `ExportImportUtils` ORs the deprecated flat `service-` prefix in on its own. A context or MCP
@@ -229,8 +230,7 @@ public class SystemExportImportService {
             List<File> extractedSystemFiles = new ArrayList<>();
 
             try (InputStream fs = file.getInputStream()) {
-                extractedSystemFiles = rejectDuplicateServiceIds(
-                        extractSystemsFromZip(fs, exportDirectory, SERVICE_FILE_POSTFIXES));
+                extractedSystemFiles = extractSystemsFromZip(fs, exportDirectory, SERVICE_FILE_POSTFIXES);
             } catch (ServicesNotFoundException e) {
                 deleteFile(exportDirectory);
             } catch (IOException e) {
@@ -241,9 +241,11 @@ public class SystemExportImportService {
                 throw e;
             }
 
+            DiscoveredServiceFiles discovered = DiscoveredServiceFiles.of(extractedSystemFiles);
+            response.addAll(discovered.previewErrors());
             ImportInstructionsConfig instructionsConfig = importInstructionsService
                     .getServiceImportInstructionsConfig(Set.of(ImportInstructionAction.IGNORE));
-            for (File singleSystemFile : extractedSystemFiles) {
+            for (File singleSystemFile : discovered.importable()) {
                 response.add(getSystemChanges(singleSystemFile, instructionsConfig));
             }
             deleteFile(exportDirectory);
@@ -255,44 +257,73 @@ public class SystemExportImportService {
     }
 
     /**
-     * The discovered service files, unless two of them describe one service.
+     * The discovered service files split into the ones a single file describes and the ids two or more files claim.
      *
-     * <p>The check belongs here, over the whole discovered list, because the per-file loop below deserializes each
+     * <p>The split belongs here, over the whole discovered list, because the per-file loop below deserializes each
      * file in its own transaction: the two copies never meet, and the second one silently overwrites the first.
      * An archive can hold a pair once a service changes type, since each type writes its own file name.
+     *
+     * <p>A colliding id degrades to an error row, like every other per-service failure on this path. Refusing the
+     * whole archive would not stop at the services: {@code GeneralImportService} imports instructions and common
+     * variables first and chains after, so a throw here would end the session with part of it already applied.
      */
-    private static List<File> rejectDuplicateServiceIds(List<File> serviceFiles) {
-        Map<String, List<String>> fileNamesById = serviceFiles.stream().collect(Collectors.groupingBy(
-                ExportImportUtils::extractSystemIdFromFileName,
-                TreeMap::new,
-                Collectors.mapping(File::getName, Collectors.toList())));
-        for (Map.Entry<String, List<String>> entry : fileNamesById.entrySet()) {
-            if (entry.getValue().size() > 1) {
-                throw new BadRequestException(
-                        ("Archive holds %d service files for service id %s: %s. Keep the one that is current and"
-                                + " remove the others, then re-import. Nothing is imported from this archive.")
-                                .formatted(
-                                        entry.getValue().size(),
-                                        entry.getKey(),
-                                        entry.getValue().stream().sorted().collect(Collectors.joining(", "))));
-            }
+    private record DiscoveredServiceFiles(List<File> importable, Map<String, List<String>> collidingFileNamesById) {
+
+        static DiscoveredServiceFiles of(List<File> serviceFiles) {
+            Map<String, List<File>> filesById = serviceFiles.stream().collect(Collectors.groupingBy(
+                    ExportImportUtils::extractSystemIdFromFileName, TreeMap::new, Collectors.toList()));
+            List<File> importable = new ArrayList<>();
+            Map<String, List<String>> colliding = new LinkedHashMap<>();
+            filesById.forEach((id, files) -> {
+                if (files.size() > 1) {
+                    colliding.put(id, files.stream().map(File::getName).sorted().toList());
+                } else {
+                    importable.addAll(files);
+                }
+            });
+            return new DiscoveredServiceFiles(importable, colliding);
         }
-        return serviceFiles;
+
+        List<ImportSystemResult> previewErrors() {
+            return collidingFileNamesById.entrySet().stream()
+                    .<ImportSystemResult>map(entry -> ImportSystemResult.builder()
+                            .id(entry.getKey())
+                            .name(entry.getKey())
+                            .requiredAction(SystemCompareAction.ERROR)
+                            .message(collisionMessage(entry.getValue()))
+                            .build())
+                    .toList();
+        }
+
+        List<ImportSystemResult> importErrors() {
+            return collidingFileNamesById.entrySet().stream()
+                    .<ImportSystemResult>map(entry -> ImportSystemResult.builder()
+                            .id(entry.getKey())
+                            .name(entry.getKey())
+                            .status(ImportSystemStatus.ERROR)
+                            .message(collisionMessage(entry.getValue()))
+                            .build())
+                    .toList();
+        }
+
+        private static String collisionMessage(List<String> fileNames) {
+            return ("Archive holds %d service files for this service: %s. Keep the one that is current and remove the"
+                    + " others, then re-import. The service is not imported.")
+                    .formatted(fileNames.size(), String.join(", ", fileNames));
+        }
     }
 
     public List<ImportSystemResult> getSystemsImportPreview(File importDirectory, ImportInstructionsConfig instructionsConfig) {
         List<File> systemsFiles;
         try {
-            systemsFiles = rejectDuplicateServiceIds(
-                    extractSystemsFromImportDirectory(importDirectory.getAbsolutePath(), SERVICE_FILE_POSTFIXES));
-        } catch (BadRequestException e) {
-            throw e;
+            systemsFiles = extractSystemsFromImportDirectory(importDirectory.getAbsolutePath(), SERVICE_FILE_POSTFIXES);
         } catch (Exception e) {
             throw new RuntimeException("Error while extracting systems", e);
         }
+        DiscoveredServiceFiles discovered = DiscoveredServiceFiles.of(systemsFiles);
 
-        List<ImportSystemResult> importSystemResults = new ArrayList<>();
-        for (File systemFile : systemsFiles) {
+        List<ImportSystemResult> importSystemResults = new ArrayList<>(discovered.previewErrors());
+        for (File systemFile : discovered.importable()) {
             importSystemResults.add(getSystemChanges(systemFile, instructionsConfig));
         }
 
@@ -311,6 +342,10 @@ public class SystemExportImportService {
             IntegrationSystem baseSystem = deserializationResult.getSystem();
             systemId = baseSystem.getId();
             systemName = baseSystem.getName();
+            // The same rule the commit path runs, so a file stating no type, or a name and a field that disagree,
+            // shows up as an error row here instead of only after the user commits.
+            typeStatedByDocument(serviceNode).ifPresent(baseSystem::setIntegrationSystemType);
+            serviceDeserializer.resolveServiceType(baseSystem, mainSystemFile);
             Long systemModifiedWhen = baseSystem.getModifiedWhen() != null ? baseSystem.getModifiedWhen().getTime() : 0;
             ImportInstructionAction instructionAction = instructionsConfig.getIgnore().contains(systemId)
                     ? ImportInstructionAction.IGNORE
@@ -335,6 +370,25 @@ public class SystemExportImportService {
         return resultSystemCompareDTO;
     }
 
+    /**
+     * The type the raw preview document states, if any. The preview reads the file before any migration runs, so it
+     * has to look in both places: the pre-#553 current format keeps the field under {@code content}, the legacy flat
+     * format at the root. An unreadable value is left to the commit path, which reports it through Jackson.
+     */
+    private static Optional<IntegrationSystemType> typeStatedByDocument(JsonNode serviceNode) {
+        JsonNode stated = serviceNode.path(CONTENT).path(INTEGRATION_SYSTEM_TYPE);
+        if (stated.isMissingNode()) {
+            stated = serviceNode.path(INTEGRATION_SYSTEM_TYPE);
+        }
+        try {
+            return stated.isTextual()
+                    ? Optional.of(IntegrationSystemType.valueOf(stated.asText()))
+                    : Optional.empty();
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
+        }
+    }
+
     private void setCompareSystemResult(IntegrationSystem system, ImportSystemResult resultSystemCompareDTO) {
         IntegrationSystem oldSystem = systemService.getByIdOrNull(system.getId());
         if (oldSystem == null) {
@@ -357,8 +411,7 @@ public class SystemExportImportService {
             List<File> extractedSystemFiles;
 
             try (InputStream fs = importFile.getInputStream()) {
-                extractedSystemFiles = rejectDuplicateServiceIds(
-                        extractSystemsFromZip(fs, exportDirectory, SERVICE_FILE_POSTFIXES));
+                extractedSystemFiles = extractSystemsFromZip(fs, exportDirectory, SERVICE_FILE_POSTFIXES);
             } catch (IOException e) {
                 deleteFile(exportDirectory);
                 throw new RuntimeException("Unexpected error while archive unpacking: " + e.getMessage(), e);
@@ -367,13 +420,15 @@ public class SystemExportImportService {
                 throw e;
             }
 
+            DiscoveredServiceFiles discovered = DiscoveredServiceFiles.of(extractedSystemFiles);
+            response.addAll(discovered.importErrors());
             Set<String> servicesToImport = importInstructionsService.performServiceIgnoreInstructions(
-                            extractedSystemFiles.stream()
+                            discovered.importable().stream()
                                     .map(ExportImportUtils::extractSystemIdFromFileName)
                                     .collect(Collectors.toSet()),
                             false)
                     .idsToImport();
-            for (File singleSystemFile : extractedSystemFiles) {
+            for (File singleSystemFile : discovered.importable()) {
                 String serviceId = extractSystemIdFromFileName(singleSystemFile);
                 if (!servicesToImport.contains(serviceId)) {
                     response.add(ImportSystemResult.builder()
@@ -410,13 +465,15 @@ public class SystemExportImportService {
             return new ImportSystemsAndInstructionsResult();
         }
 
-        List<File> systemsFiles;
+        List<File> discoveredFiles;
         try {
-            systemsFiles = rejectDuplicateServiceIds(
-                    extractSystemsFromImportDirectory(importDirectory.getAbsolutePath(), SERVICE_FILE_POSTFIXES));
+            discoveredFiles = extractSystemsFromImportDirectory(
+                    importDirectory.getAbsolutePath(), SERVICE_FILE_POSTFIXES);
         } catch (IOException e) {
             throw new RuntimeException("Unexpected error while archive unpacking: " + e.getMessage(), e);
         }
+        DiscoveredServiceFiles discovered = DiscoveredServiceFiles.of(discoveredFiles);
+        List<File> systemsFiles = discovered.importable();
 
         String deployLabel = systemCommitRequest.getDeployLabel();
         List<String> systemIds = systemCommitRequest.getImportMode() == ImportMode.FULL
@@ -431,7 +488,7 @@ public class SystemExportImportService {
         );
         int total = systemsFiles.size();
         int counter = 0;
-        List<ImportSystemResult> response = new ArrayList<>();
+        List<ImportSystemResult> response = new ArrayList<>(discovered.importErrors());
         for (File systemFile : systemsFiles) {
             String serviceId = extractSystemIdFromFileName(systemFile);
             if (!ignoreResult.idsToImport().contains(serviceId)) {
@@ -572,7 +629,7 @@ public class SystemExportImportService {
             Consumer<String> messageHandler,
             Set<String> technicalLabels) {
         validateServiceTypeUnchanged(newSystem, oldSystem);
-        systemService.validateEnvironmentCount(newSystem, newSystem.getEnvironments().size());
+        SystemBaseService.validateEnvironmentCount(newSystem, newSystem.getEnvironments().size());
 
         if (IntegrationSystemType.INTERNAL == newSystem.getIntegrationSystemType()) {
             Environment environment = newSystem.getEnvironments().isEmpty() ? null : newSystem.getEnvironments().get(0);
@@ -907,7 +964,7 @@ public class SystemExportImportService {
     }
 
     private void prepareIntegrationSystemForCreate(IntegrationSystem system, String deployLabel, Consumer<String> messageHandler) {
-        systemService.validateEnvironmentCount(system, system.getEnvironments().size());
+        SystemBaseService.validateEnvironmentCount(system, system.getEnvironments().size());
         changeDiscoveredSourceLabels(system, true);
         setActiveEnvironmentId(system, deployLabel, messageHandler);
     }

@@ -76,7 +76,10 @@ import static org.qubership.integration.platform.runtime.catalog.service.extract
  * <p>Three sets, each a full archive tree:
  * <ul>
  *   <li>{@value #PRE553_CURRENT} — the current format as it was before issue #553: {@code .service.} file names, the
- *       plain service {@code $schema}, and {@code content.integrationSystemType} in the document.</li>
+ *       plain service {@code $schema}, and {@code content.integrationSystemType} in the document. Its
+ *       {@code content.migrations} was hand-edited down to {@code [100, 101, 102, 103, 104]}: the capture ran after
+ *       V105 was registered, and a real pre-#553 archive claims at most 104, so keeping 105 would have left the
+ *       forward migration of 105 unexercised over a whole archive.</li>
  *   <li>{@value #LEGACY_FLAT} — {@code QIP_EXPORT_LEGACY_FORMAT=true}. #553 must not change a byte of meaning here,
  *       which is the whole point of capturing it before the exporter changed.</li>
  *   <li>{@value #POST553} — the current format after #553: per-type file names and {@code $schema}, no type field.</li>
@@ -222,7 +225,7 @@ public final class GoldenServiceCorpus {
     // --- the export --------------------------------------------------------------------------------------------------
 
     /** The five fixture systems, serialized the way {@code SystemExportImportService} serializes them. */
-    public static List<ExportableObject> exportAll(boolean legacy) {
+    private static List<ExportableObject> exportAll(boolean legacy) {
         FileMigrationService migrations = migrationService(legacy);
         ContextServiceSerializer contextSerializer = new ContextServiceSerializer(
                 mapper(),
@@ -244,7 +247,7 @@ public final class GoldenServiceCorpus {
         return List.copyOf(exported);
     }
 
-    public static ServiceSerializer serviceSerializer(boolean legacy) {
+    private static ServiceSerializer serviceSerializer(boolean legacy) {
         return new ServiceSerializer(
                 mapper(),
                 new IntegrationSystemDtoMapper(serviceTypeFiles(), TestServiceMigrations.all()),
@@ -291,8 +294,7 @@ public final class GoldenServiceCorpus {
                 new SystemModelDtoMapper(URI.create(SCHEMAS.getApi()), new ApiOperationDtoMapper()),
                 forwardMigrationService(),
                 migrations,
-                ExtractorTestParsers.extractor(),
-                serviceTypeFiles());
+                ExtractorTestParsers.extractor());
         ReflectionTestUtils.setField(deserializer, "appName", APP_NAME);
         return deserializer;
     }
@@ -338,7 +340,7 @@ public final class GoldenServiceCorpus {
         return SCHEMAS;
     }
 
-    public static VersionsGetterService versionsGetterService() {
+    private static VersionsGetterService versionsGetterService() {
         MigrationFieldStrategy migrationFieldStrategy = new MigrationFieldStrategy();
         return new VersionsGetterService(List.of(
                 new MigrationFieldInContentStrategy(migrationFieldStrategy),

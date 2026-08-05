@@ -67,24 +67,24 @@ class SystemBaseServiceTest {
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
     void oneEnvironmentIsAcceptedForEveryType(IntegrationSystemType type) {
-        assertDoesNotThrow(() -> service.validateEnvironmentCount(systemOfType(type), 1));
+        assertDoesNotThrow(() -> SystemBaseService.validateEnvironmentCount(systemOfType(type), 1));
     }
 
     @ParameterizedTest
     @EnumSource(value = IntegrationSystemType.class, names = {"INTERNAL", "IMPLEMENTED"})
     void aSecondEnvironmentIsRejectedForSingleEnvironmentTypes(IntegrationSystemType type) {
-        assertThrows(BadRequestException.class, () -> service.validateEnvironmentCount(systemOfType(type), 2));
+        assertThrows(BadRequestException.class, () -> SystemBaseService.validateEnvironmentCount(systemOfType(type), 2));
     }
 
     @Test
     void anExternalServiceTakesAsManyEnvironmentsAsItLikes() {
         assertDoesNotThrow(() ->
-                service.validateEnvironmentCount(systemOfType(IntegrationSystemType.EXTERNAL), 1000));
+                SystemBaseService.validateEnvironmentCount(systemOfType(IntegrationSystemType.EXTERNAL), 1000));
     }
 
     @Test
     void aTypelessServiceIsNotCheckedAgainstAnyLimit() {
-        assertDoesNotThrow(() -> service.validateEnvironmentCount(systemOfType(null), 5));
+        assertDoesNotThrow(() -> SystemBaseService.validateEnvironmentCount(systemOfType(null), 5));
     }
 
     @Test
@@ -96,7 +96,7 @@ class SystemBaseServiceTest {
                 .build();
 
         BadRequestException exception = assertThrows(BadRequestException.class,
-                () -> service.validateEnvironmentCount(system, 3));
+                () -> SystemBaseService.validateEnvironmentCount(system, 3));
 
         assertTrue(exception.getMessage().contains("service-1"), exception.getMessage());
         assertTrue(exception.getMessage().contains("Billing"), exception.getMessage());

@@ -93,3 +93,8 @@ When import is completed, system displays import result table with the following
 System allows exporting service. There are two possible ways to export service(s):
 - From **"Context Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) (Export).
 - From exact service page - simply click ![cloud-download](img/cloud-download.svg) (Export) from the action menu ![more](img/more.svg).
+
+> ⚠️ **Warning:** The file name and the content of a context service are unchanged, but the document now claims a newer
+> format version. A Runtime Catalog released before that version reports the context service with the **Error** status
+> instead of importing it. To produce an archive an older version can import, set `QIP_EXPORT_LEGACY_FORMAT=true` on the
+> exporting instance.

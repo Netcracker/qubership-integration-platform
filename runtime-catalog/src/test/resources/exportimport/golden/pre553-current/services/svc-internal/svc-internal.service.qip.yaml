@@ -14,4 +14,4 @@ content:
     sourceType: "MANUAL"
   labels:
   - "golden"
-  migrations: "[100, 101, 102, 103, 104, 105]"
+  migrations: "[100, 101, 102, 103, 104]"

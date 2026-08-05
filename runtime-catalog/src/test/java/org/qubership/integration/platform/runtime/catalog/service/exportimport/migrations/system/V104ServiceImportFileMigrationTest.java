@@ -156,8 +156,7 @@ class V104ServiceImportFileMigrationTest {
                         new ApiOperationDtoMapper()),
                 fileMigrationService,
                 migrations,
-                ExtractorTestParsers.extractor(),
-                new ServiceTypeFiles(new ApplicationJsonSchemaProperties()));
+                ExtractorTestParsers.extractor());
         ReflectionTestUtils.setField(built, "appName", APP_NAME);
         return built;
     }

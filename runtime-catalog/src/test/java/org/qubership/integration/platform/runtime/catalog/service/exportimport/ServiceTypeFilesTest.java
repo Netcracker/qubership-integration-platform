@@ -42,7 +42,7 @@ class ServiceTypeFilesTest {
     void resolvesEachTypeFromTheFileNameItExportsTo(IntegrationSystemType type) {
         String fileName = SERVICE_ID + ServiceTypeFiles.postfix(type) + APP_NAME + ".yaml";
 
-        assertEquals(Optional.of(type), serviceTypeFiles.typeFromFileName(fileName));
+        assertEquals(Optional.of(type), ServiceTypeFiles.typeFromFileName(fileName));
     }
 
     /**
@@ -52,7 +52,7 @@ class ServiceTypeFilesTest {
     @ParameterizedTest
     @ValueSource(strings = {"system-1.service.qip.yaml", "service-system-1.yaml"})
     void resolvesNoTypeFromANameThatStatesNone(String fileName) {
-        assertEquals(Optional.empty(), serviceTypeFiles.typeFromFileName(fileName));
+        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(fileName));
     }
 
     @ParameterizedTest
@@ -62,12 +62,19 @@ class ServiceTypeFilesTest {
             "mcp-1.mcp-service.qip.yaml",
             "mcp-service-mcp-1.yaml"})
     void neverTakesAContextOrMcpServiceForAPlainOne(String fileName) {
-        assertEquals(Optional.empty(), serviceTypeFiles.typeFromFileName(fileName));
+        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(fileName));
     }
 
     @Test
     void resolvesNoTypeFromAMissingFileName() {
-        assertEquals(Optional.empty(), serviceTypeFiles.typeFromFileName(null));
+        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(null));
+    }
+
+    /** Two postfixes state no single type, so the name resolves to none rather than to the first enum constant. */
+    @Test
+    void resolvesNoTypeFromANameCarryingTwoPostfixes() {
+        assertEquals(Optional.empty(),
+                ServiceTypeFiles.typeFromFileName("system-1.external-service.internal-service.qip.yaml"));
     }
 
     // --- type -> postfix and URI -----------------------------------------------------------------------------------
@@ -159,8 +166,14 @@ class ServiceTypeFilesTest {
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
     void allowsExactlyTheProtocolsItsSchemaEnumerates(IntegrationSystemType type) throws IOException {
+        JsonNode schema = readSchema(schemaFileName(type));
+        // Read where the constraint is applied, not only where it is declared: an applied $ref that stops pointing at
+        // the enum leaves the declaration in place while the schema constrains nothing.
+        assertEquals("#/definitions/Protocol",
+                schema.path("properties").path("content").path("properties").path("protocol").path("$ref").asText(),
+                schemaFileName(type) + " no longer applies its own Protocol enum to content.protocol");
         Set<String> fromSchema = new HashSet<>();
-        readSchema(schemaFileName(type)).path("definitions").path("Protocol").path("enum")
+        schema.path("definitions").path("Protocol").path("enum")
                 .forEach(protocol -> fromSchema.add(protocol.asText()));
         Set<String> fromEnum = type.allowedProtocols().stream()
                 .map(OperationProtocol::name)

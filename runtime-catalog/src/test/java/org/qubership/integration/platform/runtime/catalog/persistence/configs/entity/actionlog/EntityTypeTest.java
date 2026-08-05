@@ -28,9 +28,10 @@ class EntityTypeTest {
         assertEquals(EXPECTED_ENTITY_TYPES.get(type), EntityType.getSystemType(systemOfType(type)));
     }
 
+    /** Any refusal will do; the point is that no entity type is invented for a service that states none. */
     @Test
     void aTypelessServiceIsNotSilentlyReportedAsExternal() {
-        assertThrows(NullPointerException.class, () -> EntityType.getSystemType(systemOfType(null)));
+        assertThrows(RuntimeException.class, () -> EntityType.getSystemType(systemOfType(null)));
     }
 
     private static IntegrationSystem systemOfType(IntegrationSystemType type) {

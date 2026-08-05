@@ -34,7 +34,8 @@ public enum IntegrationSystemType {
             .filter(protocol -> !OperationProtocol.METAMODEL.equals(protocol))
             .collect(Collectors.toUnmodifiableSet());
 
-    private static final Set<OperationProtocol> SYNCHRONOUS_PROTOCOLS = Set.of(
+    // Named after the rule, not after a category: GRPC is synchronous too and is deliberately not in the set.
+    private static final Set<OperationProtocol> IMPLEMENTED_PROTOCOLS = Set.of(
             OperationProtocol.HTTP,
             OperationProtocol.SOAP,
             OperationProtocol.GRAPHQL
@@ -47,7 +48,7 @@ public enum IntegrationSystemType {
         return switch (this) {
             case INTERNAL -> ALL_PROTOCOLS;
             case EXTERNAL -> NON_METAMODEL_PROTOCOLS;
-            case IMPLEMENTED -> SYNCHRONOUS_PROTOCOLS;
+            case IMPLEMENTED -> IMPLEMENTED_PROTOCOLS;
         };
     }
 

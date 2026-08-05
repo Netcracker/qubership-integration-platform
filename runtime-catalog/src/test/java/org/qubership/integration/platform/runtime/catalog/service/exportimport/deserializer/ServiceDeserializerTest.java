@@ -106,8 +106,7 @@ class ServiceDeserializerTest {
                         new ApiOperationDtoMapper()),
                 fileMigrationService,
                 migrations,
-                extractor,
-                SERVICE_TYPE_FILES
+                extractor
         );
         ReflectionTestUtils.setField(built, "appName", APP_NAME);
         return built;
@@ -1106,7 +1105,7 @@ class ServiceDeserializerTest {
     @EnumSource(IntegrationSystemType.class)
     void resolvesTheTypeFromTheFileNameWhenTheDocumentStatesNone(IntegrationSystemType type) throws IOException {
         File serviceFile = writeFile(
-                SYSTEM_ID + SERVICE_TYPE_FILES.postfix(type) + APP_NAME + ".yaml", typelessServiceYaml());
+                SYSTEM_ID + ServiceTypeFiles.postfix(type) + APP_NAME + ".yaml", typelessServiceYaml());
 
         IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
 
@@ -1117,7 +1116,7 @@ class ServiceDeserializerTest {
     @EnumSource(IntegrationSystemType.class)
     void keepsTheTypeWhenTheFileNameAndTheDocumentAgree(IntegrationSystemType type) throws IOException {
         File serviceFile = writeFile(
-                SYSTEM_ID + SERVICE_TYPE_FILES.postfix(type) + APP_NAME + ".yaml", typedServiceYaml(type.name()));
+                SYSTEM_ID + ServiceTypeFiles.postfix(type) + APP_NAME + ".yaml", typedServiceYaml(type.name()));
 
         IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
 
@@ -1147,7 +1146,7 @@ class ServiceDeserializerTest {
     @Test
     void failsWhenTheFileNameAndTheDocumentStateDifferentTypes() throws IOException {
         File serviceFile = writeFile(
-                SYSTEM_ID + SERVICE_TYPE_FILES.postfix(IntegrationSystemType.INTERNAL) + APP_NAME + ".yaml",
+                SYSTEM_ID + ServiceTypeFiles.postfix(IntegrationSystemType.INTERNAL) + APP_NAME + ".yaml",
                 typedServiceYaml("EXTERNAL"));
 
         ServiceImportException exception =

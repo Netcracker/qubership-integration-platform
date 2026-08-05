@@ -124,6 +124,22 @@ class ServiceExportFormatTest {
     }
 
     /**
+     * The mirror of {@link #theLegacyExportIsUnchangedBy553}, and what makes {@value GoldenServiceCorpus#POST553} a
+     * regression pin rather than a committed tree nothing regenerates: everything else in this class reads that set,
+     * so without this the exporter could drift away from it with the whole suite green.
+     */
+    @Test
+    void theCurrentExportStillMatchesTheRecordedFormat(@TempDir Path directory) throws IOException {
+        GoldenServiceCorpus.unzipInto(GoldenServiceCorpus.archive(false), directory);
+
+        assertEquals(GoldenServiceCorpus.fileNames(POST553), GoldenServiceCorpus.relativeFileNames(directory),
+                "the exporter writes different file names than the recorded post-#553 set");
+        Map<String, ObjectNode> golden = GoldenServiceCorpus.documentsOf(GoldenServiceCorpus.set(POST553));
+        Map<String, ObjectNode> actual = GoldenServiceCorpus.documentsOf(directory);
+        golden.forEach((name, document) -> assertEquals(document, actual.get(name), name + " changed"));
+    }
+
+    /**
      * The restored type is what makes the legacy file importable at all: the flat name states none, and
      * {@code ServiceDeserializer} refuses a service that states its type nowhere.
      */
@@ -196,7 +212,6 @@ class ServiceExportFormatTest {
                 () -> new IntegrationSystemDtoMapper(GoldenServiceCorpus.serviceTypeFiles(), List.of())
                         .toExternalEntity(typeless));
 
-        assertEquals("svc-typeless", exception.getServiceId());
         assertTrue(exception.getMessage().contains("svc-typeless"),
                 "the message names the row to fix: " + exception.getMessage());
         assertTrue(exception.getMessage().contains("Set the type of the service"),
@@ -205,7 +220,8 @@ class ServiceExportFormatTest {
 
     @Test
     void theFileNameOfATypelessServiceIsRefusedRatherThanGuessed() {
-        assertThrows(NullPointerException.class,
+        // Any refusal will do; the point is that no name is invented for a service that states no type.
+        assertThrows(RuntimeException.class,
                 () -> ExportImportUtils.generateMainSystemFileExportName("svc-typeless", APP_NAME, false, null));
         assertEquals("service-svc-typeless.yaml",
                 ExportImportUtils.generateMainSystemFileExportName("svc-typeless", APP_NAME, true, null),

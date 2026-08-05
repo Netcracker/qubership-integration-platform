@@ -3,16 +3,21 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert.RevertMigration;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert.TestRevertMigrations;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.TestServiceMigrations;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.type.filter.AssignableTypeFilter;
 import org.springframework.stereotype.Component;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.ToIntFunction;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -60,6 +65,41 @@ class MigrationBeanRegistrationTest {
         assertEquals(Set.of(100, 101, 102, 103, 104, 105, 106, 107, 108),
                 versionsClaimedByRolloutImport(ChainImportFileMigration.class),
                 SKIPPED_ON_ROLLOUT_HINT);
+    }
+
+    /**
+     * The two hand-maintained test registries are what every other test builds its migration chain from, and a
+     * missing entry leaves them all running an incomplete chain while staying green. This is the only gate on that.
+     */
+    @Test
+    void theServiceMigrationTestRegistryHoldsEveryRegisteredMigration() {
+        assertEquals(registeredVersions(ServiceImportFileMigration.class),
+                versionsOf(TestServiceMigrations.all(), ImportFileMigration::getVersion),
+                "TestServiceMigrations.all() and the registered @Component migrations have drifted apart");
+    }
+
+    @Test
+    void theRevertMigrationTestRegistryHoldsEveryRegisteredMigration() {
+        List<RevertMigration> registry = TestRevertMigrations.all(URI.create("http://example.org/api.schema.yaml"));
+
+        assertEquals(registeredVersions(RevertMigration.class),
+                versionsOf(registry, RevertMigration::getVersion),
+                "TestRevertMigrations.all() and the registered @Component migrations have drifted apart");
+    }
+
+    private static Set<Integer> registeredVersions(Class<?> migrationType) {
+        Set<Integer> versions = new HashSet<>();
+        for (Class<?> implementation : findImplementations(migrationType)) {
+            // Only the injected beans reach production; the scan also sees test doubles on the classpath.
+            if (implementation.isAnnotationPresent(Component.class)) {
+                versions.add(versionOf(implementation));
+            }
+        }
+        return versions;
+    }
+
+    private static <T> Set<Integer> versionsOf(List<T> migrations, ToIntFunction<T> version) {
+        return migrations.stream().map(version::applyAsInt).collect(Collectors.toSet());
     }
 
     private static Set<Integer> versionsClaimedByRolloutImport(Class<?> migrationType) {

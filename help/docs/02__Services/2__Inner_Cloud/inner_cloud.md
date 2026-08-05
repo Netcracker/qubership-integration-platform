@@ -320,6 +320,11 @@ During the import, system follows next logic:
 > "_**import test/proto/types/active/proto_2.proto**_", it means that **proto_2** file must be placed
 > to "_**test/proto/types/active/**_" folder in the archive.
 
+- Check the service type before anything is written. The service is reported with the **Error** status and skipped, while the rest of the archive still imports, in three cases:
+  - The file states no service type: its name carries none of the type postfixes (`.external-service.`, `.internal-service.`, `.implemented-service.`) and `content.integrationSystemType` is absent from the document.
+  - The stated type differs from the type of the service already stored under that ID. A service type cannot be changed by an import — delete the service first, or import it under a new ID.
+  - The archive holds more than one service file for one service ID. Keep the file that is current, remove the others, and import again.
+
 When import is completed, system displays import result table with the following columns:
 
 - **Name** - name of the service participated in import operation.
@@ -335,6 +340,11 @@ When import is completed, system displays import result table with the following
 **`⛔ Not available via VS Code extension`**
 
 System allows to export service with all its API specifications, environments and sources. From **"Inner Cloud Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) **Export**. Or simply click this button to export all services at once after confirmation.
+
+A service is exported as `<id>.external-service.<app>.yaml`, `<id>.internal-service.<app>.yaml`, or `<id>.implemented-service.<app>.yaml`, depending on its type. The file name states the type; the document no longer carries an `integrationSystemType` field.
+
+> ⚠️ **Warning:** A Runtime Catalog released before this format cannot import such an archive. It looks for the previous `<id>.service.<app>.yaml` name only, so the services are **silently missing** from its import result — no **Error** row is shown for them. To produce an archive an older version can import, set `QIP_EXPORT_LEGACY_FORMAT=true` on the exporting instance.
+
 
 ### Constraints
 

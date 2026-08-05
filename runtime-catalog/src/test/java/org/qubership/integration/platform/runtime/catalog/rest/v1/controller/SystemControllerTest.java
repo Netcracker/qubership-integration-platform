@@ -100,6 +100,19 @@ class SystemControllerTest {
         verify(systemService, never()).save(any());
     }
 
+    /** PATCH shares the request DTO and the id, so it reports an unknown one the way PUT does. */
+    @Test
+    @DisplayName("PATCH on an unknown id reports the id instead of answering a bodiless 400")
+    void patchOnAnUnknownIdReportsTheId() {
+        when(systemService.getByIdOrNull(SYSTEM_ID)).thenReturn(null);
+
+        EntityNotFoundException exception = assertThrows(EntityNotFoundException.class,
+                () -> controller.updateSyncStatus(SYSTEM_ID, requestWith(IntegrationSystemType.INTERNAL)));
+
+        assertThat(exception.getMessage(), containsString(SYSTEM_ID));
+        verify(systemService, never()).save(any());
+    }
+
     @Test
     @DisplayName("PUT on a known id still applies the mutable fields")
     void putOnAKnownIdAppliesTheMutableFields() {

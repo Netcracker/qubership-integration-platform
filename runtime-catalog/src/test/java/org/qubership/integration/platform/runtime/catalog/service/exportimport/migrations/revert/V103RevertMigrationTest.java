@@ -396,8 +396,7 @@ class V103RevertMigrationTest {
                 new SystemModelDtoMapper(API_SCHEMA, new ApiOperationDtoMapper()),
                 fileMigrationService,
                 TestServiceMigrations.all(),
-                ExtractorTestParsers.extractor(),
-                new ServiceTypeFiles(new ApplicationJsonSchemaProperties()));
+                ExtractorTestParsers.extractor());
         ReflectionTestUtils.setField(deserializer, "appName", APP_NAME);
         return deserializer;
     }

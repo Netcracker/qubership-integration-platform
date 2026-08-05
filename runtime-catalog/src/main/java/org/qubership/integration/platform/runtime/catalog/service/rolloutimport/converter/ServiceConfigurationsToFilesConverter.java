@@ -6,7 +6,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationItem;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -34,6 +36,7 @@ public class ServiceConfigurationsToFilesConverter {
     private static final String SPECIFICATION_FILE_PATH_FIELD_KEY = "filePath";
     // Older packages still carry the pre-api field name; read both so their sources are not silently dropped.
     private static final String LEGACY_SPECIFICATION_FILE_NAME_FIELD_KEY = "fileName";
+    private static final String INTEGRATION_SYSTEM_TYPE_FIELD_KEY = "integrationSystemType";
 
     private final ObjectMapper objectMapper;
     private final String appPrefix;
@@ -82,8 +85,29 @@ public class ServiceConfigurationsToFilesConverter {
 
             String serviceId = serviceConfig.getKey();
             Path serviceDirectory = Path.of(serviceId);
-            String serviceFileName = serviceId + serviceTypePostfix + appPrefix + YAML_FILE_NAME_POSTFIX;
+            String postfix = SERVICE_YAML_NAME_POSTFIX.equals(serviceTypePostfix)
+                    ? plainServicePostfix(contentNode)
+                    : serviceTypePostfix;
+            String serviceFileName = serviceId + postfix + appPrefix + YAML_FILE_NAME_POSTFIX;
             putYaml(files, serviceDirectory.resolve(serviceFileName), serviceConfig.getValue());
+        }
+    }
+
+    /**
+     * The per-type name when the package states a type, so the written file is self-describing. A package built after
+     * #553 carries no {@code content.integrationSystemType}, and the plain {@code .service.} name states no type
+     * either, so import would have nothing left to resolve from.
+     */
+    private static String plainServicePostfix(JsonNode contentNode) {
+        JsonNode type = contentNode == null ? null : contentNode.get(INTEGRATION_SYSTEM_TYPE_FIELD_KEY);
+        if (type == null || !type.isTextual()) {
+            return SERVICE_YAML_NAME_POSTFIX;
+        }
+        try {
+            return ServiceTypeFiles.postfix(IntegrationSystemType.valueOf(type.asText()));
+        } catch (IllegalArgumentException exception) {
+            log.warn("Service configuration states an unknown service type {}", type.asText());
+            return SERVICE_YAML_NAME_POSTFIX;
         }
     }
 

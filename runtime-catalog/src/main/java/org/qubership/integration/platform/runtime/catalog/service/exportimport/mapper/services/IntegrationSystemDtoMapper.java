@@ -87,7 +87,8 @@ public class IntegrationSystemDtoMapper implements ExternalEntityMapper<Integrat
                 .content(IntegrationSystemContentDto.builder()
                         .description(integrationSystem.getDescription())
                         .activeEnvironmentId(integrationSystem.getActiveEnvironmentId())
-                        .integrationSystemType(integrationSystem.getIntegrationSystemType())
+                        // No integrationSystemType: the field is WRITE_ONLY, so setting it here would write nothing.
+                        // V105RevertMigration is what puts the type back for the legacy format.
                         .internalServiceName(integrationSystem.getInternalServiceName())
                         .protocol(integrationSystem.getProtocol())
                         .environments(integrationSystem.getEnvironments())
@@ -102,7 +103,7 @@ public class IntegrationSystemDtoMapper implements ExternalEntityMapper<Integrat
     private static IntegrationSystemType requireType(IntegrationSystem system) {
         IntegrationSystemType type = system.getIntegrationSystemType();
         if (type == null) {
-            throw new ServiceExportException(system.getId(), system.getName(),
+            throw new ServiceExportException(
                     ("Service %s has no type, and an exported service states its type in the file name and the $schema."
                             + " Set the type of the service, then export again. The archive is not produced.")
                             .formatted(system.getId()));

@@ -3,11 +3,15 @@ package org.qubership.integration.platform.runtime.catalog.service.rolloutimport
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.model.ImportConfig;
+import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationItem;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportPackageContent;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportResourceItem;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -34,7 +38,8 @@ class ImportConfigFactoryTest {
 
     @BeforeEach
     void setUp() {
-        factory = new ImportConfigFactory(new ApplicationJsonSchemaProperties());
+        ApplicationJsonSchemaProperties schemas = new ApplicationJsonSchemaProperties();
+        factory = new ImportConfigFactory(schemas, new ServiceTypeFiles(schemas));
     }
 
     @Test
@@ -81,6 +86,23 @@ class ImportConfigFactoryTest {
 
         assertThat(result.getServices()).containsKey(SERVICE_CONFIG_ID);
         assertThat(result.getChains()).doesNotContainKey(SERVICE_CONFIG_ID);
+    }
+
+    /**
+     * Since #553 a service states its type in the $schema too. Miss a per-type URI here and the item falls through
+     * every branch: no file is written for it and the rollout import reports success with the service missing.
+     */
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    @DisplayName("Configuration with a per-type service schema is routed to services map")
+    void perTypeServiceSchemaRoutedToServices(IntegrationSystemType type) {
+        RolloutImportConfigurationItem item = configItem(
+                SERVICE_CONFIG_ID, new ServiceTypeFiles(new ApplicationJsonSchemaProperties()).schemaUri(type));
+
+        ImportConfig result = factory.fromConfigurationsAndResources(List.of(item), null);
+
+        assertThat(result.getServices()).containsKey(SERVICE_CONFIG_ID);
+        assertThat(result.getContextServices()).doesNotContainKey(SERVICE_CONFIG_ID);
     }
 
     @Test

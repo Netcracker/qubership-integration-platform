@@ -24,6 +24,10 @@ properties:
       required:
         - integrationSystemType
     properties:
+      # Internal services alone carry this: it is the deployed name the platform addresses the service by.
+      internalServiceName:
+        type: string
+        title: Internal service name
       protocol:
         title: Protocol
         $ref: "#/definitions/Protocol"
