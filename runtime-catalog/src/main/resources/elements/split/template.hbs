@@ -2,7 +2,6 @@
     <multicast parallelProcessing="true"
                aggregationStrategy="{{property 'aggregationStrategy'}}"
                timeout="{{property 'timeout'}}"
-               stopOnAggregateException="{{property 'stopOnException'}}"
                stopOnException="{{property 'stopOnException'}}">
         {{#children 'main-split-element'}}
             <pipeline>

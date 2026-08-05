@@ -5,7 +5,6 @@
         <multicast parallelProcessing="true"
                    aggregationStrategy="chainsAggregationStrategy"
                    timeout="0"
-                   stopOnAggregateException="true"
                    stopOnException="true">
             <pipeline>
                 <setProperty name="internalProperty_splitId">
