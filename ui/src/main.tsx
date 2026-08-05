@@ -5,7 +5,6 @@ import App from "./App";
 import "./styles/theme-variables.css";
 import "./styles/antd-overrides.css";
 import "./index.css";
-import "./components/graph/nodes/Node.component.css";
 import { isVsCode } from "./api/rest/vscodeExtensionApi.ts";
 import AppExtension from "./AppExtension.tsx";
 import { initializeConfig } from "./config/configLoader.ts";

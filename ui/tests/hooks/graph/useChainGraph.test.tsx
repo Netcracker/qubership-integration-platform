@@ -142,6 +142,8 @@ import {
   getContainerIdsForEdges,
   buildGraphNodes,
   getLeastCommonParent,
+  getDataFromElement,
+  getLibraryElement,
 } from "../../../src/misc/chain-graph-utils";
 import { useChainGraph } from "../../../src/hooks/graph/useChainGraph";
 import { ChainContext } from "../../../src/pages/ChainPage.tsx";
@@ -1270,6 +1272,31 @@ describe("useChainGraph", () => {
         (n) => n.id === "container-1",
       );
       expect(untouched).toBeDefined();
+    });
+
+    it("should build node data from the library element when an element is renamed", async () => {
+      const { result } = await withInitialNodes();
+
+      const element = {
+        id: "node-1",
+        type: "script",
+        name: "Renamed",
+        description: "",
+      } as unknown as Parameters<HookResult["updateNodeData"]>[0];
+
+      act(() => {
+        result.current.updateNodeData(element, draggedNode);
+      });
+
+      // Without the library element the type badge falls back to the raw type.
+      expect(getLibraryElement).toHaveBeenCalledWith(
+        element,
+        expect.arrayContaining([expect.objectContaining({ name: "script" })]),
+      );
+      expect(getDataFromElement).toHaveBeenCalledWith(
+        element,
+        expect.objectContaining({ title: "Default" }),
+      );
     });
   });
 
