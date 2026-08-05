@@ -18,6 +18,9 @@ import { api } from "../api/api.ts";
 const EMPTY_PROPERTY_STUB = "%empty_property%";
 const DEFAULT_RESPONSE_TITLE = "Response";
 
+// Purely visual groupings: they add no step of their own, but may hold a trigger.
+const GROUPING_CONTAINERS = ["container"];
+
 const TRIGGERS = [
   "async-api-trigger",
   "chain-trigger",
@@ -177,24 +180,69 @@ export async function buildSequenceDiagram(
     })
     .forEach((action) => actions.push(action));
 
-  const filteredActions =
+  const filteredActions = filterActions(actions, (message) =>
     mode === DiagramMode.SIMPLE
-      ? filterInternalActions(actions, context.chain.id)
-      : actions;
+      ? !isInternalMessage(message, context.chain.id)
+      : true,
+  );
+
+  const usedParticipantIds = collectParticipantIds(filteredActions);
+  usedParticipantIds.add(chainParticipant.id);
 
   return {
     autonumber: true,
     chainParticipantId: chainParticipant.id,
-    participants,
+    participants: participants.filter((p) => usedParticipantIds.has(p.id)),
     actions: filteredActions,
   };
 }
 
-function filterInternalActions(actions: Action[], chainId: string): Action[] {
+/**
+ * Collects every participant that takes part in at least one action.
+ *
+ * Elements the chain never reaches, such as an unconnected element on the canvas
+ * or the body of a reuse that no reference points at, produce no action, and
+ * their participants would otherwise render as empty lifelines.
+ */
+function collectParticipantIds(actions: Action[]): Set<string> {
+  const ids = new Set<string>();
+  const visit = (items: Action[]): void => {
+    for (const action of items) {
+      switch (action.type) {
+        case "message":
+          ids.add(action.fromId);
+          ids.add(action.toId);
+          break;
+        case "activate":
+        case "deactivate":
+          ids.add(action.participantId);
+          break;
+        case "alternatives":
+        case "parallel":
+          action.branches.forEach((branch) => visit(branch.actions));
+          break;
+        default:
+          visit(action.actions);
+      }
+    }
+  };
+  visit(actions);
+  return ids;
+}
+
+/**
+ * Keeps the messages the predicate accepts and drops every composite block left
+ * without content. An empty block carries no information and renders as a
+ * zero-width box whose label wraps to one character per line.
+ */
+function filterActions(
+  actions: Action[],
+  keepMessage: (message: Message) => boolean,
+): Action[] {
   return actions.reduce<Action[]>((result, action) => {
     switch (action.type) {
       case "message": {
-        if (action.fromId === chainId && action.toId === chainId) {
+        if (!keepMessage(action)) {
           return result;
         }
         result.push(action);
@@ -203,7 +251,7 @@ function filterInternalActions(actions: Action[], chainId: string): Action[] {
       case "group":
       case "loop":
       case "optional": {
-        const filtered = filterInternalActions(action.actions, chainId);
+        const filtered = filterActions(action.actions, keepMessage);
         if (filtered.length > 0) {
           result.push({ ...action, actions: filtered });
         }
@@ -214,7 +262,7 @@ function filterInternalActions(actions: Action[], chainId: string): Action[] {
         const filteredBranches = action.branches
           .map((branch) => ({
             ...branch,
-            actions: filterInternalActions(branch.actions, chainId),
+            actions: filterActions(branch.actions, keepMessage),
           }))
           .filter((branch) => branch.actions.length > 0);
         if (filteredBranches.length > 0) {
@@ -227,6 +275,10 @@ function filterInternalActions(actions: Action[], chainId: string): Action[] {
         return result;
     }
   }, []);
+}
+
+function isInternalMessage(message: Message, chainId: string): boolean {
+  return message.fromId === chainId && message.toId === chainId;
 }
 
 function getAppName(): string {
@@ -322,7 +374,18 @@ function isTrigger(type: string): boolean {
 }
 
 function getTriggers(context: DiagramBuildContext): Element[] {
-  return context.chain.elements.filter((element) => isTrigger(element.type));
+  return collectTriggers(context.chain.elements);
+}
+
+function collectTriggers(elements: Element[]): Element[] {
+  return elements.flatMap((element) => {
+    if (isTrigger(element.type)) {
+      return [element];
+    }
+    return GROUPING_CONTAINERS.includes(element.type)
+      ? collectTriggers(element.children ?? [])
+      : [];
+  });
 }
 
 function createChainParticipant(context: DiagramBuildContext): Participant {
@@ -808,22 +871,86 @@ function hasNoInputConnections(
     .includes(element.id);
 }
 
+/**
+ * Branch elements reach the client in no particular order, so the diagram sorts
+ * them the way the reader expects an `alt` block to read: the main path first,
+ * the fallback last. Types not listed here share one rank and keep the order
+ * they came in.
+ */
+const BRANCH_RANKS: Record<string, number> = {
+  try: 0,
+  if: 0,
+  when: 0,
+  "main-split-element": 0,
+  "circuit-breaker-configuration": 0,
+  catch: 1,
+  else: 2,
+  finally: 2,
+  otherwise: 2,
+  "on-fallback": 2,
+};
+
+const DEFAULT_BRANCH_RANK = 1;
+
+function getBranchRank(element: Element): number {
+  // longest match wins, so a longer type keeps its rank when a shorter one also fits
+  const prefix = Object.keys(BRANCH_RANKS)
+    .filter((candidate) => element.type.startsWith(candidate))
+    .reduce(
+      (longest, candidate) =>
+        candidate.length > longest.length ? candidate : longest,
+      "",
+    );
+  return prefix === "" ? DEFAULT_BRANCH_RANK : BRANCH_RANKS[prefix];
+}
+
+function getBranchPriority(element: Element): number {
+  const value =
+    element.properties["priority"] ?? element.properties["priorityNumber"];
+  const priority = Number(value);
+  return Number.isFinite(priority) ? priority : Number.MAX_SAFE_INTEGER;
+}
+
+function orderBranchElements(elements: Element[] | undefined): Element[] {
+  return [...(elements ?? [])].sort((left, right) => {
+    const byRank = getBranchRank(left) - getBranchRank(right);
+    return byRank !== 0
+      ? byRank
+      : getBranchPriority(left) - getBranchPriority(right);
+  });
+}
+
+function getBranches(
+  element: Element,
+  context: DiagramBuildContext,
+  getLabel: (branch: Element) => string,
+): Branch[] {
+  return orderBranchElements(element.children).map((branch) => ({
+    type: "branch" as const,
+    label: getLabel(branch),
+    actions: getActionsForChildren(branch, context),
+  }));
+}
+
+/** Condition and choice differ only in the branch type that carries the expression. */
+function getConditionalBranchLabel(
+  branch: Element,
+  typePrefix: string,
+): string {
+  const condition =
+    (branch.properties["condition"] as string) ?? EMPTY_PROPERTY_STUB;
+  return branch.type.startsWith(typePrefix)
+    ? `${branch.name}, on condition ${condition}`
+    : branch.name;
+}
+
 function getConditionActions(
   element: Element,
   context: DiagramBuildContext,
 ): Action[] {
-  const branches: Branch[] = [];
-  element.children
-    ?.map((e) => {
-      const condition =
-        (e.properties["condition"] as string) ?? EMPTY_PROPERTY_STUB;
-      const label = e.type.startsWith("if")
-        ? `${e.name}, on condition ${condition}`
-        : e.name;
-      const actions: Action[] = getActionsForChildren(e, context);
-      return { type: "branch" as const, label, actions };
-    })
-    .forEach((b) => branches.push(b));
+  const branches = getBranches(element, context, (branch) =>
+    getConditionalBranchLabel(branch, "if"),
+  );
   return [{ type: "alternatives", branches }];
 }
 
@@ -831,18 +958,9 @@ function getChoiceActions(
   element: Element,
   context: DiagramBuildContext,
 ): Action[] {
-  const branches: Branch[] = [];
-  element.children
-    ?.map((e) => {
-      const condition =
-        (e.properties["condition"] as string) ?? EMPTY_PROPERTY_STUB;
-      const label = e.type.startsWith("when")
-        ? `${e.name}, on condition ${condition}`
-        : e.name;
-      const actions: Action[] = getActionsForChildren(e, context);
-      return { type: "branch" as const, label, actions };
-    })
-    .forEach((b) => branches.push(b));
+  const branches = getBranches(element, context, (branch) =>
+    getConditionalBranchLabel(branch, "when"),
+  );
   return [{ type: "alternatives", branches }];
 }
 
@@ -886,13 +1004,7 @@ function getSplitAsyncActions(
   element: Element,
   context: DiagramBuildContext,
 ): Action[] {
-  const branches: Branch[] = [];
-  element.children
-    ?.map((e) => {
-      const actions: Action[] = getActionsForChildren(e, context);
-      return { type: "branch" as const, label: e.name, actions };
-    })
-    .forEach((b) => branches.push(b));
+  const branches = getBranches(element, context, (branch) => branch.name);
   return [{ type: "parallel", branches }];
 }
 
@@ -942,18 +1054,13 @@ function getTryCatchFinallyActions(
   element: Element,
   context: DiagramBuildContext,
 ): Action[] {
-  const branches: Branch[] = [];
-  element.children
-    ?.map((e) => {
-      const exception =
-        (e.properties["exception"] as string) ?? EMPTY_PROPERTY_STUB;
-      const label = e.type.startsWith("catch")
-        ? `${e.name}, on exception ${exception}`
-        : e.name;
-      const actions: Action[] = getActionsForChildren(e, context);
-      return { type: "branch" as const, label, actions };
-    })
-    .forEach((b) => branches.push(b));
+  const branches = getBranches(element, context, (branch) => {
+    const exception =
+      (branch.properties["exception"] as string) ?? EMPTY_PROPERTY_STUB;
+    return branch.type.startsWith("catch")
+      ? `${branch.name}, on exception ${exception}`
+      : branch.name;
+  });
   return [{ type: "alternatives", branches }];
 }
 
@@ -961,18 +1068,14 @@ function getCircuitBreakerActions(
   element: Element,
   context: DiagramBuildContext,
 ): Action[] {
-  const branches: Branch[] = [];
-  element.children
-    ?.map((e) => {
-      const failureRateThreshold =
-        (e.properties["failureRateThreshold"] as string) ?? EMPTY_PROPERTY_STUB;
-      const label = e.type.startsWith("circuit-breaker-configuration")
-        ? `Failure rate < ${failureRateThreshold}%`
-        : e.name;
-      const actions: Action[] = getActionsForChildren(e, context);
-      return { type: "branch" as const, label, actions };
-    })
-    .forEach((b) => branches.push(b));
+  const branches = getBranches(element, context, (branch) => {
+    const failureRateThreshold =
+      (branch.properties["failureRateThreshold"] as string) ??
+      EMPTY_PROPERTY_STUB;
+    return branch.type.startsWith("circuit-breaker-configuration")
+      ? `Failure rate < ${failureRateThreshold}%`
+      : branch.name;
+  });
   return [{ type: "alternatives", branches }];
 }
 

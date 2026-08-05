@@ -91,6 +91,11 @@ export const SequenceDiagram: React.FC<SequenceDiagramProps> = ({
   );
 
   const [renderedSvg, setRenderedSvg] = useState<string>("");
+  const notificationServiceRef = useRef(notificationService);
+
+  useEffect(() => {
+    notificationServiceRef.current = notificationService;
+  }, [notificationService]);
 
   useEffect(() => {
     if (!activeDiagram) {
@@ -110,6 +115,15 @@ export const SequenceDiagram: React.FC<SequenceDiagramProps> = ({
           const sanitizedSvg = DOMPurify.sanitize(svg);
           svgCacheRef.current[activeTab] = sanitizedSvg;
           setRenderedSvg(sanitizedSvg);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setRenderedSvg("");
+          notificationServiceRef.current.requestFailed(
+            "Failed to render sequence diagram",
+            error,
+          );
         }
       });
     return () => {
