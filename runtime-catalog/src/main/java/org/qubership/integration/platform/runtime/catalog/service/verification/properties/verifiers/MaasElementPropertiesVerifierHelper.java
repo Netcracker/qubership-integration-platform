@@ -17,9 +17,8 @@
 package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
 
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.runtime.catalog.model.constant.ConnectionSourceType;
-import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
+import org.qubership.integration.platform.runtime.catalog.util.MaasConnectionSourceUtils;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -29,8 +28,7 @@ public class MaasElementPropertiesVerifierHelper {
             String sourceType,
             String maasClassifier
     ) {
-        if ((ConnectionSourceType.MAAS.toString().equals(sourceType)
-             || EnvironmentSourceType.MAAS_BY_CLASSIFIER.toString().equals(sourceType))
+        if (MaasConnectionSourceUtils.isMaasOrMaasByClassifierConnectionSource(sourceType)
                 && StringUtils.isEmpty(maasClassifier)) {
             return Collections.singletonList(
                     new VerificationError("MaaS classifier name is empty"));

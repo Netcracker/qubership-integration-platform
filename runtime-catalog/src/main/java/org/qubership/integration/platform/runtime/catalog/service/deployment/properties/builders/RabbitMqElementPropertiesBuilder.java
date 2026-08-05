@@ -19,12 +19,12 @@ package org.qubership.integration.platform.runtime.catalog.service.deployment.pr
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
-import org.qubership.integration.platform.runtime.catalog.model.constant.ConnectionSourceType;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.ElementPropertiesBuilder;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.properties.MaasPropertiesUtils;
 import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
+import org.qubership.integration.platform.runtime.catalog.util.MaasConnectionSourceUtils;
 import org.qubership.integration.platform.runtime.catalog.util.MaasUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -149,7 +149,7 @@ public class RabbitMqElementPropertiesBuilder implements ElementPropertiesBuilde
                 StringUtils.equalsIgnoreCase(elementType, CamelNames.RABBITMQ_SENDER_2_COMPONENT)
                         || StringUtils.equalsIgnoreCase(elementType, CamelNames.RABBITMQ_TRIGGER_2_COMPONENT)
         )
-                && ConnectionSourceType.MAAS.toString().equalsIgnoreCase(element.getPropertyAsString(CONNECTION_SOURCE_TYPE_PROP));
+                && MaasConnectionSourceUtils.isMaasConnectionSource(element.getPropertyAsString(CONNECTION_SOURCE_TYPE_PROP));
     }
 
     private boolean isAsyncElement(ChainElement element) {

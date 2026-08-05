@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.cr.sources.builders.xml.beans.builders.element;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.codehaus.stax2.XMLStreamWriter2;
 import org.qubership.integration.platform.runtime.catalog.cr.sources.SourceBuilderContext;
@@ -20,6 +21,7 @@ import static org.qubership.integration.platform.runtime.catalog.cr.sources.buil
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.*;
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.*;
 
+@Slf4j
 @Component
 public class AmpqBeansBinder implements ElementBeansBuilder {
     private static final Set<String> RABBITMQ_ELEMENTS = Set.of(
@@ -108,12 +110,15 @@ public class AmpqBeansBinder implements ElementBeansBuilder {
             tenantEnabled = Optional.ofNullable(element.getProperties().get(MAAS_CLASSIFIER_TENANT_ENABLED))
                     .map(Object::toString).orElse("false");
         } else { // Async API Trigger and Service Call elements
-            namespace = String.valueOf(ElementUtils.extractOperationAsyncProperties(element.getProperties())
-                    .get(CamelNames.MAAS_CLASSIFIER_NAMESPACE_PROP));
-            tenantId = String.valueOf(ElementUtils.extractOperationAsyncProperties(element.getProperties())
-                    .get(CamelNames.MAAS_CLASSIFIER_TENANT_ID_CAMEL_NAME));
-            tenantEnabled = String.valueOf(ElementUtils.extractOperationAsyncProperties(element.getProperties())
-                    .get(CamelNames.MAAS_CLASSIFIER_TENANT_ENABLED_CAMEL_NAME));
+            namespace = Optional.ofNullable(ElementUtils.extractOperationAsyncProperties(element.getProperties())
+                    .get(CamelNames.MAAS_CLASSIFIER_NAMESPACE_PROP))
+                    .map(Object::toString).orElse(null);
+            tenantId = Optional.ofNullable(ElementUtils.extractOperationAsyncProperties(element.getProperties())
+                    .get(CamelNames.MAAS_CLASSIFIER_TENANT_ID_CAMEL_NAME))
+                    .map(Object::toString).orElse(null);
+            tenantEnabled = Optional.ofNullable(ElementUtils.extractOperationAsyncProperties(element.getProperties())
+                    .get(CamelNames.MAAS_CLASSIFIER_TENANT_ENABLED_CAMEL_NAME))
+                    .map(Object::toString).orElse("false");
         }
         maasClassifierHelper.addMaasClassifierInfoBean(
                 streamWriter,

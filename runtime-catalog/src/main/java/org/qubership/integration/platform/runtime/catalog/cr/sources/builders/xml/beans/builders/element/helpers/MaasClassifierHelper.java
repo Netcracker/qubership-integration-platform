@@ -2,20 +2,18 @@ package org.qubership.integration.platform.runtime.catalog.cr.sources.builders.x
 
 import org.codehaus.stax2.XMLStreamWriter2;
 import org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions;
-import org.qubership.integration.platform.runtime.catalog.model.constant.ConnectionSourceType;
-import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentSourceType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
+import org.qubership.integration.platform.runtime.catalog.util.ElementUtils;
+import org.qubership.integration.platform.runtime.catalog.util.MaasConnectionSourceUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.Map;
 import java.util.Optional;
 import javax.xml.stream.XMLStreamException;
 
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.MAAS_CLASSIFIER_NAME_PROP;
-import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelNames.OPERATION_ASYNC_PROPERTIES;
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.DEFAULT_VHOST_CLASSIFIER_NAME;
 import static org.qubership.integration.platform.runtime.catalog.model.constant.CamelOptions.SYSTEM_ID;
 
@@ -34,9 +32,9 @@ public class MaasClassifierHelper {
     }
 
     public String getMaasClassifierForServiceCallOrAsyncApiElement(ChainElement element) {
-        return Optional.ofNullable(element.getPropertyAsString(OPERATION_ASYNC_PROPERTIES))
-                .map(Map.class::cast)
-                .map(m -> m.get(MAAS_CLASSIFIER_NAME_PROP))
+        return Optional.ofNullable(
+                        ElementUtils.extractOperationAsyncProperties(element.getProperties())
+                                .get(MAAS_CLASSIFIER_NAME_PROP))
                 .or(() -> Optional.ofNullable(element.getPropertyAsString(SYSTEM_ID))
                         .map(systemService::getByIdOrNull)
                         .map(system -> environmentService.getByIdForSystem(
@@ -48,8 +46,7 @@ public class MaasClassifierHelper {
 
     public String getMaasClassifierForKafkaElement(ChainElement element) {
         String sourceType = element.getPropertyAsString(CamelOptions.CONNECTION_SOURCE_TYPE_PROP);
-        return ConnectionSourceType.MAAS.toString().equals(sourceType)
-                || EnvironmentSourceType.MAAS_BY_CLASSIFIER.toString().equals(sourceType)
+        return MaasConnectionSourceUtils.isMaasOrMaasByClassifierConnectionSource(sourceType)
                 ? Optional.ofNullable(element.getPropertyAsString(CamelOptions.MAAS_TOPICS_CLASSIFIER_NAME_PROP))
                   .orElse("")
                 : "";
@@ -57,8 +54,7 @@ public class MaasClassifierHelper {
 
     public String getMaasClassifierForAmpqElement(ChainElement element) {
         String sourceType = element.getPropertyAsString(CamelOptions.CONNECTION_SOURCE_TYPE_PROP);
-        return ConnectionSourceType.MAAS.toString().equals(sourceType)
-                || EnvironmentSourceType.MAAS_BY_CLASSIFIER.toString().equals(sourceType)
+        return MaasConnectionSourceUtils.isMaasOrMaasByClassifierConnectionSource(sourceType)
                 ? Optional.ofNullable(element.getPropertyAsString(CamelOptions.MAAS_VHOST_CLASSIFIER_NAME_PROP))
                   .orElse(DEFAULT_VHOST_CLASSIFIER_NAME)
                 : "";
@@ -79,32 +75,25 @@ public class MaasClassifierHelper {
 
         streamWriter.writeStartElement("properties");
 
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "elementId");
-        streamWriter.writeAttribute("value", element.getOriginalId());
-
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "protocol");
-        streamWriter.writeAttribute("value", protocol);
-
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "classifier");
-        streamWriter.writeAttribute("value", classifier);
-
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "namespace");
-        streamWriter.writeAttribute("value", namespace);
-
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "tenantId");
-        streamWriter.writeAttribute("value", tenantId);
-
-        streamWriter.writeEmptyElement("property");
-        streamWriter.writeAttribute("key", "tenantEnabled");
-        streamWriter.writeAttribute("value", tenantEnabled);
+        writeProperty(streamWriter, "elementId", element.getOriginalId());
+        writeProperty(streamWriter, "protocol", protocol);
+        writeProperty(streamWriter, "classifier", classifier);
+        writeProperty(streamWriter, "namespace", namespace);
+        writeProperty(streamWriter, "tenantId", tenantId);
+        writeProperty(streamWriter, "tenantEnabled", tenantEnabled);
 
         streamWriter.writeEndElement();
         streamWriter.writeEndElement();
 
+    }
+
+    private void writeProperty(
+            XMLStreamWriter2 streamWriter,
+            String key,
+            String value
+    ) throws XMLStreamException {
+        streamWriter.writeEmptyElement("property");
+        streamWriter.writeAttribute("key", key);
+        streamWriter.writeAttribute("value", value == null ? "" : value);
     }
 }
