@@ -189,6 +189,9 @@ qip:
         suffix: ""
       chain:
         suffix-length: 7
+      http-route:
+        public-suffix: -chain-public-routes
+        private-suffix: -chain-private-routes
     build:
       replicas: ${MICRO_DOMAIN_REPLICAS:1}
       container:
