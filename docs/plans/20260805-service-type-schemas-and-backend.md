@@ -826,11 +826,40 @@ written. Pre-existing, unrelated to #553, and not this plan's to fix.
 
 ### Task 14: [Final] Update documentation
 
-- [ ] update `runtime-catalog/CLAUDE.md`: the new file postfixes, why the type is resolved from the file name and not `$schema`, the V105 pair and why V105 forward is intentionally a no-op, V105 revert's broad-match/narrow-write split and the V103/V104 dependency on the `$schema` restore, and the rule that the type is immutable
-- [ ] update `schemas/CLAUDE.md` with the new top-level schemas
-- [ ] record that `service.schema.yaml` remains the current format for pre-#553 archives and must not be deleted
-- [ ] record the deliberate asymmetry with plan 2: the extension keeps a type-less file visible under `Unknown` and editable, while the backend refuses it on import (`ImportSystemStatus.ERROR`)
-- [ ] move this plan to `docs/plans/completed/`
+- [x] update `runtime-catalog/CLAUDE.md`: the new file postfixes, why the type is resolved from the file name and not `$schema`, the V105 pair and why V105 forward is intentionally a no-op, V105 revert's broad-match/narrow-write split and the V103/V104 dependency on the `$schema` restore, and the rule that the type is immutable
+- [x] update `schemas/CLAUDE.md` with the new top-level schemas
+- [x] record that `service.schema.yaml` remains the current format for pre-#553 archives and must not be deleted
+- [x] record the deliberate asymmetry with plan 2: the extension keeps a type-less file visible under `Unknown` and editable, while the backend refuses it on import (`ImportSystemStatus.ERROR`)
+- [x] move this plan to `docs/plans/completed/` — deferred to the harness, which moves it after the review and finalize
+  phases; moving it here breaks them.
+
+The `runtime-catalog/CLAUDE.md` entry is a `- **Service type**:` bullet in Conventions, parallel to the existing
+`- **API group**:` one, with six sub-bullets: file names, type resolution, V105 forward, V105 revert, immutability, and
+the retained `integration_system_type` column. It also corrects a claim the #553 work invalidated — the API-group bullet
+said `ServiceDocumentMatcher` is "shared by V103 and V104" and matches "the service, context-service, and MCP-service
+URIs", and both halves are now wrong.
+
+[decision] the module `CLAUDE.md` files are edited directly, despite `.claude/rules/apm-authoring.md` forbidding it in an
+APM repo. That rule guards APM *output*, and in this repo `apm compile` writes `.claude/rules/`, not the per-module
+`CLAUDE.md` files — `apm.yml` declares only `.apm/instructions/` and `.apm/skills/` as includes, and no module
+`CLAUDE.md` has a generated banner or an `.apm/` counterpart. They are hand-maintained.
+
+[deviation] the two files are **not committed**. Neither is tracked: `schemas/CLAUDE.md` is untracked and
+`runtime-catalog/CLAUDE.md` is listed in `.git/info/exclude`, alongside `vscode-extension/CLAUDE.md`. Every module
+`CLAUDE.md` in this checkout is deliberately kept out of git, so committing these two would reverse a decision this task
+has no standing to make. The plan-file checkbox update is committed on its own.
+
+Every statement in both files was read back against the symbol it names: the postfix constants
+(`ExportImportConstants:40-42`), `ServiceTypeFiles` (postfix/URI registry, `typeFromFileName`, `typeFromSchemaUri`),
+`ServiceDeserializer.resolveServiceType`, `V105ServiceImportFileMigration.makeMigration`, `V105RevertMigration`'s
+broad `supportsDocument` and URI-gated `revert`, `ServiceDocumentMatcher`'s six-URI set, `FileMigrationService:50,132`,
+`SystemExportImportService.SERVICE_FILE_POSTFIXES` and `validateServiceTypeUnchanged`,
+`ExportImportUtils.generateMainSystemFileExportName:227-232` and the two `extractSystemsFromImportDirectory` overloads
+(`:294,306`, the shared walk ORing the legacy prefix at `:313`), `ExportedIntegrationSystem.type`,
+`IntegrationSystemContentDto:55`, `IntegrationSystemDtoMapper.requireType`, `SystemController.updateSystem:119-122`,
+`SystemBaseService.validateEnvironmentCount` and its three call sites, `IntegrationSystemType.allowedProtocols/
+maxEnvironments`, `EntityType.getSystemType:56-62`, the three schema `$id`s and their `metaInfo.fileExtension`,
+`service-content.schema.yaml`'s definitions, and `ServiceTypeFilesTest:161-183`.
 
 ## Post-Completion
 
