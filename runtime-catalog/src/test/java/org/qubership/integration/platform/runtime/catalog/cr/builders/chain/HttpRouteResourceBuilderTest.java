@@ -124,4 +124,51 @@ class HttpRouteResourceBuilderTest {
         assertEquals(1, occurrences);
         assertTrue(result.contains("9000ms"));
     }
+
+    @Test
+    void buildRewritesIntegralDoublesInPreservedRuleToIntegers() throws Exception {
+        when(routesGetterService.getRoutes(any())).thenReturn(List.of(
+                DeploymentRoute.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build()));
+
+        ResourceBuildContext<List<Snapshot>> context = contextFor(List.of(mock(Snapshot.class)));
+        Map<String, Object> priorSpec = new LinkedHashMap<>();
+        // Mirrors what io.kubernetes.client.openapi.JSON (Gson, ToNumberPolicy.DOUBLE) actually
+        // produces: every JSON number decodes as Double, even whole numbers like port/weight.
+        priorSpec.put("rules", List.of(
+                Map.of(
+                        "matches", List.of(Map.of("path", Map.of("type", "PathPrefix", "value", "/qip-routes/b"))),
+                        "backendRefs", List.of(Map.of(
+                                "group", "",
+                                "kind", "Service",
+                                "name", "some-other-service",
+                                "port", 8080.0,
+                                "weight", 1.0)))));
+        context.getBuildCache().put("publicHttpRoute", priorSpec);
+
+        String result = builder.build(context);
+
+        assertTrue(result.contains("port: 8080"));
+        assertFalse(result.contains("port: 8080.0"));
+        assertTrue(result.contains("weight: 1"));
+        assertFalse(result.contains("weight: 1.0"));
+    }
+
+    @Test
+    void buildPreservesCachedRuleWithNoRecognizablePath() throws Exception {
+        when(routesGetterService.getRoutes(any())).thenReturn(List.of(
+                DeploymentRoute.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build()));
+
+        ResourceBuildContext<List<Snapshot>> context = contextFor(List.of(mock(Snapshot.class)));
+        Map<String, Object> priorSpec = new LinkedHashMap<>();
+        // A rule shaped differently than expected (no "matches" key at all) must still be
+        // preserved rather than silently dropped, per the "preserve unless touched" contract.
+        priorSpec.put("rules", List.of(
+                Map.of("name", "hand-edited-rule-without-matches")));
+        context.getBuildCache().put("publicHttpRoute", priorSpec);
+
+        String result = builder.build(context);
+
+        assertTrue(result.contains("hand-edited-rule-without-matches"));
+        assertTrue(result.contains("/qip-routes/a"));
+    }
 }

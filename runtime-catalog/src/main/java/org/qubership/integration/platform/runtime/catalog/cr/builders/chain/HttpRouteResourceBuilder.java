@@ -1,6 +1,9 @@
 package org.qubership.integration.platform.runtime.catalog.cr.builders.chain;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.DoubleNode;
+import com.fasterxml.jackson.databind.node.LongNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -234,11 +237,61 @@ public class HttpRouteResourceBuilder implements ResourceBuilder<List<Snapshot>>
         List<ObjectNode> preserved = new ArrayList<>();
         for (Object ruleObj : existingRules) {
             ObjectNode ruleNode = yamlMapper.convertValue(ruleObj, ObjectNode.class);
+            normalizeIntegralDoubles(ruleNode);
             String path = ruleNode.path("matches").path(0).path("path").path("value").asText(null);
-            if (path != null && !touchedPaths.contains(path)) {
+            if (path == null) {
+                log.warn("Preserved HTTPRoute rule under cache key '{}' has no recognizable path match "
+                        + "(matches[0].path.value); keeping it unconditionally rather than risk silently "
+                        + "dropping it from the cluster: {}", cacheKey, ruleNode);
+                preserved.add(ruleNode);
+                continue;
+            }
+            if (!touchedPaths.contains(path)) {
                 preserved.add(ruleNode);
             }
         }
         return preserved;
+    }
+
+    /**
+     * Recursively rewrites {@link DoubleNode} values that hold whole numbers (as produced by
+     * {@code io.kubernetes.client.openapi.JSON}'s Gson instance, which decodes every JSON number
+     * as {@code Double} by default) into integral nodes. Without this, a preserved rule's
+     * {@code port}/{@code weight} would be re-emitted as e.g. {@code 8080.0}, which the Gateway
+     * API's int32-typed schema rejects at apply time.
+     */
+    private void normalizeIntegralDoubles(JsonNode node) {
+        if (node instanceof ObjectNode objectNode) {
+            List<String> fieldNames = new ArrayList<>();
+            objectNode.fieldNames().forEachRemaining(fieldNames::add);
+            for (String fieldName : fieldNames) {
+                JsonNode value = objectNode.get(fieldName);
+                if (value instanceof DoubleNode doubleNode) {
+                    Long integral = toIntegralIfWhole(doubleNode);
+                    if (integral != null) {
+                        objectNode.put(fieldName, integral);
+                    }
+                } else {
+                    normalizeIntegralDoubles(value);
+                }
+            }
+        } else if (node instanceof ArrayNode arrayNode) {
+            for (int i = 0; i < arrayNode.size(); i++) {
+                JsonNode value = arrayNode.get(i);
+                if (value instanceof DoubleNode doubleNode) {
+                    Long integral = toIntegralIfWhole(doubleNode);
+                    if (integral != null) {
+                        arrayNode.set(i, LongNode.valueOf(integral));
+                    }
+                } else {
+                    normalizeIntegralDoubles(value);
+                }
+            }
+        }
+    }
+
+    private Long toIntegralIfWhole(DoubleNode doubleNode) {
+        double value = doubleNode.asDouble();
+        return (Double.isFinite(value) && value == Math.rint(value)) ? (long) value : null;
     }
 }
