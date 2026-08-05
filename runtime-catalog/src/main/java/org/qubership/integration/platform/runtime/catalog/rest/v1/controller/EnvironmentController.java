@@ -25,7 +25,6 @@ import org.qubership.integration.platform.runtime.catalog.model.dto.system.Envir
 import org.qubership.integration.platform.runtime.catalog.model.dto.system.EnvironmentRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.EnvironmentMapper;
 import org.qubership.integration.platform.runtime.catalog.model.system.EnvironmentLabel;
-import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentService;
@@ -46,7 +45,6 @@ import java.util.List;
 @Tag(name = "environment-controller", description = "Environment Controller")
 public class EnvironmentController {
 
-    private static final String INTERNAL_SYSTEM_ENVIRONMENT_UNIQUE_MESSAGE = "Can't put more than one environment to 'internal' system";
     private static final String UNIQUE_LABEL_WITHIN_SINGLE_SYSTEM_MESSAGE = "Label should be unique within single system: ";
     private final EnvironmentService environmentService;
     private final SystemService systemService;
@@ -91,11 +89,7 @@ public class EnvironmentController {
         }
         Environment environment = environmentMapper.toEnvironment(environmentRequestDTO);
         IntegrationSystem system = systemService.getByIdOrNull(systemId);
-        if (IntegrationSystemType.INTERNAL.equals(system.getIntegrationSystemType())) {
-            if (!system.getEnvironments().isEmpty()) {
-                throw new BadRequestException(INTERNAL_SYSTEM_ENVIRONMENT_UNIQUE_MESSAGE);
-            }
-        }
+        systemService.validateEnvironmentCount(system, system.getEnvironments().size() + 1);
         environment = environmentService.create(environment, system);
         return new ResponseEntity<>(environmentMapper.toDTO(environment), HttpStatus.CREATED);
     }

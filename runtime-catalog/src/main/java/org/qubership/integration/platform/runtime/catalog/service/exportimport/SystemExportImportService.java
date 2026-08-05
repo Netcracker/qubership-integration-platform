@@ -531,11 +531,9 @@ public class SystemExportImportService {
             String deployLabel,
             Consumer<String> messageHandler,
             Set<String> technicalLabels) {
-        if (IntegrationSystemType.INTERNAL == newSystem.getIntegrationSystemType()) {
-            if (newSystem.getEnvironments().size() > 1) {
-                throw new RuntimeException("Can't have more than 1 environment on internal system");
-            }
+        systemService.validateEnvironmentCount(newSystem, newSystem.getEnvironments().size());
 
+        if (IntegrationSystemType.INTERNAL == newSystem.getIntegrationSystemType()) {
             Environment environment = newSystem.getEnvironments().isEmpty() ? null : newSystem.getEnvironments().get(0);
             Environment oldEnvironment = oldSystem.getEnvironments().isEmpty() ? null : oldSystem.getEnvironments().get(0);
 
@@ -848,6 +846,7 @@ public class SystemExportImportService {
     }
 
     private void prepareIntegrationSystemForCreate(IntegrationSystem system, String deployLabel, Consumer<String> messageHandler) {
+        systemService.validateEnvironmentCount(system, system.getEnvironments().size());
         changeDiscoveredSourceLabels(system, true);
         setActiveEnvironmentId(system, deployLabel, messageHandler);
     }

@@ -3,6 +3,7 @@ package org.qubership.integration.platform.runtime.catalog.service;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
@@ -61,6 +62,46 @@ class SystemBaseServiceTest {
     @Test
     void noProtocolIsAlwaysAccepted() {
         assertDoesNotThrow(() -> service.validateSpecificationProtocol(systemOfType(null), null));
+    }
+
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    void oneEnvironmentIsAcceptedForEveryType(IntegrationSystemType type) {
+        assertDoesNotThrow(() -> service.validateEnvironmentCount(systemOfType(type), 1));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = IntegrationSystemType.class, names = {"INTERNAL", "IMPLEMENTED"})
+    void aSecondEnvironmentIsRejectedForSingleEnvironmentTypes(IntegrationSystemType type) {
+        assertThrows(BadRequestException.class, () -> service.validateEnvironmentCount(systemOfType(type), 2));
+    }
+
+    @Test
+    void anExternalServiceTakesAsManyEnvironmentsAsItLikes() {
+        assertDoesNotThrow(() ->
+                service.validateEnvironmentCount(systemOfType(IntegrationSystemType.EXTERNAL), 1000));
+    }
+
+    @Test
+    void aTypelessServiceIsNotCheckedAgainstAnyLimit() {
+        assertDoesNotThrow(() -> service.validateEnvironmentCount(systemOfType(null), 5));
+    }
+
+    @Test
+    void theRejectionNamesTheServiceAndBothCounts() {
+        IntegrationSystem system = IntegrationSystem.builder()
+                .id("service-1")
+                .name("Billing")
+                .integrationSystemType(IntegrationSystemType.INTERNAL)
+                .build();
+
+        BadRequestException exception = assertThrows(BadRequestException.class,
+                () -> service.validateEnvironmentCount(system, 3));
+
+        assertTrue(exception.getMessage().contains("service-1"), exception.getMessage());
+        assertTrue(exception.getMessage().contains("Billing"), exception.getMessage());
+        assertTrue(exception.getMessage().contains("at most 1 environment,"), exception.getMessage());
+        assertTrue(exception.getMessage().contains("3 were given"), exception.getMessage());
     }
 
     private static IntegrationSystem systemOfType(IntegrationSystemType type) {

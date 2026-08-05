@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
 import jakarta.persistence.EntityNotFoundException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
@@ -38,6 +39,9 @@ import static java.util.Objects.isNull;
 public class SystemBaseService {
 
     private static final String SYSTEM_WITH_ID_NOT_FOUND = "Can't find system with id: ";
+    private static final String ENVIRONMENT_LIMIT_MESSAGE =
+            "Service '%s' (id %s) is %s and accepts at most %d environment%s, but %d were given. "
+            + "Remove the extra environments and retry.";
 
     protected final SystemRepository systemRepository;
     protected final ActionsLogService actionsLogger;
@@ -121,6 +125,29 @@ public class SystemBaseService {
             String message = String.format("Specification type is not allowed for %s system: %s",
                     systemType.name().toLowerCase(), protocol.getType());
             throw new RuntimeException(message);
+        }
+    }
+
+    /**
+     * Shared by the REST and the import paths, so all of them reject an over-populated service alike.
+     *
+     * @param environmentCount the count the service would end up with, not the count it has now
+     */
+    public void validateEnvironmentCount(IntegrationSystem system, int environmentCount) {
+        IntegrationSystemType systemType = system.getIntegrationSystemType();
+        // The column is nullable, and a typeless row has no limit to compare against.
+        if (isNull(systemType)) {
+            return;
+        }
+        int maxEnvironments = systemType.maxEnvironments();
+        if (environmentCount > maxEnvironments) {
+            throw new BadRequestException(String.format(ENVIRONMENT_LIMIT_MESSAGE,
+                    system.getName(),
+                    system.getId(),
+                    systemType.name().toLowerCase(),
+                    maxEnvironments,
+                    maxEnvironments == 1 ? "" : "s",
+                    environmentCount));
         }
     }
 

@@ -406,20 +406,39 @@ call: `allowedProtocols()` is on the specification-import path, and the sets are
 ### Task 4: Close the environment-limit holes
 
 **Files:**
+- Modify: `runtime-catalog/.../service/SystemBaseService.java`
 - Modify: `runtime-catalog/.../service/exportimport/SystemExportImportService.java`
 - Modify: `runtime-catalog/.../rest/v1/controller/EnvironmentController.java`
+- Modify: `runtime-catalog/src/test/java/.../service/SystemBaseServiceTest.java`
 - Modify: `runtime-catalog/src/test/java/.../exportimport/SystemExportImportServiceTest.java` (create if absent)
 - Modify: `runtime-catalog/src/test/java/.../rest/v1/controller/EnvironmentControllerTest.java` (create if absent)
 
-- [ ] hoist the environment count check out of the `if (INTERNAL) … else if (EXTERNAL)` chain at `:534-560` so IMPLEMENTED is covered, driving it from `type.maxEnvironments()`
-- [ ] apply the same check on the create path (`prepareIntegrationSystemForCreate:850`), which has none today
-- [ ] widen the `EnvironmentController:94-98` guard from INTERNAL to `type.maxEnvironments()`
-- [ ] guard against a null type before dereferencing it — the column is nullable and legacy rows may carry one; today's `IntegrationSystemType.INTERNAL.equals(...)` is null-safe and `getType().maxEnvironments()` is not
-- [ ] keep one shared message so all three paths report the violation identically
-- [ ] write tests: a second environment is rejected for INTERNAL and IMPLEMENTED, accepted for EXTERNAL, on import-create, import-update, and the REST path
-- [ ] write a test for `EnvironmentController.updateEnvironment:116-118`, which falls through to create on an unknown id — a stale id against a full service now throws where it previously created
-- [ ] write a test: a service row with a null type does not crash the guard
-- [ ] run tests — must pass before task 5
+- [x] hoist the environment count check out of the `if (INTERNAL) … else if (EXTERNAL)` chain at `:534-560` so IMPLEMENTED is covered, driving it from `type.maxEnvironments()`
+- [x] apply the same check on the create path (`prepareIntegrationSystemForCreate:850`), which has none today
+- [x] widen the `EnvironmentController:94-98` guard from INTERNAL to `type.maxEnvironments()`
+- [x] guard against a null type before dereferencing it — the column is nullable and legacy rows may carry one; today's `IntegrationSystemType.INTERNAL.equals(...)` is null-safe and `getType().maxEnvironments()` is not
+- [x] keep one shared message so all three paths report the violation identically
+- [x] write tests: a second environment is rejected for INTERNAL and IMPLEMENTED, accepted for EXTERNAL, on import-create, import-update, and the REST path
+- [x] write a test for `EnvironmentController.updateEnvironment:116-118`, which falls through to create on an unknown id — a stale id against a full service now throws where it previously created
+- [x] write a test: a service row with a null type does not crash the guard
+- [x] run tests — must pass before task 5
+
+[decision] the shared check lives in `SystemBaseService.validateEnvironmentCount(system, count)`, next to the existing
+`validateSpecificationProtocol` — the same per-type validation shape, and both call sites already hold a `SystemService`,
+so no new bean or injection. It takes the count the service *would* end up with, because the REST create path checks
+`existing + 1` while the import paths check the count the file carries.
+
+[decision] a null type skips the check rather than raising. Today `IntegrationSystemType.INTERNAL.equals(null)` is false
+on all three paths, so a typeless row is unconstrained; raising here would newly reject legacy rows on a path this task
+is only meant to widen. Task 9 is where a null type becomes an error, and there it is the export that needs one.
+
+[decision] the message is a `BadRequestException`, not the bare `RuntimeException` the import path threw. The REST path
+already answered 400 through `GlobalExceptionHandler`, and `importOneSystemInTransaction:449` catches `Exception`, so
+the import path still degrades to `ImportSystemStatus.ERROR` with the message intact.
+
+➕ added `validateEnvironmentCount` cases to `SystemBaseServiceTest` — the rule itself is unit-tested there, and the
+controller and import tests delegate their `systemService` mock to a real `SystemBaseService`, so all three suites
+exercise one implementation rather than a stub of it.
 
 ### Task 5: Add the file-postfix ↔ type registry
 
