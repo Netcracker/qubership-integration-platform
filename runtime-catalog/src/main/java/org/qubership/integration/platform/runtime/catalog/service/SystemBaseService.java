@@ -137,20 +137,34 @@ public class SystemBaseService {
      * @param environmentCount the count the service would end up with, not the count it has now
      */
     public static void validateEnvironmentCount(IntegrationSystem system, int environmentCount) {
+        environmentLimitViolation(system, environmentCount).ifPresent(message -> {
+            throw new BadRequestException(message);
+        });
+    }
+
+    /**
+     * The message {@link #validateEnvironmentCount} would refuse the service with, or empty when it would not. The
+     * export path reads it rather than the throwing form: a row that already violates the limit still has to be
+     * extractable, so exporting it warns instead of refusing.
+     *
+     * @param environmentCount the count the service would end up with, not the count it has now
+     */
+    public static Optional<String> environmentLimitViolation(IntegrationSystem system, int environmentCount) {
         IntegrationSystemType systemType = system.getIntegrationSystemType();
         // The column is nullable, and a typeless row has no limit to compare against.
         if (isNull(systemType)) {
-            return;
+            return Optional.empty();
         }
         int maxEnvironments = systemType.maxEnvironments();
-        if (environmentCount > maxEnvironments) {
-            throw new BadRequestException(String.format(ENVIRONMENT_LIMIT_MESSAGE,
-                    system.getName(),
-                    system.getId(),
-                    systemType.name().toLowerCase(),
-                    maxEnvironments,
-                    environmentCount));
+        if (environmentCount <= maxEnvironments) {
+            return Optional.empty();
         }
+        return Optional.of(String.format(ENVIRONMENT_LIMIT_MESSAGE,
+                system.getName(),
+                system.getId(),
+                systemType.name().toLowerCase(),
+                maxEnvironments,
+                environmentCount));
     }
 
     protected void logSystemAction(IntegrationSystem system, LogOperation operation) {

@@ -898,9 +898,30 @@ This is the single place the release process reads them from:
    IMPLEMENTED, and `POST /v1/systems/{id}/environments`; a `PUT` of an unknown environment id against a full service
    falls through to create and is therefore rejected too. Existing data may violate the limit — check for IMPLEMENTED
    services carrying more than one environment before upgrading.
+
+   **A row already in that shape still exports, and the export warns.** Refusing would leave no way to extract it at
+   all, so `IntegrationSystemDtoMapper` logs the same message the import would reject the archive with, plus "The
+   archive is produced anyway, and re-importing this service fails until that is done." Grep the export logs for that
+   line to find the rows that need cleaning. There is deliberately **no Flyway backfill**: which environment to keep
+   is an operator's call, not a migration's.
 4. **An archive holding two service files for one service id imports neither of them.** That id is reported with
    `ImportSystemStatus.ERROR` (or `SystemCompareAction.ERROR` on the preview); the rest of the archive still imports.
-   An archive can acquire such a pair when a service changes type, since each type writes its own file name.
+   An archive can acquire such a pair when a service changes type, since each type writes its own file name. On the
+   commit paths the row obeys the same selection and IGNORE filters as every other id: an id the request did not
+   select produces no row, and one an IGNORE instruction excludes is reported as `IGNORED`.
+5. **The VS Code extension cannot open a service file this version exports.** `fileApiImpl.getFileType` classifies a
+   service by `.service.${appName}.yaml`, which `.external-service.` and its two siblings do not match, so both the
+   file and its folder fall into `QipFileType.UNKNOWN`. Plan 2 adds the three names; until it merges, edit exported
+   services with `QIP_EXPORT_LEGACY_FORMAT=true` or in the UI. The backend and the extension ship from one repo, so
+   this window is visible in a single checkout.
+6. **A context service exported in the current format does not import into a pre-#553 Runtime Catalog.**
+   `ContextServiceDtoMapper` stamps the shared service migration list, so a context service claims format version 105
+   and an older QIP answers `MigrationException` ("exported from a newer version"). This is the barrier working as
+   designed, not collateral damage: it is the only signal an old QIP gives that the archive came from a newer one,
+   because the new plain-service names are silently invisible to its discovery (item 1). Every version added to the
+   shared list has behaved this way — V104 did the same. The legacy format is unaffected: `V105RevertMigration`
+   strips 105 from every document the shared list stamps, context and MCP services included, so
+   `QIP_EXPORT_LEGACY_FORMAT=true` remains the working downgrade path.
 
 **Manual verification:**
 
@@ -915,17 +936,24 @@ This is the single place the release process reads them from:
   absence of plain ones.
 - Null the type on one row (`UPDATE … SET integration_system_type = NULL`) and confirm the UI list still renders and
   exporting that service fails with the clear Task 9 message rather than an NPE.
-- Check production data for IMPLEMENTED services carrying more than one environment. Task 4 starts rejecting them on
-  import and on the REST path, so they need a release note and, if any exist, a cleanup path.
+- Check production data for IMPLEMENTED or INTERNAL services carrying more than one environment. Task 4 starts
+  rejecting them on import and on the REST path, so they need a release note and, if any exist, a cleanup path. A full
+  catalog export is the cheapest probe: every such row logs a warning naming its id (breaking change 3).
 
 **Deferred, deliberately out of scope:**
 
 - ~~The rollout-import converter (`ServiceConfigurationsToFilesConverter`) keeps writing `.service.` file names.~~
   **Closed in review.** It was not cosmetic: a package authored after #553 carries no `content.integrationSystemType`,
-  so a `.service.` name left the importer with nothing to resolve the type from. The converter now derives the per-type
-  postfix from `content.integrationSystemType` when the package states one, and `ImportConfigFactory` was taught the
+  so a `.service.` name left the importer with nothing to resolve the type from. `ImportConfigFactory` was taught the
   three per-type `$schema` URIs — without that, such an item fell through every branch of the classifier and was
-  dropped in silence.
+  dropped in silence — and the converter derives the per-type postfix from `content.integrationSystemType`, falling
+  back to the item's `$schema`. Both sources are needed, and the first fix shipped with only one of them: the per-type
+  schemas carry `not: {required: [integrationSystemType]}`, so a conformant post-#553 package states its type in
+  `$schema` and nowhere else. `ServiceConfigurationsToFilesConverterTest.post553PackageItemKeepsItsTypeThroughTheWholeChain`
+  runs the classify → write → import chain end to end, which is what neither half's own tests did.
+
+- **The VS Code extension's per-type support belongs to plan 2**, by the dependency this plan already declares ("Plan 1
+  must merge before plan 2 starts"). See breaking change 5 above for the operator-facing consequence in the meantime.
 
 **External system updates:**
 

@@ -104,6 +104,24 @@ class SystemBaseServiceTest {
         assertTrue(exception.getMessage().contains("3 were given"), exception.getMessage());
     }
 
+    /**
+     * The export path reads the violation instead of throwing on it, so both forms have to answer the same question.
+     * An over-populated row exports with a warning rather than being locked in.
+     */
+    @ParameterizedTest
+    @EnumSource(value = IntegrationSystemType.class, names = {"INTERNAL", "IMPLEMENTED"})
+    void theViolationIsReportedForTheSameInputThatIsRejected(IntegrationSystemType type) {
+        assertTrue(SystemBaseService.environmentLimitViolation(systemOfType(type), 2).isPresent());
+        assertTrue(SystemBaseService.environmentLimitViolation(systemOfType(type), 1).isEmpty());
+    }
+
+    @Test
+    void noViolationIsReportedForAnExternalOrATypelessService() {
+        assertTrue(SystemBaseService
+                .environmentLimitViolation(systemOfType(IntegrationSystemType.EXTERNAL), 1000).isEmpty());
+        assertTrue(SystemBaseService.environmentLimitViolation(systemOfType(null), 5).isEmpty());
+    }
+
     private static IntegrationSystem systemOfType(IntegrationSystemType type) {
         return IntegrationSystem.builder().integrationSystemType(type).build();
     }

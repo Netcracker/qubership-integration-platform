@@ -16,12 +16,14 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services;
 
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceExportException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemContentDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystemLabel;
+import org.qubership.integration.platform.runtime.catalog.service.SystemBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil;
@@ -33,6 +35,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Component
 public class IntegrationSystemDtoMapper implements ExternalEntityMapper<IntegrationSystem, IntegrationSystemDto> {
     private final ServiceTypeFiles serviceTypeFiles;
@@ -80,6 +83,7 @@ public class IntegrationSystemDtoMapper implements ExternalEntityMapper<Integrat
      */
     @Override
     public IntegrationSystemDto toExternalEntity(IntegrationSystem integrationSystem) {
+        warnOnEnvironmentLimit(integrationSystem);
         return IntegrationSystemDto.builder()
                 .id(integrationSystem.getId())
                 .name(integrationSystem.getName())
@@ -96,6 +100,18 @@ public class IntegrationSystemDtoMapper implements ExternalEntityMapper<Integrat
                         .migrations(MigrationUtil.formatVersions(serviceImportFileMigrations))
                         .build())
                 .build();
+    }
+
+    /**
+     * A row holding more environments than its type allows exports, but does not import: the limit is enforced on
+     * every import path since #553, and the per-type schemas state it as {@code maxItems: 1}. Rows in that shape
+     * predate the rule (IMPLEMENTED was never checked, and INTERNAL was unchecked on import-create), so the export
+     * warns instead of refusing. Refusing would leave no way to extract such a row at all.
+     */
+    private static void warnOnEnvironmentLimit(IntegrationSystem system) {
+        SystemBaseService.environmentLimitViolation(system, system.getEnvironments().size())
+                .ifPresent(message -> log.warn("{} The archive is produced anyway, and re-importing this service fails"
+                        + " until that is done.", message));
     }
 
     // The column is nullable, so a legacy row can reach this point with no type. Failing here names the row; letting it

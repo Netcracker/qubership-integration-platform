@@ -1,5 +1,8 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
@@ -10,19 +13,23 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceExportException;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ServiceDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert.ServiceDocumentMatcher;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.GoldenServiceCorpus.APP_NAME;
@@ -228,7 +235,62 @@ class ServiceExportFormatTest {
                 "the legacy name carries no type, so it needs none");
     }
 
+    // --- a service over its environment limit ------------------------------------------------------------------------
+
+    /**
+     * IMPLEMENTED was never checked before #553 and INTERNAL was unchecked on import-create, so rows holding more
+     * environments than their type allows exist. Such a row still exports, because refusing would leave no way to
+     * extract it, and the warning is what tells the operator the archive does not import as it stands.
+     */
+    @Test
+    void exportingAServiceOverItsEnvironmentLimitWarnsAndStillProducesTheDocument() {
+        IntegrationSystem overPopulated = IntegrationSystem.builder()
+                .id("svc-internal")
+                .name("Billing")
+                .integrationSystemType(IntegrationSystemType.INTERNAL)
+                .environments(new ArrayList<>(List.of(new Environment(), new Environment())))
+                .build();
+
+        List<ILoggingEvent> events = capture(IntegrationSystemDtoMapper.class, () ->
+                assertNotNull(new IntegrationSystemDtoMapper(GoldenServiceCorpus.serviceTypeFiles(), List.of())
+                        .toExternalEntity(overPopulated)));
+
+        assertTrue(events.stream().anyMatch(event -> event.getFormattedMessage().contains("svc-internal")
+                        && event.getFormattedMessage().contains("re-importing")),
+                "the export names the row and says the archive does not come back in: " + events);
+    }
+
+    @Test
+    void exportingAServiceWithinItsEnvironmentLimitWarnsAboutNothing() {
+        IntegrationSystem withinLimit = IntegrationSystem.builder()
+                .id("svc-internal")
+                .name("Billing")
+                .integrationSystemType(IntegrationSystemType.INTERNAL)
+                .environments(new ArrayList<>(List.of(new Environment())))
+                .build();
+
+        List<ILoggingEvent> events = capture(IntegrationSystemDtoMapper.class, () ->
+                new IntegrationSystemDtoMapper(GoldenServiceCorpus.serviceTypeFiles(), List.of())
+                        .toExternalEntity(withinLimit));
+
+        assertTrue(events.isEmpty(), "a service inside its limit exports silently: " + events);
+    }
+
     // --- helpers -----------------------------------------------------------------------------------------------------
+
+    private static List<ILoggingEvent> capture(Class<?> loggerClass, Runnable action) {
+        Logger logger = (Logger) LoggerFactory.getLogger(loggerClass);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            action.run();
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+        return appender.list;
+    }
 
     private ServiceDeserializer deserializer() {
         return GoldenServiceCorpus.deserializer();

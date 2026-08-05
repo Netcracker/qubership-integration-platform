@@ -295,22 +295,54 @@ public class SystemExportImportService {
                     .toList();
         }
 
-        List<ImportSystemResult> importErrors() {
-            return collidingFileNamesById.entrySet().stream()
-                    .<ImportSystemResult>map(entry -> ImportSystemResult.builder()
-                            .id(entry.getKey())
-                            .name(entry.getKey())
-                            .status(ImportSystemStatus.ERROR)
-                            .message(collisionMessage(entry.getValue()))
-                            .build())
-                    .toList();
+        /** Every service id the archive names, colliding ones included: an IGNORE instruction applies to those too. */
+        Set<String> discoveredIds() {
+            return Stream.concat(
+                            importable.stream().map(ExportImportUtils::extractSystemIdFromFileName),
+                            collidingFileNamesById.keySet().stream())
+                    .collect(Collectors.toSet());
         }
 
-        private static String collisionMessage(List<String> fileNames) {
+        static String collisionMessage(List<String> fileNames) {
             return ("Archive holds %d service files for this service: %s. Keep the one that is current and remove the"
                     + " others, then re-import. The service is not imported.")
                     .formatted(fileNames.size(), String.join(", ", fileNames));
         }
+    }
+
+    /**
+     * The rows a colliding id produces on a commit path, under the selection and ignore rules the per-file loop
+     * applies to every other id. Without them a service the request never selected, or one an IGNORE instruction
+     * excludes, would turn into an error row over a file the import was never going to read, and a single error row
+     * marks the whole session failed.
+     */
+    private static List<ImportSystemResult> collisionResults(
+            DiscoveredServiceFiles discovered,
+            Set<String> idsToImport,
+            List<String> selectedIds
+    ) {
+        List<ImportSystemResult> results = new ArrayList<>();
+        discovered.collidingFileNamesById().forEach((serviceId, fileNames) -> {
+            if (!CollectionUtils.isEmpty(selectedIds) && !selectedIds.contains(serviceId)) {
+                return;
+            }
+            if (!idsToImport.contains(serviceId)) {
+                results.add(ImportSystemResult.builder()
+                        .id(serviceId)
+                        .name(serviceId)
+                        .status(ImportSystemStatus.IGNORED)
+                        .build());
+                log.info("Service {} ignored as a part of import exclusion list", serviceId);
+                return;
+            }
+            results.add(ImportSystemResult.builder()
+                    .id(serviceId)
+                    .name(serviceId)
+                    .status(ImportSystemStatus.ERROR)
+                    .message(DiscoveredServiceFiles.collisionMessage(fileNames))
+                    .build());
+        });
+        return results;
     }
 
     public List<ImportSystemResult> getSystemsImportPreview(File importDirectory, ImportInstructionsConfig instructionsConfig) {
@@ -395,6 +427,9 @@ public class SystemExportImportService {
             resultSystemCompareDTO.setName(system.getName());
             resultSystemCompareDTO.setRequiredAction(SystemCompareAction.CREATE);
         } else {
+            // The third refusal rule of the commit path, run here for the same reason as the other two: the stored
+            // service is already loaded, and a refusal the user only meets after committing is not a preview.
+            validateServiceTypeUnchanged(system, oldSystem);
             resultSystemCompareDTO.setName(oldSystem.getName());
             resultSystemCompareDTO.setRequiredAction(SystemCompareAction.UPDATE);
         }
@@ -421,13 +456,10 @@ public class SystemExportImportService {
             }
 
             DiscoveredServiceFiles discovered = DiscoveredServiceFiles.of(extractedSystemFiles);
-            response.addAll(discovered.importErrors());
-            Set<String> servicesToImport = importInstructionsService.performServiceIgnoreInstructions(
-                            discovered.importable().stream()
-                                    .map(ExportImportUtils::extractSystemIdFromFileName)
-                                    .collect(Collectors.toSet()),
-                            false)
+            Set<String> servicesToImport = importInstructionsService
+                    .performServiceIgnoreInstructions(discovered.discoveredIds(), false)
                     .idsToImport();
+            response.addAll(collisionResults(discovered, servicesToImport, systemIds));
             for (File singleSystemFile : discovered.importable()) {
                 String serviceId = extractSystemIdFromFileName(singleSystemFile);
                 if (!servicesToImport.contains(serviceId)) {
@@ -480,15 +512,12 @@ public class SystemExportImportService {
                 ? Collections.emptyList()
                 : systemCommitRequest.getSystemIds();
 
-        IgnoreResult ignoreResult = importInstructionsService.performServiceIgnoreInstructions(
-                systemsFiles.stream()
-                        .map(ExportImportUtils::extractSystemIdFromFileName)
-                        .collect(Collectors.toSet()),
-                true
-        );
+        IgnoreResult ignoreResult =
+                importInstructionsService.performServiceIgnoreInstructions(discovered.discoveredIds(), true);
         int total = systemsFiles.size();
         int counter = 0;
-        List<ImportSystemResult> response = new ArrayList<>(discovered.importErrors());
+        List<ImportSystemResult> response =
+                new ArrayList<>(collisionResults(discovered, ignoreResult.idsToImport(), systemIds));
         for (File systemFile : systemsFiles) {
             String serviceId = extractSystemIdFromFileName(systemFile);
             if (!ignoreResult.idsToImport().contains(serviceId)) {
@@ -667,8 +696,10 @@ public class SystemExportImportService {
      * rules, so an import that disagrees with the stored type is refused instead of applied.
      *
      * <p>A stored null is a legacy row that never had a type, so an import that states one repairs it.
+     *
+     * <p>Static because the preview runs it too, over the stored service {@code setCompareSystemResult} loads.
      */
-    private void validateServiceTypeUnchanged(IntegrationSystem newSystem, IntegrationSystem oldSystem) {
+    private static void validateServiceTypeUnchanged(IntegrationSystem newSystem, IntegrationSystem oldSystem) {
         IntegrationSystemType storedType = oldSystem.getIntegrationSystemType();
         IntegrationSystemType importedType = newSystem.getIntegrationSystemType();
         if (storedType == null || importedType == null || storedType == importedType) {

@@ -1045,7 +1045,8 @@ class ServiceDeserializerTest {
                 """.formatted(GROUP_ID, SYSTEM_ID)));
 
         Map<Path, byte[]> files = new ServiceConfigurationsToFilesConverter(
-                objectMapper, APP_NAME, TestServiceMigrations.all())
+                objectMapper, APP_NAME, TestServiceMigrations.all(),
+                new ServiceTypeFiles(new ApplicationJsonSchemaProperties()))
                 .convert(Map.of(SYSTEM_ID, item), Map.of(), Map.of(), Map.of(), Map.of());
 
         File serviceFile = null;

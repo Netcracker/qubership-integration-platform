@@ -20,6 +20,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.ImportSystemStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.remote.SystemCompareAction;
+import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.ImportMode;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.exportimport.system.SystemsCommitRequest;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.ApiGroupService;
@@ -57,6 +58,7 @@ import java.util.zip.ZipOutputStream;
 import static java.util.Objects.requireNonNull;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -395,6 +397,56 @@ class SystemExportImportServiceTest {
         verify(systemService, never()).create(any(), anyBoolean());
     }
 
+    /**
+     * A colliding id has to pass the same selection and ignore filters as every other id. A service the request never
+     * selected produces no row at all, and a single error row is enough to mark the whole session failed.
+     */
+    @Test
+    void aCollidingIdTheRequestDidNotSelectIsNotReportedAtAll(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, "svc-external", "svc-external.external-service.qip.yaml");
+        writeServiceFile(archive, "svc-external", "svc-external.internal-service.qip.yaml");
+        writeServiceFile(archive, "svc-internal", "svc-internal.internal-service.qip.yaml");
+        importingEveryDiscoveredId();
+        when(systemService.getByIdOrNull(any())).thenReturn(null);
+
+        SystemsCommitRequest request = new SystemsCommitRequest();
+        request.setImportMode(ImportMode.PARTIAL);
+        request.setSystemIds(List.of("svc-internal"));
+        ImportSystemsAndInstructionsResult result = serviceWithRealDeserializer()
+                .importSystems(archive.toFile(), request, "import-1", Set.of());
+
+        assertThat(idsOf(result.importSystemResults()), equalTo(List.of("svc-internal")));
+        assertThat(statusesOf(result.importSystemResults()), equalTo(Set.of(ImportSystemStatus.CREATED)));
+    }
+
+    /** An IGNORE instruction excludes the id before the collision matters, so the row says IGNORED, not ERROR. */
+    @Test
+    void aCollidingIdExcludedByAnIgnoreInstructionIsReportedAsIgnored(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, "svc-external", "svc-external.external-service.qip.yaml");
+        writeServiceFile(archive, "svc-external", "svc-external.internal-service.qip.yaml");
+        when(importInstructionsService.performServiceIgnoreInstructions(any(), anyBoolean()))
+                .thenReturn(new IgnoreResult(Set.of(), List.of()));
+
+        ImportSystemsAndInstructionsResult result = serviceWithRealDeserializer()
+                .importSystems(archive.toFile(), new SystemsCommitRequest(), "import-1", Set.of());
+
+        ImportSystemResult row = resultFor(result.importSystemResults(), "svc-external");
+        assertThat(row.getStatus(), equalTo(ImportSystemStatus.IGNORED));
+    }
+
+    /** The same two filters on the zip entry point, which carries its selection as the {@code systemIds} argument. */
+    @Test
+    void aCollidingIdIsFilteredTheSameWayThroughTheZipRequest(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, "svc-external", "svc-external.external-service.qip.yaml");
+        writeServiceFile(archive, "svc-external", "svc-external.internal-service.qip.yaml");
+        importingEveryDiscoveredId();
+
+        List<ImportSystemResult> results = serviceWithRealDeserializer().importSystemRequest(
+                archiveOf(archive, "duplicates"), List.of("svc-internal"), null, Set.of());
+
+        assertThat(results, empty());
+    }
+
     // --- the service type on the preview path ------------------------------------------------------------------------
 
     /**
@@ -426,6 +478,35 @@ class SystemExportImportServiceTest {
                 archive.toFile(), ImportInstructionsConfig.builder().build());
 
         assertThat(resultFor(preview, "svc-external").getRequiredAction(), equalTo(SystemCompareAction.ERROR));
+    }
+
+    /**
+     * The third refusal rule of the commit path. Without it, a file that would switch a stored service's type previews
+     * as a clean UPDATE and only fails once the user has committed.
+     */
+    @Test
+    void aFileSwitchingTheTypeOfAStoredServiceIsPreviewedAsAnError(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, "svc-external", "svc-external.internal-service.qip.yaml");
+        when(systemService.getByIdOrNull("svc-external")).thenReturn(stored(IntegrationSystemType.EXTERNAL));
+
+        List<ImportSystemResult> preview = serviceWithRealDeserializer().getSystemsImportPreview(
+                archive.toFile(), ImportInstructionsConfig.builder().build());
+
+        ImportSystemResult result = resultFor(preview, "svc-external");
+        assertThat(result.getRequiredAction(), equalTo(SystemCompareAction.ERROR));
+        assertThat(result.getMessage(), containsString("EXTERNAL"));
+        assertThat(result.getMessage(), containsString("INTERNAL"));
+    }
+
+    @Test
+    void aFileKeepingTheTypeOfAStoredServiceIsStillPreviewedAsAnUpdate(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, "svc-external", "svc-external.internal-service.qip.yaml");
+        when(systemService.getByIdOrNull("svc-external")).thenReturn(stored(IntegrationSystemType.INTERNAL));
+
+        List<ImportSystemResult> preview = serviceWithRealDeserializer().getSystemsImportPreview(
+                archive.toFile(), ImportInstructionsConfig.builder().build());
+
+        assertThat(resultFor(preview, "svc-external").getRequiredAction(), equalTo(SystemCompareAction.UPDATE));
     }
 
     // --- helpers ---------------------------------------------------------------------------------------------------
@@ -500,7 +581,10 @@ class SystemExportImportServiceTest {
     private static void writeServiceFile(Path archive, String serviceId, String fileName) throws IOException {
         Path path = archive.resolve("services").resolve(serviceId).resolve(fileName);
         Files.createDirectories(path.getParent());
-        Files.writeString(path, "id: " + serviceId + "\nname: Orders service\n");
+        // Carries a `content` block with a version claim, so the same file is importable on the commit path and not
+        // only readable by the preview, which reads the raw node.
+        Files.writeString(path, "id: " + serviceId + "\nname: Orders service\ncontent:\n"
+                + "  description: \"\"\n  migrations: \"[100, 101, 102, 103, 104, 105]\"\n");
     }
 
     private static ImportSystemResult resultFor(List<ImportSystemResult> results, String serviceId) {
@@ -508,6 +592,15 @@ class SystemExportImportServiceTest {
                 .filter(result -> serviceId.equals(result.getId()))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("no result for " + serviceId + " in " + idsOf(results)));
+    }
+
+    /** The stored counterpart of the {@code svc-external} file the preview tests write. */
+    private static IntegrationSystem stored(IntegrationSystemType type) {
+        return IntegrationSystem.builder()
+                .id("svc-external")
+                .name("Orders service")
+                .integrationSystemType(type)
+                .build();
     }
 
     private static IntegrationSystem systemWith(IntegrationSystemType type, int environmentCount) {
