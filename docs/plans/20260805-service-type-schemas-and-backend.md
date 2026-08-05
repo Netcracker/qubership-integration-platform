@@ -753,12 +753,76 @@ normalizes the fixture the way the database would. Left as is: pre-existing, unr
 
 ### Task 13: Verify acceptance criteria
 
-- [ ] verify all requirements from Overview are implemented
-- [ ] verify the schemas reject each constraint they claim to enforce (negative samples pass)
-- [ ] verify the schema constraints and the backend checks agree — nothing enforces this automatically (see Context)
-- [ ] run `mvn -pl schemas -pl runtime-catalog clean install -Dgpg.skip=true`
-- [ ] run `npm -w @netcracker/qip-schemas test`
-- [ ] verify Checkstyle reports zero violations and coverage did not drop below the project standard
+- [x] verify all requirements from Overview are implemented
+- [x] verify the schemas reject each constraint they claim to enforce (negative samples pass)
+- [x] verify the schema constraints and the backend checks agree — nothing enforces this automatically (see Context)
+- [x] run `mvn -f schemas/pom.xml clean install -Dgpg.skip=true` **and** `mvn -pl runtime-catalog clean install -Dgpg.skip=true` — two commands, not the one this task originally listed: `schemas` is not a module of the root aggregator, so `-pl schemas` resolves nothing (same correction as Task 1's ⚠️)
+- [x] run `npm -w @netcracker/qip-schemas test`
+- [x] verify Checkstyle reports zero violations and coverage did not drop below the project standard
+
+**Overview verified claim by claim**, each against the symbol that satisfies it:
+
+| Claim | Satisfied by |
+|---|---|
+| three dedicated schemas replace the field | `external-service.schema.yaml`, `internal-service.schema.yaml`, `implemented-service.schema.yaml`, each suppressing the field with `not: {required: [integrationSystemType]}` |
+| the backend **reads** them | `ServiceDeserializer.resolveServiceType`, over `ExportImportUtils.extractSystemsFromImportDirectory(String, Collection)` driven by `SystemExportImportService.SERVICE_FILE_POSTFIXES` (all four postfixes plus the legacy prefix) |
+| the backend **writes** them | `IntegrationSystemDtoMapper.toExternalEntity:86` stamps `serviceTypeFiles.schemaUri(...)`; `ExportImportUtils.generateMainSystemFileExportName:227` builds the name from `ServiceTypeFiles.postfix(type)`; the type reaches it through `ExportedIntegrationSystem.type` |
+| the file name states the type | `ServiceTypeFiles.typeFromFileName`; the name wins, `content.integrationSystemType` is the fallback, `$schema` is not consulted |
+| `METAMODEL` on an external service is now rejected offline | the `Protocol` enum of `external-service.schema.yaml`, pinned by `external-service-metamodel-protocol__SHOULD_FAIL.yaml` |
+| ten environments on an internal service are now rejected offline | `maxItems: 1` in `internal-service.schema.yaml`, pinned by `internal-service-two-environments__SHOULD_FAIL.yaml` |
+| the bare `RuntimeException` at import time is gone | `SystemBaseService.validateEnvironmentCount` raises `BadRequestException`, called from `SystemExportImportService:575` (update), `:910` (create), and `EnvironmentController:92` (REST) |
+| no document can name one type and state another | `ServiceDeserializer.resolveServiceType` raises `ServiceImportException` on a name/field disagreement |
+| symmetry with context and MCP services | the three schemas mirror `context-service.schema.yaml` — per-type `$id`, `metaInfo.fileExtension`, no type field |
+| the `integration_system_type` column stays | still declared at `V100_000__init.sql:415`; no migration drops it |
+| no JPA inheritance | no `@Inheritance` or `@DiscriminatorColumn` anywhere under `runtime-catalog/src/main/java` |
+| the type is not mutable through PUT | `SystemController.updateSystem:119` raises `EntityNotFoundException` instead of falling through to create; `mergeWithoutLabels` still maps no type |
+
+**Every negative sample fails for its own constraint, and only for it.** Checked one sample at a time under the AJV
+configuration `schemas.test.ts` uses, reading the reported keyword rather than the pass/fail bit — a negative sample
+that fails for an unrelated reason proves nothing:
+
+| Sample | Reported failure |
+|---|---|
+| `external-service-metamodel-protocol` | `enum` at `/content/protocol` |
+| `external-service-with-type-field` | `not` at `/content` |
+| `implemented-service-kafka-protocol` | `enum` at `/content/protocol` |
+| `implemented-service-two-environments` | `maxItems` at `/content/environments` |
+| `internal-service-two-environments` | `maxItems` at `/content/environments` |
+| `internal-service-manual-environment-without-address` | `required: address` at `/content/environments/0` |
+
+No sample reported a second, unrelated error, and all three positive samples validate.
+
+**The schemas and the backend agree — no drift.** `IntegrationSystemType.allowedProtocols()` and `maxEnvironments()`
+read against the three `Protocol` enums and their `maxItems`:
+
+| Type | Enum protocols | Schema `Protocol` | Enum limit | Schema `maxItems` |
+|---|---|---|---|---|
+| EXTERNAL | every `OperationProtocol` but `METAMODEL` (6) | the same 6 | `Integer.MAX_VALUE` | absent |
+| INTERNAL | every `OperationProtocol` (7) | the same 7 | 1 | 1 |
+| IMPLEMENTED | HTTP, SOAP, GRAPHQL | HTTP, SOAP, GRAPHQL | 1 | 1 |
+
+➕ that agreement is now enforced rather than checked once. `ServiceTypeFilesTest` gained
+`allowsExactlyTheProtocolsItsSchemaEnumerates` and `limitsEnvironmentsExactlyAsItsSchemaDoes`, which read each type's
+schema off the test classpath — the `<testResource>` Task 5 added — and compare it against the enum. The Context
+section records that nothing detects the backend drifting from the schema and leaves it "on the tests in Tasks 3, 4,
+and 13"; this is that test. Verified by mutation: adding `METAMODEL` to the external enum and widening the internal
+`maxItems` to 5 fails both cases with the schema file named in the message.
+
+[decision] "coverage did not drop below the project standard" is recorded as a measurement, not a gate. Neither
+`parent/pom.xml` nor `runtime-catalog/pom.xml` binds the JaCoCo `check` goal — only `prepare-agent` and `report` — so
+the module has no configured minimum. runtime-catalog stands at 28.1% instruction and 23.4% branch overall, and every
+class this plan touched sits far above that: `IntegrationSystemType`, `EntityType`, `ServiceDocumentMatcher`,
+`V105ServiceImportFileMigration`, and `IntegrationSystemDtoMapper` at 100%, `V105RevertMigration` 96%,
+`ExportableObjectWriterVisitor` 95%, `ServiceDeserializer` 95%, `ServiceTypeFiles` 95%.
+
+**Validation.** `mvn -f schemas/pom.xml clean install -Dgpg.skip=true` — 779 tests, 0 failures, with the two untracked
+chain samples Task 1 recorded set aside; quarantining them and rerunning confirmed they are the module's only failures
+and that neither touches #553. `mvn -pl runtime-catalog clean install -Dgpg.skip=true` — 1377 tests, 0 failures,
+0 Checkstyle violations. `npm -w @netcracker/qip-schemas test` — 127 tests, 0 failures.
+
+⚠️ `mvn install` on runtime-catalog logs two `MavenReportException` javadoc errors for Lombok-generated builders
+(`ElementDDSConverter:47`, `SpecificationSource:97`). The build still reports `BUILD SUCCESS` and the javadoc jar is
+written. Pre-existing, unrelated to #553, and not this plan's to fix.
 
 ### Task 14: [Final] Update documentation
 

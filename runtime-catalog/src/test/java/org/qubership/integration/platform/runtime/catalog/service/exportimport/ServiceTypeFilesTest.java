@@ -8,6 +8,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
+import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -15,8 +16,11 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -146,7 +150,48 @@ class ServiceTypeFilesTest {
         }
     }
 
+    // --- per-type rules vs the schemas themselves ------------------------------------------------------------------
+
+    /**
+     * The enum and the three type schemas state one rule twice, and nothing compares them. A schema that drifts wider
+     * than the enum accepts offline a document the backend rejects at import — the failure #553 set out to remove.
+     */
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    void allowsExactlyTheProtocolsItsSchemaEnumerates(IntegrationSystemType type) throws IOException {
+        Set<String> fromSchema = new HashSet<>();
+        readSchema(schemaFileName(type)).path("definitions").path("Protocol").path("enum")
+                .forEach(protocol -> fromSchema.add(protocol.asText()));
+        Set<String> fromEnum = type.allowedProtocols().stream()
+                .map(OperationProtocol::name)
+                .collect(Collectors.toSet());
+
+        assertEquals(fromEnum, fromSchema, schemaFileName(type)
+                + " enumerates different protocols than IntegrationSystemType." + type + ".allowedProtocols()");
+    }
+
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    void limitsEnvironmentsExactlyAsItsSchemaDoes(IntegrationSystemType type) throws IOException {
+        JsonNode maxItems = readSchema(schemaFileName(type))
+                .path("properties").path("content").path("properties").path("environments").path("maxItems");
+        // An absent maxItems is how a schema spells an unbounded list; the enum spells it Integer.MAX_VALUE.
+        int fromSchema = maxItems.isMissingNode() ? Integer.MAX_VALUE : maxItems.asInt();
+
+        assertEquals(type.maxEnvironments(), fromSchema, schemaFileName(type)
+                + " states a different environment limit than IntegrationSystemType." + type + ".maxEnvironments()");
+    }
+
+    /** The file-name postfix and the schema file spell the type the same way, so one names the other. */
+    private static String schemaFileName(IntegrationSystemType type) {
+        return ServiceTypeFiles.postfix(type).replace(".", "") + ".schema.yaml";
+    }
+
     private static String declaredId(String schemaFileName) throws IOException {
+        return readSchema(schemaFileName).path("$id").asText();
+    }
+
+    private static JsonNode readSchema(String schemaFileName) throws IOException {
         URL url = ServiceTypeFilesTest.class.getResource("/qip-model/" + schemaFileName);
         assertNotNull(url, schemaFileName + " is not on the test classpath. "
                 + "Check the <testResource> for schemas/src/main/resources/qip-model in runtime-catalog/pom.xml.");
@@ -156,7 +201,6 @@ class ServiceTypeFilesTest {
         } catch (URISyntaxException e) {
             throw new IllegalStateException(e);
         }
-        JsonNode schema = new YAMLMapper().readTree(Files.readString(path));
-        return schema.path("$id").asText();
+        return new YAMLMapper().readTree(Files.readString(path));
     }
 }
