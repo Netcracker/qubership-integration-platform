@@ -511,13 +511,25 @@ instance equivalent to the wired one.
 - Modify: `runtime-catalog/src/test/java/.../migrations/system/TestServiceMigrations.java`
 - Create: `runtime-catalog/src/test/java/.../migrations/system/V105ServiceImportFileMigrationTest.java`
 
-- [ ] implement `makeMigration` as a documented no-op: resolution lives in Task 6 and runs for every document, so this class exists only so exports stamp 105 and an older QIP refuses to mis-import
-- [ ] state in the comment how far the barrier reaches: an old QIP never discovers the new plain-service names (`ExportImportUtils:287-288`), so it fires only on documents the old QIP still finds — context services and legacy-named files — as a per-service `ImportSystemStatus.ERROR` (`SystemExportImportService:449-457`), never as a rejected archive
-- [ ] return `isIdempotent() == true` and register the class as a `@Component`
-- [ ] add V105 to `TestServiceMigrations`, or four existing test classes keep running against a stale set
-- [ ] write a test asserting the document is returned unchanged, including for a context and an MCP document
-- [ ] write a test asserting a document claiming 105 is rejected by a `FileMigrationService` whose registry lacks it
-- [ ] run tests — must pass before task 8
+- [x] implement `makeMigration` as a documented no-op: resolution lives in Task 6 and runs for every document, so this class exists only so exports stamp 105 and an older QIP refuses to mis-import
+- [x] state in the comment how far the barrier reaches: an old QIP never discovers the new plain-service names (`ExportImportUtils:287-288`), so it fires only on documents the old QIP still finds — context services and legacy-named files — as a per-service `ImportSystemStatus.ERROR` (`SystemExportImportService:449-457`), never as a rejected archive
+- [x] return `isIdempotent() == true` and register the class as a `@Component`
+- [x] add V105 to `TestServiceMigrations`, or four existing test classes keep running against a stale set
+- [x] write a test asserting the document is returned unchanged, including for a context and an MCP document
+- [x] write a test asserting a document claiming 105 is rejected by a `FileMigrationService` whose registry lacks it
+- [x] run tests — must pass before task 8
+
+[decision] `makeMigration` returns the node it was handed rather than a `deepCopy`. Every other service migration copies
+because it writes; copying to write nothing would only invite the next reader to look for the write. The test pins both
+that the result equals the input and that the input itself is unmutated.
+
+[decision] `MigrationBeanRegistrationTest.theRolloutImportPathClaimsOnlyTheseServiceMigrationVersions` needed no change:
+`isIdempotent() == true` keeps 105 out of the rollout-claimed set, which is the correct outcome — the rollout converter
+runs the no-op instead of claiming a version it never applied.
+
+➕ added `theSameDocumentPassesOnceTheMigrationIsRegistered` and `aPre553DocumentIsStillAccepted`. The barrier test only
+shows the refusal; these two show that the same document passes on this QIP and that a pre-#553 document still migrates
+forward, so a later change cannot turn the barrier into a blanket rejection unnoticed.
 
 ### Task 8: Add V105 revert migration
 

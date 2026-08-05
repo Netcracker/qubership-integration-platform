@@ -19,6 +19,7 @@ public final class TestServiceMigrations {
                 new V101ServiceImportFileMigration(),
                 new V102ServiceImportFileMigration(),
                 new V103ServiceImportFileMigration(new ApiOperationDtoMapper()),
-                new V104ServiceImportFileMigration());
+                new V104ServiceImportFileMigration(),
+                new V105ServiceImportFileMigration());
     }
 }
