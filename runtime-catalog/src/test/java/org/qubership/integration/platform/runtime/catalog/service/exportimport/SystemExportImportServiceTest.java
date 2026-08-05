@@ -242,6 +242,52 @@ class SystemExportImportServiceTest {
         verify(systemService).update(system);
     }
 
+    // --- service type ----------------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("importing an internal-service file over a stored external service is rejected")
+    void importingADifferentTypeOverAStoredServiceIsRejected() {
+        IntegrationSystem stored = systemWith(IntegrationSystemType.EXTERNAL, 1);
+        importing(systemWith(IntegrationSystemType.INTERNAL, 1));
+        when(systemService.getByIdOrNull(SYSTEM_ID)).thenReturn(stored);
+
+        ImportSystemResult result = service.importOneSystemInTransaction(serviceFile, null, null, null);
+
+        assertThat(result.getStatus(), equalTo(ImportSystemStatus.ERROR));
+        assertThat(result.getMessage(), containsString("EXTERNAL"));
+        assertThat(result.getMessage(), containsString("INTERNAL"));
+        assertThat(result.getMessage(), containsString(SYSTEM_ID));
+        assertThat(stored.getIntegrationSystemType(), equalTo(IntegrationSystemType.EXTERNAL));
+        verify(systemService, never()).update(any());
+    }
+
+    @Test
+    @DisplayName("importing the stored type is not treated as a type change")
+    void importingTheSameTypeIsAccepted() {
+        IntegrationSystem system = systemWith(IntegrationSystemType.INTERNAL, 1);
+        importing(system);
+        when(systemService.getByIdOrNull(SYSTEM_ID)).thenReturn(systemWith(IntegrationSystemType.INTERNAL, 1));
+
+        ImportSystemResult result = service.importOneSystemInTransaction(serviceFile, null, null, null);
+
+        assertThat(result.getStatus(), equalTo(ImportSystemStatus.UPDATED));
+        verify(systemService).update(system);
+    }
+
+    /** A row that predates the type column has nothing to change, so the import that states a type repairs it. */
+    @Test
+    @DisplayName("importing a type over a typeless stored service is accepted")
+    void importingATypeOverATypelessStoredServiceIsAccepted() {
+        IntegrationSystem system = systemWith(IntegrationSystemType.INTERNAL, 1);
+        importing(system);
+        when(systemService.getByIdOrNull(SYSTEM_ID)).thenReturn(systemWith(null, 1));
+
+        ImportSystemResult result = service.importOneSystemInTransaction(serviceFile, null, null, null);
+
+        assertThat(result.getStatus(), equalTo(ImportSystemStatus.UPDATED));
+        verify(systemService).update(system);
+    }
+
     // --- archive discovery -----------------------------------------------------------------------------------------
 
     /**

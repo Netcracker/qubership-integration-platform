@@ -680,14 +680,38 @@ four single-postfix calls return a legacy-named file four times, the multi-postf
 - Modify: `runtime-catalog/.../service/exportimport/SystemExportImportService.java`
 - Modify: `runtime-catalog/src/test/java/.../rest/v1/controller/SystemControllerTest.java` (create if absent)
 
-- [ ] reject an import that would change an existing service's type, naming both values
-- [ ] close the `updateSystem` → `createSystem` fall-through at `SystemController:125`: an unknown id on PUT should 404, not create a service with a caller-chosen type
-- [ ] check no client depends on that fall-through before removing it (UI, extension, tests)
-- [ ] leave `mergeWithoutLabels` alone — it already does not map the type; add a test that pins this rather than changing the mapper
-- [ ] write a test: importing an `internal-service` file over an existing EXTERNAL service is rejected and the stored entity is unchanged
-- [ ] write a test: PUT with a different type on an existing service does not change it
-- [ ] write a test: PUT on an unknown id no longer creates a service
-- [ ] run tests — must pass before task 12
+- [x] reject an import that would change an existing service's type, naming both values
+- [x] close the `updateSystem` → `createSystem` fall-through at `SystemController:125`: an unknown id on PUT should 404, not create a service with a caller-chosen type
+- [x] check no client depends on that fall-through before removing it (UI, extension, tests)
+- [x] leave `mergeWithoutLabels` alone — it already does not map the type; add a test that pins this rather than changing the mapper
+- [x] write a test: importing an `internal-service` file over an existing EXTERNAL service is rejected and the stored entity is unchanged
+- [x] write a test: PUT with a different type on an existing service does not change it
+- [x] write a test: PUT on an unknown id no longer creates a service
+- [x] run tests — must pass before task 12
+
+**Fall-through dependency search (the checkbox above), result: none.** `PUT /v1/systems/{id}` has exactly one caller,
+`RestApi.updateService` (`ui/src/api/rest/restApi.ts:1593`), reached from `ServicesList.tsx:314` (`record.id`),
+`ServiceParametersTab.tsx:108` (`systemId` from the route), and `ServiceEnvironmentsTab.tsx:171` (`systemId`) — every one
+of them an id the UI has already loaded. Creation goes through `RestApi.createService` (`:1335`), a POST. The VS Code
+extension's `updateService` (`serviceApiModify.ts:94`) is the offline file API and reaches no backend. No runtime-catalog
+test, help page, or Nginx rule referenced the fall-through. Removing it needed no client change.
+
+[decision] the import rejection is a `ServiceImportException`, not the `BadRequestException` Task 4 chose. Task 4's rule
+is shared with the REST path, which answers 400; this one is import-only, and `ServiceImportException` carries the id and
+name that `SystemExportImportService:449-457` turns into an `ImportSystemStatus.ERROR` row for that one service, leaving
+the rest of the archive to import.
+
+[decision] a stored null type accepts whatever the import states, rather than being treated as a change. The column is
+nullable, so a legacy row genuinely has no type; an import that states one repairs the row instead of overwriting a
+decision. This matches Task 4's null handling, and Task 9 already refuses to *export* such a row.
+
+[decision] the PUT 404 is a `jakarta.persistence.EntityNotFoundException` — `GlobalExceptionHandler:76-79` answers 404
+with the message intact, and `SystemBaseService.delete` already reports an unknown service the same way.
+
+➕ pinned `patchMergeWithoutLabels` alongside `mergeWithoutLabels`. `PATCH /systems/{id}` shares the request DTO and the
+same generated-merge shape, so it is the second door onto the type and needs the same pin. Added two more import cases —
+the same type is not read as a change, and a typeless stored row accepts one — so the guard cannot degrade into rejecting
+every update unnoticed.
 
 ### Task 12: Round-trip verification
 

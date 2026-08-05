@@ -24,6 +24,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServicesNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportSystemsAndInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.IgnoreResult;
@@ -570,6 +571,7 @@ public class SystemExportImportService {
             String deployLabel,
             Consumer<String> messageHandler,
             Set<String> technicalLabels) {
+        validateServiceTypeUnchanged(newSystem, oldSystem);
         systemService.validateEnvironmentCount(newSystem, newSystem.getEnvironments().size());
 
         if (IntegrationSystemType.INTERNAL == newSystem.getIntegrationSystemType()) {
@@ -600,6 +602,26 @@ public class SystemExportImportService {
         }
         mergeNonTechnicalServiceLabels(newSystem, oldSystem);
         return mergeSpecificationGroups(newSystem, oldSystem, messageHandler, technicalLabels);
+    }
+
+    /**
+     * The type belongs to the stored service, not to the file that updates it. Switching it would re-interpret the
+     * service's environment limit, allowed protocols, and action-log entity type against data written under the old
+     * rules, so an import that disagrees with the stored type is refused instead of applied.
+     *
+     * <p>A stored null is a legacy row that never had a type, so an import that states one repairs it.
+     */
+    private void validateServiceTypeUnchanged(IntegrationSystem newSystem, IntegrationSystem oldSystem) {
+        IntegrationSystemType storedType = oldSystem.getIntegrationSystemType();
+        IntegrationSystemType importedType = newSystem.getIntegrationSystemType();
+        if (storedType == null || importedType == null || storedType == importedType) {
+            return;
+        }
+        throw new ServiceImportException(newSystem.getId(), newSystem.getName(), String.format(
+                "Service %s (id %s) is stored as %s and the imported file states %s, and a service type cannot be"
+                        + " changed by an import. Import the file under a new id, or delete the service first."
+                        + " The service is left as %s.",
+                oldSystem.getName(), oldSystem.getId(), storedType, importedType, storedType));
     }
 
     private void mergeNonTechnicalServiceLabels(IntegrationSystem newSystem, IntegrationSystem oldSystem) {
