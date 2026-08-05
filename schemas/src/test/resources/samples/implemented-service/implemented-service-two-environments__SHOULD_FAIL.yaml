@@ -1,0 +1,16 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/implemented-service.schema.yaml"
+id: "7d3a9e15-6c48-4f02-8b91-2e5c0d7a4b63"
+name: "Implemented service with two environments"
+content:
+  description: "An implemented service may carry at most one environment"
+  protocol: "HTTP"
+  environments:
+    - id: "1c6f8b02-3d74-4a19-95e6-7b2a0c4d8e51"
+      name: "Staging"
+      address: "http://billing-facade-staging:8080"
+      sourceType: "MANUAL"
+    - id: "5e9d2a76-0b13-4c68-8f42-6a7c3b1d0e95"
+      name: "Production"
+      address: "http://billing-facade:8080"
+      sourceType: "MANUAL"

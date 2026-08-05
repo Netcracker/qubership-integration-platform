@@ -342,17 +342,35 @@ and `scs-sender-ttl__SHOULD_FAIL.yaml` — fail on both harnesses: they expect a
 
 **Files:**
 - Create: `schemas/src/main/resources/qip-model/{external,internal,implemented}-service.schema.yaml`
-- Create: `schemas/src/test/resources/samples/service/{external,internal,implemented}-service-sample.yaml`
-- Create: `schemas/src/test/resources/samples/service/*__SHOULD_FAIL.yaml` (five files, see below)
+- Create: `schemas/src/test/resources/samples/{external,internal,implemented}-service/<type>-service-sample.yaml`
+- Create: `schemas/src/test/resources/samples/{external,internal,implemented}-service/*__SHOULD_FAIL.yaml` (six files, see below)
 
-- [ ] write the three schemas against the shared base, each with its own `Protocol` enum and environment limit
-- [ ] reference the shared definitions by **absolute** URI — a bare `#/definitions/Environment` resolves against the referring document and fails silently
-- [ ] suppress `integrationSystemType` with `not: {required: [integrationSystemType]}`, not `additionalProperties: false`
-- [ ] set `metaInfo.fileExtension` per schema (`external-service.qip`, …), mirroring `context-service.schema.yaml`
-- [ ] add one positive sample per schema, each carrying an `activeEnvironmentId`
-- [ ] add `__SHOULD_FAIL.yaml` samples: `METAMODEL` on external, two environments on internal, two on implemented, `KAFKA` on implemented, `integrationSystemType` present
-- [ ] run `npm -w @netcracker/qip-schemas run build` and check `types/index.d.ts` — `generateTypes.ts:158-190` de-duplicates exported names first-seen-wins, so colliding `Environment`/`SourceType` names may be dropped silently
-- [ ] run schema tests — must pass before task 3
+- [x] write the three schemas against the shared base, each with its own `Protocol` enum and environment limit
+- [x] reference the shared definitions by **absolute** URI — a bare `#/definitions/Environment` resolves against the referring document and fails silently
+- [x] suppress `integrationSystemType` with `not: {required: [integrationSystemType]}`, not `additionalProperties: false`
+- [x] set `metaInfo.fileExtension` per schema (`external-service.qip`, …), mirroring `context-service.schema.yaml`
+- [x] add one positive sample per schema, each carrying an `activeEnvironmentId`
+- [x] add `__SHOULD_FAIL.yaml` samples: `METAMODEL` on external, two environments on internal, two on implemented, `KAFKA` on implemented, `integrationSystemType` present
+- [x] run `npm -w @netcracker/qip-schemas run build` and check `types/index.d.ts` — `generateTypes.ts:158-190` de-duplicates exported names first-seen-wins, so colliding `Environment`/`SourceType` names may be dropped silently
+- [x] run schema tests — must pass before task 3
+
+[deviation] samples live in per-schema directories (`samples/external-service/`, …) as the Testing Strategy prescribes,
+not in `samples/service/` as this task's file list said. Neither harness resolves the schema from the directory — both
+read `$schema` out of the sample — so the choice is organizational only.
+
+➕ added a sixth `__SHOULD_FAIL` sample, `internal-service-manual-environment-without-address`, pinning the
+cross-document `Environment` reference. An unresolved `$ref` validates everything, and the five specified negatives
+would all still fail for their own reasons.
+
+Each negative sample was checked to fail for its own constraint alone: `enum` on the two protocol samples, `maxItems`
+on the two environment-count samples, `not` on the type-field sample, `required: address` on the added one.
+
+⚠️ `types/index.d.ts` re-exports `ExternalService`, `InternalService`, and `ImplementedService1`/`ImplementedService2`.
+The bare `ImplementedService` name is taken by the http-trigger endpoint definition
+(`element/http-trigger.schema.yaml:112-113`), which the barrel sees first. No `Environment`/`SourceType` export was
+dropped — neither name has ever been emitted, for the same reason `service.schema.yaml` emits none: the compiler keeps
+the `content` `allOf` intersection and discards its sibling `properties`. `Service` was likewise already absent before
+this task. Consumers read service schemas through `schemasByType`, not through the barrel, so this is left as is.
 
 ### Task 3: Move per-type rules onto IntegrationSystemType
 

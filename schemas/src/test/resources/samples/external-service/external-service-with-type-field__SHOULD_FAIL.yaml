@@ -1,0 +1,13 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/external-service.schema.yaml"
+id: "a92f4b06-5d38-4e71-8c60-2b9d7e1a4f58"
+name: "External service restating its type"
+content:
+  description: "The file name states the type, so the document must not carry the field"
+  integrationSystemType: "EXTERNAL"
+  protocol: "HTTP"
+  environments:
+    - id: "6e0b3c19-4f72-4a85-9d31-8c5a2e7b0d46"
+      name: "Default"
+      address: "http://external.example.org"
+      sourceType: "MANUAL"

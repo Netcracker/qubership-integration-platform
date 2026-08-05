@@ -1,0 +1,16 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/internal-service.schema.yaml"
+id: "0f5d7c84-1a29-4b63-8e50-9c3f6a2d7b18"
+name: "Internal service with two environments"
+content:
+  description: "An internal service may carry at most one environment"
+  protocol: "HTTP"
+  environments:
+    - id: "4b8e1f60-7c25-4d93-8a07-3e6b5c9d1a24"
+      name: "Staging"
+      address: "http://order-manager-staging:8080"
+      sourceType: "MANUAL"
+    - id: "8a2c6d31-9b47-4e05-91f8-5d0a7b3c6e29"
+      name: "Production"
+      address: "http://order-manager:8080"
+      sourceType: "MANUAL"

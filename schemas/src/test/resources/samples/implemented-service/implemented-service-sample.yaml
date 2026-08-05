@@ -1,0 +1,15 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/implemented-service.schema.yaml"
+id: "e4a71b93-0d6c-4f28-91b5-3c8d7e2a5f60"
+name: "Billing facade"
+content:
+  description: "An implemented service with a single environment"
+  activeEnvironmentId: "9f3b6d18-7e02-4c95-8a41-5d0e2b7c6a39"
+  protocol: "SOAP"
+  environments:
+    - id: "9f3b6d18-7e02-4c95-8a41-5d0e2b7c6a39"
+      name: "Default"
+      address: "http://billing-facade:8080"
+      sourceType: "MANUAL"
+      labels: []
+  migrations: "[100, 101]"
