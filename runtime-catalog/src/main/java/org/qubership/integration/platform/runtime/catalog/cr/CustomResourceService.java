@@ -23,10 +23,16 @@ import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.Resourc
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentRouteUpdate;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.DeploymentRoute;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.DeploymentRouteMapper;
+import org.qubership.integration.platform.runtime.catalog.service.RoutesGetterService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -47,7 +53,9 @@ public class CustomResourceService {
             V1ConfigMap integrationsConfiguration,
             Collection<V1ConfigMap> integrationSources,
             V1Secret secret,
-            Collection<KubeCustomObject> customResources
+            Collection<KubeCustomObject> customResources,
+            KubeCustomObject publicHttpRoute,
+            KubeCustomObject privateHttpRoute
     ) {
         public Map<String, V1ConfigMap> getSourceByLabelMap(String label) {
             return integrationSources.stream().collect(Collectors.toMap(
@@ -66,6 +74,14 @@ public class CustomResourceService {
     private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
     private final boolean monitoringEnabled;
     private final GenericCustomResources genericCustomResources;
+    private final RoutesGetterService routesGetterService;
+    private final DeploymentRouteMapper deploymentRouteMapper;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy;
+
+    private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
+    private static final String GATEWAY_API_VERSION = "v1";
+    private static final String HTTP_ROUTES_PLURAL = "httproutes";
 
     @Value("${qip.cr.labels.domain}")
     String domainLabel;
@@ -85,7 +101,13 @@ public class CustomResourceService {
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationsConfigurationConfigMapNamingStrategy,
             IntegrationConfigurationSerdes integrationConfigurationSerdes,
             GenericCustomResources genericCustomResources,
-            @Value("${qip.cr.build.monitoring.enabled:false}") boolean monitoringEnabled
+            @Value("${qip.cr.build.monitoring.enabled:false}") boolean monitoringEnabled,
+            RoutesGetterService routesGetterService,
+            DeploymentRouteMapper deploymentRouteMapper,
+            @Qualifier("httpRoutePublicNamingStrategy")
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy,
+            @Qualifier("httpRoutePrivateNamingStrategy")
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy
     ) {
         this.kubeOperator = kubeOperator;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
@@ -93,6 +115,10 @@ public class CustomResourceService {
         this.integrationConfigurationSerdes = integrationConfigurationSerdes;
         this.genericCustomResources = genericCustomResources;
         this.monitoringEnabled = monitoringEnabled;
+        this.routesGetterService = routesGetterService;
+        this.deploymentRouteMapper = deploymentRouteMapper;
+        this.httpRoutePublicNamingStrategy = httpRoutePublicNamingStrategy;
+        this.httpRoutePrivateNamingStrategy = httpRoutePrivateNamingStrategy;
     }
 
     @PostConstruct
@@ -114,6 +140,7 @@ public class CustomResourceService {
     }
 
     public void delete(String name) {
+        deleteHttpRoutes(name);
         getAllIntegrationResources(name).ifPresent(resources -> {
             Optional.ofNullable(resources.integration)
                     .flatMap(KubeUtil::getName)
@@ -189,6 +216,7 @@ public class CustomResourceService {
             if (StringUtils.isNotBlank(cfgName)) {
                 kubeOperator.deleteConfigMap(cfgName);
             }
+            deleteChainSnapshotHttpRoutes(name, snapshotId);
         });
     }
 
@@ -239,6 +267,16 @@ public class CustomResourceService {
                 customResources.addAll(kubeOperator.getCustomObjectsByLabelAndDefinition(
                         CAMEL_K_INTEGRATION_LABEL, integrationName, def)));
         }
+
+        String publicRouteName = httpRoutePublicNamingStrategy.getName(getContextForDomain(name));
+        String privateRouteName = httpRoutePrivateNamingStrategy.getName(getContextForDomain(name));
+        KubeCustomObject publicHttpRoute = kubeOperator
+                .getCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, publicRouteName)
+                .orElse(null);
+        KubeCustomObject privateHttpRoute = kubeOperator
+                .getCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, privateRouteName)
+                .orElse(null);
+
         return Optional.of(new IntegrationResources(
                 integration.orElse(null),
                 serviceMonitor.orElse(null),
@@ -246,7 +284,9 @@ public class CustomResourceService {
                 integrationsConfiguration.orElse(null),
                 integrationSources,
                 secret.orElse(null),
-                customResources
+                customResources,
+                publicHttpRoute,
+                privateHttpRoute
         ));
     }
 
@@ -262,5 +302,55 @@ public class CustomResourceService {
         return ResourceBuildContext.create(BuildInfo.builder()
                 .options(ResourceBuildOptions.builder().name(name).build())
                 .build()).updateTo(Collections.emptyList());
+    }
+
+    void deleteHttpRoutes(String name) {
+        ResourceBuildContext<List<Snapshot>> context = getContextForDomain(name);
+        kubeOperator.deleteCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL,
+                httpRoutePublicNamingStrategy.getName(context));
+        kubeOperator.deleteCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL,
+                httpRoutePrivateNamingStrategy.getName(context));
+    }
+
+    void deleteChainSnapshotHttpRoutes(String name, String snapshotId) {
+        Specification<ChainElement> spec = (root, query, cb) ->
+                cb.equal(root.get("snapshot").get("id"), snapshotId);
+        List<DeploymentRoute> ownRoutes = routesGetterService.getRoutes(spec);
+        List<DeploymentRouteUpdate> ownUpdates = deploymentRouteMapper.asUpdates(ownRoutes);
+        Set<String> ownPaths = ownUpdates.stream()
+                .map(DeploymentRouteUpdate::getPath)
+                .collect(Collectors.toSet());
+        if (ownPaths.isEmpty()) {
+            return;
+        }
+        stripPathsFromTier(httpRoutePublicNamingStrategy.getName(getContextForDomain(name)), ownPaths);
+        stripPathsFromTier(httpRoutePrivateNamingStrategy.getName(getContextForDomain(name)), ownPaths);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void stripPathsFromTier(String routeName, Set<String> ownPaths) {
+        Optional<KubeCustomObject> existing = kubeOperator
+                .getCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, routeName);
+        if (existing.isEmpty()) {
+            return;
+        }
+        KubeCustomObject httpRoute = existing.get();
+        List<Map<String, Object>> rules = (List<Map<String, Object>>) httpRoute.getSpec().get("rules");
+        List<Map<String, Object>> remaining = rules.stream()
+                .filter(rule -> {
+                    Map<String, Object> matches = ((List<Map<String, Object>>) rule.get("matches")).get(0);
+                    Map<String, Object> path = (Map<String, Object>) matches.get("path");
+                    String value = (String) path.get("value");
+                    return ownPaths.stream().noneMatch(value::endsWith);
+                })
+                .toList();
+        if (remaining.isEmpty()) {
+            kubeOperator.deleteCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, routeName);
+            return;
+        }
+        httpRoute.getSpec().put("rules", remaining);
+        httpRoute.setApiVersion(GATEWAY_API_GROUP + "/" + GATEWAY_API_VERSION);
+        httpRoute.setKind("HTTPRoute");
+        kubeOperator.createOrUpdateResource(httpRoute);
     }
 }
