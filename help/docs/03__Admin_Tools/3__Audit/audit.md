@@ -1,4 +1,4 @@
-    # Audit
+# Audit
 
 > ⛔️ This functionality is not available via the VS Code Extension.
 
