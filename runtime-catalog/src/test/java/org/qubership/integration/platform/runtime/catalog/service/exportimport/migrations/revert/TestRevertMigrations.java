@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert;
 
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiOperationDtoMapper;
 
 import java.net.URI;
@@ -16,11 +17,13 @@ public final class TestRevertMigrations {
     }
 
     public static List<RevertMigration> all(URI specificationSchemaUri) {
-        ServiceDocumentMatcher serviceDocumentMatcher = matcher();
+        ApplicationJsonSchemaProperties schemas = new ApplicationJsonSchemaProperties();
+        ServiceDocumentMatcher serviceDocumentMatcher = new ServiceDocumentMatcher(schemas);
         return List.of(
                 new V101RevertMigration(),
                 new V103RevertMigration(new ApiOperationDtoMapper(), specificationSchemaUri, serviceDocumentMatcher),
                 new V104RevertMigration(serviceDocumentMatcher),
+                new V105RevertMigration(serviceDocumentMatcher, new ServiceTypeFiles(schemas), schemas),
                 new V108RevertMigration());
     }
 

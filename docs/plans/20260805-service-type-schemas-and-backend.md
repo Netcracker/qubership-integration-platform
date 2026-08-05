@@ -538,15 +538,36 @@ forward, so a later change cannot turn the barrier into a blanket rejection unno
 - Modify: `runtime-catalog/src/test/java/.../migrations/revert/TestRevertMigrations.java`
 - Create: `runtime-catalog/src/test/java/.../migrations/revert/V105RevertMigrationTest.java`
 
-- [ ] use the **broad** `ServiceDocumentMatcher.matches` (widened with the new URIs in Task 5) for `supportsDocument`, so the 105 strip reaches context services — `ContextServiceDtoMapper:65` stamps them from the same migration list, and a kept claim makes their legacy export unimportable
-- [ ] register V105Revert in `TestRevertMigrations.all()` — the parallel registry to `TestServiceMigrations`, consumed by `V103RevertMigrationTest`, `V104RevertMigrationTest`, and `ServiceSerializerTest`; without it the legacy-export tests run a chain missing V105
-- [ ] gate the `content.integrationSystemType` write and the `$schema` restore **inside** `revert()` on the three new URIs, so a context service is not stamped with a service type
-- [ ] strip `105` from `content.migrations` unconditionally
-- [ ] write tests for all three types: field written, plain service `$schema` restored, version stripped
-- [ ] write a test: a context-service document keeps its shape but loses the 105 claim
-- [ ] write a test asserting `ServiceDocumentMatcher` matches the document again after this revert runs, so V104 and V103 still apply
-- [ ] write a full revert-chain test over a golden exported document **containing api groups**, asserting the `apiGroups` → `specificationGroups` rename still happens
-- [ ] run tests — must pass before task 9
+- [x] use the **broad** `ServiceDocumentMatcher.matches` (widened with the new URIs in Task 5) for `supportsDocument`, so the 105 strip reaches context services — `ContextServiceDtoMapper:65` stamps them from the same migration list, and a kept claim makes their legacy export unimportable
+- [x] register V105Revert in `TestRevertMigrations.all()` — the parallel registry to `TestServiceMigrations`, consumed by `V103RevertMigrationTest`, `V104RevertMigrationTest`, and `ServiceSerializerTest`; without it the legacy-export tests run a chain missing V105
+- [x] gate the `content.integrationSystemType` write and the `$schema` restore **inside** `revert()` on the three new URIs, so a context service is not stamped with a service type
+- [x] strip `105` from `content.migrations` unconditionally
+- [x] write tests for all three types: field written, plain service `$schema` restored, version stripped
+- [x] write a test: a context-service document keeps its shape but loses the 105 claim
+- [x] write a test asserting `ServiceDocumentMatcher` matches the document again after this revert runs, so V104 and V103 still apply
+- [x] write a full revert-chain test over a golden exported document **containing api groups**, asserting the `apiGroups` → `specificationGroups` rename still happens
+- [x] run tests — must pass before task 9
+
+[deviation] the revert-chain test builds its document inline, carrying the **new** per-type `$schema`, rather than
+reading a golden file: the golden corpus is captured in Task 9, and an export written today still stamps the plain URI.
+The inline document is the shape Task 9 will produce, so this task's tests already run against a new-URI document
+instead of staying green on old-URI ones — the trap the Solution Overview records. Verified by temporarily removing the
+three new URIs from `ServiceDocumentMatcher`: 9 of the 22 cases fail, including the whole chain test. Task 9's re-run
+checkbox stays, now as a check against a real export rather than a hand-written stand-in.
+
+[decision] the plain service URI comes from an injected `ApplicationJsonSchemaProperties`, not from a `@Value` on the
+constructor as `V103RevertMigration` does for the specification URI. `ServiceDocumentMatcher` and `ServiceTypeFiles`
+already read their URIs from that bean, and the test registry builds all three from one instance, so a per-migration
+`@Value` default would be a fourth copy of the same string.
+
+[decision] `revert()` overwrites `content.integrationSystemType` instead of writing it only when absent. A document
+carrying a per-type `$schema` and a disagreeing field is hand-edited either way, and the exporter derives both from one
+type, so the two can only disagree if somebody edited one of them.
+
+➕ added three cases beyond the listed ones: a pre-#553 document is left alone apart from the strip (the URI gate has to
+be a no-op on the old URI, not just correct on the new ones), the input node is not mutated (the chain aliases each
+result into the next migration), and a legacy round trip per type through the real `ServiceDeserializer` — the last is
+what shows *why* the field is written, since Task 6 refuses a service that states its type nowhere.
 
 ### Task 9: Write the new file names on export
 
