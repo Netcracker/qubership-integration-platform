@@ -14,6 +14,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -67,6 +68,36 @@ class ResourceContentPreprocessingServiceTest {
 
         assertEquals("original content", result);
         verify(firstPreprocessor).apply("original content");
+    }
+
+    @Test
+    void shouldRunOnlyPreParseSafePreprocessorsInPreprocessForPreParse() throws Exception {
+        ResourceContentPreprocessingService service = new ResourceContentPreprocessingService(List.of(
+            firstPreprocessor,
+            secondPreprocessor
+        ));
+
+        when(firstPreprocessor.runsInPreParse()).thenReturn(true);
+        when(secondPreprocessor.runsInPreParse()).thenReturn(false);
+        when(firstPreprocessor.apply("original content")).thenReturn("after pre-parse preprocessor");
+
+        String result = service.preprocessForPreParse("original content");
+
+        assertEquals("after pre-parse preprocessor", result);
+        verify(firstPreprocessor).apply("original content");
+        verify(secondPreprocessor, never()).apply(anyString());
+    }
+
+    @Test
+    void shouldReturnOriginalContentWhenNoPreParseSafePreprocessorsExist() throws Exception {
+        ResourceContentPreprocessingService service = new ResourceContentPreprocessingService(List.of(firstPreprocessor));
+
+        when(firstPreprocessor.runsInPreParse()).thenReturn(false);
+
+        String result = service.preprocessForPreParse("original content");
+
+        assertEquals("original content", result);
+        verify(firstPreprocessor, never()).apply(anyString());
     }
 
     @Test

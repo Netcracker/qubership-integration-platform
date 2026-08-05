@@ -5,7 +5,9 @@ import jakarta.enterprise.inject.spi.CDI;
 import org.apache.camel.CamelContext;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.builder.RouteBuilderLifecycleStrategy;
+import org.apache.camel.dsl.xml.io.XmlRoutesBuilderLoader;
 import org.apache.camel.impl.DefaultCamelContext;
+import org.apache.camel.model.app.BeansDefinition;
 import org.apache.camel.spi.Resource;
 import org.apache.commons.lang3.reflect.FieldUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,20 +24,25 @@ import org.qubership.integration.platform.engine.camel.dsl.preprocess.ResourceCo
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import java.io.ByteArrayInputStream;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -87,7 +94,7 @@ class CustomXmlRoutesBuilderLoaderTest {
     }
 
     @Test
-    void shouldPreprocessInputAndReturnResourceWithDistinctLocationToBypassCamelCache() throws Exception {
+    void shouldPreprocessInputAndKeepOriginalLocation() throws Exception {
         when(resource.getInputStream()).thenReturn(new ByteArrayInputStream("original content".getBytes()));
         when(resource.getScheme()).thenReturn("classpath");
         when(resource.getLocation()).thenReturn("routes/test.xml");
@@ -96,10 +103,30 @@ class CustomXmlRoutesBuilderLoaderTest {
         Resource result = preprocessInput(resource);
 
         assertEquals("classpath", result.getScheme());
-        assertEquals(
-                "routes/test.xml" + CustomXmlRoutesBuilderLoader.PREPROCESSED_LOCATION_SUFFIX,
-                result.getLocation());
+        assertEquals("routes/test.xml", result.getLocation());
         assertEquals("processed content", new String(result.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void shouldPreprocessBeansUsingPreParsePipelineAndKeepOriginalLocation() throws Exception {
+        when(resource.getInputStream()).thenReturn(new ByteArrayInputStream("original content".getBytes()));
+        when(resource.getScheme()).thenReturn("classpath");
+        when(resource.getLocation()).thenReturn("routes/test.xml");
+        when(preprocessingService.preprocessForPreParse("original content")).thenReturn("beans content");
+
+        Resource result = preprocessForBeans(resource);
+
+        assertEquals("classpath", result.getScheme());
+        assertEquals("routes/test.xml", result.getLocation());
+        assertEquals("beans content", new String(result.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
+        verify(preprocessingService, never()).preprocess(anyString());
+    }
+
+    @Test
+    void shouldExposeCamelAppCacheFieldForEviction() throws Exception {
+        Field field = XmlRoutesBuilderLoader.class.getDeclaredField("camelAppCache");
+
+        assertNotNull(field);
     }
 
     @Test
@@ -292,10 +319,27 @@ class CustomXmlRoutesBuilderLoaderTest {
         try (DefaultCamelContext defaultCamelContext = new DefaultCamelContext()) {
             loader.setCamelContext(defaultCamelContext);
             Resource xmlResource = xmlResource();
+            when(preprocessingService.preprocessForPreParse(VALID_XML_ROUTES)).thenReturn(VALID_XML_ROUTES);
 
             loader.preParseRoute(xmlResource);
 
             verify(sourceProcessingNotifier).notifySourceProcessingStarted(xmlResource);
+        }
+    }
+
+    @Test
+    void shouldEvictParentAppCacheForLocationWhenDoLoadRouteBuilder() throws Exception {
+        try (DefaultCamelContext defaultCamelContext = new DefaultCamelContext()) {
+            loader.setCamelContext(defaultCamelContext);
+            Resource xmlResource = xmlResource();
+            when(preprocessingService.preprocess(VALID_XML_ROUTES)).thenReturn(VALID_XML_ROUTES);
+
+            Map<String, Object> appCache = camelAppCache(loader);
+            appCache.put(xmlResource.getLocation(), new BeansDefinition());
+
+            loader.doLoadRouteBuilder(xmlResource);
+
+            assertFalse(appCache.containsKey(xmlResource.getLocation()));
         }
     }
 
@@ -333,6 +377,19 @@ class CustomXmlRoutesBuilderLoaderTest {
         Method method = CustomXmlRoutesBuilderLoader.class.getDeclaredMethod("preprocessInput", Resource.class);
         method.setAccessible(true);
         return (Resource) method.invoke(loader, input);
+    }
+
+    private Resource preprocessForBeans(Resource input) throws Exception {
+        Method method = CustomXmlRoutesBuilderLoader.class.getDeclaredMethod("preprocessForBeans", Resource.class);
+        method.setAccessible(true);
+        return (Resource) method.invoke(loader, input);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> camelAppCache(CustomXmlRoutesBuilderLoader loader) throws Exception {
+        Field field = XmlRoutesBuilderLoader.class.getDeclaredField("camelAppCache");
+        field.setAccessible(true);
+        return (Map<String, Object>) field.get(loader);
     }
 
     private RouteBuilder wrapRouteBuilder(RouteBuilder builder) throws Exception {

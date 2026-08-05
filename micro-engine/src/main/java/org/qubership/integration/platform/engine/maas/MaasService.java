@@ -77,15 +77,8 @@ public class MaasService implements MaasParametersResolver {
         for (MaasClassifierInfo info : classifierInfos) {
             replacementMap.putAll(updateKeysToPlaceholders(info.getElementId(), resolveMaasParameters(info)));
         }
-        String result = replacePropertiesPlaceholders(content, replacementMap);
-        if (result != null && result.contains("%%{")) {
-            log.warn("MaaS parameter placeholders remain unresolved after preprocessing. "
-                        + "Registered MaasClassifierInfo elementIds: {}, MaasClassifierInfo beans size: {}",
-                classifierInfos.stream().map(MaasClassifierInfo::getElementId).toList(), classifierInfos.size()
-            );
-        }
 
-        return result;
+        return replacePropertiesPlaceholders(content, replacementMap);
     }
 
     private Map<String, String> resolveMaasParameters(MaasClassifierInfo maasClassifierInfo) {
