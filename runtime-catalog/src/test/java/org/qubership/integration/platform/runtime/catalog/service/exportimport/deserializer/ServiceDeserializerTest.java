@@ -9,6 +9,9 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
@@ -21,6 +24,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationItem;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiGroupDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiOperationDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
@@ -62,6 +66,8 @@ class ServiceDeserializerTest {
     private static final String SYSTEM_ID = "system-1";
     private static final String GROUP_ID = "group-1";
     private static final String SPEC_ID = "spec-1";
+    private static final ServiceTypeFiles SERVICE_TYPE_FILES =
+            new ServiceTypeFiles(new ApplicationJsonSchemaProperties());
 
     @TempDir
     private Path serviceDirectory;
@@ -99,7 +105,8 @@ class ServiceDeserializerTest {
                         new ApiOperationDtoMapper()),
                 fileMigrationService,
                 migrations,
-                extractor
+                extractor,
+                SERVICE_TYPE_FILES
         );
         ReflectionTestUtils.setField(built, "appName", APP_NAME);
         return built;
@@ -1092,6 +1099,77 @@ class ServiceDeserializerTest {
         assertThrows(RuntimeException.class, () -> deserializer.deserializeSystem(serviceFile));
     }
 
+    // --- service type ----------------------------------------------------------------------------------------------
+
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    void resolvesTheTypeFromTheFileNameWhenTheDocumentStatesNone(IntegrationSystemType type) throws IOException {
+        File serviceFile = writeFile(
+                SYSTEM_ID + SERVICE_TYPE_FILES.postfix(type) + APP_NAME + ".yaml", typelessServiceYaml());
+
+        IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
+
+        assertEquals(type, system.getIntegrationSystemType());
+    }
+
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    void keepsTheTypeWhenTheFileNameAndTheDocumentAgree(IntegrationSystemType type) throws IOException {
+        File serviceFile = writeFile(
+                SYSTEM_ID + SERVICE_TYPE_FILES.postfix(type) + APP_NAME + ".yaml", typedServiceYaml(type.name()));
+
+        IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
+
+        assertEquals(type, system.getIntegrationSystemType());
+    }
+
+    /** The legacy flat name carries no type, which is what keeps the document field a resolution source. */
+    @Test
+    void resolvesTheTypeFromTheDocumentForALegacyFlatFileName() throws IOException {
+        File serviceFile = writeFile("service-" + SYSTEM_ID + ".yaml", typedServiceYaml("IMPLEMENTED"));
+
+        IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
+
+        assertEquals(IntegrationSystemType.IMPLEMENTED, system.getIntegrationSystemType());
+    }
+
+    /** A pre-#553 archive states the type only in the document, and its name has no postfix to read. */
+    @Test
+    void resolvesTheTypeFromTheDocumentForAPre553FileName() throws IOException {
+        File serviceFile = writeService(typedServiceYaml("INTERNAL"));
+
+        IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
+
+        assertEquals(IntegrationSystemType.INTERNAL, system.getIntegrationSystemType());
+    }
+
+    @Test
+    void failsWhenTheFileNameAndTheDocumentStateDifferentTypes() throws IOException {
+        File serviceFile = writeFile(
+                SYSTEM_ID + SERVICE_TYPE_FILES.postfix(IntegrationSystemType.INTERNAL) + APP_NAME + ".yaml",
+                typedServiceYaml("EXTERNAL"));
+
+        ServiceImportException exception =
+                assertThrows(ServiceImportException.class, () -> deserializer.deserializeSystem(serviceFile));
+        assertEquals(SYSTEM_ID, exception.getServiceId());
+        assertTrue(exception.getMessage().contains("INTERNAL") && exception.getMessage().contains("EXTERNAL"),
+                "the message has to name both states so the reader knows which one to correct: "
+                        + exception.getMessage());
+    }
+
+    @Test
+    void failsWhenNeitherTheFileNameNorTheDocumentStatesAType() throws IOException {
+        File serviceFile = writeService(typelessServiceYaml());
+
+        ServiceImportException exception =
+                assertThrows(ServiceImportException.class, () -> deserializer.deserializeSystem(serviceFile));
+        assertEquals(SYSTEM_ID, exception.getServiceId());
+        assertTrue(exception.getMessage().contains("integrationSystemType"),
+                "unexpected message: " + exception.getMessage());
+        assertTrue(exception.getMessage().contains(".external-service."),
+                "the message has to name the postfixes the reader can rename to: " + exception.getMessage());
+    }
+
     // --- helpers ---------------------------------------------------------------------------------------------------
 
     private File writeService(String yaml) throws IOException {
@@ -1123,6 +1201,30 @@ class ServiceDeserializerTest {
                   protocol: "%s"
                   migrations: "%s"
                 """.formatted(SYSTEM_ID, protocol, migrations);
+    }
+
+    /** A current-format service document: the type lives in the file name, not in the content. */
+    private static String typelessServiceYaml() {
+        return """
+                ---
+                id: "%s"
+                name: "Test service"
+                content:
+                  protocol: "HTTP"
+                  migrations: "[100, 101, 102]"
+                """.formatted(SYSTEM_ID);
+    }
+
+    private static String typedServiceYaml(String integrationSystemType) {
+        return """
+                ---
+                id: "%s"
+                name: "Test service"
+                content:
+                  integrationSystemType: "%s"
+                  protocol: "HTTP"
+                  migrations: "[100, 101, 102]"
+                """.formatted(SYSTEM_ID, integrationSystemType);
     }
 
     /** An api-format model file with one source resource and the operations given verbatim. */

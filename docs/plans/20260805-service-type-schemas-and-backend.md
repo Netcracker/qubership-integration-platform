@@ -480,15 +480,29 @@ that import discovery (Task 10) needs from a static context, while the URIs come
 - Modify: `runtime-catalog/.../service/exportimport/deserializer/ServiceDeserializer.java`
 - Modify: `runtime-catalog/src/test/java/.../exportimport/deserializer/ServiceDeserializerTest.java`
 
-- [ ] after `toInternalEntity` at `:104`, set the type from the file name when the entity has none
-- [ ] resolution order: file-name postfix, then `content.integrationSystemType`, then fail — the legacy flat name carries no type, so the field remains a required fallback
-- [ ] do **not** consult `$schema`; do **not** move this into `IntegrationSystemDtoMapper`, which never sees a file name
-- [ ] fail loudly rather than persisting a null: the column is nullable and a null surfaces much later as an NPE in `EntityType.getSystemType:57`
-- [ ] write tests: each of the three postfixes yields its type with no field present
-- [ ] write a test: a legacy `service-<id>.yaml` resolves from the field
-- [ ] write a test: a file whose name and field disagree is reported, not silently resolved
-- [ ] write a test: neither source present is rejected with a clear message
-- [ ] run tests — must pass before task 7
+- [x] after `toInternalEntity` at `:104`, set the type from the file name when the entity has none
+- [x] resolution order: file-name postfix, then `content.integrationSystemType`, then fail — the legacy flat name carries no type, so the field remains a required fallback
+- [x] do **not** consult `$schema`; do **not** move this into `IntegrationSystemDtoMapper`, which never sees a file name
+- [x] fail loudly rather than persisting a null: the column is nullable and a null surfaces much later as an NPE in `EntityType.getSystemType:57`
+- [x] write tests: each of the three postfixes yields its type with no field present
+- [x] write a test: a legacy `service-<id>.yaml` resolves from the field
+- [x] write a test: a file whose name and field disagree is reported, not silently resolved
+- [x] write a test: neither source present is rejected with a clear message
+- [x] run tests — must pass before task 7
+
+[decision] a name/field disagreement raises rather than letting the name win. The task says "reported, not silently
+resolved", and a mismatch is a hand-edited or mis-renamed file either way — resolving it silently would import a service
+under a type nobody chose. The exception is a `ServiceImportException`, so `SystemExportImportService:449-457` degrades
+it to `ImportSystemStatus.ERROR` for that one service, as with every other per-service import failure.
+
+➕ added `keepsTheTypeWhenTheFileNameAndTheDocumentAgree` and `resolvesTheTypeFromTheDocumentForAPre553FileName`. The
+first pins the agreement path that the disagreement test only approaches from one side; the second covers the
+current-format pre-#553 `.service.` name, which is a separate resolution source from the legacy flat one the task lists.
+
+[decision] `ServiceTypeFiles` is constructor-injected into `ServiceDeserializer`. The three existing test suites that
+build the deserializer by hand (`V103RevertMigrationTest`, `V104RevertMigrationTest`, `V104ServiceImportFileMigrationTest`)
+pass `new ServiceTypeFiles(new ApplicationJsonSchemaProperties())` — the class-field defaults Task 5 added make that
+instance equivalent to the wired one.
 
 ### Task 7: Add V105 as a compatibility barrier
 

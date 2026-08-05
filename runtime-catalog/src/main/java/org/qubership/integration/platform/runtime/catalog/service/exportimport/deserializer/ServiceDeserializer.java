@@ -27,8 +27,10 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.S
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ApiGroupDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
+import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.*;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiGroupDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
@@ -65,6 +67,7 @@ public class ServiceDeserializer {
     private final FileMigrationService fileMigrationService;
     private final Collection<ServiceImportFileMigration> importFileMigrations;
     private final OperationSchemaExtractor operationSchemaExtractor;
+    private final ServiceTypeFiles serviceTypeFiles;
 
     @Value("${app.prefix}")
     private String appName;
@@ -78,7 +81,8 @@ public class ServiceDeserializer {
             SystemModelDtoMapper systemModelDtoMapper,
             FileMigrationService fileMigrationService,
             Collection<ServiceImportFileMigration> importFileMigrations,
-            OperationSchemaExtractor operationSchemaExtractor
+            OperationSchemaExtractor operationSchemaExtractor,
+            ServiceTypeFiles serviceTypeFiles
     ) {
         this.yamlMapper = yamlExportImportMapper;
         this.versionsGetterService = versionsGetterService;
@@ -88,6 +92,7 @@ public class ServiceDeserializer {
         this.fileMigrationService = fileMigrationService;
         this.importFileMigrations = importFileMigrations;
         this.operationSchemaExtractor = operationSchemaExtractor;
+        this.serviceTypeFiles = serviceTypeFiles;
     }
 
     public IntegrationSystem deserializeSystem(File serviceFile) {
@@ -102,6 +107,7 @@ public class ServiceDeserializer {
             ObjectNode migratedServiceNode = (ObjectNode) yamlMapper.readTree(serviceData);
             IntegrationSystemDto integrationSystemDto = yamlMapper.treeToValue(migratedServiceNode, IntegrationSystemDto.class);
             IntegrationSystem integrationSystem = integrationSystemDtoMapper.toInternalEntity(integrationSystemDto);
+            resolveServiceType(integrationSystem, serviceFile);
 
             Collection<File> files = listFiles(serviceDirectory);
 
@@ -135,6 +141,40 @@ public class ServiceDeserializer {
             throw e;
         } catch (Exception e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Resolves the service type from the file name, falling back to {@code content.integrationSystemType}.
+     *
+     * <p>The name is the primary source because it is the only one a current-format file carries. The field stays as a
+     * fallback for the legacy flat {@code service-<id>.yaml} name, for every pre-#553 archive, and for the rollout
+     * converter, none of which put a type in the name. {@code $schema} is deliberately not consulted: the VS Code
+     * extension stamps whatever a project's {@code .config.qip.yaml} configures, so it identifies nothing.
+     *
+     * <p>A type missing from both sources fails the import instead of persisting a null. The column is nullable, and a
+     * null surfaces much later as an NPE in {@code EntityType.getSystemType}.
+     */
+    private void resolveServiceType(IntegrationSystem system, File serviceFile) {
+        String fileName = serviceFile.getName();
+        IntegrationSystemType fromFileName = serviceTypeFiles.typeFromFileName(fileName).orElse(null);
+        IntegrationSystemType fromDocument = system.getIntegrationSystemType();
+
+        if (fromFileName == null && fromDocument == null) {
+            throw new ServiceImportException(system.getId(), system.getName(),
+                    ("Service file %s states no service type: its name carries no type postfix and"
+                            + " content.integrationSystemType is absent. Rename the file with one of %s, or set"
+                            + " content.integrationSystemType, then re-import. The service is not imported.")
+                            .formatted(fileName, String.join(", ", ServiceTypeFiles.postfixes())));
+        }
+        if (fromFileName != null && fromDocument != null && fromFileName != fromDocument) {
+            throw new ServiceImportException(system.getId(), system.getName(),
+                    ("Service file %s states type %s in its name and %s in content.integrationSystemType. Correct one"
+                            + " of the two so they agree, then re-import. The service is not imported.")
+                            .formatted(fileName, fromFileName, fromDocument));
+        }
+        if (fromFileName != null) {
+            system.setIntegrationSystemType(fromFileName);
         }
     }
 
