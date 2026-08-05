@@ -381,6 +381,21 @@ public class KubeOperator {
         }
     }
 
+    public Optional<KubeCustomObject> getCustomObject(String group, String version, String plural, String name)
+            throws KubeApiException {
+        try {
+            Object rawObj = customObjectsApi.getNamespacedCustomObject(group, version, namespace, plural, name)
+                    .execute();
+            KubeCustomObject customObject = fromRawObject(rawObj, KubeCustomObject.class);
+            return Optional.of(customObject);
+        } catch (ApiException exception) {
+            if (exception.getCode() == HttpStatus.NOT_FOUND.value()) {
+                return Optional.empty();
+            }
+            throw new KubeApiException("Failed to get object: " + name, exception);
+        }
+    }
+
     public List<V1Service> getServicesByLabel(String labelName, String labelValue) throws KubeApiException {
         try {
             return coreApi.listNamespacedService(namespace)
