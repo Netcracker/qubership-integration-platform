@@ -19,6 +19,8 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ContextServiceDeserializer;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.MCPSystemDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ServiceDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiGroupDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiOperationDtoMapper;
@@ -27,8 +29,10 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.MCPServiceDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.mcp.MCPServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.mcp.V100MCPServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert.TestRevertMigrations;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.TestServiceMigrations;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.VersionsGetterService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.strategies.MigrationFieldInContentStrategy;
@@ -220,13 +224,6 @@ public final class GoldenServiceCorpus {
     /** The five fixture systems, serialized the way {@code SystemExportImportService} serializes them. */
     public static List<ExportableObject> exportAll(boolean legacy) {
         FileMigrationService migrations = migrationService(legacy);
-        ServiceSerializer serviceSerializer = new ServiceSerializer(
-                mapper(),
-                new IntegrationSystemDtoMapper(serviceTypeFiles(), TestServiceMigrations.all()),
-                new ApiGroupDtoMapper(URI.create(SCHEMAS.getApiGroup())),
-                new SystemModelDtoMapper(URI.create(SCHEMAS.getApi()), new ApiOperationDtoMapper()),
-                migrations,
-                ExtractorTestParsers.extractor());
         ContextServiceSerializer contextSerializer = new ContextServiceSerializer(
                 mapper(),
                 new ContextServiceDtoMapper(URI.create(SCHEMAS.getContextService()), TestServiceMigrations.all()),
@@ -236,46 +233,97 @@ public final class GoldenServiceCorpus {
                 new MCPServiceDtoMapper(
                         URI.create(SCHEMAS.getMcpService()), List.of(new V100MCPServiceImportFileMigration())),
                 migrations);
+        List<ExportableObject> exported = new ArrayList<>(
+                exportServices(List.of(externalService(), internalService(), implementedService()), legacy));
         try {
-            return List.of(
-                    serviceSerializer.serialize(externalService()),
-                    serviceSerializer.serialize(internalService()),
-                    serviceSerializer.serialize(implementedService()),
-                    contextSerializer.serialize(contextService()),
-                    mcpSerializer.serialize(mcpService()));
+            exported.add(contextSerializer.serialize(contextService()));
+            exported.add(mcpSerializer.serialize(mcpService()));
         } catch (IOException exception) {
             throw new UncheckedIOException(exception);
         }
+        return List.copyOf(exported);
+    }
+
+    public static ServiceSerializer serviceSerializer(boolean legacy) {
+        return new ServiceSerializer(
+                mapper(),
+                new IntegrationSystemDtoMapper(serviceTypeFiles(), TestServiceMigrations.all()),
+                new ApiGroupDtoMapper(URI.create(SCHEMAS.getApiGroup())),
+                new SystemModelDtoMapper(URI.create(SCHEMAS.getApi()), new ApiOperationDtoMapper()),
+                migrationService(legacy),
+                ExtractorTestParsers.extractor());
+    }
+
+    /** Any set of services, serialized in either format: the export half of a cross-format round trip. */
+    public static List<ExportableObject> exportServices(List<IntegrationSystem> services, boolean legacy) {
+        ServiceSerializer serializer = serviceSerializer(legacy);
+        return services.stream().map(serializer::serialize).map(ExportableObject.class::cast).toList();
     }
 
     /** The archive bytes {@code exportSystemsRequest} would return for the fixture set. */
     public static byte[] archive(boolean legacy) {
+        return archive(exportAll(legacy), legacy);
+    }
+
+    /** The same archive writer over an arbitrary exported set. */
+    public static byte[] archive(List<ExportableObject> exported, boolean legacy) {
         ExportableObjectWriterVisitor visitor = new ExportableObjectWriterVisitor(mapper());
         ReflectionTestUtils.setField(visitor, "appName", APP_NAME);
         ReflectionTestUtils.setField(visitor, "isLegacyExport", legacy);
-        return new ArchiveWriter(visitor).writeArchive(exportAll(legacy));
+        return new ArchiveWriter(visitor).writeArchive(exported);
     }
 
     /** The real deserializer, wired as the application wires it, for reading a captured set back in. */
     public static ServiceDeserializer deserializer() {
-        YAMLMapper mapper = mapper();
-        VersionsGetterService versionsGetterService = versionsGetterService();
-        FileMigrationService fileMigrationService =
-                new FileMigrationService(mapper, versionsGetterService, List.of());
-        ReflectionTestUtils.setField(fileMigrationService, "isLegacyExport", false);
+        return deserializer(TestServiceMigrations.all());
+    }
 
+    /**
+     * The same deserializer over a chosen migration registry. A shorter list is the registry of an older QIP, so a
+     * legacy export can be read here the way the version it has to stay importable by would read it.
+     */
+    public static ServiceDeserializer deserializer(List<ServiceImportFileMigration> migrations) {
         ServiceDeserializer deserializer = new ServiceDeserializer(
-                mapper,
-                versionsGetterService,
-                new IntegrationSystemDtoMapper(serviceTypeFiles(), TestServiceMigrations.all()),
+                mapper(),
+                versionsGetterService(),
+                new IntegrationSystemDtoMapper(serviceTypeFiles(), migrations),
                 new ApiGroupDtoMapper(URI.create(SCHEMAS.getApiGroup())),
                 new SystemModelDtoMapper(URI.create(SCHEMAS.getApi()), new ApiOperationDtoMapper()),
-                fileMigrationService,
-                TestServiceMigrations.all(),
+                forwardMigrationService(),
+                migrations,
                 ExtractorTestParsers.extractor(),
                 serviceTypeFiles());
         ReflectionTestUtils.setField(deserializer, "appName", APP_NAME);
         return deserializer;
+    }
+
+    public static ContextServiceDeserializer contextServiceDeserializer() {
+        return contextServiceDeserializer(TestServiceMigrations.all());
+    }
+
+    /** Context services are stamped from the service migration list, so they take the same registry. */
+    public static ContextServiceDeserializer contextServiceDeserializer(List<ServiceImportFileMigration> migrations) {
+        return new ContextServiceDeserializer(
+                mapper(),
+                forwardMigrationService(),
+                migrations,
+                new ContextServiceDtoMapper(URI.create(SCHEMAS.getContextService()), migrations));
+    }
+
+    public static MCPSystemDeserializer mcpSystemDeserializer() {
+        List<MCPServiceImportFileMigration> migrations = List.of(new V100MCPServiceImportFileMigration());
+        return new MCPSystemDeserializer(
+                mapper(),
+                forwardMigrationService(),
+                migrations,
+                new MCPServiceDtoMapper(URI.create(SCHEMAS.getMcpService()), migrations));
+    }
+
+    /** The import-side migration service: forward only, so no revert migration runs while reading a document. */
+    private static FileMigrationService forwardMigrationService() {
+        FileMigrationService service = new FileMigrationService(mapper(), versionsGetterService(), List.of());
+        ReflectionTestUtils.setField(service, "isLegacyExport", false);
+        return service;
     }
 
     public static YAMLMapper mapper() {
@@ -329,7 +377,12 @@ public final class GoldenServiceCorpus {
 
     /** The one service document of {@code serviceId} in a captured set, whatever the set names it. */
     public static Path serviceFile(String setName, String serviceId) {
-        Path directory = set(setName).resolve(ExportImportConstants.ARCH_PARENT_DIR).resolve(serviceId);
+        return serviceFileIn(set(setName), serviceId);
+    }
+
+    /** The same, in an archive tree unzipped anywhere, for reading a live export back. */
+    public static Path serviceFileIn(Path root, String serviceId) {
+        Path directory = root.resolve(ExportImportConstants.ARCH_PARENT_DIR).resolve(serviceId);
         try (var files = Files.list(directory)) {
             List<Path> matching = files
                     .filter(Files::isRegularFile)

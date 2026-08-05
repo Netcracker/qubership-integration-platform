@@ -718,13 +718,38 @@ every update unnoticed.
 **Files:**
 - Create: `runtime-catalog/src/test/java/.../exportimport/ServiceTypeRoundTripTest.java`
 
-- [ ] write a round-trip test per type: create → export → import → assert the persisted type is **non-null and equal**
-- [ ] write a round-trip test per type in the legacy format, with the same non-null assertion
-- [ ] write a legacy round-trip test for a **context service exported alongside a plain service**, asserting it imports into a pre-#553-shaped QIP — this is the regression Task 8's predicate exists to prevent
-- [ ] write a cross-format test: export legacy, import into current-format QIP
-- [ ] write a test covering the create path specifically, not only update — they are separate code paths (`:477` vs `:474`)
-- [ ] write a current-format test importing one archive containing all five kinds (three plain types + context + MCP) through both the preview and commit paths — it also exercises Task 10's multi-postfix dedup against real neighbours
-- [ ] run the full runtime-catalog suite — must pass before task 13
+- [x] write a round-trip test per type: create → export → import → assert the persisted type is **non-null and equal**
+- [x] write a round-trip test per type in the legacy format, with the same non-null assertion
+- [x] write a legacy round-trip test for a **context service exported alongside a plain service**, asserting it imports into a pre-#553-shaped QIP — this is the regression Task 8's predicate exists to prevent
+- [x] write a cross-format test: export legacy, import into current-format QIP
+- [x] write a test covering the create path specifically, not only update — they are separate code paths (`:477` vs `:474`)
+- [x] write a current-format test importing one archive containing all five kinds (three plain types + context + MCP) through both the preview and commit paths — it also exercises Task 10's multi-postfix dedup against real neighbours
+- [x] run the full runtime-catalog suite — must pass before task 13
+
+[decision] every round trip runs over **live** archive bytes — `GoldenServiceCorpus.archive(legacy)` through the real
+serializer and `ArchiveWriter` — and enters the importer through `importSystemRequest`, the production unzip path.
+`SystemExportImportServiceTest.everyArchiveFormatImportsWithItsType` already pins the *committed* golden sets end to end
+on the same commit path; reading them again here would test the corpus rather than what today's exporter writes. The two
+are complementary: one is a regression pin on the recorded format, this one is a live loop.
+
+[decision] the cross-format test does the legacy→current conversion in full — import a legacy archive, re-export the
+imported entity in the current format, then re-import that. Asserting only "a legacy archive imports" would duplicate
+the legacy row of the per-type round trip; the conversion is the statement worth pinning, and it fails if the exporter
+and the file-name registry ever disagree about a type it just read out of a document.
+
+[decision] a "pre-#553-shaped QIP" is modelled as the real deserializers over `TestServiceMigrations.all()` minus V105.
+That is exactly what an older registry holds, and it needs no second copy of the deserializer wiring.
+
+➕ extended `GoldenServiceCorpus` rather than re-wiring the serializers in the test: `serviceSerializer(legacy)`,
+`exportServices(services, legacy)`, `archive(exported, legacy)`, `serviceFileIn(root, id)`, `deserializer(migrations)`,
+`contextServiceDeserializer(migrations)`, and `mcpSystemDeserializer()`. The five-kinds test needs all three import
+services, and three hand-wired copies of their constructors would drift.
+
+⚠️ `Environment.equals` NPEs when **both** label lists are null: `CompareListUtils.listSizeEquals(null, null)` returns
+true and the loop then iterates the null one. A row loaded from the database has an empty `@ElementCollection`, never
+null, so production does not reach it — but a fixture used as a stored row does. `ServiceTypeRoundTripTest.stored(...)`
+normalizes the fixture the way the database would. Left as is: pre-existing, unrelated to #553, and a fix belongs with
+`CompareListUtils`.
 
 ### Task 13: Verify acceptance criteria
 
