@@ -25,7 +25,7 @@ Qubership Integration Platform provides view-only window where domain's informat
 ---
 
 ### View Domains
-**"Domains"** tab is intended to provide the ability for monitoring of currently working engine domains and tracking the information about which chains on which engine domains were deployed (with snapshot and deployment status). To adjust domain workload, Admin is able to redeploy particular chains or scale up/down (not from QIP UI) particular engine domain.
+**"Domains"** tab is intended to provide the ability for monitoring of currently working engine domains and tracking the information about which chains on which engine domains were deployed (with snapshot and deployment status). To adjust domain workload, Admin is able to redeploy particular chains or scale up/down (not from <ins>Web UI</ins>) particular engine domain.
 
 **Domain table** structure:
 - **Domain** - name of the engine domain.

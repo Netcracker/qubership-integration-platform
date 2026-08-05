@@ -1,4 +1,4 @@
-# Audit
+    # Audit
 
 > ⛔️ This functionality is not available via the VS Code Extension.
 
@@ -69,7 +69,7 @@ Audit allows tracking most of the actions in UI. Click on the expandable section
 
 </details>
 
-A dedicated **"Audit"** tab is available in QIP UI for viewing the logs.
+A dedicated **"Audit"** tab is available in <ins>Web UI</ins> for viewing the logs.
 
 > ℹ️ **Notes:**
 >
@@ -101,6 +101,7 @@ At the top of the table the following options are available:
 - ![redo](img/redo.svg) - Refresh.
 - ![cloud-download](img/cloud-download.svg) - Export Action Logs.
 
+> ℹ️ **Note:** The table loads 20 records per page. Scroll down to load the next page.
 
 Similar information is presented on "**Action details**" right panel, available by clicking respective table's record.
 
