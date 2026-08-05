@@ -149,7 +149,7 @@ class V104ServiceImportFileMigrationTest {
         ServiceDeserializer built = new ServiceDeserializer(
                 yamlMapper,
                 versionsGetterService,
-                new IntegrationSystemDtoMapper(URI.create("http://qubership.org/schemas/product/qip/service"), migrations),
+                new IntegrationSystemDtoMapper(new ServiceTypeFiles(new ApplicationJsonSchemaProperties()), migrations),
                 new ApiGroupDtoMapper(URI.create("http://qubership.org/schemas/product/qip/api-group")),
                 new SystemModelDtoMapper(
                         URI.create("http://qubership.org/schemas/product/qip/api.schema.yaml"),

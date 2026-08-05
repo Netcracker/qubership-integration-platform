@@ -16,15 +16,17 @@
 
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services;
 
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceExportException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemContentDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemDto;
+import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystemLabel;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
@@ -33,15 +35,15 @@ import java.util.stream.Collectors;
 
 @Component
 public class IntegrationSystemDtoMapper implements ExternalEntityMapper<IntegrationSystem, IntegrationSystemDto> {
-    private final URI schemaUri;
+    private final ServiceTypeFiles serviceTypeFiles;
     private final List<ServiceImportFileMigration> serviceImportFileMigrations;
 
     @Autowired
     public IntegrationSystemDtoMapper(
-            @Value("${qip.json.schemas.service:http://qubership.org/schemas/product/qip/service.schema.yaml}") URI schemaUri,
+            ServiceTypeFiles serviceTypeFiles,
             List<ServiceImportFileMigration> serviceImportFileMigrations
     ) {
-        this.schemaUri = schemaUri;
+        this.serviceTypeFiles = serviceTypeFiles;
         this.serviceImportFileMigrations = serviceImportFileMigrations;
     }
 
@@ -71,12 +73,17 @@ public class IntegrationSystemDtoMapper implements ExternalEntityMapper<Integrat
         return system;
     }
 
+    /**
+     * Builds the export document. Since #553 the type states itself in the {@code $schema} and in the file name
+     * {@code ExportableObjectWriterVisitor} derives from it, so a service without one cannot be exported at all —
+     * {@code IntegrationSystemContentDto.integrationSystemType} is write-only and no longer carries it.
+     */
     @Override
     public IntegrationSystemDto toExternalEntity(IntegrationSystem integrationSystem) {
         return IntegrationSystemDto.builder()
                 .id(integrationSystem.getId())
                 .name(integrationSystem.getName())
-                .schema(schemaUri)
+                .schema(URI.create(serviceTypeFiles.schemaUri(requireType(integrationSystem))))
                 .content(IntegrationSystemContentDto.builder()
                         .description(integrationSystem.getDescription())
                         .activeEnvironmentId(integrationSystem.getActiveEnvironmentId())
@@ -88,5 +95,18 @@ public class IntegrationSystemDtoMapper implements ExternalEntityMapper<Integrat
                         .migrations(MigrationUtil.formatVersions(serviceImportFileMigrations))
                         .build())
                 .build();
+    }
+
+    // The column is nullable, so a legacy row can reach this point with no type. Failing here names the row; letting it
+    // through produced an NPE in EntityType.getSystemType once the export was already half written.
+    private static IntegrationSystemType requireType(IntegrationSystem system) {
+        IntegrationSystemType type = system.getIntegrationSystemType();
+        if (type == null) {
+            throw new ServiceExportException(system.getId(), system.getName(),
+                    ("Service %s has no type, and an exported service states its type in the file name and the $schema."
+                            + " Set the type of the service, then export again. The archive is not produced.")
+                            .formatted(system.getId()));
+        }
+        return type;
     }
 }

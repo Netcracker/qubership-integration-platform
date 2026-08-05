@@ -36,7 +36,7 @@ class ServiceTypeFilesTest {
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
     void resolvesEachTypeFromTheFileNameItExportsTo(IntegrationSystemType type) {
-        String fileName = SERVICE_ID + serviceTypeFiles.postfix(type) + APP_NAME + ".yaml";
+        String fileName = SERVICE_ID + ServiceTypeFiles.postfix(type) + APP_NAME + ".yaml";
 
         assertEquals(Optional.of(type), serviceTypeFiles.typeFromFileName(fileName));
     }
@@ -70,19 +70,19 @@ class ServiceTypeFilesTest {
 
     @Test
     void spellsEachTypeInTheFileNameAsTheSchemasDo() {
-        assertEquals(".external-service.", serviceTypeFiles.postfix(IntegrationSystemType.EXTERNAL));
-        assertEquals(".internal-service.", serviceTypeFiles.postfix(IntegrationSystemType.INTERNAL));
-        assertEquals(".implemented-service.", serviceTypeFiles.postfix(IntegrationSystemType.IMPLEMENTED));
+        assertEquals(".external-service.", ServiceTypeFiles.postfix(IntegrationSystemType.EXTERNAL));
+        assertEquals(".internal-service.", ServiceTypeFiles.postfix(IntegrationSystemType.INTERNAL));
+        assertEquals(".implemented-service.", ServiceTypeFiles.postfix(IntegrationSystemType.IMPLEMENTED));
     }
 
     /** A postfix must not match {@code .service.}, or import discovery cannot tell the two formats apart. */
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
     void keepsEveryPostfixDistinctFromThePlainServiceOne(IntegrationSystemType type) {
-        assertTrue(serviceTypeFiles.postfix(type).endsWith("-service."),
+        assertTrue(ServiceTypeFiles.postfix(type).endsWith("-service."),
                 "the -service suffix is what keeps the name out of the plain service scan");
         assertEquals(3, ServiceTypeFiles.postfixes().size());
-        assertTrue(ServiceTypeFiles.postfixes().contains(serviceTypeFiles.postfix(type)));
+        assertTrue(ServiceTypeFiles.postfixes().contains(ServiceTypeFiles.postfix(type)));
     }
 
     @ParameterizedTest
@@ -108,7 +108,7 @@ class ServiceTypeFilesTest {
 
     @Test
     void refusesAMissingType() {
-        assertThrows(NullPointerException.class, () -> serviceTypeFiles.postfix(null));
+        assertThrows(NullPointerException.class, () -> ServiceTypeFiles.postfix(null));
         assertThrows(NullPointerException.class, () -> serviceTypeFiles.schemaUri(null));
     }
 

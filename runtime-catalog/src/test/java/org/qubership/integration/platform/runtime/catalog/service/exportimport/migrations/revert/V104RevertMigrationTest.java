@@ -9,6 +9,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.IntegrationSystemDto;
+import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ServiceDeserializer;
@@ -182,15 +183,20 @@ class V104RevertMigrationTest {
     }
 
     /**
-     * The whole scenario end to end, off the real export mapper: a service built with nothing but an id and a name.
-     * Its legacy export must not claim 104, or a pre-rename QIP rejects the whole archive as coming from a newer
-     * version.
+     * The whole scenario end to end, off the real export mapper: a service with an id, a name, and the type every
+     * export needs since #553. Its legacy export must not claim 104, or a pre-rename QIP rejects the whole archive as
+     * coming from a newer version.
      */
     @Test
     void aBareServiceExportsWithoutClaimingVersion104() {
-        IntegrationSystem system = IntegrationSystem.builder().id("system-1").name("Test service").build();
-        IntegrationSystemDto dto =
-                new IntegrationSystemDtoMapper(SERVICE_SCHEMA, TestServiceMigrations.all()).toExternalEntity(system);
+        IntegrationSystem system = IntegrationSystem.builder()
+                .id("system-1")
+                .name("Test service")
+                .integrationSystemType(IntegrationSystemType.EXTERNAL)
+                .build();
+        IntegrationSystemDto dto = new IntegrationSystemDtoMapper(
+                new ServiceTypeFiles(new ApplicationJsonSchemaProperties()), TestServiceMigrations.all())
+                .toExternalEntity(system);
 
         ObjectNode exported = productionRevertPipeline().revertMigrationIfNeeded(mapper.valueToTree(dto));
 
@@ -304,7 +310,7 @@ class V104RevertMigrationTest {
         ServiceDeserializer deserializer = new ServiceDeserializer(
                 mapper,
                 versionsGetterService,
-                new IntegrationSystemDtoMapper(SERVICE_SCHEMA, TestServiceMigrations.all()),
+                new IntegrationSystemDtoMapper(new ServiceTypeFiles(new ApplicationJsonSchemaProperties()), TestServiceMigrations.all()),
                 new ApiGroupDtoMapper(GROUP_SCHEMA),
                 new SystemModelDtoMapper(API_SCHEMA, new ApiOperationDtoMapper()),
                 fileMigrationService,

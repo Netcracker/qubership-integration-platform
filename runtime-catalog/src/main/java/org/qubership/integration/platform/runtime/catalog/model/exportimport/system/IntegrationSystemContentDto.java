@@ -20,6 +20,7 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonFilter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -47,7 +48,13 @@ public class IntegrationSystemContentDto {
     private User createdBy;
     private User modifiedBy;
     private String activeEnvironmentId;
+
+    // Read on import, never written on export: since #553 the file name and the $schema state the type, and
+    // V105RevertMigration puts it back for the legacy format. WRITE_ONLY rather than @JsonIgnore, which would also stop
+    // every pre-#553 archive from binding the field.
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private IntegrationSystemType integrationSystemType;
+
     private String internalServiceName;
     private OperationProtocol protocol;
 

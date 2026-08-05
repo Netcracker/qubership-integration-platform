@@ -1,0 +1,376 @@
+id: "api-orders"
+name: "Orders API"
+deprecated: false
+version: "v1"
+operations:
+- id: "op-list-orders"
+  name: "listOrders"
+  method: "GET"
+  path: "/orders"
+  requestSchema:
+    parameters:
+    - name: "status"
+      in: "query"
+      required: false
+      style: "form"
+      explode: true
+      schema:
+        type: "string"
+        enum:
+        - "NEW"
+        - "PAID"
+        - "SHIPPED"
+        - "CANCELLED"
+    - name: "limit"
+      in: "query"
+      required: false
+      style: "form"
+      explode: true
+      schema:
+        maximum: 1E+2
+        minimum: 1
+        type: "integer"
+  responseSchemas:
+    "200":
+      application/json:
+        $id: "http://system.catalog/schemas/#/components/schemas/Order"
+        $schema: "http://json-schema.org/draft-07/schema#"
+        type: "array"
+        items:
+          type: null
+          allOf:
+          - $ref: "#/definitions/OrderBase"
+          - required:
+            - "id"
+            - "status"
+            - "total"
+            type: "object"
+            properties:
+              id:
+                type: "string"
+                format: "uuid"
+              status:
+                type: "string"
+                enum:
+                - "NEW"
+                - "PAID"
+                - "SHIPPED"
+                - "CANCELLED"
+              total:
+                $ref: "#/definitions/Money"
+        definitions:
+          Money:
+            required:
+            - "amount"
+            - "currency"
+            type: "object"
+            properties:
+              amount:
+                type: "number"
+                format: "double"
+              currency:
+                maxLength: 3
+                minLength: 3
+                type: "string"
+          OrderBase:
+            required:
+            - "customerId"
+            - "items"
+            type: "object"
+            properties:
+              customerId:
+                type: "string"
+                format: "uuid"
+              items:
+                minItems: 1
+                type: "array"
+                items:
+                  $ref: "#/definitions/OrderItem"
+          OrderItem:
+            required:
+            - "productId"
+            - "quantity"
+            type: "object"
+            properties:
+              productId:
+                type: "string"
+              quantity:
+                minimum: 1
+                type: "integer"
+              price:
+                $ref: "#/definitions/Money"
+    "400":
+      application/json:
+        required:
+        - "code"
+        - "message"
+        type: "object"
+        properties:
+          code:
+            type: "string"
+          message:
+            type: "string"
+        definitions: {}
+        $id: "http://system.catalog/schemas/#/components/schemas/Error"
+        $schema: "http://json-schema.org/draft-07/schema#"
+- id: "op-create-order"
+  name: "createOrder"
+  method: "POST"
+  path: "/orders"
+  requestSchema:
+    application/json:
+      allOf:
+      - $ref: "#/definitions/OrderBase"
+      - type: "object"
+        properties:
+          payment:
+            oneOf:
+            - $ref: "#/definitions/CardPayment"
+            - $ref: "#/definitions/InvoicePayment"
+      definitions:
+        CardPayment:
+          required:
+          - "last4"
+          - "type"
+          type: "object"
+          properties:
+            type:
+              type: "string"
+              enum:
+              - "card"
+            last4:
+              type: "string"
+        InvoicePayment:
+          required:
+          - "invoiceId"
+          - "type"
+          type: "object"
+          properties:
+            type:
+              type: "string"
+              enum:
+              - "invoice"
+            invoiceId:
+              type: "string"
+        Money:
+          required:
+          - "amount"
+          - "currency"
+          type: "object"
+          properties:
+            amount:
+              type: "number"
+              format: "double"
+            currency:
+              maxLength: 3
+              minLength: 3
+              type: "string"
+        OrderBase:
+          required:
+          - "customerId"
+          - "items"
+          type: "object"
+          properties:
+            customerId:
+              type: "string"
+              format: "uuid"
+            items:
+              minItems: 1
+              type: "array"
+              items:
+                $ref: "#/definitions/OrderItem"
+        OrderItem:
+          required:
+          - "productId"
+          - "quantity"
+          type: "object"
+          properties:
+            productId:
+              type: "string"
+            quantity:
+              minimum: 1
+              type: "integer"
+            price:
+              $ref: "#/definitions/Money"
+      $id: "http://system.catalog/schemas/#/components/schemas/OrderCreate"
+      $schema: "http://json-schema.org/draft-07/schema#"
+  responseSchemas:
+    "201":
+      application/json:
+        allOf:
+        - $ref: "#/definitions/OrderBase"
+        - required:
+          - "id"
+          - "status"
+          - "total"
+          type: "object"
+          properties:
+            id:
+              type: "string"
+              format: "uuid"
+            status:
+              type: "string"
+              enum:
+              - "NEW"
+              - "PAID"
+              - "SHIPPED"
+              - "CANCELLED"
+            total:
+              $ref: "#/definitions/Money"
+        definitions:
+          Money:
+            required:
+            - "amount"
+            - "currency"
+            type: "object"
+            properties:
+              amount:
+                type: "number"
+                format: "double"
+              currency:
+                maxLength: 3
+                minLength: 3
+                type: "string"
+          OrderBase:
+            required:
+            - "customerId"
+            - "items"
+            type: "object"
+            properties:
+              customerId:
+                type: "string"
+                format: "uuid"
+              items:
+                minItems: 1
+                type: "array"
+                items:
+                  $ref: "#/definitions/OrderItem"
+          OrderItem:
+            required:
+            - "productId"
+            - "quantity"
+            type: "object"
+            properties:
+              productId:
+                type: "string"
+              quantity:
+                minimum: 1
+                type: "integer"
+              price:
+                $ref: "#/definitions/Money"
+        $id: "http://system.catalog/schemas/#/components/schemas/Order"
+        $schema: "http://json-schema.org/draft-07/schema#"
+    "422":
+      application/json:
+        required:
+        - "code"
+        - "message"
+        type: "object"
+        properties:
+          code:
+            type: "string"
+          message:
+            type: "string"
+        definitions: {}
+        $id: "http://system.catalog/schemas/#/components/schemas/Error"
+        $schema: "http://json-schema.org/draft-07/schema#"
+- id: "op-get-order"
+  name: "getOrder"
+  method: "GET"
+  path: "/orders/{orderId}"
+  requestSchema:
+    parameters:
+    - name: "orderId"
+      in: "path"
+      required: true
+      style: "simple"
+      explode: false
+      schema:
+        type: "string"
+        format: "uuid"
+  responseSchemas:
+    "200":
+      application/json:
+        allOf:
+        - $ref: "#/definitions/OrderBase"
+        - required:
+          - "id"
+          - "status"
+          - "total"
+          type: "object"
+          properties:
+            id:
+              type: "string"
+              format: "uuid"
+            status:
+              type: "string"
+              enum:
+              - "NEW"
+              - "PAID"
+              - "SHIPPED"
+              - "CANCELLED"
+            total:
+              $ref: "#/definitions/Money"
+        definitions:
+          Money:
+            required:
+            - "amount"
+            - "currency"
+            type: "object"
+            properties:
+              amount:
+                type: "number"
+                format: "double"
+              currency:
+                maxLength: 3
+                minLength: 3
+                type: "string"
+          OrderBase:
+            required:
+            - "customerId"
+            - "items"
+            type: "object"
+            properties:
+              customerId:
+                type: "string"
+                format: "uuid"
+              items:
+                minItems: 1
+                type: "array"
+                items:
+                  $ref: "#/definitions/OrderItem"
+          OrderItem:
+            required:
+            - "productId"
+            - "quantity"
+            type: "object"
+            properties:
+              productId:
+                type: "string"
+              quantity:
+                minimum: 1
+                type: "integer"
+              price:
+                $ref: "#/definitions/Money"
+        $id: "http://system.catalog/schemas/#/components/schemas/Order"
+        $schema: "http://json-schema.org/draft-07/schema#"
+    "404":
+      application/json:
+        required:
+        - "code"
+        - "message"
+        type: "object"
+        properties:
+          code:
+            type: "string"
+          message:
+            type: "string"
+        definitions: {}
+        $id: "http://system.catalog/schemas/#/components/schemas/Error"
+        $schema: "http://json-schema.org/draft-07/schema#"
+parentId: "grp-orders"
+specificationSources:
+- id: "src-orders"
+  name: "orders.yaml"
+  fileName: "source-api-orders/orders.yaml"
+  mainSource: true

@@ -375,7 +375,7 @@ class V103RevertMigrationTest {
         ReflectionTestUtils.setField(fileMigrationService, "isLegacyExport", true);
         return new ServiceSerializer(
                 mapper,
-                new IntegrationSystemDtoMapper(SERVICE_SCHEMA, TestServiceMigrations.all()),
+                new IntegrationSystemDtoMapper(new ServiceTypeFiles(new ApplicationJsonSchemaProperties()), TestServiceMigrations.all()),
                 new ApiGroupDtoMapper(GROUP_SCHEMA),
                 new SystemModelDtoMapper(API_SCHEMA, new ApiOperationDtoMapper()),
                 fileMigrationService,
@@ -391,7 +391,7 @@ class V103RevertMigrationTest {
         ServiceDeserializer deserializer = new ServiceDeserializer(
                 mapper,
                 versionsGetterService,
-                new IntegrationSystemDtoMapper(SERVICE_SCHEMA, TestServiceMigrations.all()),
+                new IntegrationSystemDtoMapper(new ServiceTypeFiles(new ApplicationJsonSchemaProperties()), TestServiceMigrations.all()),
                 new ApiGroupDtoMapper(GROUP_SCHEMA),
                 new SystemModelDtoMapper(API_SCHEMA, new ApiOperationDtoMapper()),
                 fileMigrationService,

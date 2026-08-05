@@ -38,8 +38,12 @@ public class ServiceTypeFiles {
                 IntegrationSystemType.IMPLEMENTED, schemas.getImplementedService()));
     }
 
-    /** The name postfix an export writes for {@code type}, and the one import resolves the type back from. */
-    public String postfix(IntegrationSystemType type) {
+    /**
+     * The name postfix an export writes for {@code type}, and the one import resolves the type back from. Static like
+     * {@link #postfixes()}: the postfixes are compile-time constants, and {@code ExportImportUtils} builds the export
+     * file name from a static context.
+     */
+    public static String postfix(IntegrationSystemType type) {
         return POSTFIXES_BY_TYPE.get(Objects.requireNonNull(type, "service type"));
     }
 

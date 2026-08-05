@@ -14,6 +14,7 @@ import org.qubership.integration.platform.runtime.catalog.configuration.MapperAu
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SpecificationImportException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ApiOperationDto;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.SystemModelDto;
+import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSpecification;
 import org.qubership.integration.platform.runtime.catalog.model.system.typed.OpenapiOperation;
@@ -25,6 +26,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiGroupDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiOperationDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ContextServiceDtoMapper;
@@ -428,6 +430,10 @@ class ServiceSerializerTest {
 
         assertEquals("http://qubership.org/schemas/product/qip/chain.schema.yaml", props.getChain());
         assertEquals("http://qubership.org/schemas/product/qip/service.schema.yaml", props.getService());
+        assertEquals("http://qubership.org/schemas/product/qip/external-service.schema.yaml", props.getExternalService());
+        assertEquals("http://qubership.org/schemas/product/qip/internal-service.schema.yaml", props.getInternalService());
+        assertEquals("http://qubership.org/schemas/product/qip/implemented-service.schema.yaml",
+                props.getImplementedService());
         assertEquals("http://qubership.org/schemas/product/qip/context-service.schema.yaml", props.getContextService());
         assertEquals("http://qubership.org/schemas/product/qip/mcp-service.schema.yaml", props.getMcpService());
         assertEquals("http://qubership.org/schemas/product/qip/specification-group.schema.yaml", props.getSpecificationGroup());
@@ -435,9 +441,11 @@ class ServiceSerializerTest {
         assertEquals("http://qubership.org/schemas/product/qip/specification.schema.yaml", props.getSpecification());
         assertEquals("http://qubership.org/schemas/product/qip/api.schema.yaml", props.getApi());
 
-        IntegrationSystem system = IntegrationSystem.builder().id("s1").name("Service").build();
-        assertEquals(props.getService(),
-                new IntegrationSystemDtoMapper(URI.create(props.getService()), List.of())
+        // A service stamps the schema of its own type: since #553 that is where the exported document states it.
+        IntegrationSystem system = IntegrationSystem.builder()
+                .id("s1").name("Service").integrationSystemType(IntegrationSystemType.EXTERNAL).build();
+        assertEquals(props.getExternalService(),
+                new IntegrationSystemDtoMapper(new ServiceTypeFiles(props), List.of())
                         .toExternalEntity(system).getSchema().toString());
 
         ApiGroup group = ApiGroup.builder().id("g1").name("Group").system(system).build();

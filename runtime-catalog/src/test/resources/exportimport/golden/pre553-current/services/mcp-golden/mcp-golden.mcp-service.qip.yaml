@@ -1,0 +1,8 @@
+id: "mcp-golden"
+$schema: "http://qubership.org/schemas/product/qip/mcp-service.schema.yaml"
+name: "Golden MCP service"
+content:
+  description: "Discovered by its own postfix, next to the plain services"
+  identifier: "golden-mcp"
+  instructions: "Answer with the order status"
+  migrations: "[100]"

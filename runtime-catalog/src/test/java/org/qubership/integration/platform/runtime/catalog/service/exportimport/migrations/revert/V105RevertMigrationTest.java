@@ -285,7 +285,7 @@ class V105RevertMigrationTest {
         ServiceDeserializer deserializer = new ServiceDeserializer(
                 mapper,
                 versionsGetterService,
-                new IntegrationSystemDtoMapper(SERVICE_SCHEMA, TestServiceMigrations.all()),
+                new IntegrationSystemDtoMapper(new ServiceTypeFiles(schemas), TestServiceMigrations.all()),
                 new ApiGroupDtoMapper(GROUP_SCHEMA),
                 new SystemModelDtoMapper(API_SCHEMA, new ApiOperationDtoMapper()),
                 fileMigrationService,

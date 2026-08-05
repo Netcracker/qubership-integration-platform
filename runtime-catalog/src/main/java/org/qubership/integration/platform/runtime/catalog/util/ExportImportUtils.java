@@ -20,10 +20,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
@@ -217,10 +219,15 @@ public class ExportImportUtils {
         };
     }
 
-    public static String generateMainSystemFileExportName(String id, String appName, boolean isLegacyExport) {
+    /**
+     * The service file name. Since #553 the current format states the type in the name, so the type is required there;
+     * the legacy flat name carries none and states it in {@code content.integrationSystemType} instead.
+     */
+    public static String generateMainSystemFileExportName(
+            String id, String appName, boolean isLegacyExport, IntegrationSystemType type) {
         return isLegacyExport
                 ? SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION
-                : id + SERVICE_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
+                : id + ServiceTypeFiles.postfix(type) + appName + YAML_FILE_NAME_POSTFIX;
     }
 
     public static String generateMainContextServiceFileExportName(String id, String appName, boolean isLegacyExport) {

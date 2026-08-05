@@ -579,19 +579,59 @@ what shows *why* the field is written, since Task 6 refuses a service that state
 - Modify: `runtime-catalog/.../util/ExportImportUtils.java`
 - Create: `runtime-catalog/src/test/java/.../exportimport/ServiceExportFormatTest.java`
 
-- [ ] capture a golden legacy-format export **before** changing anything, so the no-regression claim is measurable
-- [ ] make `toExternalEntity:79` stamp the per-type `$schema` through the Task 5 registry instead of its `@Value` field
-- [ ] suppress `integrationSystemType` with `@JsonProperty(access = WRITE_ONLY)` on the DTO field — `@Jacksonized` copies the annotation onto the builder setter, so deserialization keeps binding it. Not `@JsonIgnore`, which kills deserialization of every pre-#553 archive; not the shared `baseEntityFilter` (`MapperAutoConfiguration:125`), which is audit-field stripping shared by five DTOs
-- [ ] keep the field in the legacy format, where Task 8's revert restores it
-- [ ] carry the type to `ExportableObjectWriterVisitor:51` (add a field to `ExportedIntegrationSystem` or read it off the node) and pick the file name from it
-- [ ] note that until Task 10 lands, a fresh export cannot be re-imported — the intermediate state is knowingly broken and the module test suite will not detect it
-- [ ] write tests: each type exports to the expected file name with the expected `$schema` and no type field
-- [ ] write a test: an old archive still deserializes with its type field intact
-- [ ] re-run Task 8's revert-chain test over a golden document carrying the **new** `$schema` — Task 8 predates this task, so its own tests stay green on old-URI documents even if the matcher was never widened
-- [ ] write a test: with `qip.export.legacy-format=true` the output is **semantically** equal to the golden file — `ObjectNode` is insertion-ordered and the revert appends restored keys last, so byte equality is unattainable
-- [ ] fail exporting a null-type service with a clear message naming the service id — the file name now requires a type, and today such a row only NPEs later at `logSystemExportImport` (`:906` → `EntityType.getSystemType:57`)
-- [ ] write a test: exporting a null-type service yields the message, not an NPE
-- [ ] run tests — must pass before task 10
+- [x] capture a golden legacy-format export **before** changing anything, so the no-regression claim is measurable
+- [x] make `toExternalEntity:79` stamp the per-type `$schema` through the Task 5 registry instead of its `@Value` field
+- [x] suppress `integrationSystemType` with `@JsonProperty(access = WRITE_ONLY)` on the DTO field — `@Jacksonized` copies the annotation onto the builder setter, so deserialization keeps binding it. Not `@JsonIgnore`, which kills deserialization of every pre-#553 archive; not the shared `baseEntityFilter` (`MapperAutoConfiguration:125`), which is audit-field stripping shared by five DTOs
+- [x] keep the field in the legacy format, where Task 8's revert restores it
+- [x] carry the type to `ExportableObjectWriterVisitor:51` (add a field to `ExportedIntegrationSystem` or read it off the node) and pick the file name from it
+- [x] note that until Task 10 lands, a fresh export cannot be re-imported — the intermediate state is knowingly broken and the module test suite will not detect it
+- [x] write tests: each type exports to the expected file name with the expected `$schema` and no type field
+- [x] write a test: an old archive still deserializes with its type field intact
+- [x] re-run Task 8's revert-chain test over a golden document carrying the **new** `$schema` — Task 8 predates this task, so its own tests stay green on old-URI documents even if the matcher was never widened
+- [x] write a test: with `qip.export.legacy-format=true` the output is **semantically** equal to the golden file — `ObjectNode` is insertion-ordered and the revert appends restored keys last, so byte equality is unattainable
+- [x] fail exporting a null-type service with a clear message naming the service id — the file name now requires a type, and today such a row only NPEs later at `logSystemExportImport` (`:906` → `EntityType.getSystemType:57`)
+- [x] write a test: exporting a null-type service yields the message, not an NPE
+- [x] run tests — must pass before task 10
+
+⚠️ **A fresh export cannot be re-imported until Task 10 lands, and no test here detects it.** `ExportImportUtils`
+discovery still matches only `.service.` and the legacy `service-` prefix, and `.external-service.` does not contain
+`.service.` — so a post-#553 archive is silently invisible to this build's own import path. Deliberate, as the plan says:
+the intermediate state is knowingly broken.
+
+➕ built the golden corpus (`runtime-catalog/src/test/resources/exportimport/golden/{pre553-current,legacy-flat,post553}/`)
+plus its generator, `GoldenServiceCorpus` (fixtures + serializer wiring + readers) and `GoldenCorpusCapture` (the
+regeneration entry point). Five fixture systems per set — EXTERNAL with two environments, one api group, one api and one
+real openapi source, INTERNAL, IMPLEMENTED, a context service and an MCP service — exported through the real
+`ServiceSerializer` → `ArchiveWriter` chain and unzipped into the resource tree. `pre553-current` and `legacy-flat` were
+captured on the untouched exporter, `post553` after the change; `ServiceExportFormatTest` measures the change against
+all three.
+
+[decision] `GoldenCorpusCapture` is a committed class, not a throwaway script, so the corpus is reproducible and its
+provenance reviewable. Its name is outside Surefire's include patterns, so the suite never runs it —
+`mvn -pl runtime-catalog test -Dtest=GoldenCorpusCapture#capturePost553 -DfailIfNoTests=false` does. `capturePre553Current`
+asserts it produced a `.service.` name, so re-running it on this checkout fails loudly instead of overwriting the
+baseline with today's format.
+
+[deviation] `legacy-flat` carries no document with inline `specificationGroups`, which the Testing Strategy lists for
+that set. The exporter never inlines groups — `IntegrationSystemDtoMapper` does not fill `apiGroups`, and every group is
+written as its own file — so such a document cannot come out of a capture. The inline shape belongs to pre-V101
+archives; `V105RevertMigrationTest.aLegacyExportedServiceReimportsWithItsType` covers its round trip from a hand-built
+document, and `ServiceExportFormatTest.theRevertChainStillRenamesTheApiGroupsOfARealPost553Export` inlines the real
+golden api-group node into the real golden service document to exercise V104's rename over a new-URI export.
+
+[decision] the null-type export raises a new `ServiceExportException` (id, name, message), mirroring
+`ServiceImportException`. Not `IllegalArgumentException`: `SystemExportImportService.exportOneSystem:181` catches that
+one and rewrites it into "Error while serializing system with system id: X …", which doubles the id and buries the
+sentence. `GlobalExceptionHandler` answers 500 with the message intact — an unexportable row is a data problem, not a
+bad request.
+
+[decision] `ServiceTypeFiles.postfix(type)` became static, alongside `postfixes()`. `ExportImportUtils` builds the
+export file name from a static context, and the postfixes are compile-time constants — only the URIs come from
+configuration.
+
+➕ `ServiceSerializerTest.eachExportedEntityCarriesItsSchemaId` now also pins the three per-type URIs and asserts an
+EXTERNAL service stamps `external-service.schema.yaml`; `V104RevertMigrationTest.aBareServiceExportsWithoutClaimingVersion104`
+gained a type, because a typeless service no longer exports at all.
 
 ### Task 10: Read the new file names on import
 

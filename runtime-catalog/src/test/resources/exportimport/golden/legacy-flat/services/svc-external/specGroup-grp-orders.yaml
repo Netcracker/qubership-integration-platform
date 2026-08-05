@@ -1,0 +1,4 @@
+id: "grp-orders"
+name: "Orders"
+synchronization: false
+parentId: "svc-external"
