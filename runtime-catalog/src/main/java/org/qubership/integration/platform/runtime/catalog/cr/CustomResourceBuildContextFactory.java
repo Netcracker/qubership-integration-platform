@@ -94,6 +94,7 @@ public class CustomResourceBuildContextFactory {
                     updateIntegrationEmptyDirs(context, resources.integration());
                     putIntegrationsConfigurationToBuildCache(context, resources.integrationsConfiguration());
                     putSourceConfigMapNamesToBuildCache(context, resources);
+                    putHttpRouteRulesToBuildCache(context, resources);
                 });
     }
 
@@ -125,6 +126,18 @@ public class CustomResourceBuildContextFactory {
                     .ifPresent(name ->
                             sourceDslConfigMapNamingStrategy.useName(context.updateTo(snapshot), name));
         });
+    }
+
+    private void putHttpRouteRulesToBuildCache(
+            ResourceBuildContext<List<Snapshot>> context,
+            CustomResourceService.IntegrationResources resources
+    ) {
+        if (resources.publicHttpRoute() != null) {
+            context.getBuildCache().put("publicHttpRoute", resources.publicHttpRoute().getSpec());
+        }
+        if (resources.privateHttpRoute() != null) {
+            context.getBuildCache().put("privateHttpRoute", resources.privateHttpRoute().getSpec());
+        }
     }
 
     private void updateIntegrationResources(
