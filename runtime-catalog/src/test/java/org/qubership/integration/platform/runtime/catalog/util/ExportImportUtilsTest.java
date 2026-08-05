@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.util;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,6 +28,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -36,9 +38,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.AFTER;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.BEFORE;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SCRIPT;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.TYPE;
 
 class ExportImportUtilsTest {
+
+    private static final List<String> SERVICE_POSTFIXES = Stream.concat(
+            Stream.of(SERVICE_YAML_NAME_POSTFIX), ServiceTypeFiles.postfixes().stream()).toList();
 
     /**
      * The write side of the export-import filename contract. `ServiceDeserializer` matches the group file by name
@@ -204,6 +210,61 @@ class ExportImportUtilsTest {
         List<File> result = ExportImportUtils.extractSystemsFromImportDirectory(
                 tempDir.toAbsolutePath().toString(), ".context-service.");
         assertEquals(Collections.emptyList(), result);
+    }
+
+    /**
+     * Import discovery after #553: the three per-type postfixes, the pre-#553 {@code .service.}, and the deprecated
+     * flat prefix, in one walk. Everything else stays out, which is what keeps context and MCP services on their own
+     * import path.
+     */
+    @Test
+    void findsEveryPlainServiceFileNameAndNothingElse(@TempDir Path tempDir) throws IOException {
+        writeServiceFile(tempDir, "svc-a", "svc-a.external-service.qip.yaml");
+        writeServiceFile(tempDir, "svc-b", "svc-b.internal-service.qip.yaml");
+        writeServiceFile(tempDir, "svc-c", "svc-c.implemented-service.qip.yaml");
+        writeServiceFile(tempDir, "svc-d", "svc-d.service.qip.yaml");
+        writeServiceFile(tempDir, "svc-e", "service-svc-e.yaml");
+        writeServiceFile(tempDir, "svc-a", "grp-a.api-group.qip.yaml");
+        writeServiceFile(tempDir, "ctx-a", "ctx-a.context-service.qip.yaml");
+        writeServiceFile(tempDir, "mcp-a", "mcp-a.mcp-service.qip.yaml");
+
+        List<File> found = ExportImportUtils.extractSystemsFromImportDirectory(
+                tempDir.toAbsolutePath().toString(), SERVICE_POSTFIXES);
+
+        assertEquals(
+                List.of("service-svc-e.yaml",
+                        "svc-a.external-service.qip.yaml",
+                        "svc-b.internal-service.qip.yaml",
+                        "svc-c.implemented-service.qip.yaml",
+                        "svc-d.service.qip.yaml"),
+                found.stream().map(File::getName).sorted().toList());
+    }
+
+    /**
+     * Why discovery takes the postfixes together rather than one at a time: the flat prefix is ORed in on every call,
+     * so four single-postfix calls return a legacy-named file four times and the archive imports it four times over.
+     */
+    @Test
+    void findsALegacyNamedFileOnceWhateverThePostfixCount(@TempDir Path tempDir) throws IOException {
+        writeServiceFile(tempDir, "svc-e", "service-svc-e.yaml");
+        String directory = tempDir.toAbsolutePath().toString();
+
+        List<File> together = ExportImportUtils.extractSystemsFromImportDirectory(directory, SERVICE_POSTFIXES);
+
+        assertEquals(1, together.size(), "one file, one walk, one result: " + together);
+        int oneAtATime = 0;
+        for (String postfix : SERVICE_POSTFIXES) {
+            oneAtATime += ExportImportUtils.extractSystemsFromImportDirectory(directory, postfix).size();
+        }
+        assertEquals(SERVICE_POSTFIXES.size(), oneAtATime,
+                "the single-postfix overload returns the legacy file for every postfix, so the results must never"
+                        + " be summed");
+    }
+
+    private static void writeServiceFile(Path root, String serviceDirectory, String fileName) throws IOException {
+        Path path = root.resolve("services").resolve(serviceDirectory).resolve(fileName);
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, "id: ignored\n");
     }
 
     @Test

@@ -40,6 +40,7 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -278,21 +279,39 @@ public class ExportImportUtils {
     }
 
     public static List<File> extractSystemsFromZip(InputStream is, String importFolderName, String yamlPostfix) throws IOException {
+        return extractSystemsFromZip(is, importFolderName, List.of(yamlPostfix));
+    }
+
+    public static List<File> extractSystemsFromZip(
+            InputStream is, String importFolderName, Collection<String> yamlPostfixes) throws IOException {
         try (ZipInputStream inputStream = new ZipInputStream(is)) {
             extractZip(importFolderName, inputStream);
 
-            return extractSystemsFromImportDirectory(importFolderName, yamlPostfix);
+            return extractSystemsFromImportDirectory(importFolderName, yamlPostfixes);
         }
     }
 
     public static List<File> extractSystemsFromImportDirectory(String importFolderName, String yamlPostfix) throws IOException {
+        return extractSystemsFromImportDirectory(importFolderName, List.of(yamlPostfix));
+    }
+
+    /**
+     * Every service file of an unpacked archive: one carrying any of {@code yamlPostfixes} in its name, or the
+     * deprecated flat {@code service-<id>.yaml} name, which is ORed in for every caller.
+     *
+     * <p>Since #553 a plain service states its type in the name, so its discovery needs four postfixes at once. Take
+     * them in one call rather than calling the single-postfix overload once per postfix: the prefix check is
+     * unconditional, so a legacy-named file would come back once per call and import once per copy.
+     */
+    public static List<File> extractSystemsFromImportDirectory(
+            String importFolderName, Collection<String> yamlPostfixes) throws IOException {
         Path start = Paths.get(importFolderName + File.separator + ARCH_PARENT_DIR);
         if (Files.exists(start)) {
             try (Stream<Path> sp = Files.walk(start)) {
                 return sp.filter(Files::isRegularFile)
                         .map(Path::toFile)
                         .filter(f -> (f.getName().startsWith(SERVICE_YAML_NAME_PREFIX) && f.getName().endsWith(YAML_EXTENSION))
-                                     || f.getName().contains(yamlPostfix))
+                                     || yamlPostfixes.stream().anyMatch(postfix -> f.getName().contains(postfix)))
                         .collect(Collectors.toList());
             }
         }

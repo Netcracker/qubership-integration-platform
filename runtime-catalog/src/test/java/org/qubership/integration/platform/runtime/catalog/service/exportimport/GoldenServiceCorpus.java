@@ -19,6 +19,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Operation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ServiceDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiGroupDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiOperationDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ContextServiceDtoMapper;
@@ -253,6 +254,28 @@ public final class GoldenServiceCorpus {
         ReflectionTestUtils.setField(visitor, "appName", APP_NAME);
         ReflectionTestUtils.setField(visitor, "isLegacyExport", legacy);
         return new ArchiveWriter(visitor).writeArchive(exportAll(legacy));
+    }
+
+    /** The real deserializer, wired as the application wires it, for reading a captured set back in. */
+    public static ServiceDeserializer deserializer() {
+        YAMLMapper mapper = mapper();
+        VersionsGetterService versionsGetterService = versionsGetterService();
+        FileMigrationService fileMigrationService =
+                new FileMigrationService(mapper, versionsGetterService, List.of());
+        ReflectionTestUtils.setField(fileMigrationService, "isLegacyExport", false);
+
+        ServiceDeserializer deserializer = new ServiceDeserializer(
+                mapper,
+                versionsGetterService,
+                new IntegrationSystemDtoMapper(serviceTypeFiles(), TestServiceMigrations.all()),
+                new ApiGroupDtoMapper(URI.create(SCHEMAS.getApiGroup())),
+                new SystemModelDtoMapper(URI.create(SCHEMAS.getApi()), new ApiOperationDtoMapper()),
+                fileMigrationService,
+                TestServiceMigrations.all(),
+                ExtractorTestParsers.extractor(),
+                serviceTypeFiles());
+        ReflectionTestUtils.setField(deserializer, "appName", APP_NAME);
+        return deserializer;
     }
 
     public static YAMLMapper mapper() {

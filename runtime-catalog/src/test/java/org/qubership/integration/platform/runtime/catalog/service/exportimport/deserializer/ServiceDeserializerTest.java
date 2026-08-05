@@ -57,6 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.extractor.CorpusTestSupport.corpusRoot;
 import static org.qubership.integration.platform.runtime.catalog.service.extractor.CorpusTestSupport.readInput;
 
@@ -1136,7 +1137,7 @@ class ServiceDeserializerTest {
     /** A pre-#553 archive states the type only in the document, and its name has no postfix to read. */
     @Test
     void resolvesTheTypeFromTheDocumentForAPre553FileName() throws IOException {
-        File serviceFile = writeService(typedServiceYaml("INTERNAL"));
+        File serviceFile = writePre553Service(typedServiceYaml("INTERNAL"));
 
         IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
 
@@ -1159,7 +1160,7 @@ class ServiceDeserializerTest {
 
     @Test
     void failsWhenNeitherTheFileNameNorTheDocumentStatesAType() throws IOException {
-        File serviceFile = writeService(typelessServiceYaml());
+        File serviceFile = writePre553Service(typelessServiceYaml());
 
         ServiceImportException exception =
                 assertThrows(ServiceImportException.class, () -> deserializer.deserializeSystem(serviceFile));
@@ -1172,8 +1173,18 @@ class ServiceDeserializerTest {
 
     // --- helpers ---------------------------------------------------------------------------------------------------
 
+    /** The current format: since #553 an exported plain service is named after its type. */
     private File writeService(String yaml) throws IOException {
-        return writeFile(SYSTEM_ID + ".service." + APP_NAME + ".yaml", yaml);
+        return writeService(ServiceTypeFiles.postfix(IntegrationSystemType.EXTERNAL), yaml);
+    }
+
+    private File writeService(String namePostfix, String yaml) throws IOException {
+        return writeFile(SYSTEM_ID + namePostfix + APP_NAME + ".yaml", yaml);
+    }
+
+    /** The pre-#553 name, for the cases that need a file stating no type of its own. */
+    private File writePre553Service(String yaml) throws IOException {
+        return writeService(SERVICE_YAML_NAME_POSTFIX, yaml);
     }
 
     private File writeFile(String relativePath, String content) throws IOException {

@@ -23,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServicesNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportSystemsAndInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.IgnoreResult;
@@ -89,6 +90,12 @@ public class SystemExportImportService {
     private static final String SPECIFICATION_EXISTS_BY_ID_ERROR_MESSAGE_START = "Specification with id '";
     private static final String SPECIFICATION_EXISTS_ERROR_MESSAGE_END = "' was not imported. ";
     protected static final String CONFIG_DEPLOY_LABELS = "deployLabels";
+
+    // Every name a plain service file can carry: the three per-type postfixes #553 writes, plus the pre-#553
+    // `.service.`. `ExportImportUtils` ORs the deprecated flat `service-` prefix in on its own. A context or MCP
+    // service matches none of them — `.context-service.` does not contain `.service.` — and is imported elsewhere.
+    private static final Collection<String> SERVICE_FILE_POSTFIXES = Stream.concat(
+            Stream.of(SERVICE_YAML_NAME_POSTFIX), ServiceTypeFiles.postfixes().stream()).toList();
 
     private final TransactionTemplate transactionTemplate;
     private final YAMLMapper yamlMapper;
@@ -221,7 +228,8 @@ public class SystemExportImportService {
             List<File> extractedSystemFiles = new ArrayList<>();
 
             try (InputStream fs = file.getInputStream()) {
-                extractedSystemFiles = extractSystemsFromZip(fs, exportDirectory, SERVICE_YAML_NAME_POSTFIX);
+                extractedSystemFiles = rejectDuplicateServiceIds(
+                        extractSystemsFromZip(fs, exportDirectory, SERVICE_FILE_POSTFIXES));
             } catch (ServicesNotFoundException e) {
                 deleteFile(exportDirectory);
             } catch (IOException e) {
@@ -245,10 +253,39 @@ public class SystemExportImportService {
         return response;
     }
 
+    /**
+     * The discovered service files, unless two of them describe one service.
+     *
+     * <p>The check belongs here, over the whole discovered list, because the per-file loop below deserializes each
+     * file in its own transaction: the two copies never meet, and the second one silently overwrites the first.
+     * An archive can hold a pair once a service changes type, since each type writes its own file name.
+     */
+    private static List<File> rejectDuplicateServiceIds(List<File> serviceFiles) {
+        Map<String, List<String>> fileNamesById = serviceFiles.stream().collect(Collectors.groupingBy(
+                ExportImportUtils::extractSystemIdFromFileName,
+                TreeMap::new,
+                Collectors.mapping(File::getName, Collectors.toList())));
+        for (Map.Entry<String, List<String>> entry : fileNamesById.entrySet()) {
+            if (entry.getValue().size() > 1) {
+                throw new BadRequestException(
+                        ("Archive holds %d service files for service id %s: %s. Keep the one that is current and"
+                                + " remove the others, then re-import. Nothing is imported from this archive.")
+                                .formatted(
+                                        entry.getValue().size(),
+                                        entry.getKey(),
+                                        entry.getValue().stream().sorted().collect(Collectors.joining(", "))));
+            }
+        }
+        return serviceFiles;
+    }
+
     public List<ImportSystemResult> getSystemsImportPreview(File importDirectory, ImportInstructionsConfig instructionsConfig) {
         List<File> systemsFiles;
         try {
-            systemsFiles = extractSystemsFromImportDirectory(importDirectory.getAbsolutePath(), SERVICE_YAML_NAME_POSTFIX);
+            systemsFiles = rejectDuplicateServiceIds(
+                    extractSystemsFromImportDirectory(importDirectory.getAbsolutePath(), SERVICE_FILE_POSTFIXES));
+        } catch (BadRequestException e) {
+            throw e;
         } catch (Exception e) {
             throw new RuntimeException("Error while extracting systems", e);
         }
@@ -319,7 +356,8 @@ public class SystemExportImportService {
             List<File> extractedSystemFiles;
 
             try (InputStream fs = importFile.getInputStream()) {
-                extractedSystemFiles = extractSystemsFromZip(fs, exportDirectory, SERVICE_YAML_NAME_POSTFIX);
+                extractedSystemFiles = rejectDuplicateServiceIds(
+                        extractSystemsFromZip(fs, exportDirectory, SERVICE_FILE_POSTFIXES));
             } catch (IOException e) {
                 deleteFile(exportDirectory);
                 throw new RuntimeException("Unexpected error while archive unpacking: " + e.getMessage(), e);
@@ -373,7 +411,8 @@ public class SystemExportImportService {
 
         List<File> systemsFiles;
         try {
-            systemsFiles = extractSystemsFromImportDirectory(importDirectory.getAbsolutePath(), SERVICE_YAML_NAME_POSTFIX);
+            systemsFiles = rejectDuplicateServiceIds(
+                    extractSystemsFromImportDirectory(importDirectory.getAbsolutePath(), SERVICE_FILE_POSTFIXES));
         } catch (IOException e) {
             throw new RuntimeException("Unexpected error while archive unpacking: " + e.getMessage(), e);
         }

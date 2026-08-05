@@ -12,20 +12,11 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.S
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ServiceDeserializer;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiGroupDtoMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.ApiOperationDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.SystemModelDtoMapper;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.FileMigrationService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert.ServiceDocumentMatcher;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.TestServiceMigrations;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.versions.VersionsGetterService;
-import org.qubership.integration.platform.runtime.catalog.service.extractor.ExtractorTestParsers;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
-import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -224,23 +215,7 @@ class ServiceExportFormatTest {
     // --- helpers -----------------------------------------------------------------------------------------------------
 
     private ServiceDeserializer deserializer() {
-        VersionsGetterService versionsGetterService = GoldenServiceCorpus.versionsGetterService();
-        FileMigrationService fileMigrationService =
-                new FileMigrationService(mapper, versionsGetterService, List.of());
-        ReflectionTestUtils.setField(fileMigrationService, "isLegacyExport", false);
-
-        ServiceDeserializer deserializer = new ServiceDeserializer(
-                mapper,
-                versionsGetterService,
-                new IntegrationSystemDtoMapper(GoldenServiceCorpus.serviceTypeFiles(), TestServiceMigrations.all()),
-                new ApiGroupDtoMapper(URI.create(SCHEMAS.getApiGroup())),
-                new SystemModelDtoMapper(URI.create(SCHEMAS.getApi()), new ApiOperationDtoMapper()),
-                fileMigrationService,
-                TestServiceMigrations.all(),
-                ExtractorTestParsers.extractor(),
-                GoldenServiceCorpus.serviceTypeFiles());
-        ReflectionTestUtils.setField(deserializer, "appName", APP_NAME);
-        return deserializer;
+        return GoldenServiceCorpus.deserializer();
     }
 
     private static boolean containsKey(JsonNode node, String key) {

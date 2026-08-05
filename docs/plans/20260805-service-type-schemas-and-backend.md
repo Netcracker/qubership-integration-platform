@@ -593,10 +593,13 @@ what shows *why* the field is written, since Task 6 refuses a service that state
 - [x] write a test: exporting a null-type service yields the message, not an NPE
 - [x] run tests — must pass before task 10
 
-⚠️ **A fresh export cannot be re-imported until Task 10 lands, and no test here detects it.** `ExportImportUtils`
-discovery still matches only `.service.` and the legacy `service-` prefix, and `.external-service.` does not contain
-`.service.` — so a post-#553 archive is silently invisible to this build's own import path. Deliberate, as the plan says:
-the intermediate state is knowingly broken.
+⚠️ **RESOLVED in Task 10.** Between Task 9 and Task 10 a fresh export could not be re-imported, and no test here
+detected it: `ExportImportUtils` discovery matched only `.service.` and the legacy `service-` prefix, and
+`.external-service.` does not contain `.service.`, so a post-#553 archive was silently invisible to this build's own
+import path. Deliberate, as the plan said — the intermediate state was knowingly broken. Task 10 widened discovery to
+all four postfixes and pinned the round trip on the golden corpus
+(`SystemExportImportServiceTest.everyArchiveFormatImportsWithItsType`, over `post553`, `pre553-current`, and
+`legacy-flat`).
 
 ➕ built the golden corpus (`runtime-catalog/src/test/resources/exportimport/golden/{pre553-current,legacy-flat,post553}/`)
 plus its generator, `GoldenServiceCorpus` (fixtures + serializer wiring + readers) and `GoldenCorpusCapture` (the
@@ -640,14 +643,35 @@ gained a type, because a typeless service no longer exports at all.
 - Modify: `runtime-catalog/.../util/ExportImportUtils.java`
 - Modify: `runtime-catalog/src/test/java/.../exportimport/deserializer/ServiceDeserializerTest.java`
 
-- [ ] add a multi-postfix overload of `extractSystemsFromImportDirectory` — one directory walk, one legacy-prefix check, a deduplicated result — and call it from the four `SystemExportImportService` sites (`:224,251,322,376`); calling the single-postfix version four times returns every legacy-prefix file four times (`:287` ORs the prefix in unconditionally) and imports it once per copy
-- [ ] leave the existing single-postfix version to the context and MCP import services, which share it
-- [ ] reject duplicate ids at the discovered-list level in `SystemExportImportService`, grouping by `extractSystemIdFromFileName` **before** the per-file transaction loop — the two files land as separate `deserializeSystem` calls in separate transactions and never see each other
-- [ ] update `ServiceDeserializerTest:1098`, which hardcodes `SYSTEM_ID + ".service." + APP_NAME + ".yaml"`
-- [ ] write tests: an archive of each new format imports with the right type, on both the commit path and the preview path (`:224`, the import-preview request)
-- [ ] write tests: a legacy archive and a current-format pre-#553 archive both still import
-- [ ] write a test: an archive containing two service files for one id is rejected rather than resolved arbitrarily
-- [ ] run tests — must pass before task 11
+- [x] add a multi-postfix overload of `extractSystemsFromImportDirectory` — one directory walk, one legacy-prefix check, a deduplicated result — and call it from the four `SystemExportImportService` sites (`:224,251,322,376`); calling the single-postfix version four times returns every legacy-prefix file four times (`:287` ORs the prefix in unconditionally) and imports it once per copy
+- [x] leave the existing single-postfix version to the context and MCP import services, which share it
+- [x] reject duplicate ids at the discovered-list level in `SystemExportImportService`, grouping by `extractSystemIdFromFileName` **before** the per-file transaction loop — the two files land as separate `deserializeSystem` calls in separate transactions and never see each other
+- [x] update `ServiceDeserializerTest:1098`, which hardcodes `SYSTEM_ID + ".service." + APP_NAME + ".yaml"`
+- [x] write tests: an archive of each new format imports with the right type, on both the commit path and the preview path (`:224`, the import-preview request)
+- [x] write tests: a legacy archive and a current-format pre-#553 archive both still import
+- [x] write a test: an archive containing two service files for one id is rejected rather than resolved arbitrarily
+- [x] run tests — must pass before task 11
+
+[decision] the single-postfix overloads of `extractSystemsFromImportDirectory` and `extractSystemsFromZip` now delegate
+to the multi-postfix ones with a one-element list rather than keeping their own walk. The context and MCP import
+services call them unchanged, and one implementation cannot drift from the other.
+
+[decision] the duplicate-id check rejects the whole archive with a `BadRequestException` rather than erroring the one
+service. It runs before the per-file loop, so no service has been written yet, and answering 400 with the id and both
+file names is the only outcome the caller can act on. `getSystemsImportPreview:251` needed a `catch (BadRequestException)`
+rethrow so its blanket `catch (Exception)` does not bury the message in "Error while extracting systems".
+
+[decision] `ServiceDeserializerTest.writeService` now defaults to the current per-type name (`.external-service.`), with
+`writePre553Service` for the two cases that need a file stating no type of its own. Every other case in that suite states
+`integrationSystemType: EXTERNAL` in the document, so it exercises the agreement path against the name the exporter
+actually writes.
+
+➕ moved `ServiceExportFormatTest.deserializer()` into `GoldenServiceCorpus.deserializer()`. Task 10's commit-path tests
+need the same real deserializer, and two hand-wired copies of a nine-argument constructor drift.
+
+➕ added the discovery unit tests to `ExportImportUtilsTest`: one asserting the four postfixes plus the legacy prefix are
+found in one walk while context, MCP, and api-group neighbours are not, and one pinning the trap this task exists for —
+four single-postfix calls return a legacy-named file four times, the multi-postfix call returns it once.
 
 ### Task 11: Reject service-type changes
 
