@@ -58,7 +58,6 @@ public enum EntityType {
             case INTERNAL -> INNER_CLOUD_SERVICE;
             case EXTERNAL -> EXTERNAL_SERVICE;
             case IMPLEMENTED -> IMPLEMENTED_SERVICE;
-            default -> EXTERNAL_SERVICE;
         };
     }
 }

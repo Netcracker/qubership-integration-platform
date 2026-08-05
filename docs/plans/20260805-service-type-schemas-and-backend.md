@@ -380,14 +380,28 @@ this task. Consumers read service schemas through `schemasByType`, not through t
 - Modify: `runtime-catalog/.../persistence/configs/entity/actionlog/EntityType.java`
 - Create: `runtime-catalog/src/test/java/.../model/system/IntegrationSystemTypeTest.java`
 
-- [ ] add `allowedProtocols()` and `maxEnvironments()` to the enum, each an exhaustive `switch` with no `default`
-- [ ] `maxEnvironments()` returns `int`, with `Integer.MAX_VALUE` for EXTERNAL — pick one representation, Task 4 compares against it in three places
-- [ ] do **not** add `usesActiveEnvironment()`: `SystemMapper:66-72` already ignores the stored value for INTERNAL and IMPLEMENTED, so the predicate would encode a distinction the REST layer does not make
-- [ ] replace `SystemBaseService.ALLOWED_PROTOCOL_MAP` with `type.allowedProtocols()`
-- [ ] rewrite `EntityType.getSystemType` as an exhaustive switch (drop the `default` branch that silently maps an unknown type to `EXTERNAL_SERVICE`)
-- [ ] write tests asserting each type's protocol set and environment limit
-- [ ] write a test asserting every enum constant is covered, so adding a type without updating the rules fails
-- [ ] run `mvn -pl runtime-catalog test` — must pass before task 4
+- [x] add `allowedProtocols()` and `maxEnvironments()` to the enum, each an exhaustive `switch` with no `default`
+- [x] `maxEnvironments()` returns `int`, with `Integer.MAX_VALUE` for EXTERNAL — pick one representation, Task 4 compares against it in three places
+- [x] do **not** add `usesActiveEnvironment()`: `SystemMapper:66-72` already ignores the stored value for INTERNAL and IMPLEMENTED, so the predicate would encode a distinction the REST layer does not make
+- [x] replace `SystemBaseService.ALLOWED_PROTOCOL_MAP` with `type.allowedProtocols()`
+- [x] rewrite `EntityType.getSystemType` as an exhaustive switch (drop the `default` branch that silently maps an unknown type to `EXTERNAL_SERVICE`)
+- [x] write tests asserting each type's protocol set and environment limit
+- [x] write a test asserting every enum constant is covered, so adding a type without updating the rules fails
+- [x] run `mvn -pl runtime-catalog test` — must pass before task 4
+
+➕ added `SystemBaseServiceTest` and `EntityTypeTest` — both methods the task rewrites live outside the enum, and
+neither had a test. `EntityTypeTest` also pins that a typeless service still raises rather than being reported as
+`EXTERNAL_SERVICE`: dropping the `default` branch does not change that, because a `switch` over a null enum already
+threw.
+
+[decision] `validateSpecificationProtocol` now rejects a null service type with a message naming the service id. The
+old `ALLOWED_PROTOCOL_MAP.getOrDefault(...)` fell through to `systemType.name()` and threw a bare NPE on the same
+input, so this replaces one throw with a better one rather than adding a check. The environment-side null guards stay
+in Task 4.
+
+[decision] the three protocol sets are private static constants selected by the exhaustive `switch`, not built per
+call: `allowedProtocols()` is on the specification-import path, and the sets are immutable
+(`Set.of` / `toUnmodifiableSet`), which `IntegrationSystemTypeTest` pins.
 
 ### Task 4: Close the environment-limit holes
 
