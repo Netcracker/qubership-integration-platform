@@ -35,6 +35,11 @@ public class ExportImportConstants {
     @Deprecated
     public static final String SERVICE_YAML_NAME_PREFIX = "service-";
     public static final String SERVICE_YAML_NAME_POSTFIX = ".service.";
+    // Per-type postfixes: the file name is where a service states its type. The "-service" suffix keeps them from
+    // matching ".service." under endsWith and contains, the same way ".context-service." does today.
+    public static final String EXTERNAL_SERVICE_YAML_NAME_POSTFIX = ".external-service.";
+    public static final String INTERNAL_SERVICE_YAML_NAME_POSTFIX = ".internal-service.";
+    public static final String IMPLEMENTED_SERVICE_YAML_NAME_POSTFIX = ".implemented-service.";
     @Deprecated
     public static final String CONTEXT_SERVICE_YAML_NAME_PREFIX = "context-service-";
     public static final String CONTEXT_SERVICE_YAML_NAME_POSTFIX = ".context-service.";

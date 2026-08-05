@@ -289,6 +289,9 @@ qip:
     schemas:
       chain: ${CHAIN_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/chain.schema.yaml}
       service: ${SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/service.schema.yaml}
+      external-service: ${EXTERNAL_SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/external-service.schema.yaml}
+      internal-service: ${INTERNAL_SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/internal-service.schema.yaml}
+      implemented-service: ${IMPLEMENTED_SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/implemented-service.schema.yaml}
       context-service: ${CONTEXT_SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/context-service.schema.yaml}
       mcp-service: ${MCP_SERVICE_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/mcp-service.schema.yaml}
       specification-group: ${SPECIFICATION_GROUP_JSON_SCHEMA_URI:http://qubership.org/schemas/product/qip/specification-group.schema.yaml}

@@ -665,6 +665,17 @@
         <directory>${project.basedir}/../schemas/src/test/resources/conformance</directory>
         <targetPath>conformance</targetPath>
       </testResource>
+      <!-- Service schemas from the same module, so a test can check the configured
+           $schema URIs against the $id the schema actually declares. Nothing else
+           binds the two: this module has no dependency on qip-schemas. -->
+      <testResource>
+        <directory>${project.basedir}/../schemas/src/main/resources/qip-model</directory>
+        <targetPath>qip-model</targetPath>
+        <includes>
+          <include>service.schema.yaml</include>
+          <include>*-service.schema.yaml</include>
+        </includes>
+      </testResource>
     </testResources>
   </build>
 </project>

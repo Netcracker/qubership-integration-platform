@@ -26,6 +26,11 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
  * in the revert order — strips. Matching on content fields instead misses a service whose type, protocol, and
  * environments are all absent, which is what {@code @JsonInclude(NON_EMPTY)} leaves on a bare service. The field
  * shape is kept as a fallback for a document that carries no {@code $schema} at all.
+ *
+ * <p>The URI set holds the per-type service schemas as well as the plain one. A service exported after #553 carries
+ * an {@code external-service} / {@code internal-service} / {@code implemented-service} URI, and the set is what every
+ * revert migration is gated on: leave those out and such a document matches nothing, which silences V105, V104, and
+ * V103 at once.
  */
 @Component
 public class ServiceDocumentMatcher {
@@ -39,7 +44,13 @@ public class ServiceDocumentMatcher {
 
     @Autowired
     public ServiceDocumentMatcher(ApplicationJsonSchemaProperties schemas) {
-        this.serviceSchemas = Set.of(schemas.getService(), schemas.getContextService(), schemas.getMcpService());
+        this.serviceSchemas = Set.of(
+                schemas.getService(),
+                schemas.getExternalService(),
+                schemas.getInternalService(),
+                schemas.getImplementedService(),
+                schemas.getContextService(),
+                schemas.getMcpService());
     }
 
     public boolean matches(ObjectNode node) {

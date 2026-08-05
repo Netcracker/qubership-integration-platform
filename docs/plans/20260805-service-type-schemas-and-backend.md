@@ -450,16 +450,29 @@ exercise one implementation rather than a stub of it.
 - Create: `runtime-catalog/.../service/exportimport/ServiceTypeFiles.java`
 - Create: `runtime-catalog/src/test/java/.../exportimport/ServiceTypeFilesTest.java`
 
-- [ ] add `EXTERNAL_SERVICE_YAML_NAME_POSTFIX`, `INTERNAL_…`, `IMPLEMENTED_…` next to the existing constants
-- [ ] add a component mapping file name → `IntegrationSystemType` and type → postfix; import, export, and both migrations use it, so it lives in one place
-- [ ] add `externalService`, `internalService`, `implementedService` URI properties with `*_JSON_SCHEMA_URI` overrides — defaults **in the class fields**, not only `application.yml`: `TestRevertMigrations.matcher()` builds `ServiceDocumentMatcher` from `new ApplicationJsonSchemaProperties()`, so a yml-only default leaves the test matcher unwidened
-- [ ] add a URI → type mapping used **only** by the revert migration, which works on documents that have no file name
-- [ ] document at the mapping that `$schema` is not a reliable type source on the import path — the VS Code extension writes a project-configured value (`.config.qip.yaml.example:15-22`)
-- [ ] widen `ServiceDocumentMatcher`'s URI set with the three new URIs — every revert migration is gated on it, and a post-Task-9 plain service otherwise matches nothing, silencing V105/V104/V103 at once (see Solution Overview)
-- [ ] write tests: each postfix resolves to its type, `.service.` and the legacy `service-` prefix resolve to none, `.context-service.` is never mistaken for a plain service
-- [ ] write a test: the matcher accepts a document carrying each of the three new URIs and still rejects a chain document
-- [ ] write a test asserting the configured URIs match the `$id`s of the schemas added in Task 2
-- [ ] run tests — must pass before task 6
+- [x] add `EXTERNAL_SERVICE_YAML_NAME_POSTFIX`, `INTERNAL_…`, `IMPLEMENTED_…` next to the existing constants
+- [x] add a component mapping file name → `IntegrationSystemType` and type → postfix; import, export, and both migrations use it, so it lives in one place
+- [x] add `externalService`, `internalService`, `implementedService` URI properties with `*_JSON_SCHEMA_URI` overrides — defaults **in the class fields**, not only `application.yml`: `TestRevertMigrations.matcher()` builds `ServiceDocumentMatcher` from `new ApplicationJsonSchemaProperties()`, so a yml-only default leaves the test matcher unwidened
+- [x] add a URI → type mapping used **only** by the revert migration, which works on documents that have no file name
+- [x] document at the mapping that `$schema` is not a reliable type source on the import path — the VS Code extension writes a project-configured value (`.config.qip.yaml.example:15-22`)
+- [x] widen `ServiceDocumentMatcher`'s URI set with the three new URIs — every revert migration is gated on it, and a post-Task-9 plain service otherwise matches nothing, silencing V105/V104/V103 at once (see Solution Overview)
+- [x] write tests: each postfix resolves to its type, `.service.` and the legacy `service-` prefix resolve to none, `.context-service.` is never mistaken for a plain service
+- [x] write a test: the matcher accepts a document carrying each of the three new URIs and still rejects a chain document
+- [x] write a test asserting the configured URIs match the `$id`s of the schemas added in Task 2
+- [x] run tests — must pass before task 6
+
+[decision] the `$id` check reads the schema files off the test classpath through a new `<testResource>` in
+`runtime-catalog/pom.xml` (`../schemas/src/main/resources/qip-model` → `qip-model`, limited to `*service.schema.yaml`),
+mirroring how the conformance corpus is already wired. runtime-catalog has no Maven dependency on `qip-schemas`, so a
+sibling-directory read is the only way to compare, and the classpath route needs no assumption about the surefire
+working directory. The test covers all six configured service URIs, not only the three new ones.
+
+➕ added `ServiceDocumentMatcherTest`. The matcher is the gate every revert migration hangs on and had no test of its
+own — the widening was only observable through `V103RevertMigrationTest` / `V104RevertMigrationTest`, neither of which
+exercises a per-type URI.
+
+[decision] `ServiceTypeFiles.postfixes()` is static and `schemaUris()` is not: the postfixes are compile-time constants
+that import discovery (Task 10) needs from a static context, while the URIs come from configuration.
 
 ### Task 6: Resolve the type from the file name on import
 
