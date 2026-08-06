@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.cr;
 
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -76,7 +77,8 @@ class CustomResourceServiceTest {
                 routesGetterService,
                 Mappers.getMapper(DeploymentRouteMapper.class),
                 publicNamingStrategy,
-                privateNamingStrategy
+                privateNamingStrategy,
+                new YAMLMapper()
         );
         ReflectionTestUtils.setField(customResourceService, "baseRoutePrefix", "/qip-routes");
     }
@@ -98,6 +100,24 @@ class CustomResourceServiceTest {
         Map<String, Object> match = Map.of("path", pathMatch);
         Map<String, Object> rule = new LinkedHashMap<>();
         rule.put("matches", List.of(match));
+        return rule;
+    }
+
+    // Mirrors what io.kubernetes.client.openapi.JSON (Gson, ToNumberPolicy.DOUBLE) actually
+    // produces for a sibling chain's rule read back from the cluster: every JSON number, including
+    // a whole-number port/weight, decodes as Double.
+    private Map<String, Object> ruleWithBackendRef(String path) {
+        Map<String, Object> pathMatch = Map.of("type", "PathPrefix", "value", path);
+        Map<String, Object> match = Map.of("path", pathMatch);
+        Map<String, Object> backendRef = new LinkedHashMap<>();
+        backendRef.put("group", "");
+        backendRef.put("kind", "Service");
+        backendRef.put("name", "some-other-service");
+        backendRef.put("port", 8080.0);
+        backendRef.put("weight", 1.0);
+        Map<String, Object> rule = new LinkedHashMap<>();
+        rule.put("matches", List.of(match));
+        rule.put("backendRefs", List.of(backendRef));
         return rule;
     }
 
@@ -126,6 +146,35 @@ class CustomResourceServiceTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> remainingRules = (List<Map<String, Object>>) updated.getSpec().get("rules");
         assertEquals(1, remainingRules.size());
+    }
+
+    // A sibling chain's rule read back via KubeOperator.getCustomObject comes back with its
+    // backendRefs[].port/weight decoded as Double (Gson's ToNumberPolicy.DOUBLE). Re-applying it
+    // untouched after stripping this snapshot's own rule would re-emit e.g. "port: 8080.0", which
+    // the Gateway API's int32-typed schema rejects at apply time.
+    @Test
+    void deleteChainSnapshotNormalizesIntegralDoublesInSurvivingSiblingRule() {
+        when(routesGetterService.getRoutes(any())).thenReturn(List.of(
+                DeploymentRoute.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build()));
+        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PUBLIC_ROUTE_NAME)))
+                .thenReturn(Optional.of(httpRoute(PUBLIC_ROUTE_NAME,
+                        List.of(rule("/qip-routes/a"), ruleWithBackendRef("/qip-routes/b")))));
+        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PRIVATE_ROUTE_NAME)))
+                .thenReturn(Optional.empty());
+
+        customResourceService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
+
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(kubeOperator).createOrUpdateResource(captor.capture());
+        KubeCustomObject updated = (KubeCustomObject) captor.getValue();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> remainingRules = (List<Map<String, Object>>) updated.getSpec().get("rules");
+        assertEquals(1, remainingRules.size());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> backendRefs = (List<Map<String, Object>>) remainingRules.get(0).get("backendRefs");
+        Map<String, Object> backendRef = backendRefs.get(0);
+        assertEquals(8080L, backendRef.get("port"));
+        assertEquals(1L, backendRef.get("weight"));
     }
 
     @Test

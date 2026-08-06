@@ -2,6 +2,8 @@ package org.qubership.integration.platform.runtime.catalog.cr;
 
 import com.coreos.monitoring.models.V1ServiceMonitor;
 import com.coreos.monitoring.models.V1ServiceMonitorList;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1Secret;
@@ -12,6 +14,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.cr.builders.IntegrationsConfigurationConfigMapBuilder;
+import org.qubership.integration.platform.runtime.catalog.cr.builders.chain.HttpRouteRuleNormalizer;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationsConfiguration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
@@ -81,6 +84,7 @@ public class CustomResourceService {
     private final DeploymentRouteMapper deploymentRouteMapper;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy;
+    private final YAMLMapper yamlMapper;
 
     private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
     private static final String GATEWAY_API_VERSION = "v1";
@@ -113,7 +117,8 @@ public class CustomResourceService {
             @Qualifier("httpRoutePublicNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy,
             @Qualifier("httpRoutePrivateNamingStrategy")
-            NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy,
+            @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper
     ) {
         this.kubeOperator = kubeOperator;
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
@@ -125,6 +130,7 @@ public class CustomResourceService {
         this.deploymentRouteMapper = deploymentRouteMapper;
         this.httpRoutePublicNamingStrategy = httpRoutePublicNamingStrategy;
         this.httpRoutePrivateNamingStrategy = httpRoutePrivateNamingStrategy;
+        this.yamlMapper = yamlMapper;
     }
 
     @PostConstruct
@@ -380,6 +386,7 @@ public class CustomResourceService {
                     }
                     return !ownPaths.contains(path);
                 })
+                .map(this::normalizeRawRule)
                 .toList();
         if (remaining.isEmpty()) {
             kubeOperator.deleteCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, routeName);
@@ -389,6 +396,20 @@ public class CustomResourceService {
         httpRoute.setApiVersion(GATEWAY_API_GROUP + "/" + GATEWAY_API_VERSION);
         httpRoute.setKind("HTTPRoute");
         kubeOperator.createOrUpdateResource(httpRoute);
+    }
+
+    /**
+     * Fixes up a surviving rule's whole-number values before it's re-applied. {@code rule} comes
+     * from {@link KubeOperator#getCustomObject}, whose Gson deserialization decodes every JSON
+     * number as {@code Double} (see {@link HttpRouteRuleNormalizer}), so a port or weight that
+     * round-trips through this method unmodified would be re-emitted as e.g. {@code 8080.0} and
+     * rejected by the Gateway API's int32-typed schema.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> normalizeRawRule(Map<String, Object> rule) {
+        ObjectNode node = yamlMapper.convertValue(rule, ObjectNode.class);
+        HttpRouteRuleNormalizer.normalizeIntegralDoubles(node);
+        return yamlMapper.convertValue(node, Map.class);
     }
 
     /**
