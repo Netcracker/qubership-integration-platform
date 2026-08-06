@@ -1,4 +1,4 @@
-﻿package org.qubership.integration.platform.runtime.catalog.cr.builders;
+package org.qubership.integration.platform.runtime.catalog.cr.builders;
 
 import com.github.jknack.handlebars.EscapingStrategy;
 import com.github.jknack.handlebars.Handlebars;
