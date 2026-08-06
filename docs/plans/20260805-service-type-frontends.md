@@ -421,18 +421,50 @@ can check every view type the resolver returns against the manifest.
 - Modify: `vscode-extension/src/web/api-services/SpecificationImportService.ts` (178)
 - Modify: `vscode-extension/tests/serviceApiRead.test.ts` (create if absent)
 
-- [ ] replace every `endsWith(ext.service)` test with `isAnyServiceFile`, and every `findFileById(id, ext.service)` with a variant searching all four extensions
-- [ ] extend `getFileType` (`:838-880`): the file branch at `:852` (a new-format file returns `UNKNOWN` today) and the directory-inference branch at `:863-867` (a folder holding only `<id>.external-service.qip.yaml` falls through to plain `FOLDER` instead of being classified as a service folder)
-- [ ] extend `FileCacheService` indexing and invalidation — a file that is never invalidated serves stale content after an edit
-- [ ] derive the type through `serviceTypeFromUri`, falling back to `content.integrationSystemType` for old-format files
-- [ ] apply the `resolveGroupFile` precedence rule when both files exist: the new one wins, the old is a duplicate
-- [ ] extend `SERVICE_ROUTES` handling so navigation paths resolve against any service extension
-- [ ] write tests: reading each new format returns the right type, with environments and api specs intact
-- [ ] write tests: reading an old-format file still works and its type comes from the field
-- [ ] write a test: a new-format file is not `UNKNOWN`, and a folder containing only one is classified as a service folder, not plain `FOLDER`
-- [ ] write a test: editing a new-format file invalidates its cache entry
-- [ ] write a test for the duplicate case — exactly one service is listed
-- [ ] run tests — must pass before task 5
+- [x] replace every `endsWith(ext.service)` test with `isAnyServiceFile`, and every `findFileById(id, ext.service)` with a variant searching all four extensions
+- [x] extend `getFileType` (`:838-880`): the file branch at `:852` (a new-format file returns `UNKNOWN` today) and the directory-inference branch at `:863-867` (a folder holding only `<id>.external-service.qip.yaml` falls through to plain `FOLDER` instead of being classified as a service folder)
+- [x] extend `FileCacheService` indexing and invalidation — a file that is never invalidated serves stale content after an edit
+- [x] derive the type through `serviceTypeFromUri`, falling back to `content.integrationSystemType` for old-format files
+- [x] apply the `resolveGroupFile` precedence rule when both files exist: the new one wins, the old is a duplicate
+- [x] extend `SERVICE_ROUTES` handling so navigation paths resolve against any service extension
+- [x] write tests: reading each new format returns the right type, with environments and api specs intact
+- [x] write tests: reading an old-format file still works and its type comes from the field
+- [x] write a test: a new-format file is not `UNKNOWN`, and a folder containing only one is classified as a service folder, not plain `FOLDER`
+- [x] write a test: editing a new-format file invalidates its cache entry
+- [x] write a test for the duplicate case — exactly one service is listed
+- [x] run tests — must pass before task 5
+
+➕ One module beyond the plan's list: `response/file/serviceFileLookup.ts`, holding `findServiceFileById(id, ext?)`
+and `findServiceFiles(ext?)` — the "variant searching all four extensions" the first checkbox asks for, shared by
+`serviceApiRead`, `SystemService` and `EnvironmentService`. It stays out of `serviceFileType.ts` so the resolver keeps
+its single dependency on file names and never reaches for `fileApi`.
+
+➕ `resolveServiceType(fileRef, service, extensions?)` joins `serviceFileType.ts`: the name wins, `content.integrationSystemType`
+is the legacy fallback, empty when neither states one. Both read surfaces (`serviceApiRead.getService`,
+`SystemService.getSystemById`) call it, and Task 9's tree needs the same rule — stating it once is what keeps the
+three from drifting.
+
+➕ [deviation] `api-services/SpecificationImportService.ts` needed no edit after all. Its `:178` site reads
+`params.system.integrationSystemType`, and that object comes from `SystemService.getSystemById`, which this task fixes;
+the file holds no service-extension test of its own, and its `getBaseFolder` goes through `fileApi.getFileType`, also
+fixed here. Covered by `tests/api-services/SystemService.serviceTypes.test.ts` rather than by a test of its own.
+
+➕ [deviation] Five test files instead of the plan's one. `tests/serviceApiRead.test.ts` already exists as
+`tests/web/response/serviceApiRead.test.ts` (the model-read suite), so its `fileExtensions` stub was widened —
+`serviceFileType` resolves a name through that module too — and the new cases went into
+`tests/web/response/serviceApiRead.serviceTypes.test.ts`, `tests/web/response/fileApiImpl.serviceTypes.test.ts` and
+`tests/api-services/SystemService.serviceTypes.test.ts`, with `tests/services/FileCacheService.test.ts`,
+`tests/api-services/EnvironmentService.test.ts` and `tests/serviceFileType.test.ts` extended in place.
+
+➕ [decision] `getServices` now walks the workspace once per plain-service extension rather than once, the four walks
+issued concurrently. A single walk would need a `findFiles(extensions[])` on the `FileApi` interface, its provider
+facade and every mock of it; the parse count is unchanged, and only the directory reads repeat.
+
+➕ Every mutation of the changed logic was checked to go red: `getFileType`'s file and directory branches back to
+`extensions.service`, the navigation fan-out back to one extension, `resolveServiceType`'s precedence inverted,
+`plainServiceExtensions` reordered legacy-first, the `getServices` dedup dropped, `getServices` scanning one extension,
+`getApiSpecifications` back to `endsWith(ext.service)`, both `FileCacheService` dispatch arms back to the legacy-only
+test, and `SystemService`/`EnvironmentService` back to `findFileById(id, ext.service)`.
 
 ### Task 5: Write the new format from both create paths
 

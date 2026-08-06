@@ -3,7 +3,7 @@
 // one either — Environment.system is @JsonBackReference — so writing it made
 // extension files differ from exported ones for no gain.
 
-import { createMinimalVscodeMock } from "../helpers/mocks";
+import { createMinimalVscodeMock, QIP_FILE_EXTENSIONS as ext } from "../helpers/mocks";
 
 jest.mock("vscode", () => createMinimalVscodeMock(), { virtual: true });
 
@@ -14,16 +14,20 @@ jest.mock("../../src/web/api-services/SystemService", () => ({
   })),
 }));
 
+const findFileById = jest.fn();
 const writeMainService = jest.fn();
 jest.mock("../../src/web/response/file/fileApiProvider", () => ({
   fileApi: {
-    findFileById: jest.fn().mockResolvedValue({ path: "/svc.yaml" }),
+    findFileById: (...args: unknown[]) => findFileById(...args),
     writeMainService: (...args: unknown[]) => writeMainService(...args),
   },
 }));
 
 jest.mock("../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForFile: () => ({ service: ".service.qip.yaml" }),
+  getExtensionsForFile: () => ext,
+  extractFilename: (fileRef: string | { path: string }) =>
+    (typeof fileRef === "string" ? fileRef : fileRef.path).split("/").pop() ??
+    "",
 }));
 
 import { EnvironmentService } from "../../src/web/api-services/EnvironmentService";
@@ -31,6 +35,7 @@ import { EnvironmentService } from "../../src/web/api-services/EnvironmentServic
 describe("EnvironmentService.createEnvironment", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    findFileById.mockResolvedValue({ path: `/sys-1/sys-1${ext.service}` });
     getRawServiceById.mockResolvedValue({
       id: "sys-1",
       content: { protocol: "HTTP", environments: [] },
@@ -58,5 +63,24 @@ describe("EnvironmentService.createEnvironment", () => {
     await expect(
       new EnvironmentService().createEnvironment({ name: "X" } as any),
     ).rejects.toThrow(/System id is required/);
+  });
+
+  // Environments live inside the service file, so a service stored under a typed name that the
+  // write path cannot find leaves the environments tab empty and every save failing.
+  it("writes back to a service stored under a typed name", async () => {
+    findFileById.mockImplementation((_id: string, extension: string) =>
+      extension === ext.implementedService
+        ? Promise.resolve({ path: `/sys-1/sys-1${ext.implementedService}` })
+        : Promise.reject(new Error("not found")),
+    );
+
+    await new EnvironmentService().createEnvironment({
+      systemId: "sys-1",
+      name: "Production",
+      address: "https://example.test",
+    } as any);
+
+    const [fileUri] = writeMainService.mock.calls[0];
+    expect(fileUri.path).toBe(`/sys-1/sys-1${ext.implementedService}`);
   });
 });

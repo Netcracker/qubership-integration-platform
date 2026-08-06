@@ -1,6 +1,6 @@
 import { Environment, EnvironmentRequest } from "./servicesTypes";
 import { fileApi } from "../response/file/fileApiProvider";
-import { getExtensionsForFile } from "../response/file/fileExtensions";
+import { findServiceFileById } from "../response/file/serviceFileLookup";
 import { SystemService } from "./SystemService";
 import { LabelUtils } from "./LabelUtils";
 import { EnvironmentDefaultProperties } from "./EnvironmentDefaultProperties";
@@ -187,8 +187,7 @@ export class EnvironmentService {
    */
   private async saveSystem(system: any): Promise<void> {
     try {
-      const ext = getExtensionsForFile();
-      const serviceFileUri = await fileApi.findFileById(system.id, ext.service);
+      const serviceFileUri = await findServiceFileById(system.id);
       await fileApi.writeMainService(serviceFileUri, system);
     } catch (error) {
       throw error;

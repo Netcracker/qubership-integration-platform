@@ -18,6 +18,11 @@ import {
   getExtensionsForUri,
   FileExtensionsConfig,
 } from "./file/fileExtensions";
+import { isAnyServiceFile, resolveServiceType } from "./file/serviceFileType";
+import {
+  findServiceFileById,
+  findServiceFiles,
+} from "./file/serviceFileLookup";
 import { Chain, ContextSystem, MCPSystem } from "@netcracker/qip-ui";
 import { ContentParser } from "../api-services/parsers/ContentParser";
 import { OperationSchemaExtractor } from "../api-services/parsers/OperationSchemaExtractor";
@@ -51,7 +56,7 @@ export async function getService(
   let service: any = await getMainService(serviceFileUri);
   if (service.id !== serviceId) {
     const ext = getExtensionsForUri(serviceFileUri);
-    actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
+    actualServiceFileUri = await findServiceFileById(serviceId, ext);
     service = await getMainService(actualServiceFileUri);
 
     if (service.id !== serviceId) {
@@ -64,13 +69,15 @@ export async function getService(
     }
   }
 
+  const type = resolveServiceType(actualServiceFileUri, service);
+
   return {
     id: service.id,
     name: service.name,
     description: service.content?.description || "",
     activeEnvironmentId: service.content?.activeEnvironmentId || "",
-    integrationSystemType: service.content?.integrationSystemType || "",
-    type: service.content?.integrationSystemType || "",
+    integrationSystemType: type,
+    type: type,
     protocol: (service.content?.protocol || "").toLowerCase(),
     extendedProtocol: getExtendedProtocol(service.content?.protocol),
     specification: getSpecificationType(service.content?.protocol),
@@ -165,7 +172,7 @@ export async function getEnvironment(
 
   if (service.id !== serviceId) {
     const ext = getExtensionsForUri(serviceFileUri);
-    actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
+    actualServiceFileUri = await findServiceFileById(serviceId, ext);
     service = await getMainService(actualServiceFileUri);
 
     if (service.id !== serviceId) {
@@ -188,7 +195,7 @@ export async function getEnvironments(
 
   if (service.id !== serviceId) {
     const ext = getExtensionsForUri(serviceFileUri);
-    actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
+    actualServiceFileUri = await findServiceFileById(serviceId, ext);
     service = await getMainService(actualServiceFileUri);
 
     if (service.id !== serviceId) {
@@ -245,9 +252,9 @@ export async function getApiSpecifications(
   serviceId: string,
 ): Promise<ApiGroup[]> {
   const ext = getExtensionsForUri(currentFile);
-  const serviceFileUri = currentFile.path.endsWith(ext.service)
+  const serviceFileUri = isAnyServiceFile(currentFile, ext)
     ? currentFile
-    : await fileApi.findFileById(serviceId, ext.service);
+    : await findServiceFileById(serviceId, ext);
 
   const service: any = await getMainService(serviceFileUri);
 
@@ -348,9 +355,9 @@ export async function getSpecificationModel(
   let actualServiceFileUri = serviceFileUri;
   const ext = getExtensionsForUri(serviceFileUri);
 
-  if (!serviceFileUri.path.endsWith(ext.service)) {
+  if (!isAnyServiceFile(serviceFileUri, ext)) {
     try {
-      actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
+      actualServiceFileUri = await findServiceFileById(serviceId, ext);
     } catch (e) {
       console.warn(
         `Could not find service file for ${serviceId}, using original URI`,
@@ -432,10 +439,10 @@ export async function getOperations(
   let actualServiceFileUri = serviceFileUri;
 
   const parts = modelId.split("-");
-  if (parts.length >= 5 && !serviceFileUri.path.endsWith(ext.service)) {
+  if (parts.length >= 5 && !isAnyServiceFile(serviceFileUri, ext)) {
     const serviceId = parts.slice(0, 5).join("-");
     try {
-      actualServiceFileUri = await fileApi.findFileById(serviceId, ext.service);
+      actualServiceFileUri = await findServiceFileById(serviceId, ext);
     } catch (e) {
       console.warn(
         `Could not find service file for ${serviceId}, using original URI`,
@@ -443,7 +450,7 @@ export async function getOperations(
     }
   }
 
-  if (actualServiceFileUri.path.endsWith(ext.service)) {
+  if (isAnyServiceFile(actualServiceFileUri, ext)) {
     const specFiles = await fileApi.getSpecificationFiles(actualServiceFileUri);
     const serviceFolderUri = vscode.Uri.joinPath(actualServiceFileUri, "..");
 
@@ -501,10 +508,7 @@ export async function getOperationInfo(
     if (service.id !== serviceId) {
       const ext = getExtensionsForUri(serviceFileUri);
       try {
-        actualServiceFileUri = await fileApi.findFileById(
-          serviceId,
-          ext.service,
-        );
+        actualServiceFileUri = await findServiceFileById(serviceId, ext);
       } catch (e) {
         console.warn(
           `Could not find service file for ${serviceId}, using original URI`,
@@ -797,21 +801,28 @@ export async function getServices(
   serviceFileUri: Uri,
 ): Promise<IntegrationSystem[]> {
   const ext = getExtensionsForUri(serviceFileUri);
-  if (serviceFileUri.path.endsWith(ext.service)) {
+  if (isAnyServiceFile(serviceFileUri, ext)) {
     const service: any = await getMainService(serviceFileUri);
     if (!service) {
       return [];
     }
 
     return [await getService(serviceFileUri, service.id)];
-  } else {
-    const result: IntegrationSystem[] = [];
-    const serviceFiles = await fileApi.findFiles(ext.service);
-    for (const serviceFile of serviceFiles) {
-      const service: any = await getMainService(serviceFile);
-      result.push(await getService(serviceFile, service.id));
-    }
-
-    return result;
   }
+
+  // A converted service keeps its legacy sibling until the delete lands, so list each id once,
+  // from the file findServiceFileById would resolve — the rule ApiGroupService.resolveGroupFile
+  // applies to a group. findServiceFiles yields the typed names first, so first seen wins.
+  const listedIds = new Set<string>();
+  const result: IntegrationSystem[] = [];
+  for (const serviceFile of await findServiceFiles(ext)) {
+    const service: any = await getMainService(serviceFile);
+    if (!service?.id || listedIds.has(service.id)) {
+      continue;
+    }
+    listedIds.add(service.id);
+    result.push(await getService(serviceFile, service.id));
+  }
+
+  return result;
 }

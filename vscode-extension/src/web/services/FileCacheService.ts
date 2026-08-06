@@ -7,17 +7,55 @@ interface CacheEntry {
   timestamp: number;
 }
 
+type MatchMode = "endsWith" | "equals";
+
+function matchesAny(
+  extensions: (string | undefined)[],
+  value: string,
+  mode: MatchMode,
+): boolean {
+  return extensions.some((extension) =>
+    !extension
+      ? false
+      : mode === "endsWith"
+        ? value.endsWith(extension)
+        : value === extension,
+  );
+}
+
 // A group file lives under either `.api-group.<app>.yaml` or the pre-rename `.specification-group.<app>.yaml`,
 // and both share one cache. `endsWith` matches a filename, `equals` an extension passed in by the caller.
 function isGroupExtension(
   config: { extensions: { specificationGroup: string; apiGroup: string } },
   value: string,
-  mode: "endsWith" | "equals",
+  mode: MatchMode,
 ): boolean {
   const { specificationGroup, apiGroup } = config.extensions;
-  return mode === "endsWith"
-    ? value.endsWith(specificationGroup) || value.endsWith(apiGroup)
-    : value === specificationGroup || value === apiGroup;
+  return matchesAny([specificationGroup, apiGroup], value, mode);
+}
+
+// A plain service file carries the legacy `.service.<app>.yaml` name or one of the three that state
+// its type, and all four share the service cache. Without every arm, a file written under a typed
+// name never caches and never invalidates, so an edit keeps serving the content read before it.
+function isPlainServiceExtension(
+  config: {
+    extensions: {
+      service: string;
+      externalService?: string;
+      internalService?: string;
+      implementedService?: string;
+    };
+  },
+  value: string,
+  mode: MatchMode,
+): boolean {
+  const { service, externalService, internalService, implementedService } =
+    config.extensions;
+  return matchesAny(
+    [externalService, internalService, implementedService, service],
+    value,
+    mode,
+  );
 }
 
 export class FileCacheService {
@@ -183,7 +221,7 @@ export class FileCacheService {
       const filename = extractFilename(uri);
       const config = ProjectConfigService.getConfig();
 
-      if (filename.endsWith(config.extensions.service)) {
+      if (isPlainServiceExtension(config, filename, "endsWith")) {
         this.invalidateByUriInCache(this.serviceCache, uri);
       } else if (filename.endsWith(config.extensions.contextService)) {
         this.invalidateByUriInCache(this.contextServiceCache, uri);
@@ -227,7 +265,7 @@ export class FileCacheService {
     try {
       const config = ProjectConfigService.getConfig();
 
-      if (extension === config.extensions.service) {
+      if (isPlainServiceExtension(config, extension, "equals")) {
         return this.getServiceUri(id);
       } else if (extension === config.extensions.contextService) {
         return this.getContextServiceUri(id);
@@ -257,7 +295,7 @@ export class FileCacheService {
     try {
       const config = ProjectConfigService.getConfig();
 
-      if (extension === config.extensions.service) {
+      if (isPlainServiceExtension(config, extension, "equals")) {
         this.setServiceUri(id, uri);
       } else if (extension === config.extensions.contextService) {
         this.setContextServiceUri(id, uri);

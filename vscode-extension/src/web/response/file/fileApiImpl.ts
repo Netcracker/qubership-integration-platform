@@ -25,6 +25,7 @@ import {
 } from "../apiRouter";
 import { extractEntityId } from "../navigationUtils";
 import { shapeServiceFile, ServiceFileKind } from "./serviceFileShape";
+import { isAnyServiceFile, plainServiceExtensions } from "./serviceFileType";
 import {
   CHAIN_MIGRATIONS,
   MCP_SERVICE_MIGRATIONS,
@@ -69,39 +70,52 @@ export class VSCodeFileApi implements FileApi {
 
   async findFileByNavigationPath(path: string): Promise<Uri> {
     const extensions = this.getExtensionsForContext();
-    let extension: string | undefined = undefined;
+    // A service route names no type, so every plain-service name is a candidate; the other
+    // routes resolve to exactly one. Typed names come first, so a converted service that still
+    // has its legacy sibling resolves to the file the next write lands on.
+    let candidates: string[] | undefined = undefined;
 
     for (const regexp of SERVICE_ROUTES) {
       if (regexp.test(path)) {
-        extension = extensions.service;
+        candidates = plainServiceExtensions(extensions);
       }
     }
 
     for (const regexp of CHAIN_ROUTES) {
       if (regexp.test(path)) {
-        extension = extensions.chain;
+        candidates = [extensions.chain];
       }
     }
 
     for (const regexp of CONTEXT_SERVICE_ROUTES) {
       if (regexp.test(path)) {
-        extension = extensions.contextService;
+        candidates = [extensions.contextService];
       }
     }
 
     for (const regexp of MCP_SERVICE_ROUTES) {
       if (regexp.test(path)) {
-        extension = extensions.mcpService;
+        candidates = [extensions.mcpService];
       }
     }
 
-    if (!extension) {
+    if (!candidates) {
       throw new Error(`Invalid navigation path: ${path}`);
     }
 
     const entityId = extractEntityId(path);
 
-    return await this.findFileById(entityId, extension);
+    let lastError: unknown;
+    for (const extension of candidates) {
+      try {
+        return await this.findFileById(entityId, extension);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : new Error(`File with id ${entityId} not found for path: ${path}`);
   }
 
   private isWindowsPath(p: string): boolean {
@@ -233,8 +247,9 @@ export class VSCodeFileApi implements FileApi {
     const cacheService = FileCacheService.getInstance();
 
     const cachedUri = cacheService.getFileUri(id, extension);
-    // Both group extensions share one cache entry per id, so a hit may be a file of the other extension.
-    // Honour the requested extension and rescan instead, or the caller's precedence order means nothing.
+    // The group extensions share one cache entry per id, and so do the four plain-service ones, so a
+    // hit may be a file of another extension. Honour the requested extension and rescan instead, or
+    // the caller's precedence order means nothing.
     if (
       cachedUri &&
       (!extension || extractFilename(cachedUri).endsWith(extension))
@@ -270,7 +285,8 @@ export class VSCodeFileApi implements FileApi {
     const typesToTry = [
       extensions.mcpService,
       extensions.contextService,
-      extensions.service,
+      // Typed plain-service names before the legacy one, the precedence findServiceFileById uses.
+      ...plainServiceExtensions(extensions),
       extensions.chain,
       // `.api-group.` before `.specification-group.`, matching ApiGroupService.resolveGroupFile's precedence.
       extensions.apiGroup,
@@ -849,7 +865,7 @@ export class VSCodeFileApi implements FileApi {
         if (name.endsWith(extensions.contextService)) {
           return QipFileType.CONTEXT_SERVICE;
         }
-        if (name.endsWith(extensions.service)) {
+        if (isAnyServiceFile(name, extensions)) {
           return QipFileType.SERVICE;
         }
         if (name.endsWith(extensions.chain)) {
@@ -861,9 +877,8 @@ export class VSCodeFileApi implements FileApi {
       // Directory: infer by contents
       const entries = await this.readDirectoryInternal(fileUri);
       const hasChainFile = this.hasFileWithExtension(entries, extensions.chain);
-      const hasServiceFile = this.hasFileWithExtension(
-        entries,
-        extensions.service,
+      const hasServiceFile = plainServiceExtensions(extensions).some(
+        (extension) => this.hasFileWithExtension(entries, extension),
       );
 
       if (hasServiceFile) {

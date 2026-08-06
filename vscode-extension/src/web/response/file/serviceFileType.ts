@@ -81,6 +81,21 @@ export function serviceTypeFromUri(
   return typedEntries().find(([, key]) => name.endsWith(ext[key]))?.[0];
 }
 
+/**
+ * The type of a service that has already been parsed: the file name states it, and
+ * `content.integrationSystemType` is the fallback for the legacy type-less name. Empty when
+ * neither source carries one, so a broken file reads as untyped rather than throwing.
+ */
+export function resolveServiceType(
+  fileRef: ServiceFileRef,
+  service: { content?: { integrationSystemType?: string } } | undefined,
+  extensions?: ServiceExtensions,
+): IntegrationSystemType {
+  return (serviceTypeFromUri(fileRef, extensions) ??
+    service?.content?.integrationSystemType ??
+    "") as IntegrationSystemType;
+}
+
 /** Whether the file is a plain service file, of either the legacy or a typed name. */
 export function isAnyServiceFile(
   fileRef: ServiceFileRef,

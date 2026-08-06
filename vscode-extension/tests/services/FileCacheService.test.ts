@@ -13,6 +13,9 @@ import { FileCacheService } from "../../src/web/services/FileCacheService";
 
 const EXTENSIONS = {
   service: ".service.qip.yaml",
+  externalService: ".external-service.qip.yaml",
+  internalService: ".internal-service.qip.yaml",
+  implementedService: ".implemented-service.qip.yaml",
   contextService: ".context-service.qip.yaml",
   mcpService: ".mcp-service.qip.yaml",
   chain: ".chain.qip.yaml",
@@ -135,5 +138,73 @@ describe("FileCacheService apiGroup shares the specificationGroup cache", () => 
 
     expect(cache.getSpecificationGroupUri("group-4")).toBeNull();
     expect(cache.getSpecificationGroupUri("group-5")).toBeNull();
+  });
+});
+
+// The three typed service extensions share the service cache with the legacy one. Without every arm
+// a typed file never caches — every read falls back to a full workspace scan — and, worse, never
+// invalidates, so an edit keeps serving the content read before it.
+describe("FileCacheService plain-service extensions share one cache", () => {
+  const TYPED = [
+    EXTENSIONS.externalService,
+    EXTENSIONS.internalService,
+    EXTENSIONS.implementedService,
+  ];
+
+  test.each([...TYPED, EXTENSIONS.service])(
+    "setFileUri / getFileUri round-trip through the service cache for %s",
+    (extension) => {
+      const serviceUri = uri(`/svc/svc-1${extension}`);
+      cache.setFileUri("svc-1", extension, serviceUri);
+
+      expect(cache.getFileUri("svc-1", extension)).toBe(serviceUri);
+      expect(cache.getServiceUri("svc-1")).toBe(serviceUri);
+    },
+  );
+
+  test.each(TYPED)("invalidateByUri drops the entry for a %s file", (extension) => {
+    const serviceUri = uri(`/svc/svc-1${extension}`);
+    cache.setFileUri("svc-1", extension, serviceUri);
+    expect(cache.getServiceUri("svc-1")).toBe(serviceUri);
+
+    cache.invalidateByUri(serviceUri);
+
+    expect(cache.getServiceUri("svc-1")).toBeNull();
+    expect(cache.getFileUri("svc-1", extension)).toBeNull();
+  });
+
+  test("a typed service uri is not mistaken for a context service", () => {
+    const serviceUri = uri(`/svc/svc-1${EXTENSIONS.externalService}`);
+    cache.setFileUri("svc-1", EXTENSIONS.externalService, serviceUri);
+    cache.setFileUri("ctx-1", EXTENSIONS.contextService, uri(`/ctx/ctx-1${EXTENSIONS.contextService}`));
+
+    cache.invalidateByUri(serviceUri);
+
+    expect(cache.getServiceUri("svc-1")).toBeNull();
+    expect(cache.getContextServiceUri("ctx-1")).not.toBeNull();
+  });
+
+  test("clearServiceCache empties entries cached under any plain-service extension", () => {
+    cache.setFileUri("svc-1", EXTENSIONS.externalService, uri("/a/svc-1.external-service.qip.yaml"));
+    cache.setFileUri("svc-2", EXTENSIONS.service, uri("/b/svc-2.service.qip.yaml"));
+
+    cache.clearServiceCache();
+
+    expect(cache.getServiceUri("svc-1")).toBeNull();
+    expect(cache.getServiceUri("svc-2")).toBeNull();
+  });
+
+  // A project config from before the three keys existed still has to work.
+  test("tolerates a config that carries only the legacy service extension", () => {
+    getConfig.mockReturnValue({
+      extensions: { ...EXTENSIONS, externalService: undefined, internalService: undefined, implementedService: undefined },
+    });
+    const serviceUri = uri("/svc/svc-1.service.qip.yaml");
+
+    cache.setFileUri("svc-1", EXTENSIONS.service, serviceUri);
+    expect(cache.getServiceUri("svc-1")).toBe(serviceUri);
+
+    cache.invalidateByUri(serviceUri);
+    expect(cache.getServiceUri("svc-1")).toBeNull();
   });
 });

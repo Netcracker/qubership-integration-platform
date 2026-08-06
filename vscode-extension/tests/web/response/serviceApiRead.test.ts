@@ -19,8 +19,14 @@ jest.mock(
 
 import { QIP_FILE_EXTENSIONS as ext } from "../../helpers/mocks";
 
+// `serviceFileType` resolves a name through this module too, so the stub has to answer the
+// helpers it calls, not only the one serviceApiRead calls directly.
 jest.mock("../../../src/web/response/file/fileExtensions", () => ({
   getExtensionsForUri: jest.fn(() => ext),
+  getExtensionsForFile: jest.fn(() => ext),
+  extractFilename: (fileRef: string | { path: string }) =>
+    (typeof fileRef === "string" ? fileRef : fileRef.path).split("/").pop() ??
+    "",
 }));
 
 jest.mock("../../../src/web/api-services/LabelUtils", () => ({

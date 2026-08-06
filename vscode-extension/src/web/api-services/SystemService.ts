@@ -3,7 +3,8 @@ import * as vscode from "vscode";
 import { IntegrationSystem } from "./servicesTypes";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getMainService } from "../response/serviceApiRead";
-import { getExtensionsForFile } from "../response/file/fileExtensions";
+import { findServiceFileById } from "../response/file/serviceFileLookup";
+import { resolveServiceType } from "../response/file/serviceFileType";
 import { LabelUtils } from "./LabelUtils";
 import {
   getExtendedProtocol,
@@ -25,13 +26,14 @@ export class SystemService {
       const serviceFileUri = await this.findServiceFileUri(systemId);
       const service = await getMainService(serviceFileUri);
       if (service.id === systemId) {
+        const type = resolveServiceType(serviceFileUri, service);
         return {
           id: service.id,
           name: service.name,
           description: service.content?.description || "",
           activeEnvironmentId: service.content?.activeEnvironmentId || "",
-          integrationSystemType: service.content?.integrationSystemType || "",
-          type: service.content?.integrationSystemType || "",
+          integrationSystemType: type,
+          type: type,
           protocol: service.content?.protocol || "",
           extendedProtocol: getExtendedProtocol(service.content?.protocol),
           specification: getSpecificationType(service.content?.protocol),
@@ -97,7 +99,6 @@ export class SystemService {
   }
 
   private async findServiceFileUri(systemId: string): Promise<Uri> {
-    const ext = getExtensionsForFile();
-    return await fileApi.findFileById(systemId, ext.service);
+    return await findServiceFileById(systemId);
   }
 }

@@ -34,6 +34,7 @@ jest.mock("../src/web/services/ProjectConfigService", () => ({
 import {
   isAnyServiceFile,
   plainServiceExtensions,
+  resolveServiceType,
   serviceExtensionForType,
   serviceTypeFromUri,
   ServiceExtensions,
@@ -248,6 +249,43 @@ describe("serviceExtensionForType", () => {
 
       expect(serviceTypeFromUri(name, qip)).toBe(type);
     }
+  });
+});
+
+// One precedence rule for every read site: the name wins, the body is the legacy fallback. Inverting
+// it would file a converted service under whatever type its stale body still claims.
+describe("resolveServiceType", () => {
+  it("takes the type from the name when the name states one", () => {
+    expect(
+      resolveServiceType("svc-1.internal-service.qip.yaml", {
+        content: { integrationSystemType: "EXTERNAL" },
+      }),
+    ).toBe(IntegrationSystemType.INTERNAL);
+  });
+
+  it("falls back to the body for the legacy type-less name", () => {
+    expect(
+      resolveServiceType("svc-1.service.qip.yaml", {
+        content: { integrationSystemType: "IMPLEMENTED" },
+      }),
+    ).toBe(IntegrationSystemType.IMPLEMENTED);
+  });
+
+  it.each([
+    ["svc-1.service.qip.yaml", { content: {} }],
+    ["svc-1.service.qip.yaml", {}],
+    ["svc-1.service.qip.yaml", undefined],
+  ])("reads %s with no type in either place as untyped", (name, service) => {
+    expect(resolveServiceType(name, service as any)).toBe("");
+  });
+
+  it("uses the extensions it is handed instead of resolving them", () => {
+    expect(resolveServiceType("svc-1.external-service.acme.yaml", {}, acme)).toBe(
+      IntegrationSystemType.EXTERNAL,
+    );
+    expect(resolveServiceType("svc-1.external-service.acme.yaml", {}, qip)).toBe(
+      "",
+    );
   });
 });
 
