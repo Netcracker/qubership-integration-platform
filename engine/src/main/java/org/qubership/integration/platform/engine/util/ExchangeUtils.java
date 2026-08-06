@@ -83,7 +83,7 @@ public class ExchangeUtils {
                 if (value instanceof Closure || value instanceof Script) {
                     return SessionElementProperty.builder()
                         .type(value.getClass().getName())
-                        .value(SessionElementProperty.NOT_SERIALIZABLE_VALUE)
+                        .value(SessionElementProperty.NON_SERIALIZABLE_VALUE)
                         .build();
                 }
 
