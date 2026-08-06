@@ -937,8 +937,20 @@ This is the single place the release process reads them from:
    every autodiscovered service of a Kubernetes service named `service-…` unexportable and aborted the whole archive.
    The two name formats are told apart by the postfix instead: a name stating one right after the id is
    current-format, whatever the id starts with. The one id neither format states is one whose *second* segment spells a
-   service postfix (`svc.internal-service.1`), because its flat name is also the current-format name of service
-   `service-svc`. Both formats refuse that shape and neither offers the other as a way out.
+   **plain-service** postfix (`svc.internal-service.1`), because its flat name is also the current-format name of
+   service `service-svc`. Both formats refuse that shape and neither offers the other as a way out.
+
+   Only the four plain-service postfixes are weighed there. `.context-service.` and `.mcp-service.` are not, because
+   the flat name is the plain service's own second format and no import discovers a flat context or MCP name. Weighing
+   them made `service-orders.context-service.qip.yaml` current-format, and the plain-service scan, which carries
+   neither postfix, then walked past a name every earlier version discovered — the service was silently absent from
+   the import, with no error row. So `orders.context-service.qip` stays an exportable id in the legacy format.
+
+   **One name shape is claimed by two imports.** `service-ctx.context-service.qip.yaml` is the context name of
+   `service-ctx` and the flat name of `ctx.context-service.qip`, and no rule reads both out of one string. Each scan
+   claims it in its own format, so neither an older archive nor a current one loses a file. The context service
+   imports as it should; the plain-service import adds an `ImportSystemStatus.ERROR` row that names the context
+   service import as the one already handling the file. The MCP import sees neither format of that name.
 
 **Manual verification:**
 

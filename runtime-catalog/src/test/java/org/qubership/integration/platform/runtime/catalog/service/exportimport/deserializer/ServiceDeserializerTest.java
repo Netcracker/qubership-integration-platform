@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
@@ -1185,6 +1186,22 @@ class ServiceDeserializerTest {
                 "unexpected message: " + exception.getMessage());
         assertTrue(exception.getMessage().contains(".external-service."),
                 "the message has to name the postfixes the reader can rename to: " + exception.getMessage());
+    }
+
+    /**
+     * The one name shape both formats spell alike. {@code service-ctx.context-service.qip.yaml} is the context name of
+     * {@code service-ctx} and the flat name of {@code ctx.context-service.qip}, so the plain-service scan claims it too
+     * and finds no type. The row has to name the import that already has the file, or it reads as a lost service.
+     */
+    @ParameterizedTest
+    @CsvSource({".context-service., a context service file", ".mcp-service., an MCP service file"})
+    void namesTheOtherImportWhenTheFileNameAlsoReadsAsAnotherKind(String postfix, String phrase) throws IOException {
+        File serviceFile = writeFile("service-ctx" + postfix + APP_NAME + ".yaml", typelessServiceYaml());
+
+        ServiceImportException exception =
+                assertThrows(ServiceImportException.class, () -> deserializer.deserializeSystem(serviceFile));
+        assertTrue(exception.getMessage().contains("also reads as " + phrase),
+                "the message has to say which import already handles the file: " + exception.getMessage());
     }
 
     // --- helpers ---------------------------------------------------------------------------------------------------

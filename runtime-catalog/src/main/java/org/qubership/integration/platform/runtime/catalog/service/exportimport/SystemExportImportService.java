@@ -75,7 +75,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Objects.isNull;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.ZIP_EXTENSION;
 import static org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils.*;
 import static org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED;
@@ -93,10 +92,10 @@ public class SystemExportImportService {
     protected static final String CONFIG_DEPLOY_LABELS = "deployLabels";
 
     // Every name a plain service file can carry: the three per-type postfixes, plus the older `.service.`.
-    // `ExportImportUtils` ORs the deprecated flat `service-` prefix in on its own. A context or MCP service matches
-    // none of them, because `.context-service.` does not contain `.service.`, and is imported elsewhere.
-    private static final Collection<String> SERVICE_FILE_POSTFIXES = Stream.concat(
-            Stream.of(SERVICE_YAML_NAME_POSTFIX), ServiceTypeFiles.postfixes().stream()).toList();
+    // `ExportImportUtils` ORs the deprecated flat `service-` prefix in on its own, and recognizes this scan as the
+    // plain-service one by these postfixes, so the list has to come from there. A context or MCP service matches none
+    // of them, because `.context-service.` does not contain `.service.`, and is imported elsewhere.
+    private static final Collection<String> SERVICE_FILE_POSTFIXES = ExportImportUtils.plainServicePostfixes();
 
     private final TransactionTemplate transactionTemplate;
     private final YAMLMapper yamlMapper;

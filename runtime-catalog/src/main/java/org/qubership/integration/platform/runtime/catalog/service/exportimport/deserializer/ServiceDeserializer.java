@@ -42,6 +42,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor;
 import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor.ExtractedSchemas;
 import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor.OperationKey;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -162,8 +163,9 @@ public class ServiceDeserializer {
             throw new ServiceImportException(system.getId(), system.getName(),
                     ("Service file %s states no service type: its name carries no type postfix and"
                             + " content.integrationSystemType is absent. Rename the file with one of %s, or set"
-                            + " content.integrationSystemType, then re-import. The service is not imported.")
-                            .formatted(fileName, String.join(", ", ServiceTypeFiles.postfixes())));
+                            + " content.integrationSystemType, then re-import. The service is not imported.%s")
+                            .formatted(fileName, String.join(", ", ServiceTypeFiles.postfixes()),
+                                    otherKindHint(fileName)));
         }
         if (fromFileName != null && fromDocument != null && fromFileName != fromDocument) {
             throw new ServiceImportException(system.getId(), system.getName(),
@@ -174,6 +176,21 @@ public class ServiceDeserializer {
         if (fromFileName != null) {
             system.setIntegrationSystemType(fromFileName);
         }
+    }
+
+    /**
+     * The one name shape a plain-service scan cannot claim on its own. {@code service-ctx.context-service.qip.yaml} is
+     * both the flat name of {@code ctx.context-service.qip} and the context name of {@code service-ctx}, so the plain
+     * scan discovers it and lands here. Say which other import already has it, or the row reads as a lost service.
+     */
+    private static String otherKindHint(String fileName) {
+        if (ExportImportUtils.statesPostfix(fileName, CONTEXT_SERVICE_YAML_NAME_POSTFIX)) {
+            return " The name also reads as a context service file, which the context service import handles.";
+        }
+        if (ExportImportUtils.statesPostfix(fileName, MCP_SERVICE_YAML_NAME_POSTFIX)) {
+            return " The name also reads as an MCP service file, which the MCP service import handles.";
+        }
+        return "";
     }
 
     /**

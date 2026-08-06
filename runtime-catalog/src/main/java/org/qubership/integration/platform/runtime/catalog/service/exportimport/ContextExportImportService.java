@@ -67,7 +67,7 @@ import java.util.stream.Collectors;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.ZIP_EXTENSION;
 import static org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils.*;
-import static org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils.extractSystemIdFromFileName;
+import static org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils.extractSystemIdFromCurrentFormatFileName;
 import static org.springframework.transaction.annotation.Propagation.NOT_SUPPORTED;
 
 
@@ -285,12 +285,12 @@ public class ContextExportImportService {
 
             Set<String> servicesToImport = importInstructionsService.performServiceIgnoreInstructions(
                     extractedSystemFiles.stream()
-                            .map(ExportImportUtils::extractSystemIdFromFileName)
+                            .map(ExportImportUtils::extractSystemIdFromCurrentFormatFileName)
                             .collect(Collectors.toSet()),
                     false)
                     .idsToImport();
             for (File singleSystemFile : extractedSystemFiles) {
-                String serviceId = extractSystemIdFromFileName(singleSystemFile);
+                String serviceId = extractSystemIdFromCurrentFormatFileName(singleSystemFile);
                 if (!servicesToImport.contains(serviceId)) {
                     addIgnoredServiceResult(response, serviceId);
                     continue;
@@ -327,14 +327,14 @@ public class ContextExportImportService {
 
         IgnoreResult ignoreResult = importInstructionsService.performServiceIgnoreInstructions(
                 systemsFiles.stream()
-                        .map(ExportImportUtils::extractSystemIdFromFileName)
+                        .map(ExportImportUtils::extractSystemIdFromCurrentFormatFileName)
                         .collect(Collectors.toSet()),
                 true);
         int total = systemsFiles.size();
         int counter = 0;
         List<ImportSystemResult> response = new ArrayList<>();
         for (File systemFile : systemsFiles) {
-            String serviceId = extractSystemIdFromFileName(systemFile);
+            String serviceId = extractSystemIdFromCurrentFormatFileName(systemFile);
             if (!ignoreResult.idsToImport().contains(serviceId)) {
                 addIgnoredServiceResult(response, serviceId);
                 continue;

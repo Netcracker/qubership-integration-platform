@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceExportException;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
@@ -410,12 +411,56 @@ class ExportImportUtilsTest {
     }
 
     /**
-     * The flat prefix is ORed into every scan, so it has to mean a flat name and nothing else. A context service whose
-     * id wears it states a postfix of its own, and only the context scan may claim it — otherwise one context file
-     * lands in the plain and the MCP import too, under an id that is neither.
+     * The flat name is the plain service's own legacy form: nothing scans for {@code context-service-<id>.yaml} or
+     * {@code mcp-service-<id>.yaml}, so a flat-named file joins a plain-service scan and no other. ORing it into every
+     * scan put a plain service in the context and the MCP import as well.
      */
     @Test
-    void testAnIdWearingTheLegacyFlatPrefixStaysOnItsOwnScan(@TempDir Path tempDir) throws IOException {
+    void testTheLegacyFlatNameJoinsThePlainScanOnly(@TempDir Path tempDir) throws IOException {
+        writeServiceFile(tempDir, "svc-e", "service-svc-e.yaml");
+        String directory = tempDir.toAbsolutePath().toString();
+
+        assertEquals(List.of("service-svc-e.yaml"), fileNames(
+                ExportImportUtils.extractSystemsFromImportDirectory(directory, SERVICE_POSTFIXES)));
+        assertEquals(Collections.emptyList(), ExportImportUtils.extractSystemsFromImportDirectory(
+                directory, CONTEXT_SERVICE_YAML_NAME_POSTFIX));
+        assertEquals(Collections.emptyList(), ExportImportUtils.extractSystemsFromImportDirectory(
+                directory, MCP_SERVICE_YAML_NAME_POSTFIX));
+    }
+
+    /**
+     * Only a plain-service postfix outranks the flat name, because only a plain service has both names. An id whose
+     * second segment spells the context or the MCP postfix therefore reads back whole on the plain scan, the way every
+     * archive written before the per-type names states it. Weighing the other two kinds' postfixes here as well left
+     * such a file on no plain-service scan at all, and its service silently absent from the import.
+     */
+    @ParameterizedTest(name = "an id spelling {0}")
+    @ValueSource(strings = {CONTEXT_SERVICE_YAML_NAME_POSTFIX, MCP_SERVICE_YAML_NAME_POSTFIX})
+    void testTheLegacyFlatNameStatesAnIdSpellingAnotherKindsPostfix(String postfix, @TempDir Path tempDir)
+            throws IOException {
+        String serviceId = "orders" + postfix + "qip";
+        String fileName = ExportImportUtils.generateMainSystemFileExportName(
+                serviceId, "qip", true, IntegrationSystemType.EXTERNAL);
+        writeServiceFile(tempDir, serviceId, fileName);
+        String directory = tempDir.toAbsolutePath().toString();
+
+        assertEquals("service-" + serviceId + ".yaml", fileName);
+        assertEquals(serviceId, ExportImportUtils.extractSystemIdFromFileName(new File(fileName)));
+        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(fileName));
+        assertEquals(List.of(fileName), fileNames(
+                ExportImportUtils.extractSystemsFromImportDirectory(directory, SERVICE_POSTFIXES)));
+        assertEquals(Collections.emptyList(), ExportImportUtils.extractSystemsFromImportDirectory(
+                directory, theOtherTypelessPostfix(postfix)));
+    }
+
+    /**
+     * The one name the two formats spell alike: it is the context name of {@code service-ctx} and the flat name of
+     * {@code ctx.context-service.qip}, and no rule reads both out of one string. Each scan claims it in its own
+     * format — the context scan under the id its own export wrote, the plain scan under the flat id — so neither an
+     * older archive nor a current one loses a file. The MCP scan, which is neither, no longer sees it at all.
+     */
+    @Test
+    void testAContextNameWearingTheLegacyFlatPrefixIsClaimedByBothFormats(@TempDir Path tempDir) throws IOException {
         String fileName = ExportImportUtils.generateMainContextServiceFileExportName("service-ctx", "qip", false);
         writeServiceFile(tempDir, "service-ctx", fileName);
         String directory = tempDir.toAbsolutePath().toString();
@@ -423,11 +468,14 @@ class ExportImportUtilsTest {
         assertEquals("service-ctx" + CONTEXT_SERVICE_YAML_NAME_POSTFIX + "qip.yaml", fileName);
         assertEquals(List.of(fileName), fileNames(ExportImportUtils.extractSystemsFromImportDirectory(
                 directory, CONTEXT_SERVICE_YAML_NAME_POSTFIX)));
+        assertEquals("service-ctx",
+                ExportImportUtils.extractSystemIdFromCurrentFormatFileName(new File(fileName)));
+        assertEquals(List.of(fileName), fileNames(ExportImportUtils.extractSystemsFromImportDirectory(
+                directory, SERVICE_POSTFIXES)));
+        assertEquals("ctx" + CONTEXT_SERVICE_YAML_NAME_POSTFIX + "qip",
+                ExportImportUtils.extractSystemIdFromFileName(new File(fileName)));
         assertEquals(Collections.emptyList(), ExportImportUtils.extractSystemsFromImportDirectory(
                 directory, MCP_SERVICE_YAML_NAME_POSTFIX));
-        assertEquals(Collections.emptyList(), ExportImportUtils.extractSystemsFromImportDirectory(
-                directory, SERVICE_POSTFIXES));
-        assertEquals("service-ctx", ExportImportUtils.extractSystemIdFromFileName(new File(fileName)));
     }
 
     /**
@@ -469,6 +517,13 @@ class ExportImportUtilsTest {
 
     private static List<String> fileNames(List<File> files) {
         return files.stream().map(File::getName).sorted().toList();
+    }
+
+    /** The postfix of the other kind that states no type in its name, for a negative case that is not the plain scan. */
+    private static String theOtherTypelessPostfix(String postfix) {
+        return CONTEXT_SERVICE_YAML_NAME_POSTFIX.equals(postfix)
+                ? MCP_SERVICE_YAML_NAME_POSTFIX
+                : CONTEXT_SERVICE_YAML_NAME_POSTFIX;
     }
 
     private static void writeServiceFile(Path root, String serviceDirectory, String fileName) throws IOException {

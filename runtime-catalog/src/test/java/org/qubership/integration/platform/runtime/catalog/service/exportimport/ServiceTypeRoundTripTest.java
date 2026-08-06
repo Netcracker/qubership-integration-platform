@@ -8,6 +8,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -260,7 +261,7 @@ class ServiceTypeRoundTripTest {
         runTransactionsInline();
         importingIntoAnEmptyCatalog();
         byte[] archive = GoldenServiceCorpus.archive(
-                GoldenServiceCorpus.exportServices(List.of(discoveredService(type)), false), false);
+                GoldenServiceCorpus.exportServices(List.of(plainService(DISCOVERED_SERVICE_ID, type)), false), false);
         GoldenServiceCorpus.unzipInto(archive, unpacked);
 
         assertEquals(DISCOVERED_SERVICE_ID + ServiceTypeFiles.postfix(type) + APP_NAME + ".yaml",
@@ -277,8 +278,46 @@ class ServiceTypeRoundTripTest {
     }
 
     /**
-     * The same id shape on the kind whose name states no type. The flat prefix is ORed into every kind's scan, so this
-     * also shows the file reaching its own import and no other.
+     * The id shape only the flat name states. An archive written before the per-type names holds it as
+     * {@code service-<id>.yaml}, whose second segment happens to spell the context or the MCP postfix. Weighing those
+     * two postfixes against the flat name left the file on no plain-service scan at all, and the service silently
+     * absent from the import — no error row, nothing in the log.
+     */
+    @DisplayName("a legacy flat service whose id spells another kind's postfix round trips")
+    @ParameterizedTest(name = "an id spelling {0}")
+    @ValueSource(strings = {".context-service.", ".mcp-service."})
+    void legacyFlatServiceIdSpellingAnotherKindsPostfixRoundTrips(String postfix) throws IOException {
+        runTransactionsInline();
+        importingIntoAnEmptyCatalog();
+        String serviceId = "orders" + postfix + APP_NAME;
+        byte[] archive = GoldenServiceCorpus.archive(GoldenServiceCorpus.exportServices(
+                List.of(plainService(serviceId, IntegrationSystemType.EXTERNAL)), true), true);
+        GoldenServiceCorpus.unzipInto(archive, unpacked);
+        ImportInstructionsConfig noInstructions = ImportInstructionsConfig.builder().build();
+
+        assertEquals("service-" + serviceId + ".yaml",
+                GoldenServiceCorpus.serviceFileIn(unpacked, serviceId).getFileName().toString());
+        assertEquals(List.of(),
+                idsOf(contextImport().getContextServiceImportPreview(unpacked.toFile(), noInstructions)),
+                "a plain service is no context service, whatever its id spells");
+        assertEquals(List.of(), idsOf(mcpImport().getImportPreview(unpacked.toFile(), noInstructions)),
+                "a plain service is no MCP service, whatever its id spells");
+
+        List<ImportSystemResult> results = systemImport().importSystemRequest(
+                new MockMultipartFile("file", "legacy.zip", "application/zip", archive), null, null, Set.of());
+
+        assertEquals(List.of(serviceId), idsOf(results));
+        assertEquals(Set.of(ImportSystemStatus.CREATED), statusesOf(results));
+        IntegrationSystem imported = onlyCreatedService();
+        assertEquals(serviceId, imported.getId());
+        assertEquals(IntegrationSystemType.EXTERNAL, typeOf(imported));
+    }
+
+    /**
+     * The same id shape on the kind whose name states no type. The name is the one string both formats spell alike —
+     * the context name of {@code service-ctx} and the flat name of {@code ctx.context-service.qip} — so the context
+     * import reads it under the id its own export wrote, and the plain-service scan, which cannot tell the two apart,
+     * reports it as an error rather than importing anything. The MCP import, which is neither, does not see it.
      */
     @Test
     @DisplayName("a context service whose id wears the legacy flat prefix round trips")
@@ -300,9 +339,14 @@ class ServiceTypeRoundTripTest {
                 .importContextService(unpacked.toFile(), new SystemsCommitRequest(), IMPORT_ID);
         List<ImportSystemResult> plainServices = systemImport()
                 .getSystemsImportPreview(unpacked.toFile(), ImportInstructionsConfig.builder().build());
+        List<ImportSystemResult> mcpServices = mcpImport()
+                .getImportPreview(unpacked.toFile(), ImportInstructionsConfig.builder().build());
 
         assertEquals(List.of(DISCOVERED_CONTEXT_SERVICE_ID), idsOf(contexts.importSystemResults()));
-        assertEquals(List.of(), plainServices, "a context file is no plain service, whatever its id starts with");
+        assertEquals(List.of(), mcpServices, "the MCP import sees neither format of this name");
+        assertEquals(List.of(SystemCompareAction.ERROR),
+                plainServices.stream().map(ImportSystemResult::getRequiredAction).toList(),
+                "the plain scan cannot tell the two formats apart, so it says so instead of importing");
         ArgumentCaptor<ContextSystem> captor = ArgumentCaptor.forClass(ContextSystem.class);
         verify(contextBaseService).create(captor.capture(), anyBoolean());
         assertEquals(DISCOVERED_CONTEXT_SERVICE_ID, captor.getValue().getId());
@@ -428,14 +472,14 @@ class ServiceTypeRoundTripTest {
         return fixture;
     }
 
-    /** A service the way autodiscovery creates one: the Kubernetes service name as the id, one environment. */
-    private static IntegrationSystem discoveredService(IntegrationSystemType type) {
+    /** A bare plain service under a caller-chosen id, with no groups and no environments to export alongside it. */
+    private static IntegrationSystem plainService(String id, IntegrationSystemType type) {
         IntegrationSystem system = IntegrationSystem.builder()
-                .id(DISCOVERED_SERVICE_ID)
+                .id(id)
                 .name("Orders service")
                 .integrationSystemType(type)
                 .protocol(OperationProtocol.HTTP)
-                .internalServiceName("service-orders")
+                .internalServiceName(id)
                 .environments(new ArrayList<>())
                 .apiGroups(new ArrayList<>())
                 .build();
