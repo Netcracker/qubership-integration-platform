@@ -824,10 +824,46 @@ green. Left in place as someone else's work in progress.
 
 ### Task 12: [Final] Update documentation
 
-- [ ] update `vscode-extension/CLAUDE.md`: the new extensions, `serviceFileType.ts` as the single resolver, the two create paths, the conversion-on-first-write rule, the tree grouping, why the file name rather than `$schema` carries the type, and the deliberate asymmetry — a type-less file stays visible under `Unknown` here while the backend refuses it on import
-- [ ] update `ui/CLAUDE.md` if the service-type model changed anything a reader would not expect
-- [ ] update `vscode-extension/README.md` and both blocks of `.config.qip.yaml.example`
-- [ ] move this plan to `docs/plans/completed/`
+- [x] update `vscode-extension/CLAUDE.md`: the new extensions, `serviceFileType.ts` as the single resolver, the two create paths, the conversion-on-first-write rule, the tree grouping, why the file name rather than `$schema` carries the type, and the deliberate asymmetry — a type-less file stays visible under `Unknown` here while the backend refuses it on import
+- [x] update `ui/CLAUDE.md` if the service-type model changed anything a reader would not expect
+- [x] update `vscode-extension/README.md` and both blocks of `.config.qip.yaml.example`
+- [x] move this plan to `docs/plans/completed/`
+
+➕ `vscode-extension/CLAUDE.md` gained four blocks in **Architecture** — "Service types live in the file name" (the
+resolver and its whole-extension compare), "Conversion on first write" (the three call sites), the known stale-tab
+behaviour, and "The explorer groups services by type" — plus the seven custom editors and `getEditorViewTypeForUri` in
+the editors paragraph, `editorViewTypes.ts` / `serviceFileType.ts` / `serviceFileLookup.ts` / `serviceFileWrite.ts` in
+**Project Structure**, the six service keys and the `plainServiceExtensions` precedence in **Platform Context**, and the
+disposed-webview guard in the messaging paragraph. Written against the code rather than against this plan: five claims
+were re-read at the source and two were corrected before commit (below).
+
+➕ [deviation] `.config.qip.yaml.example` needed no edit — Task 1 already added the three `extensions:` and three
+`schemaUrls:` entries to **both** the `qip` and `pip` blocks, and `configs/default.config.qip.yaml` likewise. The
+checkbox is satisfied by that work; re-stating it here would have been a no-op diff.
+
+➕ `vscode-extension/README.md` had no file-format content at all, so it gained a short user-facing **Service files**
+section: the five typed names, the type being read-only after creation, the tree grouping, the legacy name and its
+convert-on-edit rename, the stale editor tab, and the pointer to `.config.qip.yaml.example`.
+
+➕ `ui/CLAUDE.md` gained two bullets under **API layer**. The first pins that the type is immutable after creation and
+that `SystemUpdateRequest` only catches an *object literal* restating it — a spread still compiles and still sends the
+field, which is why `ServiceParametersTab` and `ServicesList` each destructure `type` out. The second records that
+`ServicesTreeTable.getIcon`'s `switch` never receives `MCP` or `CONTEXT`, so its missing `MCP` arm is unreachable rather
+than a defect.
+
+➕ [decision] The module `CLAUDE.md` files were edited on disk despite `.claude/rules/apm-authoring.md` reserving
+`CLAUDE.md` for `apm compile`. They are not APM output here: `apm.yml` includes only `.apm/instructions/` and
+`.apm/skills/` (which compile to `.claude/rules/`), the repo has no `AGENTS.md`, and no module `CLAUDE.md` carries a
+generated marker. `vscode-extension/CLAUDE.md` is additionally listed in `.git/info/exclude`, so it stays out of the
+commit — recorded here rather than forced in.
+
+➕ Two claims drifted between the plan text and the code, and were fixed against the source: `CreateServiceModal` binds
+no `Form.Item` to `type` at all (creation reads the type off the active tab through `ServicesList.getSystemType(tab)`),
+and `$schema` decides a context or MCP document only **together with** the file name
+(`ServiceTypeFiles.isContextOrMCPServiceFile`) rather than on its own. Also verified at the source before writing: the
+seven `contributes.customEditors` patterns, the three `writeServiceInCurrentFormat` call sites and their enclosing
+method names, `SERVICE_GROUPS`' six-entry order, `sendThemeToWebview`'s `try`/`catch` against `enrichWebview`'s 300 ms
+repeat, `collectServiceOwnedFiles` collecting the same-id sibling, and `SystemUpdateRequest`'s three consumers.
 
 ## Post-Completion
 
