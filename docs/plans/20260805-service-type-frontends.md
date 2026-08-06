@@ -1153,6 +1153,62 @@ a mocked directory tree. The integration conversion test gained the write half o
 committed): the write now resolves by id and says what that accepts, `readServiceIdentity` replaces
 `readServiceFileByName`, and the scan's tolerance for a malformed file is recorded next to the lookup's error aggregate.
 
+## Review phase 6 — external cross-review
+
+*One MAJOR finding from a fourth Codex (gpt-5.6-luna) pass, on the phase-5 fix itself.*
+
+➕ **CONFIRMED: the phase-5 fix reopened the phase-5 data loss through a different door.** Making `collectFiles` treat an
+unparseable file as no match turned "the typed pass aborts" into "the typed file is invisible", which lands in the same
+place. Reproduced with the real `VSCodeFileApi`, the real lookup and the real read and write paths over an in-memory
+disk, with an unreadable `<id>.external-service.` file and a valid `<id>.service.` sibling beside it:
+`findServiceFileById` answered with the legacy file, `getService` served its superseded body, and `updateService`
+succeeded — leaving **one** file on disk, the typed one, holding the legacy body. The unreadable file's content was
+gone and the legacy file deleted, exactly the loss phase 5 closed.
+
+➕ [decision] **A file the scan cannot read is neither a match nor a miss, and the layer that parsed it says so.**
+`collectFiles` records it, `findFile` reports `UnreadableFileError` when nothing else matched, and `findServiceFileById`
+refuses with `UnreadableServiceFileError` when the name it resolved may be that file's sibling. This does not reopen the
+phase-4 decision against classifying by error type: that one was about *sniffing* a plain `Error`, and this is a typed
+channel raised by the code that just tried to parse. Every double still throws plain `Error`s, which read as plain
+misses, so no unit-test double had to change.
+
+➕ [decision] The refusal is scoped to a possible sibling — same folder, same name-stated id — rather than to any
+unreadable file under a higher-precedence name. The strict rule guarantees the invariant too, but one broken file makes
+every service *not* stored under that name unresolvable, turning a one-file problem into a workspace-wide outage. The
+scope is not a heuristic: `writeServiceInCurrentFormat` writes the recomputed name into the folder of the file the
+lookup resolved, so a same-folder, same-base pair is the only pair a write can overwrite, and a conversion produces
+exactly that pair. What this accepts: two hand-authored files sharing a folder and a base but holding different
+services refuse rather than resolve while one of them is unreadable — conservative, loud, and named.
+
+➕ [decision] `resolveServiceFileUri` does not fall back to the held uri for that error. The fallback exists for an id
+nothing resolves; here the held uri is the sibling itself, so falling back would restore the very read and write the
+refusal exists to stop.
+
+➕ [decision] `findFileByNavigationPath` keeps its plain last-error loop, and `findFileById`'s extension-less pass keeps
+`continue`. Neither writes anything: navigation opens an editor, and every read and write behind it resolves by id and
+refuses there. Widening the refusal to them would add the strict rule's blast radius for no data-loss coverage.
+
+➕ **The predicate-free branch of `collectFiles` is correct for every caller.** `findFiles` is a listing by name — no
+caller passes a predicate, each one re-reads the file it picks, and the explorer walks the tree itself and skips a file
+per file. The gap is latent rather than live: a predicate passed to `findFiles` would drop an unreadable file silently,
+which is the shape of this bug at list level, so the method now says so in its own doc comment. Unrelated and untouched:
+`getServices`'s enumeration branch reads every listed file, so one unparseable plain-service file still fails the whole
+list rather than that one entry.
+
+➕ New suite `tests/web/response/unreadableCanonicalFile.test.ts`: the real file api, lookup, read and write over one
+in-memory disk. Three cases pin the refusal (lookup, read, write, with the write asserting that neither file was
+touched) and four pin the tolerance (a broken file in another folder blocks neither a typed nor a legacy-only service,
+nor the conversion of one). No integration case was added — the harness asserts the full set of service ids in its
+single workspace, so a malformed fixture would rewrite assertions across the suite for a state the unit suite covers
+against the real scan.
+
+➕ Mutations checked red, one per part: `collectFiles` back to swallowing the parse failure (4 cases); the lookup
+without its sibling check (4 cases); the sibling check always true (2 tolerance cases); and `resolveServiceFileUri`
+without its guard for the new error (the read and the write cases).
+
+➕ [deviation] `vscode-extension/CLAUDE.md` was edited on disk again (untracked, git-excluded, so it cannot be
+committed): the scan paragraph now says what an unreadable file is, where the refusal is decided, and how far it reaches.
+
 ## Post-Completion
 
 *Items requiring manual intervention or external systems — no checkboxes, informational only*

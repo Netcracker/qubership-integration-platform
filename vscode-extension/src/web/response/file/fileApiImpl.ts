@@ -5,7 +5,7 @@ import * as yaml from "yaml";
 import * as path from "path";
 import { LibraryData } from "@netcracker/qip-ui";
 import { QipFileType } from "../serviceApiUtils";
-import { FileFilter } from "../fileFilteringUtils";
+import { FileFilter, UnreadableFileError } from "../fileFilteringUtils";
 import {
   getExtensionsForFile,
   getExtensionsForUri,
@@ -319,21 +319,34 @@ export class VSCodeFileApi implements FileApi {
     filterPredicate?: (fileContent: any) => boolean,
   ): Promise<Uri> {
     const result: Uri[] = [];
+    const unreadable: Uri[] = [];
     const folderUri = this.getRootDirectory();
 
     await this.collectFiles(
       folderUri,
       { extension: extension, predicate: filterPredicate, findFirst: true },
       result,
+      unreadable,
     );
 
-    if (result.length === 0) {
-      throw Error(`Unable to find file with extension: ${extension}`);
-    } else {
+    if (result.length > 0) {
       return result[0];
     }
+    // A file the parser choked on may be the one asked for, so no match is a miss only when every
+    // candidate was readable. Reporting it as a plain miss let a caller that tries one name after
+    // another move on and answer from a file that lost the precedence race.
+    if (unreadable.length > 0) {
+      throw new UnreadableFileError(extension, unreadable);
+    }
+    throw Error(`Unable to find file with extension: ${extension}`);
   }
 
+  /**
+   * Every file carrying the extension. No caller passes a predicate — this is a listing by name,
+   * and each one re-reads the file it picks — so nothing here parses and an unreadable file is
+   * listed like any other. A predicate would drop such a file silently; give one a reason to exist
+   * and report the drop, the way `findFile` does.
+   */
   async findFiles(
     extension: string,
     filterPredicate?: (fileContent: any) => boolean,
@@ -350,10 +363,16 @@ export class VSCodeFileApi implements FileApi {
     return result;
   }
 
+  /**
+   * Walks the tree for files carrying the extension. `unreadable` collects the ones a predicate
+   * had to parse and the parser rejected: they are neither a match nor a miss, and only `findFile`
+   * can say which of the two the caller may treat them as.
+   */
   private async collectFiles(
     folderUri: Uri,
     fileFilter: FileFilter,
     result: Uri[],
+    unreadable: Uri[] = [],
   ): Promise<void> {
     const entries = await readDirectory(folderUri);
 
@@ -363,13 +382,17 @@ export class VSCodeFileApi implements FileApi {
         name.endsWith(fileFilter.extension)
       ) {
         const fileUri = vscode.Uri.joinPath(folderUri, name);
-        // Only a predicate needs the content, and a file the parser chokes on cannot be the one
-        // asked for. Letting it throw aborted the whole scan, which let one malformed document
-        // decide which of two service names a lookup resolves.
+        // Only a predicate needs the content. Letting a parse failure throw aborted the whole
+        // scan; swallowing it made the file invisible. Both end the same way — the lookup answers
+        // from another name — so the file is recorded and the decision left to `findFile`.
         if (fileFilter.predicate) {
-          const contentYaml = await this.parseFile(fileUri).catch(
-            () => undefined,
-          );
+          let contentYaml;
+          try {
+            contentYaml = await this.parseFile(fileUri);
+          } catch {
+            unreadable.push(fileUri);
+            continue;
+          }
           if (!fileFilter.predicate(contentYaml)) {
             continue;
           }
@@ -380,7 +403,7 @@ export class VSCodeFileApi implements FileApi {
         }
       } else if (type === vscode.FileType.Directory) {
         const subFolderUri = vscode.Uri.joinPath(folderUri, name);
-        await this.collectFiles(subFolderUri, fileFilter, result);
+        await this.collectFiles(subFolderUri, fileFilter, result, unreadable);
       }
     }
   }

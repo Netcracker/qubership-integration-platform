@@ -26,6 +26,7 @@ import {
 import {
   findServiceFileById,
   findServiceFiles,
+  UnreadableServiceFileError,
 } from "./file/serviceFileLookup";
 import { Chain, ContextSystem, MCPSystem } from "@netcracker/qip-ui";
 import { ContentParser } from "../api-services/parsers/ContentParser";
@@ -128,7 +129,13 @@ async function resolveServiceFileUri(
       getExtensionsForUri(currentFile),
     );
   } catch (error) {
-    if (!(await fileExists(currentFile))) {
+    // The uri is no fallback for a file the lookup could not read: it is the sibling that lost the
+    // precedence race, so reading it serves a superseded body and saving it destroys the file
+    // nobody could read.
+    if (
+      error instanceof UnreadableServiceFileError ||
+      !(await fileExists(currentFile))
+    ) {
       throw error;
     }
     console.warn(
