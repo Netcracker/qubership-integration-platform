@@ -6,6 +6,9 @@ export type FileExtensionsConfig = {
   appName: string;
   chain: string;
   service: string;
+  externalService: string;
+  internalService: string;
+  implementedService: string;
   contextService: string;
   mcpService: string;
   specificationGroup: string;
@@ -18,7 +21,11 @@ export function buildDefaultExtensions(appName: string): FileExtensionsConfig {
   return {
     appName,
     chain: `.chain.${appName}.yaml`,
+    // The type-less `.service.` name is legacy: read, never written. The three below state the type.
     service: `.service.${appName}.yaml`,
+    externalService: `.external-service.${appName}.yaml`,
+    internalService: `.internal-service.${appName}.yaml`,
+    implementedService: `.implemented-service.${appName}.yaml`,
     contextService: `.context-service.${appName}.yaml`,
     mcpService: `.mcp-service.${appName}.yaml`,
     specificationGroup: `.specification-group.${appName}.yaml`,
@@ -60,10 +67,11 @@ export function getCurrentFileContext(): string | null {
 export function extractAppNameFromExtension(filename: string): string {
   const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
 
-  // Factored alternation, same matches as spelling every type out: `context-` is optional on
-  // service, and `-group` is optional on both specification and api.
+  // Factored alternation, same matches as spelling every type out: the `-service` prefix is
+  // optional, and `-group` is optional on both specification and api. `mcp-service` is absent
+  // by design — it has never matched here and resolves through the config path instead.
   const filenamePattern =
-    /\.((?:context-)?service\d*|chain\d*|(?:specification|api)(?:-group)?\d*)\.([^.]+)\.yaml$/;
+    /\.((?:context-|external-|internal-|implemented-)?service\d*|chain\d*|(?:specification|api)(?:-group)?\d*)\.([^.]+)\.yaml$/;
 
   if (workspaceUri) {
     try {
@@ -109,6 +117,9 @@ export function getExtensionsForFile(filename?: string): FileExtensionsConfig {
             contextService: foundConfig.extensions.contextService,
             mcpService: foundConfig.extensions.mcpService,
             service: foundConfig.extensions.service,
+            externalService: foundConfig.extensions.externalService,
+            internalService: foundConfig.extensions.internalService,
+            implementedService: foundConfig.extensions.implementedService,
             specificationGroup: foundConfig.extensions.specificationGroup,
             apiGroup: foundConfig.extensions.apiGroup,
             specification: foundConfig.extensions.specification,
@@ -157,6 +168,9 @@ export async function initializeContextFromFile(fileUri: Uri): Promise<void> {
     contextService: config.extensions.contextService,
     mcpService: config.extensions.mcpService,
     service: config.extensions.service,
+    externalService: config.extensions.externalService,
+    internalService: config.extensions.internalService,
+    implementedService: config.extensions.implementedService,
     specificationGroup: config.extensions.specificationGroup,
     apiGroup: config.extensions.apiGroup,
     specification: config.extensions.specification,
@@ -171,6 +185,9 @@ export function getExtensionsFromConfig(): FileExtensionsConfig {
     appName: config.appName,
     chain: config.extensions.chain,
     service: config.extensions.service,
+    externalService: config.extensions.externalService,
+    internalService: config.extensions.internalService,
+    implementedService: config.extensions.implementedService,
     contextService: config.extensions.contextService,
     mcpService: config.extensions.mcpService,
     specificationGroup: config.extensions.specificationGroup,

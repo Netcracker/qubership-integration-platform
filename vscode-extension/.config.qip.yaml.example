@@ -7,6 +7,9 @@ configs:
       contextService: .context-service.${appName}.yaml
       mcpService: .mcp-service.${appName}.yaml
       service: .service.${appName}.yaml
+      externalService: .external-service.${appName}.yaml
+      internalService: .internal-service.${appName}.yaml
+      implementedService: .implemented-service.${appName}.yaml
       specificationGroup: .specification-group.${appName}.yaml
       apiGroup: .api-group.${appName}.yaml
       specification: .specification.${appName}.yaml
@@ -15,6 +18,9 @@ configs:
       contextService: http://qubership.org/schemas/product/${appName}/context-service
       mcpService: http://qubership.org/schemas/product/${appName}/mcp-service
       service: http://qubership.org/schemas/product/${appName}/service
+      externalService: http://qubership.org/schemas/product/${appName}/external-service
+      internalService: http://qubership.org/schemas/product/${appName}/internal-service
+      implementedService: http://qubership.org/schemas/product/${appName}/implemented-service
       chain: http://qubership.org/schemas/product/${appName}/chain
       specification: http://qubership.org/schemas/product/${appName}/specification
       specificationGroup: http://qubership.org/schemas/product/${appName}/specification-group
@@ -27,6 +33,9 @@ configs:
       contextService: .context-service.${appName}.yaml
       mcpService: .mcp-service.${appName}.yaml
       service: .service.${appName}.yaml
+      externalService: .external-service.${appName}.yaml
+      internalService: .internal-service.${appName}.yaml
+      implementedService: .implemented-service.${appName}.yaml
       specificationGroup: .specification-group.${appName}.yaml
       apiGroup: .api-group.${appName}.yaml
       specification: .specification.${appName}.yaml
@@ -35,6 +44,9 @@ configs:
       contextService: http://qubership.org/schemas/product/${appName}/context-service
       mcpService: http://qubership.org/schemas/product/${appName}/mcp-service
       service: http://qubership.org/schemas/product/${appName}/service
+      externalService: http://qubership.org/schemas/product/${appName}/external-service
+      internalService: http://qubership.org/schemas/product/${appName}/internal-service
+      implementedService: http://qubership.org/schemas/product/${appName}/implemented-service
       chain: http://qubership.org/schemas/product/${appName}/chain
       specification: http://qubership.org/schemas/product/${appName}/specification
       specificationGroup: http://qubership.org/schemas/product/${appName}/specification-group

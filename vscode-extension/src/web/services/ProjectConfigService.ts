@@ -12,6 +12,9 @@ export interface ProjectConfig {
     contextService: string;
     mcpService: string;
     service: string;
+    externalService: string;
+    internalService: string;
+    implementedService: string;
     specificationGroup: string;
     apiGroup: string;
     specification: string;
@@ -21,6 +24,9 @@ export interface ProjectConfig {
     contextService: string;
     mcpService: string;
     service: string;
+    externalService: string;
+    internalService: string;
+    implementedService: string;
     chain: string;
     specification: string;
     specificationGroup: string;
@@ -41,6 +47,9 @@ export interface ProjectConfigFile {
         contextService: string;
         mcpService: string;
         service: string;
+        externalService: string;
+        internalService: string;
+        implementedService: string;
         specificationGroup: string;
         apiGroup: string;
         specification: string;
@@ -50,6 +59,9 @@ export interface ProjectConfigFile {
         contextService: string;
         mcpService: string;
         service: string;
+        externalService: string;
+        internalService: string;
+        implementedService: string;
         chain: string;
         specification: string;
         specificationGroup: string;
@@ -73,6 +85,12 @@ const DEFAULT_SCHEMA_URLS = {
   mcpService:
     "http://qubership.org/schemas/product/qip/mcp-service.schema.yaml",
   service: "http://qubership.org/schemas/product/qip/service.schema.yaml",
+  externalService:
+    "http://qubership.org/schemas/product/qip/external-service.schema.yaml",
+  internalService:
+    "http://qubership.org/schemas/product/qip/internal-service.schema.yaml",
+  implementedService:
+    "http://qubership.org/schemas/product/qip/implemented-service.schema.yaml",
   chain: "http://qubership.org/schemas/product/qip/chain.schema.yaml",
   specification:
     "http://qubership.org/schemas/product/qip/specification.schema.yaml",
@@ -493,6 +511,9 @@ export class ProjectConfigService {
         contextService: `.context-service.${appName}.yaml`,
         mcpService: `.mcp-service.${appName}.yaml`,
         service: `.service.${appName}.yaml`,
+        externalService: `.external-service.${appName}.yaml`,
+        internalService: `.internal-service.${appName}.yaml`,
+        implementedService: `.implemented-service.${appName}.yaml`,
         specificationGroup: `.specification-group.${appName}.yaml`,
         apiGroup: `.api-group.${appName}.yaml`,
         specification: `.specification.${appName}.yaml`,

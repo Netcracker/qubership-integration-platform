@@ -7,6 +7,9 @@ configs:
       contextService: .context-service.qip.yaml
       mcpService: .mcp-service.qip.yaml
       service: .service.qip.yaml
+      externalService: .external-service.qip.yaml
+      internalService: .internal-service.qip.yaml
+      implementedService: .implemented-service.qip.yaml
       specificationGroup: .specification-group.qip.yaml
       apiGroup: .api-group.qip.yaml
       specification: .specification.qip.yaml
@@ -15,6 +18,9 @@ configs:
       contextService: http://qubership.org/schemas/product/qip/context-service.schema.yaml
       mcpService: http://qubership.org/schemas/product/qip/mcp-service.schema.yaml
       service: http://qubership.org/schemas/product/qip/service.schema.yaml
+      externalService: http://qubership.org/schemas/product/qip/external-service.schema.yaml
+      internalService: http://qubership.org/schemas/product/qip/internal-service.schema.yaml
+      implementedService: http://qubership.org/schemas/product/qip/implemented-service.schema.yaml
       chain: http://qubership.org/schemas/product/qip/chain.schema.yaml
       specification: http://qubership.org/schemas/product/qip/specification.schema.yaml
       specificationGroup: http://qubership.org/schemas/product/qip/specification-group.schema.yaml
