@@ -7,6 +7,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -16,6 +17,7 @@ import org.qubership.integration.platform.runtime.catalog.model.exportimport.ins
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionsConfig;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ImportSystemResult;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
+import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
@@ -48,6 +50,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -89,6 +92,9 @@ class ServiceTypeRoundTripTest {
             IMPLEMENTED_SERVICE_ID, IntegrationSystemType.IMPLEMENTED);
     private static final List<String> PLAIN_SERVICE_IDS =
             TYPES_BY_SERVICE_ID.keySet().stream().sorted().toList();
+    // The shape autodiscovery mints for a Kubernetes service named "service-orders".
+    private static final String DISCOVERED_SERVICE_ID = "service-orders";
+    private static final String DISCOVERED_CONTEXT_SERVICE_ID = "service-ctx";
 
     @Mock TransactionTemplate transactionTemplate;
     @Mock SystemService systemService;
@@ -239,6 +245,69 @@ class ServiceTypeRoundTripTest {
                 "the plain service of the same archive still states its type in the document");
     }
 
+    // --- an id autodiscovery mints ------------------------------------------------------------------------------------
+
+    /**
+     * Autodiscovery mints a plain service id from the Kubernetes service name
+     * ({@code DiscoveryService.constructSystemId}), so a cloud service named {@code service-orders} lands here under an
+     * id wearing the legacy flat prefix. Refusing that id on export left the service unexportable and took the whole
+     * archive with it, because the export refusal is not per service.
+     */
+    @DisplayName("a service whose id wears the legacy flat prefix round trips in the current format")
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(IntegrationSystemType.class)
+    void serviceIdWearingTheLegacyFlatPrefixRoundTrips(IntegrationSystemType type) throws IOException {
+        runTransactionsInline();
+        importingIntoAnEmptyCatalog();
+        byte[] archive = GoldenServiceCorpus.archive(
+                GoldenServiceCorpus.exportServices(List.of(discoveredService(type)), false), false);
+        GoldenServiceCorpus.unzipInto(archive, unpacked);
+
+        assertEquals(DISCOVERED_SERVICE_ID + ServiceTypeFiles.postfix(type) + APP_NAME + ".yaml",
+                GoldenServiceCorpus.serviceFileIn(unpacked, DISCOVERED_SERVICE_ID).getFileName().toString());
+
+        List<ImportSystemResult> results = systemImport().importSystemRequest(
+                new MockMultipartFile("file", "current.zip", "application/zip", archive), null, null, Set.of());
+
+        assertEquals(List.of(DISCOVERED_SERVICE_ID), idsOf(results));
+        assertEquals(Set.of(ImportSystemStatus.CREATED), statusesOf(results));
+        IntegrationSystem imported = onlyCreatedService();
+        assertEquals(DISCOVERED_SERVICE_ID, imported.getId());
+        assertEquals(type, typeOf(imported));
+    }
+
+    /**
+     * The same id shape on the kind whose name states no type. The flat prefix is ORed into every kind's scan, so this
+     * also shows the file reaching its own import and no other.
+     */
+    @Test
+    @DisplayName("a context service whose id wears the legacy flat prefix round trips")
+    void contextServiceIdWearingTheLegacyFlatPrefixRoundTrips() throws IOException {
+        runTransactionsInline();
+        importingIntoAnEmptyCatalog();
+        ContextSystem exported = ContextSystem.builder()
+                .id(DISCOVERED_CONTEXT_SERVICE_ID)
+                .name("Discovered context service")
+                .build();
+        byte[] archive = GoldenServiceCorpus.archive(
+                List.of(GoldenServiceCorpus.contextServiceSerializer(false).serialize(exported)), false);
+        GoldenServiceCorpus.unzipInto(archive, unpacked);
+
+        assertEquals(DISCOVERED_CONTEXT_SERVICE_ID + ".context-service." + APP_NAME + ".yaml",
+                GoldenServiceCorpus.serviceFileIn(unpacked, DISCOVERED_CONTEXT_SERVICE_ID).getFileName().toString());
+
+        ImportContextServiceAndInstructionsResult contexts = contextImport()
+                .importContextService(unpacked.toFile(), new SystemsCommitRequest(), IMPORT_ID);
+        List<ImportSystemResult> plainServices = systemImport()
+                .getSystemsImportPreview(unpacked.toFile(), ImportInstructionsConfig.builder().build());
+
+        assertEquals(List.of(DISCOVERED_CONTEXT_SERVICE_ID), idsOf(contexts.importSystemResults()));
+        assertEquals(List.of(), plainServices, "a context file is no plain service, whatever its id starts with");
+        ArgumentCaptor<ContextSystem> captor = ArgumentCaptor.forClass(ContextSystem.class);
+        verify(contextBaseService).create(captor.capture(), anyBoolean());
+        assertEquals(DISCOVERED_CONTEXT_SERVICE_ID, captor.getValue().getId());
+    }
+
     // --- one archive, all five kinds ----------------------------------------------------------------------------------
 
     /**
@@ -357,6 +426,27 @@ class ServiceTypeRoundTripTest {
     private static IntegrationSystem stored(IntegrationSystem fixture) {
         fixture.getEnvironments().forEach(environment -> environment.setLabels(new ArrayList<>()));
         return fixture;
+    }
+
+    /** A service the way autodiscovery creates one: the Kubernetes service name as the id, one environment. */
+    private static IntegrationSystem discoveredService(IntegrationSystemType type) {
+        IntegrationSystem system = IntegrationSystem.builder()
+                .id(DISCOVERED_SERVICE_ID)
+                .name("Orders service")
+                .integrationSystemType(type)
+                .protocol(OperationProtocol.HTTP)
+                .internalServiceName("service-orders")
+                .environments(new ArrayList<>())
+                .apiGroups(new ArrayList<>())
+                .build();
+        system.setLabels(new LinkedHashSet<>());
+        return system;
+    }
+
+    private IntegrationSystem onlyCreatedService() {
+        ArgumentCaptor<IntegrationSystem> captor = ArgumentCaptor.forClass(IntegrationSystem.class);
+        verify(systemService).create(captor.capture(), anyBoolean());
+        return captor.getValue();
     }
 
     private Map<String, IntegrationSystem> createdServices() {

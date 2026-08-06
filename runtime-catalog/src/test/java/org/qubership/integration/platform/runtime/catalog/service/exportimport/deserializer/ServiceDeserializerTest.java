@@ -1135,22 +1135,19 @@ class ServiceDeserializerTest {
     }
 
     /**
-     * A legacy id may carry a type postfix of its own, and the flat name states no type all the same. The document
-     * field decides; a type read out of the id imports the service as something it never was.
+     * Autodiscovery mints a service id from the Kubernetes service name, so an id wearing the legacy flat prefix is
+     * ordinary rather than hand-authored. The postfix right after the id is what tells the two name formats apart, so
+     * such a file is read as a current-format one and states its own type.
      */
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
-    void resolvesTheTypeFromTheDocumentWhenALegacyFlatIdCarriesAPostfix(IntegrationSystemType carried)
-            throws IOException {
-        IntegrationSystemType stated = carried == IntegrationSystemType.EXTERNAL
-                ? IntegrationSystemType.INTERNAL
-                : IntegrationSystemType.EXTERNAL;
+    void resolvesTheTypeFromTheNameWhenTheIdWearsTheLegacyFlatPrefix(IntegrationSystemType type) throws IOException {
         File serviceFile = writeFile(
-                "service-" + SYSTEM_ID + ServiceTypeFiles.postfix(carried) + "v2.yaml", typedServiceYaml(stated.name()));
+                "service-" + SYSTEM_ID + ServiceTypeFiles.postfix(type) + APP_NAME + ".yaml", typelessServiceYaml());
 
         IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
 
-        assertEquals(stated, system.getIntegrationSystemType());
+        assertEquals(type, system.getIntegrationSystemType());
     }
 
     /** A pre-#553 archive states the type only in the document, and its name has no postfix to read. */

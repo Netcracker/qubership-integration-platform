@@ -19,7 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.util;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceExportException;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
@@ -318,11 +318,11 @@ class ExportImportUtilsTest {
 
     /**
      * The format that states an id the current one cannot: the flat name holds the id whole and leaves the type to
-     * the document, so export and import stay exact inverses for every id.
+     * the document, so export and import stay exact inverses for every id it can state.
      */
     @Test
-    void testLegacyNameReadsBackAnIdCarryingAPostfix() {
-        String serviceId = "svc-a.external-service.v2";
+    void testLegacyNameReadsBackADottedId() {
+        String serviceId = "svc-a.v2";
 
         String fileName = ExportImportUtils.generateMainSystemFileExportName(
                 serviceId, "qip", true, IntegrationSystemType.EXTERNAL);
@@ -330,6 +330,44 @@ class ExportImportUtilsTest {
         assertEquals("service-" + serviceId + ".yaml", fileName);
         assertEquals(serviceId, ExportImportUtils.extractSystemIdFromFileName(new File(fileName)));
         assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(fileName));
+    }
+
+    /**
+     * The one id shape neither name states. {@code service-svc-a.external-service.v2.yaml} is also the current-format
+     * name of service {@code service-svc-a}, and the current format wins that tie, so the flat name would come back as
+     * another id under a type this service never had. The export refuses it rather than write it.
+     */
+    @Test
+    void testLegacyNameRefusesAnIdWhoseSecondSegmentSpellsAPostfix() {
+        String serviceId = "svc-a.external-service.v2";
+
+        ServiceExportException refusal = assertThrows(ServiceExportException.class, () ->
+                ExportImportUtils.generateMainSystemFileExportName(
+                        serviceId, "qip", true, IntegrationSystemType.EXTERNAL));
+
+        assertTrue(refusal.getMessage().contains(serviceId),
+                "the message names the id to fix: " + refusal.getMessage());
+    }
+
+    /**
+     * Autodiscovery mints a service id from the Kubernetes service name, so an id wearing the flat prefix is ordinary
+     * rather than hand-authored. Both names state it: the current one because the postfix, not the prefix, tells the
+     * two formats apart, and the flat one because it reads the id back whole.
+     */
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    void testBothNamesStateAnIdWearingTheLegacyFlatPrefix(IntegrationSystemType type) {
+        String serviceId = "service-orders";
+
+        String currentName = ExportImportUtils.generateMainSystemFileExportName(serviceId, "qip", false, type);
+        String flatName = ExportImportUtils.generateMainSystemFileExportName(serviceId, "qip", true, type);
+
+        assertEquals(serviceId + ServiceTypeFiles.postfix(type) + "qip.yaml", currentName);
+        assertEquals(serviceId, ExportImportUtils.extractSystemIdFromFileName(new File(currentName)));
+        assertEquals(Optional.of(type), ServiceTypeFiles.typeFromFileName(currentName));
+        assertEquals("service-" + serviceId + ".yaml", flatName);
+        assertEquals(serviceId, ExportImportUtils.extractSystemIdFromFileName(new File(flatName)));
+        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(flatName));
     }
 
     /**
@@ -372,26 +410,34 @@ class ExportImportUtilsTest {
     }
 
     /**
-     * The other half of the refusal: the legacy flat prefix is ORed into every scan, so an id carrying it makes one
-     * context file land in the MCP import as well, under an id that is neither.
+     * The flat prefix is ORed into every scan, so it has to mean a flat name and nothing else. A context service whose
+     * id wears it states a postfix of its own, and only the context scan may claim it — otherwise one context file
+     * lands in the plain and the MCP import too, under an id that is neither.
      */
     @Test
-    void testALegacyPrefixedIdWouldWriteAContextNameEveryScanDiscovers(@TempDir Path tempDir) throws IOException {
-        String fileName = "service-ctx" + CONTEXT_SERVICE_YAML_NAME_POSTFIX + "qip.yaml";
-        writeServiceFile(tempDir, "ctx", fileName);
+    void testAnIdWearingTheLegacyFlatPrefixStaysOnItsOwnScan(@TempDir Path tempDir) throws IOException {
+        String fileName = ExportImportUtils.generateMainContextServiceFileExportName("service-ctx", "qip", false);
+        writeServiceFile(tempDir, "service-ctx", fileName);
+        String directory = tempDir.toAbsolutePath().toString();
 
+        assertEquals("service-ctx" + CONTEXT_SERVICE_YAML_NAME_POSTFIX + "qip.yaml", fileName);
         assertEquals(List.of(fileName), fileNames(ExportImportUtils.extractSystemsFromImportDirectory(
-                tempDir.toAbsolutePath().toString(), MCP_SERVICE_YAML_NAME_POSTFIX)));
-        assertEquals("ctx.context-service.qip", ExportImportUtils.extractSystemIdFromFileName(new File(fileName)));
+                directory, CONTEXT_SERVICE_YAML_NAME_POSTFIX)));
+        assertEquals(Collections.emptyList(), ExportImportUtils.extractSystemsFromImportDirectory(
+                directory, MCP_SERVICE_YAML_NAME_POSTFIX));
+        assertEquals(Collections.emptyList(), ExportImportUtils.extractSystemsFromImportDirectory(
+                directory, SERVICE_POSTFIXES));
+        assertEquals("service-ctx", ExportImportUtils.extractSystemIdFromFileName(new File(fileName)));
     }
 
     /**
      * Export naming and import parsing stay exact inverses for all five service kinds, so the two that carry no type
      * refuse the same ids the three typed ones refuse. Their legacy flat name is no fallback: nothing scans for it.
      */
-    @ParameterizedTest
-    @ValueSource(strings = {"ctx.part", "service-ctx"})
-    void testContextAndMcpRefuseAnIdTheCurrentFormatCannotState(String serviceId) {
+    @Test
+    void testContextAndMcpRefuseAnIdTheCurrentFormatCannotState() {
+        String serviceId = "ctx.part";
+
         ServiceExportException contextRefusal = assertThrows(ServiceExportException.class, () ->
                 ExportImportUtils.generateMainContextServiceFileExportName(serviceId, "qip", false));
         ServiceExportException mcpRefusal = assertThrows(ServiceExportException.class, () ->

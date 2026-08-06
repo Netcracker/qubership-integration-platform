@@ -13,7 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.model.ImportConfig;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
@@ -182,7 +181,7 @@ class ServiceConfigurationsToFilesConverterTest {
     @EnumSource(IntegrationSystemType.class)
     @DisplayName("An id the current format cannot state is written under the legacy flat name, type and all")
     void idTheCurrentFormatCannotStateIsWrittenUnderTheLegacyFlatName(IntegrationSystemType type) throws IOException {
-        String serviceId = "svc" + ServiceTypeFiles.postfix(type) + "1";
+        String serviceId = "svc." + type.name().toLowerCase();
         RolloutImportConfigurationItem item = item(serviceId, objectMapper.createObjectNode());
         item.setSchema(serviceTypeFiles.schemaUri(type));
 
@@ -198,17 +197,41 @@ class ServiceConfigurationsToFilesConverterTest {
                 .isEqualTo(type);
     }
 
-    /** The flat prefix tells the two name formats apart, so an id carrying it belongs to the flat format too. */
+    /**
+     * The postfix tells the two name formats apart, so an id wearing the flat prefix is written like any other. Such
+     * an id is what autodiscovery mints from a Kubernetes service name, so the current format has to state it.
+     */
     @Test
-    @DisplayName("An id carrying the legacy flat prefix is written under the legacy flat name")
-    void idCarryingTheLegacyFlatPrefixIsWrittenUnderTheLegacyFlatName() throws JsonProcessingException {
+    @DisplayName("An id wearing the legacy flat prefix is written under the current-format name")
+    void idWearingTheLegacyFlatPrefixIsWrittenUnderTheCurrentFormatName() throws JsonProcessingException {
         String serviceId = "service-abc";
 
         Map<Path, byte[]> result = converter.convert(
                 Map.of(serviceId, item(serviceId, objectMapper.createObjectNode())),
                 emptyConfigMap(), emptyConfigMap(), emptyConfigMap(), emptyResourceMap());
 
-        assertThat(result).containsOnlyKeys(Path.of(serviceId).resolve("service-" + serviceId + ".yaml"));
+        assertThat(result).containsOnlyKeys(
+                Path.of(serviceId).resolve(serviceId + ".service." + APP_PREFIX + ".yaml"));
+    }
+
+    /**
+     * The one id shape neither name states: its flat name is also the current-format name of another service. Writing
+     * either would hand the import another id and another type, so the converter skips the service and says so.
+     */
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    @DisplayName("A plain service id neither name can state is skipped, not written unreadable")
+    void plainServiceIdNeitherNameCanStateIsSkipped(IntegrationSystemType type) throws Exception {
+        String serviceId = "svc" + ServiceTypeFiles.postfix(type) + "1";
+        Map<String, RolloutImportConfigurationItem> services =
+                Map.of(serviceId, item(serviceId, objectMapper.createObjectNode()));
+
+        List<ILoggingEvent> events = new ArrayList<>();
+        Map<Path, byte[]> result = capture(events, () -> converter.convert(
+                services, emptyConfigMap(), emptyConfigMap(), emptyConfigMap(), emptyResourceMap()));
+
+        assertThat(result).isEmpty();
+        assertThat(events).anySatisfy(event -> assertThat(event.getFormattedMessage()).contains(serviceId));
     }
 
     @Test
@@ -240,10 +263,10 @@ class ServiceConfigurationsToFilesConverterTest {
      * the converter with no readable name to write. It skips the service and says so, rather than writing a name the
      * anchored discovery walks straight past.
      */
-    @ParameterizedTest
-    @ValueSource(strings = {"ctx.part", "service-ctx"})
+    @Test
     @DisplayName("A context service id the current format cannot state is skipped, not written unreadable")
-    void contextServiceIdTheCurrentFormatCannotStateIsSkipped(String serviceId) throws Exception {
+    void contextServiceIdTheCurrentFormatCannotStateIsSkipped() throws Exception {
+        String serviceId = "ctx.part";
         Map<String, RolloutImportConfigurationItem> contextServices =
                 Map.of(serviceId, item(serviceId, objectMapper.createObjectNode()));
 
@@ -253,6 +276,21 @@ class ServiceConfigurationsToFilesConverterTest {
 
         assertThat(result).isEmpty();
         assertThat(events).anySatisfy(event -> assertThat(event.getFormattedMessage()).contains(serviceId));
+    }
+
+    /** A context id wearing the flat prefix is written like any other: nothing about it is the flat format. */
+    @Test
+    @DisplayName("A context service id wearing the legacy flat prefix is written under its own name")
+    void contextServiceIdWearingTheLegacyFlatPrefixIsWritten() throws JsonProcessingException {
+        String serviceId = "service-ctx";
+        Map<String, RolloutImportConfigurationItem> contextServices =
+                Map.of(serviceId, item(serviceId, objectMapper.createObjectNode()));
+
+        Map<Path, byte[]> result = converter.convert(
+                emptyConfigMap(), emptyConfigMap(), emptyConfigMap(), contextServices, emptyResourceMap());
+
+        assertThat(result).containsOnlyKeys(
+                Path.of(serviceId).resolve(serviceId + ".context-service." + APP_PREFIX + ".yaml"));
     }
 
     @Test

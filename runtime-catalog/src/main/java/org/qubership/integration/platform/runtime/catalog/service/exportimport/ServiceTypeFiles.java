@@ -63,9 +63,11 @@ public class ServiceTypeFiles {
      * the plain {@code .service.} postfix both carry the type in the document instead, and a context or MCP name
      * carries no per-type postfix at all.
      *
-     * <p>A legacy flat name states no type, whatever its id spells. A current-format name is read only where an export
-     * writes the type, right after the id, so an id or an app prefix that merely contains a postfix states nothing. No
-     * two postfixes can start there, which is why the enum order never decides the answer.
+     * <p>A current-format name is read only where an export writes the type, right after the id, so an id or an app
+     * prefix that merely contains a postfix states nothing. No two postfixes can start there, which is why the enum
+     * order never decides the answer. A name stating a postfix there is current-format even when its id wears the
+     * legacy flat prefix, which autodiscovery mints routinely; only a name stating none of them is the flat one, and
+     * that one states no type.
      */
     public static Optional<IntegrationSystemType> typeFromFileName(String fileName) {
         if (fileName == null || ExportImportUtils.isLegacyFlatServiceName(fileName)) {

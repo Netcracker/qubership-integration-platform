@@ -242,10 +242,7 @@ public final class GoldenServiceCorpus {
     /** The five fixture systems, serialized the way {@code SystemExportImportService} serializes them. */
     private static List<ExportableObject> exportAll(boolean legacy) {
         FileMigrationService migrations = migrationService(legacy);
-        ContextServiceSerializer contextSerializer = new ContextServiceSerializer(
-                mapper(),
-                new ContextServiceDtoMapper(URI.create(SCHEMAS.getContextService()), TestServiceMigrations.all()),
-                migrations);
+        ContextServiceSerializer contextSerializer = contextServiceSerializer(legacy);
         MCPSystemSerializer mcpSerializer = new MCPSystemSerializer(
                 mapper(),
                 new MCPServiceDtoMapper(
@@ -260,6 +257,14 @@ public final class GoldenServiceCorpus {
             throw new UncheckedIOException(exception);
         }
         return List.copyOf(exported);
+    }
+
+    /** The context-service half of the same chain, for a round trip that exports one context service of its own. */
+    public static ContextServiceSerializer contextServiceSerializer(boolean legacy) {
+        return new ContextServiceSerializer(
+                mapper(),
+                new ContextServiceDtoMapper(URI.create(SCHEMAS.getContextService()), TestServiceMigrations.all()),
+                migrationService(legacy));
     }
 
     public static ServiceSerializer serviceSerializer(boolean legacy) {

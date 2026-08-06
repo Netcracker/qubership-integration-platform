@@ -95,17 +95,28 @@ class ServiceTypeFilesTest {
     }
 
     /**
-     * The legacy flat name states the id whole, dots and all, so a postfix inside the id is part of the id and states
-     * nothing. Reading a type out of it imports the service as something it never was, which is worse than failing
-     * with no type at all.
+     * The legacy flat name states the id whole, dots and all, and states no type. It is told apart from a
+     * current-format name by the postfix, so the id it holds must not spell one — which is why the export refuses such
+     * an id in the flat format.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"service-system-1.yaml", "service-system.1.yaml"})
+    @DisplayName("a legacy flat name states no type")
+    void typeFromLegacyFlatName(String fileName) {
+        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(fileName));
+    }
+
+    /**
+     * Autodiscovery mints a service id from the Kubernetes service name, so an id wearing the flat prefix is ordinary.
+     * The postfix is what tells the two name formats apart, so such a name states its type like any other.
      */
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
-    @DisplayName("a legacy flat name states no type, whatever its id spells")
-    void typeFromLegacyFlatNameWhoseIdCarriesAPostfix(IntegrationSystemType carried) {
-        String fileName = "service-" + SERVICE_ID + ServiceTypeFiles.postfix(carried) + "v2.yaml";
+    @DisplayName("a name whose id wears the legacy flat prefix states its type")
+    void typeFromNameWhoseIdWearsTheLegacyFlatPrefix(IntegrationSystemType type) {
+        String fileName = "service-orders" + ServiceTypeFiles.postfix(type) + APP_NAME + ".yaml";
 
-        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(fileName));
+        assertEquals(Optional.of(type), ServiceTypeFiles.typeFromFileName(fileName));
     }
 
     // --- type -> postfix and URI -----------------------------------------------------------------------------------

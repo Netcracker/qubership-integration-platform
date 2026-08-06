@@ -924,14 +924,21 @@ This is the single place the release process reads them from:
    strips 105 from every document the shared list stamps, context and MCP services included, so
    `QIP_EXPORT_LEGACY_FORMAT=true` remains the working downgrade path.
 7. **A service id that is not one dot-free segment cannot be exported in the current format.** A current-format name
-   states the id up to the first dot and the postfix in the segment right after it, so an id spanning two segments, or
-   one starting with the legacy flat prefix `service-`, writes a name discovery walks past. All five service kinds
-   refuse such an id on export and name it in the message. A plain service keeps a way out — its flat name states the
-   id whole, so `QIP_EXPORT_LEGACY_FORMAT=true` writes it — while a context and an MCP service have none, because
-   nothing on the import side scans for `context-service-<id>.yaml` or `mcp-service-<id>.yaml`. Re-create such a
-   service under a flat id. Ids are generated as UUIDs here, so only a hand-authored one, or one an import carried in,
-   is affected. The rollout-import converter holds the same rule for the context services it writes: it skips one and
-   logs an error naming the id instead of writing a file no import discovers.
+   states the id up to the first dot and the postfix in the segment right after it, so an id spanning two segments
+   writes a name discovery walks past. All five service kinds refuse such an id on export and name it in the message.
+   A plain service keeps a way out — its flat name states the id whole, so `QIP_EXPORT_LEGACY_FORMAT=true` writes it —
+   while a context and an MCP service have none, because nothing on the import side scans for
+   `context-service-<id>.yaml` or `mcp-service-<id>.yaml`. Re-create such a service under a flat id. Ids are generated
+   as UUIDs here and autodiscovery takes them from the Kubernetes service name, so only a hand-authored id, or one an
+   import carried in, is affected. The rollout-import converter holds the same rule for the context services it writes:
+   it skips one and logs an error naming the id instead of writing a file no import discovers.
+
+   **An id wearing the legacy flat prefix `service-` is not affected.** An earlier revision refused it, which made
+   every autodiscovered service of a Kubernetes service named `service-…` unexportable and aborted the whole archive.
+   The two name formats are told apart by the postfix instead: a name stating one right after the id is
+   current-format, whatever the id starts with. The one id neither format states is one whose *second* segment spells a
+   service postfix (`svc.internal-service.1`), because its flat name is also the current-format name of service
+   `service-svc`. Both formats refuse that shape and neither offers the other as a way out.
 
 **Manual verification:**
 

@@ -29,7 +29,6 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.INTEGRATION_SYSTEM_TYPE;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
-import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SERVICE_YAML_NAME_PREFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.YAML_FILE_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
 
@@ -83,10 +82,9 @@ public class ServiceConfigurationsToFilesConverter {
             String serviceId = serviceConfig.getKey();
             // Only the plain service has a legacy flat name import discovers, so every other kind is skipped loudly
             // rather than written under a name discovery never finds.
-            if (!plainService && !ExportImportUtils.fitsCurrentFormatFileName(serviceId)) {
-                log.error("Service {} has an id no {}<app>.yaml name can state, so no file is written for it."
-                        + " The id has to be one dot-free segment that does not start with '{}'",
-                        serviceId, serviceTypePostfix, SERVICE_YAML_NAME_PREFIX);
+            if (!statableId(serviceId, plainService)) {
+                log.error("Service {} has an id no file name states readably, so no file is written for it."
+                        + " The id has to be one dot-free segment.", serviceId);
                 continue;
             }
 
@@ -106,6 +104,12 @@ public class ServiceConfigurationsToFilesConverter {
                     : serviceId + serviceTypePostfix + appPrefix + YAML_FILE_NAME_POSTFIX;
             putYaml(files, serviceDirectory.resolve(serviceFileName), serviceConfig.getValue());
         }
+    }
+
+    /** Whether either name this converter can write for {@code serviceId} reads that id back. */
+    private static boolean statableId(String serviceId, boolean plainService) {
+        return ExportImportUtils.fitsCurrentFormatFileName(serviceId)
+                || (plainService && ExportImportUtils.fitsLegacyFlatFileName(serviceId));
     }
 
     /**

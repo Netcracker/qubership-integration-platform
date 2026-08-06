@@ -23,6 +23,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.s
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -266,42 +267,64 @@ class ServiceExportFormatTest {
 
     /**
      * A dot in the id shifts the type out of the segment import reads it from, and the document no longer carries one
-     * to fall back on. The export refuses instead of writing a name that reads back as another type or as none.
+     * to fall back on. The export refuses instead of writing a name that reads back as another type or as none. The
+     * flat name states such an id whole, so it stays the way out.
      */
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
-    @DisplayName("a service id carrying a postfix is refused rather than exported unreadable")
-    void serviceIdCarryingAPostfixIsRefused(IntegrationSystemType type) {
-        String serviceId = "svc" + ServiceTypeFiles.postfix(type) + "1";
+    @DisplayName("a dotted service id is refused rather than exported unreadable")
+    void dottedServiceIdIsRefused(IntegrationSystemType type) {
+        String serviceId = "svc.1";
 
         ServiceExportException exception = assertThrows(ServiceExportException.class,
                 () -> ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, false, type));
 
         assertTrue(exception.getMessage().contains(serviceId),
                 "the message names the id to fix: " + exception.getMessage());
+        assertTrue(exception.getMessage().contains("QIP_EXPORT_LEGACY_FORMAT"),
+                "the flat name states this id, so the refusal points at it: " + exception.getMessage());
         assertEquals("service-" + serviceId + ".yaml",
                 ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, true, type),
                 "the legacy name states no type, so a dotted id stays exportable");
     }
 
     /**
-     * The flat prefix is what tells the two name formats apart, so an id carrying it makes a current-format name read
-     * as legacy: another id, and no type at all.
+     * The one id neither format states: its flat name is also the current-format name of another service, and the
+     * current format wins that tie. Both refusals name the id, and neither offers the other format as a way out.
      */
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
-    @DisplayName("a service id carrying the legacy flat prefix is refused rather than exported unreadable")
-    void serviceIdCarryingTheLegacyFlatPrefixIsRefused(IntegrationSystemType type) {
-        String serviceId = "service-1";
+    @DisplayName("a service id whose second segment spells a postfix is refused in both formats")
+    void serviceIdCarryingAPostfixIsRefusedInBothFormats(IntegrationSystemType type) {
+        String serviceId = "svc" + ServiceTypeFiles.postfix(type) + "1";
 
-        ServiceExportException exception = assertThrows(ServiceExportException.class,
+        ServiceExportException current = assertThrows(ServiceExportException.class,
                 () -> ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, false, type));
+        ServiceExportException legacy = assertThrows(ServiceExportException.class,
+                () -> ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, true, type));
 
-        assertTrue(exception.getMessage().contains(serviceId),
-                "the message names the id to fix: " + exception.getMessage());
-        assertEquals("service-" + serviceId + ".yaml",
-                ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, true, type),
-                "the legacy name states the id whole, so it stays exportable");
+        assertTrue(current.getMessage().contains(serviceId) && legacy.getMessage().contains(serviceId),
+                "both messages name the id to fix: " + current.getMessage() + " / " + legacy.getMessage());
+        assertFalse(current.getMessage().contains("QIP_EXPORT_LEGACY_FORMAT"),
+                "the flat name does not state this id either: " + current.getMessage());
+    }
+
+    /**
+     * Autodiscovery mints a plain service id from the Kubernetes service name, so an id wearing the legacy flat prefix
+     * is ordinary rather than hand-authored. Refusing it made a discovered service unexportable and aborted the whole
+     * archive, because the postfix, not the prefix, is what tells the two name formats apart.
+     */
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    @DisplayName("a service id wearing the legacy flat prefix exports in the current format")
+    void serviceIdWearingTheLegacyFlatPrefixExports(IntegrationSystemType type) {
+        String serviceId = "service-orders";
+
+        String fileName = ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, false, type);
+
+        assertEquals(serviceId + ServiceTypeFiles.postfix(type) + APP_NAME + ".yaml", fileName);
+        assertEquals(Optional.of(type), ServiceTypeFiles.typeFromFileName(fileName));
+        assertEquals(serviceId, ExportImportUtils.extractSystemIdFromFileName(new File(fileName)));
     }
 
     // --- a service over its environment limit ------------------------------------------------------------------------
