@@ -3,9 +3,40 @@
 // one either — Environment.system is @JsonBackReference — so writing it made
 // extension files differ from exported ones for no gain.
 
-import { createMinimalVscodeMock, QIP_FILE_EXTENSIONS as ext } from "../helpers/mocks";
+import { QIP_FILE_EXTENSIONS as ext } from "../helpers/mocks";
 
-jest.mock("vscode", () => createMinimalVscodeMock(), { virtual: true });
+jest.mock(
+  "vscode",
+  () => {
+    const { createMinimalVscodeMock, joinUriPath } =
+      jest.requireActual("../helpers/mocks");
+    return {
+      ...createMinimalVscodeMock(),
+      Uri: { joinPath: jest.fn(joinUriPath) },
+    };
+  },
+  { virtual: true },
+);
+
+jest.mock("../../src/web/services/ProjectConfigService", () => {
+  const { QIP_FILE_EXTENSIONS } = jest.requireActual("../helpers/mocks");
+  return {
+    ProjectConfigService: {
+      getConfig: () => ({
+        extensions: QIP_FILE_EXTENSIONS,
+        schemaUrls: {
+          service: "urn:service",
+          externalService: "urn:external",
+          internalService: "urn:internal",
+          implementedService: "urn:implemented",
+          contextService: "urn:context",
+          mcpService: "urn:mcp",
+        },
+      }),
+      getInstance: jest.fn(),
+    },
+  };
+});
 
 const getRawServiceById = jest.fn();
 jest.mock("../../src/web/api-services/SystemService", () => ({
@@ -16,15 +47,18 @@ jest.mock("../../src/web/api-services/SystemService", () => ({
 
 const findFileById = jest.fn();
 const writeMainService = jest.fn();
+const deleteFile = jest.fn();
 jest.mock("../../src/web/response/file/fileApiProvider", () => ({
   fileApi: {
     findFileById: (...args: unknown[]) => findFileById(...args),
     writeMainService: (...args: unknown[]) => writeMainService(...args),
+    deleteFile: (...args: unknown[]) => deleteFile(...args),
   },
 }));
 
 jest.mock("../../src/web/response/file/fileExtensions", () => ({
   getExtensionsForFile: () => ext,
+  getExtensionsForUri: () => ext,
   extractFilename: (fileRef: string | { path: string }) =>
     (typeof fileRef === "string" ? fileRef : fileRef.path).split("/").pop() ??
     "",
@@ -82,5 +116,30 @@ describe("EnvironmentService.createEnvironment", () => {
 
     const [fileUri] = writeMainService.mock.calls[0];
     expect(fileUri.path).toBe(`/sys-1/sys-1${ext.implementedService}`);
+  });
+
+  // Adding an environment is a write like any other, so it converts a legacy file too. Leaving
+  // this one path on the old name is how a project ends up half migrated.
+  it("converts a legacy file when it writes an environment back", async () => {
+    getRawServiceById.mockResolvedValue({
+      id: "sys-1",
+      content: {
+        protocol: "HTTP",
+        integrationSystemType: "EXTERNAL",
+        environments: [],
+      },
+    });
+
+    await new EnvironmentService().createEnvironment({
+      systemId: "sys-1",
+      name: "Production",
+      address: "https://example.test",
+    } as any);
+
+    const [fileUri] = writeMainService.mock.calls[0];
+    expect(fileUri.path).toBe(`/sys-1/sys-1${ext.externalService}`);
+    expect(deleteFile).toHaveBeenCalledWith(
+      expect.objectContaining({ path: `/sys-1/sys-1${ext.service}` }),
+    );
   });
 });

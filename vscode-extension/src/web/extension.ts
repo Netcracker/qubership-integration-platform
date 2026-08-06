@@ -587,9 +587,10 @@ function isServiceFileName(
   );
 }
 
-// The files the deleted service owns: its own file, the groups whose parentId is the service, and the
-// APIs whose parentId is one of those groups. A folder may hold several services (the flat layout the
-// explorer supports, the workspace root included), so anything else in it belongs to a sibling.
+// The files the deleted service owns: its own file, the sibling that carries the same id under
+// another service extension, the groups whose parentId is the service, and the APIs whose parentId
+// is one of those groups. A folder may hold several services (the flat layout the explorer
+// supports, the workspace root included), so anything else in it belongs to a sibling service.
 // A group with a file under both group extensions yields both, or the deleted group resurrects.
 async function collectServiceOwnedFiles(serviceFileUri: Uri): Promise<Uri[]> {
   const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
@@ -600,6 +601,10 @@ async function collectServiceOwnedFiles(serviceFileUri: Uri): Promise<Uri[]> {
   if (!serviceId) {
     return ownedFiles;
   }
+
+  ownedFiles.push(
+    ...(await collectServiceFileSiblings(serviceFileUri, serviceId)),
+  );
 
   const groupIds = new Set<string>();
   const groupFileNames =
@@ -628,6 +633,37 @@ async function collectServiceOwnedFiles(serviceFileUri: Uri): Promise<Uri[]> {
   }
 
   return ownedFiles;
+}
+
+// A service converted from the legacy name keeps its old file until that write deletes it, and a
+// failed delete leaves both behind. Take every plain-service file in the folder that carries the
+// same id, or deleting the service resurrects it from the one left in place.
+async function collectServiceFileSiblings(
+  serviceFileUri: Uri,
+  serviceId: string,
+): Promise<Uri[]> {
+  const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
+  const ext = getExtensionsForUri(serviceFileUri);
+  const currentFileName = serviceFileUri.path.split("/").pop();
+  const siblings: Uri[] = [];
+
+  const entries = await vscode.workspace.fs.readDirectory(serviceFolderUri);
+  for (const [fileName, fileType] of entries) {
+    if (
+      fileType !== vscode.FileType.File ||
+      fileName === currentFileName ||
+      !isAnyServiceFile(fileName, ext)
+    ) {
+      continue;
+    }
+    const siblingUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
+    const parsed = await parseFileOrUndefined(siblingUri);
+    if (parsed?.id === serviceId) {
+      siblings.push(siblingUri);
+    }
+  }
+
+  return siblings;
 }
 
 // An unreadable file cannot be claimed by the service, so it is left in place.

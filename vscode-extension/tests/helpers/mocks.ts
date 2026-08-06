@@ -6,6 +6,24 @@ export function createMinimalVscodeMock() {
   return { Uri: class Uri {}, __esModule: true };
 }
 
+/** Joins uri segments and resolves `..`, the way `vscode.Uri.joinPath` does. */
+export function joinUriPath(base: any, ...segments: string[]) {
+  const parts = [
+    ...String(base?.path ?? "").split("/"),
+    ...segments.flatMap((segment) => segment.split("/")),
+  ];
+  const resolved: string[] = [];
+  for (const part of parts) {
+    if (part === "..") {
+      resolved.pop();
+    } else if (part !== ".") {
+      resolved.push(part);
+    }
+  }
+  const path = resolved.join("/");
+  return { path, fsPath: path };
+}
+
 export function createVscodeMock(overrides: Record<string, any> = {}) {
   return {
     Uri: {
@@ -103,6 +121,16 @@ export function stubProjectConfigService(
       getConfig: jest.fn().mockReturnValue({
         schemaUrls: {
           service: "",
+          externalService:
+            "http://qubership.org/schemas/product/qip/external-service.schema.yaml",
+          internalService:
+            "http://qubership.org/schemas/product/qip/internal-service.schema.yaml",
+          implementedService:
+            "http://qubership.org/schemas/product/qip/implemented-service.schema.yaml",
+          contextService:
+            "http://qubership.org/schemas/product/qip/context-service.schema.yaml",
+          mcpService:
+            "http://qubership.org/schemas/product/qip/mcp-service.schema.yaml",
           specification: "",
           specificationGroup:
             "http://qubership.org/schemas/product/qip/specification-group.schema.yaml",

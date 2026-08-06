@@ -25,7 +25,12 @@ import {
 } from "../apiRouter";
 import { extractEntityId } from "../navigationUtils";
 import { shapeServiceFile, ServiceFileKind } from "./serviceFileShape";
-import { isAnyServiceFile, plainServiceExtensions } from "./serviceFileType";
+import {
+  isAnyServiceFile,
+  plainServiceExtensions,
+  serviceExtensionForType,
+  serviceSchemaUrlForType,
+} from "./serviceFileType";
 import {
   CHAIN_MIGRATIONS,
   MCP_SERVICE_MIGRATIONS,
@@ -782,6 +787,8 @@ export class VSCodeFileApi implements FileApi {
         },
       });
 
+      // `crypto.randomUUID()` is dot-free, which the backend requires of an id it has to state in
+      // a file name: it reads the id up to the first dot, so a dotted id names another service.
       const serviceId = crypto.randomUUID();
 
       const config = ProjectConfigService.getConfig();
@@ -813,24 +820,22 @@ export class VSCodeFileApi implements FileApi {
             },
           };
         }
+        // The name states the type, so the content does not.
         return {
-          $schema: config.schemaUrls.service,
+          $schema: serviceSchemaUrlForType(serviceType.value, config.schemaUrls),
           id: serviceId,
           name: serviceName.trim(),
           content: {
             description: serviceDescription?.trim(),
-            integrationSystemType: serviceType.value,
             migrations: SERVICE_MIGRATIONS,
           },
         };
       })();
 
-      const extension =
-        serviceType.value === "CONTEXT"
-          ? config.extensions.contextService
-          : serviceType.value === "MCP"
-            ? config.extensions.mcpService
-            : config.extensions.service;
+      const extension = serviceExtensionForType(
+        serviceType.value,
+        config.extensions,
+      );
 
       // Create service file (folder will be created automatically)
       const serviceFolderUri = vscode.Uri.joinPath(

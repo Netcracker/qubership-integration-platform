@@ -473,18 +473,63 @@ test, and `SystemService`/`EnvironmentService` back to `findFileById(id, ext.ser
 - Modify: `vscode-extension/src/web/response/file/fileApiImpl.ts` (800-817)
 - Create: `vscode-extension/tests/serviceApiModify.conversion.test.ts`
 
-- [ ] make **both** create paths write `<id>.<type>-service.<app>.yaml` with no `integrationSystemType`: the webview one at `serviceApiModify.ts:145-177` and the command-palette one at `fileApiImpl.ts:812-817`
-- [ ] keep writing `$schema` from the project config — the backend resolves the **plain-service type** from the file name, so a custom `schemaUrls` no longer affects it. It still decides whether a file is a context or MCP document (see [What plan 1 settled](#what-plan-1-settled)), so do not widen that claim
-- [ ] on updating an old-format service, write the new file and delete the old sibling
-- [ ] leave the service folder name alone: the backend finds a converted **dotted-id** service only because the folder still carries that id (`ExportImportUtils.statesPostfix(File, String)`), and the failure mode is a silently missing service, not an error
-- [ ] make a delete remove both files, so a converted-then-deleted service cannot resurrect
-- [ ] write tests: each create path produces the expected file name and body, for each type
-- [ ] write tests: updating an old-format file creates the new one, removes the old one, and preserves every field
-- [ ] write a test with a non-default `appName` and `schemaUrls`, asserting the file name still carries the type
-- [ ] write a test: deleting a service that has both files removes both
-- [ ] write a test pinning that a created service gets a dot-free id — `crypto.randomUUID()` satisfies the backend's `fitsCurrentFormatFileName` rule today, but nothing enforces it, and a dotted id produces a name whose leading segment reads back as a different service
-- [ ] write a test: converting a service whose id contains a dot keeps the folder name, so the backend's directory-anchored discovery still finds the file
-- [ ] run tests — must pass before task 6
+- [x] make **both** create paths write `<id>.<type>-service.<app>.yaml` with no `integrationSystemType`: the webview one at `serviceApiModify.ts:145-177` and the command-palette one at `fileApiImpl.ts:812-817`
+- [x] keep writing `$schema` from the project config — the backend resolves the **plain-service type** from the file name, so a custom `schemaUrls` no longer affects it. It still decides whether a file is a context or MCP document (see [What plan 1 settled](#what-plan-1-settled)), so do not widen that claim
+- [x] on updating an old-format service, write the new file and delete the old sibling
+- [x] leave the service folder name alone: the backend finds a converted **dotted-id** service only because the folder still carries that id (`ExportImportUtils.statesPostfix(File, String)`), and the failure mode is a silently missing service, not an error
+- [x] make a delete remove both files, so a converted-then-deleted service cannot resurrect
+- [x] write tests: each create path produces the expected file name and body, for each type
+- [x] write tests: updating an old-format file creates the new one, removes the old one, and preserves every field
+- [x] write a test with a non-default `appName` and `schemaUrls`, asserting the file name still carries the type
+- [x] write a test: deleting a service that has both files removes both
+- [x] write a test pinning that a created service gets a dot-free id — `crypto.randomUUID()` satisfies the backend's `fitsCurrentFormatFileName` rule today, but nothing enforces it, and a dotted id produces a name whose leading segment reads back as a different service
+- [x] write a test: converting a service whose id contains a dot keeps the folder name, so the backend's directory-anchored discovery still finds the file
+- [x] run tests — must pass before task 6
+
+➕ One module beyond the plan's list: `response/file/serviceFileWrite.ts`, holding
+`writeServiceInCurrentFormat(uri, service)` — the conversion itself, returning the file the service
+landed in. Three call sites route through it, not the one the plan names: `serviceApiModify`'s local
+`writeMainService` (so every update, environment edits included), `SystemService.saveSystem` and
+`EnvironmentService.saveSystem`. Those last two are what the services list saves through, and leaving
+them on `fileApi.writeMainService` would migrate a service or not depending on which screen edited it.
+
+➕ Three helpers beyond Task 2's set, all on `serviceFileType.ts` so the name rules stay in one file:
+`serviceSchemaUrlForType` (the `schemaUrls` half of the same type map), `serviceFileNameForType` (the
+target name — only the extension moves, so the base name and the folder keep the id) and
+`allServiceExtensions` (all five typed names ahead of the legacy one, the order that keeps a
+configured extension from swallowing a longer one).
+
+➕ [decision] A typed write drops `content.integrationSystemType` whether or not the name changed,
+not only on a conversion. `typed-service-content.schema.yaml` states `not: required:
+[integrationSystemType]`, and `SystemService.saveSystem` assigns the field unconditionally — without
+the guard, editing a typed service through the services list writes a document the extension's own
+schemas reject.
+
+➕ [decision] `$schema` is rewritten only when the name changes. Rewriting it on every typed write
+would stamp the current config's url on a file belonging to another app in a multi-app workspace,
+and `ProjectConfigService.getConfig()` has no per-file variant.
+
+⚠️ A conversion deletes the document the service editor has open, so that webview's `fileUri` is
+stale for any further request. `updateService` re-reads through the returned uri, so the response
+that triggered the conversion is correct, but the panel is left pointing at a deleted file. Reopening
+the editor is not in this task's checkboxes and cannot be exercised from the jest host; the
+Post-Completion step that edits an old-format service covers it.
+
+➕ Two test files beyond the plan's one: the plan's `tests/serviceApiModify.conversion.test.ts` covers
+the webview create path and every conversion case, while the command-palette create path went into the
+existing `tests/web/response/fileApiImpl.serviceTypes.test.ts` and the two saveSystem paths into
+`tests/api-services/SystemService.serviceTypes.test.ts` and `tests/api-services/EnvironmentService.test.ts`.
+`tests/extension.deleteService.test.ts` grew the both-files delete, and `tests/serviceFileType.test.ts`
+the three new helpers. `tests/helpers/mocks.ts` gained `joinUriPath` (a `Uri.joinPath` stub that
+resolves `..`, which the writer needs) and the typed `schemaUrls` entries.
+
+➕ Every mutation of the changed logic was checked to go red: both create paths back to
+`extensions.service`, both create paths restating the type in the content, both stamping the legacy
+schema url, the conversion skipping its delete, keeping `integrationSystemType`, returning the file it
+came from, and keeping the stale `$schema`; the target name built from the first dot-free segment;
+`serviceSchemaUrlForType` collapsed to the legacy url; `allServiceExtensions` reordered legacy-first;
+the delete no longer collecting same-id siblings, and collecting siblings regardless of id; and
+`SystemService`/`EnvironmentService` back to `fileApi.writeMainService`.
 
 ### Task 6: Make the service type immutable
 

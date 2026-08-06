@@ -34,6 +34,12 @@ const EXTENSION_KEY_BY_TYPE: Record<
   [IntegrationSystemType.MCP]: "mcpService",
 };
 
+/**
+ * The `schemaUrls` entries that pair with the service extensions, one per kind. `ProjectConfig["schemaUrls"]`
+ * satisfies it, so a config object can be passed straight in.
+ */
+export type ServiceSchemaUrls = Record<keyof ServiceExtensions, string>;
+
 /** The legacy type-less extension plus the three that state a plain type. */
 const PLAIN_SERVICE_KEYS: readonly (keyof ServiceExtensions)[] = [
   "service",
@@ -119,6 +125,20 @@ export function serviceExtensionForType(
     : extensions.service;
 }
 
+/**
+ * The schema URL to stamp on a service of this type. Same fallback as `serviceExtensionForType`:
+ * an absent or unknown type gets the legacy service schema, which is the one that requires the
+ * type in the body.
+ */
+export function serviceSchemaUrlForType(
+  type: string | undefined,
+  schemaUrls: ServiceSchemaUrls,
+): string {
+  return isServiceType(type)
+    ? schemaUrls[EXTENSION_KEY_BY_TYPE[type]]
+    : schemaUrls.service;
+}
+
 /** Every extension a plain service file can carry, in write-preference order. */
 export function plainServiceExtensions(
   extensions: ServiceExtensions,
@@ -129,4 +149,34 @@ export function plainServiceExtensions(
     extensions.implementedService,
     extensions.service,
   ];
+}
+
+/** Every extension a service file of any kind can carry, typed names ahead of the legacy one. */
+export function allServiceExtensions(extensions: ServiceExtensions): string[] {
+  return [
+    ...typedEntries().map(([, key]) => extensions[key]),
+    extensions.service,
+  ];
+}
+
+/**
+ * The name a service file of this type carries. Only the extension changes: the base name is what
+ * the current name already states, so a service keeps the id its folder is named after. The backend
+ * finds a converted dotted-id service through that folder name alone
+ * (`ExportImportUtils.statesPostfix(File, String)`), and a service it cannot find is missing from an
+ * import rather than reported.
+ */
+export function serviceFileNameForType(
+  fileRef: ServiceFileRef,
+  type: string | undefined,
+  extensions: ServiceExtensions,
+): string {
+  const name = extractFilename(fileRef);
+  const current = allServiceExtensions(extensions).find((extension) =>
+    name.endsWith(extension),
+  );
+  if (!current) {
+    return name;
+  }
+  return `${name.slice(0, -current.length)}${serviceExtensionForType(type, extensions)}`;
 }

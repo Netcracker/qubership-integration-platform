@@ -32,12 +32,16 @@ jest.mock("../src/web/services/ProjectConfigService", () => ({
 }));
 
 import {
+  allServiceExtensions,
   isAnyServiceFile,
   plainServiceExtensions,
   resolveServiceType,
   serviceExtensionForType,
+  serviceFileNameForType,
+  serviceSchemaUrlForType,
   serviceTypeFromUri,
   ServiceExtensions,
+  ServiceSchemaUrls,
 } from "../src/web/response/file/serviceFileType";
 import { IntegrationSystemType } from "../src/web/api-services/servicesTypes";
 import {
@@ -280,12 +284,12 @@ describe("resolveServiceType", () => {
   });
 
   it("uses the extensions it is handed instead of resolving them", () => {
-    expect(resolveServiceType("svc-1.external-service.acme.yaml", {}, acme)).toBe(
-      IntegrationSystemType.EXTERNAL,
-    );
-    expect(resolveServiceType("svc-1.external-service.acme.yaml", {}, qip)).toBe(
-      "",
-    );
+    expect(
+      resolveServiceType("svc-1.external-service.acme.yaml", {}, acme),
+    ).toBe(IntegrationSystemType.EXTERNAL);
+    expect(
+      resolveServiceType("svc-1.external-service.acme.yaml", {}, qip),
+    ).toBe("");
   });
 });
 
@@ -305,5 +309,101 @@ describe("plainServiceExtensions", () => {
     }
     expect(plainServiceExtensions(qip)).not.toContain(qip.contextService);
     expect(plainServiceExtensions(qip)).not.toContain(qip.mcpService);
+  });
+});
+
+describe("allServiceExtensions", () => {
+  it("lists every service extension, typed names ahead of the legacy one", () => {
+    expect(allServiceExtensions(qip)).toEqual([
+      ".external-service.qip.yaml",
+      ".internal-service.qip.yaml",
+      ".implemented-service.qip.yaml",
+      ".context-service.qip.yaml",
+      ".mcp-service.qip.yaml",
+      ".service.qip.yaml",
+    ]);
+  });
+});
+
+// The name a conversion writes. Only the extension moves: the base name is the id the service
+// folder is also named after, and the backend finds a converted dotted-id service through that
+// folder alone.
+describe("serviceFileNameForType", () => {
+  it.each([
+    [IntegrationSystemType.EXTERNAL, "svc-1.external-service.qip.yaml"],
+    [IntegrationSystemType.INTERNAL, "svc-1.internal-service.qip.yaml"],
+    [IntegrationSystemType.IMPLEMENTED, "svc-1.implemented-service.qip.yaml"],
+  ])("renames a legacy file to the %s name", (type, expected) => {
+    expect(serviceFileNameForType("svc-1.service.qip.yaml", type, qip)).toBe(
+      expected,
+    );
+  });
+
+  it("keeps a dotted id whole", () => {
+    expect(
+      serviceFileNameForType(
+        "/services/a.b/a.b.service.qip.yaml",
+        IntegrationSystemType.EXTERNAL,
+        qip,
+      ),
+    ).toBe("a.b.external-service.qip.yaml");
+  });
+
+  it("returns the same name when the file already states the type", () => {
+    expect(
+      serviceFileNameForType(
+        "svc-1.internal-service.qip.yaml",
+        IntegrationSystemType.INTERNAL,
+        qip,
+      ),
+    ).toBe("svc-1.internal-service.qip.yaml");
+  });
+
+  it("keeps the legacy name for a service that states no type", () => {
+    expect(serviceFileNameForType("svc-1.service.qip.yaml", "", qip)).toBe(
+      "svc-1.service.qip.yaml",
+    );
+  });
+
+  it("leaves a file that is not a service file alone", () => {
+    expect(
+      serviceFileNameForType("notes.md", IntegrationSystemType.EXTERNAL, qip),
+    ).toBe("notes.md");
+  });
+
+  it("uses the extensions it is handed rather than the default app name", () => {
+    expect(
+      serviceFileNameForType(
+        "svc-1.service.acme.yaml",
+        IntegrationSystemType.EXTERNAL,
+        acme,
+      ),
+    ).toBe("svc-1.external-service.acme.yaml");
+  });
+});
+
+describe("serviceSchemaUrlForType", () => {
+  const schemaUrls: ServiceSchemaUrls = {
+    service: "urn:service",
+    externalService: "urn:external",
+    internalService: "urn:internal",
+    implementedService: "urn:implemented",
+    contextService: "urn:context",
+    mcpService: "urn:mcp",
+  };
+
+  it.each([
+    [IntegrationSystemType.EXTERNAL, "urn:external"],
+    [IntegrationSystemType.INTERNAL, "urn:internal"],
+    [IntegrationSystemType.IMPLEMENTED, "urn:implemented"],
+    [IntegrationSystemType.CONTEXT, "urn:context"],
+    [IntegrationSystemType.MCP, "urn:mcp"],
+  ])("pairs %s with its own schema", (type, expected) => {
+    expect(serviceSchemaUrlForType(type, schemaUrls)).toBe(expected);
+  });
+
+  it("falls back to the legacy schema for an unstated type", () => {
+    expect(serviceSchemaUrlForType(undefined, schemaUrls)).toBe("urn:service");
+    expect(serviceSchemaUrlForType("PARTNER", schemaUrls)).toBe("urn:service");
   });
 });

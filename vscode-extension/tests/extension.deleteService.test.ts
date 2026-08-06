@@ -96,7 +96,11 @@ jest.mock("../src/web/response/file/fileExtensions", () => ({
   getExtensionsForUri: jest.fn().mockReturnValue(QIP_FILE_EXTENSIONS),
   getExtensionsForFile: jest.fn().mockReturnValue(QIP_FILE_EXTENSIONS),
   setCurrentFileContext: jest.fn(),
-  extractFilename: jest.fn(),
+  extractFilename: jest.fn(
+    (fileRef: any) =>
+      (typeof fileRef === "string" ? fileRef : fileRef.path).split("/").pop() ??
+      "",
+  ),
   initializeContextFromFile: jest.fn(),
 }));
 jest.mock("../src/web/qipExplorer", () => ({
@@ -268,6 +272,59 @@ it("leaves a sibling service's files alone when both live in one folder", async 
   // `resources/` stays while svc-b can still read from it, and so does the folder itself.
   expect(deletedNames()).not.toContain("resources");
   expect(deletedNames()).not.toContain("..");
+});
+
+// A conversion whose delete failed leaves the service under both names. Taking only the file the
+// tree pointed at resurrects the service from the one still on disk, with its APIs already gone.
+it("deletes both files of a service that still has its legacy sibling", async () => {
+  setUpFolder(
+    [
+      ["svc.service.qip.yaml", FILE],
+      ["svc.external-service.qip.yaml", FILE],
+      ["group-1.api-group.qip.yaml", FILE],
+    ],
+    {
+      "svc.service.qip.yaml": { id: "svc-1", name: "svc" },
+      "svc.external-service.qip.yaml": { id: "svc-1", name: "svc" },
+      "group-1.api-group.qip.yaml": group("group-1", "svc-1"),
+    },
+  );
+
+  const command = registeredCommands.get("qip.deleteService")!;
+  await command({
+    fileUri: { path: "/workspace/svc/svc.external-service.qip.yaml" },
+    label: "svc",
+  });
+
+  expect([...deletedNames()].sort()).toEqual([
+    "..",
+    "group-1.api-group.qip.yaml",
+    "svc.external-service.qip.yaml",
+    "svc.service.qip.yaml",
+  ]);
+});
+
+// A sibling under another name carrying another id is a different service, and the flat layout
+// puts it in the same folder.
+it("leaves a differently-named sibling carrying another id in place", async () => {
+  setUpFolder(
+    [
+      ["svc-a.external-service.qip.yaml", FILE],
+      ["svc-b.service.qip.yaml", FILE],
+    ],
+    {
+      "svc-a.external-service.qip.yaml": { id: "svc-a", name: "svc-a" },
+      "svc-b.service.qip.yaml": { id: "svc-b", name: "svc-b" },
+    },
+  );
+
+  const command = registeredCommands.get("qip.deleteService")!;
+  await command({
+    fileUri: { path: "/workspace/flat/svc-a.external-service.qip.yaml" },
+    label: "svc-a",
+  });
+
+  expect(deletedNames()).toEqual(["svc-a.external-service.qip.yaml"]);
 });
 
 // The sibling left behind carries a typed name, so the folder sweep only sees it as a service if

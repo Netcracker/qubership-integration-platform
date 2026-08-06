@@ -23,14 +23,19 @@ jest.mock("../../src/web/response/serviceApiRead", () => ({
   getService: jest.fn(),
   getContextService: jest.fn(),
 }));
-jest.mock("../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForFile: jest
-    .fn()
-    .mockReturnValue({ service: ".qip-service.yaml" }),
-  getExtensionsForUri: jest
-    .fn()
-    .mockReturnValue({ service: ".qip-service.yaml" }),
-}));
+jest.mock("../../src/web/response/file/fileExtensions", () => {
+  const { QIP_FILE_EXTENSIONS } = jest.requireActual("../helpers/mocks");
+  return {
+    getExtensionsForFile: jest.fn().mockReturnValue(QIP_FILE_EXTENSIONS),
+    getExtensionsForUri: jest.fn().mockReturnValue(QIP_FILE_EXTENSIONS),
+    extractFilename: jest.fn(
+      (fileRef: any) =>
+        (typeof fileRef === "string" ? fileRef : fileRef.path)
+          .split("/")
+          .pop() ?? "",
+    ),
+  };
+});
 jest.mock("../../src/web/extension", () => ({ refreshQipExplorer: jest.fn() }));
 jest.mock("../../src/web/api-services/LabelUtils", () => stubLabelUtils());
 jest.mock("../../src/web/services/ProjectConfigService", () =>
@@ -76,8 +81,10 @@ import { fileApi } from "../../src/web/response/file/fileApiProvider";
 import { ContentParser } from "../../src/web/api-services/parsers/ContentParser";
 
 describe("updateService – validateAllowedSystemProtocol integration", () => {
-  const serviceFileUri = {} as any;
   const serviceId = "svc-1";
+  const serviceFileUri = {
+    path: `/svc-1/${serviceId}.service.qip.yaml`,
+  } as any;
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -154,13 +161,19 @@ describe("apis[] regeneration wiring after a model write", () => {
       description: "updated",
     });
 
-    expect(regenerateGroupApisSafely).toHaveBeenCalledWith(serviceFileUri, GROUP_ID);
+    expect(regenerateGroupApisSafely).toHaveBeenCalledWith(
+      serviceFileUri,
+      GROUP_ID,
+    );
   });
 
   test("deprecateModel rebuilds the group apis[]", async () => {
     await deprecateModel(serviceFileUri, MODEL_ID);
 
-    expect(regenerateGroupApisSafely).toHaveBeenCalledWith(serviceFileUri, GROUP_ID);
+    expect(regenerateGroupApisSafely).toHaveBeenCalledWith(
+      serviceFileUri,
+      GROUP_ID,
+    );
   });
 });
 

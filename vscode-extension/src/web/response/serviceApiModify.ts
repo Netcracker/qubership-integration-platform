@@ -17,6 +17,11 @@ import {
 import vscode, { ExtensionContext, Uri } from "vscode";
 import { ContentParser } from "../api-services/parsers/ContentParser";
 import { getExtensionsForFile } from "./file/fileExtensions";
+import {
+  serviceExtensionForType,
+  serviceSchemaUrlForType,
+} from "./file/serviceFileType";
+import { writeServiceInCurrentFormat } from "./file/serviceFileWrite";
 import { fileApi } from "./file/fileApiProvider";
 import { isSafeResourcePath } from "./file/resourcePath";
 import { refreshQipExplorer } from "../extension";
@@ -49,8 +54,8 @@ export async function updateContextService(
     service.content.description = serviceRequest.description;
   }
 
-  await writeMainService(serviceFileUri, service);
-  const updatedService = await getContextService(serviceFileUri, serviceId);
+  const writtenFileUri = await writeMainService(serviceFileUri, service);
+  const updatedService = await getContextService(writtenFileUri, serviceId);
 
   return updatedService;
 }
@@ -85,8 +90,8 @@ export async function updateMcpService(
     service.content.labels = LabelUtils.fromEntityLabels(serviceRequest.labels);
   }
 
-  await writeMainService(serviceFileUri, service);
-  const updatedService = await getMcpService(serviceFileUri, serviceId);
+  const writtenFileUri = await writeMainService(serviceFileUri, service);
+  const updatedService = await getMcpService(writtenFileUri, serviceId);
 
   return updatedService;
 }
@@ -136,8 +141,8 @@ export async function updateService(
     service.content.activeEnvironmentId = serviceRequest.activeEnvironmentId;
   }
 
-  await writeMainService(serviceFileUri, service);
-  const updatedService = await getService(serviceFileUri, serviceId);
+  const writtenFileUri = await writeMainService(serviceFileUri, service);
+  const updatedService = await getService(writtenFileUri, serviceId);
 
   return updatedService;
 }
@@ -148,21 +153,23 @@ export async function createService(
   serviceRequest: SystemRequest,
 ): Promise<IntegrationSystem> {
   try {
+    // `crypto.randomUUID()` is dot-free, which the backend requires of an id it has to state in a
+    // file name: it reads the id up to the first dot, so a dotted id names another service.
     const serviceId = crypto.randomUUID();
     const config = ProjectConfigService.getConfig();
+    const type = serviceRequest.type || IntegrationSystemType.EXTERNAL;
 
     // A new service has neither environments nor an active one, so the file
     // carries only what the request supplied. `writeServiceFile` drops the
-    // fields that stayed empty.
+    // fields that stayed empty. The type is in the name, not in the content.
     const content = {
       description: serviceRequest.description,
-      integrationSystemType: serviceRequest.type || "EXTERNAL",
       protocol: serviceRequest.protocol?.toUpperCase(),
       labels: LabelUtils.fromEntityLabels(serviceRequest.labels || []),
       migrations: SERVICE_MIGRATIONS,
     };
     const service = {
-      $schema: config.schemaUrls.service,
+      $schema: serviceSchemaUrlForType(type, config.schemaUrls),
       id: serviceId,
       name: serviceRequest.name,
       content,
@@ -172,7 +179,7 @@ export async function createService(
     const ext = getExtensionsForFile();
     const serviceFileUri = vscode.Uri.joinPath(
       serviceFolderUri,
-      `${serviceId}${ext.service}`,
+      `${serviceId}${serviceExtensionForType(type, ext)}`,
     );
     await fileApi.writeServiceFile(serviceFileUri, service);
 
@@ -181,7 +188,7 @@ export async function createService(
       name: serviceRequest.name,
       description: content.description || "",
       activeEnvironmentId: "",
-      integrationSystemType: content.integrationSystemType,
+      integrationSystemType: type,
       protocol: content.protocol || "",
       extendedProtocol: getExtendedProtocol(content.protocol),
       specification: getSpecificationType(content.protocol),
@@ -329,8 +336,12 @@ export async function deleteEnvironment(
   await writeMainService(serviceFileUri, service);
 }
 
-async function writeMainService(serviceFileUri: Uri, service: any) {
-  await fileApi.writeMainService(serviceFileUri, service);
+/** Returns the file the service landed in — a conversion moves it out of the one passed in. */
+async function writeMainService(
+  serviceFileUri: Uri,
+  service: any,
+): Promise<Uri> {
+  return await writeServiceInCurrentFormat(serviceFileUri, service);
 }
 
 export async function updateApiSpecificationGroup(

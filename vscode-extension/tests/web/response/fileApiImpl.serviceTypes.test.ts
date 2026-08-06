@@ -1,11 +1,28 @@
-// getFileType and navigation-path resolution over the four plain-service names. A typed file that
-// getFileType reads as UNKNOWN, or a service folder it reads as a plain FOLDER, breaks the spec-import
-// base folder and the navigation target without raising anything.
+// getFileType and navigation-path resolution over the four plain-service names, plus what the
+// command-palette create path writes. A typed file that getFileType reads as UNKNOWN, or a service
+// folder it reads as a plain FOLDER, breaks the spec-import base folder and the navigation target
+// without raising anything.
 
 import { QIP_FILE_EXTENSIONS as ext } from "../../helpers/mocks";
 
 const stat = jest.fn();
 const readDirectory = jest.fn();
+const showInputBox = jest.fn();
+const showQuickPick = jest.fn();
+
+const SCHEMA_URLS = {
+  service: "http://qubership.org/schemas/product/qip/service.schema.yaml",
+  externalService:
+    "http://qubership.org/schemas/product/qip/external-service.schema.yaml",
+  internalService:
+    "http://qubership.org/schemas/product/qip/internal-service.schema.yaml",
+  implementedService:
+    "http://qubership.org/schemas/product/qip/implemented-service.schema.yaml",
+  contextService:
+    "http://qubership.org/schemas/product/qip/context-service.schema.yaml",
+  mcpService:
+    "http://qubership.org/schemas/product/qip/mcp-service.schema.yaml",
+};
 
 jest.mock(
   "vscode",
@@ -18,6 +35,12 @@ jest.mock(
         fsPath: segments.join("/"),
       })),
     },
+    window: {
+      showInputBox,
+      showQuickPick,
+      showInformationMessage: jest.fn(),
+      showErrorMessage: jest.fn(),
+    },
     workspace: {
       workspaceFolders: [{ uri: { path: "/root" } }],
       fs: { stat, readDirectory },
@@ -25,6 +48,13 @@ jest.mock(
   }),
   { virtual: true },
 );
+
+jest.mock("../../../src/web/services/ProjectConfigService", () => ({
+  ProjectConfigService: {
+    getConfig: () => ({ extensions: ext, schemaUrls: SCHEMA_URLS }),
+    getInstance: jest.fn(),
+  },
+}));
 
 // Keep the heavy sibling graph out of module load. The route patterns themselves are unchanged by
 // this task — what is under test is the extension fan-out a matching service route triggers.
@@ -222,6 +252,65 @@ describe("VSCodeFileApi.findFileByNavigationPath", () => {
   it("rejects a path no route claims", async () => {
     await expect(api.findFileByNavigationPath("/nowhere")).rejects.toThrow(
       "Invalid navigation path",
+    );
+  });
+});
+
+// The second create path. It shares no code with the webview one, so it needs its own guard that
+// the file name states the type and the document does not.
+describe("VSCodeFileApi.createEmptyService", () => {
+  const api = new VSCodeFileApi({} as any);
+  let writeServiceFile: jest.SpyInstance;
+
+  beforeEach(() => {
+    writeServiceFile = jest
+      .spyOn(api, "writeServiceFile")
+      .mockResolvedValue(undefined);
+    showInputBox.mockResolvedValue("Orders");
+  });
+
+  afterEach(() => {
+    writeServiceFile.mockRestore();
+  });
+
+  it.each([
+    ["EXTERNAL", ext.externalService, SCHEMA_URLS.externalService],
+    ["INTERNAL", ext.internalService, SCHEMA_URLS.internalService],
+    ["IMPLEMENTED", ext.implementedService, SCHEMA_URLS.implementedService],
+    ["CONTEXT", ext.contextService, SCHEMA_URLS.contextService],
+  ])("writes a %s service as <id>%s", async (type, extension, schemaUrl) => {
+    showQuickPick.mockResolvedValue({ label: type, value: type });
+
+    const created = await api.createEmptyService();
+
+    expect(created?.fileName).toBe(`${created?.serviceId}${extension}`);
+    const [, document] = writeServiceFile.mock.calls[0];
+    expect(document.$schema).toBe(schemaUrl);
+    expect(document.content).not.toHaveProperty("integrationSystemType");
+  });
+
+  it("still writes an MCP service with its identifier", async () => {
+    showQuickPick.mockResolvedValue({ label: "MCP", value: "MCP" });
+    showInputBox.mockResolvedValue("orders");
+
+    const created = await api.createEmptyService();
+
+    expect(created?.fileName).toBe(`${created?.serviceId}${ext.mcpService}`);
+    const [, document] = writeServiceFile.mock.calls[0];
+    expect(document.$schema).toBe(SCHEMA_URLS.mcpService);
+    expect(document.content.identifier).toBe("orders");
+  });
+
+  // The backend reads a service id up to the first dot and refuses to write a current-format name
+  // for anything else (`ExportImportUtils.requireCurrentFormatId`).
+  it("mints a dot-free id", async () => {
+    showQuickPick.mockResolvedValue({ label: "External", value: "EXTERNAL" });
+
+    const created = await api.createEmptyService();
+
+    expect(created?.serviceId).not.toContain(".");
+    expect(created?.serviceId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
   });
 });

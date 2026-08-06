@@ -2,24 +2,54 @@
 // external-versus-internal environment branch both read the type it returns. A typed file whose type
 // came back empty let an import through that the protocol rules should have refused.
 
-import {
-  createMinimalVscodeMock,
-  QIP_FILE_EXTENSIONS as ext,
-} from "../helpers/mocks";
+import { QIP_FILE_EXTENSIONS as ext } from "../helpers/mocks";
 
-jest.mock("vscode", () => createMinimalVscodeMock(), { virtual: true });
+jest.mock(
+  "vscode",
+  () => {
+    const { createMinimalVscodeMock, joinUriPath } =
+      jest.requireActual("../helpers/mocks");
+    return {
+      ...createMinimalVscodeMock(),
+      Uri: { joinPath: jest.fn(joinUriPath) },
+    };
+  },
+  { virtual: true },
+);
 
 const findFileById = jest.fn();
 const getMainService = jest.fn();
 const writeMainService = jest.fn();
+const deleteFile = jest.fn();
 
 jest.mock("../../src/web/response/file/fileApiProvider", () => ({
   fileApi: {
     findFileById: (...args: unknown[]) => findFileById(...args),
     getMainService: (...args: unknown[]) => getMainService(...args),
     writeMainService: (...args: unknown[]) => writeMainService(...args),
+    deleteFile: (...args: unknown[]) => deleteFile(...args),
   },
 }));
+
+jest.mock("../../src/web/services/ProjectConfigService", () => {
+  const { QIP_FILE_EXTENSIONS } = jest.requireActual("../helpers/mocks");
+  return {
+    ProjectConfigService: {
+      getConfig: () => ({
+        extensions: QIP_FILE_EXTENSIONS,
+        schemaUrls: {
+          service: "urn:service",
+          externalService: "urn:external",
+          internalService: "urn:internal",
+          implementedService: "urn:implemented",
+          contextService: "urn:context",
+          mcpService: "urn:mcp",
+        },
+      }),
+      getInstance: jest.fn(),
+    },
+  };
+});
 
 jest.mock("../../src/web/response/serviceApiRead", () => ({
   getMainService: (...args: unknown[]) => getMainService(...args),
@@ -27,6 +57,7 @@ jest.mock("../../src/web/response/serviceApiRead", () => ({
 
 jest.mock("../../src/web/response/file/fileExtensions", () => ({
   getExtensionsForFile: () => ext,
+  getExtensionsForUri: () => ext,
   extractFilename: (fileRef: string | { path: string }) =>
     (typeof fileRef === "string" ? fileRef : fileRef.path).split("/").pop() ??
     "",
@@ -115,6 +146,36 @@ describe("SystemService.saveSystem", () => {
     const [fileUri] = writeMainService.mock.calls[0];
     expect(fileUri.path).toBe(
       `/${SYSTEM_ID}/${SYSTEM_ID}${ext.externalService}`,
+    );
+  });
+
+  // The services list saves through here, not through updateService, so this path converts too —
+  // otherwise the same service migrates or not depending on which screen edited it.
+  it("converts a legacy file it saves to the name its type states", async () => {
+    onlyOnDisk(ext.service);
+    getMainService.mockResolvedValue({
+      id: SYSTEM_ID,
+      name: "Orders",
+      content: { protocol: "HTTP", integrationSystemType: "INTERNAL" },
+    });
+
+    await new SystemService().saveSystem({
+      id: SYSTEM_ID,
+      name: "Orders",
+      protocol: "http",
+      integrationSystemType: "INTERNAL",
+    } as any);
+
+    const [fileUri, service] = writeMainService.mock.calls[0];
+    expect(fileUri.path).toBe(
+      `/${SYSTEM_ID}/${SYSTEM_ID}${ext.internalService}`,
+    );
+    expect(service.content).not.toHaveProperty("integrationSystemType");
+    expect(service.$schema).toBe("urn:internal");
+    expect(deleteFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: `/${SYSTEM_ID}/${SYSTEM_ID}${ext.service}`,
+      }),
     );
   });
 });

@@ -5,6 +5,7 @@ import { fileApi } from "../response/file/fileApiProvider";
 import { getMainService } from "../response/serviceApiRead";
 import { findServiceFileById } from "../response/file/serviceFileLookup";
 import { resolveServiceType } from "../response/file/serviceFileType";
+import { writeServiceInCurrentFormat } from "../response/file/serviceFileWrite";
 import { LabelUtils } from "./LabelUtils";
 import {
   getExtendedProtocol,
@@ -88,7 +89,7 @@ export class SystemService {
         : system.protocol;
       service.content.labels = LabelUtils.fromEntityLabels(system.labels);
 
-      await fileApi.writeMainService(serviceFileUri, service);
+      await writeServiceInCurrentFormat(serviceFileUri, service);
     } catch (error) {
       console.error(
         `[SystemService] Failed to save system ${system.id}:`,
