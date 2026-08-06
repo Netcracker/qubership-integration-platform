@@ -272,14 +272,15 @@ describe("resolving a service file by id", () => {
     });
   });
 
-  it("accepts a typed service file for the group level without resolving it again", async () => {
+  it("reads the group level through the file the id resolves to", async () => {
     const fileUri = serviceFile(ext.externalService);
+    onlyOnDisk(ext.externalService);
     getMainService.mockResolvedValue(serviceDocument());
 
     const groups = await getApiSpecifications(fileUri, SERVICE_ID);
 
     expect(groups).toEqual([]);
-    expect(findFileById).not.toHaveBeenCalled();
+    expect(findFileById).toHaveBeenCalledWith(SERVICE_ID, ext.externalService);
     expect(getSpecificationGroupFiles).toHaveBeenCalledWith(fileUri);
   });
 });
@@ -462,7 +463,7 @@ describe("the spec subtree of a typed service", () => {
     expect(groups[0].specifications[0].id).toBe(API_ID);
   });
 
-  it("reads the api level from a typed service file without resolving it again", async () => {
+  it("reads the api level from a typed service file", async () => {
     const apis = await getSpecificationModel(
       typedServiceUri,
       TYPED_SERVICE_ID,
@@ -471,7 +472,6 @@ describe("the spec subtree of a typed service", () => {
 
     expect(apis).toHaveLength(1);
     expect(apis[0].id).toBe(API_ID);
-    expect(findFileById).not.toHaveBeenCalled();
     expect(getSpecificationFiles).toHaveBeenCalledWith(typedServiceUri);
   });
 
@@ -564,5 +564,98 @@ describe("reading through a uri the conversion replaced", () => {
     findFileById.mockRejectedValue(new Error("not found"));
 
     await expect(getService(staleUri, SERVICE_ID)).rejects.toThrow();
+  });
+});
+
+// The same conversion, read from the api side. These four took any plain-service name as canonical,
+// so a uri handed out before the conversion read the document that lost the precedence race — or
+// threw, once the conversion had deleted it.
+describe("reading the api subtree through a uri the conversion replaced", () => {
+  const CONVERTED_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const GROUP_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const API_ID = `${CONVERTED_ID}-api`;
+  const OPERATION_ID = `${API_ID}-operation`;
+
+  const staleUri = uri(`/root/${CONVERTED_ID}/${CONVERTED_ID}${ext.service}`);
+  const typedUri = uri(
+    `/root/${CONVERTED_ID}/${CONVERTED_ID}${ext.externalService}`,
+  );
+
+  const groupDocument = {
+    id: GROUP_ID,
+    name: "Orders API",
+    content: { parentId: CONVERTED_ID, description: "" },
+  };
+
+  const apiDocument = {
+    id: API_ID,
+    name: "Orders v1",
+    content: {
+      parentId: GROUP_ID,
+      format: "openapi",
+      specifications: [{ filePath: "orders.yaml", isRoot: true }],
+      operations: [
+        { id: OPERATION_ID, name: "getOrders", method: "GET", path: "/orders" },
+      ],
+    },
+  };
+
+  beforeEach(() => {
+    findFileById.mockImplementation((id: string, requested: string) =>
+      id === CONVERTED_ID && requested === ext.externalService
+        ? Promise.resolve(typedUri)
+        : Promise.reject(new Error("not found")),
+    );
+    // The conversion deleted the legacy file, so only the typed one still reads.
+    getMainService.mockImplementation((fileUri: any) =>
+      fileUri.path === typedUri.path
+        ? Promise.resolve({
+            id: CONVERTED_ID,
+            name: "Orders",
+            content: { protocol: "HTTP" },
+          })
+        : Promise.reject(new Error("EntryNotFound")),
+    );
+    // Both names sit in the same folder, so the listing cannot tell them apart. Which file the read
+    // resolved to is what the assertions below check.
+    getSpecificationGroupFiles.mockResolvedValue([
+      `${GROUP_ID}${ext.apiGroup}`,
+    ]);
+    getSpecificationFiles.mockResolvedValue([`${API_ID}${ext.api}`]);
+    parseFile.mockImplementation((fileUri: any) =>
+      Promise.resolve(
+        fileUri.path.endsWith(ext.apiGroup) ? groupDocument : apiDocument,
+      ),
+    );
+    parseContentFromFile.mockResolvedValue(apiDocument);
+  });
+
+  it("lists the groups through the file the service moved to", async () => {
+    const groups = await getApiSpecifications(staleUri, CONVERTED_ID);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].id).toBe(GROUP_ID);
+    expect(getSpecificationGroupFiles).toHaveBeenCalledWith(typedUri);
+  });
+
+  it("reads the api level through the file the service moved to", async () => {
+    const apis = await getSpecificationModel(staleUri, CONVERTED_ID, GROUP_ID);
+
+    expect(apis).toHaveLength(1);
+    expect(getSpecificationFiles).toHaveBeenCalledWith(typedUri);
+  });
+
+  it("reads the operations through the file the service moved to", async () => {
+    const operations = await getOperations(staleUri, API_ID);
+
+    expect(operations).toHaveLength(1);
+    expect(getSpecificationFiles).toHaveBeenCalledWith(typedUri);
+  });
+
+  it("reads operation info through the file the service moved to", async () => {
+    const info = await getOperationInfo(staleUri, OPERATION_ID);
+
+    expect(info.id).toBe(OPERATION_ID);
+    expect(getSpecificationFiles).toHaveBeenCalledWith(typedUri);
   });
 });

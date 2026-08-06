@@ -105,6 +105,15 @@ const OTHER_GROUP_MODEL_FILE = "model-2.specification.qip.yaml";
 function setUpFixture() {
   getMainService.mockResolvedValue({ id: SERVICE_ID });
 
+  // The fixture service is stored under the legacy name alone, so that is the only extension the
+  // by-id lookup every read routes through can answer.
+  findFileById.mockImplementation(async (_id: string, extension: string) => {
+    if (extension !== ext.service) {
+      throw new Error(`Unable to find file with extension: ${extension}`);
+    }
+    return serviceFileUri;
+  });
+
   getSpecificationGroupFiles.mockResolvedValue([GROUP_FILE]);
   getSpecificationFiles.mockResolvedValue([MODEL_FILE, OTHER_GROUP_MODEL_FILE]);
 

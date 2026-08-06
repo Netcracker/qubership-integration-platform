@@ -13,6 +13,7 @@ import * as vscode from "vscode";
 import { VSCodeFileApi } from "../../response/file/fileApiImpl";
 import { setFileApi } from "../../response/file/fileApiProvider";
 import {
+  getApiSpecifications,
   getEnvironments,
   getService,
   getServices,
@@ -438,6 +439,13 @@ suite("Service types in the web host", () => {
         (candidate) => candidate.name,
       ),
       ["Production", "staging"],
+    );
+
+    // The api level is read through the same stale uri, and used to fail on the deleted path rather
+    // than report the service having no api groups.
+    assert.deepStrictEqual(
+      await getApiSpecifications(legacyUri, LEGACY_EXTERNAL_ID),
+      [],
     );
 
     await closeAllEditors();

@@ -981,6 +981,43 @@ and was not taken.
 the `resolveServiceType` contract, the `isServiceFileOfAnyKind` predicate, the second enum-keyed guard, the
 `readServiceFileById` split, and the `Unknown` icon.
 
+## Review phase 3 — external cross-review
+
+*One MAJOR finding from a Codex (gpt-5.6-luna) pass over the smells-round head `1613e02e3`.*
+
+➕ **CONFIRMED: the api/specification reads took any plain-service uri as canonical.** The two earlier rounds covered
+`getService`, `getEnvironment`, `getEnvironments` (`readServiceFileById`) and `updateService` (`readServiceFile`), but
+`getApiSpecifications`, `getSpecificationModel`, `getOperations` and `getOperationInfo` each decided the file with
+`isAnyServiceFile`, which answers `true` for the legacy `.service.` name as well. Reproduced against the post-conversion
+state — the typed file on disk, the legacy sibling deleted, a webview still holding the legacy uri: `getApiSpecifications`
+and `getOperationInfo` threw `EntryNotFound` from `getMainService` on the deleted path, and `getSpecificationModel` and
+`getOperations` silently read on through the stale uri. All four now route through one `resolveServiceFileUri`: the id
+resolves through `findServiceFileById`'s typed-wins order and the held uri is only the fallback for an id nothing
+resolves, which is what keeps a read that starts from a chain or an api file in the folder it came from.
+`getApiSpecifications` also drops its hand-rolled id check for `readServiceFileById`, the same guard the other read
+sites share.
+
+➕ [decision] The resolution is unconditional rather than skipped for a uri that already carries a typed name. Two
+tests asserted that fast path ("without resolving it again"); both were rewritten to assert the resolved file instead.
+A conditional trust rule needs the uri, the name it carries and the id it states to agree, and getting any of the three
+wrong reopens exactly this finding — the four sites are identical now, which is the point. `findFileById` is cache-backed
+and stats the convention path `<root>/<id>/<id><ext>` before scanning, and each of these functions already walks every
+chain in the workspace, so the extra lookup is not what costs.
+
+➕ [decision] `getOperations` and `getOperationInfo` shared a copy of "the service id is the first five dash-separated
+parts of the entity id"; that is `serviceIdFromEntityId` now. `getOperationInfo` no longer reads the service document
+just to decide whether to re-resolve, which is what made it throw on a deleted path.
+
+➕ Mutations checked red, one per site: the pre-fix "any plain-service uri is canonical" rule (4 cases);
+`getApiSpecifications`, `getSpecificationModel`, `getOperations` and `getOperationInfo` each back to the uri they were
+handed (2 cases each, one new and one from the typed-subtree fixture); and `serviceIdFromEntityId` never deriving an id
+(4 cases). The integration assertion was mutated too — `getApiSpecifications` back to trusting the uri fails the
+conversion test in the real web host.
+
+➕ `tests/web/response/serviceApiRead.test.ts` stubbed `findFileById` with no implementation while its fixture uri
+carries the legacy name, so the new lookup would have resolved `undefined` and the suite would still have passed. The
+stub now answers for `.service.` alone, which is what that fixture has on disk.
+
 ## Post-Completion
 
 *Items requiring manual intervention or external systems — no checkboxes, informational only*

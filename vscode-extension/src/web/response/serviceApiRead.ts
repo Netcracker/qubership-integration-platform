@@ -104,6 +104,37 @@ async function readServiceFileById(
   return { fileUri, service };
 }
 
+/**
+ * The service file an api-level read works from. The uri a caller holds is a hint: the id resolves
+ * through the typed-wins lookup, so a uri handed out before a conversion reads neither the document
+ * that lost the precedence race nor a path the conversion deleted. An id nothing resolves falls back
+ * to the uri, which is how a read that starts from a file of another kind still lands in the folder
+ * it came from.
+ */
+async function resolveServiceFileUri(
+  currentFile: Uri,
+  serviceId: string,
+): Promise<Uri> {
+  try {
+    return await findServiceFileById(
+      serviceId,
+      getExtensionsForUri(currentFile),
+    );
+  } catch (error) {
+    console.warn(
+      `Could not resolve service ${serviceId} by id; using ${currentFile.path}`,
+      error,
+    );
+    return currentFile;
+  }
+}
+
+/** The service id a group, api or operation id is prefixed with — a uuid's five parts. */
+function serviceIdFromEntityId(entityId: string): string | undefined {
+  const parts = entityId.split("-");
+  return parts.length >= 5 ? parts.slice(0, 5).join("-") : undefined;
+}
+
 export async function getService(
   serviceFileUri: Uri,
   serviceId: string,
@@ -267,19 +298,10 @@ export async function getApiSpecifications(
   currentFile: Uri,
   serviceId: string,
 ): Promise<ApiGroup[]> {
-  const ext = getExtensionsForUri(currentFile);
-  const serviceFileUri = isAnyServiceFile(currentFile, ext)
-    ? currentFile
-    : await findServiceFileById(serviceId, ext);
-
-  const service: any = await getMainService(serviceFileUri);
-
-  if (service.id !== serviceId) {
-    console.error(
-      `ServiceId mismatch: expected ${serviceId}, got ${service.id}`,
-    );
-    throw Error("ServiceId mismatch");
-  }
+  const { fileUri: serviceFileUri } = await readServiceFileById(
+    await resolveServiceFileUri(currentFile, serviceId),
+    serviceId,
+  );
 
   const specGroupFiles =
     await fileApi.getSpecificationGroupFiles(serviceFileUri);
@@ -368,18 +390,11 @@ export async function getSpecificationModel(
   serviceId: string,
   groupId: string,
 ): Promise<Api[]> {
-  let actualServiceFileUri = serviceFileUri;
-  const ext = getExtensionsForUri(serviceFileUri);
-
-  if (!isAnyServiceFile(serviceFileUri, ext)) {
-    try {
-      actualServiceFileUri = await findServiceFileById(serviceId, ext);
-    } catch (e) {
-      console.warn(
-        `Could not find service file for ${serviceId}, using original URI`,
-      );
-    }
-  }
+  const actualServiceFileUri = await resolveServiceFileUri(
+    serviceFileUri,
+    serviceId,
+  );
+  const ext = getExtensionsForUri(actualServiceFileUri);
 
   const specFiles = await fileApi.getSpecificationFiles(actualServiceFileUri);
   const serviceFolderUri = vscode.Uri.joinPath(actualServiceFileUri, "..");
@@ -451,20 +466,11 @@ export async function getOperations(
   serviceFileUri: Uri,
   modelId: string,
 ): Promise<SystemOperation[]> {
-  const ext = getExtensionsForUri(serviceFileUri);
-  let actualServiceFileUri = serviceFileUri;
-
-  const parts = modelId.split("-");
-  if (parts.length >= 5 && !isAnyServiceFile(serviceFileUri, ext)) {
-    const serviceId = parts.slice(0, 5).join("-");
-    try {
-      actualServiceFileUri = await findServiceFileById(serviceId, ext);
-    } catch (e) {
-      console.warn(
-        `Could not find service file for ${serviceId}, using original URI`,
-      );
-    }
-  }
+  const serviceId = serviceIdFromEntityId(modelId);
+  const actualServiceFileUri = serviceId
+    ? await resolveServiceFileUri(serviceFileUri, serviceId)
+    : serviceFileUri;
+  const ext = getExtensionsForUri(actualServiceFileUri);
 
   if (isAnyServiceFile(actualServiceFileUri, ext)) {
     const specFiles = await fileApi.getSpecificationFiles(actualServiceFileUri);
@@ -514,24 +520,10 @@ export async function getOperationInfo(
   serviceFileUri: Uri,
   operationId: string,
 ): Promise<OperationInfo> {
-  let actualServiceFileUri = serviceFileUri;
-
-  const parts = operationId.split("-");
-  if (parts.length >= 5) {
-    const serviceId = parts.slice(0, 5).join("-");
-    const service: any = await getMainService(serviceFileUri);
-
-    if (service.id !== serviceId) {
-      const ext = getExtensionsForUri(serviceFileUri);
-      try {
-        actualServiceFileUri = await findServiceFileById(serviceId, ext);
-      } catch (e) {
-        console.warn(
-          `Could not find service file for ${serviceId}, using original URI`,
-        );
-      }
-    }
-  }
+  const serviceId = serviceIdFromEntityId(operationId);
+  const actualServiceFileUri = serviceId
+    ? await resolveServiceFileUri(serviceFileUri, serviceId)
+    : serviceFileUri;
 
   const specFiles = await fileApi.getSpecificationFiles(actualServiceFileUri);
   const serviceFolderUri = vscode.Uri.joinPath(actualServiceFileUri, "..");
