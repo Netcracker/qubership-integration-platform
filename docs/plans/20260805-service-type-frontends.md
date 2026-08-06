@@ -543,20 +543,43 @@ the delete no longer collecting same-id siblings, and collecting siblings regard
 - Modify: `ui/src/components/services/ServicesList.tsx` (308-314)
 - Create: `ui/tests/components/services/detail/ServiceParametersTab.type.test.tsx`
 
-- [ ] drop the `integrationSystemType` and `type` write paths from the extension's `updateService` (`:121-131`)
-- [ ] **keep protocol validation alive**: `validateAllowedSystemProtocol` runs only inside the `type` branch today, and the `protocol` branch at `:132-134` is unchecked — move the call onto the protocol path
-- [ ] add `SystemUpdateRequest = Omit<Partial<IntegrationSystem>, "type">` and use it for `updateService`; leave `SystemRequest` alone, it is create-only and needs `type`
-- [ ] while in `ServiceEnvironmentsTab.tsx`, leave the EXTERNAL-only "Add Environment" gate at `:497` as it is — the backend now enforces one environment for INTERNAL and IMPLEMENTED on the REST path too, and that gate is what keeps the limit unreachable from the UI
-- [ ] remove `type` from the payload at `ServiceParametersTab.tsx:102` on both paths
-- [ ] remove `type` from the object literal at `ServiceEnvironmentsTab.tsx:171-175` — as an excess property it is a hard `check-types` failure, not a warning
-- [ ] stop `ServicesList.tsx:308-314` from spreading `type` into the payload; it compiles today but still sends the field
-- [ ] replace the VS Code-only type `Select` (`:186-203`) with a read-only display; the web build renders no type field at all today, so pick the presentation deliberately rather than copying it
-- [ ] verify `CreateServiceModal` still sets the type at creation — that path stays
-- [ ] write a test: the parameters form renders the type read-only and submits no type field, on both the web and VS Code paths
-- [ ] write a test: a null type renders as a dash/Unknown in the read-only display, not a crash or an empty control — a mixed backend DB can hold pre-plan rows
-- [ ] write a test: the extension ignores a type in an update payload and leaves the file's type unchanged
-- [ ] write a test: an update with a protocol the service type forbids is rejected
-- [ ] run `check-types` in the UI workspace, then tests in both — must pass before task 7
+- [x] drop the `integrationSystemType` and `type` write paths from the extension's `updateService` (`:121-131`)
+- [x] **keep protocol validation alive**: `validateAllowedSystemProtocol` runs only inside the `type` branch today, and the `protocol` branch at `:132-134` is unchecked — move the call onto the protocol path
+- [x] add `SystemUpdateRequest = Omit<Partial<IntegrationSystem>, "type">` and use it for `updateService`; leave `SystemRequest` alone, it is create-only and needs `type`
+- [x] while in `ServiceEnvironmentsTab.tsx`, leave the EXTERNAL-only "Add Environment" gate at `:497` as it is — the backend now enforces one environment for INTERNAL and IMPLEMENTED on the REST path too, and that gate is what keeps the limit unreachable from the UI
+- [x] remove `type` from the payload at `ServiceParametersTab.tsx:102` on both paths
+- [x] remove `type` from the object literal at `ServiceEnvironmentsTab.tsx:171-175` — as an excess property it is a hard `check-types` failure, not a warning
+- [x] stop `ServicesList.tsx:308-314` from spreading `type` into the payload; it compiles today but still sends the field
+- [x] replace the VS Code-only type `Select` (`:186-203`) with a read-only display; the web build renders no type field at all today, so pick the presentation deliberately rather than copying it
+- [x] verify `CreateServiceModal` still sets the type at creation — that path stays
+- [x] write a test: the parameters form renders the type read-only and submits no type field, on both the web and VS Code paths
+- [x] write a test: a null type renders as a dash/Unknown in the read-only display, not a crash or an empty control — a mixed backend DB can hold pre-plan rows
+- [x] write a test: the extension ignores a type in an update payload and leaves the file's type unchanged
+- [x] write a test: an update with a protocol the service type forbids is rejected
+- [x] run `check-types` in the UI workspace, then tests in both — must pass before task 7
+
+➕ [decision] The read-only presentation is a `Descriptions.Item` labelled `Type`, placed beside the existing
+read-only `Protocol` item and above the labels field. The two fields are the pair the backend validates together, so
+they read as one block, and an absent type falls back to the same `-` the protocol item already uses. Both frontends
+render it — the web build showed no type at all before, which left the services list as the only place the type was
+visible.
+
+➕ [deviation] One test file beyond the plan's list: `ui/tests/components/ServicesList.test.tsx` grew a case for the
+label-edit payload. The plan asks to stop that path from spreading `type`, which is a behaviour change and needs a
+test; the file's `ServicesTreeTable` mock now captures the options it is handed so the test can call `onUpdateLabels`
+the way the real table would.
+
+➕ `ui/src/api/rest/vscodeExtensionApi.ts` also moved to `SystemUpdateRequest`, beyond the plan's file list. Both
+`ApiClient` implementations have to match the interface, and leaving the webview one on `Partial<IntegrationSystem>`
+would keep the wider payload compiling on the VS Code path.
+
+➕ Every mutation of the changed logic was checked to go red: the parameters payload restating `system.type`; the
+type display losing its null guard, and dropped entirely; the VS Code type `Select` restored; `ServicesList`
+spreading the whole record again; `ServiceEnvironmentsTab` restating `type` (a `check-types` failure — and with
+`SystemUpdateRequest` widened back to `Partial<IntegrationSystem>` it compiles again, so the `Omit` is what catches
+it); the extension writing `integrationSystemType` from the request again; the `validateAllowedSystemProtocol` call
+removed; the type read from `content.integrationSystemType` instead of `resolveServiceType`; and the stored protocol
+validated instead of the incoming one.
 
 ### Task 7: Bump the claimed migration version
 

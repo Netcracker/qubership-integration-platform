@@ -100,7 +100,7 @@ jest.mock("../../../../src/permissions/ProtectedButton.tsx", () => ({
       <button
         type="button"
         data-testid={`param-toolbar-${String(tooltipProps.title).replace(/\s+/g, "-").toLowerCase()}`}
-        {...(rest)}
+        {...rest}
       />
     );
   },
@@ -171,25 +171,9 @@ describe("ServiceParametersTab", () => {
     } as unknown as ReturnType<typeof useBlocker>);
   });
 
-  it("hides Type field on web (not VS Code)", async () => {
-    renderTab();
-    await waitFor(() => expect(mockGetService).toHaveBeenCalledWith("sys-1"));
-    expect(
-      screen.queryByRole("combobox", { name: /type/i }),
-    ).not.toBeInTheDocument();
-  });
+  // The service type is read-only on both paths; ServiceParametersTab.type.test.tsx covers it.
 
-  it("shows Type field in VS Code", async () => {
-    isVsCodeFlag = true;
-    renderTab();
-    await waitFor(() => expect(mockGetService).toHaveBeenCalledWith("sys-1"));
-    expect(screen.getByRole("combobox", { name: /type/i })).toBeInTheDocument();
-  });
-
-  it("on web save sends original system.type, not form-only type", async () => {
-    mockGetService.mockResolvedValue(
-      makeSystem({ type: IntegrationSystemType.IMPLEMENTED }),
-    );
+  it("save sends the edited name", async () => {
     renderTab();
     await waitFor(() =>
       expect(
@@ -204,7 +188,6 @@ describe("ServiceParametersTab", () => {
 
     await waitFor(() => expect(mockUpdateService).toHaveBeenCalled());
     const payload = mockUpdateService.mock.calls[0][1] as IntegrationSystem;
-    expect(payload.type).toBe(IntegrationSystemType.IMPLEMENTED);
     expect(payload.name).toBe("Renamed");
   });
 
@@ -422,28 +405,5 @@ describe("ServiceParametersTab", () => {
     await waitFor(() =>
       expect(screen.getByText(/save failed/)).toBeInTheDocument(),
     );
-  });
-
-  it("VS Code save sends form type in payload", async () => {
-    isVsCodeFlag = true;
-    mockGetService.mockResolvedValue(
-      makeSystem({ type: IntegrationSystemType.IMPLEMENTED }),
-    );
-    renderTab();
-    await waitFor(() =>
-      expect(
-        screen.getByRole("combobox", { name: /type/i }),
-      ).toBeInTheDocument(),
-    );
-    fireEvent.mouseDown(screen.getByRole("combobox", { name: /type/i }));
-    await waitFor(() => screen.getByText("External"));
-    fireEvent.click(screen.getByText("External"));
-    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
-      target: { value: "X" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /save/i }));
-    await waitFor(() => expect(mockUpdateService).toHaveBeenCalled());
-    const payload = mockUpdateService.mock.calls[0][1] as IntegrationSystem;
-    expect(payload.type).toBe(IntegrationSystemType.EXTERNAL);
   });
 });

@@ -74,6 +74,7 @@ import {
   ApiGroup,
   SystemOperation,
   SystemRequest,
+  SystemUpdateRequest,
   TransferElementRequest,
   UsedProperty,
   UsedService,
@@ -495,7 +496,7 @@ export class VSCodeExtensionApi implements ApiClient {
 
   updateService = async (
     systemId: string,
-    service: Partial<IntegrationSystem>,
+    service: SystemUpdateRequest,
   ): Promise<IntegrationSystem> => {
     return <IntegrationSystem>(
       await this.sendMessageToExtension("updateService", {

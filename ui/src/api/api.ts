@@ -43,6 +43,7 @@ import type {
   LogExportRequestParams,
   IntegrationSystem,
   SystemRequest,
+  SystemUpdateRequest,
   EnvironmentRequest,
   Environment,
   ApiGroup,
@@ -395,7 +396,7 @@ export interface ApiClient {
 
   updateService(
     id: string,
-    data: Partial<IntegrationSystem>,
+    data: SystemUpdateRequest,
   ): Promise<IntegrationSystem>;
 
   getContextServices(): Promise<ContextSystem[]>;

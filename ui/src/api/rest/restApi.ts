@@ -49,6 +49,7 @@ import {
   LogExportRequestParams,
   IntegrationSystem,
   SystemRequest,
+  SystemUpdateRequest,
   EnvironmentRequest,
   Environment,
   Api,
@@ -1592,7 +1593,7 @@ export class RestApi implements ApiClient {
 
   updateService = async (
     id: string,
-    data: Partial<IntegrationSystem>,
+    data: SystemUpdateRequest,
   ): Promise<IntegrationSystem> => {
     const response = await this.instance.put<IntegrationSystem>(
       `${this.v1()}/systems-catalog/systems/${id}`,

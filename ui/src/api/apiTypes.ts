@@ -1092,6 +1092,9 @@ export type SystemRequest = {
   labels?: EntityLabel[];
 };
 
+/** The type is set at creation through `SystemRequest` and immutable afterwards, in both frontends. */
+export type SystemUpdateRequest = Omit<Partial<IntegrationSystem>, "type">;
+
 export type Environment = {
   id: string;
   systemId: string;

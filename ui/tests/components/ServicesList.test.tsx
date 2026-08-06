@@ -37,6 +37,7 @@ const mockShowModal = jest.fn();
 const mockNavigate = jest.fn();
 
 let mockFilters: EntityFilterModel[] = [];
+const mockTableOptions: Record<string, unknown>[] = [];
 
 jest.mock("../../src/api/api", () => ({
   api: {
@@ -91,12 +92,16 @@ jest.mock("../../src/components/services/Services.module.css", () => ({}), {
 
 // Mock components that import CSS
 jest.mock("../../src/components/services/ServicesTreeTable", () => ({
-  useServicesTreeTable: () => ({
-    tableElement: <table data-testid="services-table" />,
-    FilterButton: () => (
-      <button data-testid="columns-filter-button">Columns</button>
-    ),
-  }),
+  useServicesTreeTable: (options: Record<string, unknown>) => {
+    // Captured so a test can drive the callbacks the real table would invoke.
+    mockTableOptions.push(options);
+    return {
+      tableElement: <table data-testid="services-table" />,
+      FilterButton: () => (
+        <button data-testid="columns-filter-button">Columns</button>
+      ),
+    };
+  },
   allServicesTreeTableColumns: [{ key: "name" }, { key: "protocol" }],
   getActionsColumn: () => ({ key: "actions" }),
   getServiceActions: () => [],
@@ -150,13 +155,14 @@ jest.mock("../../src/permissions/ProtectedButton.tsx", () => ({
       <button
         type="button"
         data-testid={`svc-action-${String(tooltipProps.title).replace(/\s+/g, "-").toLowerCase()}`}
-        {...(rest)}
+        {...rest}
       />
     );
   },
 }));
 
 import { message } from "antd";
+import { api } from "../../src/api/api";
 import { ServicesList } from "../../src/components/services/ServicesList.tsx";
 
 const makeService = (
@@ -178,6 +184,7 @@ describe("ServicesListPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    mockTableOptions.length = 0;
     messageInfoSpy = jest
       .spyOn(message, "info")
       .mockImplementation((() => {}) as never);
@@ -307,5 +314,28 @@ describe("ServicesListPage", () => {
       screen.getByTestId("svc-action-download-selected-services"),
     );
     expect(messageInfoSpy).toHaveBeenCalledWith("No services selected");
+  });
+
+  // The list holds the whole record, so a payload built by spreading it would carry the type
+  // back to a backend that refuses to change it.
+  it("should send no type when service labels are edited", async () => {
+    jest.useRealTimers();
+    render(<ServicesList tab="external" />);
+    await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
+
+    const onUpdateLabels = mockTableOptions.at(-1)?.onUpdateLabels as (
+      record: IntegrationSystem,
+      labels: string[],
+    ) => Promise<void>;
+    await onUpdateLabels(
+      makeService("1", "Service A", IntegrationSystemType.EXTERNAL),
+      ["billing"],
+    );
+
+    expect(api.updateService).toHaveBeenCalledTimes(1);
+    const [id, payload] = jest.mocked(api.updateService).mock.calls[0];
+    expect(id).toBe("1");
+    expect(payload).not.toHaveProperty("type");
+    expect(payload.labels).toEqual([{ name: "billing", technical: false }]);
   });
 });

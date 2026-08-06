@@ -306,18 +306,26 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
     },
     rowClassName,
     onUpdateLabels: async (record, labels) => {
-      const updated: ServiceEntity = {
-        ...record,
-        labels: labels.map((name) => ({ name, technical: false })),
-      };
+      const newLabels = labels.map((name) => ({ name, technical: false }));
       if (isIntegrationSystem(record)) {
-        await api.updateService(record.id, updated);
+        // The type is immutable, so the payload drops it instead of echoing it back.
+        const { type: _type, ...withoutType } = record;
+        await api.updateService(record.id, {
+          ...withoutType,
+          labels: newLabels,
+        });
         await loadServices();
       } else if (isApiGroup(record)) {
-        const res = await api.updateApiSpecificationGroup(record.id, updated);
+        const res = await api.updateApiSpecificationGroup(record.id, {
+          ...record,
+          labels: newLabels,
+        });
         setApiGroupsByService((prev) => updateLabelsInMap(prev, res));
       } else if (isApi(record)) {
-        const res = await api.updateSpecificationModel(record.id, updated);
+        const res = await api.updateSpecificationModel(record.id, {
+          ...record,
+          labels: newLabels,
+        });
         setSpecsByGroup((prev) => updateLabelsInMap(prev, res));
       }
     },

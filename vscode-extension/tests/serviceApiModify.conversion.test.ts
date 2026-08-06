@@ -356,6 +356,45 @@ describe("updateService converts a legacy file on its first write", () => {
     expect(deleteFile).not.toHaveBeenCalled();
   });
 
+  // The services list posts back the whole record it loaded, type included. The backend refuses a
+  // type switch, so an extension that applied one would write a file the import then rejects.
+  it("ignores a type in the request and converts to the type the file states", async () => {
+    getMainService.mockResolvedValue(legacyService());
+
+    await updateService(
+      uri(`/svc/${SERVICE_ID}.service.qip.yaml`),
+      SERVICE_ID,
+      {
+        type: IntegrationSystemType.EXTERNAL,
+        integrationSystemType: IntegrationSystemType.EXTERNAL,
+        name: "Renamed",
+      },
+    );
+
+    const { path, service } = written();
+    expect(path).toBe(`/svc/${SERVICE_ID}.internal-service.qip.yaml`);
+    expect(service.$schema).toBe(DEFAULT_SCHEMA_URLS.internalService);
+    expect(service.content).not.toHaveProperty("integrationSystemType");
+  });
+
+  it("ignores a type in the request and leaves a typed file where it is", async () => {
+    getMainService.mockResolvedValue({
+      $schema: DEFAULT_SCHEMA_URLS.externalService,
+      id: SERVICE_ID,
+      name: "Orders",
+      content: { protocol: "HTTP" },
+    });
+
+    await updateService(
+      uri(`/svc/${SERVICE_ID}.external-service.qip.yaml`),
+      SERVICE_ID,
+      { type: IntegrationSystemType.INTERNAL },
+    );
+
+    expect(written().path).toBe(`/svc/${SERVICE_ID}.external-service.qip.yaml`);
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
   it("converts under a non-default appName and stamps the configured schema url", async () => {
     extensions = {
       ...extensions,

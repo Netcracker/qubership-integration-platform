@@ -18,6 +18,7 @@ import vscode, { ExtensionContext, Uri } from "vscode";
 import { ContentParser } from "../api-services/parsers/ContentParser";
 import { getExtensionsForFile } from "./file/fileExtensions";
 import {
+  resolveServiceType,
   serviceExtensionForType,
   serviceSchemaUrlForType,
 } from "./file/serviceFileType";
@@ -35,6 +36,7 @@ import {
 } from "./serviceApiUtils";
 import { SERVICE_MIGRATIONS } from "../services/importMigrationVersions";
 import { ApiGroupService } from "../api-services/ApiGroupService";
+import { ApiSpecificationType } from "../api-services/importApiTypes";
 
 export async function updateContextService(
   serviceFileUri: Uri,
@@ -123,19 +125,16 @@ export async function updateService(
   if (serviceRequest.labels !== undefined) {
     service.content.labels = LabelUtils.fromEntityLabels(serviceRequest.labels);
   }
-  if (serviceRequest.integrationSystemType !== undefined) {
-    service.content.integrationSystemType =
-      serviceRequest.integrationSystemType;
-  }
-  if (serviceRequest.type !== undefined) {
-    validateAllowedSystemProtocol(
-      serviceRequest.type,
-      service.content.protocol,
-    );
-    service.content.integrationSystemType = serviceRequest.type;
-  }
+  // The type is set at creation and never again, matching the backend. A type in the request is
+  // ignored rather than rejected, because the services list posts back whatever it loaded.
   if (serviceRequest.protocol !== undefined) {
-    service.content.protocol = serviceRequest.protocol.toUpperCase();
+    const protocol = serviceRequest.protocol.toUpperCase();
+    // The protocol is what has to fit the type now, so validate it against the type the file states.
+    validateAllowedSystemProtocol(
+      resolveServiceType(serviceFileUri, service),
+      protocol as ApiSpecificationType,
+    );
+    service.content.protocol = protocol;
   }
   if (serviceRequest.activeEnvironmentId !== undefined) {
     service.content.activeEnvironmentId = serviceRequest.activeEnvironmentId;

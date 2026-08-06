@@ -80,15 +80,20 @@ import { validateAllowedSystemProtocol } from "../../src/web/response/serviceApi
 import { fileApi } from "../../src/web/response/file/fileApiProvider";
 import { ContentParser } from "../../src/web/api-services/parsers/ContentParser";
 
+// The type is immutable, so the protocol is the side that can change. Before #553 the validation
+// ran only on the type branch, which left a protocol change unchecked.
 describe("updateService – validateAllowedSystemProtocol integration", () => {
   const serviceId = "svc-1";
-  const serviceFileUri = {
+  const legacyFileUri = {
     path: `/svc-1/${serviceId}.service.qip.yaml`,
+  } as any;
+  const implementedFileUri = {
+    path: `/svc-1/${serviceId}.implemented-service.qip.yaml`,
   } as any;
 
   beforeEach(() => jest.clearAllMocks());
 
-  test("calls validateAllowedSystemProtocol with (type, existing protocol) when type is set", async () => {
+  test("calls validateAllowedSystemProtocol with the name's type and the new protocol", async () => {
     (getMainService as jest.Mock).mockResolvedValue(
       buildServiceRecord(serviceId, { protocol: ApiSpecificationType.HTTP }),
     );
@@ -96,31 +101,49 @@ describe("updateService – validateAllowedSystemProtocol integration", () => {
       id: serviceId,
     } as IntegrationSystem);
 
-    await updateService(serviceFileUri, serviceId, {
-      type: IntegrationSystemType.EXTERNAL,
+    await updateService(implementedFileUri, serviceId, {
+      protocol: "graphql",
     } as Partial<IntegrationSystem>);
 
     expect(validateAllowedSystemProtocol).toHaveBeenCalledWith(
-      IntegrationSystemType.EXTERNAL,
-      ApiSpecificationType.HTTP,
+      IntegrationSystemType.IMPLEMENTED,
+      ApiSpecificationType.GRAPHQL,
     );
   });
 
-  test("throws when type is IMPLEMENTED but stored protocol is GRPC", async () => {
+  test("throws when the new protocol is not allowed for the type the name states", async () => {
     (getMainService as jest.Mock).mockResolvedValue(
-      buildServiceRecord(serviceId, { protocol: ApiSpecificationType.GRPC }),
+      buildServiceRecord(serviceId, { protocol: ApiSpecificationType.HTTP }),
     );
 
     await expect(
-      updateService(serviceFileUri, serviceId, {
-        type: IntegrationSystemType.IMPLEMENTED,
+      updateService(implementedFileUri, serviceId, {
+        protocol: ApiSpecificationType.GRPC,
+      } as Partial<IntegrationSystem>),
+    ).rejects.toThrow(
+      "Specification type is not allowed for implemented system: GRPC",
+    );
+    expect(fileApi.writeMainService).not.toHaveBeenCalled();
+  });
+
+  test("takes the type from the content when the legacy name states none", async () => {
+    (getMainService as jest.Mock).mockResolvedValue(
+      buildServiceRecord(serviceId, {
+        protocol: ApiSpecificationType.HTTP,
+        integrationSystemType: IntegrationSystemType.IMPLEMENTED,
+      }),
+    );
+
+    await expect(
+      updateService(legacyFileUri, serviceId, {
+        protocol: ApiSpecificationType.GRPC,
       } as Partial<IntegrationSystem>),
     ).rejects.toThrow(
       "Specification type is not allowed for implemented system: GRPC",
     );
   });
 
-  test("skips validation entirely when type is not provided", async () => {
+  test("skips validation entirely when protocol is not provided", async () => {
     (getMainService as jest.Mock).mockResolvedValue(
       buildServiceRecord(serviceId),
     );
@@ -128,7 +151,7 @@ describe("updateService – validateAllowedSystemProtocol integration", () => {
       id: serviceId,
     } as IntegrationSystem);
 
-    await updateService(serviceFileUri, serviceId, {
+    await updateService(legacyFileUri, serviceId, {
       name: "Updated Name",
     } as Partial<IntegrationSystem>);
 
