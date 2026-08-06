@@ -34,7 +34,7 @@ export class SystemService {
           description: service.content?.description || "",
           activeEnvironmentId: service.content?.activeEnvironmentId || "",
           integrationSystemType: type,
-          type: type,
+          type,
           protocol: service.content?.protocol || "",
           extendedProtocol: getExtendedProtocol(service.content?.protocol),
           specification: getSpecificationType(service.content?.protocol),

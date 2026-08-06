@@ -8,9 +8,6 @@
 
 import { joinUriPath } from "./helpers/mocks";
 
-const FILE = 1;
-const DIRECTORY = 2;
-
 let directories: Record<string, [string, number][]> = {};
 let fileContents: Record<string, unknown> = {};
 
@@ -74,6 +71,9 @@ jest.mock("../src/web/api-services/parsers/ContentParser", () => ({
 
 import { QipExplorerProvider, QipExplorerItem } from "../src/web/qipExplorer";
 import { setDefaultAppName } from "../src/web/response/file/fileExtensions";
+import * as vscode from "vscode";
+
+const { File: FILE, Directory: DIRECTORY } = vscode.FileType;
 
 type ServiceContent = {
   id: string;

@@ -3,26 +3,15 @@
 // folder it reads as a plain FOLDER, breaks the spec-import base folder and the navigation target
 // without raising anything.
 
-import { QIP_FILE_EXTENSIONS as ext } from "../../helpers/mocks";
+import {
+  QIP_FILE_EXTENSIONS as ext,
+  QIP_SCHEMA_URLS as SCHEMA_URLS,
+} from "../../helpers/mocks";
 
 const stat = jest.fn();
 const readDirectory = jest.fn();
 const showInputBox = jest.fn();
 const showQuickPick = jest.fn();
-
-const SCHEMA_URLS = {
-  service: "http://qubership.org/schemas/product/qip/service.schema.yaml",
-  externalService:
-    "http://qubership.org/schemas/product/qip/external-service.schema.yaml",
-  internalService:
-    "http://qubership.org/schemas/product/qip/internal-service.schema.yaml",
-  implementedService:
-    "http://qubership.org/schemas/product/qip/implemented-service.schema.yaml",
-  contextService:
-    "http://qubership.org/schemas/product/qip/context-service.schema.yaml",
-  mcpService:
-    "http://qubership.org/schemas/product/qip/mcp-service.schema.yaml",
-};
 
 jest.mock(
   "vscode",

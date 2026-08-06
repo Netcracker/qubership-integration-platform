@@ -240,15 +240,18 @@ export const ALLOWED_PROTOCOL_MAP: ReadonlyMap<
   ],
 ]);
 
+// The protocol is whatever the request carried, so it is checked by membership rather than trusted
+// to be an `ApiSpecificationType` already.
 export function validateAllowedSystemProtocol(
   systemType?: IntegrationSystemType,
-  protocol?: ApiSpecificationType,
+  protocol?: string,
 ) {
   if (!systemType || !protocol) {
     return;
   }
 
-  const allowedProtocols = ALLOWED_PROTOCOL_MAP.get(systemType);
+  const allowedProtocols: ReadonlySet<string> | undefined =
+    ALLOWED_PROTOCOL_MAP.get(systemType);
   if (allowedProtocols && !allowedProtocols.has(protocol)) {
     const errorMessage = `Specification type is not allowed for ${systemType.toLowerCase()} system: ${protocol}`;
     throw new Error(errorMessage);

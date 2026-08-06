@@ -911,6 +911,76 @@ it wrote; and the context/MCP gate above.
 ➕ The README and the five help pages said to reopen a service after its first edit. That was true before the webview
 re-point and is not now, so all six say the stale tab name is cosmetic instead.
 
+## Review phase 2 — code smells, conventions, style
+
+*Findings from the smells pass over `4e73fd235..2afaa41df`. Two MAJOR, 21 MINOR; the dispositions below are the
+authoritative record of what changed and what was declined.*
+
+➕ [decision] `resolveServiceType` now returns `IntegrationSystemType | undefined` instead of casting `""` into the
+enum. It also validates a body-stated type against `EXTENSION_KEY_BY_TYPE`, so a legacy document whose
+`content.integrationSystemType` holds an unrecognized string reads as untyped rather than leaking that string into the
+tree label and the DTO. Every caller was checked, not only the two the review named: `qipExplorer`, `serviceApiModify`
+(the protocol validation, whose parameter is already optional), `serviceApiRead.getService`,
+`SystemService.getSystemById`, plus the integration suite and the unit tests. `IntegrationSystem.integrationSystemType`
+became optional to match — the extension really can hold a service with no type, which is the whole point of the
+`Unknown` group.
+
+➕ [decision] Comment trimming kept every invariant four review rounds established and cut the prose around it:
+the whole-extension end-anchored compare, the dotted-id legacy name, the context/MCP gate on the **body**-stated type
+(the data-loss bug already made once), the write-then-delete order, and the per-app `$schema` source all survive as
+one- or two-line notes. Where `vscode-extension/CLAUDE.md` already carries the rationale, the module now points at it
+rather than keeping a second copy that would drift.
+
+➕ [decision] The `readServiceFile` consolidation was taken only for the three **read** sites. `getService`,
+`getEnvironment` and `getEnvironments` now share a module-local `readServiceFileById`, which is `readServiceFile` plus
+the id-mismatch retry the three repeated verbatim. `updateService` keeps the plain `readServiceFile` and its own
+`throw`: folding the retry in there would silently redirect a **write** to another file, which is a behaviour change,
+not a smell fix. The stale-uri family was re-run afterwards — unit, integration, and the conversion suite all green.
+
+➕ [decision] `SERVICE_ICONS` is now `Record<ServiceGroupType, string>`, the same enum-keyed guard `serviceFileType.ts`
+carries, and `Unknown` gained its own `question` icon instead of reusing `server` and reading as a second Context group.
+`serviceGroupType` collapsed to `serviceType ?? UNKNOWN_SERVICE_TYPE` now that `resolveServiceType` cannot return an
+out-of-enum value.
+
+➕ [decision] The eight `registerCustomEditorProvider` blocks became one loop over `DEFAULT_EDITOR_VIEW_TYPES`, which
+also makes that export earn itself — it had no production consumer, only the test. `activate()` therefore drops out of
+the "four surfaces with no compile-time link to the type map" list in CLAUDE.md.
+
+➕ [decision] The duplicate `isTreeServiceFile` / `isServiceFileName` predicates were replaced by one exported
+`isServiceFileOfAnyKind` on `serviceFileType.ts`, the module CLAUDE.md declares the single service-file resolver.
+
+➕ [decision] `validateAllowedSystemProtocol` takes `protocol?: string` now. The `protocol as ApiSpecificationType`
+cast at the call site asserted a validation that had not happened, on the line whose job is to validate; the membership
+check inside the function is what decides, and it works on a plain string.
+
+➕ Three test files moved to the src-mirroring layout: `tests/response/file/serviceFileType.test.ts`,
+`tests/response/serviceApiModify.conversion.test.ts`, `tests/web/response/fileExtensions.serviceTypes.test.ts`. Jest
+picks them all up (61 suites, unchanged); the relative depths and the `__dirname`-based config-file reads were fixed
+with them.
+
+➕ `QIP_SCHEMA_URLS` joins `QIP_FILE_EXTENSIONS` in `tests/helpers/mocks.ts` and replaces three copies of the same
+six-entry map. `stubProjectConfigService` spreads it and keeps its own `service: ""` override, so no stubbed value
+changed.
+
+➕ The integration suite restores `globalThis.fetch` in `suiteTeardown`, **before** the offline assertion, so a failing
+assertion cannot leave the wrapper on the host for the suites that run after it.
+
+➕ [decision] The offline assertion itself stays in `serviceTypes.test.ts` rather than moving. Task 9 pinned it there
+deliberately, and the restore is what made it safe; moving it would be churn against an earlier decision.
+
+➕ `ui/tests/components/services/detail/ServiceParametersTab.type.test.tsx` was folded into the sibling
+`ServiceParametersTab.test.tsx`, which already mocked everything it needed, and the cross-file pointer comment left in
+the sibling went with it. UI suites 229 → 228, test count unchanged at 2896 — all three cases moved, none dropped.
+
+⚠️ `npm -w @netcracker/qip-vscode-extension run format:check` still exits non-zero: 33 files fail Prettier, and the
+same 33 fail at the plan's base commit `4e73fd235`. The one *fresh* regression, `fileApiImpl.ts`, is fixed, and the new
+lines in `extension.ts` were hand-formatted to match Prettier's output. Reformatting the other 33 is unrelated churn
+and was not taken.
+
+➕ [deviation] `vscode-extension/CLAUDE.md` was edited on disk (untracked, git-excluded, so it cannot be committed):
+the `resolveServiceType` contract, the `isServiceFileOfAnyKind` predicate, the second enum-keyed guard, the
+`readServiceFileById` split, and the `Unknown` icon.
+
 ## Post-Completion
 
 *Items requiring manual intervention or external systems — no checkboxes, informational only*

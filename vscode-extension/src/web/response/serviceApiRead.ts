@@ -75,18 +75,22 @@ export async function readServiceFile(
   }
 }
 
-export async function getService(
+/**
+ * `readServiceFile` plus the id check the read sites share: a uri that resolves to another service's
+ * file is retried by id, and a document that still carries the wrong id is a failure, not a silent
+ * read of the wrong service.
+ */
+async function readServiceFileById(
   serviceFileUri: Uri,
   serviceId: string,
-): Promise<IntegrationSystem> {
-  let { fileUri: actualServiceFileUri, service } = await readServiceFile(
-    serviceFileUri,
-    serviceId,
-  );
+): Promise<{ fileUri: Uri; service: any }> {
+  let { fileUri, service } = await readServiceFile(serviceFileUri, serviceId);
   if (service.id !== serviceId) {
-    const ext = getExtensionsForUri(serviceFileUri);
-    actualServiceFileUri = await findServiceFileById(serviceId, ext);
-    service = await getMainService(actualServiceFileUri);
+    fileUri = await findServiceFileById(
+      serviceId,
+      getExtensionsForUri(serviceFileUri),
+    );
+    service = await getMainService(fileUri);
 
     if (service.id !== serviceId) {
       console.error(
@@ -97,8 +101,19 @@ export async function getService(
       );
     }
   }
+  return { fileUri, service };
+}
 
-  const type = resolveServiceType(actualServiceFileUri, service);
+export async function getService(
+  serviceFileUri: Uri,
+  serviceId: string,
+): Promise<IntegrationSystem> {
+  const { fileUri, service } = await readServiceFileById(
+    serviceFileUri,
+    serviceId,
+  );
+
+  const type = resolveServiceType(fileUri, service);
 
   return {
     id: service.id,
@@ -106,7 +121,7 @@ export async function getService(
     description: service.content?.description || "",
     activeEnvironmentId: service.content?.activeEnvironmentId || "",
     integrationSystemType: type,
-    type: type,
+    type,
     protocol: (service.content?.protocol || "").toLowerCase(),
     extendedProtocol: getExtendedProtocol(service.content?.protocol),
     specification: getSpecificationType(service.content?.protocol),
@@ -196,23 +211,7 @@ export async function getEnvironment(
   serviceId: string,
   environmentId: string,
 ): Promise<Environment> {
-  let { fileUri: actualServiceFileUri, service } = await readServiceFile(
-    serviceFileUri,
-    serviceId,
-  );
-
-  if (service.id !== serviceId) {
-    const ext = getExtensionsForUri(serviceFileUri);
-    actualServiceFileUri = await findServiceFileById(serviceId, ext);
-    service = await getMainService(actualServiceFileUri);
-
-    if (service.id !== serviceId) {
-      console.error(
-        `ServiceId mismatch: expected "${serviceId}", got "${service.id}"`,
-      );
-      throw Error("ServiceId mismatch");
-    }
-  }
+  const { service } = await readServiceFileById(serviceFileUri, serviceId);
 
   return findEnvironmentById(service.content?.environments, environmentId);
 }
@@ -221,23 +220,7 @@ export async function getEnvironments(
   serviceFileUri: Uri,
   serviceId: string,
 ): Promise<Environment[]> {
-  let { fileUri: actualServiceFileUri, service } = await readServiceFile(
-    serviceFileUri,
-    serviceId,
-  );
-
-  if (service.id !== serviceId) {
-    const ext = getExtensionsForUri(serviceFileUri);
-    actualServiceFileUri = await findServiceFileById(serviceId, ext);
-    service = await getMainService(actualServiceFileUri);
-
-    if (service.id !== serviceId) {
-      console.error(
-        `ServiceId mismatch: expected "${serviceId}", got "${service.id}"`,
-      );
-      throw Error("ServiceId mismatch");
-    }
-  }
+  const { service } = await readServiceFileById(serviceFileUri, serviceId);
 
   return parseEnvironments(service.content?.environments || []);
 }

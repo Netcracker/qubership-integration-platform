@@ -58,7 +58,7 @@ Parameters tab contains the following information:
 - **Name** - mandatory service name.
 - **Description** - description of service.
 - **Protocol** - service's integration protocol.
-- **Type** - non-editable. Service type, chosen when the service is created and immutable afterwards.
+- **Type** - service type, chosen at creation and not editable afterwards.
 - **Labels** - list of colored labels of the service, API group or specification, unique within particular entity of each type.
   It might contain **custom** labels, entered by user via Qubership Integration Platform UI or **technical** labels,
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
@@ -182,7 +182,6 @@ To create any service using VS Code Extension, follow the steps outlined below:
 4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter some description and click Enter. Next, it opens "Parameters" tab of the created service.
 
 Each service is stored in a file whose name states its type: `<id>.external-service.qip.yaml`, `<id>.internal-service.qip.yaml`, `<id>.implemented-service.qip.yaml`, `<id>.context-service.qip.yaml`, or `<id>.mcp-service.qip.yaml`. A project created by an earlier version of the extension uses the older name `<id>.service.qip.yaml`, which keeps the type inside the document. Such a file is renamed to the typed name the first time you edit the service, and git records the change as a rename. The editor tab keeps showing the old file name afterwards. That is cosmetic: the service stays editable, and the tab picks up the new name the next time you open it.
-
 
 ### Add API Group
 To add an API group to the Implemented service:

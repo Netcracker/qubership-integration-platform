@@ -18,7 +18,6 @@ import {
 import { fileApi, setFileApi } from "./response/file";
 import { RESOURCES_FOLDER, VSCodeFileApi } from "./response/file/fileApiImpl";
 import {
-  FileExtensionsConfig,
   getExtensionsForUri,
   initializeContextFromFile,
 } from "./response/file/fileExtensions";
@@ -51,11 +50,15 @@ import {
 } from "./exportImagesHandler";
 import {registerChainDiffMessageHandlers} from "./chainDiffEditor";
 import {
+  DEFAULT_EDITOR_VIEW_TYPES,
   getEditorViewTypeForUri,
   openDocumentInEditor,
 } from "./editorViewTypes";
-import {allServiceExtensions, isAnyServiceFile} from "./response/file/serviceFileType";
-import {onServiceFileMoved} from "./response/file/serviceFileWrite";
+import {
+  isAnyServiceFile,
+  isServiceFileOfAnyKind,
+} from "./response/file/serviceFileType";
+import { onServiceFileMoved } from "./response/file/serviceFileWrite";
 
 type VSCodeMessageWrapper = {
   command: string;
@@ -571,7 +574,8 @@ async function deleteServiceWithRelatedFiles(
   // file carries no owner, so drop the folder only once no other service is left to read it.
   const otherServiceLeft = remainingEntries.some(
     ([fileName, fileType]) =>
-      fileType === vscode.FileType.File && isServiceFileName(fileName, ext),
+      fileType === vscode.FileType.File &&
+      isServiceFileOfAnyKind(fileName, ext),
   );
   const resourcesEntry = remainingEntries.find(
     ([fileName, fileType]) =>
@@ -596,17 +600,6 @@ async function deleteServiceWithRelatedFiles(
 
   vscode.window.showInformationMessage(
     `Service "${serviceName}" and all related files deleted successfully`,
-  );
-}
-
-// Every service kind, not only the plain ones `isAnyServiceFile` answers for. `allServiceExtensions`
-// is the list, so a sixth kind added to the type map is picked up here without an edit.
-function isServiceFileName(
-  fileName: string,
-  ext: FileExtensionsConfig,
-): boolean {
-  return allServiceExtensions(ext).some((extension) =>
-    fileName.endsWith(extension),
   );
 }
 
@@ -807,61 +800,21 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
     supportsDiffEditor: true,
   };
 
-  context.subscriptions.push(
-    vscode.window.registerCustomEditorProvider(
-      "qip.chainFile.editor",
-      new ChainFileEditorProvider(context),
-      editorParams,
-    ),
-  );
-
-  context.subscriptions.push(
-    vscode.window.registerCustomEditorProvider(
-      "qip.serviceFile.editor",
-      new BaseFileEditorProvider(context),
-      editorParams,
-    ),
-  );
-
-  context.subscriptions.push(
-    vscode.window.registerCustomEditorProvider(
-      "qip.externalServiceFile.editor",
-      new BaseFileEditorProvider(context),
-      editorParams,
-    ),
-  );
-
-  context.subscriptions.push(
-    vscode.window.registerCustomEditorProvider(
-      "qip.internalServiceFile.editor",
-      new BaseFileEditorProvider(context),
-      editorParams,
-    ),
-  );
-
-  context.subscriptions.push(
-    vscode.window.registerCustomEditorProvider(
-      "qip.implementedServiceFile.editor",
-      new BaseFileEditorProvider(context),
-      editorParams,
-    ),
-  );
-
-  context.subscriptions.push(
-    vscode.window.registerCustomEditorProvider(
-      "qip.contextServiceFile.editor",
-      new BaseFileEditorProvider(context),
-      editorParams,
-    ),
-  );
-
-  context.subscriptions.push(
-    vscode.window.registerCustomEditorProvider(
-      "qip.mcpServiceFile.editor",
-      new BaseFileEditorProvider(context),
-      editorParams,
-    ),
-  );
+  // One registration per view type the resolver knows, so a new file kind is added in one place.
+  // Miss one and its `contributes.customEditors` entry opens a webview that never wires up.
+  for (const [kind, viewType] of Object.entries(DEFAULT_EDITOR_VIEW_TYPES)) {
+    const provider =
+      kind === "chain"
+        ? new ChainFileEditorProvider(context)
+        : new BaseFileEditorProvider(context);
+    context.subscriptions.push(
+      vscode.window.registerCustomEditorProvider(
+        viewType,
+        provider,
+        editorParams,
+      ),
+    );
+  }
 
   context.subscriptions.push(
     vscode.commands.registerCommand("qip.open", function () {

@@ -24,7 +24,9 @@ export enum IntegrationSystemType {
 
 export type IntegrationSystem = BaseEntity & {
   activeEnvironmentId: string;
-  integrationSystemType: IntegrationSystemType;
+  // Absent when neither the file name nor the document states a type — a legacy file the backend
+  // would refuse. The extension still lists such a service rather than hiding it.
+  integrationSystemType?: IntegrationSystemType;
   protocol: string;
   extendedProtocol: string;
   specification: string;

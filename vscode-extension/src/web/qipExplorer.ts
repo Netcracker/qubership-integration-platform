@@ -1,10 +1,9 @@
 import * as vscode from "vscode";
 import { getExtensionsForFile } from "./response/file/fileExtensions";
 import {
-  allServiceExtensions,
+  isServiceFileOfAnyKind,
   resolveServiceType,
   serviceTypeFromUri,
-  ServiceExtensions,
 } from "./response/file/serviceFileType";
 import { readDirectory } from "./response/file/fileApiImpl";
 import { ContentParser } from "./api-services/parsers/ContentParser";
@@ -25,8 +24,10 @@ export interface QipExplorerItem {
 /** The bucket for a service whose type neither its name nor its body states. */
 const UNKNOWN_SERVICE_TYPE = "Unknown";
 
+type ServiceGroupType = IntegrationSystemType | typeof UNKNOWN_SERVICE_TYPE;
+
 /** The groups the services category renders, in the order they appear. */
-const SERVICE_GROUPS: readonly { type: string; label: string }[] = [
+const SERVICE_GROUPS: readonly { type: ServiceGroupType; label: string }[] = [
   { type: IntegrationSystemType.EXTERNAL, label: "External" },
   { type: IntegrationSystemType.INTERNAL, label: "Internal" },
   { type: IntegrationSystemType.IMPLEMENTED, label: "Implemented" },
@@ -35,37 +36,33 @@ const SERVICE_GROUPS: readonly { type: string; label: string }[] = [
   { type: UNKNOWN_SERVICE_TYPE, label: UNKNOWN_SERVICE_TYPE },
 ];
 
-const SERVICE_ICONS: Record<string, string> = {
+// The `Record` keyed by the group type makes a new service type a compile error until it gets an
+// icon, and the group above it.
+const SERVICE_ICONS: Record<ServiceGroupType, string> = {
   [IntegrationSystemType.EXTERNAL]: "globe",
   [IntegrationSystemType.INTERNAL]: "home",
   [IntegrationSystemType.IMPLEMENTED]: "tools",
   [IntegrationSystemType.CONTEXT]: "server",
   [IntegrationSystemType.MCP]: "comment-discussion",
+  [UNKNOWN_SERVICE_TYPE]: "question",
 };
 
 /** A group reuses the icon of the services it holds. */
-function serviceIconName(serviceType: string): string {
-  return SERVICE_ICONS[serviceType] ?? "server";
+function serviceIconName(serviceType: ServiceGroupType): string {
+  return SERVICE_ICONS[serviceType];
 }
 
-/** The group a service belongs to. An unrecognized type reads as `Unknown` rather than vanishing. */
-function serviceGroupType(serviceType: string): string {
-  return SERVICE_GROUPS.some((group) => group.type === serviceType)
-    ? serviceType
-    : UNKNOWN_SERVICE_TYPE;
-}
-
-/** Every service file the tree lists: the four plain names plus the two special kinds. */
-function isTreeServiceFile(name: string, ext: ServiceExtensions): boolean {
-  return allServiceExtensions(ext).some((extension) =>
-    name.endsWith(extension),
-  );
+/** The group a service belongs to. An untyped service reads as `Unknown` rather than vanishing. */
+function serviceGroupType(
+  serviceType: IntegrationSystemType | undefined,
+): ServiceGroupType {
+  return serviceType ?? UNKNOWN_SERVICE_TYPE;
 }
 
 /** One service as discovery found it, kept by id so a half-converted one is not listed twice. */
 interface DiscoveredService {
   item: QipExplorerItem;
-  groupType: string;
+  groupType: ServiceGroupType;
   statesType: boolean;
 }
 
@@ -261,7 +258,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
   private buildServiceGroups(
     servicesById: Map<string, DiscoveredService>,
   ): QipExplorerItem[] {
-    const servicesByType = new Map<string, QipExplorerItem[]>();
+    const servicesByType = new Map<ServiceGroupType, QipExplorerItem[]>();
     for (const { item, groupType } of servicesById.values()) {
       const group = servicesByType.get(groupType) ?? [];
       group.push(item);
@@ -302,7 +299,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
 
       const ext = getExtensionsForFile();
       for (const [name, type] of entries) {
-        if (type === vscode.FileType.File && isTreeServiceFile(name, ext)) {
+        if (type === vscode.FileType.File && isServiceFileOfAnyKind(name, ext)) {
           try {
             const fileUri = vscode.Uri.joinPath(folderUri, name);
             console.log(`QIP Explorer: Found service file: ${name}`);
@@ -313,11 +310,10 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
               // Format: ${name}-${protocol}-${uuid}
               const displayName = serviceData.name || serviceData.id;
               const protocol = serviceData.content?.protocol || "Unknown";
-              // The name states the type; `content.integrationSystemType` covers the legacy
-              // type-less name. A file that states one in neither stays visible under Unknown.
-              const serviceType =
-                resolveServiceType(name, serviceData, ext) ||
-                UNKNOWN_SERVICE_TYPE;
+              // A file that states a type in neither its name nor its body stays visible under Unknown.
+              const serviceType = serviceGroupType(
+                resolveServiceType(name, serviceData, ext),
+              );
               const label = `${displayName}${
                 serviceType === IntegrationSystemType.CONTEXT ||
                 serviceType === IntegrationSystemType.MCP
@@ -342,7 +338,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
               if (!known || (statesType && !known.statesType)) {
                 servicesById.set(serviceData.id, {
                   item: serviceItem,
-                  groupType: serviceGroupType(serviceType),
+                  groupType: serviceType,
                   statesType,
                 });
               }

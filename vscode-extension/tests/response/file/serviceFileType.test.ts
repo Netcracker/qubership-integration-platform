@@ -25,7 +25,7 @@ const mockConfigService = {
   getAllConfigs: jest.fn(),
 };
 
-jest.mock("../src/web/services/ProjectConfigService", () => ({
+jest.mock("../../../src/web/services/ProjectConfigService", () => ({
   ProjectConfigService: {
     getInstance: jest.fn(() => mockConfigService),
   },
@@ -44,12 +44,12 @@ import {
   serviceTypeFromUri,
   ServiceExtensions,
   ServiceSchemaUrls,
-} from "../src/web/response/file/serviceFileType";
-import { IntegrationSystemType } from "../src/web/api-services/servicesTypes";
+} from "../../../src/web/response/file/serviceFileType";
+import { IntegrationSystemType } from "../../../src/web/api-services/servicesTypes";
 import {
   buildDefaultExtensions,
   setDefaultAppName,
-} from "../src/web/response/file/fileExtensions";
+} from "../../../src/web/response/file/fileExtensions";
 
 const qip: ServiceExtensions = buildDefaultExtensions("qip");
 const acme: ServiceExtensions = buildDefaultExtensions("acme");
@@ -291,7 +291,15 @@ describe("resolveServiceType", () => {
     ["svc-1.service.qip.yaml", {}],
     ["svc-1.service.qip.yaml", undefined],
   ])("reads %s with no type in either place as untyped", (name, service) => {
-    expect(resolveServiceType(name, service as any)).toBe("");
+    expect(resolveServiceType(name, service as any)).toBeUndefined();
+  });
+
+  it("reads a body type it does not recognize as untyped", () => {
+    expect(
+      resolveServiceType("svc-1.service.qip.yaml", {
+        content: { integrationSystemType: "NONSENSE" },
+      }),
+    ).toBeUndefined();
   });
 
   it("uses the extensions it is handed instead of resolving them", () => {
@@ -300,7 +308,7 @@ describe("resolveServiceType", () => {
     ).toBe(IntegrationSystemType.EXTERNAL);
     expect(
       resolveServiceType("svc-1.external-service.acme.yaml", {}, qip),
-    ).toBe("");
+    ).toBeUndefined();
   });
 });
 

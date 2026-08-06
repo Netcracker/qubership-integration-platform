@@ -37,7 +37,6 @@ import {
 } from "./serviceApiUtils";
 import { SERVICE_MIGRATIONS } from "../services/importMigrationVersions";
 import { ApiGroupService } from "../api-services/ApiGroupService";
-import { ApiSpecificationType } from "../api-services/importApiTypes";
 
 export async function updateContextService(
   serviceFileUri: Uri,
@@ -128,14 +127,15 @@ export async function updateService(
   if (serviceRequest.labels !== undefined) {
     service.content.labels = LabelUtils.fromEntityLabels(serviceRequest.labels);
   }
-  // The type is set at creation and never again, matching the backend. A type in the request is
-  // ignored rather than rejected, because the services list posts back whatever it loaded.
+  // The type is set at creation and never again, matching the backend. `type` and
+  // `integrationSystemType` in the request are ignored rather than rejected, because the services
+  // list posts back whatever it loaded.
   if (serviceRequest.protocol !== undefined) {
     const protocol = serviceRequest.protocol.toUpperCase();
     // The protocol is what has to fit the type now, so validate it against the type the file states.
     validateAllowedSystemProtocol(
       resolveServiceType(fileUri, service),
-      protocol as ApiSpecificationType,
+      protocol,
     );
     service.content.protocol = protocol;
   }

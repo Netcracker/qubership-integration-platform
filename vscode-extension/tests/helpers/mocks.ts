@@ -120,17 +120,8 @@ export function stubProjectConfigService(
     ProjectConfigService: {
       getConfig: jest.fn().mockReturnValue({
         schemaUrls: {
+          ...QIP_SCHEMA_URLS,
           service: "",
-          externalService:
-            "http://qubership.org/schemas/product/qip/external-service.schema.yaml",
-          internalService:
-            "http://qubership.org/schemas/product/qip/internal-service.schema.yaml",
-          implementedService:
-            "http://qubership.org/schemas/product/qip/implemented-service.schema.yaml",
-          contextService:
-            "http://qubership.org/schemas/product/qip/context-service.schema.yaml",
-          mcpService:
-            "http://qubership.org/schemas/product/qip/mcp-service.schema.yaml",
           specification: "",
           specificationGroup:
             "http://qubership.org/schemas/product/qip/specification-group.schema.yaml",
@@ -214,6 +205,21 @@ export function buildMockContext() {
     subscriptions: [],
   } as any;
 }
+
+/** The default `qip` service schema URLs, one per service extension key. */
+export const QIP_SCHEMA_URLS = {
+  service: "http://qubership.org/schemas/product/qip/service.schema.yaml",
+  externalService:
+    "http://qubership.org/schemas/product/qip/external-service.schema.yaml",
+  internalService:
+    "http://qubership.org/schemas/product/qip/internal-service.schema.yaml",
+  implementedService:
+    "http://qubership.org/schemas/product/qip/implemented-service.schema.yaml",
+  contextService:
+    "http://qubership.org/schemas/product/qip/context-service.schema.yaml",
+  mcpService:
+    "http://qubership.org/schemas/product/qip/mcp-service.schema.yaml",
+};
 
 /** The default `qip` file extensions, as `getExtensionsForUri` returns them. */
 export const QIP_FILE_EXTENSIONS = {

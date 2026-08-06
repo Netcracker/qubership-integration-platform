@@ -3,7 +3,13 @@
  */
 import React from "react";
 import { describe, it, expect, beforeEach, jest } from "@jest/globals";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+  within,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {
   IntegrationSystem,
@@ -171,7 +177,70 @@ describe("ServiceParametersTab", () => {
     } as unknown as ReturnType<typeof useBlocker>);
   });
 
-  // The service type is read-only on both paths; ServiceParametersTab.type.test.tsx covers it.
+  it.each([
+    ["web", false],
+    ["VS Code", true],
+  ])(
+    "should render the type read-only when running on %s",
+    async (_name, isVsCode) => {
+      isVsCodeFlag = isVsCode;
+      renderTab();
+
+      await waitFor(() =>
+        expect(screen.getByText("Implemented")).toBeVisible(),
+      );
+      expect(
+        screen.queryByRole("combobox", { name: /type/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("textbox", { name: /type/i }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it.each([
+    ["web", false],
+    ["VS Code", true],
+  ])("should submit no type field when saving on %s", async (_n, isVsCode) => {
+    isVsCodeFlag = isVsCode;
+    renderTab();
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", { name: /name/i }),
+      ).toBeInTheDocument(),
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: "Renamed" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() => expect(mockUpdateService).toHaveBeenCalled());
+    const payload = mockUpdateService.mock.calls[0][1] as Record<
+      string,
+      unknown
+    >;
+
+    expect(payload).not.toHaveProperty("type");
+    expect(payload.name).toBe("Renamed");
+  });
+
+  it("should render a dash when the type is null", async () => {
+    // A backend row written before the type became mandatory can still hold no type.
+    mockGetService.mockResolvedValue(
+      makeSystem({ type: null as unknown as IntegrationSystemType }),
+    );
+    renderTab();
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("textbox", { name: /name/i }),
+      ).toBeInTheDocument(),
+    );
+    // Scoped to the Type row: the Protocol row renders the same dash for an absent protocol.
+    const typeRow = screen.getByText("Type").closest("tr");
+    expect(typeRow).not.toBeNull();
+    expect(within(typeRow as HTMLElement).getByText("-")).toBeVisible();
+  });
 
   it("save sends the edited name", async () => {
     renderTab();

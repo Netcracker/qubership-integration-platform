@@ -28,7 +28,7 @@ const mockConfigService = {
   getAllConfigs: jest.fn(),
 };
 
-jest.mock("../src/web/services/ProjectConfigService", () => ({
+jest.mock("../../../src/web/services/ProjectConfigService", () => ({
   ProjectConfigService: {
     getInstance: jest.fn(() => mockConfigService),
   },
@@ -41,7 +41,7 @@ import {
   getDefaultExtensions,
   getExtensionsForFile,
   setDefaultAppName,
-} from "../src/web/response/file/fileExtensions";
+} from "../../../src/web/response/file/fileExtensions";
 
 function loadedConfig(appName: string) {
   return {
@@ -208,7 +208,10 @@ describe("shipped config files", () => {
 
   function readConfigFile(relativePath: string) {
     return yaml.parse(
-      fs.readFileSync(path.join(__dirname, "..", relativePath), "utf8"),
+      fs.readFileSync(
+        path.join(__dirname, "..", "..", "..", relativePath),
+        "utf8",
+      ),
     );
   }
 

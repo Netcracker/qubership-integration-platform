@@ -14,57 +14,59 @@ import { ProjectConfigService } from "../../src/web/services/ProjectConfigServic
 
 const service = ProjectConfigService.getInstance();
 
-afterEach(() => {
-  service.unregisterExternalConfig("legacy");
-});
-
-it("fills in the plain service extensions and schema URLs a pre-#553 config omits", () => {
-  service.registerExternalConfig("legacy", {
-    extensions: {
-      chain: ".chain.legacy.yaml",
-      service: ".service.legacy.yaml",
-      contextService: ".context-service.legacy.yaml",
-      mcpService: ".mcp-service.legacy.yaml",
-    },
-    schemaUrls: {
-      service: "http://qubership.org/schemas/product/qip/service.schema.yaml",
-    },
+describe("ProjectConfigService - plain service types", () => {
+  afterEach(() => {
+    service.unregisterExternalConfig("legacy");
   });
 
-  const config = service.getConfigByAppName("legacy");
+  it("fills in the plain service extensions and schema URLs a pre-#553 config omits", () => {
+    service.registerExternalConfig("legacy", {
+      extensions: {
+        chain: ".chain.legacy.yaml",
+        service: ".service.legacy.yaml",
+        contextService: ".context-service.legacy.yaml",
+        mcpService: ".mcp-service.legacy.yaml",
+      },
+      schemaUrls: {
+        service: "http://qubership.org/schemas/product/qip/service.schema.yaml",
+      },
+    });
 
-  expect(config?.extensions.service).toBe(".service.legacy.yaml");
-  expect(config?.extensions.externalService).toBe(
-    ".external-service.legacy.yaml",
-  );
-  expect(config?.extensions.internalService).toBe(
-    ".internal-service.legacy.yaml",
-  );
-  expect(config?.extensions.implementedService).toBe(
-    ".implemented-service.legacy.yaml",
-  );
-  expect(config?.schemaUrls.externalService).toBe(
-    "http://qubership.org/schemas/product/qip/external-service.schema.yaml",
-  );
-  expect(config?.schemaUrls.internalService).toBe(
-    "http://qubership.org/schemas/product/qip/internal-service.schema.yaml",
-  );
-  expect(config?.schemaUrls.implementedService).toBe(
-    "http://qubership.org/schemas/product/qip/implemented-service.schema.yaml",
-  );
-});
+    const config = service.getConfigByAppName("legacy");
 
-it("keeps a project override of a plain service extension", () => {
-  service.registerExternalConfig("legacy", {
-    extensions: {
-      externalService: ".ext-svc.legacy.yaml",
-    },
+    expect(config?.extensions.service).toBe(".service.legacy.yaml");
+    expect(config?.extensions.externalService).toBe(
+      ".external-service.legacy.yaml",
+    );
+    expect(config?.extensions.internalService).toBe(
+      ".internal-service.legacy.yaml",
+    );
+    expect(config?.extensions.implementedService).toBe(
+      ".implemented-service.legacy.yaml",
+    );
+    expect(config?.schemaUrls.externalService).toBe(
+      "http://qubership.org/schemas/product/qip/external-service.schema.yaml",
+    );
+    expect(config?.schemaUrls.internalService).toBe(
+      "http://qubership.org/schemas/product/qip/internal-service.schema.yaml",
+    );
+    expect(config?.schemaUrls.implementedService).toBe(
+      "http://qubership.org/schemas/product/qip/implemented-service.schema.yaml",
+    );
   });
 
-  const config = service.getConfigByAppName("legacy");
+  it("keeps a project override of a plain service extension", () => {
+    service.registerExternalConfig("legacy", {
+      extensions: {
+        externalService: ".ext-svc.legacy.yaml",
+      },
+    });
 
-  expect(config?.extensions.externalService).toBe(".ext-svc.legacy.yaml");
-  expect(config?.extensions.internalService).toBe(
-    ".internal-service.legacy.yaml",
-  );
+    const config = service.getConfigByAppName("legacy");
+
+    expect(config?.extensions.externalService).toBe(".ext-svc.legacy.yaml");
+    expect(config?.extensions.internalService).toBe(
+      ".internal-service.legacy.yaml",
+    );
+  });
 });

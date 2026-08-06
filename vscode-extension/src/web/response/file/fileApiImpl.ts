@@ -290,7 +290,6 @@ export class VSCodeFileApi implements FileApi {
     const typesToTry = [
       extensions.mcpService,
       extensions.contextService,
-      // Typed plain-service names before the legacy one, the precedence findServiceFileById uses.
       ...plainServiceExtensions(extensions),
       extensions.chain,
       // `.api-group.` before `.specification-group.`, matching ApiGroupService.resolveGroupFile's precedence.
@@ -828,7 +827,10 @@ export class VSCodeFileApi implements FileApi {
         }
         // The name states the type, so the content does not.
         return {
-          $schema: serviceSchemaUrlForType(serviceType.value, config.schemaUrls),
+          $schema: serviceSchemaUrlForType(
+            serviceType.value,
+            config.schemaUrls,
+          ),
           id: serviceId,
           name: serviceName.trim(),
           content: {

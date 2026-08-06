@@ -8,10 +8,7 @@ import { IntegrationSystemType } from "../../api-services/servicesTypes";
 /** A `vscode.Uri`, any `{ path }` shape, or a bare file name. */
 export type ServiceFileRef = string | { path: string };
 
-/**
- * The extension keys a service file can carry. Both `FileExtensionsConfig` and
- * `ProjectConfig["extensions"]` satisfy it, so either can be passed in.
- */
+/** The extension keys a service file can carry. `ProjectConfig["extensions"]` satisfies it too. */
 export type ServiceExtensions = Pick<
   FileExtensionsConfig,
   | "service"
@@ -34,10 +31,7 @@ const EXTENSION_KEY_BY_TYPE: Record<
   [IntegrationSystemType.MCP]: "mcpService",
 };
 
-/**
- * The `schemaUrls` entries that pair with the service extensions, one per kind. `ProjectConfig["schemaUrls"]`
- * satisfies it, so a config object can be passed straight in.
- */
+/** The `schemaUrls` entries that pair with the service extensions, one per kind. */
 export type ServiceSchemaUrls = Record<keyof ServiceExtensions, string>;
 
 /** The three types a plain service document can state. Context and MCP are separate kinds of document. */
@@ -68,9 +62,9 @@ function isServiceType(
 }
 
 /**
- * Whether a plain service document may state this type. A body claiming `CONTEXT` or `MCP` must not
- * decide the name a plain service is written under: the name and `$schema` together are what tell the
- * backend which kind of document it is reading (`ServiceTypeFiles.isContextOrMCPServiceFile`).
+ * Whether a plain service document may state this type. A body claiming `CONTEXT` or `MCP` must not decide
+ * the name a plain service is written under: the name and `$schema` together are what tell the backend
+ * which kind of document it is reading (`ServiceTypeFiles.isContextOrMCPServiceFile`).
  */
 export function isPlainServiceType(
   value: string | undefined,
@@ -86,24 +80,19 @@ function resolveExtensions(
 }
 
 /**
- * Matching order: the longest extension first. Declaration order settles which *file* wins when a
- * service has several, but which *extension a name carries* has to be the longest match, or a project
- * configuring `externalService: ".svc.yaml"` beside `internalService: ".internal.svc.yaml"` reads every
- * internal file as external.
+ * The longest extension first: which *extension a name carries* has to be the longest match, or a
+ * project configuring `externalService: ".svc.yaml"` beside `internalService: ".internal.svc.yaml"`
+ * reads every internal file as external.
  */
 function byLongestFirst(extensions: string[]): string[] {
   return [...extensions].sort((a, b) => b.length - a.length);
 }
 
 /**
- * The type a service file states in its name, or `undefined` for the legacy
- * type-less `.service.` name and for anything that is not a service file.
- *
- * Every match compares the *whole* extension — `.external-service.qip.yaml`, app name
- * included — and `endsWith` anchors it at the end of the name. So a postfix appearing
- * inside an id or an app name cannot shadow a type, and `.external-service.` cannot
- * end-match `.service.`, because the character before `service` is `-` rather than `.`.
- * That is the same rule that has kept `.context-service.` safe.
+ * The type a service file states in its name, or `undefined` for the legacy type-less `.service.`
+ * name and for anything that is not a service file. Every match compares the *whole* extension,
+ * end-anchored and app name included — see "Every match compares the whole extension" in
+ * `vscode-extension/CLAUDE.md` for why it is not a scan for a bare postfix.
  */
 export function serviceTypeFromUri(
   fileRef: ServiceFileRef,
@@ -111,24 +100,27 @@ export function serviceTypeFromUri(
 ): IntegrationSystemType | undefined {
   const name = extractFilename(fileRef);
   const ext = resolveExtensions(name, extensions);
-  const longest = byLongestFirst(TYPED_ENTRIES.map(([, key]) => ext[key]));
-  const matched = longest.find((extension) => name.endsWith(extension));
-  return TYPED_ENTRIES.find(([, key]) => ext[key] === matched)?.[0];
+  return [...TYPED_ENTRIES]
+    .sort(([, a], [, b]) => ext[b].length - ext[a].length)
+    .find(([, key]) => name.endsWith(ext[key]))?.[0];
 }
 
 /**
  * The type of a service that has already been parsed: the file name states it, and
- * `content.integrationSystemType` is the fallback for the legacy type-less name. Empty when
- * neither source carries one, so a broken file reads as untyped rather than throwing.
+ * `content.integrationSystemType` is the fallback for the legacy type-less name. `undefined` when
+ * neither source carries a known type, so a broken file reads as untyped rather than throwing.
  */
 export function resolveServiceType(
   fileRef: ServiceFileRef,
   service: { content?: { integrationSystemType?: string } } | undefined,
   extensions?: ServiceExtensions,
-): IntegrationSystemType {
-  return (serviceTypeFromUri(fileRef, extensions) ??
-    service?.content?.integrationSystemType ??
-    "") as IntegrationSystemType;
+): IntegrationSystemType | undefined {
+  const fromName = serviceTypeFromUri(fileRef, extensions);
+  if (fromName !== undefined) {
+    return fromName;
+  }
+  const fromBody = service?.content?.integrationSystemType;
+  return isServiceType(fromBody) ? fromBody : undefined;
 }
 
 /** Whether the file is a plain service file, of either the legacy or a typed name. */
@@ -141,9 +133,21 @@ export function isAnyServiceFile(
   return PLAIN_SERVICE_KEYS.some((key) => name.endsWith(ext[key]));
 }
 
+/** Whether the file is a service file of any kind, the context and MCP names included. */
+export function isServiceFileOfAnyKind(
+  fileRef: ServiceFileRef,
+  extensions?: ServiceExtensions,
+): boolean {
+  const name = extractFilename(fileRef);
+  const ext = resolveExtensions(name, extensions);
+  return allServiceExtensions(ext).some((extension) =>
+    name.endsWith(extension),
+  );
+}
+
 /**
- * The extension to write a service of this type under. A type that is absent or
- * unknown falls back to the legacy name, which states its type in the body instead.
+ * The extension to write a service of this type under. An absent or unknown type falls back to the
+ * legacy name, which states its type in the body instead.
  */
 export function serviceExtensionForType(
   type: string | undefined,
@@ -154,11 +158,7 @@ export function serviceExtensionForType(
     : extensions.service;
 }
 
-/**
- * The schema URL to stamp on a service of this type. Same fallback as `serviceExtensionForType`:
- * an absent or unknown type gets the legacy service schema, which is the one that requires the
- * type in the body.
- */
+/** The schema URL to stamp on a service of this type. Same fallback as `serviceExtensionForType`. */
 export function serviceSchemaUrlForType(
   type: string | undefined,
   schemaUrls: ServiceSchemaUrls,
@@ -199,7 +199,7 @@ function splitServiceFileName(
 /**
  * Whether the backend can read a type off this name. It reads the id up to the first dot and the
  * postfix in the segment right after it (`ExportImportUtils.statesPostfix`), so a typed name is
- * readable only when the id is one dot-free segment — the rule `fitsCurrentFormatFileName` states.
+ * readable only when the id is one dot-free segment.
  */
 export function fileNameStatesType(
   fileRef: ServiceFileRef,
@@ -216,13 +216,10 @@ export function fileNameStatesType(
 }
 
 /**
- * The name a service file of this type carries. Only the extension changes: the base name is what
- * the current name already states, so a service keeps the id its folder is named after.
- *
- * A dotted id keeps the name it has. A typed name built from one states another id — the backend
- * reads the id up to the first dot — so it resolves no type at all, while discovery still finds the
- * file through the folder (`ExportImportUtils.statesPostfix(File, String)`). Such a service stays in
- * the legacy format, where the type is in the body, rather than becoming a file the backend refuses.
+ * The name a service file of this type carries. Only the extension changes, so a service keeps the
+ * id its folder is named after. A dotted id keeps the legacy name: a typed name built from one
+ * states another id — the backend reads the id up to the first dot — so it would resolve no type at
+ * all, and the backend refuses such a file.
  */
 export function serviceFileNameForType(
   fileRef: ServiceFileRef,

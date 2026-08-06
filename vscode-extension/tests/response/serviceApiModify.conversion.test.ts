@@ -3,52 +3,24 @@
 // leaves the old file behind, shows up as a service listed twice or missing from an import, never
 // as a failure — so every name, every dropped field and every delete is pinned here.
 
-import { QIP_FILE_EXTENSIONS } from "./helpers/mocks";
-
-const DEFAULT_SCHEMA_URLS = {
-  service: "http://qubership.org/schemas/product/qip/service.schema.yaml",
-  externalService:
-    "http://qubership.org/schemas/product/qip/external-service.schema.yaml",
-  internalService:
-    "http://qubership.org/schemas/product/qip/internal-service.schema.yaml",
-  implementedService:
-    "http://qubership.org/schemas/product/qip/implemented-service.schema.yaml",
-  contextService:
-    "http://qubership.org/schemas/product/qip/context-service.schema.yaml",
-  mcpService:
-    "http://qubership.org/schemas/product/qip/mcp-service.schema.yaml",
-};
+import {
+  joinUriPath,
+  QIP_FILE_EXTENSIONS,
+  QIP_SCHEMA_URLS,
+} from "../helpers/mocks";
 
 let extensions: Record<string, string> = { ...QIP_FILE_EXTENSIONS };
-let schemaUrls: Record<string, string> = { ...DEFAULT_SCHEMA_URLS };
+let schemaUrls: Record<string, string> = { ...QIP_SCHEMA_URLS };
 // The configs the workspace loaded, one per app. A conversion reads the file's own app from here
 // rather than taking whichever app the last opened document made current.
 let loadedConfigs: { appName: string; schemaUrls: Record<string, string> }[] =
   [];
 
-// Resolves `..` the way vscode.Uri.joinPath does; the writer reaches the service folder through it.
-function joinPath(base: any, ...segments: string[]) {
-  const parts = [
-    ...String(base?.path ?? "").split("/"),
-    ...segments.flatMap((segment) => segment.split("/")),
-  ];
-  const resolved: string[] = [];
-  for (const part of parts) {
-    if (part === "..") {
-      resolved.pop();
-    } else if (part !== ".") {
-      resolved.push(part);
-    }
-  }
-  const path = resolved.join("/");
-  return { path, fsPath: path };
-}
-
 jest.mock(
   "vscode",
   () => {
     const api = {
-      Uri: { joinPath: jest.fn(joinPath) },
+      Uri: { joinPath: jest.fn(joinUriPath) },
       window: {
         showInformationMessage: jest.fn(),
         showErrorMessage: jest.fn(),
@@ -70,7 +42,7 @@ const writeMainService = jest.fn();
 const writeServiceFile = jest.fn();
 const deleteFile = jest.fn();
 const getContextServiceFile = jest.fn();
-jest.mock("../src/web/response/file/fileApiProvider", () => ({
+jest.mock("../../src/web/response/file/fileApiProvider", () => ({
   fileApi: {
     writeMainService: (...args: unknown[]) => writeMainService(...args),
     writeServiceFile: (...args: unknown[]) => writeServiceFile(...args),
@@ -81,7 +53,7 @@ jest.mock("../src/web/response/file/fileApiProvider", () => ({
 
 const getMainService = jest.fn();
 const getService = jest.fn();
-jest.mock("../src/web/response/serviceApiRead", () => ({
+jest.mock("../../src/web/response/serviceApiRead", () => ({
   getMainService: (...args: unknown[]) => getMainService(...args),
   // The real one falls back to the file the id resolves to when the uri no longer reads; every case
   // here holds a live uri, so it answers with the file it was handed.
@@ -94,7 +66,7 @@ jest.mock("../src/web/response/serviceApiRead", () => ({
   getMcpService: jest.fn(),
 }));
 
-jest.mock("../src/web/response/file/fileExtensions", () => ({
+jest.mock("../../src/web/response/file/fileExtensions", () => ({
   getExtensionsForFile: () => extensions,
   getExtensionsForUri: () => extensions,
   extractFilename: (fileRef: any) =>
@@ -102,7 +74,7 @@ jest.mock("../src/web/response/file/fileExtensions", () => ({
     "",
 }));
 
-jest.mock("../src/web/services/ProjectConfigService", () => ({
+jest.mock("../../src/web/services/ProjectConfigService", () => ({
   ProjectConfigService: {
     getConfig: () => ({ extensions, schemaUrls }),
     getInstance: () => ({
@@ -112,14 +84,14 @@ jest.mock("../src/web/services/ProjectConfigService", () => ({
   },
 }));
 
-jest.mock("../src/web/extension", () => ({ refreshQipExplorer: jest.fn() }));
-jest.mock("../src/web/api-services/ApiGroupService", () => ({
+jest.mock("../../src/web/extension", () => ({ refreshQipExplorer: jest.fn() }));
+jest.mock("../../src/web/api-services/ApiGroupService", () => ({
   ApiGroupService: {
     regenerateGroupApisSafely: jest.fn(),
     resolveGroupFile: jest.fn(),
   },
 }));
-jest.mock("../src/web/api-services/parsers/ContentParser", () => ({
+jest.mock("../../src/web/api-services/parsers/ContentParser", () => ({
   ContentParser: { parseContentFromFile: jest.fn() },
 }));
 
@@ -129,10 +101,10 @@ import {
   updateContextService,
   updateMcpService,
   updateService,
-} from "../src/web/response/serviceApiModify";
-import { onServiceFileMoved } from "../src/web/response/file/serviceFileWrite";
-import { IntegrationSystemType } from "../src/web/api-services/servicesTypes";
-import { SERVICE_MIGRATIONS } from "../src/web/services/importMigrationVersions";
+} from "../../src/web/response/serviceApiModify";
+import { onServiceFileMoved } from "../../src/web/response/file/serviceFileWrite";
+import { IntegrationSystemType } from "../../src/web/api-services/servicesTypes";
+import { SERVICE_MIGRATIONS } from "../../src/web/services/importMigrationVersions";
 
 const SERVICE_ID = "svc-1";
 
@@ -142,7 +114,7 @@ function uri(path: string) {
 
 function legacyService(overrides: Record<string, any> = {}) {
   return {
-    $schema: DEFAULT_SCHEMA_URLS.service,
+    $schema: QIP_SCHEMA_URLS.service,
     id: SERVICE_ID,
     name: "Orders",
     content: {
@@ -168,7 +140,7 @@ function written() {
 beforeEach(() => {
   jest.clearAllMocks();
   extensions = { ...QIP_FILE_EXTENSIONS };
-  schemaUrls = { ...DEFAULT_SCHEMA_URLS };
+  schemaUrls = { ...QIP_SCHEMA_URLS };
   loadedConfigs = [];
   getService.mockResolvedValue({ id: SERVICE_ID });
   deleteFile.mockResolvedValue(undefined);
@@ -197,9 +169,9 @@ describe("createService writes the name that states the type", () => {
   });
 
   it.each([
-    [IntegrationSystemType.EXTERNAL, DEFAULT_SCHEMA_URLS.externalService],
-    [IntegrationSystemType.INTERNAL, DEFAULT_SCHEMA_URLS.internalService],
-    [IntegrationSystemType.IMPLEMENTED, DEFAULT_SCHEMA_URLS.implementedService],
+    [IntegrationSystemType.EXTERNAL, QIP_SCHEMA_URLS.externalService],
+    [IntegrationSystemType.INTERNAL, QIP_SCHEMA_URLS.internalService],
+    [IntegrationSystemType.IMPLEMENTED, QIP_SCHEMA_URLS.implementedService],
   ])("stamps the %s schema url from the project config", async (type, url) => {
     await createService({} as any, uri("/workspace"), {
       name: "Orders",
@@ -222,7 +194,7 @@ describe("createService writes the name that states the type", () => {
     expect(fileUri.path).toBe(
       `/workspace/${service.id}/${service.id}.external-service.qip.yaml`,
     );
-    expect(document.$schema).toBe(DEFAULT_SCHEMA_URLS.externalService);
+    expect(document.$schema).toBe(QIP_SCHEMA_URLS.externalService);
     expect(service.integrationSystemType).toBe(IntegrationSystemType.EXTERNAL);
   });
 
@@ -293,7 +265,7 @@ describe("updateService converts a legacy file on its first write", () => {
     const { path, service } = written();
     expect(path).toBe(`/svc/${SERVICE_ID}.internal-service.qip.yaml`);
     expect(service.name).toBe("Renamed");
-    expect(service.$schema).toBe(DEFAULT_SCHEMA_URLS.internalService);
+    expect(service.$schema).toBe(QIP_SCHEMA_URLS.internalService);
     expect(service.content).not.toHaveProperty("integrationSystemType");
     expect(service.content).toMatchObject({
       description: "Order management",
@@ -351,7 +323,7 @@ describe("updateService converts a legacy file on its first write", () => {
 
   it("writes in place when the name already states the type", async () => {
     getMainService.mockResolvedValue({
-      $schema: DEFAULT_SCHEMA_URLS.externalService,
+      $schema: QIP_SCHEMA_URLS.externalService,
       id: SERVICE_ID,
       name: "Orders",
       content: { protocol: "HTTP" },
@@ -392,7 +364,7 @@ describe("updateService converts a legacy file on its first write", () => {
   // a field that disagree. No write may put the field back into a typed file.
   it("drops a type the caller put into the content of a typed file", async () => {
     getMainService.mockResolvedValue({
-      $schema: DEFAULT_SCHEMA_URLS.externalService,
+      $schema: QIP_SCHEMA_URLS.externalService,
       id: SERVICE_ID,
       name: "Orders",
       content: { protocol: "HTTP" },
@@ -447,13 +419,13 @@ describe("updateService converts a legacy file on its first write", () => {
 
     const { path, service } = written();
     expect(path).toBe(`/svc/${SERVICE_ID}.internal-service.qip.yaml`);
-    expect(service.$schema).toBe(DEFAULT_SCHEMA_URLS.internalService);
+    expect(service.$schema).toBe(QIP_SCHEMA_URLS.internalService);
     expect(service.content).not.toHaveProperty("integrationSystemType");
   });
 
   it("ignores a type in the request and leaves a typed file where it is", async () => {
     getMainService.mockResolvedValue({
-      $schema: DEFAULT_SCHEMA_URLS.externalService,
+      $schema: QIP_SCHEMA_URLS.externalService,
       id: SERVICE_ID,
       name: "Orders",
       content: { protocol: "HTTP" },
@@ -593,7 +565,7 @@ describe("updateService converts a legacy file on its first write", () => {
     const moved = jest.fn();
     const subscription = onServiceFileMoved(moved);
     getMainService.mockResolvedValue({
-      $schema: DEFAULT_SCHEMA_URLS.externalService,
+      $schema: QIP_SCHEMA_URLS.externalService,
       id: SERVICE_ID,
       name: "Orders",
       content: { protocol: "HTTP" },

@@ -49,6 +49,7 @@ const ACME_INTERNAL_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 let root: vscode.Uri;
 let networkCalls: string[] = [];
+let realFetch: typeof globalThis.fetch;
 
 function fixture(...segments: string[]): vscode.Uri {
   return vscode.Uri.joinPath(root, ...segments);
@@ -182,7 +183,7 @@ suite("Service types in the web host", () => {
     // The host has no outbound network. The mounted workspace itself is served over the local test
     // server, so record only what is aimed past it.
     networkCalls = [];
-    const realFetch = globalThis.fetch;
+    realFetch = globalThis.fetch;
     globalThis.fetch = ((input: any, init?: any) => {
       const url = String(input?.url ?? input);
       if (!isLocalUrl(url)) {
@@ -193,6 +194,9 @@ suite("Service types in the web host", () => {
   });
 
   suiteTeardown(async () => {
+    // Restore before asserting: a failed assertion must not leave the wrapper on the host, where
+    // every suite after this one would inherit it.
+    globalThis.fetch = realFetch;
     await closeAllEditors();
     assert.deepStrictEqual(
       networkCalls,

@@ -10,16 +10,12 @@ interface CacheEntry {
 type MatchMode = "endsWith" | "equals";
 
 function matchesAny(
-  extensions: (string | undefined)[],
+  extensions: string[],
   value: string,
   mode: MatchMode,
 ): boolean {
   return extensions.some((extension) =>
-    !extension
-      ? false
-      : mode === "endsWith"
-        ? value.endsWith(extension)
-        : value === extension,
+    mode === "endsWith" ? value.endsWith(extension) : value === extension,
   );
 }
 
@@ -41,9 +37,9 @@ function isPlainServiceExtension(
   config: {
     extensions: {
       service: string;
-      externalService?: string;
-      internalService?: string;
-      implementedService?: string;
+      externalService: string;
+      internalService: string;
+      implementedService: string;
     };
   },
   value: string,

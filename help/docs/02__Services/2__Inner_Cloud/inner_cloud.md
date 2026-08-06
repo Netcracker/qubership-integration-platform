@@ -53,7 +53,7 @@ Parameters tab contains the following information:
 - **Name** - mandatory service name.
 - **Description** - description of service.
 - **Protocol** - service's integration protocol.
-- **Type** - non-editable. Service type, chosen when the service is created and immutable afterwards.
+- **Type** - service type, chosen at creation and not editable afterwards.
 - **Labels** - list of colored labels of the service, API group or specification, unique within particular entity of each type.
   It might contain **custom** labels, entered by user via Qubership Integration Platform UI or **technical** labels,
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.

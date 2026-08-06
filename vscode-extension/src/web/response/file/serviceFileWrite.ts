@@ -1,6 +1,5 @@
 // The single write path for a plain service document, and the point where an old-format file
-// becomes a new-format one. Reads accept `<id>.service.<app>.yaml`; writes emit only the name that
-// states the type, so a project migrates as its services are edited and git records a rename.
+// becomes a new-format one. See "Conversion on first write" in `vscode-extension/CLAUDE.md`.
 
 import * as vscode from "vscode";
 import { Uri } from "vscode";
@@ -22,8 +21,7 @@ const serviceFileMovedListeners = new Set<ServiceFileMovedListener>();
 
 /**
  * Fires when a conversion replaces a service file, so a caller still holding the old uri can
- * re-point instead of reading a deleted path. The open service editor is such a caller: its webview
- * was handed the uri once, and every later message on that tab would otherwise fail.
+ * re-point instead of reading a deleted path. The open service editor is such a caller.
  */
 export function onServiceFileMoved(listener: ServiceFileMovedListener): {
   dispose(): void;
@@ -40,23 +38,19 @@ export function onServiceFileMoved(listener: ServiceFileMovedListener): {
  * Writes the service and returns the file it landed in, which is not the file it came from once a
  * conversion happens. Callers that re-read the service afterwards must use the returned uri.
  *
- * A document whose name states the type must not restate it in `content.integrationSystemType` —
- * the typed schemas refuse that (`typed-service-content.schema.yaml`), and the backend refuses a
- * name and a field that disagree. A name the backend reads no type from keeps the field, which is
- * then the only thing that states it.
- *
- * The service folder keeps its name. The backend still finds a converted service whose id contains
- * a dot only because the folder states that id.
+ * A name the backend reads a type from must not restate it in `content.integrationSystemType`
+ * (`typed-service-content.schema.yaml` forbids the field); a name it reads none from keeps it.
+ * The service folder keeps its name, which is how the backend still finds a converted dotted id.
  */
 export async function writeServiceInCurrentFormat(
   serviceFileUri: Uri,
   service: any,
 ): Promise<Uri> {
   const extensions = getExtensionsForUri(serviceFileUri);
-  // The name wins whenever it states a kind, context and MCP included, so a write never moves a
-  // file out of the family it is in. Only a body-stated type may promote a legacy name, and only to
-  // one of the three plain types: name and `$schema` together are what tell the backend a context or
-  // an MCP document apart, so a body claiming one of those leaves the file legacy.
+  // The name wins whenever it states a kind, so a write never moves a file out of the family it is
+  // in. Only a body-stated type may promote a legacy name, and `isPlainServiceType` gates that to
+  // the three plain types — gate the resolved type instead and every context and MCP file is
+  // renamed to `.service.` on its next edit.
   const fromName = serviceTypeFromUri(serviceFileUri, extensions);
   const fromBody = service?.content?.integrationSystemType;
   const type =
@@ -73,9 +67,8 @@ export async function writeServiceInCurrentFormat(
     return serviceFileUri;
   }
 
-  // The document now claims the schema its new name implies. Same source as both create paths: the
-  // project config, read for the app the file itself belongs to rather than for whichever app the
-  // last opened document made current.
+  // The schema the new name implies, read for the app the *file* belongs to rather than for
+  // whichever app the last opened document made current.
   service.$schema = serviceSchemaUrlForType(
     type,
     schemaUrlsForApp(extensions.appName),
@@ -83,9 +76,9 @@ export async function writeServiceInCurrentFormat(
 
   const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
   const targetUri = vscode.Uri.joinPath(serviceFolderUri, targetName);
+  // Write first, delete second: an interrupted conversion leaves both files, the typed one winning
+  // every read, rather than leaving no service file at all.
   await fileApi.writeMainService(targetUri, service);
-  // Write first, delete second: an interrupted conversion leaves both files, and the typed one
-  // wins every read, rather than leaving no service file at all.
   await deleteLegacySibling(serviceFileUri, targetName);
   notifyServiceFileMoved(serviceFileUri, targetUri);
   return targetUri;
@@ -123,8 +116,7 @@ async function deleteLegacySibling(
       `Failed to delete the legacy service file ${fileUri.path} after converting it:`,
       error,
     );
-    // The save itself succeeded and has already said so. Two files now carry one service id, which
-    // the extension survives but an import reads as a duplicate, so name the one to remove.
+    // Two files now carry one service id, which an import reads as a duplicate, so name the stale one.
     vscode.window.showWarningMessage(
       `The service was saved as "${targetName}", but "${staleName}" could not be deleted.` +
         " Delete it by hand — two files now describe the same service.",

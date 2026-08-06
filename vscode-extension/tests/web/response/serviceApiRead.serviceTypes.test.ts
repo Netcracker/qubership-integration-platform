@@ -159,7 +159,7 @@ describe("getService - the file name states the type", () => {
 
     const service = await getService(fileUri, SERVICE_ID);
 
-    expect(service.type).toBe("");
+    expect(service.type).toBeUndefined();
   });
 
   it("keeps environments, labels and protocol intact for a typed file", async () => {
@@ -200,7 +200,7 @@ describe("resolving a service file by id", () => {
     [ext.externalService, "EXTERNAL"],
     [ext.internalService, "INTERNAL"],
     [ext.implementedService, "IMPLEMENTED"],
-    [ext.service, ""],
+    [ext.service, undefined],
   ])("finds a service stored as %s", async (extension, expectedType) => {
     onlyOnDisk(extension);
     getMainService.mockImplementation((fileUri: any) =>
