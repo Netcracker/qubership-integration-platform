@@ -923,6 +923,15 @@ This is the single place the release process reads them from:
    shared list has behaved this way — V104 did the same. The legacy format is unaffected: `V105RevertMigration`
    strips 105 from every document the shared list stamps, context and MCP services included, so
    `QIP_EXPORT_LEGACY_FORMAT=true` remains the working downgrade path.
+7. **A service id that is not one dot-free segment cannot be exported in the current format.** A current-format name
+   states the id up to the first dot and the postfix in the segment right after it, so an id spanning two segments, or
+   one starting with the legacy flat prefix `service-`, writes a name discovery walks past. All five service kinds
+   refuse such an id on export and name it in the message. A plain service keeps a way out — its flat name states the
+   id whole, so `QIP_EXPORT_LEGACY_FORMAT=true` writes it — while a context and an MCP service have none, because
+   nothing on the import side scans for `context-service-<id>.yaml` or `mcp-service-<id>.yaml`. Re-create such a
+   service under a flat id. Ids are generated as UUIDs here, so only a hand-authored one, or one an import carried in,
+   is affected. The rollout-import converter holds the same rule for the context services it writes: it skips one and
+   logs an error naming the id instead of writing a file no import discovers.
 
 **Manual verification:**
 

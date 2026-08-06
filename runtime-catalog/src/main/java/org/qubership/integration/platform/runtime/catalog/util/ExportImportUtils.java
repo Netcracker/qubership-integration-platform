@@ -60,6 +60,9 @@ public class ExportImportUtils {
 
     public static final String IMPORT_TMP_DIR_PATH = "/tmp/";
 
+    private static final String RE_CREATE_UNDER_A_FLAT_ID =
+            "Re-create the service under an id of one dot-free segment.";
+
     public static String generateArchiveExportName() {
         DateFormat dateFormat = new SimpleDateFormat(DATE_TIME_FORMAT_PATTERN);
         return EXPORT_FILE_NAME_PREFIX + dateFormat.format(new Date()) + "." + ZIP_EXTENSION;
@@ -224,35 +227,48 @@ public class ExportImportUtils {
     /**
      * The service file name. The current format states the type in the name, so the type is required there; the legacy
      * flat name carries none and states it in {@code content.integrationSystemType} instead.
-     *
-     * <p>An id the current format cannot state is refused rather than written. The name would come back as another id,
-     * another type, or none at all, and the document no longer carries a type to fall back on.
      */
     public static String generateMainSystemFileExportName(
             String id, String appName, boolean isLegacyExport, IntegrationSystemType type) {
         if (isLegacyExport) {
             return SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION;
         }
-        if (!fitsCurrentFormatFileName(id)) {
-            throw new ServiceExportException(("Service id '%s' cannot be stated in a current-format file name"
-                    + " (<id>.<type>-service.<app>.yaml): the id has to be one dot-free segment and must not start"
-                    + " with the legacy flat prefix '%s'. The archive does not import back. Export with"
-                    + " QIP_EXPORT_LEGACY_FORMAT=true, whose flat name states the id whole and carries no type.")
-                    .formatted(id, SERVICE_YAML_NAME_PREFIX));
-        }
+        requireCurrentFormatId(id, "<id>.<type>-service.<app>.yaml",
+                "Export with QIP_EXPORT_LEGACY_FORMAT=true, whose flat name states the id whole and carries no type.");
         return id + ServiceTypeFiles.postfix(type) + appName + YAML_FILE_NAME_POSTFIX;
     }
 
     public static String generateMainContextServiceFileExportName(String id, String appName, boolean isLegacyExport) {
-        return isLegacyExport
-                ? CONTEXT_SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION
-                : id + CONTEXT_SERVICE_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
+        if (isLegacyExport) {
+            return CONTEXT_SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION;
+        }
+        requireCurrentFormatId(id, "<id>" + CONTEXT_SERVICE_YAML_NAME_POSTFIX + "<app>.yaml", RE_CREATE_UNDER_A_FLAT_ID);
+        return id + CONTEXT_SERVICE_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
     }
 
     public static String generateMCPServiceFileExportName(String id, String appName, boolean isLegacyExport) {
-        return isLegacyExport
-                ? MCP_SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION
-                : id + MCP_SERVICE_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
+        if (isLegacyExport) {
+            return MCP_SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION;
+        }
+        requireCurrentFormatId(id, "<id>" + MCP_SERVICE_YAML_NAME_POSTFIX + "<app>.yaml", RE_CREATE_UNDER_A_FLAT_ID);
+        return id + MCP_SERVICE_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
+    }
+
+    /**
+     * Refuses an id no current-format name can state, for every service kind. Import reads the id up to the first dot
+     * and the postfix in the segment right after it, so an id spanning two segments produces a name discovery never
+     * finds, and one wearing the legacy flat prefix produces a name every discovery finds and reads another id out of.
+     *
+     * <p>The remedy differs by kind because the legacy flat name is a fallback only where import discovers it, which is
+     * the plain service alone: nothing scans for {@code context-service-<id>.yaml} or {@code mcp-service-<id>.yaml}.
+     */
+    private static void requireCurrentFormatId(String id, String nameShape, String remedy) {
+        if (fitsCurrentFormatFileName(id)) {
+            return;
+        }
+        throw new ServiceExportException(("Service id '%s' cannot be stated in a current-format file name (%s): the id"
+                + " has to be one dot-free segment and must not start with the legacy flat prefix '%s'. The archive"
+                + " does not import back. %s").formatted(id, nameShape, SERVICE_YAML_NAME_PREFIX, remedy));
     }
 
     public static String generateSourceExportDir(String id) {

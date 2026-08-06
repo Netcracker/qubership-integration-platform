@@ -1,5 +1,8 @@
 package org.qubership.integration.platform.runtime.catalog.service.rolloutimport.converter;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.model.ImportConfig;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
@@ -23,14 +27,17 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.V104ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.rolloutimport.ImportConfigFactory;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -228,6 +235,26 @@ class ServiceConfigurationsToFilesConverterTest {
         assertThat(result).containsKey(expected);
     }
 
+    /**
+     * A context service has no legacy flat name any import discovers, so an id the current format cannot state leaves
+     * the converter with no readable name to write. It skips the service and says so, rather than writing a name the
+     * anchored discovery walks straight past.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"ctx.part", "service-ctx"})
+    @DisplayName("A context service id the current format cannot state is skipped, not written unreadable")
+    void contextServiceIdTheCurrentFormatCannotStateIsSkipped(String serviceId) throws Exception {
+        Map<String, RolloutImportConfigurationItem> contextServices =
+                Map.of(serviceId, item(serviceId, objectMapper.createObjectNode()));
+
+        List<ILoggingEvent> events = new ArrayList<>();
+        Map<Path, byte[]> result = capture(events, () -> converter.convert(
+                emptyConfigMap(), emptyConfigMap(), emptyConfigMap(), contextServices, emptyResourceMap()));
+
+        assertThat(result).isEmpty();
+        assertThat(events).anySatisfy(event -> assertThat(event.getFormattedMessage()).contains(serviceId));
+    }
+
     @Test
     @DisplayName("SpecGroup without parentId in content is skipped")
     void specGroupWithoutParentIdIsSkipped() throws JsonProcessingException {
@@ -363,6 +390,21 @@ class ServiceConfigurationsToFilesConverterTest {
         Path servicePath = Path.of(SERVICE_ID).resolve(SERVICE_ID + ".service." + APP_PREFIX + ".yaml");
         JsonNode written = objectMapper.readTree(result.get(servicePath));
         assertThat(written.path("content").path("migrations").asText()).isEqualTo("[103]");
+    }
+
+    /** Runs {@code action} with everything the converter logs collected into {@code events}. */
+    private static <T> T capture(List<ILoggingEvent> events, Callable<T> action) throws Exception {
+        Logger logger = (Logger) LoggerFactory.getLogger(ServiceConfigurationsToFilesConverter.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            return action.call();
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+            events.addAll(appender.list);
+        }
     }
 
     /** Writes the converted package under the temp root and answers the single service file it holds. */

@@ -29,6 +29,7 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.INTEGRATION_SYSTEM_TYPE;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SERVICE_YAML_NAME_PREFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.YAML_FILE_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
 
@@ -77,7 +78,18 @@ public class ServiceConfigurationsToFilesConverter {
             Map<String, RolloutImportConfigurationItem> serviceConfigs,
             String serviceTypePostfix
     ) throws JsonProcessingException {
+        boolean plainService = SERVICE_YAML_NAME_POSTFIX.equals(serviceTypePostfix);
         for (Map.Entry<String, RolloutImportConfigurationItem> serviceConfig : serviceConfigs.entrySet()) {
+            String serviceId = serviceConfig.getKey();
+            // Only the plain service has a legacy flat name import discovers, so every other kind is skipped loudly
+            // rather than written under a name discovery never finds.
+            if (!plainService && !ExportImportUtils.fitsCurrentFormatFileName(serviceId)) {
+                log.error("Service {} has an id no {}<app>.yaml name can state, so no file is written for it."
+                        + " The id has to be one dot-free segment that does not start with '{}'",
+                        serviceId, serviceTypePostfix, SERVICE_YAML_NAME_PREFIX);
+                continue;
+            }
+
             JsonNode contentNode = serviceConfig.getValue().getContent();
             if (contentNode instanceof ObjectNode serviceContent) {
                 // A package carries no version data, so the converter has to claim one. It claims only the versions
@@ -88,9 +100,8 @@ public class ServiceConfigurationsToFilesConverter {
                 );
             }
 
-            String serviceId = serviceConfig.getKey();
             Path serviceDirectory = Path.of(serviceId);
-            String serviceFileName = SERVICE_YAML_NAME_POSTFIX.equals(serviceTypePostfix)
+            String serviceFileName = plainService
                     ? plainServiceFileName(serviceId, serviceConfig.getValue())
                     : serviceId + serviceTypePostfix + appPrefix + YAML_FILE_NAME_POSTFIX;
             putYaml(files, serviceDirectory.resolve(serviceFileName), serviceConfig.getValue());

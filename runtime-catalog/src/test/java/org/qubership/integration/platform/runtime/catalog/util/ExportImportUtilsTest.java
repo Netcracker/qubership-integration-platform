@@ -18,6 +18,9 @@ package org.qubership.integration.platform.runtime.catalog.util;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceExportException;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
@@ -39,6 +42,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.AFTER;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.BEFORE;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.MCP_SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SCRIPT;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.TYPE;
@@ -327,6 +332,79 @@ class ExportImportUtilsTest {
         assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(fileName));
     }
 
+    /**
+     * The same round trip for the two kinds whose name carries no type: the name their export writes is the name their
+     * own import scan discovers, and the id reads back whole. The app prefix here carries a postfix of its own, the
+     * shape the anchored scan exists to tell apart.
+     */
+    @Test
+    void testContextAndMcpNamesAreDiscoveredByTheirOwnScan(@TempDir Path tempDir) throws IOException {
+        String contextName = ExportImportUtils.generateMainContextServiceFileExportName(
+                "ctx-1", "app.mcp-service.qip", false);
+        String mcpName = ExportImportUtils.generateMCPServiceFileExportName(
+                "mcp-1", "app.context-service.qip", false);
+        writeServiceFile(tempDir, "ctx-1", contextName);
+        writeServiceFile(tempDir, "mcp-1", mcpName);
+        String directory = tempDir.toAbsolutePath().toString();
+
+        assertEquals(List.of(contextName), fileNames(ExportImportUtils.extractSystemsFromImportDirectory(
+                directory, CONTEXT_SERVICE_YAML_NAME_POSTFIX)));
+        assertEquals(List.of(mcpName), fileNames(ExportImportUtils.extractSystemsFromImportDirectory(
+                directory, MCP_SERVICE_YAML_NAME_POSTFIX)));
+        assertEquals("ctx-1", ExportImportUtils.extractSystemIdFromFileName(new File(contextName)));
+        assertEquals("mcp-1", ExportImportUtils.extractSystemIdFromFileName(new File(mcpName)));
+    }
+
+    /**
+     * Why the export refuses a dotted id for these two kinds as well: the postfix lands one segment too far right, so
+     * the name is discovered by nothing and the service is silently absent from the import rather than reported.
+     */
+    @Test
+    void testADottedIdWouldWriteAContextOrMcpNameNoScanDiscovers(@TempDir Path tempDir) throws IOException {
+        writeServiceFile(tempDir, "ctx", "ctx.part" + CONTEXT_SERVICE_YAML_NAME_POSTFIX + "qip.yaml");
+        writeServiceFile(tempDir, "mcp", "mcp.part" + MCP_SERVICE_YAML_NAME_POSTFIX + "qip.yaml");
+        String directory = tempDir.toAbsolutePath().toString();
+
+        assertEquals(Collections.emptyList(), ExportImportUtils.extractSystemsFromImportDirectory(
+                directory, CONTEXT_SERVICE_YAML_NAME_POSTFIX));
+        assertEquals(Collections.emptyList(), ExportImportUtils.extractSystemsFromImportDirectory(
+                directory, MCP_SERVICE_YAML_NAME_POSTFIX));
+    }
+
+    /**
+     * The other half of the refusal: the legacy flat prefix is ORed into every scan, so an id carrying it makes one
+     * context file land in the MCP import as well, under an id that is neither.
+     */
+    @Test
+    void testALegacyPrefixedIdWouldWriteAContextNameEveryScanDiscovers(@TempDir Path tempDir) throws IOException {
+        String fileName = "service-ctx" + CONTEXT_SERVICE_YAML_NAME_POSTFIX + "qip.yaml";
+        writeServiceFile(tempDir, "ctx", fileName);
+
+        assertEquals(List.of(fileName), fileNames(ExportImportUtils.extractSystemsFromImportDirectory(
+                tempDir.toAbsolutePath().toString(), MCP_SERVICE_YAML_NAME_POSTFIX)));
+        assertEquals("ctx.context-service.qip", ExportImportUtils.extractSystemIdFromFileName(new File(fileName)));
+    }
+
+    /**
+     * Export naming and import parsing stay exact inverses for all five service kinds, so the two that carry no type
+     * refuse the same ids the three typed ones refuse. Their legacy flat name is no fallback: nothing scans for it.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"ctx.part", "service-ctx"})
+    void testContextAndMcpRefuseAnIdTheCurrentFormatCannotState(String serviceId) {
+        ServiceExportException contextRefusal = assertThrows(ServiceExportException.class, () ->
+                ExportImportUtils.generateMainContextServiceFileExportName(serviceId, "qip", false));
+        ServiceExportException mcpRefusal = assertThrows(ServiceExportException.class, () ->
+                ExportImportUtils.generateMCPServiceFileExportName(serviceId, "qip", false));
+
+        assertTrue(contextRefusal.getMessage().contains(serviceId),
+                "the message names the id to fix: " + contextRefusal.getMessage());
+        assertTrue(mcpRefusal.getMessage().contains(serviceId),
+                "the message names the id to fix: " + mcpRefusal.getMessage());
+        assertFalse(contextRefusal.getMessage().contains("QIP_EXPORT_LEGACY_FORMAT"),
+                "the legacy context name is discovered by no import: " + contextRefusal.getMessage());
+    }
+
     @Test
     void testGetFileContentByNameThrowsWhenFileOutsideBase(@TempDir Path tempDir) throws IOException {
         File baseDir = tempDir.resolve("base").toFile();
@@ -341,6 +419,10 @@ class ExportImportUtilsTest {
         Path filePath = baseDir.toPath().resolve("test.txt");
         Files.writeString(filePath, "hello");
         assertEquals("hello", ExportImportUtils.getFileContentByName(baseDir, "test.txt"));
+    }
+
+    private static List<String> fileNames(List<File> files) {
+        return files.stream().map(File::getName).sorted().toList();
     }
 
     private static void writeServiceFile(Path root, String serviceDirectory, String fileName) throws IOException {
