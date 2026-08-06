@@ -55,7 +55,7 @@ Project root (git/SVN root, not included in zip-archive)
             └── mappingDescription-{response code}-{module_id}.json            json file for embedded Mapper in Service Call for response handling (by particular response code) [0..N]
 ├── services/                                                                  container for services [1..1]
 │   └── {service_id}/                                                          UUID of the service [1..N]
-│       ├── {service_id}.service.{app_name}.yaml                               yaml configuration of the service (incl. env configs) [1..1]
+│       ├── {service_id}.{service_type}-service.{app_name}.yaml                yaml configuration of the service (incl. env configs) [1..1]
 │       ├── {api_group_id}.api-group.{app_name}.yaml                           yaml configuration of the API group [0..N]
 │       ├── {specification_id}.api.{app_name}.yaml                             yaml configuration of the API Specification [0..N]
 │       └── resources/                                                         container for specification source files of the service [0..1]
@@ -67,6 +67,8 @@ Project root (git/SVN root, not included in zip-archive)
 ```
 
 `{app_name}` is the application prefix of the QIP installation that produced the archive (`qip` by default).
+`{service_type}` is `external`, `internal`, or `implemented`. The file name states the service type, so the
+configuration itself does not carry it.
 
 </details>
 

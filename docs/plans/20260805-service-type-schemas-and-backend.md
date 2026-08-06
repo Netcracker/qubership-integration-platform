@@ -535,7 +535,7 @@ gone: `ServiceDeserializer` lost its ninth constructor parameter and the four ha
 because it writes; copying to write nothing would only invite the next reader to look for the write. The test pins both
 that the result equals the input and that the input itself is unmutated.
 
-[decision] `MigrationBeanRegistrationTest.theRolloutImportPathClaimsOnlyTheseServiceMigrationVersions` needed no change:
+[decision] `MigrationBeanRegistrationTest.rolloutClaimsTheseServiceVersions` needed no change:
 `isIdempotent() == true` keeps 105 out of the rollout-claimed set, which is the correct outcome — the rollout converter
 runs the no-op instead of claiming a version it never applied.
 
@@ -630,8 +630,8 @@ baseline with today's format.
 [deviation] `legacy-flat` carries no document with inline `specificationGroups`, which the Testing Strategy lists for
 that set. The exporter never inlines groups — `IntegrationSystemDtoMapper` does not fill `apiGroups`, and every group is
 written as its own file — so such a document cannot come out of a capture. The inline shape belongs to pre-V101
-archives; `V105RevertMigrationTest.aLegacyExportedServiceReimportsWithItsType` covers its round trip from a hand-built
-document, and `ServiceExportFormatTest.theRevertChainStillRenamesTheApiGroupsOfARealPost553Export` inlines the real
+archives; `V105RevertMigrationTest.legacyExportedServiceReimportsWithItsType` covers its round trip from a hand-built
+document, and `ServiceExportFormatTest.revertChainStillRenamesApiGroups` inlines the real
 golden api-group node into the real golden service document to exercise V104's rename over a new-URI export.
 
 [decision] the null-type export raises a new `ServiceExportException` (id, name, message), mirroring
@@ -786,16 +786,16 @@ normalizes the fixture the way the database would. Left as is: pre-existing, unr
 |---|---|
 | three dedicated schemas replace the field | `external-service.schema.yaml`, `internal-service.schema.yaml`, `implemented-service.schema.yaml`, each suppressing the field with `not: {required: [integrationSystemType]}` |
 | the backend **reads** them | `ServiceDeserializer.resolveServiceType`, over `ExportImportUtils.extractSystemsFromImportDirectory(String, Collection)` driven by `SystemExportImportService.SERVICE_FILE_POSTFIXES` (all four postfixes plus the legacy prefix) |
-| the backend **writes** them | `IntegrationSystemDtoMapper.toExternalEntity:86` stamps `serviceTypeFiles.schemaUri(...)`; `ExportImportUtils.generateMainSystemFileExportName:227` builds the name from `ServiceTypeFiles.postfix(type)`; the type reaches it through `ExportedIntegrationSystem.type` |
+| the backend **writes** them | `IntegrationSystemDtoMapper.toExternalEntity` stamps `serviceTypeFiles.schemaUri(...)`; `ExportImportUtils.generateMainSystemFileExportName` builds the name from `ServiceTypeFiles.postfix(type)`; the type reaches it through `ExportedIntegrationSystem.type` |
 | the file name states the type | `ServiceTypeFiles.typeFromFileName`; the name wins, `content.integrationSystemType` is the fallback, `$schema` is not consulted |
 | `METAMODEL` on an external service is now rejected offline | the `Protocol` enum of `external-service.schema.yaml`, pinned by `external-service-metamodel-protocol__SHOULD_FAIL.yaml` |
 | ten environments on an internal service are now rejected offline | `maxItems: 1` in `internal-service.schema.yaml`, pinned by `internal-service-two-environments__SHOULD_FAIL.yaml` |
-| the bare `RuntimeException` at import time is gone | `EnvironmentLimitUtils.validate` raises `BadRequestException`, called from `SystemExportImportService:636` (import update), `:971` (import create), and `EnvironmentController:99` (REST) |
+| the bare `RuntimeException` at import time is gone | `EnvironmentLimitUtils.validate` raises `BadRequestException`, called from `SystemExportImportService.prepareIntegrationSystemForUpdate` (import update), `.prepareIntegrationSystemForCreate` (import create), and `EnvironmentController.createEnvironment` (REST) |
 | no document can name one type and state another | `ServiceDeserializer.resolveServiceType` raises `ServiceImportException` on a name/field disagreement |
 | symmetry with context and MCP services | the three schemas mirror `context-service.schema.yaml` — per-type `$id`, `metaInfo.fileExtension`, no type field |
 | the `integration_system_type` column stays | still declared at `V100_000__init.sql:415`; no migration drops it |
 | no JPA inheritance | no `@Inheritance` or `@DiscriminatorColumn` anywhere under `runtime-catalog/src/main/java` |
-| the type is not mutable through PUT | `SystemController.updateSystem:119` raises `EntityNotFoundException` instead of falling through to create; `mergeWithoutLabels` still maps no type |
+| the type is not mutable through PUT | `SystemController.updateSystem` and `updateSyncStatus` share `applyUpdate`, which raises `EntityNotFoundException` instead of falling through to create; `mergeWithoutLabels` still maps no type |
 
 **Every negative sample fails for its own constraint, and only for it.** Checked one sample at a time under the AJV
 configuration `schemas.test.ts` uses, reading the reported keyword rather than the pass/fail bit — a negative sample

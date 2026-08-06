@@ -287,10 +287,12 @@ or click **"browse"** link and select **single** file with respective format fro
 When appropriate file is added to the window, click **"Import"** button to start the import process.
 API Specification version in archive **must be unique** for each API Specification.
 During the import, system follows next logic:
-- Check the service type stated by each service file, before anything is written. In three cases the service is
+- Check the service type stated by each service file, before anything is written. In four cases the service is
   reported with the **Error** status and skipped, while the rest of the archive still imports:
   - The file states no service type. Its name carries none of the type postfixes (`.external-service.`,
     `.internal-service.`, `.implemented-service.`), and `content.integrationSystemType` is absent from the document.
+  - The file name and the document disagree about the type. The name states one type postfix and
+    `content.integrationSystemType` states another, so neither is taken as correct.
   - The stated type differs from the type of the service already stored under that ID. A service type cannot be
     changed by an import, so the service has to be deleted first, or imported under a new ID.
   - The archive holds more than one service file for one service ID. The system cannot tell which of them is current,
