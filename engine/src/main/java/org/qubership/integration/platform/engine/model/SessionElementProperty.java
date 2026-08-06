@@ -29,7 +29,7 @@ public class SessionElementProperty {
         .value("")
         .build();
     public static final String UNKNOWN_TYPE = "unknown";
-    public static final String NOT_SERIALIZABLE_VALUE = "<not serializable>";
+    public static final String NON_SERIALIZABLE_VALUE = "non-serializable";
 
     private String type;
     private String value;
