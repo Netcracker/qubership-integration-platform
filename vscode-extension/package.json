@@ -130,6 +130,33 @@
         ]
       },
       {
+        "viewType": "qip.externalServiceFile.editor",
+        "displayName": "QIP External Service File Visual Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.external-service.qip.yaml"
+          }
+        ]
+      },
+      {
+        "viewType": "qip.internalServiceFile.editor",
+        "displayName": "QIP Internal Service File Visual Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.internal-service.qip.yaml"
+          }
+        ]
+      },
+      {
+        "viewType": "qip.implementedServiceFile.editor",
+        "displayName": "QIP Implemented Service File Visual Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.implemented-service.qip.yaml"
+          }
+        ]
+      },
+      {
         "viewType": "qip.contextServiceFile.editor",
         "displayName": "QIP Context Service File Visual Editor",
         "selector": [

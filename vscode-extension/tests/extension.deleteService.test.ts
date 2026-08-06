@@ -269,3 +269,29 @@ it("leaves a sibling service's files alone when both live in one folder", async 
   expect(deletedNames()).not.toContain("resources");
   expect(deletedNames()).not.toContain("..");
 });
+
+// The sibling left behind carries a typed name, so the folder sweep only sees it as a service if
+// service detection covers the three new extensions. Miss that and `resources/` goes with the delete.
+it("keeps resources when the sibling left behind carries a typed service name", async () => {
+  setUpFolder(
+    [
+      ["svc-a.service.qip.yaml", FILE],
+      ["svc-b.external-service.qip.yaml", FILE],
+      ["resources", DIRECTORY],
+    ],
+    {
+      "svc-a.service.qip.yaml": { id: "svc-a", name: "svc-a" },
+      "svc-b.external-service.qip.yaml": { id: "svc-b", name: "svc-b" },
+    },
+  );
+
+  const command = registeredCommands.get("qip.deleteService")!;
+  await command({
+    fileUri: { path: "/workspace/flat/svc-a.service.qip.yaml" },
+    label: "svc-a",
+  });
+
+  expect(deletedNames()).toEqual(["svc-a.service.qip.yaml"]);
+  expect(deletedNames()).not.toContain("resources");
+  expect(deletedNames()).not.toContain("..");
+});

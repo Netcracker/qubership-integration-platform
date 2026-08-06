@@ -5,6 +5,7 @@ import {
 } from "./helpers/mocks";
 
 let capturedEditorProviders: Record<string, any> = {};
+const registeredCommands = new Map<string, (...args: any[]) => unknown>();
 let onDidReceiveMessageCallback: Function | null = null;
 let mockStatBehavior: "resolve" | "reject" = "resolve";
 
@@ -40,7 +41,12 @@ jest.mock(
         createWebviewPanel: jest.fn(() => mockPanel),
       },
       commands: {
-        registerCommand: jest.fn(() => ({ dispose: jest.fn() })),
+        registerCommand: jest.fn(
+          (id: string, handler: (...args: any[]) => unknown) => {
+            registeredCommands.set(id, handler);
+            return { dispose: jest.fn() };
+          },
+        ),
         executeCommand: jest.fn(),
       },
       workspace: {
@@ -76,6 +82,9 @@ jest.mock("../src/web/response/file/fileExtensions", () => ({
   getExtensionsForUri: jest.fn().mockReturnValue({
     chain: ".qip-chain.yaml",
     service: ".qip-service.yaml",
+    externalService: ".qip-external-service.yaml",
+    internalService: ".qip-internal-service.yaml",
+    implementedService: ".qip-implemented-service.yaml",
     contextService: ".qip-context-service.yaml",
     mcpService: ".qip-mcp-service.yaml",
     specificationGroup: ".qip-sg.yaml",
@@ -115,6 +124,7 @@ jest.mock("../src/web/response/navigationUtils", () => ({
   updateNavigationStateValue: jest.fn(),
 }));
 
+import * as vscode from "vscode";
 import { activate } from "../src/web/extension";
 
 function activateAndGetProvider() {
@@ -138,9 +148,67 @@ describe("extension.ts", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     capturedEditorProviders = {};
+    registeredCommands.clear();
     onDidReceiveMessageCallback = null;
     mockStatBehavior = "resolve";
     mockWebview.html = "";
+  });
+
+  describe("custom editor registration", () => {
+    test("registers an editor for every file kind package.json contributes", () => {
+      activate(buildMockContext());
+
+      expect(Object.keys(capturedEditorProviders).sort()).toEqual([
+        "qip.chainFile.editor",
+        "qip.contextServiceFile.editor",
+        "qip.externalServiceFile.editor",
+        "qip.implementedServiceFile.editor",
+        "qip.internalServiceFile.editor",
+        "qip.mcpServiceFile.editor",
+        "qip.serviceFile.editor",
+      ]);
+    });
+  });
+
+  describe("qip.revealInExplorer", () => {
+    test.each([
+      [".qip-service.yaml", "qip.serviceFile.editor"],
+      [".qip-external-service.yaml", "qip.externalServiceFile.editor"],
+      [".qip-internal-service.yaml", "qip.internalServiceFile.editor"],
+      [".qip-implemented-service.yaml", "qip.implementedServiceFile.editor"],
+      [".qip-context-service.yaml", "qip.contextServiceFile.editor"],
+      [".qip-mcp-service.yaml", "qip.mcpServiceFile.editor"],
+      [".qip-chain.yaml", "qip.chainFile.editor"],
+    ])("opens a %s file with its own editor", async (extension, viewType) => {
+      activate(buildMockContext());
+      const path = `/workspace/svc/svc${extension}`;
+      const fileUri = { path, fsPath: path };
+
+      await registeredCommands.get("qip.revealInExplorer")!({ fileUri });
+
+      expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
+        "vscode.openWith",
+        fileUri,
+        viewType,
+      );
+    });
+
+    test("falls back to the text editor for a file no custom editor claims", async () => {
+      activate(buildMockContext());
+      const fileUri = {
+        path: "/workspace/readme.txt",
+        fsPath: "/workspace/readme.txt",
+      };
+
+      await registeredCommands.get("qip.revealInExplorer")!({ fileUri });
+
+      expect(vscode.commands.executeCommand).not.toHaveBeenCalledWith(
+        "vscode.openWith",
+        fileUri,
+        expect.anything(),
+      );
+      expect(vscode.workspace.openTextDocument).toHaveBeenCalledWith(fileUri);
+    });
   });
 
   describe("resolveCustomTextEditor - rejects invalid parameters", () => {

@@ -380,12 +380,35 @@ the enum: `tsc` reports the missing key and the suite stops compiling.
 - Modify: `vscode-extension/src/web/extension.ts`
 - Modify: `vscode-extension/tests/web/editorViewTypes.test.ts` (exists — do not create a duplicate)
 
-- [ ] add three `customEditors` entries with `*.external-service.qip.yaml`-style patterns
-- [ ] add three siblings to the plain `service` branch at `editorViewTypes.ts:28-30`
-- [ ] register the editors in `activate()` alongside the existing four, and update `extension.ts:580`
-- [ ] write tests: each of the six file kinds resolves to its own view type
-- [ ] write a test asserting no pattern shadows another (a `.context-service.` path must not resolve to the plain service editor)
-- [ ] run tests — must pass before task 4
+- [x] add three `customEditors` entries with `*.external-service.qip.yaml`-style patterns
+- [x] add three siblings to the plain `service` branch at `editorViewTypes.ts:28-30`
+- [x] register the editors in `activate()` alongside the existing four, and update `extension.ts:580`
+- [x] write tests: each of the six file kinds resolves to its own view type
+- [x] write a test asserting no pattern shadows another (a `.context-service.` path must not resolve to the plain service editor)
+- [x] run tests — must pass before task 4
+
+➕ The glob question is settled: `*.service.qip.yaml` does **not** claim a typed name. VS Code matches a
+slash-free `filenamePattern` against the file name with `*` standing for any run of characters inside one segment,
+so a match needs the literal `.service.qip.yaml` at the end, and `external-service.qip.yaml` offers `-service…`.
+Same rule, different matcher, same answer as the resolver's `endsWith`. The suite pins it from package.json rather
+than from a copy of the patterns.
+
+➕ The three typed branches go **before** the plain `service` one, not after it as the plan's "siblings at
+`:28-30`" reads. The default names cannot shadow each other, but a project is free to configure
+`service: ".svc.qip.yaml"` alongside `externalService: ".external.svc.qip.yaml"`, which the plain branch would
+swallow. `plainServiceExtensions` already orders itself this way for the same reason.
+
+➕ `extension.ts` had a second, unlisted editor-wiring site: `qip.revealInExplorer` picked the view type from its
+own `endsWith` chain and **defaulted to the chain editor**, so a typed service file opened from the tree would have
+rendered as a chain. It now calls `getEditorViewTypeForUri`, and a file no custom editor claims falls through the
+existing catch to the text editor instead of to the chain editor. [decision] Behaviour change, taken deliberately:
+the tree holds only chains and services, so the throw path is unreachable from the command, and the text editor is
+the honest fallback for anything else.
+
+➕ Two extra test files beyond the plan's list: `tests/extension.test.ts` (the seven registrations, and the reveal
+command per file kind) and `tests/extension.deleteService.test.ts` (a sibling under a typed name keeps `resources/`
+alive — the `isServiceFileName` half of `extension.ts:580`). `DEFAULT_EDITOR_VIEW_TYPES` is exported so the suite
+can check every view type the resolver returns against the manifest.
 
 ### Task 4: Route every service-file site through the resolver
 

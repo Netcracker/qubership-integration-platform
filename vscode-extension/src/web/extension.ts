@@ -50,7 +50,11 @@ import {
   resolveExportPaths,
 } from "./exportImagesHandler";
 import {registerChainDiffMessageHandlers} from "./chainDiffEditor";
-import {openDocumentInEditor} from "./editorViewTypes";
+import {
+  getEditorViewTypeForUri,
+  openDocumentInEditor,
+} from "./editorViewTypes";
+import {isAnyServiceFile} from "./response/file/serviceFileType";
 
 type VSCodeMessageWrapper = {
   command: string;
@@ -577,7 +581,7 @@ function isServiceFileName(
   ext: FileExtensionsConfig,
 ): boolean {
   return (
-    fileName.endsWith(ext.service) ||
+    isAnyServiceFile(fileName, ext) ||
     fileName.endsWith(ext.contextService) ||
     fileName.endsWith(ext.mcpService)
   );
@@ -755,6 +759,30 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(
       "qip.serviceFile.editor",
+      new BaseFileEditorProvider(context),
+      editorParams,
+    ),
+  );
+
+  context.subscriptions.push(
+    vscode.window.registerCustomEditorProvider(
+      "qip.externalServiceFile.editor",
+      new BaseFileEditorProvider(context),
+      editorParams,
+    ),
+  );
+
+  context.subscriptions.push(
+    vscode.window.registerCustomEditorProvider(
+      "qip.internalServiceFile.editor",
+      new BaseFileEditorProvider(context),
+      editorParams,
+    ),
+  );
+
+  context.subscriptions.push(
+    vscode.window.registerCustomEditorProvider(
+      "qip.implementedServiceFile.editor",
       new BaseFileEditorProvider(context),
       editorParams,
     ),
@@ -943,16 +971,8 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
       async (item: any) => {
         if (item && item.fileUri) {
           try {
-            // Determine the correct editor based on file type
-            const fileName = item.fileUri.fsPath;
-            let editorType = "qip.chainFile.editor"; // default
-
-            const fileExtensions = getExtensionsForUri({ path: fileName });
-            if (fileName.endsWith(fileExtensions.service)) {
-              editorType = "qip.serviceFile.editor";
-            } else if (fileName.endsWith(fileExtensions.chain)) {
-              editorType = "qip.chainFile.editor";
-            }
+            // A file with no custom editor throws, and the catch below opens it as text.
+            const editorType = getEditorViewTypeForUri(item.fileUri);
 
             // Open the file with custom editor
             await vscode.commands.executeCommand(
