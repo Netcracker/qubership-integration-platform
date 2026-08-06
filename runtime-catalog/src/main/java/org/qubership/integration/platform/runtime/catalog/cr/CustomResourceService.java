@@ -84,6 +84,9 @@ public class CustomResourceService {
     private final DeploymentRouteMapper deploymentRouteMapper;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> engineRoutesPublicNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> engineRoutesPrivateNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> engineRoutesInternalNamingStrategy;
     private final YAMLMapper yamlMapper;
 
     private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
@@ -118,6 +121,12 @@ public class CustomResourceService {
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy,
             @Qualifier("httpRoutePrivateNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy,
+            @Qualifier("engineRoutesPublicNamingStrategy")
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> engineRoutesPublicNamingStrategy,
+            @Qualifier("engineRoutesPrivateNamingStrategy")
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> engineRoutesPrivateNamingStrategy,
+            @Qualifier("engineRoutesInternalNamingStrategy")
+            NamingStrategy<ResourceBuildContext<List<Snapshot>>> engineRoutesInternalNamingStrategy,
             @Qualifier("customResourceYamlMapper") YAMLMapper yamlMapper
     ) {
         this.kubeOperator = kubeOperator;
@@ -130,6 +139,9 @@ public class CustomResourceService {
         this.deploymentRouteMapper = deploymentRouteMapper;
         this.httpRoutePublicNamingStrategy = httpRoutePublicNamingStrategy;
         this.httpRoutePrivateNamingStrategy = httpRoutePrivateNamingStrategy;
+        this.engineRoutesPublicNamingStrategy = engineRoutesPublicNamingStrategy;
+        this.engineRoutesPrivateNamingStrategy = engineRoutesPrivateNamingStrategy;
+        this.engineRoutesInternalNamingStrategy = engineRoutesInternalNamingStrategy;
         this.yamlMapper = yamlMapper;
     }
 
@@ -155,6 +167,7 @@ public class CustomResourceService {
 
     public void delete(String name) {
         deleteHttpRoutes(name);
+        deleteEngineRoutes(name);
         getAllIntegrationResources(name).ifPresent(resources -> {
             Optional.ofNullable(resources.integration)
                     .flatMap(KubeUtil::getName)
@@ -324,6 +337,16 @@ public class CustomResourceService {
                 httpRoutePublicNamingStrategy.getName(context));
         kubeOperator.deleteCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL,
                 httpRoutePrivateNamingStrategy.getName(context));
+    }
+
+    void deleteEngineRoutes(String name) {
+        ResourceBuildContext<List<Snapshot>> context = getContextForDomain(name);
+        kubeOperator.deleteCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL,
+                engineRoutesPublicNamingStrategy.getName(context));
+        kubeOperator.deleteCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL,
+                engineRoutesPrivateNamingStrategy.getName(context));
+        kubeOperator.deleteCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL,
+                engineRoutesInternalNamingStrategy.getName(context));
     }
 
     void deleteChainSnapshotHttpRoutes(String name, String snapshotId) {
