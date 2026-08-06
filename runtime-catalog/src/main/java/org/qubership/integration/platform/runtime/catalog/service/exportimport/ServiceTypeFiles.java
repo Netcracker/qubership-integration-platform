@@ -3,6 +3,7 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -60,18 +61,20 @@ public class ServiceTypeFiles {
     /**
      * The type a service file name states, or empty when it states none. The legacy {@code service-<id>.yaml} name and
      * the plain {@code .service.} postfix both carry the type in the document instead, and a context or MCP name
-     * carries no per-type postfix at all. A name carrying two postfixes states no single type either, so it resolves
-     * to none rather than to whichever the enum happens to declare first.
+     * carries no per-type postfix at all.
+     *
+     * <p>Only the one place an export writes the type is read — right after the id — so an id or an app prefix that
+     * merely contains a postfix states nothing. No two postfixes can start there, which is why the enum order never
+     * decides the answer.
      */
     public static Optional<IntegrationSystemType> typeFromFileName(String fileName) {
         if (fileName == null) {
             return Optional.empty();
         }
-        List<IntegrationSystemType> stated = POSTFIXES_BY_TYPE.entrySet().stream()
-                .filter(entry -> fileName.contains(entry.getValue()))
+        return POSTFIXES_BY_TYPE.entrySet().stream()
+                .filter(entry -> ExportImportUtils.statesPostfix(fileName, entry.getValue()))
                 .map(Map.Entry::getKey)
-                .toList();
-        return stated.size() == 1 ? Optional.of(stated.get(0)) : Optional.empty();
+                .findFirst();
     }
 
     /**

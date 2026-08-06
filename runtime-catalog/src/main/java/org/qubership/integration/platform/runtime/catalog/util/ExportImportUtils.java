@@ -20,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceExportException;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
@@ -223,12 +224,22 @@ public class ExportImportUtils {
     /**
      * The service file name. The current format states the type in the name, so the type is required there; the legacy
      * flat name carries none and states it in {@code content.integrationSystemType} instead.
+     *
+     * <p>The current format also needs an id of one dot-free segment, because the type sits in the segment right after
+     * it. An id spanning more than one segment is refused rather than written: the name would come back stating either
+     * no type or the wrong one, and the document no longer carries the type to fall back on.
      */
     public static String generateMainSystemFileExportName(
             String id, String appName, boolean isLegacyExport, IntegrationSystemType type) {
-        return isLegacyExport
-                ? SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION
-                : id + ServiceTypeFiles.postfix(type) + appName + YAML_FILE_NAME_POSTFIX;
+        if (isLegacyExport) {
+            return SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION;
+        }
+        if (id.indexOf('.') >= 0) {
+            throw new ServiceExportException(("Service id '%s' contains '.', which separates the id from the service"
+                    + " type in the exported file name, so the archive does not import back. Export with"
+                    + " QIP_EXPORT_LEGACY_FORMAT=true, whose flat name carries no type.").formatted(id));
+        }
+        return id + ServiceTypeFiles.postfix(type) + appName + YAML_FILE_NAME_POSTFIX;
     }
 
     public static String generateMainContextServiceFileExportName(String id, String appName, boolean isLegacyExport) {
@@ -311,12 +322,22 @@ public class ExportImportUtils {
                 return sp.filter(Files::isRegularFile)
                         .map(Path::toFile)
                         .filter(f -> (f.getName().startsWith(SERVICE_YAML_NAME_PREFIX) && f.getName().endsWith(YAML_EXTENSION))
-                                     || yamlPostfixes.stream().anyMatch(postfix -> f.getName().contains(postfix)))
+                                     || yamlPostfixes.stream().anyMatch(postfix -> statesPostfix(f.getName(), postfix)))
                         .collect(Collectors.toList());
             }
         }
 
         return Collections.emptyList();
+    }
+
+    /**
+     * Whether the name states {@code postfix} where an export writes it: right after the id, which is the first
+     * dot-free segment. Matching anywhere in the name lets an id or an app prefix that merely contains the text state
+     * a postfix of its own, so an api group whose app prefix reads {@code .external-service.} would be scanned as a
+     * service, and a service exported under one type would resolve as another.
+     */
+    public static boolean statesPostfix(String fileName, String postfix) {
+        return fileName.startsWith(postfix, fileName.indexOf('.'));
     }
 
     public static String extractSystemIdFromFileName(File systemFile) {

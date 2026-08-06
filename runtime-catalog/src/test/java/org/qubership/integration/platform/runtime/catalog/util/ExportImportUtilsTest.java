@@ -18,6 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.util;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 
@@ -28,6 +29,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -257,6 +259,23 @@ class ExportImportUtilsTest {
     }
 
     /**
+     * The postfix is read where an export writes it, right after the id. Scanning the whole name instead pulls in
+     * every other file of the archive as soon as the configured app prefix carries a service postfix, and the group
+     * file then fails deserialization as a service.
+     */
+    @Test
+    void testExtractSystemsFromImportDirectorySkipsAPostfixInTheAppPrefix(@TempDir Path tempDir) throws IOException {
+        writeServiceFile(tempDir, "svc-a", "svc-a.external-service.app.internal-service.qip.yaml");
+        writeServiceFile(tempDir, "svc-a", "grp-a.api-group.app.internal-service.qip.yaml");
+
+        List<File> found = ExportImportUtils.extractSystemsFromImportDirectory(
+                tempDir.toAbsolutePath().toString(), SERVICE_POSTFIXES);
+
+        assertEquals(List.of("svc-a.external-service.app.internal-service.qip.yaml"),
+                found.stream().map(File::getName).toList());
+    }
+
+    /**
      * Why discovery takes the postfixes together rather than one at a time: the flat prefix is ORed in on every call,
      * so four single-postfix calls return a legacy-named file four times and the archive imports it four times over.
      */
@@ -275,6 +294,21 @@ class ExportImportUtilsTest {
         assertEquals(SERVICE_POSTFIXES.size(), oneAtATime,
                 "the single-postfix overload returns the legacy file for every postfix, so the results must never"
                         + " be summed");
+    }
+
+    /**
+     * The id and the type are read from one split of the name, so the pair that built it comes back whole. The app
+     * prefix here carries a postfix of its own, the case that used to leave the file typeless and unimportable.
+     */
+    @Test
+    void testExportedNameReadsBackAsTheIdAndTypeItWasBuiltFrom() {
+        for (IntegrationSystemType type : IntegrationSystemType.values()) {
+            String fileName = ExportImportUtils.generateMainSystemFileExportName(
+                    "svc-a", "app.internal-service.qip", false, type);
+
+            assertEquals("svc-a", ExportImportUtils.extractSystemIdFromFileName(new File(fileName)), fileName);
+            assertEquals(Optional.of(type), ServiceTypeFiles.typeFromFileName(fileName), fileName);
+        }
     }
 
     @Test

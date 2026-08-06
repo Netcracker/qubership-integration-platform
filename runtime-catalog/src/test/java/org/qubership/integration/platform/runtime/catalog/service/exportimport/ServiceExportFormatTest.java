@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceExportException;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
@@ -27,6 +28,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -240,6 +242,46 @@ class ServiceExportFormatTest {
         assertEquals("service-svc-typeless.yaml",
                 ExportImportUtils.generateMainSystemFileExportName("svc-typeless", APP_NAME, true, null),
                 "the legacy name carries no type, so it needs none");
+    }
+
+    // --- the written name reads back --------------------------------------------------------------------------------
+
+    /**
+     * The app prefix is configuration, and it lands in the name behind the postfix. A prefix carrying a postfix of its
+     * own used to make the name state two types, and a two-type name resolved to none, so an archive this exporter had
+     * just written came back typeless and failed its own import.
+     */
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    @DisplayName("an app prefix carrying a postfix exports a name that reads back as the exported type")
+    void appPrefixCarryingAPostfixReadsBack(IntegrationSystemType type) {
+        for (IntegrationSystemType carried : IntegrationSystemType.values()) {
+            String appPrefix = "app" + ServiceTypeFiles.postfix(carried) + APP_NAME;
+
+            String fileName = ExportImportUtils.generateMainSystemFileExportName("svc-1", appPrefix, false, type);
+
+            assertEquals(Optional.of(type), ServiceTypeFiles.typeFromFileName(fileName), fileName);
+        }
+    }
+
+    /**
+     * A dot in the id shifts the type out of the segment import reads it from, and the document no longer carries one
+     * to fall back on. The export refuses instead of writing a name that reads back as another type or as none.
+     */
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    @DisplayName("a service id carrying a postfix is refused rather than exported unreadable")
+    void serviceIdCarryingAPostfixIsRefused(IntegrationSystemType type) {
+        String serviceId = "svc" + ServiceTypeFiles.postfix(type) + "1";
+
+        ServiceExportException exception = assertThrows(ServiceExportException.class,
+                () -> ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, false, type));
+
+        assertTrue(exception.getMessage().contains(serviceId),
+                "the message names the id to fix: " + exception.getMessage());
+        assertEquals("service-" + serviceId + ".yaml",
+                ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, true, type),
+                "the legacy name states no type, so a dotted id stays exportable");
     }
 
     // --- a service over its environment limit ------------------------------------------------------------------------

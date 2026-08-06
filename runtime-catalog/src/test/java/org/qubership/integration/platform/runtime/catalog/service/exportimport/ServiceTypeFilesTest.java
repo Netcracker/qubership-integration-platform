@@ -72,12 +72,26 @@ class ServiceTypeFilesTest {
         assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(null));
     }
 
-    /** Two postfixes state no single type, so the name resolves to none rather than to the first enum constant. */
+    /**
+     * The app prefix lands between the postfix and the extension, so a prefix carrying another postfix used to make
+     * the name state two types, and a two-type name resolved to none. That turned a legitimate export into a file no
+     * import could type.
+     */
     @Test
-    @DisplayName("a name carrying two postfixes resolves to no type")
-    void typeFromNameWithTwoPostfixes() {
-        assertEquals(Optional.empty(),
+    @DisplayName("a postfix in the app prefix does not change the type the name states")
+    void typeFromNameWithAPostfixInTheAppPrefix() {
+        assertEquals(Optional.of(IntegrationSystemType.EXTERNAL),
                 ServiceTypeFiles.typeFromFileName("system-1.external-service.internal-service.qip.yaml"));
+    }
+
+    /**
+     * The one position read is the segment right after the id, so a dotted id shifts the postfix out of it. Such a
+     * name is never written: {@code ExportImportUtils.generateMainSystemFileExportName} refuses the id instead.
+     */
+    @Test
+    @DisplayName("a postfix anywhere but right after the id states no type")
+    void typeFromNameWithAPostfixOutOfPosition() {
+        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName("system.1.external-service.qip.yaml"));
     }
 
     // --- type -> postfix and URI -----------------------------------------------------------------------------------

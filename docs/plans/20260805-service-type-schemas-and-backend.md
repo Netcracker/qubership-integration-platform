@@ -785,7 +785,7 @@ normalizes the fixture the way the database would. Left as is: pre-existing, unr
 | the file name states the type | `ServiceTypeFiles.typeFromFileName`; the name wins, `content.integrationSystemType` is the fallback, `$schema` is not consulted |
 | `METAMODEL` on an external service is now rejected offline | the `Protocol` enum of `external-service.schema.yaml`, pinned by `external-service-metamodel-protocol__SHOULD_FAIL.yaml` |
 | ten environments on an internal service are now rejected offline | `maxItems: 1` in `internal-service.schema.yaml`, pinned by `internal-service-two-environments__SHOULD_FAIL.yaml` |
-| the bare `RuntimeException` at import time is gone | `SystemBaseService.validateEnvironmentCount` raises `BadRequestException`, called from `SystemExportImportService:575` (update), `:910` (create), and `EnvironmentController:92` (REST) |
+| the bare `RuntimeException` at import time is gone | `EnvironmentLimitUtils.validate` raises `BadRequestException`, called from `SystemExportImportService:636` (import update), `:971` (import create), and `EnvironmentController:99` (REST) |
 | no document can name one type and state another | `ServiceDeserializer.resolveServiceType` raises `ServiceImportException` on a name/field disagreement |
 | symmetry with context and MCP services | the three schemas mirror `context-service.schema.yaml` — per-type `$id`, `metaInfo.fileExtension`, no type field |
 | the `integration_system_type` column stays | still declared at `V100_000__init.sql:415`; no migration drops it |
@@ -900,10 +900,11 @@ This is the single place the release process reads them from:
    services carrying more than one environment before upgrading.
 
    **A row already in that shape still exports, and the export warns.** Refusing would leave no way to extract it at
-   all, so `IntegrationSystemDtoMapper` logs the same message the import would reject the archive with, plus "The
-   archive is produced anyway, and re-importing this service fails until that is done." Grep the export logs for that
-   line to find the rows that need cleaning. There is deliberately **no Flyway backfill**: which environment to keep
-   is an operator's call, not a migration's.
+   all, so `ServiceSerializer.warnOnEnvironmentLimit` reads the non-throwing `EnvironmentLimitUtils.violation` and logs
+   the same message the import would reject the archive with, plus "The archive is produced anyway, but re-importing
+   this service fails until the extra environments are removed." Grep the export logs for that line to find the rows
+   that need cleaning. There is deliberately **no Flyway backfill**: which environment to keep is an operator's call,
+   not a migration's.
 4. **An archive holding two service files for one service id imports neither of them.** That id is reported with
    `ImportSystemStatus.ERROR` (or `SystemCompareAction.ERROR` on the preview); the rest of the archive still imports.
    An archive can acquire such a pair when a service changes type, since each type writes its own file name. On the
