@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -127,7 +129,8 @@ class SystemExportImportServiceTest {
                 importInstructionsService,
                 elementHelperService,
                 chainService,
-                apiGroupService);
+                apiGroupService,
+                GoldenServiceCorpus.serviceTypeFiles());
 
         serviceFile = tempDir.resolve(SYSTEM_ID + ".service.qip.yaml").toFile();
         Files.writeString(serviceFile.toPath(),
@@ -459,6 +462,60 @@ class SystemExportImportServiceTest {
         assertTrue(results.isEmpty(), "an unselected colliding id produces no row: " + results);
     }
 
+    // --- a name two scans claim --------------------------------------------------------------------------------------
+
+    /**
+     * {@code service-ctx.context-service.qip.yaml} is the context file of {@code service-ctx} and the legacy flat
+     * plain-service file of {@code ctx.context-service.qip}. Both scans discover it, and only the document says which
+     * kind it is. When it says context or MCP, that import creates the service and this one has to stay quiet: an
+     * error row here marks the whole session failed over an import that succeeded.
+     */
+    @DisplayName("a file another import already has produces no plain-service row")
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("filesOfAnotherKind")
+    void fileOfAnotherKindProducesNoPlainServiceRow(String fileName, String schemaUri, @TempDir Path archive)
+            throws IOException {
+        writeDocument(archive, fileName, "$schema: \"" + schemaUri + "\"\nid: service-other\nname: Other service\n"
+                + "content:\n  migrations: \"[100, 101, 102, 103, 104, 105]\"\n");
+        importingEveryDiscoveredId();
+
+        SystemExportImportService importService = serviceWithRealDeserializer();
+        List<ImportSystemResult> preview =
+                importService.getSystemsImportPreview(archive.toFile(), ImportInstructionsConfig.builder().build());
+        ImportSystemsAndInstructionsResult imported =
+                importService.importSystems(archive.toFile(), new SystemsCommitRequest(), IMPORT_ID, Set.of());
+
+        assertEquals(List.of(), preview);
+        assertEquals(List.of(), imported.importSystemResults());
+        verify(systemService, never()).create(any(), anyBoolean());
+    }
+
+    /**
+     * The same name, on the file it really is the flat name of. An id whose second segment spells another kind's
+     * postfix is what every pre-#553 archive states whole, so this file has to keep importing through the plain scan —
+     * the {@code $schema} is the plain service's, or an old archive carries none at all.
+     */
+    @DisplayName("a legacy flat service whose id spells another kind's postfix still imports")
+    @ParameterizedTest(name = "{0} stating {2}")
+    @MethodSource("legacyFlatFilesSpellingAnotherKindsPostfix")
+    void legacyFlatServiceSpellingAnotherKindsPostfixStillImports(
+            String fileName, String serviceId, String schemaUri, @TempDir Path archive) throws IOException {
+        writeDocument(archive, fileName, (schemaUri == null ? "" : "$schema: \"" + schemaUri + "\"\n")
+                + "id: " + serviceId + "\nname: Orders service\ncontent:\n"
+                + "  integrationSystemType: EXTERNAL\n  migrations: \"[100, 101, 102, 103, 104, 105]\"\n");
+        importingEverything();
+
+        ImportSystemsAndInstructionsResult imported = serviceWithRealDeserializer()
+                .importSystems(archive.toFile(), new SystemsCommitRequest(), IMPORT_ID, Set.of());
+
+        assertEquals(List.of(serviceId), idsOf(imported.importSystemResults()));
+        assertEquals(Set.of(ImportSystemStatus.CREATED), statusesOf(imported.importSystemResults()));
+        ArgumentCaptor<IntegrationSystem> created = ArgumentCaptor.forClass(IntegrationSystem.class);
+        verify(systemService).create(created.capture(), anyBoolean());
+        assertEquals(serviceId, created.getValue().getId());
+        assertEquals(IntegrationSystemType.EXTERNAL, created.getValue().getIntegrationSystemType());
+    }
+
     // --- the service type on the preview path ------------------------------------------------------------------------
 
     /**
@@ -526,6 +583,24 @@ class SystemExportImportServiceTest {
 
     // --- helpers ---------------------------------------------------------------------------------------------------
 
+    /** The name shape both scans claim, on the two kinds whose own import reads the document to confirm it. */
+    private static Stream<Arguments> filesOfAnotherKind() {
+        return Stream.of(
+                Arguments.of("service-ctx.context-service.qip.yaml", GoldenServiceCorpus.schemas().getContextService()),
+                Arguments.of("service-mcp.mcp-service.qip.yaml", GoldenServiceCorpus.schemas().getMcpService()));
+    }
+
+    /** The same names as flat plain-service ones: stating the plain {@code $schema}, and stating none. */
+    private static Stream<Arguments> legacyFlatFilesSpellingAnotherKindsPostfix() {
+        return Stream.of(
+                Arguments.of("service-ctx.context-service.qip.yaml", "ctx.context-service.qip",
+                        GoldenServiceCorpus.schemas().getService()),
+                Arguments.of("service-ctx.context-service.qip.yaml", "ctx.context-service.qip", null),
+                Arguments.of("service-mcp.mcp-service.qip.yaml", "mcp.mcp-service.qip",
+                        GoldenServiceCorpus.schemas().getService()),
+                Arguments.of("service-mcp.mcp-service.qip.yaml", "mcp.mcp-service.qip", null));
+    }
+
     private void importing(IntegrationSystem system) {
         when(serviceDeserializer.deserializeSystem(serviceFile)).thenReturn(system);
     }
@@ -556,7 +631,8 @@ class SystemExportImportServiceTest {
                 importInstructionsService,
                 elementHelperService,
                 chainService,
-                apiGroupService);
+                apiGroupService,
+                GoldenServiceCorpus.serviceTypeFiles());
     }
 
     private Map<String, IntegrationSystemType> createdTypes() {
@@ -599,12 +675,22 @@ class SystemExportImportServiceTest {
     }
 
     private static void writeServiceFile(Path archive, String serviceId, String fileName) throws IOException {
-        Path path = archive.resolve("services").resolve(serviceId).resolve(fileName);
-        Files.createDirectories(path.getParent());
         // Carries a `content` block with a version claim, so the same file is importable on the commit path and not
         // only readable by the preview, which reads the raw node.
-        Files.writeString(path, "id: " + serviceId + "\nname: Orders service\ncontent:\n"
+        writeDocument(archive, serviceId, fileName, "id: " + serviceId + "\nname: Orders service\ncontent:\n"
                 + "  description: \"\"\n  migrations: \"[100, 101, 102, 103, 104, 105]\"\n");
+    }
+
+    /** A file under a caller-chosen name, for the cases where the name is what is under test. */
+    private static void writeDocument(Path archive, String fileName, String yaml) throws IOException {
+        writeDocument(archive, "svc", fileName, yaml);
+    }
+
+    private static void writeDocument(Path archive, String directory, String fileName, String yaml)
+            throws IOException {
+        Path path = archive.resolve("services").resolve(directory).resolve(fileName);
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, yaml);
     }
 
     private static ImportSystemResult resultFor(List<ImportSystemResult> results, String serviceId) {

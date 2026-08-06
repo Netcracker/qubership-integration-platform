@@ -112,6 +112,7 @@ public class SystemExportImportService {
     private final ElementHelperService elementHelperService;
     private final ChainService chainService;
     private final ApiGroupService apiGroupService;
+    private final ServiceTypeFiles serviceTypeFiles;
 
     @Value("${qip.export.remove-unused-specifications}")
     private boolean removeUnusedSpecs;
@@ -132,7 +133,8 @@ public class SystemExportImportService {
             ImportInstructionsService importInstructionsService,
             ElementHelperService elementHelperService,
             ChainService chainService,
-            ApiGroupService apiGroupService
+            ApiGroupService apiGroupService,
+            ServiceTypeFiles serviceTypeFiles
     ) {
         this.transactionTemplate = transactionTemplate;
         this.yamlMapper = yamlExportImportMapper;
@@ -149,6 +151,7 @@ public class SystemExportImportService {
         this.elementHelperService = elementHelperService;
         this.chainService = chainService;
         this.apiGroupService = apiGroupService;
+        this.serviceTypeFiles = serviceTypeFiles;
     }
 
     private void removeUnusedSpecifications(IntegrationSystem integrationSystem, List<String> usedSystemModelIds) {
@@ -239,7 +242,7 @@ public class SystemExportImportService {
                 throw e;
             }
 
-            DiscoveredServiceFiles discovered = DiscoveredServiceFiles.of(extractedSystemFiles);
+            DiscoveredServiceFiles discovered = discovered(extractedSystemFiles);
             response.addAll(discovered.previewErrors());
             ImportInstructionsConfig instructionsConfig = importInstructionsService
                     .getServiceImportInstructionsConfig(Set.of(ImportInstructionAction.IGNORE));
@@ -338,6 +341,36 @@ public class SystemExportImportService {
         }
     }
 
+    /**
+     * The discovered files this import may act on, with the ones another import already has left out.
+     *
+     * <p>The legacy flat name belongs to the plain-service scan whatever the id spells, so
+     * {@code service-ctx.context-service.qip.yaml} reaches it as the flat file of {@code ctx.context-service.qip}
+     * while the context import reads the same name as the context file of {@code service-ctx}. Both claims are kept:
+     * dropping the plain one hides a legacy file whose id spells another kind's postfix. Only one of them may end in a
+     * row, though — the document states a context service, the context import creates it, and a plain-service error
+     * row on top of that fails a session that succeeded.
+     *
+     * <p>Filtering before the collision split, so a file another import has also cannot collide with anything here.
+     */
+    private DiscoveredServiceFiles discovered(List<File> serviceFiles) {
+        return DiscoveredServiceFiles.of(serviceFiles.stream().filter(this::isPlainServiceFile).toList());
+    }
+
+    /** An unreadable file stays: the import reports what is wrong with it, which is more than a skip would say. */
+    private boolean isPlainServiceFile(File serviceFile) {
+        try {
+            if (serviceTypeFiles.isContextOrMCPServiceFile(serviceFile.getName(), yamlMapper.readTree(serviceFile))) {
+                log.info("File {} states a context or an MCP service, which is imported by its own service import",
+                        serviceFile.getName());
+                return false;
+            }
+        } catch (IOException | RuntimeException e) {
+            log.warn("Cannot read {} to tell which service kind it states: {}", serviceFile.getName(), e.getMessage());
+        }
+        return true;
+    }
+
     public List<ImportSystemResult> getSystemsImportPreview(File importDirectory, ImportInstructionsConfig instructionsConfig) {
         List<File> systemsFiles;
         try {
@@ -345,7 +378,7 @@ public class SystemExportImportService {
         } catch (Exception e) {
             throw new RuntimeException("Error while extracting systems", e);
         }
-        DiscoveredServiceFiles discovered = DiscoveredServiceFiles.of(systemsFiles);
+        DiscoveredServiceFiles discovered = discovered(systemsFiles);
 
         List<ImportSystemResult> importSystemResults = new ArrayList<>(discovered.previewErrors());
         for (File systemFile : discovered.importable()) {
@@ -429,7 +462,7 @@ public class SystemExportImportService {
                 throw e;
             }
 
-            DiscoveredServiceFiles discovered = DiscoveredServiceFiles.of(extractedSystemFiles);
+            DiscoveredServiceFiles discovered = discovered(extractedSystemFiles);
             Set<String> servicesToImport = importInstructionsService
                     .performServiceIgnoreInstructions(discovered.discoveredIds(), false)
                     .idsToImport();
@@ -478,7 +511,7 @@ public class SystemExportImportService {
         } catch (IOException e) {
             throw new RuntimeException("Unexpected error while archive unpacking: " + e.getMessage(), e);
         }
-        DiscoveredServiceFiles discovered = DiscoveredServiceFiles.of(discoveredFiles);
+        DiscoveredServiceFiles discovered = discovered(discoveredFiles);
         List<File> systemsFiles = discovered.importable();
 
         String deployLabel = systemCommitRequest.getDeployLabel();

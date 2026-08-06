@@ -1,11 +1,14 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
@@ -22,8 +25,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -184,6 +189,51 @@ class ServiceTypeFilesTest {
                 configured.typeFromSchemaUri("http://example.org/external.yaml"));
     }
 
+    // --- which kind of service a file holds ------------------------------------------------------------------------
+
+    /**
+     * {@code service-ctx.context-service.qip.yaml} is the context file of {@code service-ctx} and the legacy flat
+     * plain-service file of {@code ctx.context-service.qip}, so two scans discover it and only the document tells them
+     * apart.
+     */
+    @Test
+    @DisplayName("a context or MCP file is recognized by its name and its document together")
+    void contextAndMcpFilesAreRecognized() {
+        assertTrue(serviceTypeFiles.isContextOrMCPServiceFile(
+                "service-ctx.context-service.qip.yaml", documentStating(schemas.getContextService())));
+        assertTrue(serviceTypeFiles.isContextOrMCPServiceFile(
+                "service-mcp.mcp-service.qip.yaml", documentStating(schemas.getMcpService())));
+    }
+
+    /** Every other combination stays with the plain-service import, which is where an unclaimed file belongs. */
+    @ParameterizedTest(name = "{0} stating {1}")
+    @MethodSource("filesOfNoOtherKind")
+    @DisplayName("a file no other import has is left to the plain-service one")
+    void filesOfNoOtherKindAreLeftToThePlainServiceImport(String fileName, String schemaUri) {
+        assertFalse(serviceTypeFiles.isContextOrMCPServiceFile(fileName, documentStating(schemaUri)));
+    }
+
+    @Test
+    @DisplayName("a missing name or document states no other kind")
+    void nullNameOrDocumentStatesNoOtherKind() {
+        assertFalse(serviceTypeFiles.isContextOrMCPServiceFile(null, documentStating(schemas.getContextService())));
+        assertFalse(serviceTypeFiles.isContextOrMCPServiceFile("service-ctx.context-service.qip.yaml", null));
+    }
+
+    @Test
+    @DisplayName("the context and MCP URIs come from configuration as well")
+    void contextAndMcpUrisComeFromConfiguration() {
+        ApplicationJsonSchemaProperties overridden = new ApplicationJsonSchemaProperties();
+        overridden.setContextService("http://example.org/context.yaml");
+
+        ServiceTypeFiles configured = new ServiceTypeFiles(overridden);
+
+        assertTrue(configured.isContextOrMCPServiceFile(
+                "service-ctx.context-service.qip.yaml", documentStating("http://example.org/context.yaml")));
+        assertFalse(configured.isContextOrMCPServiceFile(
+                "service-ctx.context-service.qip.yaml", documentStating(schemas.getContextService())));
+    }
+
     // --- configuration vs the schemas themselves -------------------------------------------------------------------
 
     /**
@@ -245,6 +295,29 @@ class ServiceTypeFilesTest {
 
         assertEquals(type.maxEnvironments(), fromSchema, schemaFileName(type)
                 + " states a different environment limit than IntegrationSystemType." + type + ".maxEnvironments()");
+    }
+
+    /**
+     * The name shapes that are nobody else's: a flat plain-service file whose id spells another kind's postfix, one
+     * carrying no {@code $schema} at all, a name and a {@code $schema} naming different kinds, a per-type plain name,
+     * and a flat name no context scan discovers, which a skip would drop for good.
+     */
+    private static Stream<Arguments> filesOfNoOtherKind() {
+        ApplicationJsonSchemaProperties defaults = new ApplicationJsonSchemaProperties();
+        return Stream.of(
+                Arguments.of("service-ctx.context-service.qip.yaml", defaults.getService()),
+                Arguments.of("service-ctx.context-service.qip.yaml", null),
+                Arguments.of("service-ctx.context-service.qip.yaml", defaults.getMcpService()),
+                Arguments.of("system-1.external-service.qip.yaml", defaults.getContextService()),
+                Arguments.of("service-ctx.yaml", defaults.getContextService()));
+    }
+
+    private static JsonNode documentStating(String schemaUri) {
+        ObjectNode document = new YAMLMapper().createObjectNode();
+        if (schemaUri != null) {
+            document.put("$schema", schemaUri);
+        }
+        return document;
     }
 
     /** The file-name postfix and the schema file spell the type the same way, so one names the other. */

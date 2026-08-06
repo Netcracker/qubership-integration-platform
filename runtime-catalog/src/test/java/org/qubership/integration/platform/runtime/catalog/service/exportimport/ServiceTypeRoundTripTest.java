@@ -12,6 +12,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.ImportResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportContextServiceAndInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportSystemsAndInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.IgnoreResult;
@@ -316,11 +317,13 @@ class ServiceTypeRoundTripTest {
     /**
      * The same id shape on the kind whose name states no type. The name is the one string both formats spell alike —
      * the context name of {@code service-ctx} and the flat name of {@code ctx.context-service.qip} — so the context
-     * import reads it under the id its own export wrote, and the plain-service scan, which cannot tell the two apart,
-     * reports it as an error rather than importing anything. The MCP import, which is neither, does not see it.
+     * import reads it under the id its own export wrote, and the plain-service scan, which claims the same name,
+     * steps aside once the document says which kind it is. It has to step aside silently: an error row over a file
+     * another import created correctly turns a successful session into a reported failure. The MCP import, which is
+     * neither, does not see the name at all.
      */
     @Test
-    @DisplayName("a context service whose id wears the legacy flat prefix round trips")
+    @DisplayName("a context service whose id wears the legacy flat prefix imports with no plain-service row")
     void contextServiceIdWearingTheLegacyFlatPrefixRoundTrips() throws IOException {
         runTransactionsInline();
         importingIntoAnEmptyCatalog();
@@ -337,16 +340,24 @@ class ServiceTypeRoundTripTest {
 
         ImportContextServiceAndInstructionsResult contexts = contextImport()
                 .importContextService(unpacked.toFile(), new SystemsCommitRequest(), IMPORT_ID);
-        List<ImportSystemResult> plainServices = systemImport()
+        ImportSystemsAndInstructionsResult plainServices = systemImport()
+                .importSystems(unpacked.toFile(), new SystemsCommitRequest(), IMPORT_ID, Set.of());
+        List<ImportSystemResult> plainPreview = systemImport()
                 .getSystemsImportPreview(unpacked.toFile(), ImportInstructionsConfig.builder().build());
         List<ImportSystemResult> mcpServices = mcpImport()
                 .getImportPreview(unpacked.toFile(), ImportInstructionsConfig.builder().build());
 
         assertEquals(List.of(DISCOVERED_CONTEXT_SERVICE_ID), idsOf(contexts.importSystemResults()));
         assertEquals(List.of(), mcpServices, "the MCP import sees neither format of this name");
-        assertEquals(List.of(SystemCompareAction.ERROR),
-                plainServices.stream().map(ImportSystemResult::getRequiredAction).toList(),
-                "the plain scan cannot tell the two formats apart, so it says so instead of importing");
+        assertEquals(List.of(), plainServices.importSystemResults(),
+                "the context import has this file, so the plain-service import reports nothing about it");
+        assertEquals(List.of(), plainPreview, "and the preview says the same as the commit path");
+        ImportResult session = ImportResult.builder()
+                .systems(plainServices.importSystemResults())
+                .contextService(contexts.importSystemResults())
+                .build();
+        assertFalse(session.hasErrors(),
+                "the session imported the context service, so nothing downstream may call it a failure");
         ArgumentCaptor<ContextSystem> captor = ArgumentCaptor.forClass(ContextSystem.class);
         verify(contextBaseService).create(captor.capture(), anyBoolean());
         assertEquals(DISCOVERED_CONTEXT_SERVICE_ID, captor.getValue().getId());
@@ -413,7 +424,8 @@ class ServiceTypeRoundTripTest {
                 importInstructionsService,
                 elementHelperService,
                 chainService,
-                apiGroupService);
+                apiGroupService,
+                GoldenServiceCorpus.serviceTypeFiles());
     }
 
     private ContextExportImportService contextImport() {

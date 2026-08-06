@@ -15,18 +15,23 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTENT;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.EXTERNAL_SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.IMPLEMENTED_SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.INTEGRATION_SYSTEM_TYPE;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.INTERNAL_SERVICE_YAML_NAME_POSTFIX;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.MCP_SERVICE_YAML_NAME_POSTFIX;
 
 /**
  * The one place that knows how a service type is spelled: in a file name, in a {@code $schema}, and in a document.
  * Import discovery, type resolution, the exporter, and the V105 pair all read it from here, so the spellings cannot
- * drift apart.
+ * drift apart. It also recognizes the two kinds whose name states no type at all, the context and the MCP service,
+ * because the plain-service import has to tell their files from its own.
  */
 @Component
 public class ServiceTypeFiles {
+
+    private static final String SCHEMA = "$schema";
 
     private static final Map<IntegrationSystemType, String> POSTFIXES_BY_TYPE = new EnumMap<>(Map.of(
             IntegrationSystemType.EXTERNAL, EXTERNAL_SERVICE_YAML_NAME_POSTFIX,
@@ -34,6 +39,7 @@ public class ServiceTypeFiles {
             IntegrationSystemType.IMPLEMENTED, IMPLEMENTED_SERVICE_YAML_NAME_POSTFIX));
 
     private final Map<IntegrationSystemType, String> schemaUrisByType;
+    private final Map<String, String> schemaUrisByTypelessPostfix;
 
     @Autowired
     public ServiceTypeFiles(ApplicationJsonSchemaProperties schemas) {
@@ -41,6 +47,9 @@ public class ServiceTypeFiles {
                 IntegrationSystemType.EXTERNAL, schemas.getExternalService(),
                 IntegrationSystemType.INTERNAL, schemas.getInternalService(),
                 IntegrationSystemType.IMPLEMENTED, schemas.getImplementedService()));
+        this.schemaUrisByTypelessPostfix = Map.of(
+                CONTEXT_SERVICE_YAML_NAME_POSTFIX, schemas.getContextService(),
+                MCP_SERVICE_YAML_NAME_POSTFIX, schemas.getMcpService());
     }
 
     /** The name postfix an export writes for {@code type}, and the one import resolves the type back from. */
@@ -100,6 +109,32 @@ public class ServiceTypeFiles {
         } catch (IllegalArgumentException exception) {
             return Optional.empty();
         }
+    }
+
+    /**
+     * Whether the file is the context or the MCP service file another import already has: its name states that kind's
+     * postfix, and its document says it is that kind. Both halves are needed. The name alone is the one shape two
+     * scans claim — {@code service-ctx.context-service.qip.yaml} is the context file of {@code service-ctx} and the
+     * legacy flat plain-service file of {@code ctx.context-service.qip} — and the document alone says nothing about
+     * which scan found it.
+     *
+     * <p>The document is read exactly as {@code ContextExportImportService} and {@code MCPSystemImportExportService}
+     * read it, by {@code $schema} against the same configured URI, so this answers true only for a file those imports
+     * really take. A {@code $schema} they do not recognize leaves the file to the plain-service import, which is where
+     * an unclaimed file belongs.
+     *
+     * <p>This does not walk back the rule that {@code $schema} never states a service type on import. The question
+     * here is which kind of document this is, not which of the three plain types it is, and it is asked only about a
+     * name a typeless kind's export writes.
+     */
+    public boolean isContextOrMCPServiceFile(String fileName, JsonNode document) {
+        if (fileName == null || document == null) {
+            return false;
+        }
+        JsonNode schema = document.path(SCHEMA);
+        return schema.isTextual() && schemaUrisByTypelessPostfix.entrySet().stream()
+                .anyMatch(entry -> entry.getValue().equals(schema.asText())
+                        && ExportImportUtils.statesPostfix(fileName, entry.getKey()));
     }
 
     /**

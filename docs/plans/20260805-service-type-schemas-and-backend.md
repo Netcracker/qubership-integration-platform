@@ -948,9 +948,13 @@ This is the single place the release process reads them from:
 
    **One name shape is claimed by two imports.** `service-ctx.context-service.qip.yaml` is the context name of
    `service-ctx` and the flat name of `ctx.context-service.qip`, and no rule reads both out of one string. Each scan
-   claims it in its own format, so neither an older archive nor a current one loses a file. The context service
-   imports as it should; the plain-service import adds an `ImportSystemStatus.ERROR` row that names the context
-   service import as the one already handling the file. The MCP import sees neither format of that name.
+   claims it in its own format, so neither an older archive nor a current one loses a file. The document decides which
+   claim ends in a row: when its `$schema` states the context or the MCP service — the same check those two imports
+   run — that import creates the service and the plain-service import reports nothing about the file. It reports an
+   `ImportSystemStatus.ERROR` row naming the other import only for a file no other import has: a name reading as one
+   kind over a document stating neither. Reporting the confirmed case as well marked the whole session failed after a
+   context service had been created correctly, which the rollout import turned into a failed callback and the import
+   endpoint into a 207. The MCP import sees neither format of that name.
 
 **Manual verification:**
 

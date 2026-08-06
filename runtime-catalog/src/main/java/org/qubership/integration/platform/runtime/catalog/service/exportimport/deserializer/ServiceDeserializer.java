@@ -181,7 +181,9 @@ public class ServiceDeserializer {
     /**
      * The one name shape a plain-service scan cannot claim on its own. {@code service-ctx.context-service.qip.yaml} is
      * both the flat name of {@code ctx.context-service.qip} and the context name of {@code service-ctx}, so the plain
-     * scan discovers it and lands here. Say which other import already has it, or the row reads as a lost service.
+     * scan discovers it too. A file whose document confirms the other kind never reaches here — the plain import
+     * leaves it to the import that has it — so what is left is a name reading as one kind and a document stating
+     * neither. Say which import the file may belong to, or the row reads as a lost service.
      */
     private static String otherKindHint(String fileName) {
         if (ExportImportUtils.statesPostfix(fileName, CONTEXT_SERVICE_YAML_NAME_POSTFIX)) {
