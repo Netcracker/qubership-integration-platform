@@ -308,6 +308,18 @@ describe("getServices", () => {
     expect(findFiles).not.toHaveBeenCalled();
   });
 
+  // The branch reads the file to learn the id it was not given. Once the id resolves back to that
+  // same file, the document is already in hand — reading it a second time buys nothing.
+  it("reads the file it was handed once when the id resolves back to it", async () => {
+    const fileUri = serviceFile(ext.internalService);
+    onlyOnDisk(ext.internalService);
+    getMainService.mockResolvedValue(serviceDocument());
+
+    await getServices(fileUri);
+
+    expect(getMainService).toHaveBeenCalledTimes(1);
+  });
+
   it("scans every plain-service name when handed a file of another kind", async () => {
     findFiles.mockImplementation((extension: string) =>
       Promise.resolve(
@@ -735,6 +747,14 @@ describe("reading a service that has both files on disk", () => {
     await getApiSpecifications(legacyUri, SERVICE_ID);
 
     expect(getSpecificationGroupFiles).toHaveBeenCalledWith(typedUri);
+  });
+
+  // Both files carry one id — that is what makes them siblings — so the id needs no lookup to
+  // answer. The navigation routes this feeds are built from the id alone.
+  it("answers the service id from the document it was handed", async () => {
+    await expect(getCurrentServiceId(legacyUri)).resolves.toBe(SERVICE_ID);
+
+    expect(findFileById).not.toHaveBeenCalled();
   });
 });
 

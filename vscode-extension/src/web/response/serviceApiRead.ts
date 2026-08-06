@@ -40,8 +40,11 @@ import { getExtendedProtocol, getSpecificationType } from "./serviceApiUtils";
 export async function getCurrentServiceId(
   serviceFileUri: Uri,
 ): Promise<string> {
-  const { service } = await readServiceFileByName(serviceFileUri);
-  return service.id;
+  const { serviceId } = await readServiceIdentity(serviceFileUri);
+  if (!serviceId) {
+    throw Error(`No service id in ${serviceFileUri.path}`);
+  }
+  return serviceId;
 }
 
 export async function getMainServiceFileUri(serviceFileUri: Uri): Promise<Uri> {
@@ -53,40 +56,16 @@ export async function getMainService(serviceFileUri: Uri): Promise<any> {
 }
 
 /**
- * The service document and the file it really came from. The first write of an old-format service
- * converts it, which deletes the file the caller was handed — an editor tab opened before that save
- * still points at it — so a read that fails is retried against the file the id resolves to.
- */
-export async function readServiceFile(
-  serviceFileUri: Uri,
-  serviceId: string,
-): Promise<{ fileUri: Uri; service: any }> {
-  try {
-    return {
-      fileUri: serviceFileUri,
-      service: await getMainService(serviceFileUri),
-    };
-  } catch (error) {
-    console.warn(
-      `Could not read ${serviceFileUri.path}; resolving service ${serviceId} by id instead`,
-      error,
-    );
-    const fileUri = await findServiceFileById(
-      serviceId,
-      getExtensionsForUri(serviceFileUri),
-    );
-    return { fileUri, service: await getMainService(fileUri) };
-  }
-}
-
-/**
  * The service document, read from the file the id resolves to rather than from whichever uri the
  * caller holds. A conversion leaves the legacy sibling behind whenever the delete fails, and both
  * `getServices` and the explorer list such a service from the typed file. A read that trusted the
  * held uri would show the document that lost that precedence race. A document carrying another id
  * is a failure, not a silent read of the wrong service.
+ *
+ * The write sites read through this too: the file the id owns is the one every read and both lists
+ * already show, so an edit applies to what the user is looking at.
  */
-async function readServiceFileById(
+export async function readServiceFile(
   serviceFileUri: Uri,
   serviceId: string,
 ): Promise<{ fileUri: Uri; service: any }> {
@@ -104,18 +83,17 @@ async function readServiceFileById(
 }
 
 /**
- * The service document a read that holds no id works from. The uri answers it, and a path the
- * conversion deleted is recovered through the id the name states — the file and its folder keep
- * that id across the rename.
+ * What a read that holds no id learns from the uri: the id the document states, and the document
+ * itself when it read. A conversion changes the extension alone, so a path it deleted is recovered
+ * through the id the name kept. The document decides over the name, so a hand-authored file whose
+ * name and id disagree still reads as the service it states.
  */
-async function readServiceFileByName(
+async function readServiceIdentity(
   serviceFileUri: Uri,
-): Promise<{ fileUri: Uri; service: any }> {
+): Promise<{ serviceId?: string; service?: any }> {
   try {
-    return {
-      fileUri: serviceFileUri,
-      service: await getMainService(serviceFileUri),
-    };
+    const service: any = await getMainService(serviceFileUri);
+    return { serviceId: service?.id, service };
   } catch (error) {
     const serviceId = serviceIdFromFileName(
       serviceFileUri,
@@ -125,10 +103,10 @@ async function readServiceFileByName(
       throw error;
     }
     console.warn(
-      `Could not read ${serviceFileUri.path}; resolving service ${serviceId} by id instead`,
+      `Could not read ${serviceFileUri.path}; taking service ${serviceId} from the file name`,
       error,
     );
-    return await readServiceFileById(serviceFileUri, serviceId);
+    return { serviceId };
   }
 }
 
@@ -180,10 +158,7 @@ export async function getService(
   serviceFileUri: Uri,
   serviceId: string,
 ): Promise<IntegrationSystem> {
-  const { fileUri, service } = await readServiceFileById(
-    serviceFileUri,
-    serviceId,
-  );
+  const { fileUri, service } = await readServiceFile(serviceFileUri, serviceId);
 
   return toIntegrationSystem(fileUri, service);
 }
@@ -288,7 +263,7 @@ export async function getEnvironment(
   serviceId: string,
   environmentId: string,
 ): Promise<Environment> {
-  const { service } = await readServiceFileById(serviceFileUri, serviceId);
+  const { service } = await readServiceFile(serviceFileUri, serviceId);
 
   return findEnvironmentById(service.content?.environments, environmentId);
 }
@@ -297,7 +272,7 @@ export async function getEnvironments(
   serviceFileUri: Uri,
   serviceId: string,
 ): Promise<Environment[]> {
-  const { service } = await readServiceFileById(serviceFileUri, serviceId);
+  const { service } = await readServiceFile(serviceFileUri, serviceId);
 
   return parseEnvironments(service.content?.environments || []);
 }
@@ -344,7 +319,7 @@ export async function getApiSpecifications(
   currentFile: Uri,
   serviceId: string,
 ): Promise<ApiGroup[]> {
-  const { fileUri: serviceFileUri } = await readServiceFileById(
+  const { fileUri: serviceFileUri } = await readServiceFile(
     currentFile,
     serviceId,
   );
@@ -856,12 +831,21 @@ export async function getServices(
 ): Promise<IntegrationSystem[]> {
   const ext = getExtensionsForUri(serviceFileUri);
   if (isAnyServiceFile(serviceFileUri, ext)) {
-    const { fileUri, service } = await readServiceFileByName(serviceFileUri);
-    if (!service?.id) {
+    // The id decides the file here too. The document already in hand answers for it whenever the id
+    // resolves back to the same path, which is every service that has one file.
+    const { serviceId, service } = await readServiceIdentity(serviceFileUri);
+    if (!serviceId) {
       return [];
     }
-
-    return [await getService(fileUri, service.id)];
+    const fileUri = await resolveServiceFileUri(serviceFileUri, serviceId);
+    return [
+      toIntegrationSystem(
+        fileUri,
+        fileUri.path === serviceFileUri.path && service
+          ? service
+          : await getMainService(fileUri),
+      ),
+    ];
   }
 
   // A converted service keeps its legacy sibling until the delete lands, so list each id once,

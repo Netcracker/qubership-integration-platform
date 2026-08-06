@@ -363,12 +363,20 @@ export class VSCodeFileApi implements FileApi {
         name.endsWith(fileFilter.extension)
       ) {
         const fileUri = vscode.Uri.joinPath(folderUri, name);
-        const contentYaml = await this.parseFile(fileUri);
-        if (!fileFilter.predicate || fileFilter.predicate(contentYaml)) {
-          result.push(fileUri);
-          if (fileFilter.findFirst) {
-            return;
+        // Only a predicate needs the content, and a file the parser chokes on cannot be the one
+        // asked for. Letting it throw aborted the whole scan, which let one malformed document
+        // decide which of two service names a lookup resolves.
+        if (fileFilter.predicate) {
+          const contentYaml = await this.parseFile(fileUri).catch(
+            () => undefined,
+          );
+          if (!fileFilter.predicate(contentYaml)) {
+            continue;
           }
+        }
+        result.push(fileUri);
+        if (fileFilter.findFirst) {
+          return;
         }
       } else if (type === vscode.FileType.Directory) {
         const subFolderUri = vscode.Uri.joinPath(folderUri, name);

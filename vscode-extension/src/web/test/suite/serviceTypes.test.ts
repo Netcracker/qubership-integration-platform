@@ -476,6 +476,31 @@ suite("Service types in the web host", () => {
         bothOnDisk.description,
         "Saved again through the stale uri",
       );
+
+      // A write through that same uri has to land on the same file the read did. Following the uri
+      // instead applied the edit to the superseded body and wrote that over the typed file, which
+      // reverted every save since the conversion, environments included.
+      const savedThroughLegacy = await updateService(
+        legacyUri,
+        LEGACY_EXTERNAL_ID,
+        { name: "Legacy shipping, renamed" },
+      );
+      assert.strictEqual(
+        savedThroughLegacy.integrationSystemType,
+        IntegrationSystemType.EXTERNAL,
+      );
+      const typedAfterWrite = await readYaml(typedUri);
+      assert.strictEqual(typedAfterWrite.name, "Legacy shipping, renamed");
+      assert.strictEqual(
+        typedAfterWrite.content.description,
+        "Saved again through the stale uri",
+        "the write carried the superseded body over the typed file",
+      );
+      assert.strictEqual(
+        (await readYaml(legacyUri)).content.description,
+        "superseded",
+        "the write went through the superseded file",
+      );
     } finally {
       await vscode.workspace.fs.delete(legacyUri);
     }

@@ -1083,6 +1083,76 @@ the resolved file rather than the uri they were handed.
 committed): the read-path contract now says the id decides on every read, names `readServiceFileByName` and
 `serviceIdFromFileName`, and records the `ServiceFileNotFoundError` aggregate.
 
+## Review phase 5 — external cross-review
+
+*Two MAJOR and two MINOR findings from a third Codex (gpt-5.6-luna) pass. Phase 4 settled which file a **read** works
+from; all four sit on what phase 4 deliberately left alone — the write, and the two reads that hold no id.*
+
+➕ **CONFIRMED: the write followed the uri it was handed.** `readServiceFile` returned the passed uri whenever it read,
+so `updateService` and the three environment writes worked from the superseded legacy sibling in the both-files state.
+Reproduced against an in-memory disk with both files present: the write read the legacy body (`description: superseded`),
+applied the edit to it, and — because the conversion recomputes the name from the type — wrote **that** over the typed
+file, so the typed file's `description: current` and everything else saved since the conversion were reverted, and the
+response the webview rendered came back stating the reverted values. The user's own edit landed; every earlier edit
+vanished. `readServiceFile` is now the resolve-first read `readServiceFileById` was, and the two are one function.
+
+➕ [decision] **A write resolves by id, the same rule a read follows.** This overturns the phase-2 and phase-4 decision
+to leave the write on the held uri. That decision protected "a write lands in the file the caller opened", an invariant
+the write path does not have and never had: `writeServiceInCurrentFormat` recomputes the target name from the type, so a
+save through a legacy uri already moved the document to the typed file. What was left was the choice of *content*, and
+following the uri chose the superseded body. Weighing the two failures: redirecting a write can save an editor opened on
+file A into file B, which is visible, recoverable, and only reachable in a state the user was already warned about;
+following the uri silently reverts saved work, which is invisible until someone notices the data is gone. Silent data
+loss loses. What this accepts: (1) an edit typed straight into the superseded YAML file is ignored — that file is
+already invisible to the list, the tree and every read; (2) the half-converted state is no longer cleaned up
+incidentally, because a save through the legacy uri used to retry the delete that failed. Deleting it from the read side
+was declined — a read must not delete, and a same-folder name match is not proof of a same-id file (a hand-authored
+`foo.service.` and `foo.external-service.` can hold different services). The warning `deleteLegacySibling` raises
+already tells the user to delete it by hand.
+
+➕ **FALSE POSITIVE: `getCurrentServiceId` reading the legacy sibling.** It returns an id, and both files of one service
+carry the same id — that is what makes them siblings and what `findServiceFileById` matches on, so the legacy sibling
+cannot answer with a different id. A file whose body states an id its name does not is not a sibling of anything, and
+reading its own id from it is the correct answer. Routing it through the lookup would have been actively wrong: it is
+handed context and MCP uris too (`navigateToContextService`, `navigateToMcpService`), which no plain-service scan should
+resolve. Scoped to what was real: `readServiceFileByName` split into `readServiceIdentity` (the id, no lookup) for this
+caller, and the resolution for the one caller that needs a document.
+
+➕ **CONFIRMED in part: the single-file branch of `getServices`.** The finding's "reads the wrong document" half is
+false — it already resolved by id through `getService`, which phase 4 pinned. The redundancy half is real but was
+mis-located: the lookup is deliberate (phase 3 declined a conditional trust rule, and it is what makes this branch land
+on the typed file), while the second **read** of a document already in hand was pure waste. The branch now resolves the
+id and reuses the document it read whenever the id resolves back to the same path, which is every service that has one
+file — one read instead of two, with no trust rule.
+
+➕ **CONFIRMED: a malformed file decided the precedence.** `collectFiles` let `parseFile` throw, which aborted the scan
+for that extension, so one broken `.external-service.` file anywhere in the workspace made the typed pass fail and
+handed the lookup to the legacy sibling. Fixed at the root rather than in the lookup: `collectFiles` parses only to
+answer a predicate and treats an unparseable file as no match, because a file the parser chokes on cannot be the file
+being searched for. Making `findServiceFileById` strict instead is impossible — `findFile` reports a plain miss and a
+broken scan as the same `Error`, and every lookup legitimately misses on the names the service is not stored under, so
+"an earlier scan failed" is the normal case. The phase-4 decision against classifying by error type stands.
+
+➕ [decision] The predicate-free branch of `collectFiles` now skips parsing altogether. Nothing reads the content there
+— `findFiles(extension)` is a listing — and it removes a parse of every matching file from all four passes of
+`findServiceFiles`. An unparseable file is listed by name, as before; the caller that then reads it reports the failure,
+which is where it belongs.
+
+➕ Mutations checked red, one per fix: `readServiceFile` back to trusting the held uri (3 of the 5 new write cases, plus
+12 existing read cases, plus the integration conversion test in the real web host); `updateService` back to a direct
+`getMainService` (2 integration assertions, reads passing and the write failing); the `getServices` branch back to
+`getService` (1 case); `getCurrentServiceId` routed through the lookup (1 case); and `collectFiles` back to letting
+`parseFile` throw (1 case, the legacy sibling winning again).
+
+➕ Two new suites. `tests/web/response/serviceApiModify.canonicalFile.test.ts` runs the real `serviceApiRead` and
+`serviceFileWrite` against an in-memory disk — the sibling modify suites stub `readServiceFile`, so none of them could
+see this — and `tests/web/response/fileApiImpl.brokenScan.test.ts` runs the real `VSCodeFileApi` and the real lookup over
+a mocked directory tree. The integration conversion test gained the write half of its both-files case.
+
+➕ [deviation] `vscode-extension/CLAUDE.md` was edited on disk once more (untracked, git-excluded, so it cannot be
+committed): the write now resolves by id and says what that accepts, `readServiceIdentity` replaces
+`readServiceFileByName`, and the scan's tolerance for a malformed file is recorded next to the lookup's error aggregate.
+
 ## Post-Completion
 
 *Items requiring manual intervention or external systems — no checkboxes, informational only*
