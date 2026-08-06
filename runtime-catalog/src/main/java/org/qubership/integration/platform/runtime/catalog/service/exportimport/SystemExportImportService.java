@@ -357,16 +357,26 @@ public class SystemExportImportService {
         return DiscoveredServiceFiles.of(serviceFiles.stream().filter(this::isPlainServiceFile).toList());
     }
 
-    /** An unreadable file stays: the import reports what is wrong with it, which is more than a skip would say. */
+    /**
+     * Only a name a context or an MCP export writes can belong to another import, so only that name's document is
+     * read. Every other file — the overwhelming majority of any archive — is answered from the name alone and reaches
+     * the import unparsed, which is where it is parsed anyway.
+     *
+     * <p>An unreadable file stays: the import reports what is wrong with it, which is more than a skip would say.
+     */
     private boolean isPlainServiceFile(File serviceFile) {
+        String fileName = serviceFile.getName();
+        if (!ServiceTypeFiles.statesContextOrMCPPostfix(fileName)) {
+            return true;
+        }
         try {
-            if (serviceTypeFiles.isContextOrMCPServiceFile(serviceFile.getName(), yamlMapper.readTree(serviceFile))) {
-                log.info("File {} states a context or an MCP service, which is imported by its own service import",
-                        serviceFile.getName());
+            if (serviceTypeFiles.isContextOrMCPServiceFile(fileName, yamlMapper.readTree(serviceFile))) {
+                log.info("File {} states a context or an MCP service, which is imported by its own service import,"
+                        + " so the service import reports no result for it", fileName);
                 return false;
             }
         } catch (IOException | RuntimeException e) {
-            log.warn("Cannot read {} to tell which service kind it states: {}", serviceFile.getName(), e.getMessage());
+            log.warn("Cannot read {} to tell which service kind it states: {}", fileName, e.getMessage());
         }
         return true;
     }

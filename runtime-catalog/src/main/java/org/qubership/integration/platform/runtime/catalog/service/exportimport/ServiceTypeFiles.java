@@ -38,6 +38,10 @@ public class ServiceTypeFiles {
             IntegrationSystemType.INTERNAL, INTERNAL_SERVICE_YAML_NAME_POSTFIX,
             IntegrationSystemType.IMPLEMENTED, IMPLEMENTED_SERVICE_YAML_NAME_POSTFIX));
 
+    /** The postfixes of the two kinds whose name states no type: the context and the MCP service. */
+    private static final List<String> TYPELESS_POSTFIXES =
+            List.of(CONTEXT_SERVICE_YAML_NAME_POSTFIX, MCP_SERVICE_YAML_NAME_POSTFIX);
+
     private final Map<IntegrationSystemType, String> schemaUrisByType;
     private final Map<String, String> schemaUrisByTypelessPostfix;
 
@@ -112,11 +116,24 @@ public class ServiceTypeFiles {
     }
 
     /**
+     * Whether the name is one a context or an MCP export writes. Only such a name can belong to another import, so it
+     * is the only one whose document has to be read at all; a caller holding just a name can leave every other file to
+     * the plain-service import unread.
+     */
+    public static boolean statesContextOrMCPPostfix(String fileName) {
+        return fileName != null
+                && TYPELESS_POSTFIXES.stream().anyMatch(postfix -> ExportImportUtils.statesPostfix(fileName, postfix));
+    }
+
+    /**
      * Whether the file is the context or the MCP service file another import already has: its name states that kind's
      * postfix, and its document says it is that kind. Both halves are needed. The name alone is the one shape two
      * scans claim — {@code service-ctx.context-service.qip.yaml} is the context file of {@code service-ctx} and the
      * legacy flat plain-service file of {@code ctx.context-service.qip} — and the document alone says nothing about
      * which scan found it.
+     *
+     * <p>The name is weighed first, so a caller that parses the document only for this answer can skip the parse
+     * whenever {@link #statesContextOrMCPPostfix} is false.
      *
      * <p>The document is read exactly as {@code ContextExportImportService} and {@code MCPSystemImportExportService}
      * read it, by {@code $schema} against the same configured URI, so this answers true only for a file those imports
@@ -128,7 +145,7 @@ public class ServiceTypeFiles {
      * name a typeless kind's export writes.
      */
     public boolean isContextOrMCPServiceFile(String fileName, JsonNode document) {
-        if (fileName == null || document == null) {
+        if (!statesContextOrMCPPostfix(fileName) || document == null) {
             return false;
         }
         JsonNode schema = document.path(SCHEMA);

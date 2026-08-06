@@ -62,6 +62,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -516,6 +517,42 @@ class SystemExportImportServiceTest {
         assertEquals(IntegrationSystemType.EXTERNAL, created.getValue().getIntegrationSystemType());
     }
 
+    // --- what discovery reads --------------------------------------------------------------------------------------
+
+    /**
+     * Discovery reads a document only to settle a name two imports claim, and every other name settles itself. Reading
+     * each candidate instead parses the whole archive twice, once here and once in the import that follows.
+     */
+    @Test
+    @DisplayName("a file no other import could claim is not read during discovery")
+    void unambiguousFileIsNotReadDuringDiscovery(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, EXTERNAL_SERVICE_ID, EXTERNAL_FILE_NAME);
+        YAMLMapper mapper = spy(GoldenServiceCorpus.mapper());
+
+        List<ImportSystemResult> preview = serviceReadingWith(mapper)
+                .getSystemsImportPreview(archive.toFile(), ImportInstructionsConfig.builder().build());
+
+        assertEquals(List.of(EXTERNAL_SERVICE_ID), idsOf(preview));
+        verify(mapper, times(1)).readTree(any(File.class));
+    }
+
+    /** The counter-case: the one name shape whose document decides which import has the file is read here. */
+    @Test
+    @DisplayName("a name another import may claim is read during discovery")
+    void ambiguousFileIsReadDuringDiscovery(@TempDir Path archive) throws IOException {
+        writeDocument(archive, "service-ctx.context-service.qip.yaml",
+                "$schema: \"" + GoldenServiceCorpus.schemas().getService() + "\"\n"
+                        + "id: ctx.context-service.qip\nname: Orders service\ncontent:\n"
+                        + "  integrationSystemType: EXTERNAL\n  migrations: \"[100, 101, 102, 103, 104, 105]\"\n");
+        YAMLMapper mapper = spy(GoldenServiceCorpus.mapper());
+
+        List<ImportSystemResult> preview = serviceReadingWith(mapper)
+                .getSystemsImportPreview(archive.toFile(), ImportInstructionsConfig.builder().build());
+
+        assertEquals(List.of("ctx.context-service.qip"), idsOf(preview));
+        verify(mapper, times(2)).readTree(any(File.class));
+    }
+
     // --- the service type on the preview path ------------------------------------------------------------------------
 
     /**
@@ -613,6 +650,27 @@ class SystemExportImportServiceTest {
     private void importingEveryDiscoveredId() {
         when(importInstructionsService.performServiceIgnoreInstructions(any(), anyBoolean()))
                 .thenAnswer(invocation -> new IgnoreResult(invocation.getArgument(0), List.of()));
+    }
+
+    /** The preview path over a caller-supplied mapper, for the tests that count what the archive walk reads. */
+    private SystemExportImportService serviceReadingWith(YAMLMapper mapper) {
+        return new SystemExportImportService(
+                transactionTemplate,
+                systemService,
+                environmentService,
+                systemModelService,
+                mapper,
+                actionLogger,
+                auditingHandler,
+                serviceSerializer,
+                serviceDeserializer,
+                archiveWriter,
+                importProgressService,
+                importInstructionsService,
+                elementHelperService,
+                chainService,
+                apiGroupService,
+                GoldenServiceCorpus.serviceTypeFiles());
     }
 
     private SystemExportImportService serviceWithRealDeserializer() {

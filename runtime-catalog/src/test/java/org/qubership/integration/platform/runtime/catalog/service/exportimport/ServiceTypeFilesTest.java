@@ -218,6 +218,36 @@ class ServiceTypeFilesTest {
     void nullNameOrDocumentStatesNoOtherKind() {
         assertFalse(serviceTypeFiles.isContextOrMCPServiceFile(null, documentStating(schemas.getContextService())));
         assertFalse(serviceTypeFiles.isContextOrMCPServiceFile("service-ctx.context-service.qip.yaml", null));
+        assertFalse(ServiceTypeFiles.statesContextOrMCPPostfix(null));
+    }
+
+    /**
+     * The name half on its own, which is what keeps discovery from reading every document in the archive: a file
+     * neither kind's export could have written is answered from the name and left to the plain-service import unread.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "ctx-1.context-service.qip.yaml",
+            "service-ctx.context-service.qip.yaml",
+            "mcp-1.mcp-service.qip.yaml",
+            "service-mcp.mcp-service.qip.yaml"})
+    @DisplayName("a name a context or MCP export writes needs its document read")
+    void contextAndMcpNamesNeedTheirDocument(String fileName) {
+        assertTrue(ServiceTypeFiles.statesContextOrMCPPostfix(fileName));
+    }
+
+    /** The postfix counts only right after the id here as well, so an app prefix spelling one states nothing. */
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "system-1.external-service.qip.yaml",
+            "system-1.internal-service.qip.yaml",
+            "system-1.implemented-service.qip.yaml",
+            "system-1.service.qip.yaml",
+            "service-system-1.yaml",
+            "grp-1.api-group.context-service.yaml"})
+    @DisplayName("every other name is left to the plain-service import unread")
+    void plainServiceNamesNeedNoDocument(String fileName) {
+        assertFalse(ServiceTypeFiles.statesContextOrMCPPostfix(fileName));
     }
 
     @Test
