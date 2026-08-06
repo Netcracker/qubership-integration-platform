@@ -1018,6 +1018,71 @@ conversion test in the real web host.
 carries the legacy name, so the new lookup would have resolved `undefined` and the suite would still have passed. The
 stub now answers for `.service.` alone, which is what that fixture has on disk.
 
+## Review phase 4 — external cross-review
+
+*Two MAJOR and two MINOR findings from a second Codex (gpt-5.6-luna) pass over the phase-3 head. Phase 3 fixed the api
+level; all four findings sit one level below it, on the service reads themselves.*
+
+➕ **CONFIRMED: the service-level reads still took the held uri as canonical.** `readServiceFileById` read the passed uri
+first and resolved by id only after that read failed or came back with another id, so it recovered a **deleted** legacy
+file but not a legacy file that is still there. Reproduced with both files on disk — the state `deleteLegacySibling`
+leaves behind when the delete fails, which it swallows on purpose, and the state `getServices` and the explorer already
+dedup for: handed the legacy uri, `getService` answered `INTERNAL` from the superseded body while the list showed
+`EXTERNAL` from the typed file, and `getEnvironments`, `getEnvironment` and the single-file branch of `getServices`
+followed it. `readServiceFileById` now resolves through `resolveServiceFileUri` first and reads that file, which is the
+rule phase 3 gave the api level; `getApiSpecifications` drops the nested `resolveServiceFileUri` call it needed while the
+two disagreed.
+
+➕ **CONFIRMED in part: the two reads that start without an id.** The finding named nine direct reads; seven are correct
+and were left alone. `getContextService`, `getContextServices`, `getMcpService` and `getMcpServices` (lines 168, 183,
+193, 206, 215, 228) read a context or an MCP file, and the name wins for those kinds, so no conversion ever moves one —
+their enumeration branches are `findFiles` scans that must use the file they found. The two that were wrong are
+`getCurrentServiceId` and the single-file branch of `getServices`: both learn the id **from** the document, so a deleted
+path had nothing to resolve by and threw. Reproduced: `getCurrentServiceId` rejected with `EntryNotFound`, taking
+`navigateToSpecifications` and `navigateToOperations` down with it (`getNavigateUri` stats the file first, so that caller
+was already safe). Both now go through `readServiceFileByName`, which reads the uri and recovers a failed read through
+the id the file name states — `serviceIdFromFileName` in `serviceFileType.ts`, built on the same whole-extension compare
+as the rest of that module.
+
+➕ **CONFIRMED: `findServiceFileById` reported only its last failure.** A malformed file anywhere in the workspace makes
+the scan throw rather than come back empty, and that reason was overwritten by the next name's plain miss. It now
+collects every failure into one `ServiceFileNotFoundError` that names them all.
+
+➕ **CONFIRMED: the fallback handed back a uri that no longer exists.** `resolveServiceFileUri` returned `currentFile`
+for any lookup failure, including one where `currentFile` is the path the conversion deleted, which turned the lookup
+failure into an `EntryNotFound` on a stale path further down. The fallback is now taken only when `currentFile` still
+resolves; otherwise the lookup error propagates.
+
+➕ [decision] Telling "not found" from "the scan broke" by error type was declined. `FileApi` has no typed error
+channel — `findFile` throws a plain `Error` for a miss, `parseFile` throws a plain `Error` for a broken file, and every
+unit-test double throws a plain `Error` too — so a classification would be message-sniffing that lies for any
+implementation but ours. The aggregate error plus the existence check on the fallback cover the same ground without one:
+no failure is hidden, and the fallback is only taken when it stands for something.
+
+➕ [decision] `getServices` enumeration builds its result from the document it already read
+(`toIntegrationSystem`, split out of `getService`) rather than calling `getService` per file. `findServiceFiles` already
+applies the typed-wins order and the loop already dedups on it, so re-resolving each id would rescan the workspace once
+per service. This is also why the fix does not slow enumeration down: it removes a per-service read rather than adding a
+per-service lookup.
+
+➕ [decision] `readServiceFile` is untouched, and `updateService` still uses it. Redirecting a **write** by an id retry
+stays declined, as in phase 2. `readServiceFileByName` recovers by the name-stated id only after the direct read fails,
+so a hand-authored file whose name and id disagree still reads the way it always did.
+
+➕ Mutations checked red, one per fix: `readServiceFileById` back to trusting the held uri (13 unit cases, and the
+integration conversion test in the real web host); `getCurrentServiceId` and the `getServices` branch back to their
+direct reads (1 case each); the fallback without its existence check (1 case); the lookup rethrowing only its last
+failure (2 cases); `serviceIdFromFileName` reading only the first dot-free segment (1 case); and the enumeration
+building from the uri it was handed rather than the file it found (2 cases).
+
+➕ Eight cases in `serviceApiRead.serviceTypes.test.ts` left `findFileById` unstubbed, the same blind spot phase 3 found
+in `serviceApiRead.test.ts`. They now declare which file is on disk through one shared `onlyOnDisk` helper, so they pin
+the resolved file rather than the uri they were handed.
+
+➕ [deviation] `vscode-extension/CLAUDE.md` was edited on disk again (untracked, git-excluded, so it cannot be
+committed): the read-path contract now says the id decides on every read, names `readServiceFileByName` and
+`serviceIdFromFileName`, and records the `ServiceFileNotFoundError` aggregate.
+
 ## Post-Completion
 
 *Items requiring manual intervention or external systems — no checkboxes, informational only*

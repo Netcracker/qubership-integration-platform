@@ -42,6 +42,7 @@ const findAndBuildChainsRecursively = jest.fn().mockResolvedValue(undefined);
 const getRootDirectory = jest.fn().mockReturnValue({ path: "/root" });
 const parseFile = jest.fn();
 const readFileContent = jest.fn().mockResolvedValue("raw source");
+const getFileType = jest.fn();
 
 jest.mock("../../../src/web/response/file/fileApiProvider", () => ({
   fileApi: {
@@ -54,6 +55,7 @@ jest.mock("../../../src/web/response/file/fileApiProvider", () => ({
     getRootDirectory,
     parseFile,
     readFileContent,
+    getFileType,
     getFileCreatedWhen: jest.fn().mockResolvedValue(0),
   },
 }));
@@ -78,6 +80,7 @@ jest.mock(
 
 import {
   getApiSpecifications,
+  getCurrentServiceId,
   getEnvironment,
   getEnvironments,
   getOperationInfo,
@@ -97,6 +100,16 @@ function serviceFile(extension: string): any {
   return uri(`/root/${SERVICE_ID}/${SERVICE_ID}${extension}`);
 }
 
+// Only the named extension is on disk; the rest reject the way findFileById does for a miss. Every
+// read resolves the service by id, so a fixture that leaves the lookup unstubbed pins nothing.
+function onlyOnDisk(extension: string) {
+  findFileById.mockImplementation((id: string, requested: string) =>
+    id === SERVICE_ID && requested === extension
+      ? Promise.resolve(serviceFile(extension))
+      : Promise.reject(new Error("not found")),
+  );
+}
+
 function serviceDocument(content: Record<string, unknown> = {}): any {
   return {
     id: SERVICE_ID,
@@ -112,6 +125,7 @@ beforeEach(() => {
   getSpecificationFiles.mockResolvedValue([]);
   findAndBuildChainsRecursively.mockResolvedValue(undefined);
   readFileContent.mockResolvedValue("raw source");
+  getFileType.mockResolvedValue("SERVICE");
 });
 
 describe("getService - the file name states the type", () => {
@@ -121,6 +135,7 @@ describe("getService - the file name states the type", () => {
     [ext.implementedService, "IMPLEMENTED"],
   ])("reads %s as a %s service", async (extension, expected) => {
     const fileUri = serviceFile(extension);
+    onlyOnDisk(extension);
     getMainService.mockResolvedValue(serviceDocument());
 
     const service = await getService(fileUri, SERVICE_ID);
@@ -131,6 +146,7 @@ describe("getService - the file name states the type", () => {
 
   it("falls back to the field for the legacy type-less name", async () => {
     const fileUri = serviceFile(ext.service);
+    onlyOnDisk(ext.service);
     getMainService.mockResolvedValue(
       serviceDocument({ integrationSystemType: "INTERNAL" }),
     );
@@ -144,6 +160,7 @@ describe("getService - the file name states the type", () => {
   // keeps showing it rather than dropping the service out of the list.
   it("lets the name win when the body disagrees with it", async () => {
     const fileUri = serviceFile(ext.externalService);
+    onlyOnDisk(ext.externalService);
     getMainService.mockResolvedValue(
       serviceDocument({ integrationSystemType: "INTERNAL" }),
     );
@@ -155,6 +172,7 @@ describe("getService - the file name states the type", () => {
 
   it("reads no type when neither the name nor the body states one", async () => {
     const fileUri = serviceFile(ext.service);
+    onlyOnDisk(ext.service);
     getMainService.mockResolvedValue(serviceDocument());
 
     const service = await getService(fileUri, SERVICE_ID);
@@ -164,6 +182,7 @@ describe("getService - the file name states the type", () => {
 
   it("keeps environments, labels and protocol intact for a typed file", async () => {
     const fileUri = serviceFile(ext.implementedService);
+    onlyOnDisk(ext.implementedService);
     getMainService.mockResolvedValue(
       serviceDocument({
         description: "Order intake",
@@ -187,15 +206,6 @@ describe("getService - the file name states the type", () => {
 });
 
 describe("resolving a service file by id", () => {
-  // Only the file that exists answers; the others reject the way findFileById does for a miss.
-  function onlyOnDisk(extension: string) {
-    findFileById.mockImplementation((id: string, requested: string) =>
-      requested === extension
-        ? Promise.resolve(serviceFile(extension))
-        : Promise.reject(new Error("not found")),
-    );
-  }
-
   it.each([
     [ext.externalService, "EXTERNAL"],
     [ext.internalService, "INTERNAL"],
@@ -288,6 +298,7 @@ describe("resolving a service file by id", () => {
 describe("getServices", () => {
   it("returns the single service when handed a typed service file", async () => {
     const fileUri = serviceFile(ext.internalService);
+    onlyOnDisk(ext.internalService);
     getMainService.mockResolvedValue(serviceDocument());
 
     const services = await getServices(fileUri);
@@ -657,5 +668,141 @@ describe("reading the api subtree through a uri the conversion replaced", () => 
 
     expect(info.id).toBe(OPERATION_ID);
     expect(getSpecificationFiles).toHaveBeenCalledWith(typedUri);
+  });
+});
+
+// A conversion that could not delete the legacy sibling leaves both files on disk, and the delete
+// failure is swallowed on purpose. The tree and `getServices` both list such a service from the typed
+// file, so a read handed the legacy uri has to land on the same document — otherwise the editor shows
+// what the list does not.
+describe("reading a service that has both files on disk", () => {
+  const legacyUri = serviceFile(ext.service);
+  const typedUri = serviceFile(ext.externalService);
+
+  beforeEach(() => {
+    findFileById.mockImplementation((id: string, requested: string) =>
+      id === SERVICE_ID &&
+      (requested === ext.externalService || requested === ext.service)
+        ? Promise.resolve(serviceFile(requested))
+        : Promise.reject(new Error("not found")),
+    );
+    getMainService.mockImplementation((fileUri: any) =>
+      Promise.resolve(
+        fileUri.path === typedUri.path
+          ? serviceDocument({
+              description: "current",
+              environments: [
+                { id: "env-1", name: "dev", address: "http://dev" },
+              ],
+            })
+          : serviceDocument({
+              description: "superseded",
+              integrationSystemType: "INTERNAL",
+              environments: [],
+            }),
+      ),
+    );
+  });
+
+  it("reads the typed file when handed the legacy uri", async () => {
+    const service = await getService(legacyUri, SERVICE_ID);
+
+    expect(service.type).toBe("EXTERNAL");
+    expect(service.description).toBe("current");
+  });
+
+  it("reads environments from the typed file when handed the legacy uri", async () => {
+    const environments = await getEnvironments(legacyUri, SERVICE_ID);
+
+    expect(environments).toHaveLength(1);
+  });
+
+  it("reads one environment from the typed file when handed the legacy uri", async () => {
+    const environment = await getEnvironment(legacyUri, SERVICE_ID, "env-1");
+
+    expect(environment.address).toBe("http://dev");
+  });
+
+  it("lists the single service from the typed file when handed the legacy uri", async () => {
+    const services = await getServices(legacyUri);
+
+    expect(services).toHaveLength(1);
+    expect(services[0].type).toBe("EXTERNAL");
+    expect(services[0].description).toBe("current");
+  });
+
+  it("reads the group level from the typed file when handed the legacy uri", async () => {
+    await getApiSpecifications(legacyUri, SERVICE_ID);
+
+    expect(getSpecificationGroupFiles).toHaveBeenCalledWith(typedUri);
+  });
+});
+
+// The two reads that start without an id: the navigation route builder and the single-file branch of
+// `getServices`. Neither is handed the id, so a uri the conversion deleted is recovered through the
+// id the file name states.
+describe("reading without an id through a uri the conversion replaced", () => {
+  const staleUri = serviceFile(ext.service);
+  const typedUri = serviceFile(ext.implementedService);
+
+  beforeEach(() => {
+    findFileById.mockImplementation((id: string, requested: string) =>
+      id === SERVICE_ID && requested === ext.implementedService
+        ? Promise.resolve(typedUri)
+        : Promise.reject(new Error("not found")),
+    );
+    getMainService.mockImplementation((fileUri: any) =>
+      fileUri.path === typedUri.path
+        ? Promise.resolve(serviceDocument())
+        : Promise.reject(new Error("EntryNotFound")),
+    );
+  });
+
+  it("answers the current service id through the file it moved to", async () => {
+    await expect(getCurrentServiceId(staleUri)).resolves.toBe(SERVICE_ID);
+  });
+
+  it("lists the single service through the file it moved to", async () => {
+    const services = await getServices(staleUri);
+
+    expect(services).toHaveLength(1);
+    expect(services[0].type).toBe("IMPLEMENTED");
+  });
+
+  it("reports the failure when the name states no id either", async () => {
+    await expect(getCurrentServiceId(uri("/root/notes.txt"))).rejects.toThrow();
+  });
+});
+
+// The fallback to the held uri is what keeps a read that starts from a chain or an api file in the
+// folder it came from. It stands for the service only while that uri still points at something.
+describe("falling back to the held uri", () => {
+  beforeEach(() => {
+    findFileById.mockRejectedValue(new Error("not found"));
+  });
+
+  it("reads on through a uri that is still there", async () => {
+    getFileType.mockResolvedValue("CHAIN");
+    getSpecificationFiles.mockResolvedValue([]);
+
+    const apis = await getSpecificationModel(
+      uri("/root/c1/c1.chain.qip.yaml"),
+      SERVICE_ID,
+      "group-1",
+    );
+
+    expect(apis).toEqual([]);
+    expect(getSpecificationFiles).toHaveBeenCalledWith(
+      uri("/root/c1/c1.chain.qip.yaml"),
+    );
+  });
+
+  it("reports the lookup failure rather than handing back a deleted uri", async () => {
+    getFileType.mockRejectedValue(new Error("EntryNotFound"));
+
+    await expect(
+      getSpecificationModel(serviceFile(ext.service), SERVICE_ID, "group-1"),
+    ).rejects.toThrow(SERVICE_ID);
+    expect(getSpecificationFiles).not.toHaveBeenCalled();
   });
 });

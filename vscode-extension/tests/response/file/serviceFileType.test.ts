@@ -40,6 +40,7 @@ import {
   resolveServiceType,
   serviceExtensionForType,
   serviceFileNameForType,
+  serviceIdFromFileName,
   serviceSchemaUrlForType,
   serviceTypeFromUri,
   ServiceExtensions,
@@ -472,6 +473,38 @@ describe("fileNameStatesType", () => {
     "notes.md",
   ])("reads no type off %s", (name) => {
     expect(fileNameStatesType(name, qip)).toBe(false);
+  });
+});
+
+// What a read holding no id recovers a deleted path by. A dotted id keeps the legacy name, so the
+// whole name up to the extension is the id — not the first segment the backend reads a postfix from.
+describe("serviceIdFromFileName", () => {
+  it.each([
+    ["svc-1.external-service.qip.yaml", "svc-1"],
+    ["svc-1.service.qip.yaml", "svc-1"],
+    ["ctx-1.context-service.qip.yaml", "ctx-1"],
+    ["mcp-1.mcp-service.qip.yaml", "mcp-1"],
+    ["a.b.service.qip.yaml", "a.b"],
+  ])("reads the id %s states", (name, id) => {
+    expect(serviceIdFromFileName(name, qip)).toBe(id);
+  });
+
+  it("reads the id from a full uri path", () => {
+    expect(
+      serviceIdFromFileName(
+        { path: "/workspace/svc-1/svc-1.internal-service.qip.yaml" },
+        qip,
+      ),
+    ).toBe("svc-1");
+  });
+
+  it.each([
+    "svc-1.chain.qip.yaml",
+    "notes.md",
+    ".service.qip.yaml",
+    "svc-1.external-service.acme.yaml",
+  ])("reads no id off %s", (name) => {
+    expect(serviceIdFromFileName(name, qip)).toBeUndefined();
   });
 });
 

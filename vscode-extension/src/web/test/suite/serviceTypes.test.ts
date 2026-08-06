@@ -448,6 +448,38 @@ suite("Service types in the web host", () => {
       [],
     );
 
+    // A delete that fails leaves both files on disk for good, which the delete path swallows on
+    // purpose. The list and the tree show the typed one, so a read handed the legacy uri has to
+    // land there too rather than on the document that lost the precedence race.
+    await vscode.workspace.fs.writeFile(
+      legacyUri,
+      new TextEncoder().encode(
+        [
+          `id: ${LEGACY_EXTERNAL_ID}`,
+          "name: Legacy shipping",
+          "content:",
+          "  integrationSystemType: INTERNAL",
+          "  description: superseded",
+          "  protocol: HTTP",
+          "",
+        ].join("\n"),
+      ),
+    );
+    try {
+      const bothOnDisk = await getService(legacyUri, LEGACY_EXTERNAL_ID);
+      assert.strictEqual(
+        bothOnDisk.integrationSystemType,
+        IntegrationSystemType.EXTERNAL,
+        "the read landed on the legacy sibling",
+      );
+      assert.strictEqual(
+        bothOnDisk.description,
+        "Saved again through the stale uri",
+      );
+    } finally {
+      await vscode.workspace.fs.delete(legacyUri);
+    }
+
     await closeAllEditors();
   });
 

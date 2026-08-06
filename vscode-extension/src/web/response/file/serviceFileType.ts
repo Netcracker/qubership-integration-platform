@@ -197,6 +197,20 @@ function splitServiceFileName(
 }
 
 /**
+ * The id a service file name states, or `undefined` for a name no service extension matches. A
+ * conversion changes the extension alone, so a read that holds no id recovers a deleted path
+ * through the id the name kept.
+ */
+export function serviceIdFromFileName(
+  fileRef: ServiceFileRef,
+  extensions?: ServiceExtensions,
+): string | undefined {
+  const name = extractFilename(fileRef);
+  const split = splitServiceFileName(name, resolveExtensions(name, extensions));
+  return split?.id || undefined;
+}
+
+/**
  * Whether the backend can read a type off this name. It reads the id up to the first dot and the
  * postfix in the segment right after it (`ExportImportUtils.statesPostfix`), so a typed name is
  * readable only when the id is one dot-free segment.
