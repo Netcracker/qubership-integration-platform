@@ -23,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceExportException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceImportException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServicesNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportSystemsAndInstructionsResult;
@@ -176,6 +177,10 @@ public class SystemExportImportService {
         integrationSystem.getApiGroups().removeAll(specificationGroupToRemove);
     }
 
+    /**
+     * The exported document, or null for a row this version cannot write. A refusal costs that row alone: "export all
+     * services" is the only way to get data out of an installation, and one unexportable row used to take it with it.
+     */
     private ExportedSystemObject exportOneSystem(IntegrationSystem system, List<String> usedSystemModelIds) {
         try {
             ExportedSystemObject exportedSystem;
@@ -189,6 +194,9 @@ public class SystemExportImportService {
             }
 
             return exportedSystem;
+        } catch (ServiceExportException e) {
+            log.error("Service {} is left out of the archive. {}", system.getId(), e.getMessage());
+            return null;
         } catch (IllegalArgumentException e) {
             String systemId = system != null && system.getId() != null ? "with system id: " + system.getId() + " " : "";
             String errMessage = "Error while serializing system " + systemId + e.getMessage();
@@ -198,7 +206,10 @@ public class SystemExportImportService {
     }
 
     private List<ExportedSystemObject> exportSystems(List<IntegrationSystem> systems, List<String> usedSystemModelIds) {
-        return systems.stream().map(system -> exportOneSystem(system, usedSystemModelIds)).collect(Collectors.toList());
+        return systems.stream()
+                .map(system -> exportOneSystem(system, usedSystemModelIds))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
     }
 
     public byte[] exportSystemsRequest(List<String> systemIds, List<String> usedSystemModelIds) {
@@ -214,9 +225,15 @@ public class SystemExportImportService {
         }
 
         List<ExportedSystemObject> exportedSystems = exportSystems(systems, usedSystemModelIds);
+        if (exportedSystems.isEmpty()) {
+            return null;
+        }
         byte[] archive = archiveWriter.writeArchive(exportedSystems);
+        Set<String> exportedIds = exportedSystems.stream().map(ExportedSystemObject::getId).collect(Collectors.toSet());
         for (IntegrationSystem system : systems) {
-            logSystemExportImport(system, null, LogOperation.EXPORT);
+            if (exportedIds.contains(system.getId())) {
+                logSystemExportImport(system, null, LogOperation.EXPORT);
+            }
         }
 
         return archive;

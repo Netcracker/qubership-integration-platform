@@ -241,13 +241,23 @@ public class ExportImportUtils {
      */
     public static String generateMainSystemFileExportName(
             String id, String appName, boolean isLegacyExport, IntegrationSystemType type) {
+        requireExportableServiceId(id, isLegacyExport);
+        return isLegacyExport
+                ? SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION
+                : id + ServiceTypeFiles.postfix(type) + appName + YAML_FILE_NAME_POSTFIX;
+    }
+
+    /**
+     * Refuses a plain-service id the export format in force cannot state. Public so the export can ask before it
+     * builds the archive: the name is written inside the archive loop, where a throw costs every other service too.
+     */
+    public static void requireExportableServiceId(String id, boolean isLegacyExport) {
         if (isLegacyExport) {
             requireLegacyFlatId(id);
-            return SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION;
+            return;
         }
         requireCurrentFormatId(id, "<id>.<type>-service.<app>.yaml",
                 fitsLegacyFlatFileName(id) ? EXPORT_IN_THE_LEGACY_FORMAT : RE_CREATE_UNDER_A_FLAT_ID);
-        return id + ServiceTypeFiles.postfix(type) + appName + YAML_FILE_NAME_POSTFIX;
     }
 
     public static String generateMainContextServiceFileExportName(String id, String appName, boolean isLegacyExport) {
@@ -279,8 +289,8 @@ public class ExportImportUtils {
             return;
         }
         throw new ServiceExportException(("Service id '%s' cannot be stated in a current-format file name (%s): the id"
-                + " has to be one dot-free segment. The archive does not import back. %s")
-                .formatted(id, nameShape, remedy));
+                + " has to be one dot-free segment, so a name built from it states another id. This service is left"
+                + " out of the archive; the rest of it is produced. %s").formatted(id, nameShape, remedy));
     }
 
     /**
@@ -294,7 +304,8 @@ public class ExportImportUtils {
         }
         throw new ServiceExportException(("Service id '%s' cannot be stated in a legacy flat file name (%s<id>.yaml):"
                 + " its second segment spells a plain-service postfix, so the name reads as a current-format one, under"
-                + " another id and another type. %s").formatted(id, SERVICE_YAML_NAME_PREFIX, RE_CREATE_UNDER_A_FLAT_ID));
+                + " another id and another type. This service is left out of the archive; the rest of it is produced."
+                + " %s").formatted(id, SERVICE_YAML_NAME_PREFIX, RE_CREATE_UNDER_A_FLAT_ID));
     }
 
     public static String generateSourceExportDir(String id) {
@@ -371,7 +382,7 @@ public class ExportImportUtils {
                         .map(Path::toFile)
                         .filter(f -> (scansPlainServices && isLegacyFlatServiceName(f.getName())
                                       && f.getName().endsWith(YAML_EXTENSION))
-                                     || yamlPostfixes.stream().anyMatch(postfix -> statesPostfix(f.getName(), postfix)))
+                                     || yamlPostfixes.stream().anyMatch(postfix -> statesPostfix(f, postfix)))
                         .collect(Collectors.toList());
             }
         }
@@ -380,10 +391,27 @@ public class ExportImportUtils {
     }
 
     /**
-     * Whether the name states {@code postfix} where an export writes it: right after the id, which is the first
-     * dot-free segment. Matching anywhere in the name lets an id or an app prefix that merely contains the text state
-     * a postfix of its own, so an api group whose app prefix reads {@code .external-service.} would be scanned as a
-     * service, and a service exported under one type would resolve as another.
+     * Whether the name states {@code postfix} where an export writes it: right after the id. The id is the name's
+     * first dot-free segment, or the name of the directory the file sits in, which every export and the rollout
+     * converter name after the service id.
+     *
+     * <p>The directory is what reads an id spanning several segments back. Such ids are refused on export now, but an
+     * archive an older Runtime Catalog wrote holds them, and reading the postfix at the first dot alone walked past
+     * {@code services/a.b/a.b.service.qip.yaml} — a file every version before this one discovered and imported.
+     *
+     * <p>Matching anywhere in the name instead would claim the wrong files: an api group whose app prefix reads
+     * {@code .external-service.} would be scanned as a service. The directory keeps that shut, because such a file is
+     * named after the api group and the directory after the service.
+     */
+    public static boolean statesPostfix(File file, String postfix) {
+        File directory = file.getParentFile();
+        return statesPostfix(file.getName(), postfix)
+               || (directory != null && file.getName().startsWith(directory.getName() + postfix));
+    }
+
+    /**
+     * The name half of the rule above, for a caller holding no file. It reads the id as the first dot-free segment,
+     * which is the only shape the current format writes.
      */
     public static boolean statesPostfix(String fileName, String postfix) {
         return fileName.startsWith(postfix, fileName.indexOf('.'));

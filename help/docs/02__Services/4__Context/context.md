@@ -94,7 +94,10 @@ System allows exporting service. There are two possible ways to export service(s
 - From **"Context Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) (Export).
 - From exact service page - simply click ![cloud-download](img/cloud-download.svg) (Export) from the action menu ![more](img/more.svg).
 
-> ⚠️ **Warning:** The file name and the payload of a context service are unchanged, but the document is stamped with
-> format version 105. A Runtime Catalog older than 1.0.4 reports the context service with the **Error** status instead
-> of importing it. To produce an archive an older version can import, set `QIP_EXPORT_LEGACY_FORMAT=true` on the
-> exporting instance.
+> ⚠️ **Warning:** A Runtime Catalog older than 1.0.4 cannot import a context service exported by 1.0.4 or later, and
+> there is no export setting that changes this. The file name and the payload are unchanged, but the document is
+> stamped with format version 105, so the older version reports the context service with the **Error** status instead
+> of importing it. `QIP_EXPORT_LEGACY_FORMAT=true` does not help here: it writes the context service as
+> `context-service-<id>.yaml`, a name no version of the import looks for, so the service is **silently missing** from
+> the result instead. The setting is a downgrade path for external, inner cloud, and implemented services only.
+> Re-create a context service by hand on the older instance.

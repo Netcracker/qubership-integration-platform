@@ -424,11 +424,14 @@ call: `allowedProtocols()` is on the specification-import path, and the sets are
 - [x] write a test: a service row with a null type does not crash the guard
 - [x] run tests — must pass before task 5
 
-[decision] the shared check lives in `SystemBaseService.validateEnvironmentCount(system, count)`, next to the existing
-`validateSpecificationProtocol` — the same per-type validation shape, and both call sites already hold a `SystemService`,
-so no new bean or injection. **Revised in review: the method is `static`.** It reads none of the service's fields, and
-routing a pure rule through an injected bean made two test classes build a `SystemBaseService(null, null, null)` and
-delegate a Mockito stub back to it just to exercise the real rule. It takes the count the service *would* end up with, because the REST create path checks
+[decision] the shared check started as `SystemBaseService.validateEnvironmentCount(system, count)`, next to the existing
+`validateSpecificationProtocol` — the same per-type validation shape, and both call sites already held a
+`SystemService`, so no new bean or injection. **Revised twice in review.** First the method became `static`: it reads
+none of the service's fields, and routing a pure rule through an injected bean made two test classes build a
+`SystemBaseService(null, null, null)` and delegate a Mockito stub back to it just to exercise the real rule. Then it
+left `SystemBaseService` altogether — a static rule on a `@Service` is not where a caller looks for one — and now lives
+in `util/EnvironmentLimitUtils` as `validate(system, count)`, with the non-throwing `violation(system, count)` beside
+it for the export warning. It takes the count the service *would* end up with, because the REST create path checks
 `existing + 1` while the import paths check the count the file carries.
 
 [decision] a null type skips the check rather than raising. Today `IntegrationSystemType.INTERNAL.equals(null)` is false
@@ -439,9 +442,11 @@ is only meant to widen. Task 9 is where a null type becomes an error, and there 
 already answered 400 through `GlobalExceptionHandler`, and `importOneSystemInTransaction:449` catches `Exception`, so
 the import path still degrades to `ImportSystemStatus.ERROR` with the message intact.
 
-➕ added `validateEnvironmentCount` cases to `SystemBaseServiceTest` — the rule itself is unit-tested there, and the
-controller and import tests delegate their `systemService` mock to a real `SystemBaseService`, so all three suites
-exercise one implementation rather than a stub of it.
+➕ added environment-limit cases to `SystemBaseServiceTest` — the rule itself is unit-tested there, and the controller
+and import tests delegate their `systemService` mock to a real `SystemBaseService`, so all three suites exercise one
+implementation rather than a stub of it. **Superseded in review**: once the rule moved to `EnvironmentLimitUtils` the
+cases moved with it into `EnvironmentLimitUtilsTest`, and both mock-delegation blocks were deleted — a static utility
+needs no stub to route around.
 
 ### Task 5: Add the file-postfix ↔ type registry
 
@@ -864,17 +869,21 @@ APM repo. That rule guards APM *output*, and in this repo `apm compile` writes `
 `CLAUDE.md` in this checkout is deliberately kept out of git, so committing these two would reverse a decision this task
 has no standing to make. The plan-file checkbox update is committed on its own.
 
-Every statement in both files was read back against the symbol it names: the postfix constants
-(`ExportImportConstants:40-42`), `ServiceTypeFiles` (postfix/URI registry, `typeFromFileName`, `typeFromSchemaUri`),
+Every statement in both files was read back against the symbol it names. The review rounds that followed this task then
+moved several of those symbols, so the list below is the re-checked one, with the line numbers dropped — they went
+stale within two commits and the names did not: the postfix constants and `INTEGRATION_SYSTEM_TYPE`
+(`ExportImportConstants`), `ServiceTypeFiles` (postfix/URI registry, `typeFromFileName`, `typeFromDocument`,
+`typeFromSchemaUri`, `statesContextOrMCPPostfix`, `isContextOrMCPServiceFile`),
 `ServiceDeserializer.resolveServiceType`, `V105ServiceImportFileMigration.makeMigration`, `V105RevertMigration`'s
-broad `supportsDocument` and URI-gated `revert`, `ServiceDocumentMatcher`'s six-URI set, `FileMigrationService:50,132`,
-`SystemExportImportService.SERVICE_FILE_POSTFIXES` and `validateServiceTypeUnchanged`,
-`ExportImportUtils.generateMainSystemFileExportName:227-232` and the two `extractSystemsFromImportDirectory` overloads
-(`:294,306`, the shared walk ORing the legacy prefix at `:313`), `ExportedIntegrationSystem.type`,
-`IntegrationSystemContentDto:55`, `IntegrationSystemDtoMapper.requireType`, `SystemController.updateSystem:119-122`,
-`SystemBaseService.validateEnvironmentCount` and its three call sites, `IntegrationSystemType.allowedProtocols/
-maxEnvironments`, `EntityType.getSystemType:56-62`, the three schema `$id`s and their `metaInfo.fileExtension`,
-`service-content.schema.yaml`'s definitions, and `ServiceTypeFilesTest:161-183`.
+broad `supportsDocument` and URI-gated `revert`, `ServiceDocumentMatcher`'s six-URI set, `FileMigrationService`,
+`SystemExportImportService.SERVICE_FILE_POSTFIXES`, `validateServiceTypeUnchanged` and the `discovered` filter,
+`ExportImportUtils.generateMainSystemFileExportName`, `requireExportableServiceId`, `isLegacyFlatServiceName`,
+`plainServicePostfixes`, both `statesPostfix` overloads and both `extractSystemsFromImportDirectory` overloads,
+`ExportedIntegrationSystem.type`, `IntegrationSystemContentDto.integrationSystemType`,
+`IntegrationSystemDtoMapper.requireType`, `SystemController.updateSystem`, `EnvironmentLimitUtils.validate` and its
+three call sites plus `violation` and `ServiceSerializer.warnOnEnvironmentLimit`,
+`IntegrationSystemType.allowedProtocols/maxEnvironments`, `EntityType.getSystemType`, the three schema `$id`s and their
+`metaInfo.fileExtension`, `service-content.schema.yaml`'s definitions, and `ServiceTypeFilesTest`.
 
 ## Post-Completion
 
@@ -889,7 +898,8 @@ This is the single place the release process reads them from:
    as `<id>.external-service.<app>.yaml` / `.internal-service.` / `.implemented-service.`, and the older discovery
    matches only `service-` and `.service.` — so plain services are *silently absent* from its import result, with no
    error row. A context service in the same archive *is* reported, as `ImportSystemStatus.ERROR`, because it claims
-   format version 105. Workaround: export with `QIP_EXPORT_LEGACY_FORMAT=true`.
+   format version 105. Workaround for the plain services: export with `QIP_EXPORT_LEGACY_FORMAT=true`. It does not
+   carry the context service over — see item 6.
 2. **`PUT /v1/systems/{id}` answers 404 for an unknown id** instead of creating the service under a caller-chosen type.
    `PATCH /v1/systems/{id}` does the same, where it used to answer a bodiless 400. Create services with
    `POST /v1/systems`.
@@ -915,23 +925,50 @@ This is the single place the release process reads them from:
    file and its folder fall into `QipFileType.UNKNOWN`. Plan 2 adds the three names; until it merges, edit exported
    services with `QIP_EXPORT_LEGACY_FORMAT=true` or in the UI. The backend and the extension ship from one repo, so
    this window is visible in a single checkout.
-6. **A context service exported in the current format does not import into a pre-#553 Runtime Catalog.**
-   `ContextServiceDtoMapper` stamps the shared service migration list, so a context service claims format version 105
-   and an older QIP answers `MigrationException` ("exported from a newer version"). This is the barrier working as
-   designed, not collateral damage: it is the only signal an old QIP gives that the archive came from a newer one,
-   because the new plain-service names are silently invisible to its discovery (item 1). Every version added to the
-   shared list has behaved this way — V104 did the same. The legacy format is unaffected: `V105RevertMigration`
-   strips 105 from every document the shared list stamps, context and MCP services included, so
-   `QIP_EXPORT_LEGACY_FORMAT=true` remains the working downgrade path.
+6. **A context service cannot be handed to a pre-#553 Runtime Catalog at all, in either export format.** In the
+   current format `ContextServiceDtoMapper` stamps the shared service migration list, so a context service claims
+   format version 105 and an older QIP answers `MigrationException` ("exported from a newer version"). That much is
+   the barrier working as designed: it is the only signal an old QIP gives that the archive came from a newer one,
+   because the new plain-service names are silently invisible to its discovery (item 1), and every version added to
+   the shared list has behaved this way — V104 did the same.
+
+   `QIP_EXPORT_LEGACY_FORMAT=true` is **not** a way out of it, and an earlier revision of this item said it was.
+   `V105RevertMigration` does strip 105 from every document the shared list stamps, context and MCP services included,
+   so the legacy file no longer claims a version an older QIP refuses. But the legacy context name is
+   `context-service-<id>.yaml`, and no import scan of any version looks for it: `ContextExportImportService` and
+   `MCPSystemImportExportService` ask for `.context-service.` and `.mcp-service.` only, and the legacy `service-`
+   prefix belongs to the plain-service scan. So the legacy format turns an `ImportSystemStatus.ERROR` into a service
+   that is silently missing from the result. The flat context and MCP names being undiscoverable is not new — it
+   predates this plan and is out of its scope — but the downgrade advice built on top of it was wrong.
+   `QIP_EXPORT_LEGACY_FORMAT=true` is a downgrade path for plain services only. A context service has to be re-created
+   by hand on the older instance.
 7. **A service id that is not one dot-free segment cannot be exported in the current format.** A current-format name
    states the id up to the first dot and the postfix in the segment right after it, so an id spanning two segments
-   writes a name discovery walks past. All five service kinds refuse such an id on export and name it in the message.
-   A plain service keeps a way out — its flat name states the id whole, so `QIP_EXPORT_LEGACY_FORMAT=true` writes it —
-   while a context and an MCP service have none, because nothing on the import side scans for
-   `context-service-<id>.yaml` or `mcp-service-<id>.yaml`. Re-create such a service under a flat id. Ids are generated
-   as UUIDs here and autodiscovery takes them from the Kubernetes service name, so only a hand-authored id, or one an
-   import carried in, is affected. The rollout-import converter holds the same rule for the context services it writes:
-   it skips one and logs an error naming the id instead of writing a file no import discovers.
+   writes a name whose leading segment reads back as another id. All five service kinds refuse such an id on export
+   and name it in the message. A plain service keeps a way out — its flat name states the id whole, so
+   `QIP_EXPORT_LEGACY_FORMAT=true` writes it — while a context and an MCP service have none, because nothing on the
+   import side scans for `context-service-<id>.yaml` or `mcp-service-<id>.yaml`. Re-create such a service under a flat
+   id. Ids are generated as UUIDs here and autodiscovery takes them from the Kubernetes service name, so only a
+   hand-authored id, or one an import carried in, is affected. The rollout-import converter holds the same rule for the
+   context services it writes: it skips one and logs an error naming the id instead of writing a file no import
+   discovers.
+
+   **The refusal costs one service, not the archive.** `ServiceSerializer` refuses the id before the archive loop and
+   `SystemExportImportService.exportOneSystem` drops that row with a `log.error`; `ArchiveWriter` catches the same
+   exception per service for the context and MCP exports, whose names are built inside the loop. "Export all services"
+   therefore returns every other service, and the export action log records exactly what the archive holds. An earlier
+   revision threw out of the loop, so one row in this shape returned an error and **no archive at all** — on the one
+   endpoint an operator has for getting data out of an installation. If nothing at all is exportable the endpoint
+   answers 204, the same as for an empty catalog.
+
+   **An archive already holding such a name still imports.** A pre-#553 QIP wrote `services/a.b/a.b.service.qip.yaml`
+   for a dotted id, and reading the postfix at the first dot alone walked past it — no discovery, no row, no log, for
+   a file every earlier version imported. Discovery reads the postfix after the directory name as well
+   (`ExportImportUtils.statesPostfix(File, String)`), and every export and the rollout converter name that directory
+   after the service, so those files are found again. It stays shut to the file the anchoring closed out: an api group
+   whose app prefix spells a service postfix is named after the group, not after the service. The id such a name
+   reports is still truncated to its first segment, exactly as before #553 — the entity id comes from the document, so
+   only the ignore and selection filters see the short form.
 
    **An id wearing the legacy flat prefix `service-` is not affected.** An earlier revision refused it, which made
    every autodiscovered service of a Kubernetes service named `service-…` unexportable and aborted the whole archive.
@@ -955,20 +992,31 @@ This is the single place the release process reads them from:
    kind over a document stating neither. Reporting the confirmed case as well marked the whole session failed after a
    context service had been created correctly, which the rollout import turned into a failed callback and the import
    endpoint into a 207. The MCP import sees neither format of that name.
+8. **A service row with no type is left out of the archive.** `integration_system_type` is nullable, and a
+   current-format export states the type in the file name and the `$schema`, so there is nothing to write for such a
+   row: `IntegrationSystemDtoMapper.requireType` raises and the export drops the row with a `log.error` naming it. The
+   legacy format refuses it too, because the refusal sits in the document mapper both formats share. Before this
+   change the row exported and blew up later as an NPE in `EntityType.getSystemType`. Set the type on such rows —
+   `SELECT id, name FROM catalog.integration_system WHERE integration_system_type IS NULL` finds them — or accept that
+   they are not in the archive. Everything else exports either way.
 
 **Manual verification:**
 
 - Export a service of each type from the local stack; confirm the file name, `$schema`, and absent type field.
-- Toggle `QIP_EXPORT_LEGACY_FORMAT=true` and confirm the output still imports into a pre-#553 QIP — including an
-  archive that contains a context service.
-- Import an archive produced by a pre-#553 QIP and confirm all three types land correctly.
+- Toggle `QIP_EXPORT_LEGACY_FORMAT=true` and confirm an archive of plain services still imports into a pre-#553 QIP.
+  A context service is a different matter and needs no confirming: its legacy name `context-service-<id>.yaml` is
+  discovered by no import scan of any version, so the legacy format loses it silently where the current format at
+  least reports it (breaking change 6).
+- Import an archive produced by a pre-#553 QIP and confirm all three types land correctly, including a service whose
+  id carries a dot (`services/a.b/a.b.service.qip.yaml`).
 - Feed an archive produced after this change to a pre-#553 QIP and confirm the actual behaviour: a context service
   reports `ImportSystemStatus.ERROR` ("exported from a newer version"), while the new-named plain services are
   **silently absent** from the import result — no error row, because the old discovery (`ExportImportUtils:287-288`)
   never matches the new names. The release note must state both: the ERROR on context services and the silent
   absence of plain ones.
-- Null the type on one row (`UPDATE … SET integration_system_type = NULL`) and confirm the UI list still renders and
-  exporting that service fails with the clear Task 9 message rather than an NPE.
+- Null the type on one row (`UPDATE … SET integration_system_type = NULL`) and confirm the UI list still renders, that
+  exporting that service reports the clear Task 9 message rather than an NPE, and that "export all services" still
+  returns an archive holding every other service (breaking change 8).
 - Check production data for IMPLEMENTED or INTERNAL services carrying more than one environment. Task 4 starts
   rejecting them on import and on the REST path, so they need a release note and, if any exist, a cleanup path. A full
   catalog export is the cheapest probe: every such row logs a warning naming its id (breaking change 3).

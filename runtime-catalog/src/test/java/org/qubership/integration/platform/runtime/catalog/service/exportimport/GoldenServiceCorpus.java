@@ -290,10 +290,15 @@ public final class GoldenServiceCorpus {
 
     /** The same archive writer over an arbitrary exported set. */
     public static byte[] archive(List<ExportableObject> exported, boolean legacy) {
+        return archiveWriter(legacy).writeArchive(exported);
+    }
+
+    /** The production writer, with the two properties the application injects. */
+    public static ArchiveWriter archiveWriter(boolean legacy) {
         ExportableObjectWriterVisitor visitor = new ExportableObjectWriterVisitor(mapper());
         ReflectionTestUtils.setField(visitor, "appName", APP_NAME);
         ReflectionTestUtils.setField(visitor, "isLegacyExport", legacy);
-        return new ArchiveWriter(visitor).writeArchive(exported);
+        return new ArchiveWriter(visitor);
     }
 
     /** The real deserializer, wired as the application wires it, for reading a captured set back in. */

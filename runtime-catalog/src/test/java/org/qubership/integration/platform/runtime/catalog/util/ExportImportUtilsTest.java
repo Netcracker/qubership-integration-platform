@@ -395,19 +395,43 @@ class ExportImportUtilsTest {
     }
 
     /**
-     * Why the export refuses a dotted id for these two kinds as well: the postfix lands one segment too far right, so
-     * the name is discovered by nothing and the service is silently absent from the import rather than reported.
+     * An archive an older Runtime Catalog wrote for an id spanning several segments. Reading the postfix at the first
+     * dot alone walked past all three of these, so services those archives hold went missing from the import with no
+     * error row. The directory each file sits in is named after the service, which is where the postfix is read from
+     * once the first dot answers nothing.
      */
     @Test
-    void testADottedIdWouldWriteAContextOrMcpNameNoScanDiscovers(@TempDir Path tempDir) throws IOException {
-        writeServiceFile(tempDir, "ctx", "ctx.part" + CONTEXT_SERVICE_YAML_NAME_POSTFIX + "qip.yaml");
-        writeServiceFile(tempDir, "mcp", "mcp.part" + MCP_SERVICE_YAML_NAME_POSTFIX + "qip.yaml");
+    void testADottedIdIsDiscoveredByItsOwnScanAndNoOther(@TempDir Path tempDir) throws IOException {
+        String plainName = "a.b" + SERVICE_YAML_NAME_POSTFIX + "qip.yaml";
+        String contextName = "ctx.part" + CONTEXT_SERVICE_YAML_NAME_POSTFIX + "qip.yaml";
+        String mcpName = "mcp.part" + MCP_SERVICE_YAML_NAME_POSTFIX + "qip.yaml";
+        writeServiceFile(tempDir, "a.b", plainName);
+        writeServiceFile(tempDir, "ctx.part", contextName);
+        writeServiceFile(tempDir, "mcp.part", mcpName);
         String directory = tempDir.toAbsolutePath().toString();
 
-        assertEquals(Collections.emptyList(), ExportImportUtils.extractSystemsFromImportDirectory(
-                directory, CONTEXT_SERVICE_YAML_NAME_POSTFIX));
-        assertEquals(Collections.emptyList(), ExportImportUtils.extractSystemsFromImportDirectory(
-                directory, MCP_SERVICE_YAML_NAME_POSTFIX));
+        assertEquals(List.of(plainName),
+                fileNames(ExportImportUtils.extractSystemsFromImportDirectory(directory, SERVICE_POSTFIXES)));
+        assertEquals(List.of(contextName), fileNames(ExportImportUtils.extractSystemsFromImportDirectory(
+                directory, CONTEXT_SERVICE_YAML_NAME_POSTFIX)));
+        assertEquals(List.of(mcpName), fileNames(ExportImportUtils.extractSystemsFromImportDirectory(
+                directory, MCP_SERVICE_YAML_NAME_POSTFIX)));
+    }
+
+    /**
+     * The directory reads a dotted id back, but it does not reopen the name to every file of the archive: an api group
+     * whose app prefix spells a service postfix is named after the group, not after the service, so the service
+     * directory leaves it out.
+     */
+    @Test
+    void testTheDirectoryDoesNotClaimAnotherEntitysFile(@TempDir Path tempDir) throws IOException {
+        String serviceName = "a.b" + SERVICE_YAML_NAME_POSTFIX + "qip.yaml";
+        writeServiceFile(tempDir, "a.b", serviceName);
+        writeServiceFile(tempDir, "a.b", "grp-a.api-group.app.internal-service.qip.yaml");
+        writeServiceFile(tempDir, "a.b", "a.b.context-service.qip.yaml");
+
+        assertEquals(List.of(serviceName), fileNames(ExportImportUtils.extractSystemsFromImportDirectory(
+                tempDir.toAbsolutePath().toString(), SERVICE_POSTFIXES)));
     }
 
     /**

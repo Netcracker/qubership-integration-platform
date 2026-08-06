@@ -42,6 +42,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.s
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.MCPSystemSerializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ServiceSerializer;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ElementHelperService;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.TransactionStatus;
@@ -62,6 +63,7 @@ import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.lenient;
@@ -70,6 +72,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.GoldenServiceCorpus.APP_NAME;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.GoldenServiceCorpus.CONTEXT_SERVICE_ID;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.GoldenServiceCorpus.EXTERNAL_SERVICE_ID;
@@ -222,27 +225,37 @@ class ServiceTypeRoundTripTest {
     // --- the legacy export stays readable by an older QIP --------------------------------------------------------------
 
     /**
-     * {@code ContextServiceDtoMapper} stamps context services from the service migration list, so a current-format
-     * export claims 105 on them as well. The legacy export has to strip that claim, or an older QIP rejects the
-     * context service of an archive whose plain services it still reads fine. That is the regression V105's broad
-     * {@code supportsDocument} exists to prevent, and no test that looks only at plain services sees it.
+     * The legacy format is the downgrade path for plain services, and for those alone. Its flat plain-service name is
+     * what an older Runtime Catalog discovers, so the service imports there; the flat context name
+     * {@code context-service-<id>.yaml} is discovered by no scan of any version, so the context service of the same
+     * archive is silently absent instead. The 105 strip still has to happen — {@code ContextServiceDtoMapper} stamps
+     * context services from the service migration list, and an unstripped claim would make an older QIP reject the
+     * whole archive — but stripping it is not enough to make the file importable.
      */
     @Test
-    @DisplayName("a context service exported alongside a plain service imports into an older QIP")
-    void contextServiceImportsIntoAnOlderQip() throws IOException {
+    @DisplayName("a legacy archive downgrades its plain services, and loses its context service")
+    void aLegacyArchiveDowngradesPlainServicesOnly() throws IOException {
         GoldenServiceCorpus.unzipInto(GoldenServiceCorpus.archive(true), unpacked);
         Path contextFile = GoldenServiceCorpus.serviceFileIn(unpacked, CONTEXT_SERVICE_ID);
         Path serviceFile = GoldenServiceCorpus.serviceFileIn(unpacked, EXTERNAL_SERVICE_ID);
+        String root = unpacked.toAbsolutePath().toString();
 
         assertFalse(GoldenServiceCorpus.read(contextFile).path("migrations").asText().contains("105"),
                 "an older QIP refuses every version it does not know");
+        assertEquals(List.of(), ExportImportUtils.extractSystemsFromImportDirectory(
+                        root, CONTEXT_SERVICE_YAML_NAME_POSTFIX),
+                "nothing scans for the flat context name, so no import ever reaches this file");
+        assertTrue(ExportImportUtils.extractSystemsFromImportDirectory(root, ExportImportUtils.plainServicePostfixes())
+                        .contains(serviceFile.toFile()),
+                "the flat plain-service name is what an older QIP does discover");
 
         ContextSystem context = GoldenServiceCorpus.contextServiceDeserializer(migrationsBefore105())
                 .deserializeSystem(contextFile.toFile());
         IntegrationSystem service = GoldenServiceCorpus.deserializer(migrationsBefore105())
                 .deserializeSystem(serviceFile.toFile());
 
-        assertEquals(CONTEXT_SERVICE_ID, context.getId());
+        assertEquals(CONTEXT_SERVICE_ID, context.getId(),
+                "the document itself is readable; only discovery never hands it over");
         assertEquals(IntegrationSystemType.EXTERNAL, typeOf(service),
                 "the plain service of the same archive still states its type in the document");
     }

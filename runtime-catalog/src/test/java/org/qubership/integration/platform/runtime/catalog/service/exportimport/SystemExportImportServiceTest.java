@@ -18,6 +18,7 @@ import org.qubership.integration.platform.runtime.catalog.model.exportimport.ins
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionsConfig;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ImportSystemResult;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.ImportSystemStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.remote.SystemCompareAction;
@@ -36,29 +37,37 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.s
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ElementHelperService;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -618,7 +627,58 @@ class SystemExportImportServiceTest {
         assertEquals(SystemCompareAction.UPDATE, resultFor(preview, EXTERNAL_SERVICE_ID).getRequiredAction());
     }
 
+    // --- a row this version cannot export ----------------------------------------------------------------------------
+
+    /**
+     * "Export all services" is the operator's only way to get data out of an installation, and every refusal this
+     * change added ran inside the loop over every service of the archive. One row of a shape no file name states, or
+     * one legacy row with no type, returned an error and no archive at all — including for the services that were
+     * fine.
+     */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("unexportableRows")
+    @DisplayName("one unexportable row costs one service, not the archive")
+    void anUnexportableRowCostsOneService(String shape, String badId, IntegrationSystemType badType, boolean legacy)
+            throws IOException {
+        IntegrationSystem bad = systemWith(badType, 1);
+        bad.setId(badId);
+        when(systemService.getAll()).thenReturn(new ArrayList<>(
+                List.of(plainService(EXTERNAL_SERVICE_ID, IntegrationSystemType.EXTERNAL), bad,
+                        plainService(INTERNAL_SERVICE_ID, IntegrationSystemType.INTERNAL))));
+
+        byte[] archive = serviceExporting(legacy).exportSystemsRequest(null, List.of());
+
+        assertNotNull(archive, "an unexportable row must not take the archive with it: " + shape);
+        assertEquals(List.of(EXTERNAL_SERVICE_ID, INTERNAL_SERVICE_ID), serviceDirectoriesOf(archive),
+                "every other service is in the archive: " + shape);
+        assertEquals(List.of(EXTERNAL_SERVICE_ID, INTERNAL_SERVICE_ID), loggedExportIds(),
+                "the action log records what the archive holds: " + shape);
+    }
+
+    /** Nothing exportable at all reads as an empty export, which the controller answers 204 for. */
+    @Test
+    @DisplayName("an archive of nothing but unexportable rows is not produced")
+    void anArchiveOfUnexportableRowsOnlyIsNotProduced() {
+        IntegrationSystem typeless = systemWith(null, 1);
+        typeless.setId("svc-typeless");
+        when(systemService.getAll()).thenReturn(new ArrayList<>(List.of(typeless)));
+
+        assertNull(serviceExporting(false).exportSystemsRequest(null, List.of()));
+    }
+
     // --- helpers ---------------------------------------------------------------------------------------------------
+
+    /** One row of each shape the export refuses, in the format that refuses it. */
+    private static Stream<Arguments> unexportableRows() {
+        return Stream.of(
+                Arguments.of("a dotted id", "a.b", IntegrationSystemType.EXTERNAL, false),
+                Arguments.of("an id whose second segment spells a postfix", "svc.internal-service.1",
+                        IntegrationSystemType.INTERNAL, false),
+                Arguments.of("the same id in the legacy format", "svc.internal-service.1",
+                        IntegrationSystemType.INTERNAL, true),
+                Arguments.of("no type", "svc-typeless", null, false),
+                Arguments.of("no type in the legacy format", "svc-typeless", null, true));
+    }
 
     /** The name shape both scans claim, on the two kinds whose own import reads the document to confirm it. */
     private static Stream<Arguments> filesOfAnotherKind() {
@@ -671,6 +731,56 @@ class SystemExportImportServiceTest {
                 chainService,
                 apiGroupService,
                 GoldenServiceCorpus.serviceTypeFiles());
+    }
+
+    /** The export path over the production serializer and archive writer, which is where the refusals live. */
+    private SystemExportImportService serviceExporting(boolean legacy) {
+        SystemExportImportService exporting = new SystemExportImportService(
+                transactionTemplate,
+                systemService,
+                environmentService,
+                systemModelService,
+                GoldenServiceCorpus.mapper(),
+                actionLogger,
+                auditingHandler,
+                GoldenServiceCorpus.serviceSerializer(legacy),
+                serviceDeserializer,
+                GoldenServiceCorpus.archiveWriter(legacy),
+                importProgressService,
+                importInstructionsService,
+                elementHelperService,
+                chainService,
+                apiGroupService,
+                GoldenServiceCorpus.serviceTypeFiles());
+        ReflectionTestUtils.setField(exporting, "removeUnusedSpecs", false);
+        return exporting;
+    }
+
+    private static IntegrationSystem plainService(String id, IntegrationSystemType type) {
+        IntegrationSystem system = systemWith(type, 1);
+        system.setId(id);
+        system.setName(id);
+        return system;
+    }
+
+    /** The service directories an archive holds, which is one per exported service. */
+    private static List<String> serviceDirectoriesOf(byte[] archive) throws IOException {
+        Set<String> directories = new TreeSet<>();
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(archive))) {
+            for (ZipEntry entry; (entry = zip.getNextEntry()) != null; ) {
+                String[] segments = entry.getName().split("/");
+                if (segments.length > 1) {
+                    directories.add(segments[1]);
+                }
+            }
+        }
+        return List.copyOf(directories);
+    }
+
+    private List<String> loggedExportIds() {
+        ArgumentCaptor<ActionLog> logged = ArgumentCaptor.forClass(ActionLog.class);
+        verify(actionLogger, atLeastOnce()).logAction(logged.capture());
+        return logged.getAllValues().stream().map(ActionLog::getEntityId).sorted().toList();
     }
 
     private SystemExportImportService serviceWithRealDeserializer() {

@@ -105,8 +105,8 @@ public class IntegrationSystemDtoMapper implements ExternalEntityMapper<Integrat
         if (type == null) {
             throw new ServiceExportException(
                     ("Service %s has no type, and an exported service states its type in the file name and the $schema."
-                            + " Set the type of the service, then export again. The archive is not produced.")
-                            .formatted(system.getId()));
+                            + " Set the type of the service, then export again. This service is left out of the"
+                            + " archive; the rest of it is produced.").formatted(system.getId()));
         }
         return type;
     }

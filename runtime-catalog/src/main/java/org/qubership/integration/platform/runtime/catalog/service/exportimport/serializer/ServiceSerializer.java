@@ -81,6 +81,9 @@ public class ServiceSerializer {
 
     public ExportedSystemObject serialize(IntegrationSystem system) {
         warnOnEnvironmentLimit(system);
+        // Refused here rather than where the name is written, which is inside the loop over every service of the
+        // archive: the export service catches this per row and leaves the rest of the archive intact.
+        ExportImportUtils.requireExportableServiceId(system.getId(), fileMigrationService.isLegacyExport());
         IntegrationSystemDto integrationSystemDto = integrationSystemDtoMapper.toExternalEntity(system);
         ObjectNode systemNode = fileMigrationService.revertMigrationIfNeeded(yamlMapper.valueToTree(integrationSystemDto));
 
