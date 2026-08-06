@@ -1,5 +1,10 @@
 version: "1.0"
 
+# `schemaUrls` values are stamped into files verbatim, so the shape below is a per-project choice; the built-in
+# defaults in `configs/default.config.qip.yaml` use the full `$id` form with the `.schema.yaml` suffix instead.
+# The type of a plain service travels in the file name, not in `$schema`. The `contextService` and `mcpService`
+# entries are the exception: the backend reads a context or an MCP document by name **and** `$schema`, so those
+# two have to match the URIs the backend is configured with, or it imports neither.
 configs:
   qip:
     extensions:

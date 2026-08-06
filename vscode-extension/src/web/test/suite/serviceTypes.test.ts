@@ -12,8 +12,15 @@ import * as vscode from "vscode";
 
 import { VSCodeFileApi } from "../../response/file/fileApiImpl";
 import { setFileApi } from "../../response/file/fileApiProvider";
-import { getService, getServices } from "../../response/serviceApiRead";
-import { updateService } from "../../response/serviceApiModify";
+import {
+  getEnvironments,
+  getService,
+  getServices,
+} from "../../response/serviceApiRead";
+import {
+  createEnvironment,
+  updateService,
+} from "../../response/serviceApiModify";
 import {
   getExtensionsForFile,
   getExtensionsForUri,
@@ -379,8 +386,9 @@ suite("Service types in the web host", () => {
       [`${LEGACY_EXTERNAL_ID}.external-service.qip.yaml`],
     );
 
-    // The panel the edit came from still points at the file the conversion deleted. Reopening it
-    // is the user-visible consequence, and it is what the Post-Completion manual step covers.
+    // The panel the edit came from still points at the file the conversion deleted, because VS Code
+    // does not follow the rename. That is cosmetic; what matters is that the next request from that
+    // panel still works, which is what the second operation below exercises.
     assert.ok(
       openTabPaths().includes(legacyUri.path),
       "the editor tab no longer points at the deleted legacy file",
@@ -389,6 +397,45 @@ suite("Service types in the web host", () => {
       !openTabPaths().includes(typedUri.path),
       "the editor tab followed the conversion after all",
     );
+
+    // A second operation issued with the uri the panel still holds — a second save, or adding an
+    // environment — used to fail on the deleted path, which left the service editor broken after
+    // the first save on any old-format service.
+    const secondSave = await updateService(legacyUri, LEGACY_EXTERNAL_ID, {
+      description: "Saved again through the stale uri",
+    });
+    assert.strictEqual(
+      secondSave.description,
+      "Saved again through the stale uri",
+    );
+    assert.strictEqual(
+      (await readYaml(typedUri)).content.description,
+      "Saved again through the stale uri",
+    );
+    assert.ok(
+      !(await exists(legacyUri)),
+      "the second save recreated the legacy file",
+    );
+
+    const environment = await createEnvironment(legacyUri, LEGACY_EXTERNAL_ID, {
+      name: "staging",
+      address: "https://staging.test",
+    });
+    const withEnvironment = await readYaml(typedUri);
+    assert.strictEqual(withEnvironment.content.environments.length, 2);
+    assert.ok(
+      withEnvironment.content.environments.some(
+        (candidate: { id: string }) => candidate.id === environment.id,
+      ),
+      "the environment added through the stale uri is missing from the file",
+    );
+    assert.deepStrictEqual(
+      (await getEnvironments(legacyUri, LEGACY_EXTERNAL_ID)).map(
+        (candidate) => candidate.name,
+      ),
+      ["Production", "staging"],
+    );
+
     await closeAllEditors();
   });
 
@@ -419,7 +466,9 @@ suite("Service types in the web host", () => {
       converted?.integrationSystemType,
       IntegrationSystemType.EXTERNAL,
     );
-    assert.strictEqual(converted?.environments?.length, 1);
+    // One from the fixture plus the one the previous test added through the stale uri: the
+    // conversion carried the environments over and the second write landed on the typed file.
+    assert.strictEqual(converted?.environments?.length, 2);
 
     const groups = serviceGroups(await readServiceGroups());
     assert.deepStrictEqual(groups.get("External")?.sort(), [

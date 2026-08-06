@@ -24,12 +24,19 @@ jest.mock(
 
 jest.mock("@netcracker/qip-ui", () => ({}), { virtual: true });
 
-jest.mock("../../../src/web/response/serviceApiRead", () => ({
-  getContextService: jest.fn(),
-  getMainService: jest.fn(),
-  getMcpService: jest.fn(),
-  getService: jest.fn(),
-}));
+jest.mock("../../../src/web/response/serviceApiRead", () => {
+  const getMainService = jest.fn();
+  return {
+    getContextService: jest.fn(),
+    getMainService,
+    readServiceFile: async (fileUri: any) => ({
+      fileUri,
+      service: await getMainService(fileUri),
+    }),
+    getMcpService: jest.fn(),
+    getService: jest.fn(),
+  };
+});
 
 jest.mock("../../../src/web/extension", () => ({
   refreshQipExplorer: jest.fn(),

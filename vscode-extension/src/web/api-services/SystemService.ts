@@ -70,9 +70,13 @@ export class SystemService {
   }
 
   /**
-   * Save system to file
+   * Saves the system and returns the file it landed in — a conversion moves it out of the one it
+   * was read from, and a caller holding the old uri reads a deleted path.
+   *
+   * The type is not written: it is set at creation and never again, and for a legacy file the value
+   * already on disk is the one to keep.
    */
-  async saveSystem(system: IntegrationSystem): Promise<void> {
+  async saveSystem(system: IntegrationSystem): Promise<Uri> {
     try {
       const serviceFileUri = await this.findServiceFileUri(system.id);
 
@@ -82,14 +86,12 @@ export class SystemService {
         service.content = {};
       }
 
-      service.content.integrationSystemType =
-        system.integrationSystemType || system.type;
       service.content.protocol = system.protocol
         ? system.protocol.toUpperCase()
         : system.protocol;
       service.content.labels = LabelUtils.fromEntityLabels(system.labels);
 
-      await writeServiceInCurrentFormat(serviceFileUri, service);
+      return await writeServiceInCurrentFormat(serviceFileUri, service);
     } catch (error) {
       console.error(
         `[SystemService] Failed to save system ${system.id}:`,

@@ -48,12 +48,41 @@ export async function getMainService(serviceFileUri: Uri): Promise<any> {
   return await fileApi.getMainService(serviceFileUri);
 }
 
+/**
+ * The service document and the file it really came from. The first write of an old-format service
+ * converts it, which deletes the file the caller was handed — an editor tab opened before that save
+ * still points at it — so a read that fails is retried against the file the id resolves to.
+ */
+export async function readServiceFile(
+  serviceFileUri: Uri,
+  serviceId: string,
+): Promise<{ fileUri: Uri; service: any }> {
+  try {
+    return {
+      fileUri: serviceFileUri,
+      service: await getMainService(serviceFileUri),
+    };
+  } catch (error) {
+    console.warn(
+      `Could not read ${serviceFileUri.path}; resolving service ${serviceId} by id instead`,
+      error,
+    );
+    const fileUri = await findServiceFileById(
+      serviceId,
+      getExtensionsForUri(serviceFileUri),
+    );
+    return { fileUri, service: await getMainService(fileUri) };
+  }
+}
+
 export async function getService(
   serviceFileUri: Uri,
   serviceId: string,
 ): Promise<IntegrationSystem> {
-  let actualServiceFileUri = serviceFileUri;
-  let service: any = await getMainService(serviceFileUri);
+  let { fileUri: actualServiceFileUri, service } = await readServiceFile(
+    serviceFileUri,
+    serviceId,
+  );
   if (service.id !== serviceId) {
     const ext = getExtensionsForUri(serviceFileUri);
     actualServiceFileUri = await findServiceFileById(serviceId, ext);
@@ -167,8 +196,10 @@ export async function getEnvironment(
   serviceId: string,
   environmentId: string,
 ): Promise<Environment> {
-  let actualServiceFileUri = serviceFileUri;
-  let service: any = await getMainService(serviceFileUri);
+  let { fileUri: actualServiceFileUri, service } = await readServiceFile(
+    serviceFileUri,
+    serviceId,
+  );
 
   if (service.id !== serviceId) {
     const ext = getExtensionsForUri(serviceFileUri);
@@ -190,8 +221,10 @@ export async function getEnvironments(
   serviceFileUri: Uri,
   serviceId: string,
 ): Promise<Environment[]> {
-  let actualServiceFileUri = serviceFileUri;
-  let service: any = await getMainService(serviceFileUri);
+  let { fileUri: actualServiceFileUri, service } = await readServiceFile(
+    serviceFileUri,
+    serviceId,
+  );
 
   if (service.id !== serviceId) {
     const ext = getExtensionsForUri(serviceFileUri);

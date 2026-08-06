@@ -37,8 +37,11 @@ const getMainService = jest.fn();
 const findFileById = jest.fn();
 const findFiles = jest.fn();
 const getSpecificationGroupFiles = jest.fn().mockResolvedValue([]);
+const getSpecificationFiles = jest.fn().mockResolvedValue([]);
 const findAndBuildChainsRecursively = jest.fn().mockResolvedValue(undefined);
 const getRootDirectory = jest.fn().mockReturnValue({ path: "/root" });
+const parseFile = jest.fn();
+const readFileContent = jest.fn().mockResolvedValue("raw source");
 
 jest.mock("../../../src/web/response/file/fileApiProvider", () => ({
   fileApi: {
@@ -46,18 +49,42 @@ jest.mock("../../../src/web/response/file/fileApiProvider", () => ({
     findFileById,
     findFiles,
     getSpecificationGroupFiles,
+    getSpecificationFiles,
     findAndBuildChainsRecursively,
     getRootDirectory,
-    parseFile: jest.fn(),
+    parseFile,
+    readFileContent,
     getFileCreatedWhen: jest.fn().mockResolvedValue(0),
   },
 }));
 
+const parseContentFromFile = jest.fn();
+jest.mock("../../../src/web/api-services/parsers/ContentParser", () => ({
+  ContentParser: { parseContentFromFile },
+}));
+
+jest.mock(
+  "../../../src/web/api-services/parsers/OperationSchemaExtractor",
+  () => ({
+    OperationSchemaExtractor: {
+      extract: jest.fn().mockResolvedValue({
+        specification: { summary: "derived" },
+        requestSchema: { type: "object" },
+        responseSchemas: { "200": { type: "object" } },
+      }),
+    },
+  }),
+);
+
 import {
   getApiSpecifications,
+  getEnvironment,
   getEnvironments,
+  getOperationInfo,
+  getOperations,
   getService,
   getServices,
+  getSpecificationModel,
 } from "../../../src/web/response/serviceApiRead";
 
 const SERVICE_ID = "svc-1";
@@ -82,7 +109,9 @@ beforeEach(() => {
   jest.clearAllMocks();
   findFiles.mockResolvedValue([]);
   getSpecificationGroupFiles.mockResolvedValue([]);
+  getSpecificationFiles.mockResolvedValue([]);
   findAndBuildChainsRecursively.mockResolvedValue(undefined);
+  readFileContent.mockResolvedValue("raw source");
 });
 
 describe("getService - the file name states the type", () => {
@@ -336,5 +365,204 @@ describe("getServices", () => {
 
     expect(services).toHaveLength(1);
     expect(services[0].id).toBe(SERVICE_ID);
+  });
+});
+
+// The spec/operations subtree, on a service stored under a typed name. Every step here used to be
+// resolved by the legacy `.service.` name alone, and the failure is silent: a typed service lists no
+// APIs and no operations rather than reporting anything. The fixture is one typed service with a
+// `resources/` source, an api group and an api under it.
+describe("the spec subtree of a typed service", () => {
+  const TYPED_SERVICE_ID = "11111111-1111-4111-8111-111111111111";
+  const GROUP_ID = "22222222-2222-4222-8222-222222222222";
+  const API_ID = `${TYPED_SERVICE_ID}-api`;
+  const OPERATION_ID = `${API_ID}-operation`;
+
+  const typedServiceUri = uri(
+    `/root/${TYPED_SERVICE_ID}/${TYPED_SERVICE_ID}${ext.externalService}`,
+  );
+  const groupFileName = `${GROUP_ID}${ext.apiGroup}`;
+  const apiFileName = `${API_ID}${ext.api}`;
+
+  const typedServiceDocument = {
+    id: TYPED_SERVICE_ID,
+    name: "Orders",
+    content: {
+      protocol: "HTTP",
+      environments: [{ id: "env-1", name: "dev", address: "http://dev" }],
+    },
+  };
+
+  const groupDocument = {
+    id: GROUP_ID,
+    name: "Orders API",
+    content: { parentId: TYPED_SERVICE_ID, description: "" },
+  };
+
+  const apiDocument = {
+    id: API_ID,
+    name: "Orders v1",
+    content: {
+      parentId: GROUP_ID,
+      format: "openapi",
+      specifications: [{ filePath: "orders.yaml", isRoot: true }],
+      operations: [
+        { id: OPERATION_ID, name: "getOrders", method: "GET", path: "/orders" },
+      ],
+    },
+  };
+
+  // Nothing but the typed file is on disk, so a lookup that asks only for `.service.` finds nothing.
+  function onlyTypedFileOnDisk() {
+    findFileById.mockImplementation((id: string, requested: string) =>
+      id === TYPED_SERVICE_ID && requested === ext.externalService
+        ? Promise.resolve(typedServiceUri)
+        : Promise.reject(new Error("not found")),
+    );
+    getMainService.mockImplementation((fileUri: any) =>
+      Promise.resolve(
+        fileUri.path === typedServiceUri.path
+          ? typedServiceDocument
+          : { id: "other", name: "Other", content: {} },
+      ),
+    );
+  }
+
+  beforeEach(() => {
+    onlyTypedFileOnDisk();
+    getSpecificationGroupFiles.mockResolvedValue([groupFileName]);
+    getSpecificationFiles.mockResolvedValue([apiFileName]);
+    parseFile.mockImplementation((fileUri: any) =>
+      Promise.resolve(
+        fileUri.path.endsWith(ext.apiGroup) ? groupDocument : apiDocument,
+      ),
+    );
+    parseContentFromFile.mockResolvedValue(apiDocument);
+  });
+
+  it("reads a single environment through the typed file", async () => {
+    const environment = await getEnvironment(
+      uri("/root/other.chain.qip.yaml"),
+      TYPED_SERVICE_ID,
+      "env-1",
+    );
+
+    expect(environment).toMatchObject({ id: "env-1", address: "http://dev" });
+  });
+
+  it("lists the group and its api from the typed service file", async () => {
+    const groups = await getApiSpecifications(
+      typedServiceUri,
+      TYPED_SERVICE_ID,
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].id).toBe(GROUP_ID);
+    expect(groups[0].specifications).toHaveLength(1);
+    expect(groups[0].specifications[0].id).toBe(API_ID);
+  });
+
+  it("reads the api level from a typed service file without resolving it again", async () => {
+    const apis = await getSpecificationModel(
+      typedServiceUri,
+      TYPED_SERVICE_ID,
+      GROUP_ID,
+    );
+
+    expect(apis).toHaveLength(1);
+    expect(apis[0].id).toBe(API_ID);
+    expect(findFileById).not.toHaveBeenCalled();
+    expect(getSpecificationFiles).toHaveBeenCalledWith(typedServiceUri);
+  });
+
+  it("resolves the typed file when the api level is read from elsewhere", async () => {
+    const apis = await getSpecificationModel(
+      uri("/root/other.chain.qip.yaml"),
+      TYPED_SERVICE_ID,
+      GROUP_ID,
+    );
+
+    expect(apis).toHaveLength(1);
+    expect(getSpecificationFiles).toHaveBeenCalledWith(typedServiceUri);
+  });
+
+  it("lists the operations of an api under a typed service file", async () => {
+    const operations = await getOperations(typedServiceUri, API_ID);
+
+    expect(operations).toHaveLength(1);
+    expect(operations[0].id).toBe(OPERATION_ID);
+  });
+
+  it("resolves the typed file when operations are read from elsewhere", async () => {
+    const operations = await getOperations(
+      uri("/root/other.chain.qip.yaml"),
+      API_ID,
+    );
+
+    expect(operations).toHaveLength(1);
+    expect(getSpecificationFiles).toHaveBeenCalledWith(typedServiceUri);
+  });
+
+  it("resolves the typed file when reading operation info from elsewhere", async () => {
+    const info = await getOperationInfo(
+      uri("/root/other.chain.qip.yaml"),
+      OPERATION_ID,
+    );
+
+    expect(info.id).toBe(OPERATION_ID);
+    expect(info.requestSchema).toEqual({ type: "object" });
+    expect(getSpecificationFiles).toHaveBeenCalledWith(typedServiceUri);
+  });
+});
+
+// The first save of an old-format service deletes the file the caller was handed. An editor tab
+// opened before that save keeps it, so a later read has to resolve the service by id instead of
+// failing on a path that no longer exists.
+describe("reading through a uri the conversion replaced", () => {
+  const staleUri = serviceFile(ext.service);
+  const typedUri = serviceFile(ext.externalService);
+
+  beforeEach(() => {
+    findFileById.mockImplementation((id: string, requested: string) =>
+      id === SERVICE_ID && requested === ext.externalService
+        ? Promise.resolve(typedUri)
+        : Promise.reject(new Error("not found")),
+    );
+    getMainService.mockImplementation((fileUri: any) =>
+      fileUri.path === typedUri.path
+        ? Promise.resolve(
+            serviceDocument({
+              environments: [
+                { id: "env-1", name: "dev", address: "http://dev" },
+              ],
+            }),
+          )
+        : Promise.reject(new Error("EntryNotFound")),
+    );
+  });
+
+  it("reads the service through the file it moved to", async () => {
+    const service = await getService(staleUri, SERVICE_ID);
+
+    expect(service.id).toBe(SERVICE_ID);
+    expect(service.type).toBe("EXTERNAL");
+  });
+
+  it("reads environments through the file it moved to", async () => {
+    const environments = await getEnvironments(staleUri, SERVICE_ID);
+
+    expect(environments).toHaveLength(1);
+  });
+
+  it("reads one environment through the file it moved to", async () => {
+    const environment = await getEnvironment(staleUri, SERVICE_ID, "env-1");
+
+    expect(environment.address).toBe("http://dev");
+  });
+
+  it("reports the original failure when no file carries the id either", async () => {
+    findFileById.mockRejectedValue(new Error("not found"));
+
+    await expect(getService(staleUri, SERVICE_ID)).rejects.toThrow();
   });
 });

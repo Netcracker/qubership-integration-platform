@@ -799,7 +799,10 @@ export class VSCodeFileApi implements FileApi {
       const service = ((): object => {
         if (serviceType.value === "CONTEXT") {
           return {
-            $schema: config.schemaUrls.contextService,
+            $schema: serviceSchemaUrlForType(
+              serviceType.value,
+              config.schemaUrls,
+            ),
             id: serviceId,
             name: serviceName.trim(),
             content: {
@@ -810,7 +813,10 @@ export class VSCodeFileApi implements FileApi {
         }
         if (serviceType.value === "MCP") {
           return {
-            $schema: config.schemaUrls.mcpService,
+            $schema: serviceSchemaUrlForType(
+              serviceType.value,
+              config.schemaUrls,
+            ),
             id: serviceId,
             name: serviceName.trim(),
             content: {

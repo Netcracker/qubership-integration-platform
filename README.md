@@ -80,7 +80,7 @@ npm -w @netcracker/qip-ui run dev
 
 ### VS Code extension
 
-The extension provides offline visual editors for `.chain.qip.yaml` and `.service.qip.yaml` files. It does not require the backend stack.
+The extension provides offline visual editors for `.chain.qip.yaml` and for service files — `*.external-service.qip.yaml`, `*.internal-service.qip.yaml`, `*.implemented-service.qip.yaml`, `*.context-service.qip.yaml`, `*.mcp-service.qip.yaml`, and the legacy `*.service.qip.yaml`. It does not require the backend stack.
 
 ```bash
 npm install                                           # if not done already

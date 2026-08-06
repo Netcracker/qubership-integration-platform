@@ -58,8 +58,10 @@ export class SpecificationImportService {
   };
 
   private readonly progressTracker: ImportProgressTracker;
-  private readonly serviceFileUri?: Uri;
-  private readonly apiGroupService: ApiGroupService;
+  // Not readonly: an import that has to write the service protocol first converts an old-format
+  // file, and every later step reads the folder off this uri.
+  private serviceFileUri?: Uri;
+  private apiGroupService: ApiGroupService;
   private readonly specificationProcessorService: SpecificationProcessorService;
   private readonly environmentService: EnvironmentService;
   private readonly systemService: SystemService;
@@ -568,10 +570,25 @@ export class SpecificationImportService {
       systemId: system.id,
       protocol: system.protocol,
     });
-    await this.systemService.saveSystem(system);
+    // A service that has no protocol yet is exactly the one an older extension version wrote, so
+    // this first import is also the write that converts it. Follow the file, or every step after
+    // this one resolves its folder from a path that no longer exists.
+    this.repointServiceFile(await this.systemService.saveSystem(system));
     // The explorer label carries the protocol, so a stale tree would keep
     // showing the service as "Unknown" until the next unrelated refresh.
     refreshQipExplorer();
+  }
+
+  private repointServiceFile(writtenFileUri: Uri | undefined): void {
+    if (
+      !writtenFileUri ||
+      !this.serviceFileUri ||
+      writtenFileUri.path === this.serviceFileUri.path
+    ) {
+      return;
+    }
+    this.serviceFileUri = writtenFileUri;
+    this.apiGroupService = new ApiGroupService(writtenFileUri);
   }
 
   private syncSystemProtocol(

@@ -420,3 +420,47 @@ describe("group nodes", () => {
     expect(external.iconPath).toEqual(external.children![0].iconPath);
   });
 });
+
+// A conversion writes the typed file before the legacy one is gone, and a failed delete leaves both
+// for good. Without a dedup the same service is listed twice, under two different groups, because
+// the legacy sibling still states its type in the body.
+describe("a service with both a typed and a legacy file", () => {
+  const typedPath = "/workspace/svc/svc.internal-service.qip.yaml";
+  const legacyPath = "/workspace/svc/svc.service.qip.yaml";
+
+  test.each([
+    ["typed first", [typedPath, legacyPath]],
+    ["legacy first", [legacyPath, typedPath]],
+  ])("is listed once, from the typed file (%s)", async (_, order) => {
+    buildWorkspace(
+      order.map((path) => ({
+        path,
+        data: service("svc", path === legacyPath ? "EXTERNAL" : undefined),
+      })),
+    );
+
+    const groups = await listGroups();
+
+    expect(groups.map((group) => group.label)).toEqual(["Internal"]);
+    expect(groups[0].children).toHaveLength(1);
+    expect(groups[0].children![0].fileUri?.path).toBe(typedPath);
+  });
+
+  test("keeps two different services apart", async () => {
+    buildWorkspace([
+      {
+        path: "/workspace/one/one.internal-service.qip.yaml",
+        data: service("one"),
+      },
+      {
+        path: "/workspace/two/two.service.qip.yaml",
+        data: service("two", "EXTERNAL"),
+      },
+    ]);
+
+    expect((await listServices()).map((item) => item.id).sort()).toEqual([
+      "one",
+      "two",
+    ]);
+  });
+});

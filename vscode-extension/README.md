@@ -7,15 +7,17 @@ of [Qubership Integration Platform](https://github.com/Netcracker/qubership-inte
 
 ## Service files
 
-A service lives in a folder named after its id, in a file whose name states the service type:
+A service the extension creates lives in a folder named after its id, in a file whose name states the service type:
 `<id>.external-service.qip.yaml`, `<id>.internal-service.qip.yaml`, `<id>.implemented-service.qip.yaml`,
-`<id>.context-service.qip.yaml`, or `<id>.mcp-service.qip.yaml`. The type is chosen when the service is created and is
-read-only from then on. The QIP explorer groups services by type.
+`<id>.context-service.qip.yaml`, or `<id>.mcp-service.qip.yaml`. One folder may hold several services, the workspace
+root included. The type is chosen when the service is created and is read-only from then on. The QIP explorer groups
+services by type.
 
 The extension also reads the older type-less `<id>.service.qip.yaml`, which keeps the type inside the document. Editing
 such a service rewrites it under the typed name and deletes the old file, so a project migrates as you edit it and git
-records a rename. The editor tab still points at the file that was replaced, so reopen the service after that first
-edit.
+records a rename. The editor tab keeps showing the old file name after that first edit. That is cosmetic: the service
+stays editable, and the tab picks up the new name the next time you open it. Two kinds of service stay in the old
+format: one whose document states no type at all, and one whose id contains a dot, which no typed name can spell back.
 
 File names and schema URLs are configurable per app in a `.config.qip.yaml`. See `.config.qip.yaml.example` for the full
 set of keys.

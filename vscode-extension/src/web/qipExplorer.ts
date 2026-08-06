@@ -1,8 +1,9 @@
 import * as vscode from "vscode";
 import { getExtensionsForFile } from "./response/file/fileExtensions";
 import {
-  isAnyServiceFile,
+  allServiceExtensions,
   resolveServiceType,
+  serviceTypeFromUri,
   ServiceExtensions,
 } from "./response/file/serviceFileType";
 import { readDirectory } from "./response/file/fileApiImpl";
@@ -56,11 +57,16 @@ function serviceGroupType(serviceType: string): string {
 
 /** Every service file the tree lists: the four plain names plus the two special kinds. */
 function isTreeServiceFile(name: string, ext: ServiceExtensions): boolean {
-  return (
-    isAnyServiceFile(name, ext) ||
-    name.endsWith(ext.contextService) ||
-    name.endsWith(ext.mcpService)
+  return allServiceExtensions(ext).some((extension) =>
+    name.endsWith(extension),
   );
+}
+
+/** One service as discovery found it, kept by id so a half-converted one is not listed twice. */
+interface DiscoveredService {
+  item: QipExplorerItem;
+  groupType: string;
+  statesType: boolean;
 }
 
 let globalQipExplorerProvider: QipExplorerProvider | null = null;
@@ -236,25 +242,32 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
       `QIP Explorer: Searching for services in ${workspaceFolders.length} workspace folders`,
     );
 
-    const servicesByType = new Map<string, QipExplorerItem[]>();
+    const servicesById = new Map<string, DiscoveredService>();
 
     for (const folder of workspaceFolders) {
       try {
         console.log(
           `QIP Explorer: Searching for services in folder: ${folder.uri.fsPath}`,
         );
-        await this.findServiceFilesRecursively(folder.uri, servicesByType);
+        await this.findServiceFilesRecursively(folder.uri, servicesById);
       } catch (error) {
         console.error("Failed to read workspace folder:", error);
       }
     }
 
-    return this.buildServiceGroups(servicesByType);
+    return this.buildServiceGroups(servicesById);
   }
 
   private buildServiceGroups(
-    servicesByType: Map<string, QipExplorerItem[]>,
+    servicesById: Map<string, DiscoveredService>,
   ): QipExplorerItem[] {
+    const servicesByType = new Map<string, QipExplorerItem[]>();
+    for (const { item, groupType } of servicesById.values()) {
+      const group = servicesByType.get(groupType) ?? [];
+      group.push(item);
+      servicesByType.set(groupType, group);
+    }
+
     const groups: QipExplorerItem[] = [];
 
     for (const { type, label } of SERVICE_GROUPS) {
@@ -282,7 +295,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
 
   private async findServiceFilesRecursively(
     folderUri: vscode.Uri,
-    servicesByType: Map<string, QipExplorerItem[]>,
+    servicesById: Map<string, DiscoveredService>,
   ): Promise<void> {
     try {
       const entries = await readDirectory(folderUri);
@@ -322,10 +335,17 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
                 type: "service",
                 fileUri: fileUri,
               };
-              const groupType = serviceGroupType(serviceType);
-              const group = servicesByType.get(groupType) ?? [];
-              group.push(serviceItem);
-              servicesByType.set(groupType, group);
+              // A half-converted service has both files on disk. List it once, from the typed
+              // name, the same precedence `plainServiceExtensions` and `getServices` apply.
+              const statesType = serviceTypeFromUri(name, ext) !== undefined;
+              const known = servicesById.get(serviceData.id);
+              if (!known || (statesType && !known.statesType)) {
+                servicesById.set(serviceData.id, {
+                  item: serviceItem,
+                  groupType: serviceGroupType(serviceType),
+                  statesType,
+                });
+              }
               console.log(`QIP Explorer: Added service: ${label}`);
             }
           } catch (error) {
@@ -334,7 +354,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
         } else if (type === vscode.FileType.Directory) {
           // Recursively search in subdirectories
           const subFolderUri = vscode.Uri.joinPath(folderUri, name);
-          await this.findServiceFilesRecursively(subFolderUri, servicesByType);
+          await this.findServiceFilesRecursively(subFolderUri, servicesById);
         }
       }
     } catch (error) {

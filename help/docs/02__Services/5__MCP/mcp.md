@@ -38,6 +38,8 @@ Table with MCP services is accessible by navigating to **Services** -> **MCP** t
 
 All services created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
 
+Inside that folder services are grouped by type: **External**, **Internal**, **Implemented**, **Context**, **MCP**, and an **Unknown** group for a file whose type is not stated anywhere. A group with no services is not shown. The grouping is a view of the tree only — the files stay where they are on disk.
+
 ### Add MCP Service
 <ins>Web UI</ins>
 
@@ -53,6 +55,8 @@ To create any service using VS Code Extension, follow the steps outlined below:
 2. In the left bottom find QIP section and expand it.
 3. Near the "Services" folder click on appearing button "QIP Create service".
 4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter the identifier, enter some description and click Enter. Next, it opens "Common Parameters" tab of the created service.
+
+Each service is stored in a file whose name states its type: `<id>.external-service.qip.yaml`, `<id>.internal-service.qip.yaml`, `<id>.implemented-service.qip.yaml`, `<id>.context-service.qip.yaml`, or `<id>.mcp-service.qip.yaml`. A project created by an earlier version of the extension uses the older name `<id>.service.qip.yaml`, which keeps the type inside the document. Such a file is renamed to the typed name the first time you edit the service, and git records the change as a rename. The editor tab keeps showing the old file name afterwards. That is cosmetic: the service stays editable, and the tab picks up the new name the next time you open it.
 
 ### View Common Parameters
 Parameters tab contains the following information:

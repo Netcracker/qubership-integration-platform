@@ -1,6 +1,10 @@
-// A `.config.qip.yaml` written before the plain service types existed carries none of their keys.
-// The reader layers the loaded values over the defaults, so such a workspace still gets an
-// extension and a schema URL per type instead of `undefined`.
+// A config written before the plain service types existed carries none of their keys. The merge
+// layers the loaded values over the defaults, so such a project still gets an extension and a schema
+// URL per type instead of `undefined`.
+//
+// Both cases drive `registerExternalConfig`, the `ConfigApiProvider` path. The YAML reader
+// (`buildConfigFromData`) repeats the same merge on its own, and `src/web/test/suite/serviceTypes.test.ts`
+// is what exercises it — a config file needs a file system, which this suite does not have.
 
 import { createVscodeMock } from "../helpers/mocks";
 

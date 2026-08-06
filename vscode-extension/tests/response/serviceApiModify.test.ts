@@ -18,11 +18,20 @@ jest.mock(
 );
 jest.mock("yaml", () => ({ stringify: jest.fn(), parse: jest.fn() }));
 jest.mock("../../src/web/response/file/fileApiProvider", () => stubFileApi());
-jest.mock("../../src/web/response/serviceApiRead", () => ({
-  getMainService: jest.fn(),
-  getService: jest.fn(),
-  getContextService: jest.fn(),
-}));
+jest.mock("../../src/web/response/serviceApiRead", () => {
+  const getMainService = jest.fn();
+  return {
+    getMainService,
+    // The real one falls back to the file the id resolves to when the uri no longer reads; every
+    // case here holds a live uri, so it answers with the file it was handed.
+    readServiceFile: async (fileUri: any) => ({
+      fileUri,
+      service: await getMainService(fileUri),
+    }),
+    getService: jest.fn(),
+    getContextService: jest.fn(),
+  };
+});
 jest.mock("../../src/web/response/file/fileExtensions", () => {
   const { QIP_FILE_EXTENSIONS } = jest.requireActual("../helpers/mocks");
   return {

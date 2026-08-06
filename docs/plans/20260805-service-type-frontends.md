@@ -44,10 +44,13 @@ QIP
    │  └─ test-HTTP-c32207d0…
    ├─ Internal
    │  └─ test2-HTTP-2924e5cf…
-   ├─ Implemented
-   ├─ Context
-   └─ MCP
+   └─ Unknown
+      └─ legacy-HTTP-4f0a12b7…
 ```
+
+The groups are `External`, `Internal`, `Implemented`, `Context`, `MCP` and `Unknown`, always in that order. An empty
+group is omitted, which is why the drawing shows three. `Unknown` holds a file whose type neither its name nor its body
+states.
 
 ## Context (from discovery)
 
@@ -564,7 +567,9 @@ they read as one block, and an absent type falls back to the same `-` the protoc
 render it — the web build showed no type at all before, which left the services list as the only place the type was
 visible.
 
-➕ [deviation] One test file beyond the plan's list: `ui/tests/components/ServicesList.test.tsx` grew a case for the
+➕ [deviation] Four test files beyond the plan's list: `ui/tests/components/ServicesList.test.tsx`,
+`ui/tests/components/services/detail/ServiceParametersTab.test.tsx`, `vscode-extension/tests/response/serviceApiModify.test.ts`
+and `vscode-extension/tests/serviceApiModify.conversion.test.ts`. `ServicesList.test.tsx` grew a case for the
 label-edit payload. The plan asks to stop that path from spreading `type`, which is a behaviour change and needs a
 test; the file's `ServicesTreeTable` mock now captures the options it is handed so the test can call `onUpdateLabels`
 the way the real table would.
@@ -827,7 +832,8 @@ green. Left in place as someone else's work in progress.
 - [x] update `vscode-extension/CLAUDE.md`: the new extensions, `serviceFileType.ts` as the single resolver, the two create paths, the conversion-on-first-write rule, the tree grouping, why the file name rather than `$schema` carries the type, and the deliberate asymmetry — a type-less file stays visible under `Unknown` here while the backend refuses it on import
 - [x] update `ui/CLAUDE.md` if the service-type model changed anything a reader would not expect
 - [x] update `vscode-extension/README.md` and both blocks of `.config.qip.yaml.example`
-- [x] move this plan to `docs/plans/completed/`
+- [x] move this plan to `docs/plans/completed/` — done by the harness after the last task, so the file is still under
+  `docs/plans/` while the plan is being worked on
 
 ➕ `vscode-extension/CLAUDE.md` gained four blocks in **Architecture** — "Service types live in the file name" (the
 resolver and its whole-extension compare), "Conversion on first write" (the three call sites), the known stale-tab
@@ -864,6 +870,46 @@ and `$schema` decides a context or MCP document only **together with** the file 
 seven `contributes.customEditors` patterns, the three `writeServiceInCurrentFormat` call sites and their enclosing
 method names, `SERVICE_GROUPS`' six-entry order, `sendThemeToWebview`'s `try`/`catch` against `enrichWebview`'s 300 ms
 repeat, `collectServiceOwnedFiles` collecting the same-id sibling, and `SystemUpdateRequest`'s three consumers.
+
+### Task 13: [Review] Address the code-review findings
+
+- [x] **the stale-uri family.** A conversion deletes the file the caller is holding. Three sites now follow it:
+  `SystemService.saveSystem` returns the file the service landed in, `SpecificationImportService` re-points itself and
+  its `ApiGroupService` from that return value (its own protocol write is what converts the file mid-import, so the
+  failure fired on the first spec import into any legacy service), and `enrichWebview` subscribes to the new
+  `onServiceFileMoved` so a tab dispatches later messages against the file the service moved to. Independently,
+  `serviceApiRead.readServiceFile` retries a failed read against the file the id resolves to, which covers any caller
+  holding a stale uri.
+- [x] **dotted ids.** `a.b.external-service.qip.yaml` states the id `a` and resolves no type, while the same write
+  dropped `content.integrationSystemType` — a document the backend refuses in the preview and on commit. Such a service
+  now keeps the legacy name **and** the field: `fileNameStatesType` is `fitsCurrentFormatFileName` (one dot-free
+  segment), it gates both the rename and the field drop, and the test that pinned the rename was inverted.
+- [x] **`isServiceType` used `in`**, so `toString`, `constructor` and `__proto__` passed as service types and produced a
+  file named `svc-1undefined` with `$schema: undefined`, deleting the original after it. Now
+  `Object.prototype.hasOwnProperty.call`, with the inherited keys in the test tables.
+- [x] **tests that covered nothing.** Four `serviceApiRead` sites could revert to the pre-#553 blind spot with the whole
+  suite green, because no fixture paired a typed service name with `resources/`, an api group and an api. That fixture
+  now exists and drives `getEnvironment`, `getSpecificationModel`, `getOperations` and `getOperationInfo`;
+  `test:integration` is wired into `vscode-extension-build.yaml`, and `qipExplorer.ts` into `collectCoverageFrom`.
+
+➕ [deviation] The review's own gate — "break the code and confirm the test goes red" — found a regression the review
+fixes had introduced. Gating the **resolved** type through `isPlainServiceType` also caught a name-stated `CONTEXT` or
+`MCP`, so `writeServiceInCurrentFormat` renamed every context and MCP file to `.service.` and deleted the original on
+the next edit, reachable from `updateContextService` and `updateMcpService`. The gate now applies to the
+**body**-stated type only: the name wins whenever it states a kind, and only a body-stated type may promote a legacy
+name, to one of the three plain types. Two cases added to `tests/serviceApiModify.conversion.test.ts`; both go red
+under the previous shape, while the "a plain service whose body claims CONTEXT or MCP stays legacy" cases stay green,
+which is what shows the original intent survived.
+
+➕ Mutations checked red for every behaviour these fixes claim: the importer keeping its stale uri; the webview
+dispatching on the uri it was opened with; `readServiceFile` rethrowing instead of resolving by id;
+`serviceFileNameForType` renaming a dotted id anyway; `fileNameStatesType` ignoring dots; `isServiceType` back to `in`;
+`findServiceFileById` and `isAnyServiceFile` back to the legacy extension alone (15 and 5 failures — the blind spot
+finding 4 named); the explorer dedup dropped; `SystemService.saveSystem` returning the file it read rather than the one
+it wrote; and the context/MCP gate above.
+
+➕ The README and the five help pages said to reopen a service after its first edit. That was true before the webview
+re-point and is not now, so all six say the stale tab name is cosmetic instead.
 
 ## Post-Completion
 

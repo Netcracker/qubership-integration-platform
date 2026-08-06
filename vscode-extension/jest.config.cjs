@@ -36,6 +36,7 @@ module.exports = {
         "<rootDir>/src/web/response/**/*.{ts,tsx}",
         "<rootDir>/src/web/services/**/*.{ts,tsx}",
         "<rootDir>/src/web/extension.ts",
+        "<rootDir>/src/web/qipExplorer.ts",
         "<rootDir>/src/web/chainDiffEditor.ts",
         "<rootDir>/src/web/editorViewTypes.ts",
         "<rootDir>/src/web/exportImageUtils.ts",

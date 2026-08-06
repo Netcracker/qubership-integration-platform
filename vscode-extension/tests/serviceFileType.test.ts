@@ -33,7 +33,9 @@ jest.mock("../src/web/services/ProjectConfigService", () => ({
 
 import {
   allServiceExtensions,
+  fileNameStatesType,
   isAnyServiceFile,
+  isPlainServiceType,
   plainServiceExtensions,
   resolveServiceType,
   serviceExtensionForType,
@@ -240,12 +242,21 @@ describe("serviceExtensionForType", () => {
     );
   });
 
-  it.each([undefined, "", "SOMETHING_ELSE"])(
-    "falls back to the legacy extension for the type %p",
-    (type) => {
-      expect(serviceExtensionForType(type, qip)).toBe(".service.qip.yaml");
-    },
-  );
+  // `toString` and friends are inherited by every object literal. Reading the type map with `in`
+  // let them through, and the name a file was then written under was `svc-1undefined`, with the
+  // original deleted right after it.
+  it.each([
+    undefined,
+    "",
+    "SOMETHING_ELSE",
+    "toString",
+    "constructor",
+    "valueOf",
+    "hasOwnProperty",
+    "__proto__",
+  ])("falls back to the legacy extension for the type %p", (type) => {
+    expect(serviceExtensionForType(type, qip)).toBe(".service.qip.yaml");
+  });
 
   it("round-trips every type through the name it writes", () => {
     for (const type of Object.values(IntegrationSystemType)) {
@@ -339,14 +350,28 @@ describe("serviceFileNameForType", () => {
     );
   });
 
-  it("keeps a dotted id whole", () => {
+  // The backend reads the id up to the first dot and the postfix in the segment right after it
+  // (`ExportImportUtils.statesPostfix`), so `a.b.external-service.qip.yaml` states the id `a` and no
+  // type at all — a document `ServiceDeserializer.resolveServiceType` refuses. Such a service keeps
+  // the legacy name, where the type is in the body, which is the shape that still imports.
+  it("keeps the legacy name for a dotted id", () => {
     expect(
       serviceFileNameForType(
         "/services/a.b/a.b.service.qip.yaml",
         IntegrationSystemType.EXTERNAL,
         qip,
       ),
-    ).toBe("a.b.external-service.qip.yaml");
+    ).toBe("a.b.service.qip.yaml");
+  });
+
+  it("leaves a typed name built from a dotted id where it is", () => {
+    expect(
+      serviceFileNameForType(
+        "a.b.internal-service.qip.yaml",
+        IntegrationSystemType.EXTERNAL,
+        qip,
+      ),
+    ).toBe("a.b.internal-service.qip.yaml");
   });
 
   it("returns the same name when the file already states the type", () => {
@@ -405,5 +430,92 @@ describe("serviceSchemaUrlForType", () => {
   it("falls back to the legacy schema for an unstated type", () => {
     expect(serviceSchemaUrlForType(undefined, schemaUrls)).toBe("urn:service");
     expect(serviceSchemaUrlForType("PARTNER", schemaUrls)).toBe("urn:service");
+  });
+
+  it.each(["toString", "constructor", "valueOf", "__proto__"])(
+    "does not read the inherited key %p as a type",
+    (type) => {
+      expect(serviceSchemaUrlForType(type, schemaUrls)).toBe("urn:service");
+      expect(serviceFileNameForType("svc-1.service.qip.yaml", type, qip)).toBe(
+        "svc-1.service.qip.yaml",
+      );
+    },
+  );
+});
+
+// The backend reads the id up to the first dot and the postfix in the segment right after it
+// (`ExportImportUtils.statesPostfix`), so only a dot-free id leaves the postfix where it looks.
+describe("fileNameStatesType", () => {
+  it.each([
+    "svc-1.external-service.qip.yaml",
+    "svc-1.internal-service.qip.yaml",
+    "svc-1.implemented-service.qip.yaml",
+    "svc-1.context-service.qip.yaml",
+    "svc-1.mcp-service.qip.yaml",
+    "service-orders.external-service.qip.yaml",
+  ])("reads the type off %s", (name) => {
+    expect(fileNameStatesType(name, qip)).toBe(true);
+  });
+
+  it.each([
+    "svc-1.service.qip.yaml",
+    "a.b.external-service.qip.yaml",
+    "svc-1.chain.qip.yaml",
+    "notes.md",
+  ])("reads no type off %s", (name) => {
+    expect(fileNameStatesType(name, qip)).toBe(false);
+  });
+});
+
+describe("isPlainServiceType", () => {
+  it.each([
+    IntegrationSystemType.EXTERNAL,
+    IntegrationSystemType.INTERNAL,
+    IntegrationSystemType.IMPLEMENTED,
+  ])("accepts %s", (type) => {
+    expect(isPlainServiceType(type)).toBe(true);
+  });
+
+  // These two are separate kinds of document, not plain-service types, and a plain service whose
+  // body claims one must not be renamed into that family.
+  it.each([
+    IntegrationSystemType.CONTEXT,
+    IntegrationSystemType.MCP,
+    "",
+    undefined,
+    "toString",
+  ])("refuses %p", (type) => {
+    expect(isPlainServiceType(type as string | undefined)).toBe(false);
+  });
+});
+
+// Declaration order settles which file wins when a service has several; which extension a name
+// carries has to be the longest match. A project is free to configure names that nest.
+describe("nested configured extensions", () => {
+  const nested: ServiceExtensions = {
+    ...qip,
+    service: ".svc.yaml",
+    externalService: ".ext.svc.yaml",
+    internalService: ".internal.ext.svc.yaml",
+    implementedService: ".impl.svc.yaml",
+  };
+
+  it("reads the longest matching extension, not the first declared", () => {
+    expect(serviceTypeFromUri("svc-1.internal.ext.svc.yaml", nested)).toBe(
+      IntegrationSystemType.INTERNAL,
+    );
+    expect(serviceTypeFromUri("svc-1.ext.svc.yaml", nested)).toBe(
+      IntegrationSystemType.EXTERNAL,
+    );
+  });
+
+  it("strips the longest matching extension when it renames a file", () => {
+    expect(
+      serviceFileNameForType(
+        "svc-1.internal.ext.svc.yaml",
+        IntegrationSystemType.IMPLEMENTED,
+        nested,
+      ),
+    ).toBe("svc-1.impl.svc.yaml");
   });
 });

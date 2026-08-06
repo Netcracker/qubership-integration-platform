@@ -111,20 +111,9 @@ export function getExtensionsForFile(filename?: string): FileExtensionsConfig {
 
         const foundConfig = allConfigs.find((cfg) => cfg.appName === appName);
         if (foundConfig) {
-          return {
-            appName: foundConfig.appName,
-            chain: foundConfig.extensions.chain,
-            contextService: foundConfig.extensions.contextService,
-            mcpService: foundConfig.extensions.mcpService,
-            service: foundConfig.extensions.service,
-            externalService: foundConfig.extensions.externalService,
-            internalService: foundConfig.extensions.internalService,
-            implementedService: foundConfig.extensions.implementedService,
-            specificationGroup: foundConfig.extensions.specificationGroup,
-            apiGroup: foundConfig.extensions.apiGroup,
-            specification: foundConfig.extensions.specification,
-            api: foundConfig.extensions.api,
-          };
+          // Spread rather than key by key: `ProjectConfig["extensions"]` is this type minus
+          // `appName`, so a new extension key cannot be forgotten in one of the three mappings.
+          return { appName: foundConfig.appName, ...foundConfig.extensions };
         }
       }
     } catch (error) {}
@@ -162,37 +151,11 @@ export async function initializeContextFromFile(fileUri: Uri): Promise<void> {
   setCurrentFileContext(filename);
 
   const config = configService.getCurrentConfig();
-  memoizedDefaultExtensions = {
-    appName: config.appName,
-    chain: config.extensions.chain,
-    contextService: config.extensions.contextService,
-    mcpService: config.extensions.mcpService,
-    service: config.extensions.service,
-    externalService: config.extensions.externalService,
-    internalService: config.extensions.internalService,
-    implementedService: config.extensions.implementedService,
-    specificationGroup: config.extensions.specificationGroup,
-    apiGroup: config.extensions.apiGroup,
-    specification: config.extensions.specification,
-    api: config.extensions.api,
-  };
+  memoizedDefaultExtensions = { appName: config.appName, ...config.extensions };
 }
 
 export function getExtensionsFromConfig(): FileExtensionsConfig {
   const config = ProjectConfigService.getConfig();
 
-  return {
-    appName: config.appName,
-    chain: config.extensions.chain,
-    service: config.extensions.service,
-    externalService: config.extensions.externalService,
-    internalService: config.extensions.internalService,
-    implementedService: config.extensions.implementedService,
-    contextService: config.extensions.contextService,
-    mcpService: config.extensions.mcpService,
-    specificationGroup: config.extensions.specificationGroup,
-    apiGroup: config.extensions.apiGroup,
-    specification: config.extensions.specification,
-    api: config.extensions.api,
-  };
+  return { appName: config.appName, ...config.extensions };
 }

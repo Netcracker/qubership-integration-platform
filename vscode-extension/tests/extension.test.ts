@@ -124,8 +124,23 @@ jest.mock("../src/web/response/navigationUtils", () => ({
   updateNavigationStateValue: jest.fn(),
 }));
 
+let fileMovedListener: ((from: any, to: any) => void) | null = null;
+const disposeFileMovedListener = jest.fn();
+jest.mock("../src/web/response/file/serviceFileWrite", () => ({
+  onServiceFileMoved: jest.fn((listener: (from: any, to: any) => void) => {
+    fileMovedListener = listener;
+    return { dispose: disposeFileMovedListener };
+  }),
+}));
+
+import * as fs from "fs";
+import * as path from "path";
 import * as vscode from "vscode";
 import { activate } from "../src/web/extension";
+
+const manifest = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "../package.json"), "utf8"),
+);
 
 function activateAndGetProvider() {
   activate(buildMockContext());
@@ -150,23 +165,89 @@ describe("extension.ts", () => {
     capturedEditorProviders = {};
     registeredCommands.clear();
     onDidReceiveMessageCallback = null;
+    fileMovedListener = null;
     mockStatBehavior = "resolve";
     mockWebview.html = "";
   });
 
+  // The first save of an old-format service deletes the file this tab was opened on. Without the
+  // re-point, every later message — a second save, adding an environment — reads a path that is
+  // gone, and the editor stays broken until the user closes and reopens it.
+  describe("a service file the conversion moved", () => {
+    const movedTo = {
+      path: "/test.external-service.qip.yaml",
+      fsPath: "/test.external-service.qip.yaml",
+    };
+
+    async function dispatch(handler: Function) {
+      mockGetApiResponse.mockResolvedValue({});
+      await handler({
+        data: { requestId: "1", type: "getService", payload: {} },
+      });
+      const calls = mockGetApiResponse.mock.calls;
+      return calls[calls.length - 1]?.[1];
+    }
+
+    test("dispatches later messages against the file it moved to", async () => {
+      const handler = await openEditorAndGetMessageHandler();
+
+      expect(await dispatch(handler)).toBe(validDocument.uri);
+
+      fileMovedListener!(validDocument.uri, movedTo);
+
+      expect(await dispatch(handler)).toBe(movedTo);
+    });
+
+    test("ignores a move of another service's file", async () => {
+      const handler = await openEditorAndGetMessageHandler();
+
+      fileMovedListener!({ path: "/other.service.qip.yaml" }, movedTo);
+
+      expect(await dispatch(handler)).toBe(validDocument.uri);
+    });
+
+    // The delayed theme push raced an editor closed inside its window, and the throw reached the
+    // host as an uncaught `Webview is disposed`.
+    test("skips the delayed theme push once the panel is disposed", async () => {
+      jest.useFakeTimers();
+      try {
+        await openEditorAndGetMessageHandler();
+        const initialPosts = mockPostMessage.mock.calls.length;
+        const disposeCalls = mockPanel.onDidDispose.mock.calls as any[];
+        (disposeCalls[disposeCalls.length - 1][0] as () => void)();
+
+        jest.advanceTimersByTime(1000);
+
+        expect(mockPostMessage.mock.calls.length).toBe(initialPosts);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    test("stops listening once the panel is disposed", async () => {
+      await openEditorAndGetMessageHandler();
+      const disposeCalls = mockPanel.onDidDispose.mock.calls as any[];
+      const onDispose = disposeCalls[disposeCalls.length - 1][0] as () => void;
+
+      onDispose();
+
+      expect(disposeFileMovedListener).toHaveBeenCalled();
+    });
+  });
+
   describe("custom editor registration", () => {
+    // Read from the manifest, not from a copy of it: a `customEditors` entry added without a
+    // matching `registerCustomEditorProvider` call opens a webview that never wires up.
     test("registers an editor for every file kind package.json contributes", () => {
+      const contributed = (
+        manifest.contributes.customEditors as { viewType: string }[]
+      ).map((editor) => editor.viewType);
+
       activate(buildMockContext());
 
-      expect(Object.keys(capturedEditorProviders).sort()).toEqual([
-        "qip.chainFile.editor",
-        "qip.contextServiceFile.editor",
-        "qip.externalServiceFile.editor",
-        "qip.implementedServiceFile.editor",
-        "qip.internalServiceFile.editor",
-        "qip.mcpServiceFile.editor",
-        "qip.serviceFile.editor",
-      ]);
+      expect(Object.keys(capturedEditorProviders).sort()).toEqual(
+        [...contributed].sort(),
+      );
     });
   });
 

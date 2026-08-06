@@ -13,6 +13,7 @@ import {
   getMainService,
   getMcpService,
   getService,
+  readServiceFile,
 } from "./serviceApiRead";
 import vscode, { ExtensionContext, Uri } from "vscode";
 import { ContentParser } from "../api-services/parsers/ContentParser";
@@ -103,7 +104,9 @@ export async function updateService(
   serviceId: string,
   serviceRequest: Partial<IntegrationSystem>,
 ): Promise<IntegrationSystem> {
-  const service: any = await getMainService(serviceFileUri);
+  // The uri may name the file a conversion already replaced — the editor tab holds the one it was
+  // opened on. `readServiceFile` falls back to the file the id resolves to.
+  const { fileUri, service } = await readServiceFile(serviceFileUri, serviceId);
 
   if (service.id !== serviceId) {
     console.error(
@@ -131,7 +134,7 @@ export async function updateService(
     const protocol = serviceRequest.protocol.toUpperCase();
     // The protocol is what has to fit the type now, so validate it against the type the file states.
     validateAllowedSystemProtocol(
-      resolveServiceType(serviceFileUri, service),
+      resolveServiceType(fileUri, service),
       protocol as ApiSpecificationType,
     );
     service.content.protocol = protocol;
@@ -140,7 +143,7 @@ export async function updateService(
     service.content.activeEnvironmentId = serviceRequest.activeEnvironmentId;
   }
 
-  const writtenFileUri = await writeMainService(serviceFileUri, service);
+  const writtenFileUri = await writeMainService(fileUri, service);
   const updatedService = await getService(writtenFileUri, serviceId);
 
   return updatedService;
@@ -208,7 +211,7 @@ export async function updateEnvironment(
   environmentId: string,
   environmentRequest: EnvironmentRequest,
 ): Promise<Environment> {
-  const service: any = await getMainService(serviceFileUri);
+  const { fileUri, service } = await readServiceFile(serviceFileUri, serviceId);
   if (service.id !== serviceId) {
     console.error(`ServiceId mismatch`);
     throw Error("ServiceId mismatch");
@@ -250,7 +253,7 @@ export async function updateEnvironment(
     environment.labels = LabelUtils.fromEntityLabels(environmentRequest.labels);
   }
 
-  await writeMainService(serviceFileUri, service);
+  await writeMainService(fileUri, service);
 
   return {
     ...environment,
@@ -263,7 +266,7 @@ export async function createEnvironment(
   serviceId: string,
   environmentRequest: EnvironmentRequest,
 ): Promise<Environment> {
-  const service: any = await getMainService(serviceFileUri);
+  const { fileUri, service } = await readServiceFile(serviceFileUri, serviceId);
   if (service.id !== serviceId) {
     console.error(`ServiceId mismatch`);
     throw Error("ServiceId mismatch");
@@ -290,7 +293,7 @@ export async function createEnvironment(
   };
 
   service.content.environments.push(environment);
-  await writeMainService(serviceFileUri, service);
+  await writeMainService(fileUri, service);
 
   return {
     ...environment,
@@ -305,7 +308,7 @@ export async function deleteEnvironment(
   serviceId: string,
   environmentId: string,
 ): Promise<void> {
-  const service: any = await getMainService(serviceFileUri);
+  const { fileUri, service } = await readServiceFile(serviceFileUri, serviceId);
   if (service.id !== serviceId) {
     console.error(`ServiceId mismatch`);
     throw Error("ServiceId mismatch");
@@ -332,7 +335,7 @@ export async function deleteEnvironment(
     service.content.activeEnvironmentId = "";
   }
 
-  await writeMainService(serviceFileUri, service);
+  await writeMainService(fileUri, service);
 }
 
 /** Returns the file the service landed in — a conversion moves it out of the one passed in. */

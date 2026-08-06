@@ -178,4 +178,69 @@ describe("SystemService.saveSystem", () => {
       }),
     );
   });
+
+  // A caller holding the old uri reads a deleted path — the specification import is one, and it
+  // saves the protocol before it writes any file into the service folder.
+  it("returns the file the conversion produced", async () => {
+    onlyOnDisk(ext.service);
+    getMainService.mockResolvedValue({
+      id: SYSTEM_ID,
+      name: "Orders",
+      content: { protocol: "HTTP", integrationSystemType: "EXTERNAL" },
+    });
+
+    const writtenFileUri = await new SystemService().saveSystem({
+      id: SYSTEM_ID,
+      name: "Orders",
+      protocol: "http",
+    } as any);
+
+    expect(writtenFileUri.path).toBe(
+      `/${SYSTEM_ID}/${SYSTEM_ID}${ext.externalService}`,
+    );
+  });
+
+  // The type is set at creation and never again. Writing it from the request let a caller both
+  // switch the stored type and rename a legacy file to the type it just supplied.
+  it("keeps the type the legacy file states, whatever the request says", async () => {
+    onlyOnDisk(ext.service);
+    getMainService.mockResolvedValue({
+      id: SYSTEM_ID,
+      name: "Orders",
+      content: { protocol: "HTTP", integrationSystemType: "INTERNAL" },
+    });
+
+    await new SystemService().saveSystem({
+      id: SYSTEM_ID,
+      name: "Orders",
+      protocol: "http",
+      type: "EXTERNAL",
+      integrationSystemType: "EXTERNAL",
+    } as any);
+
+    const [fileUri] = writeMainService.mock.calls[0];
+    expect(fileUri.path).toBe(
+      `/${SYSTEM_ID}/${SYSTEM_ID}${ext.internalService}`,
+    );
+  });
+
+  it("adds no type to a legacy file that states none", async () => {
+    onlyOnDisk(ext.service);
+    getMainService.mockResolvedValue({
+      id: SYSTEM_ID,
+      name: "Orders",
+      content: { protocol: "HTTP" },
+    });
+
+    await new SystemService().saveSystem({
+      id: SYSTEM_ID,
+      name: "Orders",
+      protocol: "http",
+      type: "EXTERNAL",
+    } as any);
+
+    const [fileUri, service] = writeMainService.mock.calls[0];
+    expect(fileUri.path).toBe(`/${SYSTEM_ID}/${SYSTEM_ID}${ext.service}`);
+    expect(service.content).not.toHaveProperty("integrationSystemType");
+  });
 });

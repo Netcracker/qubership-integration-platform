@@ -54,7 +54,8 @@ import {
   getEditorViewTypeForUri,
   openDocumentInEditor,
 } from "./editorViewTypes";
-import {isAnyServiceFile} from "./response/file/serviceFileType";
+import {allServiceExtensions, isAnyServiceFile} from "./response/file/serviceFileType";
+import {onServiceFileMoved} from "./response/file/serviceFileWrite";
 
 type VSCodeMessageWrapper = {
   command: string;
@@ -223,9 +224,10 @@ function sendThemeToWebview(panel: WebviewPanel) {
       type: "theme-update",
       payload: themeData,
     });
-  } catch {
-    // A disposed panel throws on `.webview`, and the delayed send after open races an editor the
-    // user closed straight away. There is nothing left to theme, so drop it.
+  } catch (error) {
+    // A disposed panel throws on `.webview`. `enrichWebview` tracks disposal for the delayed send,
+    // so anything reaching here is worth a line in the log rather than silence.
+    console.error("Failed to send the theme to a webview:", error);
   }
 }
 
@@ -479,10 +481,26 @@ async function enrichWebview(
   const panelId = crypto.randomUUID();
   activeWebviewPanels.set(panelId, panel);
 
+  // The first save of an old-format service converts it, which deletes the file this panel was
+  // opened on. Follow the rename, or every later message from this tab reads a path that is gone.
+  let currentFileUri = fileUri;
+  const fileMoved = onServiceFileMoved((from, to) => {
+    if (currentFileUri?.path === from.path) {
+      currentFileUri = to;
+    }
+  });
+
+  let disposed = false;
   sendThemeToWebview(panel);
-  setTimeout(() => sendThemeToWebview(panel), 300);
+  setTimeout(() => {
+    if (!disposed) {
+      sendThemeToWebview(panel);
+    }
+  }, 300);
 
   panel.onDidDispose(() => {
+    disposed = true;
+    fileMoved.dispose();
     activeWebviewPanels.delete(panelId);
   });
 
@@ -500,7 +518,7 @@ async function enrichWebview(
     try {
       response.payload = await getApiResponse(
         message.data,
-        fileUri,
+        currentFileUri,
         context,
         panel,
       );
@@ -581,14 +599,14 @@ async function deleteServiceWithRelatedFiles(
   );
 }
 
+// Every service kind, not only the plain ones `isAnyServiceFile` answers for. `allServiceExtensions`
+// is the list, so a sixth kind added to the type map is picked up here without an edit.
 function isServiceFileName(
   fileName: string,
   ext: FileExtensionsConfig,
 ): boolean {
-  return (
-    isAnyServiceFile(fileName, ext) ||
-    fileName.endsWith(ext.contextService) ||
-    fileName.endsWith(ext.mcpService)
+  return allServiceExtensions(ext).some((extension) =>
+    fileName.endsWith(extension),
   );
 }
 

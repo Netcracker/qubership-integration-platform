@@ -21,6 +21,10 @@ const DEFAULT_SCHEMA_URLS = {
 
 let extensions: Record<string, string> = { ...QIP_FILE_EXTENSIONS };
 let schemaUrls: Record<string, string> = { ...DEFAULT_SCHEMA_URLS };
+// The configs the workspace loaded, one per app. A conversion reads the file's own app from here
+// rather than taking whichever app the last opened document made current.
+let loadedConfigs: { appName: string; schemaUrls: Record<string, string> }[] =
+  [];
 
 // Resolves `..` the way vscode.Uri.joinPath does; the writer reaches the service folder through it.
 function joinPath(base: any, ...segments: string[]) {
@@ -48,6 +52,7 @@ jest.mock(
       window: {
         showInformationMessage: jest.fn(),
         showErrorMessage: jest.fn(),
+        showWarningMessage: jest.fn(),
         showInputBox: jest.fn(),
         showQuickPick: jest.fn(),
       },
@@ -64,12 +69,13 @@ jest.mock("yaml", () => ({ stringify: jest.fn(), parse: jest.fn() }));
 const writeMainService = jest.fn();
 const writeServiceFile = jest.fn();
 const deleteFile = jest.fn();
+const getContextServiceFile = jest.fn();
 jest.mock("../src/web/response/file/fileApiProvider", () => ({
   fileApi: {
     writeMainService: (...args: unknown[]) => writeMainService(...args),
     writeServiceFile: (...args: unknown[]) => writeServiceFile(...args),
     deleteFile: (...args: unknown[]) => deleteFile(...args),
-    getContextService: jest.fn(),
+    getContextService: (...args: unknown[]) => getContextServiceFile(...args),
   },
 }));
 
@@ -77,6 +83,12 @@ const getMainService = jest.fn();
 const getService = jest.fn();
 jest.mock("../src/web/response/serviceApiRead", () => ({
   getMainService: (...args: unknown[]) => getMainService(...args),
+  // The real one falls back to the file the id resolves to when the uri no longer reads; every case
+  // here holds a live uri, so it answers with the file it was handed.
+  readServiceFile: async (fileUri: any) => ({
+    fileUri,
+    service: await getMainService(fileUri),
+  }),
   getService: (...args: unknown[]) => getService(...args),
   getContextService: jest.fn(),
   getMcpService: jest.fn(),
@@ -93,7 +105,10 @@ jest.mock("../src/web/response/file/fileExtensions", () => ({
 jest.mock("../src/web/services/ProjectConfigService", () => ({
   ProjectConfigService: {
     getConfig: () => ({ extensions, schemaUrls }),
-    getInstance: jest.fn(),
+    getInstance: () => ({
+      isConfigLoaded: () => loadedConfigs.length > 0,
+      getAllConfigs: () => loadedConfigs,
+    }),
   },
 }));
 
@@ -108,10 +123,14 @@ jest.mock("../src/web/api-services/parsers/ContentParser", () => ({
   ContentParser: { parseContentFromFile: jest.fn() },
 }));
 
+import vscode from "vscode";
 import {
   createService,
+  updateContextService,
+  updateMcpService,
   updateService,
 } from "../src/web/response/serviceApiModify";
+import { onServiceFileMoved } from "../src/web/response/file/serviceFileWrite";
 import { IntegrationSystemType } from "../src/web/api-services/servicesTypes";
 import { SERVICE_MIGRATIONS } from "../src/web/services/importMigrationVersions";
 
@@ -150,6 +169,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   extensions = { ...QIP_FILE_EXTENSIONS };
   schemaUrls = { ...DEFAULT_SCHEMA_URLS };
+  loadedConfigs = [];
   getService.mockResolvedValue({ id: SERVICE_ID });
   deleteFile.mockResolvedValue(undefined);
 });
@@ -188,6 +208,22 @@ describe("createService writes the name that states the type", () => {
     });
 
     expect(writeServiceFile.mock.calls[0][1].$schema).toBe(url);
+  });
+
+  // The services list only ever posts one of the three plain tabs, but the request type is
+  // optional, and the default decides both the name and the schema url of the file.
+  it("defaults to an external service when the request states no type", async () => {
+    const service = await createService({} as any, uri("/workspace"), {
+      name: "Orders",
+      labels: [],
+    } as any);
+
+    const [fileUri, document] = writeServiceFile.mock.calls[0];
+    expect(fileUri.path).toBe(
+      `/workspace/${service.id}/${service.id}.external-service.qip.yaml`,
+    );
+    expect(document.$schema).toBe(DEFAULT_SCHEMA_URLS.externalService);
+    expect(service.integrationSystemType).toBe(IntegrationSystemType.EXTERNAL);
   });
 
   // The backend reads a service id up to the first dot and refuses to write a current-format name
@@ -294,11 +330,11 @@ describe("updateService converts a legacy file on its first write", () => {
     );
   });
 
-  // A dotted id predates #553 and the folder is the only thing that still states it: the backend
-  // also reads the postfix right after the parent directory name
-  // (`ExportImportUtils.statesPostfix(File, String)`). Rename the folder and the service is absent
-  // from the next import, with nothing reported.
-  it("leaves the service folder name alone when the id contains a dot", async () => {
+  // A dotted id predates #553, and no current-format name can state it: the backend reads the id up
+  // to the first dot, so `a.b.internal-service.qip.yaml` states the id `a` and resolves no type
+  // (`ExportImportUtils.fitsCurrentFormatFileName`). Converting such a service turns a file that
+  // imported fine into one the backend refuses, in the preview and on commit alike.
+  it("leaves a dotted-id service in the legacy format, type and all", async () => {
     getMainService.mockResolvedValue({
       ...legacyService(),
       id: "a.b",
@@ -308,7 +344,9 @@ describe("updateService converts a legacy file on its first write", () => {
       name: "Renamed",
     });
 
-    expect(written().path).toBe("/services/a.b/a.b.internal-service.qip.yaml");
+    expect(written().path).toBe("/services/a.b/a.b.service.qip.yaml");
+    expect(written().service.content.integrationSystemType).toBe("INTERNAL");
+    expect(deleteFile).not.toHaveBeenCalled();
   });
 
   it("writes in place when the name already states the type", async () => {
@@ -327,6 +365,27 @@ describe("updateService converts a legacy file on its first write", () => {
 
     expect(written().path).toBe(`/svc/${SERVICE_ID}.external-service.qip.yaml`);
     expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  // A write that does not rename leaves `$schema` alone. Stamping the current config's URL on every
+  // typed write would hand a file of one app the URL of whichever app was opened last.
+  it("leaves $schema untouched when it writes in place", async () => {
+    getMainService.mockResolvedValue({
+      $schema: "http://another.example/external-service",
+      id: SERVICE_ID,
+      name: "Orders",
+      content: { protocol: "HTTP" },
+    });
+
+    await updateService(
+      uri(`/svc/${SERVICE_ID}.external-service.qip.yaml`),
+      SERVICE_ID,
+      { name: "Renamed" },
+    );
+
+    expect(written().service.$schema).toBe(
+      "http://another.example/external-service",
+    );
   });
 
   // The typed schemas refuse a document that restates its type, and the backend refuses a name and
@@ -433,5 +492,155 @@ describe("updateService converts a legacy file on its first write", () => {
     const { path, service } = written();
     expect(path).toBe(`/svc/${SERVICE_ID}.internal-service.acme.yaml`);
     expect(service.$schema).toBe("http://acme.test/internal");
+  });
+
+  // A multi-app workspace has one current config at a time, set by the last opened document. The
+  // file being converted decides which app's schema url it gets, not that.
+  it("stamps the schema url of the app the file belongs to", async () => {
+    extensions = {
+      ...extensions,
+      appName: "acme",
+      service: ".service.acme.yaml",
+      internalService: ".internal-service.acme.yaml",
+    };
+    loadedConfigs = [
+      {
+        appName: "acme",
+        schemaUrls: {
+          ...schemaUrls,
+          internalService: "http://acme.test/internal",
+        },
+      },
+    ];
+    getMainService.mockResolvedValue(legacyService());
+
+    await updateService(
+      uri(`/svc/${SERVICE_ID}.service.acme.yaml`),
+      SERVICE_ID,
+      { name: "Renamed" },
+    );
+
+    expect(written().service.$schema).toBe("http://acme.test/internal");
+  });
+
+  // `.context-service.` and `.mcp-service.` are other kinds of document, told apart by name and
+  // `$schema` together. A plain service whose body claims one of them must not be renamed into that
+  // family, or the next import reads it as a context service.
+  it.each([IntegrationSystemType.CONTEXT, IntegrationSystemType.MCP])(
+    "keeps a plain service legacy when its body claims %s",
+    async (type) => {
+      getMainService.mockResolvedValue(
+        legacyService({ integrationSystemType: type }),
+      );
+
+      await updateService(
+        uri(`/svc/${SERVICE_ID}.service.qip.yaml`),
+        SERVICE_ID,
+        { name: "Renamed" },
+      );
+
+      const { path, service } = written();
+      expect(path).toBe(`/svc/${SERVICE_ID}.service.qip.yaml`);
+      expect(service.content.integrationSystemType).toBe(type);
+      expect(deleteFile).not.toHaveBeenCalled();
+    },
+  );
+
+  // The save already reported success, and the leftover file is a duplicate id on the next import.
+  it("warns when the legacy file survives the conversion", async () => {
+    deleteFile.mockRejectedValue(new Error("EPERM"));
+    getMainService.mockResolvedValue(legacyService());
+
+    await updateService(
+      uri(`/svc/${SERVICE_ID}.service.qip.yaml`),
+      SERVICE_ID,
+      { name: "Renamed" },
+    );
+
+    expect(vscode.window.showWarningMessage).toHaveBeenCalledWith(
+      expect.stringContaining(`${SERVICE_ID}.service.qip.yaml`),
+    );
+  });
+
+  // The open editor was handed its uri once. Without this event every later message from that tab
+  // reads the file the conversion deleted.
+  it("announces the file the service moved to", async () => {
+    const moves: { from: string; to: string }[] = [];
+    const subscription = onServiceFileMoved((from, to) =>
+      moves.push({ from: from.path, to: to.path }),
+    );
+    getMainService.mockResolvedValue(legacyService());
+
+    try {
+      await updateService(
+        uri(`/svc/${SERVICE_ID}.service.qip.yaml`),
+        SERVICE_ID,
+        { name: "Renamed" },
+      );
+    } finally {
+      subscription.dispose();
+    }
+
+    expect(moves).toEqual([
+      {
+        from: `/svc/${SERVICE_ID}.service.qip.yaml`,
+        to: `/svc/${SERVICE_ID}.internal-service.qip.yaml`,
+      },
+    ]);
+  });
+
+  it("stays quiet when the write lands on the file it came from", async () => {
+    const moved = jest.fn();
+    const subscription = onServiceFileMoved(moved);
+    getMainService.mockResolvedValue({
+      $schema: DEFAULT_SCHEMA_URLS.externalService,
+      id: SERVICE_ID,
+      name: "Orders",
+      content: { protocol: "HTTP" },
+    });
+
+    try {
+      await updateService(
+        uri(`/svc/${SERVICE_ID}.external-service.qip.yaml`),
+        SERVICE_ID,
+        { name: "Renamed" },
+      );
+    } finally {
+      subscription.dispose();
+    }
+
+    expect(moved).not.toHaveBeenCalled();
+  });
+});
+
+// A context or an MCP document is its own kind of file, not a plain service carrying a type. The
+// write path has to leave it under its own name: renaming it to `.service.` and deleting the
+// original destroys the only file the backend reads as a context or an MCP service, and the editor
+// that issued the save is the one that triggers it.
+describe("a context or an MCP file is written where it is", () => {
+  beforeEach(() => {
+    getContextServiceFile.mockResolvedValue({
+      id: SERVICE_ID,
+      name: "Customer context",
+      content: { description: "Customer data" },
+    });
+  });
+
+  it("keeps a context service under its own name", async () => {
+    const path = `/svc/${SERVICE_ID}${QIP_FILE_EXTENSIONS.contextService}`;
+
+    await updateContextService(uri(path), SERVICE_ID, { name: "Renamed" });
+
+    expect(written().path).toBe(path);
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("keeps an MCP service under its own name", async () => {
+    const path = `/svc/${SERVICE_ID}${QIP_FILE_EXTENSIONS.mcpService}`;
+
+    await updateMcpService(uri(path), SERVICE_ID, { name: "Renamed" });
+
+    expect(written().path).toBe(path);
+    expect(deleteFile).not.toHaveBeenCalled();
   });
 });

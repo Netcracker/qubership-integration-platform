@@ -2,7 +2,13 @@
  * @jest-environment jsdom
  */
 import { describe, it, expect, beforeEach, jest } from "@jest/globals";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+  within,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {
   IntegrationSystem,
@@ -167,7 +173,9 @@ describe("ServiceParametersTab service type", () => {
         screen.getByRole("textbox", { name: /name/i }),
       ).toBeInTheDocument(),
     );
-    expect(screen.getByText("Type")).toBeVisible();
-    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
+    // Scoped to the Type row: the Protocol row renders the same dash for an absent protocol.
+    const typeRow = screen.getByText("Type").closest("tr");
+    expect(typeRow).not.toBeNull();
+    expect(within(typeRow as HTMLElement).getByText("-")).toBeVisible();
   });
 });
