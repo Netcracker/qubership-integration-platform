@@ -620,14 +620,43 @@ create path stamping an empty claim; the command-palette create path stamping `M
 - Modify: `vscode-extension/src/web/qipExplorer.ts`
 - Create: `vscode-extension/tests/qipExplorer.grouping.test.ts`
 
-- [ ] add `"service-group"` to `QipExplorerItem.type` and return `element.children ?? []` for it in `getChildren`
-- [ ] make `getServices()` return group nodes, each holding its services
-- [ ] omit an empty group rather than rendering it
-- [ ] extend service-file discovery at `:217` to the three new postfixes via `isAnyServiceFile`
-- [ ] keep sorting stable: groups in a fixed order, services by label within a group
-- [ ] write tests: services land in the right groups, empty groups are absent, ordering is deterministic
-- [ ] write a test: a group node carries no `fileUri`, so no reveal command is attached to it
-- [ ] run tests — must pass before task 9
+- [x] add `"service-group"` to `QipExplorerItem.type` and return `element.children ?? []` for it in `getChildren`
+- [x] make `getServices()` return group nodes, each holding its services
+- [x] omit an empty group rather than rendering it
+- [x] extend service-file discovery at `:217` to the three new postfixes via `isAnyServiceFile`
+- [x] keep sorting stable: groups in a fixed order, services by label within a group
+- [x] write tests: services land in the right groups, empty groups are absent, ordering is deterministic
+- [x] write a test: a group node carries no `fileUri`, so no reveal command is attached to it
+- [x] run tests — must pass before task 9
+
+➕ Group labels are `External`, `Internal`, `Implemented`, `Context`, `MCP` — the plan's target tree — plus the
+`Unknown` bucket Task 9 keeps. Unknown has to exist from this task on: the walker already resolves a type-less
+`.service.` file to `"Unknown"`, and a bucket-less grouping would drop it. A type no group claims (a hand-edited
+`integrationSystemType`) lands there too, while the service item keeps stating the raw value in its description.
+
+➕ [decision] Discovery reads `isAnyServiceFile(name, ext) || endsWith(contextService) || endsWith(mcpService)`.
+`isAnyServiceFile` covers the four plain names only, and the tree lists all five kinds; `allServiceExtensions` would
+answer the same question in one call, but spelling the two special kinds out keeps the tree's coverage visible at the
+call site.
+
+➕ [decision] A group is `Expanded` and carries a `N services` count as its description. Grouping otherwise costs a
+second click to reach any service, and the count is the same shape the chain nodes already use.
+
+➕ [decision] The per-service icon `switch` became a `SERVICE_ICONS` map with the same values and the same `server`
+default, so a group and its services cannot drift apart. The `Unknown` group therefore shows `server`, as its services
+already did — no separate unknown icon.
+
+➕ [decision] `qipExplorer.ts` stays out of `collectCoverageFrom` in `jest.config.cjs`. No threshold is configured, and
+adding a file the suite only partly covers would lower the reported number without telling anyone anything.
+
+➕ [deviation] Which group a **typed name** lands in is not asserted yet: this task widened discovery only, and the
+name-over-field precedence is Task 9's change. The typed-name cases assert the service is present in the tree, which
+holds before and after that inversion; the grouping cases state the type in the body. Task 9 adds the name-wins cases.
+
+➕ Every mutation of the changed logic was checked to go red: discovery back to the legacy triple; `isTreeServiceFile`
+dropping its context/mcp arms; empty groups rendered; group order taken from discovery order; services unsorted inside
+a group; `serviceGroupType` returning the raw type; a group node carrying a `fileUri`; `getChildren` dropping a group's
+children; the group icon hardcoded; the group count always plural.
 
 ### Task 9: Read the type from the file name in the tree
 

@@ -1,0 +1,345 @@
+// The services branch of the tree. Grouping is where a service goes missing quietly: a name the
+// discovery loop does not recognize, or a type no group claims, drops the service from the tree
+// without an error anywhere. Every case below asserts on the tree the provider actually returns.
+//
+// Which group a typed name lands in is not pinned here: this task widened discovery only, and the
+// name-over-field precedence is the next task's change. The typed-name cases assert presence in the
+// tree instead, which holds either way.
+
+import { joinUriPath } from "./helpers/mocks";
+
+const FILE = 1;
+const DIRECTORY = 2;
+
+let directories: Record<string, [string, number][]> = {};
+let fileContents: Record<string, unknown> = {};
+
+jest.mock(
+  "vscode",
+  () => ({
+    __esModule: true,
+    EventEmitter: class {
+      event = jest.fn();
+      fire = jest.fn();
+    },
+    TreeItem: class {
+      description?: string;
+      iconPath?: unknown;
+      contextValue?: string;
+      tooltip?: string;
+      command?: unknown;
+      constructor(
+        public label: string,
+        public collapsibleState: number,
+      ) {}
+    },
+    ThemeIcon: class {
+      constructor(public id: string) {}
+    },
+    TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
+    FileType: { File: 1, Directory: 2 },
+    Uri: {
+      joinPath: (base: { path: string }, ...segments: string[]) =>
+        joinUriPath(base, ...segments),
+    },
+    workspace: {
+      workspaceFolders: [{ uri: { path: "/workspace", fsPath: "/workspace" } }],
+    },
+  }),
+  { virtual: true },
+);
+
+jest.mock("../src/web/services/ProjectConfigService", () => ({
+  ProjectConfigService: {
+    getInstance: jest.fn(() => ({
+      isConfigLoaded: jest.fn(() => false),
+      getAllConfigs: jest.fn(() => []),
+    })),
+  },
+}));
+
+jest.mock("../src/web/response/file/fileApiImpl", () => ({
+  readDirectory: jest.fn(
+    async (uri: { path: string }) => directories[uri.path] ?? [],
+  ),
+}));
+
+jest.mock("../src/web/api-services/parsers/ContentParser", () => ({
+  ContentParser: {
+    parseContentFromFile: jest.fn(
+      async (uri: { path: string }) => fileContents[uri.path],
+    ),
+  },
+}));
+
+import { QipExplorerProvider, QipExplorerItem } from "../src/web/qipExplorer";
+import { setDefaultAppName } from "../src/web/response/file/fileExtensions";
+
+type ServiceContent = {
+  id: string;
+  name: string;
+  content: { protocol: string; integrationSystemType?: string };
+};
+
+/** Lays out a workspace from full file paths, keeping the listed order as the discovery order. */
+function buildWorkspace(files: { path: string; data?: unknown }[]): void {
+  directories = {};
+  fileContents = {};
+  for (const { path, data } of files) {
+    const segments = path.split("/").filter(Boolean);
+    let parent = "";
+    segments.forEach((segment, index) => {
+      const entries = (directories[parent] = directories[parent] ?? []);
+      if (!entries.some(([name]) => name === segment)) {
+        entries.push([
+          segment,
+          index === segments.length - 1 ? FILE : DIRECTORY,
+        ]);
+      }
+      parent = `${parent}/${segment}`;
+    });
+    fileContents[path] = data;
+  }
+}
+
+function service(id: string, type?: string, name = id): ServiceContent {
+  return {
+    id,
+    name,
+    content: {
+      protocol: "HTTP",
+      ...(type ? { integrationSystemType: type } : {}),
+    },
+  };
+}
+
+const provider = () => new QipExplorerProvider({} as never);
+
+const servicesCategory: QipExplorerItem = {
+  id: "services-category",
+  label: "Services",
+  contextValue: "qip-services-category",
+  collapsibleState: 1,
+  type: "category",
+};
+
+/** The groups as the tree renders them: the "Services" category expanded one level. */
+async function listGroups(): Promise<QipExplorerItem[]> {
+  return provider().getChildren(servicesCategory);
+}
+
+async function listServices(): Promise<QipExplorerItem[]> {
+  return (await listGroups()).flatMap((group) => group.children ?? []);
+}
+
+beforeEach(() => {
+  setDefaultAppName("qip");
+  directories = {};
+  fileContents = {};
+});
+
+describe("service discovery", () => {
+  test.each([
+    ["external-service"],
+    ["internal-service"],
+    ["implemented-service"],
+    ["context-service"],
+    ["mcp-service"],
+    ["service"],
+  ])("lists a service stored under a .%s. name", async (postfix) => {
+    buildWorkspace([
+      {
+        path: `/workspace/svc.${postfix}.qip.yaml`,
+        data: service("svc"),
+      },
+    ]);
+
+    expect((await listServices()).map((item) => item.id)).toEqual(["svc"]);
+  });
+
+  test("ignores files that are not service files", async () => {
+    buildWorkspace([
+      { path: "/workspace/some.chain.qip.yaml", data: service("chain") },
+      { path: "/workspace/some.api.qip.yaml", data: service("api") },
+      { path: "/workspace/notes.yaml", data: service("notes") },
+    ]);
+
+    expect(await listGroups()).toEqual([]);
+  });
+
+  test("finds services in nested folders", async () => {
+    buildWorkspace([
+      {
+        path: "/workspace/services/one/one.external-service.qip.yaml",
+        data: service("one", "EXTERNAL"),
+      },
+      {
+        path: "/workspace/services/two/deeper/two.mcp-service.qip.yaml",
+        data: service("two"),
+      },
+    ]);
+
+    expect((await listServices()).map((item) => item.id).sort()).toEqual([
+      "one",
+      "two",
+    ]);
+  });
+});
+
+describe("service grouping", () => {
+  test("puts every kind in its own group, in a fixed order", async () => {
+    buildWorkspace([
+      { path: "/workspace/mcp.mcp-service.qip.yaml", data: service("mcp") },
+      {
+        path: "/workspace/int.internal-service.qip.yaml",
+        data: service("int", "INTERNAL"),
+      },
+      {
+        path: "/workspace/ext.external-service.qip.yaml",
+        data: service("ext", "EXTERNAL"),
+      },
+      { path: "/workspace/ctx.context-service.qip.yaml", data: service("ctx") },
+      {
+        path: "/workspace/impl.implemented-service.qip.yaml",
+        data: service("impl", "IMPLEMENTED"),
+      },
+    ]);
+
+    const groups = await listGroups();
+
+    expect(groups.map((group) => group.label)).toEqual([
+      "External",
+      "Internal",
+      "Implemented",
+      "Context",
+      "MCP",
+    ]);
+    expect(
+      groups.map((group) => group.children?.map((item) => item.id)),
+    ).toEqual([["ext"], ["int"], ["impl"], ["ctx"], ["mcp"]]);
+    expect(groups.every((group) => group.type === "service-group")).toBe(true);
+  });
+
+  test("omits a group that holds no service", async () => {
+    buildWorkspace([
+      {
+        path: "/workspace/ext.external-service.qip.yaml",
+        data: service("ext", "EXTERNAL"),
+      },
+    ]);
+
+    const groups = await listGroups();
+
+    expect(groups.map((group) => group.label)).toEqual(["External"]);
+  });
+
+  test("sorts services by label inside a group", async () => {
+    buildWorkspace([
+      {
+        path: "/workspace/c.external-service.qip.yaml",
+        data: service("c", "EXTERNAL", "charlie"),
+      },
+      {
+        path: "/workspace/a.external-service.qip.yaml",
+        data: service("a", "EXTERNAL", "alpha"),
+      },
+      {
+        path: "/workspace/b.external-service.qip.yaml",
+        data: service("b", "EXTERNAL", "bravo"),
+      },
+    ]);
+
+    const [external] = await listGroups();
+
+    expect(external.children?.map((item) => item.label)).toEqual([
+      "alpha-HTTP-a",
+      "bravo-HTTP-b",
+      "charlie-HTTP-c",
+    ]);
+  });
+
+  test("counts its services on the group", async () => {
+    buildWorkspace([
+      {
+        path: "/workspace/one.external-service.qip.yaml",
+        data: service("one", "EXTERNAL"),
+      },
+      {
+        path: "/workspace/two.external-service.qip.yaml",
+        data: service("two", "EXTERNAL"),
+      },
+      {
+        path: "/workspace/three.internal-service.qip.yaml",
+        data: service("three", "INTERNAL"),
+      },
+    ]);
+
+    expect((await listGroups()).map((group) => group.description)).toEqual([
+      "2 services",
+      "1 service",
+    ]);
+  });
+
+  test("groups a legacy service file from its integrationSystemType field", async () => {
+    buildWorkspace([
+      {
+        path: "/workspace/legacy.service.qip.yaml",
+        data: service("legacy", "INTERNAL"),
+      },
+    ]);
+
+    const groups = await listGroups();
+
+    expect(groups.map((group) => group.label)).toEqual(["Internal"]);
+    expect(groups[0].children?.[0].id).toBe("legacy");
+  });
+
+  test("keeps a service of no recognizable type under Unknown", async () => {
+    buildWorkspace([
+      { path: "/workspace/bare.service.qip.yaml", data: service("bare") },
+      {
+        path: "/workspace/odd.service.qip.yaml",
+        data: service("odd", "NONSENSE"),
+      },
+    ]);
+
+    const groups = await listGroups();
+
+    expect(groups.map((group) => group.label)).toEqual(["Unknown"]);
+    expect(groups[0].children?.map((item) => item.id).sort()).toEqual([
+      "bare",
+      "odd",
+    ]);
+  });
+});
+
+describe("group nodes", () => {
+  beforeEach(() => {
+    buildWorkspace([
+      {
+        path: "/workspace/ext.external-service.qip.yaml",
+        data: service("ext", "EXTERNAL"),
+      },
+    ]);
+  });
+
+  test("carry no fileUri, so no reveal command is attached", async () => {
+    const [external] = await listGroups();
+
+    expect(external.fileUri).toBeUndefined();
+    expect(provider().getTreeItem(external).command).toBeUndefined();
+    expect(provider().getTreeItem(external.children![0]).command).toBeDefined();
+  });
+
+  test("return their services as children", async () => {
+    const [external] = await listGroups();
+
+    expect(await provider().getChildren(external)).toBe(external.children);
+  });
+
+  test("reuse the icon of the services they hold", async () => {
+    const [external] = await listGroups();
+
+    expect(external.iconPath).toEqual(external.children![0].iconPath);
+  });
+});
