@@ -1,0 +1,13 @@
+id: 11111111-1111-4111-8111-111111111111
+$schema: http://qubership.org/schemas/product/qip/external-service.schema.yaml
+name: Orders
+content:
+  description: External orders system
+  activeEnvironmentId: 1e1e1e1e-1111-4111-8111-111111111111
+  protocol: HTTP
+  environments:
+    - id: 1e1e1e1e-1111-4111-8111-111111111111
+      name: Production
+      address: https://orders.example.com
+      sourceType: MANUAL
+  migrations: "[100, 101, 102, 103, 104, 105]"

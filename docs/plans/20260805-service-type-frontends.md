@@ -698,11 +698,51 @@ each asserts both the group and the service description, so a name-derived type 
 **Files:**
 - Create: `vscode-extension/src/web/test/suite/serviceTypes.test.ts`
 
-- [ ] open a fixture workspace with services of all five kinds in the new format; assert each opens in its own editor
-- [ ] open a fixture workspace of old-format files; assert it works with no user action, then edit one and assert conversion — and that the now-mixed workspace still lists every service (tree and discovery over old + new side by side)
-- [ ] add a fixture with a non-default `.config.qip.yaml` and assert type resolution still works
-- [ ] keep the suite offline — `vscode-test-web` has no network
-- [ ] run `npm -w @netcracker/qip-vscode-extension run test:integration` — must pass before task 11
+- [x] open a fixture workspace with services of all five kinds in the new format; assert each opens in its own editor
+- [x] open a fixture workspace of old-format files; assert it works with no user action, then edit one and assert conversion — and that the now-mixed workspace still lists every service (tree and discovery over old + new side by side)
+- [x] add a fixture with a non-default `.config.qip.yaml` and assert type resolution still works
+- [x] keep the suite offline — `vscode-test-web` has no network
+- [x] run `npm -w @netcracker/qip-vscode-extension run test:integration` — must pass before task 11
+
+➕ Four fixture projects beyond the plan's file list, the ones the Testing Strategy names:
+`tests/fixtures/service-projects/{new-format,old-format,mixed,custom-config}/`, eleven services in all.
+`package.json`'s `test:integration` now mounts `tests/fixtures/service-projects` as the workspace — the
+harness took no folder before, so the suite had no file system to read.
+
+➕ [deviation] One mount, four projects. `vscode-test-web` opens exactly one folder per run, and the
+suite runs inside that one host, so the four fixture projects are subfolders of the mounted root rather
+than four separate workspaces. Discovery is workspace-wide, which makes the "old + new side by side"
+assertion stronger, not weaker: every listing case asserts the full set of eleven ids.
+
+➕ [decision] The custom-config fixture keeps its own `.config.qip.yaml` and is loaded through
+`ProjectConfigService.loadConfigFromUri` — the same entry point `ConfigApiProvider` uses — because
+`loadWorkspaceConfig` only ever reads the config at the workspace root. The test asserts both halves:
+the type resolves from the `.acme.yaml` name before any config is loaded (the app name is read off the
+name), and after loading, the extensions and the schema URL a write would stamp come from the project's
+own file.
+
+➕ [decision] The offline checkbox is pinned rather than assumed: the suite wraps `fetch` and fails if
+anything leaves the local test server. It cannot assert *zero* calls — vscode-test-web serves the mounted
+workspace over `http://localhost:3000/static/mount/…`, so the file system itself runs on `fetch`.
+
+⚠️ *(Task 5's warning confirmed, and it is the milder of the two possible outcomes.)* After a conversion
+the editor tab still points at the deleted legacy file; VS Code does not follow the rename. The suite
+pins both halves — the tab holds the old path, and no tab holds the new one — so a future change in
+either direction shows up. Reopening the service is the fix, and the Post-Completion manual step covers
+what the user sees. Nothing throws, and the response that triggered the conversion is still correct.
+
+➕ The suite found a live defect and Task 10 fixes it: `sendThemeToWebview` threw
+`Error: Webview is disposed` whenever a QIP editor was closed within 300 ms of opening, because
+`enrichWebview` schedules a delayed theme push and nothing checked the panel first. It reached the host
+as an uncaught error. The post now goes through a `try`/`catch` — a disposed panel has nothing left to
+theme. Out of the plan's file list, but the suite could not stay green around it.
+
+➕ Every test was proved to have teeth by mutating the code it covers and confirming red: the
+`*.external-service.qip.yaml` selector removed from `contributes.customEditors` (the editor test, which
+therefore exercises VS Code's own matcher rather than `getEditorViewTypeForUri`); the conversion skipping
+its delete (the conversion and the re-listing tests); empty groups rendered instead of omitted (the tree
+test); `serviceSchemaUrlForType` collapsed to the legacy URL (the conversion and custom-config tests);
+and `plainServiceExtensions` dropping the legacy name (the old-format and re-listing tests).
 
 ### Task 11: Verify acceptance criteria
 

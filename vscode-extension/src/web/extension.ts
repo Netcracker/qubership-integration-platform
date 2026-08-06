@@ -218,10 +218,15 @@ function getThemeData(): ThemePayload {
 
 function sendThemeToWebview(panel: WebviewPanel) {
   const themeData = getThemeData();
-  panel.webview.postMessage({
-    type: "theme-update",
-    payload: themeData,
-  });
+  try {
+    panel.webview.postMessage({
+      type: "theme-update",
+      payload: themeData,
+    });
+  } catch {
+    // A disposed panel throws on `.webview`, and the delayed send after open races an editor the
+    // user closed straight away. There is nothing left to theme, so drop it.
+  }
 }
 
 function broadcastThemeToAllWebviews() {

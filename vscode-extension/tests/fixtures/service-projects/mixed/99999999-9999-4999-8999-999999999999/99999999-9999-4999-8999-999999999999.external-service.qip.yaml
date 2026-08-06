@@ -1,0 +1,7 @@
+id: 99999999-9999-4999-8999-999999999999
+$schema: http://qubership.org/schemas/product/qip/external-service.schema.yaml
+name: Mixed typed partners
+content:
+  description: Typed name beside a legacy one in the same project
+  protocol: HTTP
+  migrations: "[100, 101, 102, 103, 104, 105]"

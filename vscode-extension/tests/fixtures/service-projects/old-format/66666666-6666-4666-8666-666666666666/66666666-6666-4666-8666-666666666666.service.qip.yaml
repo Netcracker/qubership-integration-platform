@@ -1,0 +1,14 @@
+id: 66666666-6666-4666-8666-666666666666
+$schema: http://qubership.org/schemas/product/qip/service.schema.yaml
+name: Legacy shipping
+content:
+  description: Pre-#553 export, type stated in the body
+  activeEnvironmentId: 6e6e6e6e-6666-4666-8666-666666666666
+  integrationSystemType: EXTERNAL
+  protocol: HTTP
+  environments:
+    - id: 6e6e6e6e-6666-4666-8666-666666666666
+      name: Production
+      address: https://shipping.example.com
+      sourceType: MANUAL
+  migrations: "[100, 101, 102, 103, 104]"

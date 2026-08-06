@@ -1,0 +1,8 @@
+id: 77777777-7777-4777-8777-777777777777
+$schema: http://qubership.org/schemas/product/qip/service.schema.yaml
+name: Legacy inventory
+content:
+  description: Pre-#553 export, type stated in the body
+  integrationSystemType: INTERNAL
+  protocol: HTTP
+  migrations: "[100, 101, 102, 103, 104]"

@@ -1,0 +1,7 @@
+id: 33333333-3333-4333-8333-333333333333
+$schema: http://qubership.org/schemas/product/qip/implemented-service.schema.yaml
+name: Notifications
+content:
+  description: Implemented notifications system
+  protocol: KAFKA
+  migrations: "[100, 101, 102, 103, 104, 105]"

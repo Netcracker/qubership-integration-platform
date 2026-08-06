@@ -1,0 +1,13 @@
+id: 22222222-2222-4222-8222-222222222222
+$schema: http://qubership.org/schemas/product/qip/internal-service.schema.yaml
+name: Billing
+content:
+  description: Internal billing system
+  activeEnvironmentId: 2e2e2e2e-2222-4222-8222-222222222222
+  protocol: HTTP
+  environments:
+    - id: 2e2e2e2e-2222-4222-8222-222222222222
+      name: Cloud
+      address: http://billing:8080
+      sourceType: MANUAL
+  migrations: "[100, 101, 102, 103, 104, 105]"
