@@ -39,7 +39,7 @@ At the top of the table the following options are available:
 
 <ins>VS Code Extension</ins>
 
-All services created using VS Code Extension appear under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
+Any MCP service created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
 
 ### Add MCP Service
 <ins>Web UI</ins>
