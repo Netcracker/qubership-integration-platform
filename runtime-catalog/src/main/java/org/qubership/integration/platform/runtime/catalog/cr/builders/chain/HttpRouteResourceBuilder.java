@@ -177,7 +177,6 @@ public class HttpRouteResourceBuilder implements ResourceBuilder<List<Snapshot>>
             if (out.charAt(out.length() - 1) != '\n') {
                 out.append('\n');
             }
-            out.append("---\n");
         } catch (Exception e) {
             throw new org.qubership.integration.platform.runtime.catalog.cr.CustomResourceBuildError(
                     "Failed to build HTTPRoute CR " + name, e);

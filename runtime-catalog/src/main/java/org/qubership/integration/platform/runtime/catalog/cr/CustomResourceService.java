@@ -18,11 +18,13 @@ import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrati
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrationList;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
+import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObjectList;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildOptions;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.RouteType;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentRouteUpdate;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.DeploymentRoute;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
@@ -37,6 +39,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.qubership.integration.platform.runtime.catalog.cr.builders.chain.SourceConfigMapBuilder.SNAPSHOT_ID_LABEL;
@@ -83,6 +86,9 @@ public class CustomResourceService {
     private static final String GATEWAY_API_VERSION = "v1";
     private static final String HTTP_ROUTES_PLURAL = "httproutes";
 
+    @Value("${qip.chains.external-routes.base-path:/qip-routes}")
+    String baseRoutePrefix;
+
     @Value("${qip.cr.labels.domain}")
     String domainLabel;
 
@@ -125,6 +131,8 @@ public class CustomResourceService {
     public void init() {
         ModelMapper.addModelMap("camel.apache.org", "v1", "Integration", "Integrations", CamelKIntegration.class, CamelKIntegrationList.class);
         ModelMapper.addModelMap("monitoring.coreos.com", "v1", "ServiceMonitor", "ServiceMonitors", V1ServiceMonitor.class, V1ServiceMonitorList.class);
+        ModelMapper.addModelMap(GATEWAY_API_GROUP, GATEWAY_API_VERSION, "HTTPRoute", HTTP_ROUTES_PLURAL,
+                KubeCustomObject.class, KubeCustomObjectList.class);
         genericCustomResources.registerModelMaps();
     }
 
@@ -317,31 +325,60 @@ public class CustomResourceService {
                 cb.equal(root.get("snapshot").get("id"), snapshotId);
         List<DeploymentRoute> ownRoutes = routesGetterService.getRoutes(spec);
         List<DeploymentRouteUpdate> ownUpdates = deploymentRouteMapper.asUpdates(ownRoutes);
-        Set<String> ownPaths = ownUpdates.stream()
-                .map(DeploymentRouteUpdate::getPath)
-                .collect(Collectors.toSet());
-        if (ownPaths.isEmpty()) {
+
+        Set<String> publicPaths = tierOwnPaths(ownUpdates, RouteType::isExternalTriggerRoute);
+        Set<String> privatePaths = tierOwnPaths(ownUpdates, RouteType::isPrivateTriggerRoute);
+
+        if (publicPaths.isEmpty() && privatePaths.isEmpty()) {
             return;
         }
-        stripPathsFromTier(httpRoutePublicNamingStrategy.getName(getContextForDomain(name)), ownPaths);
-        stripPathsFromTier(httpRoutePrivateNamingStrategy.getName(getContextForDomain(name)), ownPaths);
+        if (!publicPaths.isEmpty()) {
+            stripPathsFromTier(httpRoutePublicNamingStrategy.getName(getContextForDomain(name)), publicPaths, "public");
+        }
+        if (!privatePaths.isEmpty()) {
+            stripPathsFromTier(httpRoutePrivateNamingStrategy.getName(getContextForDomain(name)), privatePaths, "private");
+        }
+    }
+
+    /**
+     * Builds the set of this snapshot's own fully-prefixed route paths for a single gateway tier.
+     * Egress routes ({@code EXTERNAL_SENDER}/{@code EXTERNAL_SERVICE}, whose "paths" are absolute
+     * target URLs, not gateway paths) are excluded by the tier predicate, and each remaining path is
+     * prefixed with {@link #baseRoutePrefix} so it can be compared exactly against the paths recorded
+     * in the tier's HTTPRoute CR (mirroring {@code HttpRouteResourceBuilder}'s own path bookkeeping).
+     */
+    private Set<String> tierOwnPaths(List<DeploymentRouteUpdate> ownUpdates, Predicate<RouteType> tierPredicate) {
+        return ownUpdates.stream()
+                .filter(route -> tierPredicate.test(route.getType()))
+                .map(route -> baseRoutePrefix + route.getPath())
+                .collect(Collectors.toSet());
     }
 
     @SuppressWarnings("unchecked")
-    private void stripPathsFromTier(String routeName, Set<String> ownPaths) {
+    private void stripPathsFromTier(String routeName, Set<String> ownPaths, String tierName) {
         Optional<KubeCustomObject> existing = kubeOperator
                 .getCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, routeName);
         if (existing.isEmpty()) {
             return;
         }
         KubeCustomObject httpRoute = existing.get();
-        List<Map<String, Object>> rules = (List<Map<String, Object>>) httpRoute.getSpec().get("rules");
+        Map<String, Object> spec = httpRoute.getSpec();
+        Object rulesRaw = spec == null ? null : spec.get("rules");
+        if (!(rulesRaw instanceof List<?> rules)) {
+            log.warn("HTTPRoute '{}' ({} tier) has no 'rules' to strip snapshot paths from; leaving it unchanged",
+                    routeName, tierName);
+            return;
+        }
         List<Map<String, Object>> remaining = rules.stream()
+                .map(rule -> (Map<String, Object>) rule)
                 .filter(rule -> {
-                    Map<String, Object> matches = ((List<Map<String, Object>>) rule.get("matches")).get(0);
-                    Map<String, Object> path = (Map<String, Object>) matches.get("path");
-                    String value = (String) path.get("value");
-                    return ownPaths.stream().noneMatch(value::endsWith);
+                    String path = extractRulePath(rule);
+                    if (path == null) {
+                        log.warn("HTTPRoute '{}' ({} tier) has a rule with an unrecognized path match shape; "
+                                + "keeping it rather than risk dropping it during snapshot cleanup", routeName, tierName);
+                        return true;
+                    }
+                    return !ownPaths.contains(path);
                 })
                 .toList();
         if (remaining.isEmpty()) {
@@ -352,5 +389,29 @@ public class CustomResourceService {
         httpRoute.setApiVersion(GATEWAY_API_GROUP + "/" + GATEWAY_API_VERSION);
         httpRoute.setKind("HTTPRoute");
         kubeOperator.createOrUpdateResource(httpRoute);
+    }
+
+    /**
+     * Reads {@code matches[0].path.value} out of a raw (deserialized-from-YAML/JSON) HTTPRoute rule,
+     * returning {@code null} for any shape that doesn't hold a readable path (no {@code matches}, an
+     * empty {@code matches} list, a header-only match with no {@code path}, and similar) instead of
+     * throwing. The caller treats a {@code null} result as "not matched by any of ownPaths" and
+     * preserves the rule.
+     */
+    private String extractRulePath(Map<String, Object> rule) {
+        try {
+            if (!(rule.get("matches") instanceof List<?> matches) || matches.isEmpty()) {
+                return null;
+            }
+            if (!(matches.get(0) instanceof Map<?, ?> match)) {
+                return null;
+            }
+            if (!(match.get("path") instanceof Map<?, ?> path)) {
+                return null;
+            }
+            return path.get("value") instanceof String value ? value : null;
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 }

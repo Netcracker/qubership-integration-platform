@@ -79,6 +79,26 @@ class HttpRouteResourceBuilderTest {
         assertTrue(result.contains("public-gateway"));
     }
 
+    // Finding 5: the mapper writes its own leading "---" document-start marker per document (Jackson
+    // YAML enables WRITE_DOC_START_MARKER by default); appendTier used to also append a manual
+    // trailing "---\n" after every tier, so back-to-back tiers ended up with a doubled marker between
+    // them (an empty spurious YAML document) and a final one dangling after the last tier. With the
+    // manual marker removed, each tier contributes exactly its own single leading "---" and nothing
+    // trails the last one.
+    @Test
+    void buildDoesNotAppendRedundantDocumentSeparator() throws Exception {
+        when(routesGetterService.getRoutes(any())).thenReturn(List.of(
+                DeploymentRoute.builder().path("/a").type(RouteType.EXTERNAL_PRIVATE_TRIGGER).build()));
+
+        String result = builder.build(contextFor(List.of(mock(Snapshot.class))));
+
+        long separatorCount = result.split("---", -1).length - 1;
+        assertEquals(2, separatorCount,
+                "expected exactly one document-start marker per tier (2 tiers), no extra redundant one");
+        assertFalse(result.strip().endsWith("---"),
+                "must not end with a spurious empty trailing YAML document");
+    }
+
     @Test
     void buildEmitsRouteInBothTiersWhenExternalPrivate() throws Exception {
         when(routesGetterService.getRoutes(any())).thenReturn(List.of(

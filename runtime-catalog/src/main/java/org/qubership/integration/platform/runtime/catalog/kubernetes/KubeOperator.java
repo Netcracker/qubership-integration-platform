@@ -55,6 +55,10 @@ public class KubeOperator {
     private static final String BUILD_VERSION_LABEL = "app.kubernetes.io/version";
     private static final String DEFAULT_ERR_MESSAGE = "Invalid k8s cluster parameters or API error. ";
     private static final String REGEX_FOR_SEARCH_BLUEGREEN_SERVICE_NAME = ".*-v\\d+$";
+    private static final String HTTP_ROUTE_KIND = "HTTPRoute";
+    private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
+    private static final String GATEWAY_API_VERSION = "v1";
+    private static final String HTTP_ROUTES_PLURAL = "httproutes";
     private final CoreV1Api coreApi;
     private final AppsV1Api appsApi;
     private final CustomObjectsApi customObjectsApi;
@@ -187,6 +191,13 @@ public class KubeOperator {
             createOrUpdateCustomResource("monitoring.coreos.com", "v1", "servicemonitors",
                     serviceMonitor, new TypeToken<V1ServiceMonitorList>() {
                     }.getType(), true);
+        } else if (resource instanceof KubeCustomObject customObject && HTTP_ROUTE_KIND.equals(customObject.getKind())) {
+            // HTTPRoute is handled directly (not through GenericCustomResources) because that map
+            // returns empty under the "localdev" profile, which would make definitionFor() throw
+            // there too. It's also always safe to update in place if it already exists.
+            log.debug("Applying {} name={}", customObject.getKind(), getName(customObject).orElse(""));
+            createOrUpdateCustomResource(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, customObject,
+                    new TypeToken<KubeCustomObjectList>() {}.getType(), true);
         } else if (resource instanceof KubeCustomObject customObject) {
             GenericCustomResources.CustomResourceDefinition resourceDefinition =
                 Optional.ofNullable(genericCustomResources)
