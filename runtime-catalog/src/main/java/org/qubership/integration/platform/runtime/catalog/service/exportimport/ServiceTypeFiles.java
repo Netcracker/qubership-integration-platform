@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,13 +13,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTENT;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.EXTERNAL_SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.IMPLEMENTED_SERVICE_YAML_NAME_POSTFIX;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.INTEGRATION_SYSTEM_TYPE;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.INTERNAL_SERVICE_YAML_NAME_POSTFIX;
 
 /**
- * The one place that knows how a service type is spelled in a file name and in a {@code $schema}. Import discovery,
- * type resolution, the exporter, and the V105 pair all read it from here, so the three spellings cannot drift apart.
+ * The one place that knows how a service type is spelled: in a file name, in a {@code $schema}, and in a document.
+ * Import discovery, type resolution, the exporter, and the V105 pair all read it from here, so the spellings cannot
+ * drift apart.
  */
 @Component
 public class ServiceTypeFiles {
@@ -38,11 +42,7 @@ public class ServiceTypeFiles {
                 IntegrationSystemType.IMPLEMENTED, schemas.getImplementedService()));
     }
 
-    /**
-     * The name postfix an export writes for {@code type}, and the one import resolves the type back from. Static like
-     * {@link #postfixes()}: the postfixes are compile-time constants, and {@code ExportImportUtils} builds the export
-     * file name from a static context.
-     */
+    /** The name postfix an export writes for {@code type}, and the one import resolves the type back from. */
     public static String postfix(IntegrationSystemType type) {
         return POSTFIXES_BY_TYPE.get(Objects.requireNonNull(type, "service type"));
     }
@@ -58,13 +58,10 @@ public class ServiceTypeFiles {
     }
 
     /**
-     * The type a service file name states, or empty when it states none — the legacy {@code service-<id>.yaml} name
-     * and the pre-#553 {@code .service.} postfix both carry the type in the document instead. A context or MCP service
-     * name matches nothing here: neither contains a per-type postfix. A name carrying two postfixes states no single
-     * type either, so it resolves to none rather than to whichever the enum happens to declare first.
-     *
-     * <p>Static like {@link #postfix(IntegrationSystemType)}: the postfixes are compile-time constants, and only the
-     * schema URIs come from configuration.
+     * The type a service file name states, or empty when it states none. The legacy {@code service-<id>.yaml} name and
+     * the plain {@code .service.} postfix both carry the type in the document instead, and a context or MCP name
+     * carries no per-type postfix at all. A name carrying two postfixes states no single type either, so it resolves
+     * to none rather than to whichever the enum happens to declare first.
      */
     public static Optional<IntegrationSystemType> typeFromFileName(String fileName) {
         if (fileName == null) {
@@ -75,6 +72,29 @@ public class ServiceTypeFiles {
                 .map(Map.Entry::getKey)
                 .toList();
         return stated.size() == 1 ? Optional.of(stated.get(0)) : Optional.empty();
+    }
+
+    /**
+     * The type a raw document states, read before any migration runs, so both places have to be tried: the current
+     * format keeps the field under {@code content}, the legacy flat format at the root. A value no longer in the enum
+     * reads as no type, and the caller falls back to whatever else states one.
+     */
+    public static Optional<IntegrationSystemType> typeFromDocument(JsonNode document) {
+        if (document == null) {
+            return Optional.empty();
+        }
+        JsonNode stated = document.path(CONTENT).path(INTEGRATION_SYSTEM_TYPE);
+        if (stated.isMissingNode()) {
+            stated = document.path(INTEGRATION_SYSTEM_TYPE);
+        }
+        if (!stated.isTextual()) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(IntegrationSystemType.valueOf(stated.asText()));
+        } catch (IllegalArgumentException exception) {
+            return Optional.empty();
+        }
     }
 
     /**

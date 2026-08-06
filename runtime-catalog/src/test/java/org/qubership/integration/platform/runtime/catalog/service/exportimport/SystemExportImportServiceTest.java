@@ -16,7 +16,6 @@ import org.qubership.integration.platform.runtime.catalog.model.exportimport.ins
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionsConfig;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ImportSystemResult;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.ImportSystemStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.imports.remote.SystemCompareAction;
@@ -45,8 +44,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -56,10 +53,8 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static java.util.Objects.requireNonNull;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.lenient;
@@ -68,18 +63,32 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.GoldenServiceCorpus.EXTERNAL_SERVICE_ID;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.GoldenServiceCorpus.IMPLEMENTED_SERVICE_ID;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.GoldenServiceCorpus.INTERNAL_SERVICE_ID;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.GoldenServiceCorpus.LEGACY_FLAT;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.GoldenServiceCorpus.POST553;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.GoldenServiceCorpus.PRE553_CURRENT;
+import static org.qubership.integration.platform.runtime.catalog.testutils.ServiceFixtures.SYSTEM_ID;
+import static org.qubership.integration.platform.runtime.catalog.testutils.ServiceFixtures.SYSTEM_NAME;
+import static org.qubership.integration.platform.runtime.catalog.testutils.ServiceFixtures.systemWith;
 
 @ExtendWith(MockitoExtension.class)
 class SystemExportImportServiceTest {
 
-    private static final String SYSTEM_ID = "system-1";
-    private static final String SYSTEM_NAME = "Test service";
+    private static final String IMPORT_ID = "import-1";
+    private static final String EXTERNAL_FILE_NAME = EXTERNAL_SERVICE_ID + ".external-service.qip.yaml";
+    private static final String INTERNAL_FILE_NAME = INTERNAL_SERVICE_ID + ".internal-service.qip.yaml";
+    private static final String EXTERNAL_UNDER_INTERNAL_NAME = EXTERNAL_SERVICE_ID + ".internal-service.qip.yaml";
+
     /** The plain services of every golden set. The context and the MCP service are imported elsewhere. */
     private static final List<String> GOLDEN_SERVICE_IDS =
-            List.of("svc-external", "svc-implemented", "svc-internal");
+            Stream.of(EXTERNAL_SERVICE_ID, IMPLEMENTED_SERVICE_ID, INTERNAL_SERVICE_ID).sorted().toList();
+
+    private static final Map<String, IntegrationSystemType> GOLDEN_TYPES_BY_ID = Map.of(
+            EXTERNAL_SERVICE_ID, IntegrationSystemType.EXTERNAL,
+            INTERNAL_SERVICE_ID, IntegrationSystemType.INTERNAL,
+            IMPLEMENTED_SERVICE_ID, IntegrationSystemType.IMPLEMENTED);
 
     @Mock TransactionTemplate transactionTemplate;
     @Mock SystemService systemService;
@@ -130,6 +139,8 @@ class SystemExportImportServiceTest {
         });
     }
 
+    // --- the environment limit -------------------------------------------------------------------------------------
+
     @Test
     @DisplayName("a second environment is rejected when creating an internal service on import")
     void secondEnvironmentIsRejectedOnCreateForInternalService() {
@@ -138,9 +149,9 @@ class SystemExportImportServiceTest {
 
         ImportSystemResult result = service.importOneSystemInTransaction(serviceFile, null, null, null);
 
-        assertThat(result.getStatus(), equalTo(ImportSystemStatus.ERROR));
-        assertThat(result.getMessage(), containsString("internal"));
-        assertThat(result.getMessage(), containsString(SYSTEM_ID));
+        assertEquals(ImportSystemStatus.ERROR, result.getStatus());
+        assertMessageContains(result, "internal");
+        assertMessageContains(result, SYSTEM_ID);
         verify(systemService, never()).create(any(), anyBoolean());
     }
 
@@ -152,8 +163,8 @@ class SystemExportImportServiceTest {
 
         ImportSystemResult result = service.importOneSystemInTransaction(serviceFile, null, null, null);
 
-        assertThat(result.getStatus(), equalTo(ImportSystemStatus.ERROR));
-        assertThat(result.getMessage(), containsString("implemented"));
+        assertEquals(ImportSystemStatus.ERROR, result.getStatus());
+        assertMessageContains(result, "implemented");
         verify(systemService, never()).create(any(), anyBoolean());
     }
 
@@ -166,7 +177,7 @@ class SystemExportImportServiceTest {
 
         ImportSystemResult result = service.importOneSystemInTransaction(serviceFile, null, null, null);
 
-        assertThat(result.getStatus(), equalTo(ImportSystemStatus.CREATED));
+        assertEquals(ImportSystemStatus.CREATED, result.getStatus());
         verify(systemService).create(system, true);
     }
 
@@ -179,7 +190,7 @@ class SystemExportImportServiceTest {
 
         ImportSystemResult result = service.importOneSystemInTransaction(serviceFile, null, null, null);
 
-        assertThat(result.getStatus(), equalTo(ImportSystemStatus.CREATED));
+        assertEquals(ImportSystemStatus.CREATED, result.getStatus());
         verify(systemService).create(system, true);
     }
 
@@ -192,7 +203,7 @@ class SystemExportImportServiceTest {
 
         ImportSystemResult result = service.importOneSystemInTransaction(serviceFile, null, null, null);
 
-        assertThat(result.getStatus(), equalTo(ImportSystemStatus.CREATED));
+        assertEquals(ImportSystemStatus.CREATED, result.getStatus());
     }
 
     @Test
@@ -203,8 +214,8 @@ class SystemExportImportServiceTest {
 
         ImportSystemResult result = service.importOneSystemInTransaction(serviceFile, null, null, null);
 
-        assertThat(result.getStatus(), equalTo(ImportSystemStatus.ERROR));
-        assertThat(result.getMessage(), containsString("internal"));
+        assertEquals(ImportSystemStatus.ERROR, result.getStatus());
+        assertMessageContains(result, "internal");
         verify(systemService, never()).update(any());
     }
 
@@ -216,8 +227,8 @@ class SystemExportImportServiceTest {
 
         ImportSystemResult result = service.importOneSystemInTransaction(serviceFile, null, null, null);
 
-        assertThat(result.getStatus(), equalTo(ImportSystemStatus.ERROR));
-        assertThat(result.getMessage(), containsString("implemented"));
+        assertEquals(ImportSystemStatus.ERROR, result.getStatus());
+        assertMessageContains(result, "implemented");
         verify(systemService, never()).update(any());
     }
 
@@ -230,7 +241,7 @@ class SystemExportImportServiceTest {
 
         ImportSystemResult result = service.importOneSystemInTransaction(serviceFile, null, null, null);
 
-        assertThat(result.getStatus(), equalTo(ImportSystemStatus.UPDATED));
+        assertEquals(ImportSystemStatus.UPDATED, result.getStatus());
         verify(systemService).update(system);
     }
 
@@ -245,11 +256,11 @@ class SystemExportImportServiceTest {
 
         ImportSystemResult result = service.importOneSystemInTransaction(serviceFile, null, null, null);
 
-        assertThat(result.getStatus(), equalTo(ImportSystemStatus.ERROR));
-        assertThat(result.getMessage(), containsString("EXTERNAL"));
-        assertThat(result.getMessage(), containsString("INTERNAL"));
-        assertThat(result.getMessage(), containsString(SYSTEM_ID));
-        assertThat(stored.getIntegrationSystemType(), equalTo(IntegrationSystemType.EXTERNAL));
+        assertEquals(ImportSystemStatus.ERROR, result.getStatus());
+        assertMessageContains(result, "EXTERNAL");
+        assertMessageContains(result, "INTERNAL");
+        assertMessageContains(result, SYSTEM_ID);
+        assertEquals(IntegrationSystemType.EXTERNAL, stored.getIntegrationSystemType());
         verify(systemService, never()).update(any());
     }
 
@@ -262,7 +273,7 @@ class SystemExportImportServiceTest {
 
         ImportSystemResult result = service.importOneSystemInTransaction(serviceFile, null, null, null);
 
-        assertThat(result.getStatus(), equalTo(ImportSystemStatus.UPDATED));
+        assertEquals(ImportSystemStatus.UPDATED, result.getStatus());
         verify(systemService).update(system);
     }
 
@@ -276,7 +287,7 @@ class SystemExportImportServiceTest {
 
         ImportSystemResult result = service.importOneSystemInTransaction(serviceFile, null, null, null);
 
-        assertThat(result.getStatus(), equalTo(ImportSystemStatus.UPDATED));
+        assertEquals(ImportSystemStatus.UPDATED, result.getStatus());
         verify(systemService).update(system);
     }
 
@@ -288,112 +299,110 @@ class SystemExportImportServiceTest {
      */
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {PRE553_CURRENT, POST553, LEGACY_FLAT})
-    void theImportPreviewFindsEveryPlainServiceOfAnArchive(String setName) {
+    @DisplayName("the import preview finds every plain service of an archive")
+    void previewFindsEveryPlainService(String setName) {
         List<ImportSystemResult> preview = service.getSystemsImportPreview(
                 GoldenServiceCorpus.set(setName).toFile(), ImportInstructionsConfig.builder().build());
 
-        assertThat(idsOf(preview), equalTo(GOLDEN_SERVICE_IDS));
-        preview.forEach(result -> assertThat(result.getRequiredAction(), equalTo(SystemCompareAction.CREATE)));
+        assertEquals(GOLDEN_SERVICE_IDS, idsOf(preview));
+        preview.forEach(result -> assertEquals(SystemCompareAction.CREATE, result.getRequiredAction()));
     }
 
-    /** The same discovery through the zip entry point the UI calls. */
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {PRE553_CURRENT, POST553, LEGACY_FLAT})
-    void theImportPreviewRequestFindsEveryPlainServiceOfAnArchive(String setName) throws IOException {
+    @DisplayName("the same discovery through the zip entry point the UI calls")
+    void previewRequestFindsEveryPlainService(String setName) throws IOException {
         when(importInstructionsService.getServiceImportInstructionsConfig(any()))
                 .thenReturn(ImportInstructionsConfig.builder().build());
 
         List<ImportSystemResult> preview = service.getSystemsImportPreviewRequest(archiveOf(setName));
 
-        assertThat(idsOf(preview), equalTo(GOLDEN_SERVICE_IDS));
-        preview.forEach(result -> assertThat(result.getRequiredAction(), equalTo(SystemCompareAction.CREATE)));
+        assertEquals(GOLDEN_SERVICE_IDS, idsOf(preview));
+        preview.forEach(result -> assertEquals(SystemCompareAction.CREATE, result.getRequiredAction()));
     }
 
     /**
-     * The commit path, with the real deserializer: every archive format imports, and each service lands under the type
-     * its file states. A null type here is the failure mode the whole of #553 is exposed to — the column is nullable
-     * and a null only surfaces later, as an NPE in {@code EntityType.getSystemType}.
+     * The commit path, with the real deserializer. A null type here is the failure mode this whole area is exposed to:
+     * the column is nullable, and a null only surfaces later, as an NPE in {@code EntityType.getSystemType}.
      */
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {PRE553_CURRENT, POST553, LEGACY_FLAT})
+    @DisplayName("every archive format imports with its type")
     void everyArchiveFormatImportsWithItsType(String setName) {
         importingEverything();
 
         ImportSystemsAndInstructionsResult result = serviceWithRealDeserializer().importSystems(
-                GoldenServiceCorpus.set(setName).toFile(), new SystemsCommitRequest(), "import-1", Set.of());
+                GoldenServiceCorpus.set(setName).toFile(), new SystemsCommitRequest(), IMPORT_ID, Set.of());
 
-        assertThat(idsOf(result.importSystemResults()), equalTo(GOLDEN_SERVICE_IDS));
-        assertThat(statusesOf(result.importSystemResults()), equalTo(Set.of(ImportSystemStatus.CREATED)));
-        assertThat(createdTypes(), equalTo(Map.of(
-                "svc-external", IntegrationSystemType.EXTERNAL,
-                "svc-internal", IntegrationSystemType.INTERNAL,
-                "svc-implemented", IntegrationSystemType.IMPLEMENTED)));
+        assertEquals(GOLDEN_SERVICE_IDS, idsOf(result.importSystemResults()));
+        assertEquals(Set.of(ImportSystemStatus.CREATED), statusesOf(result.importSystemResults()));
+        assertEquals(GOLDEN_TYPES_BY_ID, createdTypes());
     }
 
-    /** The same, through the zip entry point. */
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {PRE553_CURRENT, POST553, LEGACY_FLAT})
+    @DisplayName("the same, through the zip entry point")
     void everyArchiveFormatImportsWithItsTypeThroughTheZipRequest(String setName) throws IOException {
         importingEverything();
 
         List<ImportSystemResult> results =
                 serviceWithRealDeserializer().importSystemRequest(archiveOf(setName), null, null, Set.of());
 
-        assertThat(idsOf(results), equalTo(GOLDEN_SERVICE_IDS));
-        assertThat(statusesOf(results), equalTo(Set.of(ImportSystemStatus.CREATED)));
-        assertThat(createdTypes(), equalTo(Map.of(
-                "svc-external", IntegrationSystemType.EXTERNAL,
-                "svc-internal", IntegrationSystemType.INTERNAL,
-                "svc-implemented", IntegrationSystemType.IMPLEMENTED)));
+        assertEquals(GOLDEN_SERVICE_IDS, idsOf(results));
+        assertEquals(Set.of(ImportSystemStatus.CREATED), statusesOf(results));
+        assertEquals(GOLDEN_TYPES_BY_ID, createdTypes());
     }
 
     /**
      * Two files for one id can only be resolved by guessing, and the per-file loop would import both in separate
-     * transactions, letting the last one win. The id gets an error row and the rest of the archive still imports —
-     * a throw here would end the whole import session, which by then has already applied instructions and variables.
+     * transactions, letting the last one win. The id gets an error row and the rest of the archive still imports: a
+     * throw here would end the whole import session, which by then has already applied instructions and variables.
      */
     @Test
-    void twoServiceFilesForOneServiceArePreviewedAsAnError(@TempDir Path archive) throws IOException {
-        writeServiceFile(archive, "svc-external", "svc-external.external-service.qip.yaml");
-        writeServiceFile(archive, "svc-external", "svc-external.internal-service.qip.yaml");
-        writeServiceFile(archive, "svc-internal", "svc-internal.internal-service.qip.yaml");
+    @DisplayName("two service files for one service are previewed as an error")
+    void twoFilesForOneServiceArePreviewedAsAnError(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, EXTERNAL_SERVICE_ID, EXTERNAL_FILE_NAME);
+        writeServiceFile(archive, EXTERNAL_SERVICE_ID, EXTERNAL_UNDER_INTERNAL_NAME);
+        writeServiceFile(archive, INTERNAL_SERVICE_ID, INTERNAL_FILE_NAME);
 
         List<ImportSystemResult> preview = service.getSystemsImportPreview(
                 archive.toFile(), ImportInstructionsConfig.builder().build());
 
-        ImportSystemResult colliding = resultFor(preview, "svc-external");
-        assertThat(colliding.getRequiredAction(), equalTo(SystemCompareAction.ERROR));
-        assertThat(colliding.getMessage(), containsString("svc-external.external-service.qip.yaml"));
-        assertThat(colliding.getMessage(), containsString("svc-external.internal-service.qip.yaml"));
-        assertThat(resultFor(preview, "svc-internal").getRequiredAction(), equalTo(SystemCompareAction.CREATE));
+        ImportSystemResult colliding = resultFor(preview, EXTERNAL_SERVICE_ID);
+        assertEquals(SystemCompareAction.ERROR, colliding.getRequiredAction());
+        assertMessageContains(colliding, EXTERNAL_FILE_NAME);
+        assertMessageContains(colliding, EXTERNAL_UNDER_INTERNAL_NAME);
+        assertEquals(SystemCompareAction.CREATE, resultFor(preview, INTERNAL_SERVICE_ID).getRequiredAction());
     }
 
     @Test
-    void twoServiceFilesForOneServiceImportNeitherOfThem(@TempDir Path archive) throws IOException {
-        writeServiceFile(archive, "svc-external", "svc-external.external-service.qip.yaml");
-        writeServiceFile(archive, "svc-external", "service-svc-external.yaml");
+    @DisplayName("two service files for one service import neither of them")
+    void twoFilesForOneServiceImportNeither(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, EXTERNAL_SERVICE_ID, EXTERNAL_FILE_NAME);
+        writeServiceFile(archive, EXTERNAL_SERVICE_ID, "service-" + EXTERNAL_SERVICE_ID + ".yaml");
         importingEveryDiscoveredId();
 
         ImportSystemsAndInstructionsResult result = serviceWithRealDeserializer().importSystems(
-                archive.toFile(), new SystemsCommitRequest(), "import-1", Set.of());
+                archive.toFile(), new SystemsCommitRequest(), IMPORT_ID, Set.of());
 
-        assertThat(statusesOf(result.importSystemResults()), equalTo(Set.of(ImportSystemStatus.ERROR)));
+        assertEquals(Set.of(ImportSystemStatus.ERROR), statusesOf(result.importSystemResults()));
         verify(systemService, never()).create(any(), anyBoolean());
         verify(systemService, never()).update(any());
     }
 
     /** The same degradation through the zip entry point, whose temp directory is also cleaned up on the way out. */
     @Test
-    void twoServiceFilesForOneServiceAreReportedThroughTheZipRequest(@TempDir Path archive) throws IOException {
-        writeServiceFile(archive, "svc-external", "svc-external.external-service.qip.yaml");
-        writeServiceFile(archive, "svc-external", "svc-external.internal-service.qip.yaml");
+    @DisplayName("two service files for one service are reported through the zip request")
+    void twoFilesForOneServiceAreReportedThroughTheZipRequest(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, EXTERNAL_SERVICE_ID, EXTERNAL_FILE_NAME);
+        writeServiceFile(archive, EXTERNAL_SERVICE_ID, EXTERNAL_UNDER_INTERNAL_NAME);
         importingEveryDiscoveredId();
 
         List<ImportSystemResult> results = serviceWithRealDeserializer()
                 .importSystemRequest(archiveOf(archive, "duplicates"), null, null, Set.of());
 
-        assertThat(idsOf(results), equalTo(List.of("svc-external")));
-        assertThat(statusesOf(results), equalTo(Set.of(ImportSystemStatus.ERROR)));
+        assertEquals(List.of(EXTERNAL_SERVICE_ID), idsOf(results));
+        assertEquals(Set.of(ImportSystemStatus.ERROR), statusesOf(results));
         verify(systemService, never()).create(any(), anyBoolean());
     }
 
@@ -402,49 +411,52 @@ class SystemExportImportServiceTest {
      * selected produces no row at all, and a single error row is enough to mark the whole session failed.
      */
     @Test
-    void aCollidingIdTheRequestDidNotSelectIsNotReportedAtAll(@TempDir Path archive) throws IOException {
-        writeServiceFile(archive, "svc-external", "svc-external.external-service.qip.yaml");
-        writeServiceFile(archive, "svc-external", "svc-external.internal-service.qip.yaml");
-        writeServiceFile(archive, "svc-internal", "svc-internal.internal-service.qip.yaml");
+    @DisplayName("a colliding id the request did not select is not reported at all")
+    void unselectedCollidingIdIsNotReported(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, EXTERNAL_SERVICE_ID, EXTERNAL_FILE_NAME);
+        writeServiceFile(archive, EXTERNAL_SERVICE_ID, EXTERNAL_UNDER_INTERNAL_NAME);
+        writeServiceFile(archive, INTERNAL_SERVICE_ID, INTERNAL_FILE_NAME);
         importingEveryDiscoveredId();
         when(systemService.getByIdOrNull(any())).thenReturn(null);
 
         SystemsCommitRequest request = new SystemsCommitRequest();
         request.setImportMode(ImportMode.PARTIAL);
-        request.setSystemIds(List.of("svc-internal"));
+        request.setSystemIds(List.of(INTERNAL_SERVICE_ID));
         ImportSystemsAndInstructionsResult result = serviceWithRealDeserializer()
-                .importSystems(archive.toFile(), request, "import-1", Set.of());
+                .importSystems(archive.toFile(), request, IMPORT_ID, Set.of());
 
-        assertThat(idsOf(result.importSystemResults()), equalTo(List.of("svc-internal")));
-        assertThat(statusesOf(result.importSystemResults()), equalTo(Set.of(ImportSystemStatus.CREATED)));
+        assertEquals(List.of(INTERNAL_SERVICE_ID), idsOf(result.importSystemResults()));
+        assertEquals(Set.of(ImportSystemStatus.CREATED), statusesOf(result.importSystemResults()));
     }
 
     /** An IGNORE instruction excludes the id before the collision matters, so the row says IGNORED, not ERROR. */
     @Test
-    void aCollidingIdExcludedByAnIgnoreInstructionIsReportedAsIgnored(@TempDir Path archive) throws IOException {
-        writeServiceFile(archive, "svc-external", "svc-external.external-service.qip.yaml");
-        writeServiceFile(archive, "svc-external", "svc-external.internal-service.qip.yaml");
+    @DisplayName("a colliding id excluded by an ignore instruction is reported as ignored")
+    void ignoredCollidingIdIsReportedAsIgnored(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, EXTERNAL_SERVICE_ID, EXTERNAL_FILE_NAME);
+        writeServiceFile(archive, EXTERNAL_SERVICE_ID, EXTERNAL_UNDER_INTERNAL_NAME);
         when(importInstructionsService.performServiceIgnoreInstructions(any(), anyBoolean()))
                 .thenReturn(new IgnoreResult(Set.of(), List.of()));
 
         ImportSystemsAndInstructionsResult result = serviceWithRealDeserializer()
-                .importSystems(archive.toFile(), new SystemsCommitRequest(), "import-1", Set.of());
+                .importSystems(archive.toFile(), new SystemsCommitRequest(), IMPORT_ID, Set.of());
 
-        ImportSystemResult row = resultFor(result.importSystemResults(), "svc-external");
-        assertThat(row.getStatus(), equalTo(ImportSystemStatus.IGNORED));
+        assertEquals(ImportSystemStatus.IGNORED,
+                resultFor(result.importSystemResults(), EXTERNAL_SERVICE_ID).getStatus());
     }
 
     /** The same two filters on the zip entry point, which carries its selection as the {@code systemIds} argument. */
     @Test
-    void aCollidingIdIsFilteredTheSameWayThroughTheZipRequest(@TempDir Path archive) throws IOException {
-        writeServiceFile(archive, "svc-external", "svc-external.external-service.qip.yaml");
-        writeServiceFile(archive, "svc-external", "svc-external.internal-service.qip.yaml");
+    @DisplayName("a colliding id is filtered the same way through the zip request")
+    void collidingIdIsFilteredThroughTheZipRequest(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, EXTERNAL_SERVICE_ID, EXTERNAL_FILE_NAME);
+        writeServiceFile(archive, EXTERNAL_SERVICE_ID, EXTERNAL_UNDER_INTERNAL_NAME);
         importingEveryDiscoveredId();
 
         List<ImportSystemResult> results = serviceWithRealDeserializer().importSystemRequest(
-                archiveOf(archive, "duplicates"), List.of("svc-internal"), null, Set.of());
+                archiveOf(archive, "duplicates"), List.of(INTERNAL_SERVICE_ID), null, Set.of());
 
-        assertThat(results, empty());
+        assertTrue(results.isEmpty(), "an unselected colliding id produces no row: " + results);
     }
 
     // --- the service type on the preview path ------------------------------------------------------------------------
@@ -454,30 +466,31 @@ class SystemExportImportServiceTest {
      * rather than a clean CREATE followed by a failure the user only sees after committing.
      */
     @Test
-    void aFileWhoseNameAndDocumentDisagreeOnTheTypeIsPreviewedAsAnError(@TempDir Path archive) throws IOException {
-        Path path = archive.resolve("services").resolve("svc-external")
-                .resolve("svc-external.internal-service.qip.yaml");
+    @DisplayName("a file whose name and document disagree on the type is previewed as an error")
+    void nameAndDocumentDisagreementIsPreviewedAsAnError(@TempDir Path archive) throws IOException {
+        Path path = archive.resolve("services").resolve(EXTERNAL_SERVICE_ID).resolve(EXTERNAL_UNDER_INTERNAL_NAME);
         Files.createDirectories(path.getParent());
-        Files.writeString(path, "id: svc-external\nname: Orders service\ncontent:\n"
+        Files.writeString(path, "id: " + EXTERNAL_SERVICE_ID + "\nname: Orders service\ncontent:\n"
                 + "  integrationSystemType: EXTERNAL\n");
 
         List<ImportSystemResult> preview = serviceWithRealDeserializer().getSystemsImportPreview(
                 archive.toFile(), ImportInstructionsConfig.builder().build());
 
-        ImportSystemResult result = resultFor(preview, "svc-external");
-        assertThat(result.getRequiredAction(), equalTo(SystemCompareAction.ERROR));
-        assertThat(result.getMessage(), containsString("INTERNAL"));
-        assertThat(result.getMessage(), containsString("EXTERNAL"));
+        ImportSystemResult result = resultFor(preview, EXTERNAL_SERVICE_ID);
+        assertEquals(SystemCompareAction.ERROR, result.getRequiredAction());
+        assertMessageContains(result, "INTERNAL");
+        assertMessageContains(result, "EXTERNAL");
     }
 
     @Test
-    void aFileStatingNoTypeAtAllIsPreviewedAsAnError(@TempDir Path archive) throws IOException {
-        writeServiceFile(archive, "svc-external", "svc-external.service.qip.yaml");
+    @DisplayName("a file stating no type at all is previewed as an error")
+    void fileStatingNoTypeIsPreviewedAsAnError(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, EXTERNAL_SERVICE_ID, EXTERNAL_SERVICE_ID + ".service.qip.yaml");
 
         List<ImportSystemResult> preview = serviceWithRealDeserializer().getSystemsImportPreview(
                 archive.toFile(), ImportInstructionsConfig.builder().build());
 
-        assertThat(resultFor(preview, "svc-external").getRequiredAction(), equalTo(SystemCompareAction.ERROR));
+        assertEquals(SystemCompareAction.ERROR, resultFor(preview, EXTERNAL_SERVICE_ID).getRequiredAction());
     }
 
     /**
@@ -485,28 +498,30 @@ class SystemExportImportServiceTest {
      * as a clean UPDATE and only fails once the user has committed.
      */
     @Test
-    void aFileSwitchingTheTypeOfAStoredServiceIsPreviewedAsAnError(@TempDir Path archive) throws IOException {
-        writeServiceFile(archive, "svc-external", "svc-external.internal-service.qip.yaml");
-        when(systemService.getByIdOrNull("svc-external")).thenReturn(stored(IntegrationSystemType.EXTERNAL));
+    @DisplayName("a file switching the type of a stored service is previewed as an error")
+    void typeSwitchIsPreviewedAsAnError(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, EXTERNAL_SERVICE_ID, EXTERNAL_UNDER_INTERNAL_NAME);
+        when(systemService.getByIdOrNull(EXTERNAL_SERVICE_ID)).thenReturn(stored(IntegrationSystemType.EXTERNAL));
 
         List<ImportSystemResult> preview = serviceWithRealDeserializer().getSystemsImportPreview(
                 archive.toFile(), ImportInstructionsConfig.builder().build());
 
-        ImportSystemResult result = resultFor(preview, "svc-external");
-        assertThat(result.getRequiredAction(), equalTo(SystemCompareAction.ERROR));
-        assertThat(result.getMessage(), containsString("EXTERNAL"));
-        assertThat(result.getMessage(), containsString("INTERNAL"));
+        ImportSystemResult result = resultFor(preview, EXTERNAL_SERVICE_ID);
+        assertEquals(SystemCompareAction.ERROR, result.getRequiredAction());
+        assertMessageContains(result, "EXTERNAL");
+        assertMessageContains(result, "INTERNAL");
     }
 
     @Test
-    void aFileKeepingTheTypeOfAStoredServiceIsStillPreviewedAsAnUpdate(@TempDir Path archive) throws IOException {
-        writeServiceFile(archive, "svc-external", "svc-external.internal-service.qip.yaml");
-        when(systemService.getByIdOrNull("svc-external")).thenReturn(stored(IntegrationSystemType.INTERNAL));
+    @DisplayName("a file keeping the type of a stored service is still previewed as an update")
+    void unchangedTypeIsStillPreviewedAsAnUpdate(@TempDir Path archive) throws IOException {
+        writeServiceFile(archive, EXTERNAL_SERVICE_ID, EXTERNAL_UNDER_INTERNAL_NAME);
+        when(systemService.getByIdOrNull(EXTERNAL_SERVICE_ID)).thenReturn(stored(IntegrationSystemType.INTERNAL));
 
         List<ImportSystemResult> preview = serviceWithRealDeserializer().getSystemsImportPreview(
                 archive.toFile(), ImportInstructionsConfig.builder().build());
 
-        assertThat(resultFor(preview, "svc-external").getRequiredAction(), equalTo(SystemCompareAction.UPDATE));
+        assertEquals(SystemCompareAction.UPDATE, resultFor(preview, EXTERNAL_SERVICE_ID).getRequiredAction());
     }
 
     // --- helpers ---------------------------------------------------------------------------------------------------
@@ -553,6 +568,11 @@ class SystemExportImportServiceTest {
                         () -> "service " + system.getId() + " was imported with no type")));
     }
 
+    private static void assertMessageContains(ImportSystemResult result, String expected) {
+        assertTrue(result.getMessage() != null && result.getMessage().contains(expected),
+                () -> "expected the message to contain '" + expected + "', got: " + result.getMessage());
+    }
+
     private static Set<ImportSystemStatus> statusesOf(List<ImportSystemResult> results) {
         return results.stream().map(ImportSystemResult::getStatus).collect(Collectors.toSet());
     }
@@ -594,28 +614,12 @@ class SystemExportImportServiceTest {
                 .orElseThrow(() -> new AssertionError("no result for " + serviceId + " in " + idsOf(results)));
     }
 
-    /** The stored counterpart of the {@code svc-external} file the preview tests write. */
+    /** The stored counterpart of the file the preview tests write. */
     private static IntegrationSystem stored(IntegrationSystemType type) {
         return IntegrationSystem.builder()
-                .id("svc-external")
+                .id(EXTERNAL_SERVICE_ID)
                 .name("Orders service")
                 .integrationSystemType(type)
-                .build();
-    }
-
-    private static IntegrationSystem systemWith(IntegrationSystemType type, int environmentCount) {
-        List<Environment> environments = new LinkedList<>();
-        for (int i = 0; i < environmentCount; i++) {
-            Environment environment = new Environment();
-            environment.setId("environment-" + (i + 1));
-            environment.setLabels(new ArrayList<>());
-            environments.add(environment);
-        }
-        return IntegrationSystem.builder()
-                .id(SYSTEM_ID)
-                .name(SYSTEM_NAME)
-                .integrationSystemType(type)
-                .environments(environments)
                 .build();
     }
 }

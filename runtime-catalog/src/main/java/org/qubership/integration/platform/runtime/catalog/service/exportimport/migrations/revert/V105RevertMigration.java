@@ -12,31 +12,30 @@ import org.springframework.stereotype.Component;
 import java.util.Optional;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTENT;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.INTEGRATION_SYSTEM_TYPE;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil.removeMigrationVersion;
 
 /**
- * Reverts the #553 move of a service's type out of the document and into the file name, for
- * {@code QIP_EXPORT_LEGACY_FORMAT}: the type goes back into {@code content.integrationSystemType}, the per-type
- * {@code $schema} back to the plain service one, and {@code 105} is stripped from {@code content.migrations} so a
- * re-import runs the forward migration again instead of computing an empty version set.
+ * Puts a service's type back into {@code content.integrationSystemType} for {@code QIP_EXPORT_LEGACY_FORMAT}, restores
+ * the plain service {@code $schema}, and strips {@code 105} from {@code content.migrations} so a re-import runs the
+ * forward migration again instead of computing an empty version set.
  *
- * <p>The two scopes differ on purpose. {@code supportsDocument} is <b>broad</b> — every document stamped from the
+ * <p>The two scopes differ on purpose. {@code supportsDocument} is <b>broad</b>: every document stamped from the
  * service migration list, context and MCP services included, because {@code ContextServiceDtoMapper} stamps them from
  * that same list and a kept 105 claim makes their legacy export unimportable by an older QIP. The write is
  * <b>narrow</b>: only a document whose {@code $schema} is one of the three per-type URIs gets a type field, or a
  * context service ends up carrying a service type it never had. Gating the whole migration narrowly instead is
- * circular — {@code revert()} never runs on a document {@code supportsDocument} rejected.
+ * circular, because {@code revert()} never runs on a document {@code supportsDocument} rejected.
  *
  * <p>The restored {@code $schema} is what V104 and V103 then see: {@code FileMigrationService} sorts reverts by
- * version descending and re-evaluates {@code supportsDocument} on each intermediate result. It does not reach the
+ * version descending and re-evaluates {@code supportsDocument} on each intermediate result. It never reaches the
  * exported file, because {@link V101RevertMigration} runs last and rebuilds each node from {@code id}, {@code name},
- * and the children of {@code content}; it keeps the document in the plain service shape for the rest of the chain.
+ * and the children of {@code content}.
  */
 @Component
 public class V105RevertMigration implements RevertMigration {
 
     private static final String SCHEMA = "$schema";
-    private static final String INTEGRATION_SYSTEM_TYPE = "integrationSystemType";
 
     private final ServiceDocumentMatcher serviceDocumentMatcher;
     private final ServiceTypeFiles serviceTypeFiles;
@@ -65,8 +64,10 @@ public class V105RevertMigration implements RevertMigration {
 
     @Override
     public ObjectNode revert(ObjectNode node) {
+        // A copy on both paths: FileMigrationService feeds each result into the next migration, and a returned alias
+        // of the input makes the chain mutate a node an earlier step still holds.
         if (!(node.get(CONTENT) instanceof ObjectNode)) {
-            return node;
+            return node.deepCopy();
         }
         ObjectNode result = node.deepCopy();
         ObjectNode content = (ObjectNode) result.get(CONTENT);

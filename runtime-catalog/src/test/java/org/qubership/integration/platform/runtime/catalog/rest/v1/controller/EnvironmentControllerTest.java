@@ -13,29 +13,24 @@ import org.qubership.integration.platform.runtime.catalog.model.dto.system.Envir
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.EnvironmentMapper;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.qubership.integration.platform.runtime.catalog.testutils.ServiceFixtures.SYSTEM_ID;
+import static org.qubership.integration.platform.runtime.catalog.testutils.ServiceFixtures.systemWith;
 
 @ExtendWith(MockitoExtension.class)
 class EnvironmentControllerTest {
 
-    private static final String SYSTEM_ID = "system-1";
-    private static final String SYSTEM_NAME = "Test service";
     private static final String ENVIRONMENT_ID = "environment-1";
 
     @Mock EnvironmentService environmentService;
@@ -57,8 +52,8 @@ class EnvironmentControllerTest {
         BadRequestException exception = assertThrows(BadRequestException.class,
                 () -> controller.createEnvironment(SYSTEM_ID, new EnvironmentRequestDTO()));
 
-        assertThat(exception.getMessage(), containsString(SYSTEM_ID));
-        assertThat(exception.getMessage(), containsString("internal"));
+        assertMessageContains(exception, SYSTEM_ID);
+        assertMessageContains(exception, "internal");
         verify(environmentService, never()).create(any(), any());
     }
 
@@ -70,7 +65,7 @@ class EnvironmentControllerTest {
         BadRequestException exception = assertThrows(BadRequestException.class,
                 () -> controller.createEnvironment(SYSTEM_ID, new EnvironmentRequestDTO()));
 
-        assertThat(exception.getMessage(), containsString("implemented"));
+        assertMessageContains(exception, "implemented");
         verify(environmentService, never()).create(any(), any());
     }
 
@@ -82,7 +77,7 @@ class EnvironmentControllerTest {
 
         ResponseEntity<EnvironmentDTO> response = controller.createEnvironment(SYSTEM_ID, new EnvironmentRequestDTO());
 
-        assertThat(response.getStatusCode(), equalTo(HttpStatus.CREATED));
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
         verify(environmentMapper).toDTO(created);
     }
 
@@ -94,7 +89,7 @@ class EnvironmentControllerTest {
 
         ResponseEntity<EnvironmentDTO> response = controller.createEnvironment(SYSTEM_ID, new EnvironmentRequestDTO());
 
-        assertThat(response.getStatusCode(), equalTo(HttpStatus.CREATED));
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
     }
 
     @Test
@@ -105,7 +100,7 @@ class EnvironmentControllerTest {
 
         ResponseEntity<EnvironmentDTO> response = controller.createEnvironment(SYSTEM_ID, new EnvironmentRequestDTO());
 
-        assertThat(response.getStatusCode(), equalTo(HttpStatus.CREATED));
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
     }
 
     @Test
@@ -130,7 +125,7 @@ class EnvironmentControllerTest {
         ResponseEntity<EnvironmentDTO> response =
                 controller.updateEnvironment(SYSTEM_ID, ENVIRONMENT_ID, new EnvironmentRequestDTO());
 
-        assertThat(response.getStatusCode(), equalTo(HttpStatus.OK));
+        assertEquals(HttpStatus.OK, response.getStatusCode());
         verify(environmentService).update(existing);
         verify(systemService, never()).getByIdOrNull(any());
     }
@@ -144,7 +139,7 @@ class EnvironmentControllerTest {
         EntityNotFoundException exception = assertThrows(EntityNotFoundException.class,
                 () -> controller.createEnvironment(SYSTEM_ID, new EnvironmentRequestDTO()));
 
-        assertThat(exception.getMessage(), containsString(SYSTEM_ID));
+        assertMessageContains(exception, SYSTEM_ID);
         verify(environmentService, never()).create(any(), any());
     }
 
@@ -154,18 +149,8 @@ class EnvironmentControllerTest {
         return created;
     }
 
-    private static IntegrationSystem systemWith(IntegrationSystemType type, int environmentCount) {
-        List<Environment> environments = new ArrayList<>();
-        for (int i = 0; i < environmentCount; i++) {
-            Environment environment = new Environment();
-            environment.setId("environment-" + (i + 1));
-            environments.add(environment);
-        }
-        return IntegrationSystem.builder()
-                .id(SYSTEM_ID)
-                .name(SYSTEM_NAME)
-                .integrationSystemType(type)
-                .environments(environments)
-                .build();
+    private static void assertMessageContains(Exception exception, String expected) {
+        assertTrue(exception.getMessage().contains(expected),
+                () -> "expected the message to contain '" + expected + "', got: " + exception.getMessage());
     }
 }

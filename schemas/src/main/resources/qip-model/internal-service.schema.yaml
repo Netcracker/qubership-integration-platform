@@ -14,17 +14,10 @@ properties:
   content:
     type: object
     allOf:
-      - $ref: "http://qubership.org/schemas/product/qip/common-properties/description-property.schema.yaml"
-      - $ref: "http://qubership.org/schemas/product/qip/common-properties/labels-property.schema.yaml"
-      - $ref: "http://qubership.org/schemas/product/qip/common-properties/migrations-property.schema.yaml"
-      - $ref: "http://qubership.org/schemas/product/qip/common-properties/service-content.schema.yaml"
-    # The file name states the type, so the document must not restate it.
-    # additionalProperties would not do: in draft-07 it does not see properties contributed through allOf $refs.
-    not:
-      required:
-        - integrationSystemType
+      - $ref: "http://qubership.org/schemas/product/qip/common-properties/typed-service-content.schema.yaml"
     properties:
-      # Internal services alone carry this: it is the deployed name the platform addresses the service by.
+      # The deployed name an internal service is addressed by. The exporter writes the column whatever the type, so a
+      # document of another type can carry it undeclared.
       internalServiceName:
         type: string
         title: Internal service name
@@ -32,11 +25,7 @@ properties:
         title: Protocol
         $ref: "#/definitions/Protocol"
       environments:
-        type: array
-        title: Environments
         maxItems: 1
-        items:
-          $ref: "http://qubership.org/schemas/product/qip/common-properties/service-content.schema.yaml#/definitions/Environment"
 required:
   - content
 definitions:

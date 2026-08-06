@@ -17,23 +17,19 @@ import org.qubership.integration.platform.runtime.catalog.service.ElementService
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
 import org.springframework.http.ResponseEntity;
 
-import java.util.ArrayList;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.qubership.integration.platform.runtime.catalog.testutils.ServiceFixtures.SYSTEM_ID;
+import static org.qubership.integration.platform.runtime.catalog.testutils.ServiceFixtures.systemWith;
 
 @ExtendWith(MockitoExtension.class)
 class SystemControllerTest {
-
-    private static final String SYSTEM_ID = "system-1";
-    private static final String SYSTEM_NAME = "Orders service";
 
     @Mock SystemService systemService;
     @Mock ElementService elementService;
@@ -50,14 +46,14 @@ class SystemControllerTest {
     @Test
     @DisplayName("PUT with a different type leaves the stored type alone")
     void putWithADifferentTypeDoesNotChangeTheStoredType() {
-        IntegrationSystem stored = systemWith(IntegrationSystemType.EXTERNAL);
+        IntegrationSystem stored = systemWith(IntegrationSystemType.EXTERNAL, 0);
         when(systemService.getByIdOrNull(SYSTEM_ID)).thenReturn(stored);
         when(systemService.save(stored)).thenReturn(stored);
 
         ResponseEntity<SystemDTO> response = controller.updateSystem(SYSTEM_ID, requestWith(IntegrationSystemType.INTERNAL));
 
-        assertThat(stored.getIntegrationSystemType(), equalTo(IntegrationSystemType.EXTERNAL));
-        assertThat(response.getBody().getType(), equalTo(IntegrationSystemType.EXTERNAL));
+        assertEquals(IntegrationSystemType.EXTERNAL, stored.getIntegrationSystemType());
+        assertEquals(IntegrationSystemType.EXTERNAL, response.getBody().getType());
     }
 
     /**
@@ -67,23 +63,23 @@ class SystemControllerTest {
     @Test
     @DisplayName("the merge mapper does not map the service type")
     void theMergeMapperDoesNotMapTheServiceType() {
-        IntegrationSystem stored = systemWith(IntegrationSystemType.EXTERNAL);
+        IntegrationSystem stored = systemWith(IntegrationSystemType.EXTERNAL, 0);
 
         systemMapper.mergeWithoutLabels(requestWith(IntegrationSystemType.IMPLEMENTED), stored);
 
-        assertThat(stored.getIntegrationSystemType(), equalTo(IntegrationSystemType.EXTERNAL));
-        assertThat(stored.getName(), equalTo("Renamed service"));
+        assertEquals(IntegrationSystemType.EXTERNAL, stored.getIntegrationSystemType());
+        assertEquals("Renamed service", stored.getName());
     }
 
     /** PATCH shares the property set with PUT and must not open a second door onto the type. */
     @Test
     @DisplayName("the patch merge mapper does not map the service type")
     void thePatchMergeMapperDoesNotMapTheServiceType() {
-        IntegrationSystem stored = systemWith(IntegrationSystemType.EXTERNAL);
+        IntegrationSystem stored = systemWith(IntegrationSystemType.EXTERNAL, 0);
 
         systemMapper.patchMergeWithoutLabels(requestWith(IntegrationSystemType.IMPLEMENTED), stored);
 
-        assertThat(stored.getIntegrationSystemType(), equalTo(IntegrationSystemType.EXTERNAL));
+        assertEquals(IntegrationSystemType.EXTERNAL, stored.getIntegrationSystemType());
     }
 
     @Test
@@ -94,7 +90,7 @@ class SystemControllerTest {
         EntityNotFoundException exception = assertThrows(EntityNotFoundException.class,
                 () -> controller.updateSystem(SYSTEM_ID, requestWith(IntegrationSystemType.INTERNAL)));
 
-        assertThat(exception.getMessage(), containsString(SYSTEM_ID));
+        assertMessageContains(exception, SYSTEM_ID);
         verify(systemService, never()).create(any());
         verify(systemService, never()).create(any(), anyBoolean());
         verify(systemService, never()).save(any());
@@ -109,22 +105,27 @@ class SystemControllerTest {
         EntityNotFoundException exception = assertThrows(EntityNotFoundException.class,
                 () -> controller.updateSyncStatus(SYSTEM_ID, requestWith(IntegrationSystemType.INTERNAL)));
 
-        assertThat(exception.getMessage(), containsString(SYSTEM_ID));
+        assertMessageContains(exception, SYSTEM_ID);
         verify(systemService, never()).save(any());
     }
 
     @Test
     @DisplayName("PUT on a known id still applies the mutable fields")
     void putOnAKnownIdAppliesTheMutableFields() {
-        IntegrationSystem stored = systemWith(IntegrationSystemType.EXTERNAL);
+        IntegrationSystem stored = systemWith(IntegrationSystemType.EXTERNAL, 0);
         when(systemService.getByIdOrNull(SYSTEM_ID)).thenReturn(stored);
         when(systemService.save(stored)).thenReturn(stored);
 
         controller.updateSystem(SYSTEM_ID, requestWith(IntegrationSystemType.EXTERNAL));
 
-        assertThat(stored.getName(), equalTo("Renamed service"));
-        assertThat(stored.getDescription(), equalTo("Renamed on update"));
+        assertEquals("Renamed service", stored.getName());
+        assertEquals("Renamed on update", stored.getDescription());
         verify(systemService).updateSystemModelCompiledLibraryAsync(stored);
+    }
+
+    private static void assertMessageContains(Exception exception, String expected) {
+        assertTrue(exception.getMessage().contains(expected),
+                () -> "expected the message to contain '" + expected + "', got: " + exception.getMessage());
     }
 
     private static SystemRequestDTO requestWith(IntegrationSystemType type) {
@@ -133,14 +134,5 @@ class SystemControllerTest {
         request.setDescription("Renamed on update");
         request.setType(type);
         return request;
-    }
-
-    private static IntegrationSystem systemWith(IntegrationSystemType type) {
-        return IntegrationSystem.builder()
-                .id(SYSTEM_ID)
-                .name(SYSTEM_NAME)
-                .integrationSystemType(type)
-                .environments(new ArrayList<>())
-                .build();
     }
 }

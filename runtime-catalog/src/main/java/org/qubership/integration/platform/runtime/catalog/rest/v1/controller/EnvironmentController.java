@@ -29,8 +29,8 @@ import org.qubership.integration.platform.runtime.catalog.model.system.Environme
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.service.EnvironmentService;
-import org.qubership.integration.platform.runtime.catalog.service.SystemBaseService;
 import org.qubership.integration.platform.runtime.catalog.service.SystemService;
+import org.qubership.integration.platform.runtime.catalog.util.EnvironmentLimitUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -93,10 +93,10 @@ public class EnvironmentController {
         IntegrationSystem system = systemService.getByIdOrNull(systemId);
         // An unknown id used to reach the next line and answer 500. PUT /v1/systems/{id} reports the same case as 404.
         if (system == null) {
-            throw new EntityNotFoundException("Can't find system with id: " + systemId
+            throw new EntityNotFoundException(SystemService.SYSTEM_WITH_ID_NOT_FOUND_MESSAGE + systemId
                     + ". Create the service with POST /v1/systems. No environment was created.");
         }
-        SystemBaseService.validateEnvironmentCount(system, system.getEnvironments().size() + 1);
+        EnvironmentLimitUtils.validate(system, system.getEnvironments().size() + 1);
         environment = environmentService.create(environment, system);
         return new ResponseEntity<>(environmentMapper.toDTO(environment), HttpStatus.CREATED);
     }
@@ -115,6 +115,8 @@ public class EnvironmentController {
             environment = environmentService.update(environment);
             return ResponseEntity.ok(environmentMapper.toDTO(environment));
         } else {
+            // Unlike PUT /v1/systems/{id}, an unknown environment id creates one. The service is known, the caller
+            // picks its id, and nothing immutable is being chosen here; the environment limit still applies.
             return createEnvironment(systemId, environmentRequestDTO);
         }
     }

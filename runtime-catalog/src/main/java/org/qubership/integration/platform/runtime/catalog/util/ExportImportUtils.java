@@ -221,8 +221,8 @@ public class ExportImportUtils {
     }
 
     /**
-     * The service file name. Since #553 the current format states the type in the name, so the type is required there;
-     * the legacy flat name carries none and states it in {@code content.integrationSystemType} instead.
+     * The service file name. The current format states the type in the name, so the type is required there; the legacy
+     * flat name carries none and states it in {@code content.integrationSystemType} instead.
      */
     public static String generateMainSystemFileExportName(
             String id, String appName, boolean isLegacyExport, IntegrationSystemType type) {
@@ -299,9 +299,9 @@ public class ExportImportUtils {
      * Every service file of an unpacked archive: one carrying any of {@code yamlPostfixes} in its name, or the
      * deprecated flat {@code service-<id>.yaml} name, which is ORed in for every caller.
      *
-     * <p>Since #553 a plain service states its type in the name, so its discovery needs four postfixes at once. Take
-     * them in one call rather than calling the single-postfix overload once per postfix: the prefix check is
-     * unconditional, so a legacy-named file would come back once per call and import once per copy.
+     * <p>A plain service states its type in the name, so its discovery needs four postfixes at once. Take them in one
+     * call rather than calling the single-postfix overload once per postfix: the prefix check is unconditional, so a
+     * legacy-named file would come back once per call and import once per copy.
      */
     public static List<File> extractSystemsFromImportDirectory(
             String importFolderName, Collection<String> yamlPostfixes) throws IOException {

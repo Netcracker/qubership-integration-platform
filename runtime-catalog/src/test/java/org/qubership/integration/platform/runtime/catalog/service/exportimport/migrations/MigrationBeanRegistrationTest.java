@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.chain.ChainImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert.RevertMigration;
@@ -38,12 +39,14 @@ class MigrationBeanRegistrationTest {
                     + "here to accept that a rollout package skips it.";
 
     @Test
-    void everyRevertMigrationIsAComponentWithItsOwnVersion() {
+    @DisplayName("every revert migration is a @Component with its own version")
+    void revertMigrationsAreRegistered() {
         assertRegisteredWithUniqueVersions(RevertMigration.class);
     }
 
     @Test
-    void everyServiceImportFileMigrationIsAComponentWithItsOwnVersion() {
+    @DisplayName("every service import migration is a @Component with its own version")
+    void serviceMigrationsAreRegistered() {
         assertRegisteredWithUniqueVersions(ServiceImportFileMigration.class);
     }
 
@@ -54,14 +57,16 @@ class MigrationBeanRegistrationTest {
      * on the rollout path once. Pinning the claimed set makes the next one a decision somebody has to take.
      */
     @Test
-    void theRolloutImportPathClaimsOnlyTheseServiceMigrationVersions() {
+    @DisplayName("the rollout import path claims only these service migration versions")
+    void rolloutClaimsTheseServiceVersions() {
         assertEquals(Set.of(100, 101, 102, 103),
                 versionsClaimedByRolloutImport(ServiceImportFileMigration.class),
                 SKIPPED_ON_ROLLOUT_HINT);
     }
 
     @Test
-    void theRolloutImportPathClaimsOnlyTheseChainMigrationVersions() {
+    @DisplayName("the rollout import path claims only these chain migration versions")
+    void rolloutClaimsTheseChainVersions() {
         assertEquals(Set.of(100, 101, 102, 103, 104, 105, 106, 107, 108),
                 versionsClaimedByRolloutImport(ChainImportFileMigration.class),
                 SKIPPED_ON_ROLLOUT_HINT);
@@ -72,14 +77,16 @@ class MigrationBeanRegistrationTest {
      * missing entry leaves them all running an incomplete chain while staying green. This is the only gate on that.
      */
     @Test
-    void theServiceMigrationTestRegistryHoldsEveryRegisteredMigration() {
+    @DisplayName("the service migration test registry holds every registered migration")
+    void serviceTestRegistryIsComplete() {
         assertEquals(registeredVersions(ServiceImportFileMigration.class),
                 versionsOf(TestServiceMigrations.all(), ImportFileMigration::getVersion),
                 "TestServiceMigrations.all() and the registered @Component migrations have drifted apart");
     }
 
     @Test
-    void theRevertMigrationTestRegistryHoldsEveryRegisteredMigration() {
+    @DisplayName("the revert migration test registry holds every registered migration")
+    void revertTestRegistryIsComplete() {
         List<RevertMigration> registry = TestRevertMigrations.all(URI.create("http://example.org/api.schema.yaml"));
 
         assertEquals(registeredVersions(RevertMigration.class),

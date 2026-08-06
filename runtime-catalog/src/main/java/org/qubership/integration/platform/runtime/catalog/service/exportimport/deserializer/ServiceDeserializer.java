@@ -142,18 +142,16 @@ public class ServiceDeserializer {
     }
 
     /**
-     * Resolves the service type from the file name, falling back to {@code content.integrationSystemType}.
+     * Resolves the service type from the file name, falling back to {@code content.integrationSystemType}. The import
+     * preview calls it as well, so a document the commit path will refuse becomes an error row before the user commits.
      *
      * <p>The name is the primary source because it is the only one a current-format file carries. The field stays as a
-     * fallback for the legacy flat {@code service-<id>.yaml} name, for every pre-#553 archive, and for the rollout
+     * fallback for the legacy flat {@code service-<id>.yaml} name, for every older archive, and for the rollout
      * converter, none of which put a type in the name. {@code $schema} is deliberately not consulted: the VS Code
      * extension stamps whatever a project's {@code .config.qip.yaml} configures, so it identifies nothing.
      *
      * <p>A type missing from both sources fails the import instead of persisting a null. The column is nullable, and a
      * null surfaces much later as an NPE in {@code EntityType.getSystemType}.
-     *
-     * <p>Public because the import preview runs the same rule over the same file: a document the commit path will
-     * refuse has to be reported as an error row before the user commits, not after.
      */
     public void resolveServiceType(IntegrationSystem system, File serviceFile) {
         String fileName = serviceFile.getName();

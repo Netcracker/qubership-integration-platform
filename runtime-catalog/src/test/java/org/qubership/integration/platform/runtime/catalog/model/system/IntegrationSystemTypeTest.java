@@ -1,6 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.model.system;
 
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
@@ -10,7 +10,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -33,40 +32,10 @@ class IntegrationSystemTypeTest {
             IntegrationSystemType.IMPLEMENTED, 1
     );
 
-    @Test
-    void externalAllowsEveryProtocolExceptMetamodel() {
-        Set<OperationProtocol> protocols = IntegrationSystemType.EXTERNAL.allowedProtocols();
-
-        assertFalse(protocols.contains(OperationProtocol.METAMODEL));
-        assertEquals(OperationProtocol.values().length - 1, protocols.size());
-    }
-
-    @Test
-    void internalAllowsEveryProtocol() {
-        assertEquals(Set.of(OperationProtocol.values()), IntegrationSystemType.INTERNAL.allowedProtocols());
-    }
-
-    @Test
-    void implementedAllowsOnlySynchronousProtocols() {
-        assertEquals(
-                Set.of(OperationProtocol.HTTP, OperationProtocol.SOAP, OperationProtocol.GRAPHQL),
-                IntegrationSystemType.IMPLEMENTED.allowedProtocols());
-    }
-
-    @Test
-    void internalAndImplementedAcceptOneEnvironment() {
-        assertEquals(1, IntegrationSystemType.INTERNAL.maxEnvironments());
-        assertEquals(1, IntegrationSystemType.IMPLEMENTED.maxEnvironments());
-    }
-
-    @Test
-    void externalEnvironmentsAreUnbounded() {
-        assertEquals(Integer.MAX_VALUE, IntegrationSystemType.EXTERNAL.maxEnvironments());
-    }
-
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
-    void everyTypeStatesItsProtocolsAndEnvironmentLimit(IntegrationSystemType type) {
+    @DisplayName("every type states its protocols and its environment limit")
+    void everyTypeStatesItsRules(IntegrationSystemType type) {
         assertTrue(EXPECTED_PROTOCOLS.containsKey(type), "no expected protocol set for " + type);
         assertTrue(EXPECTED_MAX_ENVIRONMENTS.containsKey(type), "no expected environment limit for " + type);
 
@@ -76,6 +45,7 @@ class IntegrationSystemTypeTest {
 
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
+    @DisplayName("the allowed protocol set is not modifiable")
     void allowedProtocolsAreNotModifiable(IntegrationSystemType type) {
         Set<OperationProtocol> protocols = type.allowedProtocols();
 

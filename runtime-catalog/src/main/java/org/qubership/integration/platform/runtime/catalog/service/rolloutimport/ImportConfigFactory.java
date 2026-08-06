@@ -65,7 +65,10 @@ public class ImportConfigFactory {
                 } else if (schemas.getContextService().equals(schema)) {
                     contextServices.put(id, configuration);
                 } else {
-                    log.warn("Package item {} carries an unknown $schema {} and is not imported", id, schema);
+                    // Also reached by a schema this service knows but rollout import has no bucket for, MCP services
+                    // and common variables among them, so the message does not claim the schema is unknown.
+                    log.warn("Package item {} carries $schema {}, which rollout import does not handle."
+                            + " The item is skipped.", id, schema);
                 }
             }
         }
@@ -87,8 +90,8 @@ public class ImportConfigFactory {
         );
     }
 
-    // Since #553 a service states its type in the $schema too, so all four URIs land in the service bucket. Leave the
-    // per-type ones out and such an item falls through every branch and is dropped without an error row.
+    // A service states its type in the $schema too, so all four URIs land in the service bucket. Leave the per-type
+    // ones out and such an item falls through every branch and is dropped without an error row.
     private boolean isService(String schema) {
         return schemas.getService().equals(schema) || serviceTypeFiles.typeFromSchemaUri(schema).isPresent();
     }

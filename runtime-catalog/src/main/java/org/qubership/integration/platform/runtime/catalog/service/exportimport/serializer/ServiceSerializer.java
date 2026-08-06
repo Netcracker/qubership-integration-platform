@@ -34,6 +34,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor;
 import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor.ExtractedSchemas;
 import org.qubership.integration.platform.runtime.catalog.service.extractor.OperationSchemaExtractor.OperationKey;
+import org.qubership.integration.platform.runtime.catalog.util.EnvironmentLimitUtils;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -79,6 +80,7 @@ public class ServiceSerializer {
     }
 
     public ExportedSystemObject serialize(IntegrationSystem system) {
+        warnOnEnvironmentLimit(system);
         IntegrationSystemDto integrationSystemDto = integrationSystemDtoMapper.toExternalEntity(system);
         ObjectNode systemNode = fileMigrationService.revertMigrationIfNeeded(yamlMapper.valueToTree(integrationSystemDto));
 
@@ -218,5 +220,16 @@ public class ServiceSerializer {
     private static String textOrNull(ObjectNode node, String field) {
         JsonNode value = node.get(field);
         return value == null || value.isNull() ? null : value.asText();
+    }
+
+    /**
+     * A row holding more environments than its type allows still exports, because refusing would leave no way to
+     * extract it at all. Rows in that shape predate the rule: IMPLEMENTED was never checked, and INTERNAL was
+     * unchecked on import-create. The warning is what tells the operator the archive does not import as it stands.
+     */
+    private static void warnOnEnvironmentLimit(IntegrationSystem system) {
+        EnvironmentLimitUtils.violation(system, system.getEnvironments().size()).ifPresent(reason ->
+                log.warn("{} The archive is produced anyway, but re-importing this service fails until the extra"
+                        + " environments are removed.", reason));
     }
 }

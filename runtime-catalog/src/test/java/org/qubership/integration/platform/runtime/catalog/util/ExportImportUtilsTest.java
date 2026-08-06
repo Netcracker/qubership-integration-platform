@@ -213,12 +213,11 @@ class ExportImportUtilsTest {
     }
 
     /**
-     * Import discovery after #553: the three per-type postfixes, the pre-#553 {@code .service.}, and the deprecated
-     * flat prefix, in one walk. Everything else stays out, which is what keeps context and MCP services on their own
-     * import path.
+     * Import discovery: the three per-type postfixes, the older {@code .service.}, and the deprecated flat prefix, in
+     * one walk. Everything else stays out, which is what keeps context and MCP services on their own import path.
      */
     @Test
-    void findsEveryPlainServiceFileNameAndNothingElse(@TempDir Path tempDir) throws IOException {
+    void testExtractSystemsFromImportDirectoryFindsEveryPlainServiceAndNothingElse(@TempDir Path tempDir) throws IOException {
         writeServiceFile(tempDir, "svc-a", "svc-a.external-service.qip.yaml");
         writeServiceFile(tempDir, "svc-b", "svc-b.internal-service.qip.yaml");
         writeServiceFile(tempDir, "svc-c", "svc-c.implemented-service.qip.yaml");
@@ -241,12 +240,12 @@ class ExportImportUtilsTest {
     }
 
     /**
-     * The compatibility claim the whole of #553 rests on, asserted: a pre-#553 QIP scanned for {@code .service.} and
-     * the flat prefix only, so it never discovers a post-#553 plain service — such a service is silently absent from
-     * its import result rather than reported as an error. Change a postfix so that it does match and this fails.
+     * The compatibility claim the per-type file names rest on, asserted: an older QIP scanned for {@code .service.}
+     * and the flat prefix only, so it never discovers a per-type service. Such a service is silently absent from its
+     * import result rather than reported as an error. Change a postfix so that it does match and this fails.
      */
     @Test
-    void aPre553ScanFindsNoneOfTheNewServiceFileNames(@TempDir Path tempDir) throws IOException {
+    void testExtractSystemsFromImportDirectoryWithOneLegacyPostfixFindsNoPerTypeName(@TempDir Path tempDir) throws IOException {
         writeServiceFile(tempDir, "svc-a", "svc-a.external-service.qip.yaml");
         writeServiceFile(tempDir, "svc-b", "svc-b.internal-service.qip.yaml");
         writeServiceFile(tempDir, "svc-c", "svc-c.implemented-service.qip.yaml");
@@ -262,7 +261,7 @@ class ExportImportUtilsTest {
      * so four single-postfix calls return a legacy-named file four times and the archive imports it four times over.
      */
     @Test
-    void findsALegacyNamedFileOnceWhateverThePostfixCount(@TempDir Path tempDir) throws IOException {
+    void testExtractSystemsFromImportDirectoryFindsALegacyNamedFileOnce(@TempDir Path tempDir) throws IOException {
         writeServiceFile(tempDir, "svc-e", "service-svc-e.yaml");
         String directory = tempDir.toAbsolutePath().toString();
 
@@ -276,12 +275,6 @@ class ExportImportUtilsTest {
         assertEquals(SERVICE_POSTFIXES.size(), oneAtATime,
                 "the single-postfix overload returns the legacy file for every postfix, so the results must never"
                         + " be summed");
-    }
-
-    private static void writeServiceFile(Path root, String serviceDirectory, String fileName) throws IOException {
-        Path path = root.resolve("services").resolve(serviceDirectory).resolve(fileName);
-        Files.createDirectories(path.getParent());
-        Files.writeString(path, "id: ignored\n");
     }
 
     @Test
@@ -298,5 +291,11 @@ class ExportImportUtilsTest {
         Path filePath = baseDir.toPath().resolve("test.txt");
         Files.writeString(filePath, "hello");
         assertEquals("hello", ExportImportUtils.getFileContentByName(baseDir, "test.txt"));
+    }
+
+    private static void writeServiceFile(Path root, String serviceDirectory, String fileName) throws IOException {
+        Path path = root.resolve("services").resolve(serviceDirectory).resolve(fileName);
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, "id: ignored\n");
     }
 }

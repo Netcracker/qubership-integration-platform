@@ -31,10 +31,7 @@ import java.util.zip.ZipOutputStream;
 public class ExportedIntegrationSystem extends ExportedSystemObject {
     private List<ExportedApiGroup> apiGroups;
 
-    /**
-     * The exported node no longer carries the type — since #553 the file name states it, and the writer visitor builds
-     * that name from here.
-     */
+    /** The exported node carries no type: the file name states it, and the writer visitor builds that name from here. */
     private IntegrationSystemType type;
 
     public ExportedIntegrationSystem(

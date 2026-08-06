@@ -39,6 +39,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -47,8 +48,6 @@ import java.util.stream.Collectors;
 @RequestMapping("/v1/systems")
 @Tag(name = "system-controller", description = "System Controller")
 public class SystemController {
-
-    private static final String SYSTEM_WITH_ID_NOT_FOUND = "Can't find service with id: ";
 
     private final SystemService systemService;
     private final SystemMapper systemMapper;
@@ -115,20 +114,7 @@ public class SystemController {
     public ResponseEntity<SystemDTO> updateSystem(@PathVariable @Parameter(description = "Service id") String systemId,
                                                   @RequestBody @Parameter(description = "Service modifying request object") SystemRequestDTO systemDto) {
         log.info("Request to update system {}", systemId);
-        IntegrationSystem system = systemService.getByIdOrNull(systemId);
-        // An unknown id used to create the service, which let the caller pick its type. Creation is POST's job.
-        if (system == null) {
-            throw new EntityNotFoundException(SYSTEM_WITH_ID_NOT_FOUND + systemId
-                    + ". Create the service with POST /v1/systems. Nothing was updated.");
-        }
-        String name = system.getName();
-        systemMapper.mergeWithoutLabels(systemDto, system);
-        systemService.replaceLabels(system, systemMapper.asLabelRequests(systemDto.getLabels()));
-        system = systemService.save(system);
-        if (!system.getName().equals(name)) {
-            systemService.updateSystemModelCompiledLibraryAsync(system);
-        }
-        return ResponseEntity.ok(systemMapper.toDTO(system));
+        return applyUpdate(systemId, systemDto, systemMapper::mergeWithoutLabels);
     }
 
     @PatchMapping(value = "/{systemId}", produces = "application/json")
@@ -137,14 +123,22 @@ public class SystemController {
     public ResponseEntity<SystemDTO> updateSyncStatus(@PathVariable @Parameter(description = "Service id") String systemId,
                                                       @RequestBody @Parameter(description = "Service modifying request object") SystemRequestDTO systemDto) {
         log.info("Request to update system sync status {}", systemId);
+        return applyUpdate(systemId, systemDto, systemMapper::patchMergeWithoutLabels);
+    }
+
+    /**
+     * The body PUT and PATCH share; only the merge differs. An unknown id used to create the service, which let the
+     * caller pick its type, so both doors now report it instead. Neither merge maps the type.
+     */
+    private ResponseEntity<SystemDTO> applyUpdate(
+            String systemId, SystemRequestDTO systemDto, BiConsumer<SystemRequestDTO, IntegrationSystem> merge) {
         IntegrationSystem system = systemService.getByIdOrNull(systemId);
-        // The second door onto a service, so it answers an unknown id the way PUT does, with a message.
         if (system == null) {
-            throw new EntityNotFoundException(SYSTEM_WITH_ID_NOT_FOUND + systemId
+            throw new EntityNotFoundException(SystemService.SYSTEM_WITH_ID_NOT_FOUND_MESSAGE + systemId
                     + ". Create the service with POST /v1/systems. Nothing was updated.");
         }
         String name = system.getName();
-        systemMapper.patchMergeWithoutLabels(systemDto, system);
+        merge.accept(systemDto, system);
         systemService.replaceLabels(system, systemMapper.asLabelRequests(systemDto.getLabels()));
         system = systemService.save(system);
         if (!system.getName().equals(name)) {

@@ -2,6 +2,7 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -39,19 +40,18 @@ class ServiceTypeFilesTest {
 
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
-    void resolvesEachTypeFromTheFileNameItExportsTo(IntegrationSystemType type) {
+    @DisplayName("each type resolves from the file name it exports to")
+    void typeFromExportedFileName(IntegrationSystemType type) {
         String fileName = SERVICE_ID + ServiceTypeFiles.postfix(type) + APP_NAME + ".yaml";
 
         assertEquals(Optional.of(type), ServiceTypeFiles.typeFromFileName(fileName));
     }
 
-    /**
-     * The pre-#553 name and the legacy flat name both state no type — the document field is the only source for them,
-     * which is why {@code content.integrationSystemType} stays a resolution fallback.
-     */
+    /** The older names state no type, which is why {@code content.integrationSystemType} stays a fallback. */
     @ParameterizedTest
     @ValueSource(strings = {"system-1.service.qip.yaml", "service-system-1.yaml"})
-    void resolvesNoTypeFromANameThatStatesNone(String fileName) {
+    @DisplayName("a name that states no type resolves to none")
+    void typeFromNameStatingNone(String fileName) {
         assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(fileName));
     }
 
@@ -61,18 +61,21 @@ class ServiceTypeFilesTest {
             "context-service-context-1.yaml",
             "mcp-1.mcp-service.qip.yaml",
             "mcp-service-mcp-1.yaml"})
-    void neverTakesAContextOrMcpServiceForAPlainOne(String fileName) {
+    @DisplayName("a context or MCP service name is never taken for a plain one")
+    void typeFromContextOrMcpName(String fileName) {
         assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(fileName));
     }
 
     @Test
-    void resolvesNoTypeFromAMissingFileName() {
+    @DisplayName("a missing file name resolves to no type")
+    void typeFromNullFileName() {
         assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(null));
     }
 
     /** Two postfixes state no single type, so the name resolves to none rather than to the first enum constant. */
     @Test
-    void resolvesNoTypeFromANameCarryingTwoPostfixes() {
+    @DisplayName("a name carrying two postfixes resolves to no type")
+    void typeFromNameWithTwoPostfixes() {
         assertEquals(Optional.empty(),
                 ServiceTypeFiles.typeFromFileName("system-1.external-service.internal-service.qip.yaml"));
     }
@@ -80,7 +83,8 @@ class ServiceTypeFilesTest {
     // --- type -> postfix and URI -----------------------------------------------------------------------------------
 
     @Test
-    void spellsEachTypeInTheFileNameAsTheSchemasDo() {
+    @DisplayName("each type is spelled in the file name the way the schemas spell it")
+    void postfixPerType() {
         assertEquals(".external-service.", ServiceTypeFiles.postfix(IntegrationSystemType.EXTERNAL));
         assertEquals(".internal-service.", ServiceTypeFiles.postfix(IntegrationSystemType.INTERNAL));
         assertEquals(".implemented-service.", ServiceTypeFiles.postfix(IntegrationSystemType.IMPLEMENTED));
@@ -89,7 +93,8 @@ class ServiceTypeFilesTest {
     /** A postfix must not match {@code .service.}, or import discovery cannot tell the two formats apart. */
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
-    void keepsEveryPostfixDistinctFromThePlainServiceOne(IntegrationSystemType type) {
+    @DisplayName("every postfix stays distinct from the plain service one")
+    void postfixIsDistinctFromPlainService(IntegrationSystemType type) {
         assertTrue(ServiceTypeFiles.postfix(type).endsWith("-service."),
                 "the -service suffix is what keeps the name out of the plain service scan");
         assertEquals(3, ServiceTypeFiles.postfixes().size());
@@ -98,7 +103,8 @@ class ServiceTypeFilesTest {
 
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
-    void readsEachSchemaUriBackAsItsType(IntegrationSystemType type) {
+    @DisplayName("each schema URI reads back as its type")
+    void typeFromSchemaUriRoundTrips(IntegrationSystemType type) {
         assertEquals(Optional.of(type), serviceTypeFiles.typeFromSchemaUri(serviceTypeFiles.schemaUri(type)));
     }
 
@@ -108,23 +114,27 @@ class ServiceTypeFilesTest {
             "http://qubership.org/schemas/product/qip/context-service.schema.yaml",
             "http://qubership.org/schemas/product/qip/mcp-service.schema.yaml",
             "http://qubership.org/schemas/product/acme/service"})
-    void readsNoTypeFromASchemaUriThatStatesNone(String schemaUri) {
+    @DisplayName("a schema URI that states no type reads back as none")
+    void typeFromSchemaUriStatingNone(String schemaUri) {
         assertEquals(Optional.empty(), serviceTypeFiles.typeFromSchemaUri(schemaUri));
     }
 
     @Test
-    void readsNoTypeFromAMissingSchemaUri() {
+    @DisplayName("a missing schema URI reads back as no type")
+    void typeFromNullSchemaUri() {
         assertEquals(Optional.empty(), serviceTypeFiles.typeFromSchemaUri(null));
     }
 
     @Test
-    void refusesAMissingType() {
+    @DisplayName("a missing type is refused")
+    void nullTypeIsRefused() {
         assertThrows(NullPointerException.class, () -> ServiceTypeFiles.postfix(null));
         assertThrows(NullPointerException.class, () -> serviceTypeFiles.schemaUri(null));
     }
 
     @Test
-    void takesTheSchemaUrisFromConfiguration() {
+    @DisplayName("the schema URIs come from configuration")
+    void schemaUrisComeFromConfiguration() {
         ApplicationJsonSchemaProperties overridden = new ApplicationJsonSchemaProperties();
         overridden.setExternalService("http://example.org/external.yaml");
 
@@ -142,7 +152,8 @@ class ServiceTypeFilesTest {
      * would only surface as a document the revert migrations quietly stop matching.
      */
     @Test
-    void configuresTheUriEachSchemaDeclaresAsItsId() throws IOException {
+    @DisplayName("each schema is configured with the URI it declares as its $id")
+    void configuredUriMatchesTheSchemaId() throws IOException {
         Map<String, String> configuredUrisBySchemaFile = Map.of(
                 "service.schema.yaml", schemas.getService(),
                 "external-service.schema.yaml", schemas.getExternalService(),
@@ -161,11 +172,12 @@ class ServiceTypeFilesTest {
 
     /**
      * The enum and the three type schemas state one rule twice, and nothing compares them. A schema that drifts wider
-     * than the enum accepts offline a document the backend rejects at import — the failure #553 set out to remove.
+     * than the enum accepts offline a document the backend rejects at import.
      */
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
-    void allowsExactlyTheProtocolsItsSchemaEnumerates(IntegrationSystemType type) throws IOException {
+    @DisplayName("the type allows exactly the protocols its schema enumerates")
+    void protocolsMatchTheSchema(IntegrationSystemType type) throws IOException {
         JsonNode schema = readSchema(schemaFileName(type));
         // Read where the constraint is applied, not only where it is declared: an applied $ref that stops pointing at
         // the enum leaves the declaration in place while the schema constrains nothing.
@@ -185,7 +197,8 @@ class ServiceTypeFilesTest {
 
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
-    void limitsEnvironmentsExactlyAsItsSchemaDoes(IntegrationSystemType type) throws IOException {
+    @DisplayName("the type limits environments exactly as its schema does")
+    void environmentLimitMatchesTheSchema(IntegrationSystemType type) throws IOException {
         JsonNode maxItems = readSchema(schemaFileName(type))
                 .path("properties").path("content").path("properties").path("environments").path("maxItems");
         // An absent maxItems is how a schema spells an unbounded list; the enum spells it Integer.MAX_VALUE.

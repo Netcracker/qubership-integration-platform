@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -76,8 +77,7 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
  * serializers, zipped, unzipped, and imported by the production import services.
  *
  * <p>Every other test in this area looks at one half of that loop. This one sees the two halves disagree: an exporter
- * that writes a file name the importer never looks for passes both sides' unit tests and fails only here. Issue #553
- * left the module in exactly that state for one commit, and no other test noticed.
+ * that writes a file name the importer never looks for passes both sides' unit tests and fails only here.
  */
 @ExtendWith(MockitoExtension.class)
 class ServiceTypeRoundTripTest {
@@ -123,6 +123,7 @@ class ServiceTypeRoundTripTest {
      * Create, export, import, and read the persisted type back. The type must be non-null: the column is nullable, so
      * a lost type is not an import failure but a row that fails much later, inside {@code EntityType.getSystemType}.
      */
+    @DisplayName("a service round trips with its type")
     @ParameterizedTest(name = "{1} through a {0}-format archive")
     @CsvSource({
             "current, EXTERNAL, svc-external",
@@ -131,7 +132,7 @@ class ServiceTypeRoundTripTest {
             "legacy, EXTERNAL, svc-external",
             "legacy, INTERNAL, svc-internal",
             "legacy, IMPLEMENTED, svc-implemented"})
-    void aServiceRoundTripsWithItsType(String format, IntegrationSystemType type, String serviceId) {
+    void serviceRoundTripsWithItsType(String format, IntegrationSystemType type, String serviceId) {
         runTransactionsInline();
         importingIntoAnEmptyCatalog();
 
@@ -145,7 +146,8 @@ class ServiceTypeRoundTripTest {
     // --- create and update are separate code paths --------------------------------------------------------------------
 
     @Test
-    void theCreatePathPersistsTheTypeOfEveryService() throws IOException {
+    @DisplayName("the create path persists the type of every service")
+    void createPathPersistsEveryType() throws IOException {
         runTransactionsInline();
         importingIntoAnEmptyCatalog();
         GoldenServiceCorpus.unzipInto(GoldenServiceCorpus.archive(false), unpacked);
@@ -160,7 +162,8 @@ class ServiceTypeRoundTripTest {
 
     /** The update branch merges into a stored service instead of preparing a new one, and must keep the type too. */
     @Test
-    void theUpdatePathPersistsTheTypeOfEveryService() throws IOException {
+    @DisplayName("the update path persists the type of every service")
+    void updatePathPersistsEveryType() throws IOException {
         runTransactionsInline();
         importingOverStoredServices();
         GoldenServiceCorpus.unzipInto(GoldenServiceCorpus.archive(false), unpacked);
@@ -180,12 +183,13 @@ class ServiceTypeRoundTripTest {
      * {@code $schema} now have to state the type the flat document stated in its body, and the result has to import
      * again.
      */
+    @DisplayName("a legacy archive re-exports and re-imports in the current format")
     @ParameterizedTest(name = "{0}")
     @CsvSource({
             "EXTERNAL, svc-external, .external-service.",
             "INTERNAL, svc-internal, .internal-service.",
             "IMPLEMENTED, svc-implemented, .implemented-service."})
-    void aLegacyArchiveReExportsAndReImportsInTheCurrentFormat(
+    void legacyArchiveReExportsInTheCurrentFormat(
             IntegrationSystemType type, String serviceId, String postfix, @TempDir Path reExported)
             throws IOException {
         runTransactionsInline();
@@ -210,13 +214,14 @@ class ServiceTypeRoundTripTest {
     // --- the legacy export stays readable by an older QIP --------------------------------------------------------------
 
     /**
-     * {@code ContextServiceDtoMapper} stamps context services from the service migration list, so a post-#553 export
-     * claims 105 on them as well. The legacy export has to strip that claim. Without it, a QIP that predates #553
-     * rejects the context service of an archive whose plain services it still reads fine. That is the regression
-     * V105's broad {@code supportsDocument} exists to prevent, and no test that looks only at plain services sees it.
+     * {@code ContextServiceDtoMapper} stamps context services from the service migration list, so a current-format
+     * export claims 105 on them as well. The legacy export has to strip that claim, or an older QIP rejects the
+     * context service of an archive whose plain services it still reads fine. That is the regression V105's broad
+     * {@code supportsDocument} exists to prevent, and no test that looks only at plain services sees it.
      */
     @Test
-    void aContextServiceExportedAlongsideAPlainServiceImportsIntoAPre553Qip() throws IOException {
+    @DisplayName("a context service exported alongside a plain service imports into an older QIP")
+    void contextServiceImportsIntoAnOlderQip() throws IOException {
         GoldenServiceCorpus.unzipInto(GoldenServiceCorpus.archive(true), unpacked);
         Path contextFile = GoldenServiceCorpus.serviceFileIn(unpacked, CONTEXT_SERVICE_ID);
         Path serviceFile = GoldenServiceCorpus.serviceFileIn(unpacked, EXTERNAL_SERVICE_ID);
@@ -242,7 +247,8 @@ class ServiceTypeRoundTripTest {
      * kinds are also each other's negative cases: a postfix that matches one neighbor too many shows up here.
      */
     @Test
-    void anArchiveOfAllFiveKindsImportsThroughThePreviewAndTheCommitPaths() throws IOException {
+    @DisplayName("an archive of all five kinds imports through the preview and the commit paths")
+    void archiveOfAllFiveKindsImports() throws IOException {
         runTransactionsInline();
         importingIntoAnEmptyCatalog();
         GoldenServiceCorpus.unzipInto(GoldenServiceCorpus.archive(false), unpacked);

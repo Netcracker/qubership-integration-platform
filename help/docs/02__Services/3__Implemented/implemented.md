@@ -260,6 +260,14 @@ or click **"browse"** link and select **single** file with respective format fro
 When appropriate file is added to the window, click **"Import"** button to start the import process.
 API Specification version in archive **must be unique** for each API Specification.
 During the import, system follows next logic:
+- Check the service type stated by each service file, before anything is written. In three cases the service is
+  reported with the **Error** status and skipped, while the rest of the archive still imports:
+  - The file states no service type. Its name carries none of the type postfixes (`.external-service.`,
+    `.internal-service.`, `.implemented-service.`), and `content.integrationSystemType` is absent from the document.
+  - The stated type differs from the type of the service already stored under that ID. A service type cannot be
+    changed by an import, so the service has to be deleted first, or imported under a new ID.
+  - The archive holds more than one service file for one service ID. The system cannot tell which of them is current,
+    so it imports neither.
 - Verify Import Instructions, saved in the system. Proceed with the step below only if they exist:
   - Fetch the list of service IDs with **ignore** action and skip import process for them.
 - Find existing services, API groups and specification by IDs from import archive:
@@ -280,11 +288,6 @@ During the import, system follows next logic:
 > "_**import test/proto/types/active/proto_2.proto**_", it means that **proto_2** file must be placed
 > to "_**test/proto/types/active/**_" folder in the archive.
 
-- Check the service type before anything is written. The service is reported with the **Error** status and skipped, while the rest of the archive still imports, in three cases:
-  - The file states no service type: its name carries none of the type postfixes (`.external-service.`, `.internal-service.`, `.implemented-service.`) and `content.integrationSystemType` is absent from the document.
-  - The stated type differs from the type of the service already stored under that ID. A service type cannot be changed by an import — delete the service first, or import it under a new ID.
-  - The archive holds more than one service file for one service ID. Keep the file that is current, remove the others, and import again.
-
 When import is completed, system displays import result table with the following columns:
 
 - **Name** - name of the service participated in import operation.
@@ -301,10 +304,13 @@ When import is completed, system displays import result table with the following
 
 System allows to export service with all its API specifications, environments and sources. From **"Implemented Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) **Export**. Or simply click this button to export all services at once after confirmation.
 
-A service is exported as `<id>.external-service.<app>.yaml`, `<id>.internal-service.<app>.yaml`, or `<id>.implemented-service.<app>.yaml`, depending on its type. The file name states the type; the document no longer carries an `integrationSystemType` field.
+A service is exported as `<id>.implemented-service.<app>.yaml`. The file name states the service type, and the
+document carries no `integrationSystemType` field.
 
-> ⚠️ **Warning:** A Runtime Catalog released before this format cannot import such an archive. It looks for the previous `<id>.service.<app>.yaml` name only, so the services are **silently missing** from its import result — no **Error** row is shown for them. To produce an archive an older version can import, set `QIP_EXPORT_LEGACY_FORMAT=true` on the exporting instance.
-
+> ⚠️ **Warning:** A Runtime Catalog older than 1.0.4 cannot import such an archive. Older versions discover
+> only `service-<id>.yaml` and `<id>.service.<app>.yaml`, so the services are **silently missing** from the
+> import result, with no **Error** row for them. To produce an archive an older version can import, set
+> `QIP_EXPORT_LEGACY_FORMAT=true` on the exporting instance.
 
 ### Constraints
 

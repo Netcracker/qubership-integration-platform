@@ -5,7 +5,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -13,11 +13,12 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServiceExportException;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
+import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSystemObject;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
-import org.qubership.integration.platform.runtime.catalog.service.exportimport.deserializer.ServiceDeserializer;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.services.IntegrationSystemDtoMapper;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.revert.ServiceDocumentMatcher;
+import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ServiceSerializer;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.slf4j.LoggerFactory;
 
@@ -38,15 +39,13 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.GoldenServiceCorpus.PRE553_CURRENT;
 
 /**
- * What a service export writes since #553: the file name and the {@code $schema} state the type, the document does not,
- * and the legacy format is untouched. Every assertion runs against the golden corpus in
- * {@link GoldenServiceCorpus}, so a change to the exported format shows up as a diff rather than as a green suite.
+ * What a service export writes: the file name and the {@code $schema} state the type, the document does not, and the
+ * legacy format is untouched. Every assertion runs against the golden corpus in {@link GoldenServiceCorpus}, so a
+ * change to the exported format shows up as a diff rather than as a green suite.
  */
 class ServiceExportFormatTest {
 
     private static final ApplicationJsonSchemaProperties SCHEMAS = new ApplicationJsonSchemaProperties();
-
-    private final YAMLMapper mapper = GoldenServiceCorpus.mapper();
 
     // --- the current format ------------------------------------------------------------------------------------------
 
@@ -55,7 +54,8 @@ class ServiceExportFormatTest {
             "EXTERNAL, svc-external, svc-external.external-service.qip.yaml, external-service.schema.yaml",
             "INTERNAL, svc-internal, svc-internal.internal-service.qip.yaml, internal-service.schema.yaml",
             "IMPLEMENTED, svc-implemented, svc-implemented.implemented-service.qip.yaml, implemented-service.schema.yaml"})
-    void eachTypeExportsUnderItsOwnNameAndSchema(
+    @DisplayName("each type exports under its own file name and $schema")
+    void perTypeNameAndSchema(
             IntegrationSystemType type, String serviceId, String fileName, String schemaFile) {
         assertEquals(fileName, ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, false, type));
 
@@ -70,7 +70,8 @@ class ServiceExportFormatTest {
 
     /** The type must be gone from the whole document, not only from the place the type used to sit. */
     @Test
-    void noPost553DocumentMentionsTheTypeField() {
+    @DisplayName("no current-format document mentions the type field")
+    void noTypeFieldAnywhere() {
         Map<String, ObjectNode> documents = GoldenServiceCorpus.documentsOf(GoldenServiceCorpus.set(POST553));
 
         assertFalse(documents.isEmpty(), "the post-#553 golden set is empty");
@@ -78,9 +79,9 @@ class ServiceExportFormatTest {
                 assertFalse(containsKey(document, "integrationSystemType"), name + " still carries the type field"));
     }
 
-    /** The archive layout around the service file is unaffected: only the service file was renamed. */
     @Test
-    void onlyTheServiceFileNamesChanged() {
+    @DisplayName("only the service file names changed; the archive layout around them is unaffected")
+    void onlyServiceFileNamesChanged() {
         assertEquals(
                 GoldenServiceCorpus.fileNames(PRE553_CURRENT).stream()
                         .map(name -> name
@@ -93,20 +94,21 @@ class ServiceExportFormatTest {
     }
 
     /**
-     * {@code @JsonProperty(WRITE_ONLY)} suppresses the field on export only. A pre-#553 archive still binds it, and it
-     * is the only place those files state a type: their {@code .service.} name carries none.
+     * {@code @JsonProperty(WRITE_ONLY)} suppresses the field on export only. An older archive still binds it, and it is
+     * the only place those files state a type: their {@code .service.} name carries none.
      */
     @ParameterizedTest(name = "{1}")
     @CsvSource({
             "svc-external, EXTERNAL",
             "svc-internal, INTERNAL",
             "svc-implemented, IMPLEMENTED"})
-    void aPre553ArchiveStillImportsWithItsTypeField(String serviceId, IntegrationSystemType type) {
+    @DisplayName("an older archive still imports with its type field")
+    void olderArchiveKeepsItsTypeField(String serviceId, IntegrationSystemType type) {
         Path serviceFile = GoldenServiceCorpus.serviceFile(PRE553_CURRENT, serviceId);
         assertTrue(serviceFile.getFileName().toString().contains(ExportImportConstants.SERVICE_YAML_NAME_POSTFIX),
                 "the pre-#553 set must keep the old name, or this proves nothing");
 
-        IntegrationSystem imported = deserializer().deserializeSystem(serviceFile.toFile());
+        IntegrationSystem imported = GoldenServiceCorpus.deserializer().deserializeSystem(serviceFile.toFile());
 
         assertEquals(type, imported.getIntegrationSystemType());
     }
@@ -114,29 +116,30 @@ class ServiceExportFormatTest {
     // --- the legacy format -------------------------------------------------------------------------------------------
 
     /**
-     * The no-regression claim, measured: the {@value GoldenServiceCorpus#LEGACY_FLAT} set was captured from the
-     * exporter before #553 changed it. Byte equality is unattainable — {@code ObjectNode} is insertion-ordered and
-     * {@code V105RevertMigration} appends the restored keys last — so the comparison is per document and
-     * order-insensitive.
+     * The no-regression claim, measured against a set captured before the exporter changed. Byte equality is
+     * unattainable, because {@code ObjectNode} is insertion-ordered and {@code V105RevertMigration} appends the
+     * restored keys last, so the comparison is per document and order-insensitive.
      */
     @Test
-    void theLegacyExportIsUnchangedBy553(@TempDir Path directory) throws IOException {
+    @DisplayName("the legacy export is unchanged")
+    void legacyExportIsUnchanged(@TempDir Path directory) throws IOException {
         GoldenServiceCorpus.unzipInto(GoldenServiceCorpus.archive(true), directory);
 
         assertEquals(GoldenServiceCorpus.fileNames(LEGACY_FLAT), GoldenServiceCorpus.relativeFileNames(directory),
-                "the legacy format keeps the flat file names #553 never touched");
+                "the legacy format keeps the flat file names the change never touched");
         Map<String, ObjectNode> golden = GoldenServiceCorpus.documentsOf(GoldenServiceCorpus.set(LEGACY_FLAT));
         Map<String, ObjectNode> actual = GoldenServiceCorpus.documentsOf(directory);
         golden.forEach((name, document) -> assertEquals(document, actual.get(name), name + " changed"));
     }
 
     /**
-     * The mirror of {@link #theLegacyExportIsUnchangedBy553}, and what makes {@value GoldenServiceCorpus#POST553} a
-     * regression pin rather than a committed tree nothing regenerates: everything else in this class reads that set,
-     * so without this the exporter could drift away from it with the whole suite green.
+     * What makes {@value GoldenServiceCorpus#POST553} a regression pin rather than a committed tree nothing
+     * regenerates: everything else in this class reads that set, so without this the exporter could drift away from it
+     * with the whole suite green.
      */
     @Test
-    void theCurrentExportStillMatchesTheRecordedFormat(@TempDir Path directory) throws IOException {
+    @DisplayName("the current export still matches the recorded format")
+    void currentExportMatchesTheRecordedFormat(@TempDir Path directory) throws IOException {
         GoldenServiceCorpus.unzipInto(GoldenServiceCorpus.archive(false), directory);
 
         assertEquals(GoldenServiceCorpus.fileNames(POST553), GoldenServiceCorpus.relativeFileNames(directory),
@@ -155,24 +158,26 @@ class ServiceExportFormatTest {
             "svc-external, EXTERNAL",
             "svc-internal, INTERNAL",
             "svc-implemented, IMPLEMENTED"})
-    void theLegacyExportStatesTheTypeInTheDocument(String serviceId, IntegrationSystemType type) {
+    @DisplayName("the legacy export states the type in the document")
+    void legacyExportStatesTheTypeInTheDocument(String serviceId, IntegrationSystemType type) {
         Path serviceFile = GoldenServiceCorpus.serviceFile(LEGACY_FLAT, serviceId);
 
         assertEquals("service-" + serviceId + ".yaml", serviceFile.getFileName().toString());
         assertEquals(type.name(), GoldenServiceCorpus.read(serviceFile).path("integrationSystemType").asText());
-        assertEquals(type, deserializer().deserializeSystem(serviceFile.toFile()).getIntegrationSystemType());
+        assertEquals(type,
+                GoldenServiceCorpus.deserializer().deserializeSystem(serviceFile.toFile()).getIntegrationSystemType());
     }
 
     // --- the revert chain over a real export -------------------------------------------------------------------------
 
     /**
-     * Task 8 proved the chain on a hand-built document. This runs it on a real post-#553 export: the per-type
-     * {@code $schema} that reaches {@code V105RevertMigration} is the one the exporter actually writes, and the result
-     * has to be the legacy document captured before #553.
+     * The revert chain on a real export, not a hand-built document: the per-type {@code $schema} that reaches
+     * {@code V105RevertMigration} is the one the exporter actually writes.
      */
     @ParameterizedTest
     @CsvSource({"svc-external", "svc-internal", "svc-implemented"})
-    void theRevertChainTurnsARealPost553ExportBackIntoTheLegacyDocument(String serviceId) {
+    @DisplayName("the revert chain turns a real export back into the legacy document")
+    void revertChainReproducesTheLegacyDocument(String serviceId) {
         ObjectNode exported = GoldenServiceCorpus.read(GoldenServiceCorpus.serviceFile(POST553, serviceId));
 
         ObjectNode reverted = GoldenServiceCorpus.migrationService(true).revertMigrationIfNeeded(exported);
@@ -182,11 +187,11 @@ class ServiceExportFormatTest {
 
     /**
      * V104 and V103 are gated on {@link ServiceDocumentMatcher} and run on V105's result, so the {@code $schema}
-     * restore keeps them alive. Proven on a real export carrying the new URI: the api-group list is inlined the way a
-     * pre-V104 archive carried it, and the rename has to still happen.
+     * restore keeps them alive. Proven on a real export carrying the new URI.
      */
     @Test
-    void theRevertChainStillRenamesTheApiGroupsOfARealPost553Export() {
+    @DisplayName("the revert chain still renames the api groups of a real export")
+    void revertChainStillRenamesApiGroups() {
         ObjectNode exported = GoldenServiceCorpus.read(
                 GoldenServiceCorpus.serviceFile(POST553, GoldenServiceCorpus.EXTERNAL_SERVICE_ID));
         assertTrue(new ServiceDocumentMatcher(SCHEMAS).matches(exported),
@@ -208,11 +213,12 @@ class ServiceExportFormatTest {
     // --- a service with no type --------------------------------------------------------------------------------------
 
     /**
-     * The column is nullable. Before #553 such a row exported fine and blew up later as an NPE in
+     * The column is nullable. Such a row used to export fine and blow up later as an NPE in
      * {@code EntityType.getSystemType}; now the file name needs the type, so the export says so and names the row.
      */
     @Test
-    void exportingATypelessServiceNamesTheService() {
+    @DisplayName("exporting a typeless service names the service")
+    void typelessServiceIsNamedOnRefusal() {
         IntegrationSystem typeless = IntegrationSystem.builder().id("svc-typeless").name("Legacy row").build();
 
         ServiceExportException exception = assertThrows(ServiceExportException.class,
@@ -226,7 +232,8 @@ class ServiceExportFormatTest {
     }
 
     @Test
-    void theFileNameOfATypelessServiceIsRefusedRatherThanGuessed() {
+    @DisplayName("the file name of a typeless service is refused rather than guessed")
+    void typelessServiceFileNameIsRefused() {
         // Any refusal will do; the point is that no name is invented for a service that states no type.
         assertThrows(RuntimeException.class,
                 () -> ExportImportUtils.generateMainSystemFileExportName("svc-typeless", APP_NAME, false, null));
@@ -238,22 +245,17 @@ class ServiceExportFormatTest {
     // --- a service over its environment limit ------------------------------------------------------------------------
 
     /**
-     * IMPLEMENTED was never checked before #553 and INTERNAL was unchecked on import-create, so rows holding more
+     * IMPLEMENTED was never checked before the rule and INTERNAL was unchecked on import-create, so rows holding more
      * environments than their type allows exist. Such a row still exports, because refusing would leave no way to
      * extract it, and the warning is what tells the operator the archive does not import as it stands.
      */
     @Test
-    void exportingAServiceOverItsEnvironmentLimitWarnsAndStillProducesTheDocument() {
-        IntegrationSystem overPopulated = IntegrationSystem.builder()
-                .id("svc-internal")
-                .name("Billing")
-                .integrationSystemType(IntegrationSystemType.INTERNAL)
-                .environments(new ArrayList<>(List.of(new Environment(), new Environment())))
-                .build();
+    @DisplayName("a service over its environment limit warns and still exports")
+    void overTheEnvironmentLimitWarns() {
+        IntegrationSystem overPopulated = serviceWithEnvironments(2);
 
-        List<ILoggingEvent> events = capture(IntegrationSystemDtoMapper.class, () ->
-                assertNotNull(new IntegrationSystemDtoMapper(GoldenServiceCorpus.serviceTypeFiles(), List.of())
-                        .toExternalEntity(overPopulated)));
+        List<ILoggingEvent> events =
+                capture(ServiceSerializer.class, () -> assertNotNull(exportOf(overPopulated)));
 
         assertTrue(events.stream().anyMatch(event -> event.getFormattedMessage().contains("svc-internal")
                         && event.getFormattedMessage().contains("re-importing")),
@@ -261,22 +263,34 @@ class ServiceExportFormatTest {
     }
 
     @Test
-    void exportingAServiceWithinItsEnvironmentLimitWarnsAboutNothing() {
-        IntegrationSystem withinLimit = IntegrationSystem.builder()
-                .id("svc-internal")
-                .name("Billing")
-                .integrationSystemType(IntegrationSystemType.INTERNAL)
-                .environments(new ArrayList<>(List.of(new Environment())))
-                .build();
+    @DisplayName("a service inside its environment limit exports silently")
+    void withinTheEnvironmentLimitIsSilent() {
+        IntegrationSystem withinLimit = serviceWithEnvironments(1);
 
-        List<ILoggingEvent> events = capture(IntegrationSystemDtoMapper.class, () ->
-                new IntegrationSystemDtoMapper(GoldenServiceCorpus.serviceTypeFiles(), List.of())
-                        .toExternalEntity(withinLimit));
+        List<ILoggingEvent> events = capture(ServiceSerializer.class, () -> exportOf(withinLimit));
 
         assertTrue(events.isEmpty(), "a service inside its limit exports silently: " + events);
     }
 
     // --- helpers -----------------------------------------------------------------------------------------------------
+
+    private static IntegrationSystem serviceWithEnvironments(int environmentCount) {
+        List<Environment> environments = new ArrayList<>();
+        for (int i = 0; i < environmentCount; i++) {
+            environments.add(new Environment());
+        }
+        return IntegrationSystem.builder()
+                .id("svc-internal")
+                .name("Billing")
+                .integrationSystemType(IntegrationSystemType.INTERNAL)
+                .environments(environments)
+                .apiGroups(new ArrayList<>())
+                .build();
+    }
+
+    private static ExportedSystemObject exportOf(IntegrationSystem system) {
+        return GoldenServiceCorpus.serviceSerializer(false).serialize(system);
+    }
 
     private static List<ILoggingEvent> capture(Class<?> loggerClass, Runnable action) {
         Logger logger = (Logger) LoggerFactory.getLogger(loggerClass);
@@ -290,10 +304,6 @@ class ServiceExportFormatTest {
             appender.stop();
         }
         return appender.list;
-    }
-
-    private ServiceDeserializer deserializer() {
-        return GoldenServiceCorpus.deserializer();
     }
 
     private static boolean containsKey(JsonNode node, String key) {

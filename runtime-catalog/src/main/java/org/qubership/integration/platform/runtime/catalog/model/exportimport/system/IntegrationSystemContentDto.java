@@ -49,9 +49,9 @@ public class IntegrationSystemContentDto {
     private User modifiedBy;
     private String activeEnvironmentId;
 
-    // Read on import, never written on export: since #553 the file name and the $schema state the type, and
-    // V105RevertMigration puts it back for the legacy format. WRITE_ONLY rather than @JsonIgnore, which would also stop
-    // every pre-#553 archive from binding the field.
+    // Read on import, never written on export: the file name and the $schema state the type, and V105RevertMigration
+    // puts it back for the legacy format. WRITE_ONLY rather than @JsonIgnore, which would also stop an older archive
+    // from binding the field.
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private IntegrationSystemType integrationSystemType;
 

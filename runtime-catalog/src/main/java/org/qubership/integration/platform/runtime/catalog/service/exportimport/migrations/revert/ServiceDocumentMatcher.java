@@ -14,6 +14,7 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.DEPENDENCIES;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.DEPLOY_ACTION;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.ELEMENTS;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.INTEGRATION_SYSTEM_TYPE;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SPECIFICATION_GROUPS;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
 
@@ -28,8 +29,8 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
  * environments are all absent, which is what {@code @JsonInclude(NON_EMPTY)} leaves on a bare service. The field
  * shape is kept as a fallback for a document that carries no {@code $schema} at all.
  *
- * <p>The URI set holds the per-type service schemas as well as the plain one. A service exported after #553 carries
- * an {@code external-service} / {@code internal-service} / {@code implemented-service} URI, and the set is what every
+ * <p>The URI set holds the per-type service schemas as well as the plain one. A current-format service carries an
+ * {@code external-service}, {@code internal-service}, or {@code implemented-service} URI, and the set is what every
  * revert migration is gated on: leave those out and such a document matches nothing, which silences V105, V104, and
  * V103 at once.
  */
@@ -37,7 +38,6 @@ import static org.qubership.integration.platform.runtime.catalog.service.exporti
 public class ServiceDocumentMatcher {
 
     private static final String SCHEMA = "$schema";
-    private static final String INTEGRATION_SYSTEM_TYPE = "integrationSystemType";
     private static final String PROTOCOL = "protocol";
     private static final String ENVIRONMENTS = "environments";
 

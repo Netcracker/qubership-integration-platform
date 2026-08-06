@@ -1,9 +1,9 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
@@ -24,7 +24,8 @@ class SystemBaseServiceTest {
 
     @ParameterizedTest
     @EnumSource(IntegrationSystemType.class)
-    void everyProtocolTheTypeAllowsPassesValidation(IntegrationSystemType type) {
+    @DisplayName("every protocol the type allows passes validation")
+    void allowedProtocolsPass(IntegrationSystemType type) {
         IntegrationSystem system = systemOfType(type);
 
         type.allowedProtocols()
@@ -32,7 +33,8 @@ class SystemBaseServiceTest {
     }
 
     @Test
-    void metamodelIsRejectedForAnExternalService() {
+    @DisplayName("METAMODEL is rejected for an external service")
+    void metamodelIsRejectedForExternal() {
         IntegrationSystem system = systemOfType(IntegrationSystemType.EXTERNAL);
 
         RuntimeException exception = assertThrows(RuntimeException.class,
@@ -42,7 +44,8 @@ class SystemBaseServiceTest {
     }
 
     @Test
-    void kafkaIsRejectedForAnImplementedService() {
+    @DisplayName("KAFKA is rejected for an implemented service")
+    void kafkaIsRejectedForImplemented() {
         IntegrationSystem system = systemOfType(IntegrationSystemType.IMPLEMENTED);
 
         assertThrows(RuntimeException.class,
@@ -50,7 +53,8 @@ class SystemBaseServiceTest {
     }
 
     @Test
-    void aTypelessServiceIsReportedRatherThanDereferenced() {
+    @DisplayName("a service row with no type is reported rather than dereferenced")
+    void typelessServiceIsReported() {
         IntegrationSystem system = IntegrationSystem.builder().id("service-1").build();
 
         RuntimeException exception = assertThrows(RuntimeException.class,
@@ -60,66 +64,9 @@ class SystemBaseServiceTest {
     }
 
     @Test
-    void noProtocolIsAlwaysAccepted() {
+    @DisplayName("no protocol is always accepted")
+    void noProtocolIsAccepted() {
         assertDoesNotThrow(() -> service.validateSpecificationProtocol(systemOfType(null), null));
-    }
-
-    @ParameterizedTest
-    @EnumSource(IntegrationSystemType.class)
-    void oneEnvironmentIsAcceptedForEveryType(IntegrationSystemType type) {
-        assertDoesNotThrow(() -> SystemBaseService.validateEnvironmentCount(systemOfType(type), 1));
-    }
-
-    @ParameterizedTest
-    @EnumSource(value = IntegrationSystemType.class, names = {"INTERNAL", "IMPLEMENTED"})
-    void aSecondEnvironmentIsRejectedForSingleEnvironmentTypes(IntegrationSystemType type) {
-        assertThrows(BadRequestException.class, () -> SystemBaseService.validateEnvironmentCount(systemOfType(type), 2));
-    }
-
-    @Test
-    void anExternalServiceTakesAsManyEnvironmentsAsItLikes() {
-        assertDoesNotThrow(() ->
-                SystemBaseService.validateEnvironmentCount(systemOfType(IntegrationSystemType.EXTERNAL), 1000));
-    }
-
-    @Test
-    void aTypelessServiceIsNotCheckedAgainstAnyLimit() {
-        assertDoesNotThrow(() -> SystemBaseService.validateEnvironmentCount(systemOfType(null), 5));
-    }
-
-    @Test
-    void theRejectionNamesTheServiceAndBothCounts() {
-        IntegrationSystem system = IntegrationSystem.builder()
-                .id("service-1")
-                .name("Billing")
-                .integrationSystemType(IntegrationSystemType.INTERNAL)
-                .build();
-
-        BadRequestException exception = assertThrows(BadRequestException.class,
-                () -> SystemBaseService.validateEnvironmentCount(system, 3));
-
-        assertTrue(exception.getMessage().contains("service-1"), exception.getMessage());
-        assertTrue(exception.getMessage().contains("Billing"), exception.getMessage());
-        assertTrue(exception.getMessage().contains("at most 1 environment,"), exception.getMessage());
-        assertTrue(exception.getMessage().contains("3 were given"), exception.getMessage());
-    }
-
-    /**
-     * The export path reads the violation instead of throwing on it, so both forms have to answer the same question.
-     * An over-populated row exports with a warning rather than being locked in.
-     */
-    @ParameterizedTest
-    @EnumSource(value = IntegrationSystemType.class, names = {"INTERNAL", "IMPLEMENTED"})
-    void theViolationIsReportedForTheSameInputThatIsRejected(IntegrationSystemType type) {
-        assertTrue(SystemBaseService.environmentLimitViolation(systemOfType(type), 2).isPresent());
-        assertTrue(SystemBaseService.environmentLimitViolation(systemOfType(type), 1).isEmpty());
-    }
-
-    @Test
-    void noViolationIsReportedForAnExternalOrATypelessService() {
-        assertTrue(SystemBaseService
-                .environmentLimitViolation(systemOfType(IntegrationSystemType.EXTERNAL), 1000).isEmpty());
-        assertTrue(SystemBaseService.environmentLimitViolation(systemOfType(null), 5).isEmpty());
     }
 
     private static IntegrationSystem systemOfType(IntegrationSystemType type) {

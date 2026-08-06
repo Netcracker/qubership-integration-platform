@@ -61,9 +61,11 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.qubership.integration.platform.runtime.catalog.service.extractor.CorpusTestSupport.corpusRoot;
@@ -108,6 +110,19 @@ public final class GoldenServiceCorpus {
     private static final ApplicationJsonSchemaProperties SCHEMAS = new ApplicationJsonSchemaProperties();
     private static final String GOLDEN_RESOURCE_PATH = "exportimport/golden";
 
+    private static final List<String> SERVICE_DOCUMENT_PREFIXES = List.of(
+            ExportImportConstants.SERVICE_YAML_NAME_PREFIX,
+            ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_PREFIX,
+            ExportImportConstants.MCP_SERVICE_YAML_NAME_PREFIX);
+
+    private static final List<String> SERVICE_DOCUMENT_POSTFIXES = Stream.concat(
+                    Stream.of(
+                            ExportImportConstants.SERVICE_YAML_NAME_POSTFIX,
+                            ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX,
+                            ExportImportConstants.MCP_SERVICE_YAML_NAME_POSTFIX),
+                    ServiceTypeFiles.postfixes().stream())
+            .toList();
+
     private GoldenServiceCorpus() {
     }
 
@@ -141,7 +156,7 @@ public final class GoldenServiceCorpus {
         return system;
     }
 
-    public static ContextSystem contextService() {
+    private static ContextSystem contextService() {
         return ContextSystem.builder()
                 .id(CONTEXT_SERVICE_ID)
                 .name("Golden context service")
@@ -149,7 +164,7 @@ public final class GoldenServiceCorpus {
                 .build();
     }
 
-    public static MCPSystem mcpService() {
+    private static MCPSystem mcpService() {
         return MCPSystem.builder()
                 .id(MCP_SERVICE_ID)
                 .name("Golden MCP service")
@@ -247,7 +262,7 @@ public final class GoldenServiceCorpus {
         return List.copyOf(exported);
     }
 
-    private static ServiceSerializer serviceSerializer(boolean legacy) {
+    public static ServiceSerializer serviceSerializer(boolean legacy) {
         return new ServiceSerializer(
                 mapper(),
                 new IntegrationSystemDtoMapper(serviceTypeFiles(), TestServiceMigrations.all()),
@@ -322,7 +337,7 @@ public final class GoldenServiceCorpus {
     }
 
     /** The import-side migration service: forward only, so no revert migration runs while reading a document. */
-    private static FileMigrationService forwardMigrationService() {
+    public static FileMigrationService forwardMigrationService() {
         FileMigrationService service = new FileMigrationService(mapper(), versionsGetterService(), List.of());
         ReflectionTestUtils.setField(service, "isLegacyExport", false);
         return service;
@@ -340,7 +355,7 @@ public final class GoldenServiceCorpus {
         return SCHEMAS;
     }
 
-    private static VersionsGetterService versionsGetterService() {
+    public static VersionsGetterService versionsGetterService() {
         MigrationFieldStrategy migrationFieldStrategy = new MigrationFieldStrategy();
         return new VersionsGetterService(List.of(
                 new MigrationFieldInContentStrategy(migrationFieldStrategy),
@@ -388,10 +403,10 @@ public final class GoldenServiceCorpus {
         try (var files = Files.list(directory)) {
             List<Path> matching = files
                     .filter(Files::isRegularFile)
-                    .filter(path -> path.getFileName().toString().contains("service"))
+                    .filter(path -> isServiceDocument(path.getFileName().toString()))
                     .sorted()
                     .toList();
-            assertTrue(matching.size() == 1,
+            assertEquals(1, matching.size(),
                     () -> "Expected one service document in " + directory + ", found " + matching);
             return matching.get(0);
         } catch (IOException exception) {
@@ -399,14 +414,32 @@ public final class GoldenServiceCorpus {
         }
     }
 
+    /** Every name a service document of any kind can carry, so an api-group or api file next to it never matches. */
+    private static boolean isServiceDocument(String fileName) {
+        return SERVICE_DOCUMENT_PREFIXES.stream().anyMatch(fileName::startsWith)
+                || SERVICE_DOCUMENT_POSTFIXES.stream().anyMatch(fileName::contains);
+    }
+
     public static ObjectNode read(Path file) {
         try {
-            JsonNode node = mapper().readTree(file.toFile());
-            assertTrue(node.isObject(), () -> file + " is not an object document");
-            return (ObjectNode) node;
+            return requireObject(mapper().readTree(file.toFile()), file.toString());
         } catch (IOException exception) {
             throw new UncheckedIOException(exception);
         }
+    }
+
+    /** The same, over a document written inline in a test. */
+    public static ObjectNode read(String yaml) {
+        try {
+            return requireObject(mapper().readTree(yaml), "the inline document");
+        } catch (IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
+    }
+
+    private static ObjectNode requireObject(JsonNode node, String description) {
+        assertTrue(node.isObject(), () -> description + " is not an object document");
+        return (ObjectNode) node;
     }
 
     /** Every file of a set, as paths relative to the set root, sorted. */

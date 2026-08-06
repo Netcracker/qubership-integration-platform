@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
-import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationItem;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil;
@@ -20,7 +19,6 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Stream;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.API_FILE_POSTFIX;
@@ -37,7 +35,6 @@ public class ServiceConfigurationsToFilesConverter {
     private static final String SPECIFICATION_FILE_PATH_FIELD_KEY = "filePath";
     // Older packages still carry the pre-api field name; read both so their sources are not silently dropped.
     private static final String LEGACY_SPECIFICATION_FILE_NAME_FIELD_KEY = "fileName";
-    private static final String INTEGRATION_SYSTEM_TYPE_FIELD_KEY = "integrationSystemType";
 
     private final ObjectMapper objectMapper;
     private final String appPrefix;
@@ -99,32 +96,18 @@ public class ServiceConfigurationsToFilesConverter {
 
     /**
      * The per-type name when the package states a type, so the written file is self-describing. Both sources have to
-     * be read: a package built before #553 states the type in {@code content.integrationSystemType} only, and one
-     * built after states it in {@code $schema} only, since the per-type schemas forbid the field. A file that states
-     * the type nowhere is refused by {@code ServiceDeserializer.resolveServiceType}, so the plain {@code .service.}
-     * name is a last resort.
+     * be read: an older package states the type in {@code content.integrationSystemType} only, and a current one in
+     * {@code $schema} only, since the per-type schemas forbid the field. A file that states the type nowhere is
+     * refused by {@code ServiceDeserializer.resolveServiceType}, so the plain {@code .service.} name is a last resort.
      *
      * <p>The content field is read first. Import resolves the file name before the field and refuses a document where
      * the two disagree, so a name derived from the field can never manufacture that disagreement.
      */
     private String plainServicePostfix(RolloutImportConfigurationItem configurationItem) {
-        return typeStatedByContent(configurationItem.getContent())
+        return ServiceTypeFiles.typeFromDocument(configurationItem.getContent())
                 .or(() -> serviceTypeFiles.typeFromSchemaUri(configurationItem.getSchema()))
                 .map(ServiceTypeFiles::postfix)
                 .orElse(SERVICE_YAML_NAME_POSTFIX);
-    }
-
-    private static Optional<IntegrationSystemType> typeStatedByContent(JsonNode contentNode) {
-        JsonNode type = contentNode == null ? null : contentNode.get(INTEGRATION_SYSTEM_TYPE_FIELD_KEY);
-        if (type == null || !type.isTextual()) {
-            return Optional.empty();
-        }
-        try {
-            return Optional.of(IntegrationSystemType.valueOf(type.asText()));
-        } catch (IllegalArgumentException exception) {
-            log.warn("Service configuration states an unknown service type {}", type.asText());
-            return Optional.empty();
-        }
     }
 
     private void convertSpecGroups(
