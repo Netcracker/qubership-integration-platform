@@ -26,7 +26,7 @@ Qubership Integration Platform Help is a UI embedded guide on how to work with Q
 
 To open QIP Help:
 
-1. Log in to QIP UI.
+1. Log in to <ins>Web UI</ins>.
 2. Navigate to some page or popup of some QIP element. Click icon ![question-circle](img/question-circle.svg) (for the page - top-right side, for the QIP element popup - top left side near the element type in curly brackets). The appropriate page opens in a new browser tab.
 3. Use **pages navigation tree** on the left side of QIP Helper to go through the pages and **"Search Documentation... ![search](img/search.svg)"** text field to find particular information by full-text search.
 
@@ -61,7 +61,7 @@ Project root (git/SVN root, not included in zip-archive)
 │           └── {specification_name}.{json|yaml|wsdl|xsd}                      swagger | asyncAPI | wsdl specification source file [1..N]
 ├── variables/                                                                 common QIP variables [1..1]
 │   └── common-variables.yaml                                                  yaml file with list of common variables (will be exported every time if exist at least one variable) [0..1]
-└── qip-import-instructions.yaml                                               yaml configuration of the import instructions [0..1]
+└── import-instructions.yaml                                               yaml configuration of the import instructions [0..1]
 ```
 
 </details>
@@ -88,7 +88,7 @@ Project root (git/SVN root, not included in zip-archive)
 │           └── {specification_name}.{json|yaml|wsdl|xsd}                      swagger | asyncAPI | wsdl specification source file [1..N]
 ├── variables/                                                                 common QIP variables [1..1]
 │   └── common-variables.yaml                                                  yaml file with list of common variables (will be exported every time if exist at least one variable) [0..1]
-└── qip-import-instructions.yaml                                               yaml configuration of the import instructions [0..1]
+└── import-instructions.yaml                                               yaml configuration of the import instructions [0..1]
 ```
 
 </details>

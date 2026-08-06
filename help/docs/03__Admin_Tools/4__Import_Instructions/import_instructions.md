@@ -27,7 +27,7 @@ After navigation to "Import Instructions" tab, system initially displays a table
 - **Action** - editable value, describes the action, that will be taken during entity import process. List of available values:
   - **Ignore** - specified entity will be ignored. Applicable for Chains, Services and Common Variables.
   - **Override** - specified chain is going to be overridden by another one. Applicable only for the Chains section. Overridden chain will receive all changes from import archive without snapshot creation and be undeployed. Applicable for Chains only.
-> ℹ️ **Note:** **"Delete"** action cannot be configured via UI. It is only possible to specify entities, that are going to be removed as the result of the import, via **import instruction file**. The file itself must be specifically named as **qip-import-instructions.yaml**.
+> ℹ️ **Note:** **"Delete"** action cannot be configured via UI. It is only possible to specify entities, that are going to be removed as the result of the import, via **import instruction file**.
 - **Overridden By** - editable value, applicable only for "Override" action. Specifies the ID of the chain that overrides the original chain. When the overriding chain exists in QIP, its name is displayed as a clickable link; clicking it opens the chain's Configuration Graph in a new tab.
 - **Labels** - list of colored **technical labels**, optional populated during import instructions upload via API.
 - **Modified At** - date and time of the last entity modification.
