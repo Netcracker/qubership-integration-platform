@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.runtime.catalog.cr.builders;
+﻿package org.qubership.integration.platform.runtime.catalog.cr.builders;
 
 import com.github.jknack.handlebars.EscapingStrategy;
 import com.github.jknack.handlebars.Handlebars;
@@ -137,5 +137,22 @@ class EngineRoutesResourceBuilderTest {
         assertEquals(7, backendRefsCount, "one backendRefs block per rule");
         assertTrue(result.contains("port: 8080"));
         assertFalse(result.contains("port: 8080.0"));
+    }
+
+    @Test
+    void domainNameLabelIsSanitizedButPathsUseRawDomainName() throws Exception {
+        String result = builder.build(contextFor("test_domain"));
+
+        // Gateway-facing rule paths must use raw, unsanitized domain name
+        assertTrue(result.contains("value: /api/v1/qip/engine/test_domain/sessions"),
+                "gateway path must contain raw domain name 'test_domain'");
+        assertTrue(result.contains("value: /api/v1/qip/engine/test_domain/chains/"),
+                "gateway path must contain raw domain name 'test_domain'");
+        assertTrue(result.contains("value: /api/v1/qip/engine/test_domain/live-exchanges"),
+                "gateway path must contain raw domain name 'test_domain'");
+
+        // domainName label must use sanitized domain name (underscore removed)
+        assertTrue(result.contains("my-domain-label: testdomain"),
+                "domainName label must contain sanitized domain name 'testdomain'");
     }
 }
