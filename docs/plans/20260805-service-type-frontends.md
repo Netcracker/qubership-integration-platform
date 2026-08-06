@@ -746,13 +746,81 @@ and `plainServiceExtensions` dropping the legacy name (the old-format and re-lis
 
 ### Task 11: Verify acceptance criteria
 
-- [ ] verify all requirements from Overview are implemented
-- [ ] verify the explorer tree matches the target layout, including empty-group and unknown-type edge cases
-- [ ] verify the UI service list and tree render all five types and expose no type control (`ServicesTreeTable.tsx:160` is display-only and should need no change — confirm)
-- [ ] run `npm test --workspaces --if-present`
-- [ ] run `npm -w @netcracker/qip-vscode-extension run check-types` and `run lint`
-- [ ] run the integration suite
-- [ ] verify coverage did not drop below the project standard in either workspace
+- [x] verify all requirements from Overview are implemented
+- [x] verify the explorer tree matches the target layout, including empty-group and unknown-type edge cases
+- [x] verify the UI service list and tree render all five types and expose no type control (`ServicesTreeTable.tsx:160` is display-only and should need no change — confirm)
+- [x] run `npm test --workspaces --if-present`
+- [x] run `npm -w @netcracker/qip-vscode-extension run check-types` and `run lint`
+- [x] run the integration suite
+- [x] verify coverage did not drop below the project standard in either workspace — neither workspace configures one, so this is recorded as a measurement rather than a pass
+
+**Deliverable 1 — the extension reads and writes the new per-type files.** Reads: `plainServiceExtensions` and
+`allServiceExtensions` (`serviceFileType.ts:143,155`) put the typed names ahead of the legacy one, and
+`findServiceFileById` / `findServiceFiles` (`serviceFileLookup.ts`) search the whole set. `getFileType`
+(`fileApiImpl.ts:858-895`) classifies a typed file and a folder holding one. No `endsWith(ext.service)` and no
+`findFileById(id, ext.service)` remain anywhere under `src/web/`. Writes: both create paths — `serviceApiModify.createService`
+and `fileApiImpl.createEmptyService` (`:835-846`) — build the name through `serviceExtensionForType` and stamp
+`serviceSchemaUrlForType`, and `writeServiceInCurrentFormat` (`serviceFileWrite.ts`) is the conversion: it writes the typed
+file, deletes the legacy sibling, drops `content.integrationSystemType`, and leaves the folder name alone. The config
+surface carries all six extension keys and all six `schemaUrls` in `configs/default.config.qip.yaml` and in **both** blocks
+of `.config.qip.yaml.example`, and `package.json` registers all seven custom editors.
+
+**Deliverable 2 — the QIP explorer groups services by type.** `QipExplorerItem.type` has `"service-group"`
+(`qipExplorer.ts:21`), `getChildren` returns `element.children ?? []` for it (`:119-120`), `SERVICE_GROUPS` fixes the order
+(`:28-35`), and `buildServiceGroups` (`:255-281`) builds the level.
+
+**Deliverable 3 — the service type is read-only after creation.** Extension: `serviceApiModify.updateService` has no
+`type` or `integrationSystemType` write path left, and `validateAllowedSystemProtocol` now sits on the protocol branch,
+checking the incoming protocol against `resolveServiceType(serviceFileUri, service)`. UI: `SystemUpdateRequest`
+(`apiTypes.ts:1096`) is the payload type in `api.ts:399`, `restApi.ts:1596` and `vscodeExtensionApi.ts:499`;
+`ServiceParametersTab.tsx:96` and `ServicesList.tsx:312` both destructure the type out; `ServiceParametersTab.tsx:175-179`
+renders it as a read-only `Descriptions.Item` with a `-` fallback. A search of `ui/src/components/services/` finds no
+`Form.Item` bound to `type` — `CreateServiceModal` imports neither `Select` nor `Radio`, and its form values carry no
+`type`. Creation still sets it: `ServicesList.getSystemType(tab)` feeds `api.createService({ name, description, type })`
+(`:377-404`).
+
+**Plan 1's constraints, each against the code or test that holds it.** A created service gets a dot-free id
+(`tests/serviceApiModify.conversion.test.ts:196`). A converted dotted-id service keeps its folder name (`:301`). `$schema`
+still comes from the project config and is rewritten only when the name changes (`serviceFileWrite.ts:50-55`).
+`SERVICE_MIGRATIONS` is `"[100, 101, 102, 103, 104, 105]"` and `MCP_SERVICE_MIGRATIONS` is untouched at `"[100]"`
+(`importMigrationVersions.ts:17,19`). The "Add Environment" button is still EXTERNAL-only
+(`ServiceEnvironmentsTab.tsx:496`). No caller relies on PUT-as-create: `updateService` is reached only from sites holding
+a loaded id.
+
+➕ The tree matches the target layout, with two divergences from the Overview's drawing that the plan's own later text
+already settles. The drawing shows `Implemented`, `Context` and `MCP` as childless nodes, but the Solution Overview and
+Task 8 both say an empty group is omitted; the code omits (`qipExplorer.ts:262-264`) and
+`tests/qipExplorer.grouping.test.ts:223` pins it. The drawing also has no `Unknown` group, which Task 8 added and Task 9
+needs; `SERVICE_GROUPS:34` places it last, after `MCP`. The normative rules win — the drawing states the group set, not the
+render rule. Unknown-type edge cases hold: a type no group claims is bucketed by `serviceGroupType` (`:51-55`) while the
+item keeps stating the raw value in its description, covered by `:359` and `:377`.
+
+➕ `ServicesTreeTable.tsx:160` confirmed display-only and unchanged, and the confirmation goes further than the plan
+assumed. The `switch (record.type)` sits inside `getIcon` and only picks an icon; the table declares no `type` column among
+its twenty and no control bound to one. `ServicesTreeTable` is rendered from exactly two places — `ServicesList`, which
+filters rows to `s.type === getSystemType(tab)` for the three plain tabs, and `ServiceApiSpecsTab`, whose rows are
+`ApiGroup` and `Api`. `ContextServiceList` and `McpServiceList` import only the `ServiceEntity` type and render their own
+tables. So neither `MCP` nor `CONTEXT` ever reaches that switch: the missing `MCP` arm is unreachable rather than a defect,
+and the `CONTEXT` arm at `:167` is already dead. Pre-existing, out of scope, left alone. All five types render through
+`ServiceListPage.tsx:9-20`, which routes the location hash: `mcp` to `McpServiceList`, `external`/`internal`/`implemented`
+to `ServicesList`, `context` to `ContextServiceList`.
+
+➕ [decision] Coverage is reported as a measurement, not as a pass. Neither `ui/jest.config.ts` nor
+`vscode-extension/jest.config.cjs` sets `coverageThreshold` — the UI file leaves it commented out at `:49` — so there is no
+local gate to drop below. The enforced standard is SonarCloud's quality gate, which both `ui-build.yaml` and
+`vscode-extension-build.yaml` wait on (`-Dsonar.qualitygate.wait=true`), and that gate is remote and unevaluable offline.
+Measured: UI 58.34% statements / 48.68% branches / 48.79% functions / 58.71% lines; extension 58.49 / 49.3 / 56.9 / 58.56.
+This plan's new modules are at or near full coverage — `serviceFileType.ts`, `importMigrationVersions.ts` and
+`editorViewTypes.ts` at 100% on all four counters, `serviceFileLookup.ts` at 100/75/100/100, `serviceFileWrite.ts` at
+95.65/100/100/95.65, `ServiceParametersTab.tsx` at 89.88/81.25/89.47/93.9. No test file was deleted across Tasks 1-10
+(`git diff --diff-filter=D 16cfbc92d~1..HEAD` over `ui/` and `vscode-extension/` is empty), so no line that was covered
+before lost its test.
+
+➕ [finding] `npm test --workspaces` reports two failures, both in `@netcracker/qip-schemas` and neither from this plan:
+`chain/context-storage-ttl__SHOULD_FAIL.yaml` and `chain/scs-sender-ttl__SHOULD_FAIL.yaml` validate clean against
+`chain.schema.yaml`. Both sample files are **untracked** in the working tree, and Tasks 1-10 touched no file under
+`schemas/`. Re-running the workspace with only those two files moved aside gives 130/130 passing, so the committed tree is
+green. Left in place as someone else's work in progress.
 
 ### Task 12: [Final] Update documentation
 
