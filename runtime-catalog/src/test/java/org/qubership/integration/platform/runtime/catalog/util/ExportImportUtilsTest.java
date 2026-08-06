@@ -311,6 +311,22 @@ class ExportImportUtilsTest {
         }
     }
 
+    /**
+     * The format that states an id the current one cannot: the flat name holds the id whole and leaves the type to
+     * the document, so export and import stay exact inverses for every id.
+     */
+    @Test
+    void testLegacyNameReadsBackAnIdCarryingAPostfix() {
+        String serviceId = "svc-a.external-service.v2";
+
+        String fileName = ExportImportUtils.generateMainSystemFileExportName(
+                serviceId, "qip", true, IntegrationSystemType.EXTERNAL);
+
+        assertEquals("service-" + serviceId + ".yaml", fileName);
+        assertEquals(serviceId, ExportImportUtils.extractSystemIdFromFileName(new File(fileName)));
+        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(fileName));
+    }
+
     @Test
     void testGetFileContentByNameThrowsWhenFileOutsideBase(@TempDir Path tempDir) throws IOException {
         File baseDir = tempDir.resolve("base").toFile();

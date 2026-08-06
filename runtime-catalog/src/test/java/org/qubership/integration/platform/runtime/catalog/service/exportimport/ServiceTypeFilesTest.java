@@ -94,6 +94,20 @@ class ServiceTypeFilesTest {
         assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName("system.1.external-service.qip.yaml"));
     }
 
+    /**
+     * The legacy flat name states the id whole, dots and all, so a postfix inside the id is part of the id and states
+     * nothing. Reading a type out of it imports the service as something it never was, which is worse than failing
+     * with no type at all.
+     */
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    @DisplayName("a legacy flat name states no type, whatever its id spells")
+    void typeFromLegacyFlatNameWhoseIdCarriesAPostfix(IntegrationSystemType carried) {
+        String fileName = "service-" + SERVICE_ID + ServiceTypeFiles.postfix(carried) + "v2.yaml";
+
+        assertEquals(Optional.empty(), ServiceTypeFiles.typeFromFileName(fileName));
+    }
+
     // --- type -> postfix and URI -----------------------------------------------------------------------------------
 
     @Test

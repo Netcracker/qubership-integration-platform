@@ -6,10 +6,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationItem;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.ServiceTypeFiles;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.ServiceImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -19,11 +21,13 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.API_FILE_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.API_GROUP_FILE_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
+import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.INTEGRATION_SYSTEM_TYPE;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.ExportImportConstants.YAML_FILE_NAME_POSTFIX;
 import static org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
@@ -86,10 +90,9 @@ public class ServiceConfigurationsToFilesConverter {
 
             String serviceId = serviceConfig.getKey();
             Path serviceDirectory = Path.of(serviceId);
-            String postfix = SERVICE_YAML_NAME_POSTFIX.equals(serviceTypePostfix)
-                    ? plainServicePostfix(serviceConfig.getValue())
-                    : serviceTypePostfix;
-            String serviceFileName = serviceId + postfix + appPrefix + YAML_FILE_NAME_POSTFIX;
+            String serviceFileName = SERVICE_YAML_NAME_POSTFIX.equals(serviceTypePostfix)
+                    ? plainServiceFileName(serviceId, serviceConfig.getValue())
+                    : serviceId + serviceTypePostfix + appPrefix + YAML_FILE_NAME_POSTFIX;
             putYaml(files, serviceDirectory.resolve(serviceFileName), serviceConfig.getValue());
         }
     }
@@ -102,12 +105,28 @@ public class ServiceConfigurationsToFilesConverter {
      *
      * <p>The content field is read first. Import resolves the file name before the field and refuses a document where
      * the two disagree, so a name derived from the field can never manufacture that disagreement.
+     *
+     * <p>An id the current format cannot state falls back to the legacy flat name, which states the id whole and
+     * leaves the type to the document, so the converter writes the type there. A current-format name would be misread
+     * instead: import would read another id, another type, or drop the file from discovery.
      */
-    private String plainServicePostfix(RolloutImportConfigurationItem configurationItem) {
-        return ServiceTypeFiles.typeFromDocument(configurationItem.getContent())
-                .or(() -> serviceTypeFiles.typeFromSchemaUri(configurationItem.getSchema()))
-                .map(ServiceTypeFiles::postfix)
-                .orElse(SERVICE_YAML_NAME_POSTFIX);
+    private String plainServiceFileName(String serviceId, RolloutImportConfigurationItem configurationItem) {
+        Optional<IntegrationSystemType> type = ServiceTypeFiles.typeFromDocument(configurationItem.getContent())
+                .or(() -> serviceTypeFiles.typeFromSchemaUri(configurationItem.getSchema()));
+        if (!ExportImportUtils.fitsCurrentFormatFileName(serviceId)) {
+            type.ifPresent(stated -> stateTypeInContent(serviceId, configurationItem.getContent(), stated));
+            return ExportImportUtils.generateMainSystemFileExportName(serviceId, appPrefix, true, type.orElse(null));
+        }
+        return serviceId + type.map(ServiceTypeFiles::postfix).orElse(SERVICE_YAML_NAME_POSTFIX)
+                + appPrefix + YAML_FILE_NAME_POSTFIX;
+    }
+
+    private void stateTypeInContent(String serviceId, JsonNode contentNode, IntegrationSystemType type) {
+        if (contentNode instanceof ObjectNode content) {
+            content.put(INTEGRATION_SYSTEM_TYPE, type.name());
+        } else {
+            log.error("Service {} has no object content, so its legacy-named file states no type", serviceId);
+        }
     }
 
     private void convertSpecGroups(

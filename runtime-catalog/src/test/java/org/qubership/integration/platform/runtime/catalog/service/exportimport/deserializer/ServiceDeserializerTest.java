@@ -1134,6 +1134,25 @@ class ServiceDeserializerTest {
         assertEquals(IntegrationSystemType.IMPLEMENTED, system.getIntegrationSystemType());
     }
 
+    /**
+     * A legacy id may carry a type postfix of its own, and the flat name states no type all the same. The document
+     * field decides; a type read out of the id imports the service as something it never was.
+     */
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    void resolvesTheTypeFromTheDocumentWhenALegacyFlatIdCarriesAPostfix(IntegrationSystemType carried)
+            throws IOException {
+        IntegrationSystemType stated = carried == IntegrationSystemType.EXTERNAL
+                ? IntegrationSystemType.INTERNAL
+                : IntegrationSystemType.EXTERNAL;
+        File serviceFile = writeFile(
+                "service-" + SYSTEM_ID + ServiceTypeFiles.postfix(carried) + "v2.yaml", typedServiceYaml(stated.name()));
+
+        IntegrationSystem system = deserializer.deserializeSystem(serviceFile);
+
+        assertEquals(stated, system.getIntegrationSystemType());
+    }
+
     /** A pre-#553 archive states the type only in the document, and its name has no postfix to read. */
     @Test
     void resolvesTheTypeFromTheDocumentForAPre553FileName() throws IOException {

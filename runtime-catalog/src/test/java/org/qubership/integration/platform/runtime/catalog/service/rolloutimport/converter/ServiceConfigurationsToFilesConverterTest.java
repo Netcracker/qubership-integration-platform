@@ -22,6 +22,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.V103ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.migrations.system.V104ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.service.rolloutimport.ImportConfigFactory;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,7 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ServiceConfigurationsToFilesConverterTest {
 
     private static final String APP_PREFIX = "qip";
-    private static final String SERVICE_ID = "service-abc";
+    private static final String SERVICE_ID = "svc-abc";
     private static final String SPEC_GROUP_ID = "specgroup-xyz";
     private static final String SPEC_ID = "spec-001";
 
@@ -163,6 +164,44 @@ class ServiceConfigurationsToFilesConverterTest {
         IntegrationSystem imported = GoldenServiceCorpus.deserializer().deserializeSystem(write(files));
 
         assertThat(imported.getIntegrationSystemType()).isEqualTo(type);
+    }
+
+    /**
+     * The converter builds its names on its own path, so the export-side refusal of an id the current format cannot
+     * state does not reach it. It writes the legacy flat name instead, which states the id whole and carries the type
+     * in the document. A current-format name would come back as another id, another type, or not be discovered at all.
+     */
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    @DisplayName("An id the current format cannot state is written under the legacy flat name, type and all")
+    void idTheCurrentFormatCannotStateIsWrittenUnderTheLegacyFlatName(IntegrationSystemType type) throws IOException {
+        String serviceId = "svc" + ServiceTypeFiles.postfix(type) + "1";
+        RolloutImportConfigurationItem item = item(serviceId, objectMapper.createObjectNode());
+        item.setSchema(serviceTypeFiles.schemaUri(type));
+
+        Map<Path, byte[]> files = new ServiceConfigurationsToFilesConverter(
+                objectMapper, APP_PREFIX, TestServiceMigrations.all(), serviceTypeFiles)
+                .convert(Map.of(serviceId, item), emptyConfigMap(), emptyConfigMap(), emptyConfigMap(),
+                        emptyResourceMap());
+
+        assertThat(files).containsOnlyKeys(Path.of(serviceId).resolve("service-" + serviceId + ".yaml"));
+        File written = write(files);
+        assertThat(ExportImportUtils.extractSystemIdFromFileName(written)).isEqualTo(serviceId);
+        assertThat(GoldenServiceCorpus.deserializer().deserializeSystem(written).getIntegrationSystemType())
+                .isEqualTo(type);
+    }
+
+    /** The flat prefix tells the two name formats apart, so an id carrying it belongs to the flat format too. */
+    @Test
+    @DisplayName("An id carrying the legacy flat prefix is written under the legacy flat name")
+    void idCarryingTheLegacyFlatPrefixIsWrittenUnderTheLegacyFlatName() throws JsonProcessingException {
+        String serviceId = "service-abc";
+
+        Map<Path, byte[]> result = converter.convert(
+                Map.of(serviceId, item(serviceId, objectMapper.createObjectNode())),
+                emptyConfigMap(), emptyConfigMap(), emptyConfigMap(), emptyResourceMap());
+
+        assertThat(result).containsOnlyKeys(Path.of(serviceId).resolve("service-" + serviceId + ".yaml"));
     }
 
     @Test

@@ -284,6 +284,26 @@ class ServiceExportFormatTest {
                 "the legacy name states no type, so a dotted id stays exportable");
     }
 
+    /**
+     * The flat prefix is what tells the two name formats apart, so an id carrying it makes a current-format name read
+     * as legacy: another id, and no type at all.
+     */
+    @ParameterizedTest
+    @EnumSource(IntegrationSystemType.class)
+    @DisplayName("a service id carrying the legacy flat prefix is refused rather than exported unreadable")
+    void serviceIdCarryingTheLegacyFlatPrefixIsRefused(IntegrationSystemType type) {
+        String serviceId = "service-1";
+
+        ServiceExportException exception = assertThrows(ServiceExportException.class,
+                () -> ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, false, type));
+
+        assertTrue(exception.getMessage().contains(serviceId),
+                "the message names the id to fix: " + exception.getMessage());
+        assertEquals("service-" + serviceId + ".yaml",
+                ExportImportUtils.generateMainSystemFileExportName(serviceId, APP_NAME, true, type),
+                "the legacy name states the id whole, so it stays exportable");
+    }
+
     // --- a service over its environment limit ------------------------------------------------------------------------
 
     /**

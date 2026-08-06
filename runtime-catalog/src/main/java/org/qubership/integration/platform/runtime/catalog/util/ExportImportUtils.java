@@ -225,19 +225,20 @@ public class ExportImportUtils {
      * The service file name. The current format states the type in the name, so the type is required there; the legacy
      * flat name carries none and states it in {@code content.integrationSystemType} instead.
      *
-     * <p>The current format also needs an id of one dot-free segment, because the type sits in the segment right after
-     * it. An id spanning more than one segment is refused rather than written: the name would come back stating either
-     * no type or the wrong one, and the document no longer carries the type to fall back on.
+     * <p>An id the current format cannot state is refused rather than written. The name would come back as another id,
+     * another type, or none at all, and the document no longer carries a type to fall back on.
      */
     public static String generateMainSystemFileExportName(
             String id, String appName, boolean isLegacyExport, IntegrationSystemType type) {
         if (isLegacyExport) {
             return SERVICE_YAML_NAME_PREFIX + id + "." + YAML_EXTENSION;
         }
-        if (id.indexOf('.') >= 0) {
-            throw new ServiceExportException(("Service id '%s' contains '.', which separates the id from the service"
-                    + " type in the exported file name, so the archive does not import back. Export with"
-                    + " QIP_EXPORT_LEGACY_FORMAT=true, whose flat name carries no type.").formatted(id));
+        if (!fitsCurrentFormatFileName(id)) {
+            throw new ServiceExportException(("Service id '%s' cannot be stated in a current-format file name"
+                    + " (<id>.<type>-service.<app>.yaml): the id has to be one dot-free segment and must not start"
+                    + " with the legacy flat prefix '%s'. The archive does not import back. Export with"
+                    + " QIP_EXPORT_LEGACY_FORMAT=true, whose flat name states the id whole and carries no type.")
+                    .formatted(id, SERVICE_YAML_NAME_PREFIX));
         }
         return id + ServiceTypeFiles.postfix(type) + appName + YAML_FILE_NAME_POSTFIX;
     }
@@ -340,12 +341,25 @@ public class ExportImportUtils {
         return fileName.startsWith(postfix, fileName.indexOf('.'));
     }
 
+    /**
+     * Export naming and import parsing are exact inverses. A legacy flat name states the id whole and no type, a
+     * current-format name states its type in exactly one position, and this prefix is what tells the two apart.
+     * Reading the id under one rule and the type under another once imported a service under a type it never had.
+     */
+    public static boolean isLegacyFlatServiceName(String fileName) {
+        return fileName.startsWith(SERVICE_YAML_NAME_PREFIX);
+    }
+
+    /** Whether a current-format name built from {@code id} reads back as that same id and type. */
+    public static boolean fitsCurrentFormatFileName(String id) {
+        return id.indexOf('.') < 0 && !isLegacyFlatServiceName(id);
+    }
+
     public static String extractSystemIdFromFileName(File systemFile) {
-        if (systemFile.getName().startsWith(SERVICE_YAML_NAME_PREFIX)) {
-            return systemFile.getName().substring(SERVICE_YAML_NAME_PREFIX.length(), systemFile.getName().lastIndexOf("."));
-        } else {
-            return systemFile.getName().substring(0, systemFile.getName().indexOf("."));
-        }
+        String fileName = systemFile.getName();
+        return isLegacyFlatServiceName(fileName)
+                ? fileName.substring(SERVICE_YAML_NAME_PREFIX.length(), fileName.lastIndexOf("."))
+                : fileName.substring(0, fileName.indexOf("."));
     }
 
     private static void extractZip(String importFolderName, ZipInputStream inputStream) throws IOException {
