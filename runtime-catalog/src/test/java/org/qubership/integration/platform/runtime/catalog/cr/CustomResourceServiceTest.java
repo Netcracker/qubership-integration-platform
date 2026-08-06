@@ -31,6 +31,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -173,8 +174,10 @@ class CustomResourceServiceTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> backendRefs = (List<Map<String, Object>>) remainingRules.get(0).get("backendRefs");
         Map<String, Object> backendRef = backendRefs.get(0);
-        assertEquals(8080L, backendRef.get("port"));
-        assertEquals(1L, backendRef.get("weight"));
+        assertEquals(8080L, ((Number) backendRef.get("port")).longValue());
+        assertFalse(backendRef.get("port") instanceof Double);
+        assertEquals(1L, ((Number) backendRef.get("weight")).longValue());
+        assertFalse(backendRef.get("weight") instanceof Double);
     }
 
     @Test
