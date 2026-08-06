@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { getExtensionsForFile } from "./response/file/fileExtensions";
 import {
   isAnyServiceFile,
+  resolveServiceType,
   ServiceExtensions,
 } from "./response/file/serviceFileType";
 import { readDirectory } from "./response/file/fileApiImpl";
@@ -299,15 +300,14 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
               // Format: ${name}-${protocol}-${uuid}
               const displayName = serviceData.name || serviceData.id;
               const protocol = serviceData.content?.protocol || "Unknown";
+              // The name states the type; `content.integrationSystemType` covers the legacy
+              // type-less name. A file that states one in neither stays visible under Unknown.
               const serviceType =
-                serviceData.content?.integrationSystemType ||
-                (name.endsWith(ext.contextService)
-                  ? "CONTEXT"
-                  : name.endsWith(ext.mcpService)
-                    ? "MCP"
-                    : UNKNOWN_SERVICE_TYPE);
+                resolveServiceType(name, serviceData, ext) ||
+                UNKNOWN_SERVICE_TYPE;
               const label = `${displayName}${
-                serviceType === "CONTEXT" || serviceType === "MCP"
+                serviceType === IntegrationSystemType.CONTEXT ||
+                serviceType === IntegrationSystemType.MCP
                   ? ""
                   : `-${protocol}`
               }-${serviceData.id}`;

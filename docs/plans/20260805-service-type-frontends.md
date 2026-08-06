@@ -649,9 +649,10 @@ already did — no separate unknown icon.
 ➕ [decision] `qipExplorer.ts` stays out of `collectCoverageFrom` in `jest.config.cjs`. No threshold is configured, and
 adding a file the suite only partly covers would lower the reported number without telling anyone anything.
 
-➕ [deviation] Which group a **typed name** lands in is not asserted yet: this task widened discovery only, and the
-name-over-field precedence is Task 9's change. The typed-name cases assert the service is present in the tree, which
-holds before and after that inversion; the grouping cases state the type in the body. Task 9 adds the name-wins cases.
+➕ [deviation] *(closed in Task 9)* Which group a **typed name** lands in is not asserted yet: this task widened
+discovery only, and the name-over-field precedence is Task 9's change. The typed-name cases assert the service is
+present in the tree, which holds before and after that inversion; the grouping cases state the type in the body. Task 9
+adds the name-wins cases.
 
 ➕ Every mutation of the changed logic was checked to go red: discovery back to the legacy triple; `isTreeServiceFile`
 dropping its context/mcp arms; empty groups rendered; group order taken from discovery order; services unsorted inside
@@ -664,12 +665,33 @@ children; the group icon hardcoded; the group count always plural.
 - Modify: `vscode-extension/src/web/qipExplorer.ts` (229-235)
 - Modify: `vscode-extension/tests/qipExplorer.grouping.test.ts`
 
-- [ ] replace the inline suffix chain with `serviceTypeFromUri`, keeping `content.integrationSystemType` as the fallback — this **inverts** today's precedence, so treat it as a behaviour change, not a refactor
-- [ ] keep an `Unknown` bucket for a file whose type resolves from neither source, so a broken file stays visible instead of vanishing — tolerant editor, strict backend is a deliberate pairing, and the backend end of it is stricter than it first looked: such a file is an error row in the import **preview** as well as on commit, and a file whose name and `content.integrationSystemType` disagree is refused rather than resolved by the name (`ServiceDeserializer.resolveServiceType`)
-- [ ] write a test: an old-format file is grouped from its field
-- [ ] write a test: a new-format file whose body disagrees with its name is grouped by the name
-- [ ] write a test: an unparseable file appears under `Unknown` rather than disappearing
-- [ ] run tests — must pass before task 10
+- [x] replace the inline suffix chain with `serviceTypeFromUri`, keeping `content.integrationSystemType` as the fallback — this **inverts** today's precedence, so treat it as a behaviour change, not a refactor
+- [x] keep an `Unknown` bucket for a file whose type resolves from neither source, so a broken file stays visible instead of vanishing — tolerant editor, strict backend is a deliberate pairing, and the backend end of it is stricter than it first looked: such a file is an error row in the import **preview** as well as on commit, and a file whose name and `content.integrationSystemType` disagree is refused rather than resolved by the name (`ServiceDeserializer.resolveServiceType`)
+- [x] write a test: an old-format file is grouped from its field
+- [x] write a test: a new-format file whose body disagrees with its name is grouped by the name
+- [x] write a test: an unparseable file appears under `Unknown` rather than disappearing
+- [x] run tests — must pass before task 10
+
+➕ The call is `resolveServiceType(name, serviceData, ext)` rather than `serviceTypeFromUri` plus a hand-written
+fallback: Task 4 already put that exact precedence in `serviceFileType.ts`, and both read surfaces go through it.
+The tree adds only the `|| UNKNOWN_SERVICE_TYPE` bucket, because `resolveServiceType` answers `""` when neither
+source states a type. This closes Task 8's deviation — a service written by Task 5, which states its type in the
+name and no longer writes `integrationSystemType`, grouped under `Unknown` until now.
+
+➕ The label branch that drops the protocol for a context or MCP service now reads the resolved type instead of the
+raw field, so the label and the group cannot disagree. The two string literals became
+`IntegrationSystemType.CONTEXT`/`.MCP`, which the enum-typed `resolveServiceType` result requires.
+
+➕ [decision] "Unparseable" is read as *no type from either source* — a legacy `.service.` name whose body carries
+none — which is what the checkbox above it describes. A file whose YAML the parser rejects outright is dropped by
+the pre-existing `catch` around `parseContentFromFile`, a level above the type detection this task changes; giving
+it a tree node would mean synthesizing an id from the file name, which is neither in this task's file range nor in
+its checkboxes.
+
+➕ Four mutations checked red: the field-first precedence restored (9 cases), the field fallback dropped at the call
+site (the legacy case), the `Unknown` fallback dropped (the type-less case), and the label branch reading the body
+type again (the context-label case). The two `test.each` tables are the ones that hold only after the inversion —
+each asserts both the group and the service description, so a name-derived type that never reaches the item shows up.
 
 ### Task 10: Offline end-to-end check in the web host
 

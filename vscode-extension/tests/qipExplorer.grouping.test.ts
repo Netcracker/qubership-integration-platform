@@ -2,9 +2,9 @@
 // discovery loop does not recognize, or a type no group claims, drops the service from the tree
 // without an error anywhere. Every case below asserts on the tree the provider actually returns.
 //
-// Which group a typed name lands in is not pinned here: this task widened discovery only, and the
-// name-over-field precedence is the next task's change. The typed-name cases assert presence in the
-// tree instead, which holds either way.
+// The "service type precedence" suite covers the rule the tree groups by: the file name wins,
+// `content.integrationSystemType` is the fallback for the legacy type-less name, and a file that
+// states a type in neither stays visible under Unknown.
 
 import { joinUriPath } from "./helpers/mocks";
 
@@ -279,6 +279,68 @@ describe("service grouping", () => {
       "1 service",
     ]);
   });
+});
+
+describe("service type precedence", () => {
+  test.each([
+    ["external-service", "EXTERNAL", "External"],
+    ["internal-service", "INTERNAL", "Internal"],
+    ["implemented-service", "IMPLEMENTED", "Implemented"],
+    ["context-service", "CONTEXT", "Context"],
+    ["mcp-service", "MCP", "MCP"],
+  ])(
+    "groups a .%s. file from its name when the body states no type",
+    async (postfix, type, label) => {
+      buildWorkspace([
+        {
+          path: `/workspace/svc.${postfix}.qip.yaml`,
+          data: service("svc"),
+        },
+      ]);
+
+      const groups = await listGroups();
+
+      expect(groups.map((group) => group.label)).toEqual([label]);
+      expect(groups[0].children?.[0].description).toBe(`${type} service`);
+    },
+  );
+
+  test.each([
+    ["external-service", "INTERNAL", "EXTERNAL", "External"],
+    ["internal-service", "IMPLEMENTED", "INTERNAL", "Internal"],
+    ["implemented-service", "EXTERNAL", "IMPLEMENTED", "Implemented"],
+    ["context-service", "EXTERNAL", "CONTEXT", "Context"],
+    ["mcp-service", "INTERNAL", "MCP", "MCP"],
+  ])(
+    "groups a .%s. file by its name when the body claims another type",
+    async (postfix, bodyType, type, label) => {
+      buildWorkspace([
+        {
+          path: `/workspace/svc.${postfix}.qip.yaml`,
+          data: service("svc", bodyType),
+        },
+      ]);
+
+      const groups = await listGroups();
+
+      expect(groups.map((group) => group.label)).toEqual([label]);
+      expect(groups[0].children?.[0].description).toBe(`${type} service`);
+    },
+  );
+
+  test("labels a context file from its name, not from the type its body claims", async () => {
+    buildWorkspace([
+      {
+        path: "/workspace/ctx.context-service.qip.yaml",
+        data: service("ctx", "EXTERNAL"),
+      },
+    ]);
+
+    const [context] = await listGroups();
+
+    // A context service carries no protocol in its label.
+    expect(context.children?.[0].label).toBe("ctx-ctx");
+  });
 
   test("groups a legacy service file from its integrationSystemType field", async () => {
     buildWorkspace([
@@ -310,6 +372,21 @@ describe("service grouping", () => {
       "bare",
       "odd",
     ]);
+  });
+
+  test("keeps a file the parser read no type from under Unknown", async () => {
+    buildWorkspace([
+      {
+        path: "/workspace/broken.service.qip.yaml",
+        data: { id: "broken", name: "broken" },
+      },
+    ]);
+
+    const groups = await listGroups();
+
+    expect(groups.map((group) => group.label)).toEqual(["Unknown"]);
+    expect(groups[0].children?.[0].id).toBe("broken");
+    expect(groups[0].children?.[0].description).toBe("Unknown service");
   });
 });
 
