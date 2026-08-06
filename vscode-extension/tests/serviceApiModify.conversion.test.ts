@@ -113,6 +113,7 @@ import {
   updateService,
 } from "../src/web/response/serviceApiModify";
 import { IntegrationSystemType } from "../src/web/api-services/servicesTypes";
+import { SERVICE_MIGRATIONS } from "../src/web/services/importMigrationVersions";
 
 const SERVICE_ID = "svc-1";
 
@@ -202,6 +203,20 @@ describe("createService writes the name that states the type", () => {
     expect(service.id).not.toContain(".");
     expect(service.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+  });
+
+  // A file that understates the claim has the missing migrations re-run over it, and one that
+  // overstates it is refused outright, so a new file states the whole registered list.
+  it("claims every registered service migration", async () => {
+    await createService({} as any, uri("/workspace"), {
+      name: "Orders",
+      type: IntegrationSystemType.EXTERNAL,
+      labels: [],
+    });
+
+    expect(writeServiceFile.mock.calls[0][1].content.migrations).toBe(
+      SERVICE_MIGRATIONS,
     );
   });
 

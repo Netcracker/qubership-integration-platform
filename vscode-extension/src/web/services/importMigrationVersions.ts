@@ -6,8 +6,15 @@
 // runtime-catalog's `*ImportFileMigration` classes and must never run ahead of
 // them — an unknown version is rejected as exported from a newer version.
 
-/** Services and context services share one migration list. */
-export const SERVICE_MIGRATIONS = "[100, 101, 102, 103, 104]";
+/**
+ * Services and context services share one migration list.
+ *
+ * V105 transforms nothing: it stamps the version that tells an older QIP this document states its
+ * service type in the file name. The claim still has to name it, because `FileMigrationService`
+ * refuses a document claiming a version its registry does not hold. So the list mirrors that
+ * registry exactly, not the subset of migrations that change anything.
+ */
+export const SERVICE_MIGRATIONS = "[100, 101, 102, 103, 104, 105]";
 
 export const MCP_SERVICE_MIGRATIONS = "[100]";
 

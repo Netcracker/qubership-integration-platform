@@ -587,13 +587,32 @@ validated instead of the incoming one.
 - Modify: `vscode-extension/src/web/services/importMigrationVersions.ts`
 - Modify: `vscode-extension/tests/services/importMigrationVersions.test.ts` (exists — extend, do not create a duplicate)
 
-- [ ] confirm plan 1 registered `V105ServiceImportFileMigration` before touching this file
-- [ ] set `SERVICE_MIGRATIONS` to `"[100, 101, 102, 103, 104, 105]"`
-- [ ] extend the comment: 105 is a compatibility barrier, not a transformation, so the claim must match the backend's registry exactly
-- [ ] leave `MCP_SERVICE_MIGRATIONS` and `CHAIN_MIGRATIONS` alone
-- [ ] write a test asserting a newly written service file claims the full list
-- [ ] extend the existing `repairMigrationsClaim` suite — it already covers claim preservation; add only the `[100..105]` case rather than duplicating its tests
-- [ ] run tests — must pass before task 8
+- [x] confirm plan 1 registered `V105ServiceImportFileMigration` before touching this file
+- [x] set `SERVICE_MIGRATIONS` to `"[100, 101, 102, 103, 104, 105]"`
+- [x] extend the comment: 105 is a compatibility barrier, not a transformation, so the claim must match the backend's registry exactly
+- [x] leave `MCP_SERVICE_MIGRATIONS` and `CHAIN_MIGRATIONS` alone
+- [x] write a test asserting a newly written service file claims the full list
+- [x] extend the existing `repairMigrationsClaim` suite — it already covers claim preservation; add only the `[100..105]` case rather than duplicating its tests
+- [x] run tests — must pass before task 8
+
+➕ Verified rather than assumed: `V105ServiceImportFileMigration` is a `@Component` with `getVersion() == 105` and
+`isIdempotent() == true`, and `MigrationBeanRegistrationTest.serviceMigrationsAreRegistered` scans the classpath for
+every `ServiceImportFileMigration` bean, so V100–V105 is the registry the claim now mirrors.
+`FileMigrationService.migrate` is what makes an exact match mandatory: it throws on
+`documentVersions − migrationVersions` and runs `migrationVersions − documentVersions`.
+
+➕ [deviation] Two test files beyond the plan's one. The "newly written service file" checkbox needs a write site, and
+the two create paths share no code: the webview one went into `tests/serviceApiModify.conversion.test.ts` and the
+command-palette one into the existing `createEmptyService` case in
+`tests/web/response/fileApiImpl.serviceTypes.test.ts` (one line, covering all four types it writes). Both assert the
+constant; the literal `[100..105]` is pinned once, in the `repairMigrationsClaim` suite.
+
+➕ A conversion still preserves an older claim — `repairMigrationsClaim` only fills a missing or empty one, and
+`tests/serviceApiModify.conversion.test.ts` already pins that a converted legacy file keeps its `"[100, 101]"`, so the
+backend migrates it through 102–105.
+
+➕ Every mutation of the changed logic was checked to go red: `SERVICE_MIGRATIONS` back to `[100..104]`; the webview
+create path stamping an empty claim; the command-palette create path stamping `MCP_SERVICE_MIGRATIONS`.
 
 ### Task 8: Group services by type in the explorer
 

@@ -17,6 +17,14 @@ describe("repairMigrationsClaim", () => {
     expect(content.migrations).toBe(SERVICE_MIGRATIONS);
   });
 
+  // The list mirrors runtime-catalog's registered service migrations, V105 included: a claim
+  // holding a version the backend does not know is refused as exported from a newer version.
+  it("claims every service migration the backend registers", () => {
+    const content: Record<string, unknown> = {};
+    repairMigrationsClaim(content, SERVICE_MIGRATIONS);
+    expect(content.migrations).toBe("[100, 101, 102, 103, 104, 105]");
+  });
+
   it("replaces the empty array older versions wrote", () => {
     const content: Record<string, unknown> = { migrations: [] };
     repairMigrationsClaim(content, CHAIN_MIGRATIONS);

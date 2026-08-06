@@ -85,6 +85,7 @@ jest.mock("@netcracker/qip-ui", () => ({}), { virtual: true });
 jest.mock("@netcracker/qip-schemas", () => ({}), { virtual: true });
 
 import { VSCodeFileApi } from "../../../src/web/response/file/fileApiImpl";
+import { SERVICE_MIGRATIONS } from "../../../src/web/services/importMigrationVersions";
 
 // extractEntityId reads a uuid out of the path, so the ids here have to be real ones.
 const SERVICE_ID = "7331eb14-1a2b-4c3d-8e9f-0123456789ab";
@@ -287,6 +288,8 @@ describe("VSCodeFileApi.createEmptyService", () => {
     const [, document] = writeServiceFile.mock.calls[0];
     expect(document.$schema).toBe(schemaUrl);
     expect(document.content).not.toHaveProperty("integrationSystemType");
+    // The two create paths share no code, so each states the claim on its own.
+    expect(document.content.migrations).toBe(SERVICE_MIGRATIONS);
   });
 
   it("still writes an MCP service with its identifier", async () => {
