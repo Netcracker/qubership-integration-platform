@@ -1438,6 +1438,9 @@ export const useChainGraph = () => {
 
   const updateNodeData = useCallback(
     (element: Element, node: ChainGraphNode) => {
+      // Without the library element the node data falls back to the raw element
+      // type, so the type badge would show "script" instead of "Script".
+      const libraryElement = getLibraryElement(element, libraryElements);
       setNodes((prevNodes) =>
         prevNodes.map((prevNode) => {
           if (prevNode.id === node.id) {
@@ -1445,7 +1448,7 @@ export const useChainGraph = () => {
               ...prevNode,
               data: {
                 ...prevNode.data,
-                ...getDataFromElement(element),
+                ...getDataFromElement(element, libraryElement),
               },
               parentId: getEffectiveParentId(element),
             };
@@ -1457,7 +1460,7 @@ export const useChainGraph = () => {
         }),
       );
     },
-    [setNodes],
+    [libraryElements, setNodes],
   );
 
   return {
