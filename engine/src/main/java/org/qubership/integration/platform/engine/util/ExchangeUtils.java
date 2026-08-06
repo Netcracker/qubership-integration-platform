@@ -17,6 +17,8 @@
 package org.qubership.integration.platform.engine.util;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import groovy.lang.Closure;
+import groovy.lang.Script;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
 import org.apache.camel.Message;
@@ -75,6 +77,13 @@ public class ExchangeUtils {
                     return SessionElementProperty.builder()
                         .type(String.class.getName())
                         .value(stringValue)
+                        .build();
+                }
+
+                if (value instanceof Closure || value instanceof Script) {
+                    return SessionElementProperty.builder()
+                        .type(value.getClass().getName())
+                        .value(SessionElementProperty.NOT_SERIALIZABLE_VALUE)
                         .build();
                 }
 
