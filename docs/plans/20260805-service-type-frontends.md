@@ -350,14 +350,27 @@ equivalence case list pins that.
 - Modify: `vscode-extension/src/web/api-services/servicesTypes.ts`
 - Create: `vscode-extension/tests/serviceFileType.test.ts`
 
-- [ ] add `serviceTypeFromUri(uri)` covering **all five** kinds — the tree in Task 8 needs `CONTEXT` and `MCP` from the same helper. Compare against the **whole extension** (`.external-service.${appName}.yaml`), the way every existing `endsWith(ext.…)` site does. That is end-anchored and includes the app name on both sides, so an id or an app name that merely contains another postfix cannot shadow it, and `.external-service.` cannot end-match `.service.` (the char before `service` is `-`) — the same reason `.context-service.` is safe today
-- [ ] do **not** port plan 1's position-anchored match here. The backend needs it because it compares a bare postfix against a name whose app prefix it does not know; comparing the full extension answers the same question, and swapping it for a prefix scan would reintroduce exactly the shadowing plan 1 spent five rounds closing
-- [ ] add `isAnyServiceFile(uri)` covering the four plain-service extensions, and `serviceExtensionForType(type)` for writes
-- [ ] add `MCP` to the extension's `IntegrationSystemType` (`:17-22`) so it matches the UI's five values
-- [ ] leave `ServiceFileKind` and `serviceFileShape.ts` alone — `fileApiImpl.ts:37-46` already falls through to `"service"`, so three identical entries add nothing
-- [ ] write tests for all six file kinds plus an unrelated file
-- [ ] write a test asserting `.context-service.` is never misread as a plain service
-- [ ] run tests — must pass before task 3
+- [x] add `serviceTypeFromUri(uri)` covering **all five** kinds — the tree in Task 8 needs `CONTEXT` and `MCP` from the same helper. Compare against the **whole extension** (`.external-service.${appName}.yaml`), the way every existing `endsWith(ext.…)` site does. That is end-anchored and includes the app name on both sides, so an id or an app name that merely contains another postfix cannot shadow it, and `.external-service.` cannot end-match `.service.` (the char before `service` is `-`) — the same reason `.context-service.` is safe today
+- [x] do **not** port plan 1's position-anchored match here. The backend needs it because it compares a bare postfix against a name whose app prefix it does not know; comparing the full extension answers the same question, and swapping it for a prefix scan would reintroduce exactly the shadowing plan 1 spent five rounds closing
+- [x] add `isAnyServiceFile(uri)` covering the four plain-service extensions, and `serviceExtensionForType(type)` for writes
+- [x] add `MCP` to the extension's `IntegrationSystemType` (`:17-22`) so it matches the UI's five values
+- [x] leave `ServiceFileKind` and `serviceFileShape.ts` alone — `fileApiImpl.ts:37-46` already falls through to `"service"`, so three identical entries add nothing
+- [x] write tests for all six file kinds plus an unrelated file
+- [x] write a test asserting `.context-service.` is never misread as a plain service
+- [x] run tests — must pass before task 3
+
+➕ One export beyond the plan's list: `plainServiceExtensions(extensions)` returns the four plain-service extensions with
+the typed ones ahead of the legacy one. Task 4 needs that list for its `findFileById` variant and Task 5 for the
+conversion write, and stating the precedence once here keeps the five call sites from each re-deriving it.
+
+➕ Both `serviceTypeFromUri` and `isAnyServiceFile` take an optional second argument, the extension set to compare
+against. Handed nothing they resolve it per file through `getExtensionsForFile`, which is what `serviceFileKind`
+(`fileApiImpl.ts:37-46`) already does; a caller that has already resolved the set — the explorer loop in Task 8 — passes
+it in. `serviceExtensionForType` takes the set as a required argument because both create paths already hold one.
+
+➕ `EXTENSION_KEY_BY_TYPE` is typed `Record<IntegrationSystemType, keyof ServiceExtensions>`, so a sixth service type
+cannot be added to the enum without giving it an extension — `check-types` fails first. Verified by deleting `MCP` from
+the enum: `tsc` reports the missing key and the suite stops compiling.
 
 ### Task 3: Register the new custom editors
 

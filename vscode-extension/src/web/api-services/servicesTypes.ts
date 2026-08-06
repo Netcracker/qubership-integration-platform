@@ -19,6 +19,7 @@ export enum IntegrationSystemType {
   INTERNAL = "INTERNAL",
   IMPLEMENTED = "IMPLEMENTED",
   CONTEXT = "CONTEXT",
+  MCP = "MCP",
 }
 
 export type IntegrationSystem = BaseEntity & {

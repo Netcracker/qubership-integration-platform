@@ -1,0 +1,117 @@
+import {
+  extractFilename,
+  FileExtensionsConfig,
+  getExtensionsForFile,
+} from "./fileExtensions";
+import { IntegrationSystemType } from "../../api-services/servicesTypes";
+
+/** A `vscode.Uri`, any `{ path }` shape, or a bare file name. */
+export type ServiceFileRef = string | { path: string };
+
+/**
+ * The extension keys a service file can carry. Both `FileExtensionsConfig` and
+ * `ProjectConfig["extensions"]` satisfy it, so either can be passed in.
+ */
+export type ServiceExtensions = Pick<
+  FileExtensionsConfig,
+  | "service"
+  | "externalService"
+  | "internalService"
+  | "implementedService"
+  | "contextService"
+  | "mcpService"
+>;
+
+// The `Record` keyed by the enum makes a new service type a compile error until it gets an extension.
+const EXTENSION_KEY_BY_TYPE: Record<
+  IntegrationSystemType,
+  keyof ServiceExtensions
+> = {
+  [IntegrationSystemType.EXTERNAL]: "externalService",
+  [IntegrationSystemType.INTERNAL]: "internalService",
+  [IntegrationSystemType.IMPLEMENTED]: "implementedService",
+  [IntegrationSystemType.CONTEXT]: "contextService",
+  [IntegrationSystemType.MCP]: "mcpService",
+};
+
+/** The legacy type-less extension plus the three that state a plain type. */
+const PLAIN_SERVICE_KEYS: readonly (keyof ServiceExtensions)[] = [
+  "service",
+  "externalService",
+  "internalService",
+  "implementedService",
+];
+
+function typedEntries(): [IntegrationSystemType, keyof ServiceExtensions][] {
+  return Object.entries(EXTENSION_KEY_BY_TYPE) as [
+    IntegrationSystemType,
+    keyof ServiceExtensions,
+  ][];
+}
+
+function isServiceType(
+  value: string | undefined,
+): value is IntegrationSystemType {
+  return value !== undefined && value in EXTENSION_KEY_BY_TYPE;
+}
+
+function resolveExtensions(
+  name: string,
+  extensions?: ServiceExtensions,
+): ServiceExtensions {
+  return extensions ?? getExtensionsForFile(name);
+}
+
+/**
+ * The type a service file states in its name, or `undefined` for the legacy
+ * type-less `.service.` name and for anything that is not a service file.
+ *
+ * Every match compares the *whole* extension — `.external-service.qip.yaml`, app name
+ * included — and `endsWith` anchors it at the end of the name. So a postfix appearing
+ * inside an id or an app name cannot shadow a type, and `.external-service.` cannot
+ * end-match `.service.`, because the character before `service` is `-` rather than `.`.
+ * That is the same rule that has kept `.context-service.` safe.
+ */
+export function serviceTypeFromUri(
+  fileRef: ServiceFileRef,
+  extensions?: ServiceExtensions,
+): IntegrationSystemType | undefined {
+  const name = extractFilename(fileRef);
+  const ext = resolveExtensions(name, extensions);
+  return typedEntries().find(([, key]) => name.endsWith(ext[key]))?.[0];
+}
+
+/** Whether the file is a plain service file, of either the legacy or a typed name. */
+export function isAnyServiceFile(
+  fileRef: ServiceFileRef,
+  extensions?: ServiceExtensions,
+): boolean {
+  const name = extractFilename(fileRef);
+  const ext = resolveExtensions(name, extensions);
+  return PLAIN_SERVICE_KEYS.some((key) => name.endsWith(ext[key]));
+}
+
+/**
+ * The extension to write a service of this type under. A type that is absent or
+ * unknown falls back to the legacy name, which states its type in the body instead.
+ */
+export function serviceExtensionForType(
+  type: string | undefined,
+  extensions: ServiceExtensions,
+): string {
+  return isServiceType(type)
+    ? extensions[EXTENSION_KEY_BY_TYPE[type]]
+    : extensions.service;
+}
+
+/** Every extension a plain service file can carry, in write-preference order. */
+export function plainServiceExtensions(
+  extensions: ServiceExtensions,
+): string[] {
+  return [
+    extensions.externalService,
+    extensions.internalService,
+    extensions.implementedService,
+    extensions.service,
+  ];
+}
