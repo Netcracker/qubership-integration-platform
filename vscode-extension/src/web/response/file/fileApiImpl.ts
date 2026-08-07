@@ -31,6 +31,7 @@ import {
 import { extractEntityId } from "../navigationUtils";
 import { shapeServiceFile, ServiceFileKind } from "./serviceFileShape";
 import {
+  allServiceExtensions,
   isAnyServiceFile,
   plainServiceExtensions,
   serviceExtensionForType,
@@ -39,7 +40,10 @@ import {
 import {
   API_GROUP_NAMES,
   API_NAMES,
+  CandidateOrder,
   candidateExtensions,
+  combineCandidates,
+  NAME_SETS,
 } from "./namePrecedence";
 import {
   CHAIN_MIGRATIONS,
@@ -88,7 +92,7 @@ export class VSCodeFileApi implements FileApi {
     // A service route names no type, so every plain-service name is a candidate; the other
     // routes resolve to exactly one. Typed names come first, so a converted service that still
     // has its legacy sibling resolves to the file the next write lands on.
-    let candidates: string[] | undefined = undefined;
+    let candidates: CandidateOrder | undefined = undefined;
 
     for (const regexp of SERVICE_ROUTES) {
       if (regexp.test(path)) {
@@ -98,19 +102,19 @@ export class VSCodeFileApi implements FileApi {
 
     for (const regexp of CHAIN_ROUTES) {
       if (regexp.test(path)) {
-        candidates = [extensions.chain];
+        candidates = candidateExtensions(NAME_SETS.chain, extensions);
       }
     }
 
     for (const regexp of CONTEXT_SERVICE_ROUTES) {
       if (regexp.test(path)) {
-        candidates = [extensions.contextService];
+        candidates = candidateExtensions(NAME_SETS.contextService, extensions);
       }
     }
 
     for (const regexp of MCP_SERVICE_ROUTES) {
       if (regexp.test(path)) {
-        candidates = [extensions.mcpService];
+        candidates = candidateExtensions(NAME_SETS.mcpService, extensions);
       }
     }
 
@@ -201,7 +205,7 @@ export class VSCodeFileApi implements FileApi {
 
   private async getFilesByExtensionsInDirectory(
     directoryUri: Uri,
-    extensions: string[],
+    extensions: readonly string[],
   ): Promise<string[]> {
     const entries = await readDirectory(directoryUri);
     return entries
@@ -293,14 +297,14 @@ export class VSCodeFileApi implements FileApi {
     }
 
     const extensions = getExtensionsForFile();
-    const typesToTry = [
-      extensions.mcpService,
-      extensions.contextService,
-      ...plainServiceExtensions(extensions),
-      extensions.chain,
-      ...candidateExtensions(API_GROUP_NAMES, extensions),
-      ...candidateExtensions(API_NAMES, extensions),
-    ];
+    // Every kind of file, one declared order after another. Each set keeps its own order, so the
+    // legacy `.service.` name still sits behind all five typed ones.
+    const typesToTry = combineCandidates(
+      allServiceExtensions(extensions),
+      candidateExtensions(NAME_SETS.chain, extensions),
+      candidateExtensions(API_GROUP_NAMES, extensions),
+      candidateExtensions(API_NAMES, extensions),
+    );
 
     return await resolveFirstCandidate(
       typesToTry,

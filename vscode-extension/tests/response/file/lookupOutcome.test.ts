@@ -11,6 +11,7 @@ jest.mock("../../../src/web/response/file/fileExtensions", () => ({
 }));
 
 import { UnreadableFileError } from "../../../src/web/response/fileFilteringUtils";
+import type { CandidateOrder } from "../../../src/web/response/file/namePrecedence";
 import {
   mayBeSameEntity,
   noMatchError,
@@ -25,7 +26,10 @@ const SERVICE_ID = "svc-1";
 const typed = uri(`/root/${SERVICE_ID}/${SERVICE_ID}${ext.externalService}`);
 const legacy = uri(`/root/${SERVICE_ID}/${SERVICE_ID}${ext.service}`);
 const elsewhere = uri(`/root/other/${SERVICE_ID}${ext.service}`);
-const names = [ext.externalService, ext.service];
+// These cases are about the outcomes, not about which name outranks which, so the order is cast
+// rather than declared. Production code cannot: `resolveFirstCandidate` takes a `CandidateOrder`,
+// and only `namePrecedence.ts` builds one.
+const names = [ext.externalService, ext.service] as unknown as CandidateOrder;
 
 const never = () => {
   throw new Error("onUnreadable must not run");

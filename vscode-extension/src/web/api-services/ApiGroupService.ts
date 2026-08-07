@@ -20,6 +20,7 @@ import {
 } from "../response/file/entityFiles";
 import {
   API_GROUP_NAMES,
+  CandidateOrder,
   candidateExtensions,
   currentExtension,
   legacyExtension,
@@ -188,7 +189,7 @@ export class ApiGroupService {
 
   private async findGroupFileById(
     groupId: string,
-    extensions: string[],
+    extensions: CandidateOrder,
   ): Promise<Uri> {
     return await resolveFirstCandidate(
       extensions,

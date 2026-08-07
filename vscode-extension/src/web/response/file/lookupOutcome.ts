@@ -32,6 +32,7 @@
 import type { Uri } from "vscode";
 import { UnreadableFileError } from "../fileFilteringUtils";
 import { extractFilename } from "./fileExtensions";
+import type { CandidateOrder } from "./namePrecedence";
 
 /** What the candidate names reported, in scan order. */
 export type LookupFailures = {
@@ -66,13 +67,16 @@ export class UnreadableSiblingError extends UnreadableOutcomeError {
 /**
  * Runs one lookup per candidate name and answers with the first match.
  *
+ * The order is a `CandidateOrder`, which only `namePrecedence.ts` produces: which of two names
+ * outranks the other is stated once there, and a lookup cannot run an order written anywhere else.
+ *
  * `onUnreadable` runs before a match is answered whenever an earlier candidate left a file the scan
  * could not read. `onNoMatch` builds the failure for a run that matched nothing; `noMatchError`
  * is the default body for it, and reports an unreadable file over a plain miss.
  */
-export async function resolveFirstCandidate<C, T>(
-  candidates: readonly C[],
-  attempt: (candidate: C) => Promise<T>,
+export async function resolveFirstCandidate<T>(
+  candidates: CandidateOrder,
+  attempt: (candidate: string) => Promise<T>,
   handlers: {
     onUnreadable: (unreadable: readonly Uri[], resolved: T) => void;
     onNoMatch: (failures: LookupFailures) => Error;

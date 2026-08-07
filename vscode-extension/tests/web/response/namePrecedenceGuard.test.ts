@@ -6,21 +6,27 @@
 // both had `.specification.` ahead of `.api.`. A read then answered from the file the last
 // conversion superseded.
 //
-// So the order lives in `namePrecedence.ts` alone, and this walks the sources to keep it there.
-// Three rules:
+// So the order lives in `namePrecedence.ts` alone. What keeps it there is the type system, and
+// these four rules check that the declaration is right and that the types still bite:
 //
 //   1. every extension key belongs to a declared name set, so a new pair of names cannot be added
 //      without saying which of the two a write emits;
-//   2. no array literal in `src/web` puts a legacy name of a set ahead of a current one — a
-//      hand-written order that disagrees with the declaration is a failure here, not a review
-//      comment;
-//   3. the declaration itself agrees with what the write paths emit, which is the only independent
-//      statement of which name is current.
+//   2. the declaration agrees with what the write paths emit, which is the only independent
+//      statement of which name is current;
+//   3. the bypasses in `fixtures/precedenceBypass/attempts.ts` still fail to compile: a name set
+//      built by hand, a pair naming one extension twice, and three ways of handing a lookup an
+//      order it wrote itself. That fixture is where the guarantee is proven, because it is the
+//      guarantee — `resolveFirstCandidate` takes a `CandidateOrder`, and only `candidateExtensions`
+//      and `combineCandidates` produce one;
+//   4. no array literal in `src/web` puts a legacy name of a set ahead of a current one.
 //
-// Rule 2 reads the sources syntactically, so it sees a list however it is built: `ext.api`,
-// a destructured `apiGroup`, or either spelling mixed. What it cannot see is a list assembled
-// somewhere other than an array literal — but there is no reason to build one, because
-// `candidateExtensions` is the supported way and it derives the order from rule 1's declaration.
+// Rule 4 reads syntax, and only one shape of it: an array literal whose elements name an extension
+// key directly, whether through a property (`ext.api`) or a destructured binding (`apiGroup`). It
+// does not see an order built by a spread, `concat`, `map`, a helper call, or a variable. Earlier
+// wording here claimed it saw a list however it was built, and that was never true. It stays as a
+// cheap second reading of the shape a hand-written order usually takes; rule 3 is the one that
+// claims completeness, and a cast is the only way past it. A canary case fails if rule 4 stops
+// matching array literals at all.
 
 import * as fs from "fs";
 import * as path from "path";
@@ -44,8 +50,13 @@ const DECLARATION = path.join(SRC_ROOT, "response/file/namePrecedence.ts");
 
 const ext = buildDefaultExtensions("qip");
 
-/** Keys that name no pair of generations: they carry one name and always have. */
-const UNPAIRED_KEYS = new Set(["appName", "chain"]);
+/** The app name is no file extension, so it belongs to no name set. */
+const UNPAIRED_KEYS = new Set(["appName"]);
+
+const BYPASS_FIXTURE = path.resolve(
+  __dirname,
+  "fixtures/precedenceBypass/attempts.ts",
+);
 
 const NAME_SET_ENTRIES = Object.entries(NAME_SETS);
 
@@ -193,7 +204,36 @@ describe("the precedence declarations", () => {
   });
 });
 
-describe("no source hand-writes a candidate order", () => {
+describe("only the declaration states a scan order", () => {
+  // The fixture holds the bypasses the review named. Each carries a `@ts-expect-error`, so an
+  // unused directive — a bypass that compiles again — is itself the diagnostic this fails on.
+  it("rejects every bypass the fixture spells out", () => {
+    const program = ts.createProgram([BYPASS_FIXTURE], {
+      target: ts.ScriptTarget.ES2020,
+      module: ts.ModuleKind.Node16,
+      moduleResolution: ts.ModuleResolutionKind.Node16,
+      strict: true,
+      skipLibCheck: true,
+      noEmit: true,
+    });
+    const source = program.getSourceFile(BYPASS_FIXTURE);
+
+    const reported = [
+      ...program.getSyntacticDiagnostics(source),
+      ...program.getSemanticDiagnostics(source),
+    ].map(
+      (diagnostic) =>
+        `${
+          diagnostic.file && diagnostic.start !== undefined
+            ? diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start)
+                .line + 1
+            : "?"
+        }: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, " ")}`,
+    );
+
+    expect(reported).toEqual([]);
+  });
+
   it("puts no legacy name ahead of a current one in any array literal", () => {
     expect(orderViolations()).toEqual([]);
   });

@@ -1,6 +1,7 @@
 import { extractFilename, getExtensionsForFile } from "./fileExtensions";
 import { IntegrationSystemType } from "../../api-services/servicesTypes";
 import {
+  CandidateOrder,
   candidateExtensions,
   EXTENSION_KEY_BY_TYPE,
   NAME_SETS,
@@ -54,7 +55,7 @@ function resolveExtensions(
  * project configuring `externalService: ".svc.yaml"` beside `internalService: ".internal.svc.yaml"`
  * reads every internal file as external.
  */
-function byLongestFirst(extensions: string[]): string[] {
+function byLongestFirst(extensions: readonly string[]): string[] {
   return [...extensions].sort((a, b) => b.length - a.length);
 }
 
@@ -143,12 +144,14 @@ export function serviceSchemaUrlForType(
 /** Every extension a plain service file can carry, typed names ahead of the legacy one. */
 export function plainServiceExtensions(
   extensions: ServiceExtensions,
-): string[] {
+): CandidateOrder {
   return candidateExtensions(NAME_SETS.plainService, extensions);
 }
 
 /** Every extension a service file of any kind can carry, typed names ahead of the legacy one. */
-export function allServiceExtensions(extensions: ServiceExtensions): string[] {
+export function allServiceExtensions(
+  extensions: ServiceExtensions,
+): CandidateOrder {
   return candidateExtensions(NAME_SETS.service, extensions);
 }
 

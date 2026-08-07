@@ -1526,6 +1526,59 @@ source rule); and `extensionKeyOf` blinded (the canary).
 ➕ [deviation] `vscode-extension/CLAUDE.md` was edited on disk again (untracked, git-excluded, so it cannot be
 committed): the precedence declaration and the directional refusal.
 
+## Review phase 11 — external cross-review
+
+*Three findings from a ninth Codex (gpt-5.6-luna) pass, all of one kind: the phase-10 declaration was right, and the
+guard around it claimed more than it enforced. Codex cleared the three name sets and the `EXTENSION_KEY_BY_TYPE` move
+outright, so nothing behavioral was in question this round.*
+
+➕ **CONFIRMED, all three, by a probe that compiles.** `src/web/response/file/bypassProbe.ts` (temporary, deleted after
+the run) held every bypass: a `NameSet` literal with the generations swapped handed to `candidateExtensions`; a
+`PairedNames<"api">` naming one extension on both sides; and a legacy-first order pushed into `resolveFirstCandidate`
+through a variable, a spread, a `concat` and a `map`. `check-types` passed and the phase-10 guard stayed green on all
+of it. The header comment claiming a caller "cannot state one that disagrees, because it never states one" was
+therefore false as written.
+
+➕ [decision] **Two findings strengthened, one narrowed.** The rule this round applies: where the mechanism can be made
+to match the claim cheaply, strengthen it; where it cannot, say what is actually enforced. Over-claiming is the defect,
+because the next reader trusts the comment and skips the check.
+
+➕ **Strengthened: a name set now carries a private brand** (`declareNames`, an unexported `unique symbol`), so
+`NAME_SETS` is the only source of one and `candidateExtensions` cannot be handed a set built anywhere else.
+
+➕ **Strengthened: a scan order carries a brand of its own.** `candidateExtensions` and `combineCandidates` are the only
+producers of a `CandidateOrder`, and `resolveFirstCandidate` takes nothing else — which closes the second half of the
+first finding, the one the source rule never covered. Transforming an order (`[...order]`, `.map`, `.reverse`) yields a
+plain array, which no lookup accepts. Three single-generation sets were declared so every lookup can state its order at
+all: `chain`, `contextService`, `mcpService`. `fileApiImpl.findFileById`'s hand-mixed `typesToTry` became
+`combineCandidates(allServiceExtensions, chain, apiGroup, api)`; the five typed service names now precede the legacy
+`.service.` one by derivation rather than by hand.
+
+➕ **Strengthened: `PairedNames<C, L extends Exclude<ExtensionKey, C>>`** makes the two generations distinct in the
+type, so `PairedNames<"api", "api">` no longer compiles. A service still fails to satisfy it, as before.
+
+➕ [decision] **Narrowed: the source rule states the shapes it reads.** Following values rather than syntax would mean
+constant propagation through arrays, and it would still lose a value crossing a function boundary — an elaborate
+mechanism for a hole the type now closes. So the rule keeps its cheap syntactic reading (an array literal whose
+elements name an extension key through a property or an identifier) and its comment now says what it does not see:
+a spread, `concat`, `map`, a helper call, or a variable. The completeness claim moved to the type, where it is true.
+
+➕ **New fixture `tests/web/response/fixtures/precedenceBypass/attempts.ts`,** six bypasses, each under a
+`@ts-expect-error`. The guard compiles it and fails on any diagnostic, so an unused directive — a bypass that started
+working — is itself the failure. The residual is stated rather than hidden: a cast, or a spread of a declared value,
+still compiles.
+
+➕ Mutations checked red, one per claim: every directive stripped from the fixture (six errors, one per bypass, at the
+lines claimed); the name-set brand removed (one unused directive); `PairedNames` back to one type parameter (one);
+and `resolveFirstCandidate` back to `readonly string[]` (three). The three lookup bypasses fail for the brand alone,
+which is what makes the second finding closed rather than argued.
+
+➕ Counts: 71 suites, 955 passed, 2 skipped (up 4 from 951 — one bypass case and three single-generation name sets);
+integration unchanged at 7 passing.
+
+➕ [deviation] `vscode-extension/CLAUDE.md` was edited on disk once more (untracked, git-excluded, so it cannot be
+committed): what the declaration enforces through the type, and what the source rule reads.
+
 
 ## Post-Completion
 

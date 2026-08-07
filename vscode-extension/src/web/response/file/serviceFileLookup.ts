@@ -6,6 +6,7 @@ import {
   plainServiceExtensions,
   ServiceExtensions,
 } from "./serviceFileType";
+import type { CandidateOrder } from "./namePrecedence";
 import {
   mayBeSameEntity,
   refuseUnreadableSibling,
@@ -13,7 +14,7 @@ import {
   UnreadableSiblingError,
 } from "./lookupOutcome";
 
-function extensionsToScan(extensions?: ServiceExtensions): string[] {
+function extensionsToScan(extensions?: ServiceExtensions): CandidateOrder {
   return plainServiceExtensions(extensions ?? getExtensionsForFile());
 }
 
@@ -127,7 +128,10 @@ export async function readListedServices(
 
   for (const fileUri of fileUris) {
     try {
-      services.push({ fileUri, service: await fileApi.getMainService(fileUri) });
+      services.push({
+        fileUri,
+        service: await fileApi.getMainService(fileUri),
+      });
     } catch (error) {
       console.error(`Unable to read the listed service file ${fileUri.path}`, {
         error,
