@@ -1,6 +1,6 @@
 import { Environment, EnvironmentRequest } from "./servicesTypes";
 import { findServiceFileById } from "../response/file/serviceFileLookup";
-import { UnreadableSiblingError } from "../response/file/lookupOutcome";
+import { UnreadableOutcomeError } from "../response/file/lookupOutcome";
 import { writeServiceInCurrentFormat } from "../response/file/serviceFileWrite";
 import { SystemService } from "./SystemService";
 import { LabelUtils } from "./LabelUtils";
@@ -30,7 +30,7 @@ export class EnvironmentService {
       return system.content?.environments || [];
     } catch (error) {
       // A refusal names the file to fix; an empty list would read as "this system has none".
-      if (error instanceof UnreadableSiblingError) {
+      if (error instanceof UnreadableOutcomeError) {
         throw error;
       }
       return [];

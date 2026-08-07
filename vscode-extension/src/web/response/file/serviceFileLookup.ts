@@ -5,9 +5,9 @@ import {
   allServiceExtensions,
   plainServiceExtensions,
   ServiceExtensions,
-  serviceIdFromFileName,
 } from "./serviceFileType";
 import {
+  mayBeSameEntity,
   refuseUnreadableSibling,
   resolveFirstCandidate,
   UnreadableSiblingError,
@@ -101,24 +101,58 @@ export async function findServiceFiles(
   return perExtension.flat();
 }
 
+/** The services a listing can show, and the files it could not read. */
+export type ListedServices = {
+  readonly services: readonly { fileUri: Uri; service: any }[];
+  readonly unreadable: readonly Uri[];
+};
+
 /**
- * A listed service file, read. `findFiles` lists by name, so the document behind a listed name may
- * still be unreadable; reporting that as the parser's own failure loses both which file it was and
- * that the listing would otherwise show its sibling in its place.
+ * Reads the files a listing handed back by name. `findFiles` lists by name, so the document behind
+ * a listed name may still be unreadable, and reporting that as the parser's own failure loses both
+ * which file it was and that the listing would otherwise show its sibling in its place.
+ *
+ * A file it cannot read takes itself and every entry that may be its sibling off the list — the
+ * `mayBeSameEntity` rule the explorer tree already drops by — because listing that sibling puts the
+ * superseded document where the current one belongs. Everything else stays: one broken file is one
+ * service's problem, not the workspace's. The files come back so the caller can name them.
  */
-export async function readListedServiceFile(
-  fileUri: Uri,
+export async function readListedServices(
+  fileUris: readonly Uri[],
   extensions?: ServiceExtensions,
-): Promise<any> {
-  try {
-    return await fileApi.getMainService(fileUri);
-  } catch (error) {
-    console.error(`Unable to read the listed service file ${fileUri.path}`, {
-      error,
-    });
-    throw new UnreadableServiceFileError(
-      serviceIdFromFileName(fileUri, extensions) ?? fileUri.path,
-      fileUri,
-    );
+): Promise<ListedServices> {
+  const scanned = extensions ?? getExtensionsForFile();
+  const services: { fileUri: Uri; service: any }[] = [];
+  const unreadable: Uri[] = [];
+
+  for (const fileUri of fileUris) {
+    try {
+      services.push({ fileUri, service: await fileApi.getMainService(fileUri) });
+    } catch (error) {
+      console.error(`Unable to read the listed service file ${fileUri.path}`, {
+        error,
+      });
+      unreadable.push(fileUri);
+    }
   }
+
+  if (unreadable.length === 0) {
+    return { services, unreadable };
+  }
+
+  const names = allServiceExtensions(scanned);
+  return {
+    services: services.filter(({ fileUri }) => {
+      const sibling = unreadable.find((candidate) =>
+        mayBeSameEntity(candidate, fileUri, names),
+      );
+      if (sibling) {
+        console.error(
+          `Hiding the service in ${fileUri.path}: ${sibling.path} could not be read`,
+        );
+      }
+      return !sibling;
+    }),
+    unreadable,
+  };
 }

@@ -243,10 +243,27 @@ describe("a service whose typed file cannot be read, with the legacy sibling sti
     await expect(api.findFileById(SERVICE_ID)).rejects.toThrow(typedUri.path);
   });
 
-  // A listing that drops the file it cannot read shows the sibling it outranks in its place, and
-  // every id the list hands out then points at the superseded document.
-  it("fails the service listing rather than listing the sibling in its place", async () => {
-    await expect(getServices(uri("/root"))).rejects.toThrow(typedUri.path);
+  // A listing that merely skipped the file it cannot read would show the sibling it outranks in its
+  // place, and every id the list hands out would point at the superseded document. So the sibling
+  // goes too — and the service disappears from the list rather than appearing as the wrong body.
+  it("lists neither the unreadable file nor the sibling it outranks", async () => {
+    disk.set(otherTypedUri.path, serviceText(OTHER_ID, {}));
+
+    const services = await getServices(uri("/root"));
+
+    expect(services.map((service) => service.id)).toEqual([OTHER_ID]);
+  });
+
+  // Dropping it silently is what would send the user off to recreate a service that is already
+  // there, so the file is named where the listing is shown.
+  it("names the file it could not read", async () => {
+    await getServices(uri("/root"));
+
+    expect(
+      jest.requireMock("vscode").window.showWarningMessage,
+    ).toHaveBeenCalledWith(
+      expect.stringContaining(`${SERVICE_ID}${ext.externalService}`),
+    );
   });
 
   it("names the file in a filtered listing rather than dropping it", async () => {
@@ -280,21 +297,39 @@ describe("an API file that cannot be read, with its other-format sibling still t
   });
 });
 
+// A context or MCP document is stored under one name, so nothing can stand in for it. It still
+// leaves the listing rather than reaching the parser as a nameless failure, and it is still named.
 describe("a context or MCP file that cannot be read", () => {
-  it("names it rather than reporting the parser's own failure", async () => {
+  it("keeps the readable context services and names the broken file", async () => {
     disk.set(uri(`/root/ctx/ctx${ext.contextService}`).path, UNREADABLE_TEXT);
+    disk.set(
+      uri(`/root/ok/ok${ext.contextService}`).path,
+      serviceText("ctx-ok", {}),
+    );
 
-    await expect(getContextServices(uri("/root"))).rejects.toThrow(
-      "/root/ctx/ctx.context-service.qip.yaml",
+    const services = await getContextServices(uri("/root"));
+
+    expect(services.map((service) => service.id)).toEqual(["ctx-ok"]);
+    expect(
+      jest.requireMock("vscode").window.showWarningMessage,
+    ).toHaveBeenCalledWith(
+      expect.stringContaining("ctx.context-service.qip.yaml"),
     );
   });
 
-  it("names an MCP file the same way", async () => {
+  it("treats an MCP file the same way", async () => {
     disk.set(uri(`/root/mcp/mcp${ext.mcpService}`).path, UNREADABLE_TEXT);
-
-    await expect(getMcpServices(uri("/root"))).rejects.toThrow(
-      "/root/mcp/mcp.mcp-service.qip.yaml",
+    disk.set(
+      uri(`/root/ok/ok${ext.mcpService}`).path,
+      serviceText("mcp-ok", {}),
     );
+
+    const services = await getMcpServices(uri("/root"));
+
+    expect(services.map((service) => service.id)).toEqual(["mcp-ok"]);
+    expect(
+      jest.requireMock("vscode").window.showWarningMessage,
+    ).toHaveBeenCalledWith(expect.stringContaining("mcp.mcp-service.qip.yaml"));
   });
 });
 

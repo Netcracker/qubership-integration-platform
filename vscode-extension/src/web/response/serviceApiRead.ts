@@ -15,6 +15,7 @@ import { RESOURCES_FOLDER } from "./file/fileApiImpl";
 import { isSafeResourcePath } from "./file/resourcePath";
 import { LabelUtils } from "../api-services/LabelUtils";
 import {
+  extractFilename,
   getExtensionsForUri,
   FileExtensionsConfig,
 } from "./file/fileExtensions";
@@ -26,13 +27,15 @@ import {
 import {
   findServiceFileById,
   findServiceFiles,
-  readListedServiceFile,
+  ListedServices,
+  readListedServices,
   UnreadableServiceFileError,
 } from "./file/serviceFileLookup";
 import {
   noMatchError,
   refuseUnreadableSibling,
   resolveFirstCandidate,
+  scanMissRefusal,
 } from "./file/lookupOutcome";
 import { resolveApiFiles, resolveGroupFiles } from "./file/entityFiles";
 import { Chain, ContextSystem, MCPSystem } from "@netcracker/qip-ui";
@@ -222,10 +225,13 @@ export async function getContextServices(
     return [await getContextService(serviceFileUri, service.id)];
   } else {
     const result: ContextSystem[] = [];
-    const serviceFiles = await fileApi.findFiles(ext.contextService);
-    for (const serviceFile of serviceFiles) {
-      const service: any = await readListedServiceFile(serviceFile, ext);
-      result.push(await getContextService(serviceFile, service.id));
+    const listed = await readListedServices(
+      await fileApi.findFiles(ext.contextService),
+      ext,
+    );
+    reportUnreadableListing(listed);
+    for (const { fileUri, service } of listed.services) {
+      result.push(await getContextService(fileUri, service.id));
     }
 
     return result;
@@ -245,10 +251,13 @@ export async function getMcpServices(
     return [await getMcpService(serviceFileUri, service.id)];
   } else {
     const result: MCPSystem[] = [];
-    const serviceFiles = await fileApi.findFiles(ext.mcpService);
-    for (const serviceFile of serviceFiles) {
-      const service: any = await readListedServiceFile(serviceFile, ext);
-      result.push(await getMcpService(serviceFile, service.id));
+    const listed = await readListedServices(
+      await fileApi.findFiles(ext.mcpService),
+      ext,
+    );
+    reportUnreadableListing(listed);
+    for (const { fileUri, service } of listed.services) {
+      result.push(await getMcpService(fileUri, service.id));
     }
 
     return result;
@@ -343,7 +352,7 @@ export async function getApiSpecifications(
   const groupFiles = await resolveGroupFiles(serviceFileUri);
   const result: ApiGroup[] = [];
 
-  for (const { parsed } of groupFiles.values()) {
+  for (const { parsed } of groupFiles.byId.values()) {
     if (parsed?.content?.parentId !== serviceId) {
       continue;
     }
@@ -408,7 +417,7 @@ export async function getSpecificationModel(
   const apiFiles = await resolveApiFiles(actualServiceFileUri);
   const result: Api[] = [];
 
-  for (const { fileUri, parsed } of apiFiles.values()) {
+  for (const { fileUri, parsed } of apiFiles.byId.values()) {
     if (parsed?.content?.parentId !== groupId) {
       continue;
     }
@@ -459,13 +468,19 @@ export async function getOperations(
     // The api file wins over its `.specification.` sibling here too, and a sibling the scan could
     // not read refuses rather than letting the other name answer for the model.
     const apiFiles = await resolveApiFiles(actualServiceFileUri);
-    const model = apiFiles.get(modelId);
+    const model = apiFiles.byId.get(modelId);
 
     if (model) {
       return await parseOperations(
         model.parsed.content?.operations,
         model.parsed.id,
       );
+    }
+    // No file read carries the id, and the id is inside the file: one the scan could not read may
+    // be this model's, so "no operations" is not an answer this can give.
+    const refusal = scanMissRefusal(modelId, apiFiles.unreadable, "API ");
+    if (refusal) {
+      throw refusal;
     }
   } else {
     const specFileUri = await findModelFileById(ext, modelId);
@@ -523,7 +538,7 @@ export async function getOperationInfo(
   // lost the precedence race or stood in for a file the scan could not read.
   const apiFiles = await resolveApiFiles(actualServiceFileUri);
 
-  for (const { parsed } of apiFiles.values()) {
+  for (const { parsed } of apiFiles.byId.values()) {
     const operations = parsed?.content?.operations;
     if (!operations) {
       continue;
@@ -554,7 +569,11 @@ export async function getOperationInfo(
     };
   }
 
-  throw new Error(`Operation with id ${operationId} not found`);
+  // The operation lives inside an API file, so a file the scan could not read may hold it.
+  throw (
+    scanMissRefusal(operationId, apiFiles.unreadable, "operation ") ??
+    new Error(`Operation with id ${operationId} not found`)
+  );
 }
 
 // Recomputes an operation's request/response schemas and its `specification`
@@ -822,18 +841,37 @@ export async function getServices(
   // from the file findServiceFileById would resolve — the rule ApiGroupService.resolveGroupFile
   // applies to a group. findServiceFiles yields the typed names first, so first seen wins, and the
   // document in hand is already the winning one: resolving each id again would rescan per service.
-  // A listed file that cannot be read fails the listing by name rather than dropping out of it,
-  // which would let the very sibling it outranks be listed in its place.
+  // A file the listing cannot read takes its possible siblings with it rather than letting one of
+  // them be listed in its place, and is named to the user; see `readListedServices`.
+  const listed = await readListedServices(await findServiceFiles(ext), ext);
+  reportUnreadableListing(listed);
+
   const listedIds = new Set<string>();
   const result: IntegrationSystem[] = [];
-  for (const serviceFile of await findServiceFiles(ext)) {
-    const service: any = await readListedServiceFile(serviceFile, ext);
+  for (const { fileUri, service } of listed.services) {
     if (!service?.id || listedIds.has(service.id)) {
       continue;
     }
     listedIds.add(service.id);
-    result.push(toIntegrationSystem(serviceFile, service));
+    result.push(toIntegrationSystem(fileUri, service));
   }
 
   return result;
+}
+
+/**
+ * The listing kept going without the files it could not read, so the user is told which they are.
+ * Failing the whole listing instead would have named them too, and taken every other service off
+ * the screen with them — a one-file problem turned into a workspace-wide one, which is the blast
+ * radius `refuseUnreadableSibling` is scoped to avoid. A lookup by id still refuses: there a wrong
+ * answer becomes a write.
+ */
+function reportUnreadableListing({ unreadable }: ListedServices): void {
+  if (unreadable.length === 0) {
+    return;
+  }
+  vscode.window.showWarningMessage(
+    `${unreadable.map((fileUri) => extractFilename(fileUri)).join(", ")} could not be read,` +
+      " so the services they describe are not listed. Fix or delete them.",
+  );
 }

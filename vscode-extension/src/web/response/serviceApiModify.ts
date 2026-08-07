@@ -26,6 +26,7 @@ import {
 import { writeServiceInCurrentFormat } from "./file/serviceFileWrite";
 import { fileApi } from "./file/fileApiProvider";
 import { resolveApiFiles } from "./file/entityFiles";
+import { scanMissRefusal } from "./file/lookupOutcome";
 import { isSafeResourcePath } from "./file/resourcePath";
 import { refreshQipExplorer } from "../extension";
 import { LabelUtils } from "../api-services/LabelUtils";
@@ -566,20 +567,36 @@ async function getSpecificationFilesByGroup(
  * The file an API id owns, for a write. It is the file every read of that API already shows — the
  * `.api.` one where both names exist — rather than whichever name the directory listed first, and a
  * sibling the scan could not read refuses instead of handing the write to the other name.
+ *
+ * `duplicates` are the same-id files under the other name. A write ignores them, because the file
+ * the reads answer from is the one an edit belongs in; a delete removes them, or the API comes back
+ * from the sibling on the next read.
  */
 async function findSpecificationFileById(
   serviceFileUri: Uri,
   modelId: string,
-): Promise<{ specificationFile: string; specificationInfo: any }> {
-  const resolved = (await resolveApiFiles(serviceFileUri)).get(modelId);
+): Promise<{
+  specificationFile: string;
+  specificationInfo: any;
+  duplicates: { fileName: string; specificationInfo: any }[];
+}> {
+  const apiFiles = await resolveApiFiles(serviceFileUri);
+  const resolved = apiFiles.byId.get(modelId);
 
   if (!resolved) {
-    throw new Error(`API with id ${modelId} not found`);
+    throw (
+      scanMissRefusal(modelId, apiFiles.unreadable, "API ") ??
+      new Error(`API with id ${modelId} not found`)
+    );
   }
 
   return {
     specificationFile: resolved.fileName,
     specificationInfo: resolved.parsed,
+    duplicates: resolved.duplicates.map((duplicate) => ({
+      fileName: duplicate.fileName,
+      specificationInfo: duplicate.parsed,
+    })),
   };
 }
 
@@ -718,21 +735,31 @@ export async function deleteSpecificationModel(
   modelId: string,
 ): Promise<void> {
   try {
-    const { specificationFile, specificationInfo } =
+    const { specificationFile, specificationInfo, duplicates } =
       await findSpecificationFileById(serviceFileUri, modelId);
     const parentId = specificationInfo.content?.parentId;
 
-    await deleteSourceFilesFromSpecificationSources(
-      serviceFileUri,
-      specificationInfo,
-    );
+    // Every file that carries this API id, not only the resolved one — the same rule the group
+    // delete follows. A leftover sibling under the other API extension resurrects the API on the
+    // next read, with its source files and its place in the group already gone. The sources come
+    // from each file: a superseded sibling may name sources the current one no longer does.
+    const deleted = [
+      { fileName: specificationFile, specificationInfo },
+      ...duplicates,
+    ];
+    for (const file of deleted) {
+      await deleteSourceFilesFromSpecificationSources(
+        serviceFileUri,
+        file.specificationInfo,
+      );
+    }
 
     const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
-    const specificationFileUri = vscode.Uri.joinPath(
-      serviceFolderUri,
-      specificationFile,
-    );
-    await fileApi.deleteFile(specificationFileUri);
+    for (const file of deleted) {
+      await fileApi.deleteFile(
+        vscode.Uri.joinPath(serviceFolderUri, file.fileName),
+      );
+    }
 
     // The deleted API's file is gone, so rescanning drops its id from apis[].
     await ApiGroupService.regenerateGroupApisSafely(serviceFileUri, parentId);

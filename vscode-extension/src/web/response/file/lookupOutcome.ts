@@ -21,6 +21,13 @@
 // a scan of a folder listing that may hold both names of one entity runs. Neither takes an optional
 // `onUnreadable` handler: the failure this module exists to stop is a `catch` that continues to a
 // lower-precedence name, and the type system makes a caller say what that means.
+//
+// The two differ in one place, and only in what they can say. `resolveFirstCandidate` runs the
+// candidates of one id, so it can report a file it could not read the moment nothing matched. A
+// scan runs a folder listing: an entity whose only file is unreadable has no id to be listed under,
+// because the id is in the file. So the scan drops it from the map and hands the unreadable files
+// back with it, and a caller looking one id up turns that into `scanMissRefusal` — the miss stays a
+// miss, and it names the files that could not be ruled out.
 
 import type { Uri } from "vscode";
 import { UnreadableFileError } from "../fileFilteringUtils";
@@ -33,10 +40,16 @@ export type LookupFailures = {
 };
 
 /**
+ * The third outcome, reported. Both shapes of it are this type, so an accessor that answers `null`
+ * for a plain miss can rethrow the outcome without knowing which shape it holds.
+ */
+export class UnreadableOutcomeError extends Error {}
+
+/**
  * A file the lookup would have answered with may be the sibling of one the scan could not read, so
  * the lookup refuses instead. See `refuseUnreadableSibling` for the scope of that refusal.
  */
-export class UnreadableSiblingError extends Error {
+export class UnreadableSiblingError extends UnreadableOutcomeError {
   constructor(
     readonly entityId: string,
     readonly fileUri: Uri,
@@ -101,6 +114,47 @@ export function noMatchError(
     (cause) => cause instanceof UnreadableFileError,
   );
   return unreadable instanceof Error ? unreadable : absent();
+}
+
+/**
+ * Nothing the scan read carried the id, and it left files it could not read. What those files hold
+ * is what would say whether one of them is the entity, so reporting a plain miss is the third
+ * outcome collapsing: the caller goes on as if the entity were absent, and the file to fix is never
+ * named.
+ */
+export class UnreadableCandidateError extends UnreadableOutcomeError {
+  constructor(
+    readonly entityId: string,
+    readonly files: readonly Uri[],
+    noun = "",
+  ) {
+    super(
+      `Cannot resolve ${noun}${entityId}: no file carries that id, and ` +
+        `${files.map((fileUri) => fileUri.path).join(", ")} could not be read.` +
+        " Fix or delete those files — until then the id cannot be treated as absent.",
+    );
+    this.name = "UnreadableCandidateError";
+  }
+}
+
+/**
+ * What a folder scan has to report instead of a miss, or nothing when it read everything it listed.
+ * A file the scan could not read outranks a plain miss for the reason `noMatchError` prefers it one
+ * layer up: the id lives in the file, so a file nobody could read is a name that cannot be ruled
+ * out. A caller that answers `null` or an empty list for a plain miss throws this first.
+ *
+ * What this accepts: one broken file in a service folder reports every miss in that folder as
+ * unreadable rather than absent. That is a message, not a redirection — nothing is answered from
+ * another file either way — and the alternative is trusting a file name to state the id inside it.
+ */
+export function scanMissRefusal(
+  entityId: string,
+  unreadable: readonly Uri[],
+  noun = "",
+): UnreadableCandidateError | undefined {
+  return unreadable.length > 0
+    ? new UnreadableCandidateError(entityId, unreadable, noun)
+    : undefined;
 }
 
 function directoryOf(filePath: string): string {
@@ -191,6 +245,12 @@ export type ResolvedEntity<T> = ParsedFile<T> & {
   readonly duplicates: readonly ParsedFile<T>[];
 };
 
+/** What a folder scan resolved: one entry per entity id, and the files it could not read. */
+export type ScannedEntities<T> = {
+  readonly byId: Map<string, ResolvedEntity<T>>;
+  readonly unreadable: readonly Uri[];
+};
+
 /**
  * Runs a scan of a folder listing that may hold both names of one entity, and answers with one file
  * per entity id: the one under the current name.
@@ -201,6 +261,10 @@ export type ResolvedEntity<T> = ParsedFile<T> & {
  * `.specification-group.` file behind an unreadable `.api-group.` one — which is the pair a re-save
  * overwrites. So `onUnreadable` is required here too: it runs once per resolved entity, with the
  * files the scan could not read, and `refuseUnreadableSibling` is what a caller states in it.
+ *
+ * The files it could not read come back with the map, because an entity whose only file is one of
+ * them is in neither: its id was in that file. A caller looking one id up reports them through
+ * `scanMissRefusal` rather than calling the id absent.
  */
 export async function resolveScannedEntities<T>(
   candidates: readonly Uri[],
@@ -214,7 +278,7 @@ export async function resolveScannedEntities<T>(
       unreadable: readonly Uri[],
     ) => void;
   },
-): Promise<Map<string, ResolvedEntity<T>>> {
+): Promise<ScannedEntities<T>> {
   const unreadable: Uri[] = [];
   const byId = new Map<string, ParsedFile<T>[]>();
 
@@ -236,14 +300,14 @@ export async function resolveScannedEntities<T>(
     byId.set(entityId, files);
   }
 
-  const resolved = new Map<string, ResolvedEntity<T>>();
+  const resolved: ScannedEntities<T> = { byId: new Map(), unreadable };
   for (const [entityId, files] of byId) {
     const preferred = files.find((file) => handlers.prefers(file.fileUri));
     const winner = preferred ?? files[0];
     if (unreadable.length > 0) {
       handlers.onUnreadable(entityId, winner.fileUri, unreadable);
     }
-    resolved.set(entityId, {
+    resolved.byId.set(entityId, {
       ...winner,
       duplicates: files.filter((file) => file !== winner),
     });

@@ -4,7 +4,7 @@ import { IntegrationSystem } from "./servicesTypes";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getMainService } from "../response/serviceApiRead";
 import { findServiceFileById } from "../response/file/serviceFileLookup";
-import { UnreadableSiblingError } from "../response/file/lookupOutcome";
+import { UnreadableOutcomeError } from "../response/file/lookupOutcome";
 import { resolveServiceType } from "../response/file/serviceFileType";
 import { writeServiceInCurrentFormat } from "../response/file/serviceFileWrite";
 import { LabelUtils } from "./LabelUtils";
@@ -19,7 +19,7 @@ import {
  * never learns which file to fix.
  */
 function rethrowRefusal(error: unknown): void {
-  if (error instanceof UnreadableSiblingError) {
+  if (error instanceof UnreadableOutcomeError) {
     throw error;
   }
 }

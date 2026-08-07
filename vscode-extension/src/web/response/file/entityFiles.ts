@@ -13,14 +13,14 @@ import { fileApi } from "./fileApiProvider";
 import { getExtensionsForUri } from "./fileExtensions";
 import {
   refuseUnreadableSibling,
-  ResolvedEntity,
+  ScannedEntities,
   resolveScannedEntities,
 } from "./lookupOutcome";
 
 /** The group files of a service folder, one per group id. */
 export async function resolveGroupFiles(
   serviceFileUri: Uri,
-): Promise<Map<string, ResolvedEntity<any>>> {
+): Promise<ScannedEntities<any>> {
   const ext = getExtensionsForUri(serviceFileUri);
   return await resolveFolderEntities(
     serviceFileUri,
@@ -33,7 +33,7 @@ export async function resolveGroupFiles(
 /** The API files of a service folder, one per API id. */
 export async function resolveApiFiles(
   serviceFileUri: Uri,
-): Promise<Map<string, ResolvedEntity<any>>> {
+): Promise<ScannedEntities<any>> {
   const ext = getExtensionsForUri(serviceFileUri);
   return await resolveFolderEntities(
     serviceFileUri,
@@ -48,7 +48,7 @@ async function resolveFolderEntities(
   fileNames: readonly string[],
   extensions: readonly string[],
   currentExtension: string,
-): Promise<Map<string, ResolvedEntity<any>>> {
+): Promise<ScannedEntities<any>> {
   const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
   return await resolveScannedEntities(
     fileNames.map((fileName) =>

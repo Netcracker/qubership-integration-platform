@@ -144,6 +144,7 @@ import {
   getSpecificationModel,
 } from "../../../src/web/response/serviceApiRead";
 import {
+  deleteSpecificationModel,
   updateApiSpecificationGroup,
   updateSpecificationModel,
 } from "../../../src/web/response/serviceApiModify";
@@ -260,6 +261,58 @@ describe("a group or API file that cannot be read, with its other-format sibling
     expect(disk.get(apiGroupUri.path)).toBe(UNREADABLE_TEXT);
     expect(disk.get(legacyGroupUri.path)).toBe(groupText("superseded group"));
     expect(writeFile).not.toHaveBeenCalled();
+  });
+});
+
+// The entity has one file and the scan could not read it, so its id is in nothing the scan read.
+// A lookup by that id cannot call it absent: "not found" sends the caller on, and the file that may
+// hold it goes unnamed.
+describe("an entity whose only file cannot be read", () => {
+  beforeEach(() => {
+    disk.delete(legacyGroupUri.path);
+    disk.delete(legacyApiUri.path);
+    disk.set(apiGroupUri.path, UNREADABLE_TEXT);
+    disk.set(apiUri.path, UNREADABLE_TEXT);
+  });
+
+  it("names the file rather than reporting the API as not found", async () => {
+    await expect(
+      updateSpecificationModel(serviceUri, API_ID, { name: "Renamed" }),
+    ).rejects.toThrow(apiUri.path);
+  });
+
+  it("names it on a delete too, instead of deleting nothing", async () => {
+    await expect(deleteSpecificationModel(serviceUri, API_ID)).rejects.toThrow(
+      apiUri.path,
+    );
+  });
+
+  it("names the file rather than reporting the group as absent", async () => {
+    await expect(
+      ApiGroupService.resolveGroupFile(serviceUri, GROUP_ID),
+    ).rejects.toThrow(apiGroupUri.path);
+  });
+
+  it("names the file rather than answering that the model has no operations", async () => {
+    await expect(getOperations(serviceUri, API_ID)).rejects.toThrow(
+      apiUri.path,
+    );
+  });
+
+  it("names the file rather than reporting the operation as not found", async () => {
+    await expect(getOperationInfo(serviceUri, OPERATION_ID)).rejects.toThrow(
+      apiUri.path,
+    );
+  });
+
+  // A miss with everything read stays a plain miss: nothing was left unexplained.
+  it("still reports an id nothing carries as not found", async () => {
+    disk.set(apiUri.path, apiText("current api", "current op"));
+    disk.set(apiGroupUri.path, groupText("current group"));
+
+    await expect(
+      updateSpecificationModel(serviceUri, "no-such-api", { name: "Renamed" }),
+    ).rejects.toThrow("API with id no-such-api not found");
   });
 });
 

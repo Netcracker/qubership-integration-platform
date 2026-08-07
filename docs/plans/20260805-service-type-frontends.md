@@ -1326,10 +1326,12 @@ group and API sites route through those two, so the precedence rule and the refu
 `fileApi.parseFile` for the other now share one mock, which is what the production code does (`VSCodeFileApi.parseFile`
 *is* `ContentParser.parseContentFromFile`).
 
-➕ [decision] **The refusal fails the whole listing, and the tolerance is unchanged.** A listing that dropped only the
+➕ [decision] ~~**The refusal fails the whole listing, and the tolerance is unchanged.** A listing that dropped only the
 refused entity would hide a group while showing its siblings, and `getServices` already fails the whole list for the
-same state. An unreadable file that is nobody's sibling still blocks nothing — `refuseUnreadableSibling` is still the
-only narrowing rule, and a total miss is still a miss.
+same state.~~ **Half-reversed in phase 9**: the workspace-wide service listings drop and name the file instead. The
+entity-scoped API and group listings still fail, for the reason recorded there. An unreadable file that is nobody's
+sibling still blocks nothing — `refuseUnreadableSibling` is still the only narrowing rule, and a total miss is still a
+miss.
 
 ➕ [decision] **The tree drops rather than refuses.** `qipExplorer` cannot throw — that empties the whole explorer — so
 `dropUnreadableSiblings` keeps every service whose file may be a sibling of one the walk could not read off the tree
@@ -1377,6 +1379,83 @@ explorer suite gained the rest.
 ➕ [deviation] `vscode-extension/CLAUDE.md` was edited on disk once more (untracked, git-excluded, so it cannot be
 committed): the folder scan is now a section of its own next to the lookups, the guard paragraph describes both rules
 and what the checker cannot see, and the tree paragraph says what it drops.
+
+## Review phase 9 — external cross-review
+
+*Four findings from a seventh Codex (gpt-5.6-luna) pass. One is a class nobody had looked at — delete — and one asks a
+question phase 8 answered the other way.*
+
+➕ **CONFIRMED: the API delete removed one of the two files (`serviceApiModify.ts:721`).** Six rounds hardened reads and
+writes against the both-files-exist state; `deleteSpecificationModel` deleted the file `findSpecificationFileById`
+resolved and ignored `duplicates`. Reproduced against the real file api over an in-memory disk
+(`tests/web/response/deleteEntityFiles.test.ts`): with `<id>.api.` and `<id>.specification.` both on disk, deleting the
+API left the `.specification.` file, `getSpecificationModel` listed the API again under its superseded name, the
+regenerated group `apis[]` still carried the id, and the source files the surviving file references stayed in
+`resources/`. The delete now removes every file the id owns and takes the sources of each, which is what
+`deleteSpecificationGroup` already did.
+
+➕ **The delete enumeration, all nine paths.** With the hole: `deleteSpecificationModel` alone. Without:
+`deleteSpecificationGroup` (group file plus `duplicates`, and its API files come from the raw listing filtered by
+`parentId`, so both names are in it), `extension.collectServiceOwnedFiles` / `deleteServiceWithRelatedFiles` (service
+plus its `collectServiceFileSiblings`, groups and APIs from the raw listings by `parentId`),
+`serviceFileWrite.deleteLegacySibling` and `SpecificationImportService.deleteLegacySpecificationFile` (each removes the
+one named sibling a conversion supersedes, which is the pair), `deleteSourceFilesFromSpecificationSources` and its
+folder sweep (resource files, no name pair), `fileApiImpl.removeFile` (a named property file), and `qip.deleteChain`
+(a chain has one name).
+
+➕ **CONFIRMED: `resolveScannedEntities` dropped an entity whose only candidate was unreadable
+(`lookupOutcome.ts:239`), and every by-id caller above it then reported a plain miss.** The asymmetry codex names is
+real but only half of it is: `resolveFirstCandidate` runs the candidate names of *one* id, so an unreadable candidate
+there is that id's; a folder scan cannot say whose the file is, because the id is inside it. So the drop stays and the
+silence goes: the scan hands back the files it could not read next to the map, and `scanMissRefusal` turns a by-id miss
+into `UnreadableCandidateError` naming them. Six callers report it — the API write, the API delete,
+`ApiGroupService.resolveGroupFile`, `getOperations`, `getOperationInfo` and everything behind
+`getApiGroupById`. `UnreadableOutcomeError` is the shared base of the two refusals, so the four accessors that rethrow
+"the refusal" and answer `null` only for a plain miss keep working unchanged.
+
+➕ [decision] **A workspace-wide listing drops and names; a lookup by id refuses.** Codex is right that one unreadable
+file should not blank the services screen, and phase 8's reasoning is what says so: the phase-6 scope rule rejects a
+rule whose blast radius exceeds the problem it fixes. Failing the listing costs every other service and buys exactly one
+thing over dropping — the user learns which file to fix — and a warning naming the file buys that without the cost.
+`readListedServices` is the one place it happens: it drops the file it could not read *and every entry that may be its
+sibling* (`mayBeSameEntity`, the rule the tree already drops by), so the sibling still cannot be listed in its place,
+and `getServices`, `getContextServices` and `getMcpServices` name the files in a warning. The two surfaces now agree —
+the tree drops and logs, the list drops and warns — and no read or write is redirected, because a lookup by id still
+refuses.
+
+➕ [decision] **The API and group listings inside one service folder still fail whole**, and that is the line: the
+services list is the workspace-wide entry point every other service is reached through, while `getApiSpecifications` is
+scoped to the service the user already has open, where the broken file is in the folder they are looking at and the
+refusal names it on the same screen. A refusal that takes down a screen is acceptable at that scope, not at the entry
+point.
+
+➕ **CONFIRMED: the guard missed `call`, `apply` and `bind` (`lookupOutcomeContract.test.ts:186`).** `f.call(…)` resolves
+cleanly to `CallableFunction.call`, so both rules saw a call named `call`. The resolution now unwraps `f.call`, `f.apply`,
+`f.bind` and `Reflect.apply(f, …)` back to `f`, and follows a bound function through the variable it was parked in — its
+type is an anonymous signature of `lib.es5.d.ts`, so the call that follows resolves to nothing the checker can name.
+Demonstrated rather than asserted, and permanently: `tests/web/response/fixtures/indirectLookup/spellings.ts` holds six
+swallowing sites, one per spelling, and the guard analyzes that folder as a root of its own and has to name all six.
+Reverting the unwrapping turns all six red.
+
+➕ **What the guard can and cannot see, restated.** It sees: a lookup or a parse loop reached through an alias, a renamed
+import, a destructured binding, a computed property, a variable, a wrapper anywhere in the call graph, and now
+`call` / `apply` / `bind` / `Reflect.apply` plus one hop through a bound-function variable. It does not see: a callee
+typed `any` (the canary case fails if that share grows), a lookup passed as a value and invoked through a parameter
+somewhere else (`run(findServiceFileById)`), anything outside `src/web`, and anything generated at build time. That list
+is in the file header, not only here.
+
+➕ Mutations checked red, one per fix: the API delete back to the resolved file alone (3 cases); `scanMissRefusal`
+always answering nothing (5 cases); `readListedServices` keeping the sibling of a file it could not read (1 case);
+the listing warning silenced (3 cases); the guard without indirect unwrapping (all 6 fixture cases); and the new
+allowlist entry removed (the guard names `readListedServices` itself).
+
+➕ New suite `tests/web/response/deleteEntityFiles.test.ts` (4 cases over one in-memory disk: the API delete removing
+both files, both source sets and the group link, and the group delete pinned as the regression it already was).
+`unreadableApiFiles.test.ts` gained six cases for the named miss, `unreadableCanonicalFile.test.ts` had its three
+listing cases rewritten to the decision above, and the guard gained the fixture block.
+
+➕ [deviation] `vscode-extension/CLAUDE.md` was edited on disk once more (untracked, git-excluded, so it cannot be
+committed): the delete rule, the listing decision and the guard's blind spots.
 
 ## Post-Completion
 

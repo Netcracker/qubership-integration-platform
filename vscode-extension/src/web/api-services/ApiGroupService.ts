@@ -11,7 +11,8 @@ import {
   noMatchError,
   refuseUnreadableSibling,
   resolveFirstCandidate,
-  UnreadableSiblingError,
+  scanMissRefusal,
+  UnreadableOutcomeError,
 } from "../response/file/lookupOutcome";
 import {
   resolveApiFiles,
@@ -49,8 +50,19 @@ export class ApiGroupService {
     serviceFileUri: Uri,
     groupId: string,
   ): Promise<ResolvedGroupFile | null> {
-    const resolved = (await resolveGroupFiles(serviceFileUri)).get(groupId);
+    const groupFiles = await resolveGroupFiles(serviceFileUri);
+    const resolved = groupFiles.byId.get(groupId);
     if (!resolved) {
+      // A group whose only file the scan could not read is not an absent group: `null` here sends
+      // every caller on as if it were, and the file to fix goes unnamed.
+      const refusal = scanMissRefusal(
+        groupId,
+        groupFiles.unreadable,
+        "API group ",
+      );
+      if (refusal) {
+        throw refusal;
+      }
       return null;
     }
     return {
@@ -87,7 +99,8 @@ export class ApiGroupService {
     // One entry per API id: an API stored under both names is one API, and listing it twice is
     // what a scan over the raw file names does.
     const apiIds: string[] = [];
-    for (const [apiId, { parsed }] of await resolveApiFiles(serviceFileUri)) {
+    for (const [apiId, { parsed }] of (await resolveApiFiles(serviceFileUri))
+      .byId) {
       const parentId = parsed?.content?.parentId ?? parsed?.parentId;
       if (parentId === groupId) {
         apiIds.push(apiId);
@@ -160,7 +173,7 @@ export class ApiGroupService {
       );
       // A file the scan could not read is no "no such group": answering null here would send the
       // caller on as if the group were absent, and the file that may hold it stays unnamed.
-      if (error instanceof UnreadableSiblingError) {
+      if (error instanceof UnreadableOutcomeError) {
         throw error;
       }
       return null;
