@@ -55,7 +55,7 @@ describe("useActionLog", () => {
       actionLogs: [makeLog("1", 100)],
     });
 
-    const { result } = renderHook(() => useActionLog(), {
+    const { result } = renderHook(() => useActionLog([]), {
       wrapper: createWrapper(),
     });
 
@@ -185,7 +185,7 @@ describe("useActionLog", () => {
       actionLogs: [makeLog("1", 100)],
     });
 
-    const { result } = renderHook(() => useActionLog(), {
+    const { result } = renderHook(() => useActionLog([]), {
       wrapper: createWrapper(),
     });
 

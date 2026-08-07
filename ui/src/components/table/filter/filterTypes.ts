@@ -33,7 +33,7 @@ export class FilterCondition {
   public static readonly NOT_IN = new FilterCondition(
     "NOT_IN",
     "Not in",
-    (f, v) => !f || (!!v && !f.toLowerCase().split(",").includes(v.toLowerCase())),
+    (f, v) => !f || !v || !f.toLowerCase().split(",").includes(v.toLowerCase()),
   );
   public static readonly IS = new FilterCondition(
     "IS",
