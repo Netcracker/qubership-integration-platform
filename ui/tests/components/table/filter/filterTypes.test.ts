@@ -54,6 +54,98 @@ describe("FilterCondition funcs", () => {
     });
   });
 
+  describe("CONTAINS", () => {
+    it("should match when the value contains the filter", () => {
+      expect(run("CONTAINS", "raft", "Draft")).toBe(true);
+    });
+
+    it("should not match when the value does not contain the filter", () => {
+      expect(run("CONTAINS", "xyz", "Draft")).toBe(false);
+    });
+
+    it("should match all when the filter is empty", () => {
+      expect(run("CONTAINS", undefined, "Draft")).toBe(true);
+    });
+
+    it("should not match when the value is undefined", () => {
+      expect(run("CONTAINS", "Draft", undefined)).toBe(false);
+    });
+
+    it("should match case-insensitively", () => {
+      expect(run("CONTAINS", "DRAFT", "draft")).toBe(true);
+      expect(run("CONTAINS", "raft", "DRA")).toBe(false);
+    });
+  });
+
+  describe("DOES_NOT_CONTAIN", () => {
+    it("should match when the value does not contain the filter", () => {
+      expect(run("DOES_NOT_CONTAIN", "xyz", "Draft")).toBe(true);
+    });
+
+    it("should not match when the value contains the filter", () => {
+      expect(run("DOES_NOT_CONTAIN", "raft", "Draft")).toBe(false);
+    });
+
+    it("should match all when the filter is empty", () => {
+      expect(run("DOES_NOT_CONTAIN", undefined, "Draft")).toBe(true);
+    });
+
+    it("should match when the value is undefined", () => {
+      expect(run("DOES_NOT_CONTAIN", "Draft", undefined)).toBe(true);
+    });
+
+    it("should match case-insensitively", () => {
+      expect(run("DOES_NOT_CONTAIN", "raft", "DRAFT")).toBe(false);
+      expect(run("DOES_NOT_CONTAIN", "xyz", "DRAFT")).toBe(true);
+    });
+  });
+
+  describe("STARTS_WITH", () => {
+    it("should match when the value starts with the filter", () => {
+      expect(run("STARTS_WITH", "Dra", "Draft")).toBe(true);
+    });
+
+    it("should not match when the value does not start with the filter", () => {
+      expect(run("STARTS_WITH", "aft", "Draft")).toBe(false);
+    });
+
+    it("should match all when the filter is empty", () => {
+      expect(run("STARTS_WITH", undefined, "Draft")).toBe(true);
+    });
+
+    it("should not match when the value is undefined", () => {
+      expect(run("STARTS_WITH", "Draft", undefined)).toBe(false);
+    });
+
+    it("should match case-insensitively", () => {
+      expect(run("STARTS_WITH", "dra", "Draft")).toBe(true);
+      expect(run("STARTS_WITH", "DRA", "raft")).toBe(false);
+    });
+  });
+
+  describe("ENDS_WITH", () => {
+    it("should match when the value ends with the filter", () => {
+      expect(run("ENDS_WITH", "aft", "Draft")).toBe(true);
+    });
+
+    it("should not match when the value does not end with the filter", () => {
+      expect(run("ENDS_WITH", "Dra", "Draft")).toBe(false);
+    });
+
+    it("should match all when the filter is empty", () => {
+      expect(run("ENDS_WITH", undefined, "Draft")).toBe(true);
+    });
+
+    it("should not match when the value is undefined", () => {
+      expect(run("ENDS_WITH", "Draft", undefined)).toBe(false);
+    });
+
+    it("should match case-insensitively", () => {
+      expect(run("ENDS_WITH", "AFT", "Draft")).toBe(true);
+      expect(run("ENDS_WITH", "DRA", "raft")).toBe(false);
+    });
+  });
+
   describe("IS_BEFORE", () => {
     it("should match when the value is before the filter", () => {
       expect(run("IS_BEFORE", "200", "100")).toBe(true);
