@@ -129,6 +129,22 @@ describe("getApiGroupById", () => {
     ).rejects.toThrow(`/svc/group-1${API_GROUP_EXT}`);
     expect(mockParseContentFromFile).not.toHaveBeenCalled();
   });
+
+  // No sibling stands in here — the group has one file and nobody could read it. That is still not
+  // a "no such group": `null` reports an absence, and the caller shows "group not found" while the
+  // file that may hold it goes unnamed. Both shapes of the outcome carry one base class, which is
+  // what this rethrow checks against.
+  it("reports the file it could not read when the group has no sibling", async () => {
+    mockFindFileById.mockRejectedValue(
+      new UnreadableFileError(API_GROUP_EXT, [
+        { path: `/svc/group-1${API_GROUP_EXT}` } as any,
+      ]),
+    );
+
+    await expect(
+      new ApiGroupService().getApiGroupById("group-1", "system-1"),
+    ).rejects.toThrow(`/svc/group-1${API_GROUP_EXT}`);
+  });
 });
 
 describe("saveApiGroupFile", () => {

@@ -154,6 +154,7 @@ const apiUri = uri(`${folder}/${MODEL_ID}${ext.api}`);
 const legacyApiUri = uri(`${folder}/${MODEL_ID}${ext.specification}`);
 const apiGroupUri = uri(`${folder}/${GROUP_ID}${ext.apiGroup}`);
 const legacyGroupUri = uri(`${folder}/${GROUP_ID}${ext.specificationGroup}`);
+const chainUri = uri(`/root/chains/c1${ext.chain}`);
 
 let api: VSCodeFileApi;
 
@@ -199,6 +200,12 @@ beforeEach(() => {
       content: { protocol: "HTTP", integrationSystemType: "EXTERNAL" },
     }),
   );
+  // The chain the model reads are driven from. It is on disk because the extension is only ever
+  // handed the uri of an open editor: the fallback to a held uri stands only while it resolves.
+  disk.set(
+    chainUri.path,
+    JSON.stringify({ id: "c1", name: "C1", content: { elements: [] } }),
+  );
   disk.set(apiUri.path, modelText("Orders API", "current"));
   disk.set(legacyApiUri.path, modelText("Orders API (superseded)", "old"));
   disk.set(apiGroupUri.path, groupText("Orders group"));
@@ -226,10 +233,7 @@ describe("an api model stored under both `.specification.` and `.api.`", () => {
   // id across both names, and answering with the `.specification.` file serves the operations the
   // conversion superseded.
   it("reads the operations of the `.api.` file", async () => {
-    const operations = await getOperations(
-      uri(`/root/chains/c1${ext.chain}`),
-      MODEL_ID,
-    );
+    const operations = await getOperations(chainUri, MODEL_ID);
 
     expect(operations.map((operation) => operation.name)).toEqual(["current"]);
   });

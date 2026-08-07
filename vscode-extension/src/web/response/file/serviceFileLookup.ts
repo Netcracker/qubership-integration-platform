@@ -8,7 +8,7 @@ import {
 } from "./serviceFileType";
 import type { CandidateOrder } from "./namePrecedence";
 import {
-  mayBeSameEntity,
+  blockingSibling,
   refuseUnreadableSibling,
   resolveFirstCandidate,
   UnreadableSiblingError,
@@ -113,10 +113,14 @@ export type ListedServices = {
  * a listed name may still be unreadable, and reporting that as the parser's own failure loses both
  * which file it was and that the listing would otherwise show its sibling in its place.
  *
- * A file it cannot read takes itself and every entry that may be its sibling off the list — the
- * `mayBeSameEntity` rule the explorer tree already drops by — because listing that sibling puts the
- * superseded document where the current one belongs. Everything else stays: one broken file is one
- * service's problem, not the workspace's. The files come back so the caller can name them.
+ * A file it cannot read takes itself and every entry it outranks off the list — the
+ * `blockingSibling` rule every lookup refuses by — because listing such a sibling puts the
+ * superseded document where the current one belongs. A converted service whose *legacy* file is the
+ * broken one stays listed: the typed file is the one this list hands out and every write lands on,
+ * and hiding it would take a healthy service off the only screen it is reachable from while the
+ * warning tells the user to delete the file that is left. Everything else stays too: one broken
+ * file is one service's problem, not the workspace's. The files come back so the caller can name
+ * them.
  */
 export async function readListedServices(
   fileUris: readonly Uri[],
@@ -147,9 +151,7 @@ export async function readListedServices(
   const names = allServiceExtensions(scanned);
   return {
     services: services.filter(({ fileUri }) => {
-      const sibling = unreadable.find((candidate) =>
-        mayBeSameEntity(candidate, fileUri, names),
-      );
+      const sibling = blockingSibling(fileUri, unreadable, names);
       if (sibling) {
         console.error(
           `Hiding the service in ${fileUri.path}: ${sibling.path} could not be read`,

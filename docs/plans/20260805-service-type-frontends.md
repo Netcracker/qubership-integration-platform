@@ -1050,8 +1050,11 @@ collects every failure into one `ServiceFileNotFoundError` that names them all.
 
 ➕ **CONFIRMED: the fallback handed back a uri that no longer exists.** `resolveServiceFileUri` returned `currentFile`
 for any lookup failure, including one where `currentFile` is the path the conversion deleted, which turned the lookup
-failure into an `EntryNotFound` on a stale path further down. The fallback is now taken only when `currentFile` still
-resolves; otherwise the lookup error propagates.
+failure into an `EntryNotFound` on a stale path further down. ~~The fallback is now taken only when `currentFile` still
+resolves; otherwise the lookup error propagates.~~ **False until phase 12**: the guard asked `getFileType`, which
+catches everything and answers `UNKNOWN`, so it answered "still there" for every path and the fallback was still taken
+for every miss. Two unit tests made it look enforced by stubbing `getFileType` to reject, which the implementation
+cannot do. It now asks `fileApi.fileExists`, which is `stat` alone.
 
 ➕ [decision] Telling "not found" from "the scan broke" by error type was declined. `FileApi` has no typed error
 channel — `findFile` throws a plain `Error` for a miss, `parseFile` throws a plain `Error` for a broken file, and every
@@ -1409,16 +1412,20 @@ real but only half of it is: `resolveFirstCandidate` runs the candidate names of
 there is that id's; a folder scan cannot say whose the file is, because the id is inside it. So the drop stays and the
 silence goes: the scan hands back the files it could not read next to the map, and `scanMissRefusal` turns a by-id miss
 into `UnreadableCandidateError` naming them. Six callers report it — the API write, the API delete,
-`ApiGroupService.resolveGroupFile`, `getOperations`, `getOperationInfo` and everything behind
-`getApiGroupById`. `UnreadableOutcomeError` is the shared base of the two refusals, so the four accessors that rethrow
-"the refusal" and answer `null` only for a plain miss keep working unchanged.
+`ApiGroupService.resolveGroupFile`, `getOperations`, `getOperationInfo` and ~~everything behind
+`getApiGroupById`~~ (**false until phase 12**: `getApiGroupById` answered `null` for a group whose only file was
+unreadable, because `UnreadableFileError` extended `Error` rather than `UnreadableOutcomeError`).
+~~`UnreadableOutcomeError` is the shared base of the two refusals~~ — it was the base of *two* of the three shapes; the
+third, the one `findGroupFileById` reports, sat outside it. Phase 12 made it the base of all three.
 
 ➕ [decision] **A workspace-wide listing drops and names; a lookup by id refuses.** Codex is right that one unreadable
 file should not blank the services screen, and phase 8's reasoning is what says so: the phase-6 scope rule rejects a
 rule whose blast radius exceeds the problem it fixes. Failing the listing costs every other service and buys exactly one
 thing over dropping — the user learns which file to fix — and a warning naming the file buys that without the cost.
-`readListedServices` is the one place it happens: it drops the file it could not read *and every entry that may be its
-sibling* (`mayBeSameEntity`, the rule the tree already drops by), so the sibling still cannot be listed in its place,
+`readListedServices` is the one place it happens: it drops the file it could not read ~~*and every entry that may be its
+sibling* (`mayBeSameEntity`, the rule the tree already drops by)~~ — **narrowed in phase 12** to every entry it
+*outranks* (`blockingSibling`), so a converted service is not hidden by its own broken legacy file — so a superseded
+sibling still cannot be listed in its place,
 and `getServices`, `getContextServices` and `getMcpServices` name the files in a warning. The two surfaces now agree —
 the tree drops and logs, the list drops and warns — and no read or write is redirected, because a lookup by id still
 refuses.
@@ -1500,9 +1507,10 @@ it and the reverse import would be a cycle. Its value type narrowed from `keyof 
 `unreadableCanonicalFile.test.ts` set the `.specification.` file unreadable and expected the lookup to refuse — which
 only held because the buggy order scanned that name first. `resolveFirstCandidate` collects unreadable candidates from
 *earlier* names alone, and that is the rule: only a file of higher precedence blocks, because only that file is the one
-a write lands on. An unreadable *legacy* sibling blocks nothing, exactly as it already did for a service and a group.
-The case now runs both ways round: the `.api.` file unreadable refuses and names it, the legacy sibling unreadable
-answers from `.api.`.
+a write lands on. ~~An unreadable *legacy* sibling blocks nothing, exactly as it already did for a service and a
+group.~~ **True of the by-id lookups alone, until phase 12**: the folder scan and the two listings carried no direction
+at all. ~~The case now runs both ways round~~ — both of its cases drive `getOperations` from a chain uri, which is the
+`findModelFileById` branch, so neither reaches the scan.
 
 ➕ [decision] **`FileCacheService.isGroupExtension` had its two names swapped** to `[apiGroup, specificationGroup]`.
 `matchesAny` is order-free, so this changes no behavior; it keeps the source guard below free of an allowlist, and an
@@ -1578,6 +1586,87 @@ integration unchanged at 7 passing.
 
 ➕ [deviation] `vscode-extension/CLAUDE.md` was edited on disk once more (untracked, git-excluded, so it cannot be
 committed): what the declaration enforces through the type, and what the source rule reads.
+
+
+## Review phase 12 — external cross-review
+
+*Six findings from a tenth pass, two reviewers, both of whom independently found the first and the third. One theme:
+several guarantees this change wrote down were not what the code did. Every one is confirmed, and each fix either makes
+the mechanism match the claim or corrects the claim.*
+
+➕ **CONFIRMED: the folder-scan refusal was not directional (`lookupOutcome.ts`, `entityFiles.ts`).** Reproduced against
+the real file api over an in-memory disk (`unreadableApiFiles.test.ts`): with `<id>.api.` readable and
+`<id>.specification.` unparseable in one service folder, `getApiSpecifications`, `getSpecificationModel`,
+`getOperations`, `getOperationInfo`, `ApiGroupService.resolveGroupFile` and both write paths all threw
+`UnreadableSiblingError` — the whole API and group surface of a healthy service, taken down by a superseded document
+nothing reads and nothing writes.
+
+➕ **CONFIRMED: the same non-directional rule at listing level (`serviceFileLookup.readListedServices`,
+`qipExplorer.dropUnreadableSiblings`).** A converted service whose legacy sibling was the broken one disappeared from
+the services list and from the explorer tree, while `findServiceFileById` still resolved it and every write still
+landed on it — the file the warning tells the user to delete by hand took the service off both screens it is browsable
+from.
+
+➕ [decision] **The direction lives in the rule, not in each runner.** `blockingSibling` is the one predicate now: same
+folder, same base name, *and* a rank ahead of the resolved file in the extension order the caller scanned in.
+`refuseUnreadableSibling` asks it, and so do the two listings; `resolveScannedEntities` still hands `onUnreadable`
+every file it could not read, because which of them is this entity's and which of them outranks it is that one rule's
+decision. `resolveFirstCandidate` was directional by construction already, so the check changes nothing there — which
+is the point: one rule, one direction, four call sites.
+
+➕ [decision] **What this accepts at delete time:** deleting an API whose legacy sibling is unreadable now proceeds and
+leaves that file, where it used to refuse. The file cannot be attributed to the id — nobody could read the id inside it
+— which is the rule `collectServiceOwnedFiles` already follows. Nothing resurrects: the leftover is unparseable, so the
+next lookup by that id reports it through `scanMissRefusal` rather than answering from it.
+
+➕ **CONFIRMED: `fileExists` always answered `true` (`serviceApiRead.ts`).** It asked `getFileType`, whose whole body is
+wrapped in `try { … } catch { return UNKNOWN }`, so the phase-4 guard was inert in production: the fallback to the held
+uri was taken for every lookup miss, including one where the held uri is the path a conversion deleted. `FileApi` now
+declares `fileExists`, `VSCodeFileApi` implements it as `stat` alone — the shape `ApiGroupService.fileExists` always
+had — and the phase-4 claim is struck in place above.
+
+➕ **Two inherited tests were lying about it**, which is why it survived four rounds:
+`serviceApiRead.serviceTypes.test.ts` and `serviceApiModify.canonicalFile.test.ts` both stubbed `getFileType` to
+*reject*, a behaviour the implementation cannot produce — and a third suite
+(`SpecificationImportService.conversion.test.ts`) documented that it cannot. Both doubles now stub `fileExists`, and the
+guard is pinned against the real `VSCodeFileApi` in `unreadableCanonicalFile.test.ts`, where nothing is stubbed.
+
+➕ **CONFIRMED: `getApiGroupById` answered `null` for a group whose only file was unreadable.**
+`fileFilteringUtils.UnreadableFileError` extended `Error`, not `UnreadableOutcomeError`, so the rethrow missed it and
+"no such group" was reported for a file that exists and cannot be parsed. Fixed at the class rather than the call site:
+`UnreadableFileError` is declared in `lookupOutcome.ts` beside the other two shapes and extends the shared base
+(`fileFilteringUtils` re-exports it, so no importer changed). The other three sites that check the base —
+`SystemService.getSystemById` / `getRawServiceById` and `EnvironmentService.getEnvironmentsForSystem` — had the same
+class-level hole and are closed by the same change; none of them could reach it in practice, because
+`findServiceFileById` deliberately reports a total miss as `ServiceFileNotFoundError`.
+
+➕ **CONFIRMED: `getOperations` answered `[]` for an unparseable model file** in the `findModelFileById` branch, while
+the other branch of the same function refuses for the same file. `findFileById` can answer from a cache validated by
+`stat` alone, so the file behind a resolved id can go unreadable without the lookup noticing — reproduced by reading
+the operations once, corrupting the file, and reading again. It now throws `UnreadableResolvedFileError`, the third
+shape of the outcome. The contract guard could not see this: rule 1 reads lookups inside a `catch` and the lookup sits
+outside the `try`.
+
+➕ **CONFIRMED against the backend: `updateMcpService` stamped the service migration list on an MCP document.** It read
+the file through `fileApi.getContextService`, which repairs the claim with `SERVICE_MIGRATIONS`. Verified in
+runtime-catalog on this branch: `MCPSystemDeserializer` and `MCPServiceDtoMapper` inject
+`Collection<MCPServiceImportFileMigration>`, whose only implementation is `V100MCPServiceImportFileMigration`, and
+`FileMigrationService.migrate` throws for any version the registry does not hold. So the `[100, 101, 102, 103, 104,
+105]` this diff raised the service list to made the document unimportable. It reads through `fileApi.getMcpService`
+now. New suite `tests/web/response/mcpMigrationClaim.test.ts` pins the claim each kind of document carries, against the
+real write path.
+
+➕ Mutations checked red, one per fix: `blockingSibling` without its precedence test (7 cases in `unreadableApiFiles`,
+2 across the service list and the tree); the existence guard back on `getFileType` (1 case, against the real file api);
+`UnreadableFileError` back to `extends Error` (1 case); `getOperations` back to `return []` (1 case); and
+`updateMcpService` back to `getContextService` (1 case).
+
+➕ Counts: 72 suites, 975 passed, 2 skipped (up 20 from 955, one new suite); integration unchanged at 7 passing.
+
+➕ [deviation] `vscode-extension/CLAUDE.md` was edited on disk again (untracked, git-excluded, so it cannot be
+committed): the direction of the refusal on all four surfaces, the listing rule, `fileExists`, and the MCP migration
+registry. `runtime-catalog/CLAUDE.md` was corrected on disk too — it still called the extension asymmetry unshipped and
+said the extension "cannot open a post-#553 service file at all", which this branch makes false.
 
 
 ## Post-Completion

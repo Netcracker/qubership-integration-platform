@@ -276,10 +276,89 @@ describe("a service whose typed file cannot be read, with the legacy sibling sti
   });
 });
 
+// The other way round: the converted file is fine and the legacy one it superseded is the broken
+// one — the state a failed `deleteLegacySibling` leaves, and the state whose warning tells the user
+// to delete that file by hand. Nothing reads it and no write lands on it, so the service stays on
+// every screen it is reachable from; hiding it would take a healthy service off the list while the
+// lookup still resolves it and every write still lands on it.
+describe("a converted service whose legacy sibling cannot be read", () => {
+  beforeEach(() => {
+    disk.set(
+      typedUri.path,
+      serviceText(SERVICE_ID, { description: "current" }),
+    );
+    disk.set(legacyUri.path, UNREADABLE_TEXT);
+  });
+
+  it("resolves the id to the typed file", async () => {
+    const fileUri = await findServiceFileById(SERVICE_ID, ext);
+
+    expect(fileUri.path).toBe(typedUri.path);
+  });
+
+  it("lists the service", async () => {
+    const services = await getServices(uri("/root"));
+
+    expect(services.map((service) => service.id)).toEqual([SERVICE_ID]);
+  });
+
+  it("reads it through the stale legacy uri", async () => {
+    const service = await getService(legacyUri, SERVICE_ID);
+
+    expect(service.description).toBe("current");
+  });
+
+  it("writes an edit to the typed file and leaves the broken one alone", async () => {
+    await updateService(typedUri, SERVICE_ID, { name: "Renamed" });
+
+    expect(JSON.parse(disk.get(typedUri.path) ?? "{}").name).toBe("Renamed");
+    expect(disk.get(legacyUri.path)).toBe(UNREADABLE_TEXT);
+  });
+
+  it("still names the file it could not read", async () => {
+    await getServices(uri("/root"));
+
+    expect(
+      jest.requireMock("vscode").window.showWarningMessage,
+    ).toHaveBeenCalledWith(
+      expect.stringContaining(`${SERVICE_ID}${ext.service}`),
+    );
+  });
+});
+
+// The uri a caller holds is a hint, and it stands in for a lookup that found nothing only while it
+// still points at something. `getFileType` answers UNKNOWN for a path that is gone rather than
+// failing, so existence is asked of `stat`; reading it back through `getFileType` made this guard
+// answer "still there" for every path and turned the lookup failure into a read error on a deleted
+// file further down.
+describe("a held uri the conversion deleted, with nothing carrying the id", () => {
+  it("reports the lookup failure rather than reading on from the deleted path", async () => {
+    // The aggregate names every extension it tried; the raw `EntryNotFound` the fallback produces
+    // instead names one deleted path and nothing about the lookup.
+    await expect(getService(legacyUri, SERVICE_ID)).rejects.toThrow(
+      `No service file carries id ${SERVICE_ID}`,
+    );
+  });
+
+  it("still reads on from a uri that is there", async () => {
+    disk.set(legacyUri.path, serviceText(SERVICE_ID, { description: "held" }));
+
+    // Nothing carries the *other* id, so the lookup misses and the held uri is what is left.
+    await expect(getService(legacyUri, OTHER_ID)).rejects.toThrow(
+      "ServiceId mismatch",
+    );
+  });
+});
+
 // The same three outcomes one level down, where a model file may sit under `.specification.` and
 // `.api.` at once — the pair the conversion of an API leaves behind. The refusal is directional,
 // as it is for a service: only a name of *higher* precedence that the scan could not read blocks
 // the answer, because only that file is the one a write would land on.
+//
+// These cases drive `getOperations` from a *chain* uri, so they run the `findModelFileById` branch:
+// the lookup by id, not the folder scan. The folder scan is the other runner of the same rule, and
+// `unreadableApiFiles.test.ts` pins it in both directions — for a while these cases were read as
+// covering it, and it was non-directional the whole time.
 describe("an API model stored under both names, one of them unreadable", () => {
   const specUri = uri(`/root/${MODEL_ID}/${MODEL_ID}${ext.specification}`);
   const apiUri = uri(`/root/${MODEL_ID}/${MODEL_ID}${ext.api}`);
@@ -296,6 +375,21 @@ describe("an API model stored under both names, one of them unreadable", () => {
     await expect(
       getOperations(uri(`/root/x/x${ext.chain}`), MODEL_ID),
     ).rejects.toThrow(apiUri.path);
+  });
+
+  // A resolved uri can come from the cache, where only `stat` vouched for it, so the file behind an
+  // id resolves without the lookup ever parsing it. "No operations" is a content answer, and
+  // nobody could read the content.
+  it("refuses when the file it resolved went unreadable after the lookup cached it", async () => {
+    disk.set(apiUri.path, modelText);
+    const chainUri = uri(`/root/x/x${ext.chain}`);
+
+    expect(await getOperations(chainUri, MODEL_ID)).toHaveLength(1);
+    disk.set(apiUri.path, UNREADABLE_TEXT);
+
+    await expect(getOperations(chainUri, MODEL_ID)).rejects.toThrow(
+      apiUri.path,
+    );
   });
 
   // The other way round nothing is at risk: the `.api.` file is the one every read answers from and

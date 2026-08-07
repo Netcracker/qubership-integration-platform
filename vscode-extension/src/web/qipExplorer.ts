@@ -6,7 +6,7 @@ import {
   resolveServiceType,
   serviceTypeFromUri,
 } from "./response/file/serviceFileType";
-import { mayBeSameEntity } from "./response/file/lookupOutcome";
+import { blockingSibling } from "./response/file/lookupOutcome";
 import { readDirectory } from "./response/file/fileApiImpl";
 import { ContentParser } from "./api-services/parsers/ContentParser";
 import { IntegrationSystemType } from "./api-services/servicesTypes";
@@ -78,9 +78,11 @@ interface DiscoveredServices {
  * The services the tree may show. A file the walk could not read is neither a service nor an
  * absence: the sibling it outranks would otherwise be listed in its place, and the tree would name
  * the superseded document as the current one — the same rule `getServices` and every lookup follow
- * (`refuseUnreadableSibling` in `lookupOutcome.ts`). The tree cannot refuse, so it drops that entry
+ * (`blockingSibling` in `lookupOutcome.ts`). The tree cannot refuse, so it drops that entry
  * instead; the file stays visible in the file explorer, and every read behind the id refuses by
- * name. A file it could not read anywhere else takes nothing off the tree.
+ * name. A file it could not read anywhere else takes nothing off the tree, and neither does one
+ * a listed service outranks: a converted service is shown from its typed file whatever state the
+ * legacy sibling is in.
  */
 function dropUnreadableSiblings({
   servicesById,
@@ -93,11 +95,7 @@ function dropUnreadableSiblings({
   const shown = new Map<string, DiscoveredService>();
   for (const [serviceId, service] of servicesById) {
     const fileUri = service.item.fileUri;
-    const sibling =
-      fileUri &&
-      unreadable.find((candidate) =>
-        mayBeSameEntity(candidate, fileUri, extensions),
-      );
+    const sibling = fileUri && blockingSibling(fileUri, unreadable, extensions);
     if (sibling) {
       console.error(
         `QIP Explorer: hiding service ${serviceId}; ${sibling.path} could not be read`,

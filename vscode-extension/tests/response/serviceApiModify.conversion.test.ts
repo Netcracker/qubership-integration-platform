@@ -42,12 +42,16 @@ const writeMainService = jest.fn();
 const writeServiceFile = jest.fn();
 const deleteFile = jest.fn();
 const getContextServiceFile = jest.fn();
+// An MCP document is read through its own accessor, which repairs its claim with the MCP migration
+// list; `mcpMigrationClaim.test.ts` is where that matters.
+const getMcpServiceFile = jest.fn();
 jest.mock("../../src/web/response/file/fileApiProvider", () => ({
   fileApi: {
     writeMainService: (...args: unknown[]) => writeMainService(...args),
     writeServiceFile: (...args: unknown[]) => writeServiceFile(...args),
     deleteFile: (...args: unknown[]) => deleteFile(...args),
     getContextService: (...args: unknown[]) => getContextServiceFile(...args),
+    getMcpService: (...args: unknown[]) => getMcpServiceFile(...args),
   },
 }));
 
@@ -595,6 +599,11 @@ describe("a context or an MCP file is written where it is", () => {
       id: SERVICE_ID,
       name: "Customer context",
       content: { description: "Customer data" },
+    });
+    getMcpServiceFile.mockResolvedValue({
+      id: SERVICE_ID,
+      name: "Orders MCP",
+      content: { description: "Order tools" },
     });
   });
 

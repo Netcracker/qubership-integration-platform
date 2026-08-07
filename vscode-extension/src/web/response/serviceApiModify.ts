@@ -69,7 +69,10 @@ export async function updateMcpService(
   serviceId: string,
   serviceRequest: Partial<MCPSystem>,
 ): Promise<MCPSystem> {
-  const service = await fileApi.getContextService(serviceFileUri, serviceId);
+  // An MCP document claims the MCP migration list. Reading it as a context service stamps the
+  // service list on it, and the backend's MCP registry holds version 100 alone — every later
+  // version it named would be refused as exported from a newer version.
+  const service = await fileApi.getMcpService(serviceFileUri, serviceId);
 
   if (!service.content) {
     service.content = {};

@@ -96,6 +96,7 @@ export function stubFileApi(extra: Record<string, any> = {}) {
       getSpecificationFiles: jest.fn(),
       deleteFile: jest.fn(),
       getFileType: jest.fn(),
+      fileExists: jest.fn().mockResolvedValue(true),
       parseFile: jest.fn(),
       readFileContent: jest.fn(),
       getSpecApiFiles: jest.fn(),

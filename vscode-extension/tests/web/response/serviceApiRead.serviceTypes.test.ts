@@ -43,6 +43,10 @@ const getRootDirectory = jest.fn().mockReturnValue({ path: "/root" });
 const parseFile = jest.fn();
 const readFileContent = jest.fn().mockResolvedValue("raw source");
 const getFileType = jest.fn();
+// The real `getFileType` catches a missing path and answers UNKNOWN, so existence is asked of
+// `fileExists`, which is `stat` alone. A double that rejects here would be a behaviour the
+// implementation cannot produce.
+const fileExists = jest.fn();
 
 jest.mock("../../../src/web/response/file/fileApiProvider", () => ({
   fileApi: {
@@ -56,6 +60,7 @@ jest.mock("../../../src/web/response/file/fileApiProvider", () => ({
     parseFile,
     readFileContent,
     getFileType,
+    fileExists,
     getFileCreatedWhen: jest.fn().mockResolvedValue(0),
   },
 }));
@@ -126,6 +131,7 @@ beforeEach(() => {
   findAndBuildChainsRecursively.mockResolvedValue(undefined);
   readFileContent.mockResolvedValue("raw source");
   getFileType.mockResolvedValue("SERVICE");
+  fileExists.mockResolvedValue(true);
 });
 
 describe("getService - the file name states the type", () => {
@@ -802,7 +808,7 @@ describe("falling back to the held uri", () => {
   });
 
   it("reads on through a uri that is still there", async () => {
-    getFileType.mockResolvedValue("CHAIN");
+    fileExists.mockResolvedValue(true);
     getSpecificationFiles.mockResolvedValue([]);
 
     const apis = await getSpecificationModel(
@@ -818,7 +824,7 @@ describe("falling back to the held uri", () => {
   });
 
   it("reports the lookup failure rather than handing back a deleted uri", async () => {
-    getFileType.mockRejectedValue(new Error("EntryNotFound"));
+    fileExists.mockResolvedValue(false);
 
     await expect(
       getSpecificationModel(serviceFile(ext.service), SERVICE_ID, "group-1"),

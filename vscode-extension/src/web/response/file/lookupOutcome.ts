@@ -17,6 +17,11 @@
 // nothing resolved there is no sibling for a write to land beside; it names the unreadable files
 // among its causes.
 //
+// That rule is directional, and every runner and every listing applies the same direction: only a
+// file of *higher* precedence blocks, because only a name a write can land on puts anything at
+// risk. An unreadable legacy sibling beside a readable current file blocks nothing — the current
+// file is the one every read answers from and every write lands on.
+//
 // `resolveFirstCandidate` is how a multi-candidate lookup runs, and `resolveScannedEntities` is how
 // a scan of a folder listing that may hold both names of one entity runs. Neither takes an optional
 // `onUnreadable` handler: the failure this module exists to stop is a `catch` that continues to a
@@ -30,7 +35,6 @@
 // miss, and it names the files that could not be ruled out.
 
 import type { Uri } from "vscode";
-import { UnreadableFileError } from "../fileFilteringUtils";
 import { extractFilename } from "./fileExtensions";
 import type { CandidateOrder } from "./namePrecedence";
 
@@ -41,10 +45,52 @@ export type LookupFailures = {
 };
 
 /**
- * The third outcome, reported. Both shapes of it are this type, so an accessor that answers `null`
+ * The third outcome, reported. Every shape of it is this type, so an accessor that answers `null`
  * for a plain miss can rethrow the outcome without knowing which shape it holds.
  */
 export class UnreadableOutcomeError extends Error {}
+
+/**
+ * The scan answered no match, but some file it had to parse could not be read, so the extension
+ * cannot be ruled out. Distinct from a plain miss on purpose: a caller that tries one name after
+ * another must not read this as "the name holds nothing" and answer from the next one, and an
+ * accessor that answers `null` for a miss must not report it as an absence.
+ *
+ * It lives here rather than beside the scan that raises it because it is the third outcome, and
+ * `UnreadableOutcomeError` is what every rethrow checks against.
+ */
+export class UnreadableFileError extends UnreadableOutcomeError {
+  constructor(
+    readonly extension: string,
+    readonly files: readonly Uri[],
+  ) {
+    super(
+      `Cannot search *${extension} files: ${files
+        .map((fileUri) => fileUri.path)
+        .join(", ")} could not be read`,
+    );
+    this.name = "UnreadableFileError";
+  }
+}
+
+/**
+ * The file a lookup resolved could not be parsed. A resolved uri may come from a cache that only
+ * `stat` validated, so a file corrupted since the last scan resolves without ever being read;
+ * answering an empty result for it reports the entity as empty rather than as unreadable.
+ */
+export class UnreadableResolvedFileError extends UnreadableOutcomeError {
+  constructor(
+    readonly entityId: string,
+    readonly fileUri: Uri,
+    noun = "",
+  ) {
+    super(
+      `Cannot read ${noun}${entityId}: ${fileUri.path} could not be parsed.` +
+        " Fix or delete that file — until then its content cannot be reported.",
+    );
+    this.name = "UnreadableResolvedFileError";
+  }
+}
 
 /**
  * A file the lookup would have answered with may be the sibling of one the scan could not read, so
@@ -165,16 +211,39 @@ function directoryOf(filePath: string): string {
   return filePath.slice(0, filePath.lastIndexOf("/"));
 }
 
+/**
+ * The entity extension a name carries, longest match first: a project configuring
+ * `service: ".svc.yaml"` beside `externalService: ".external.svc.yaml"` must not read every
+ * external name as the legacy one.
+ */
+function extensionOf(
+  fileUri: Uri,
+  extensions: readonly string[],
+): string | undefined {
+  const name = extractFilename(fileUri);
+  return [...extensions]
+    .sort((a, b) => b.length - a.length)
+    .find((candidate) => name.endsWith(candidate));
+}
+
 /** The name with its entity extension stripped, or nothing when no extension matches. */
 function baseOf(
   fileUri: Uri,
   extensions: readonly string[],
 ): string | undefined {
+  const extension = extensionOf(fileUri, extensions);
   const name = extractFilename(fileUri);
-  const extension = [...extensions]
-    .sort((a, b) => b.length - a.length)
-    .find((candidate) => name.endsWith(candidate));
   return extension ? name.slice(0, -extension.length) || undefined : undefined;
+}
+
+/**
+ * Where a name sits in the precedence the extension list states: 0 is the name a write emits, and a
+ * name the list does not hold ranks below every name it does.
+ */
+function precedenceOf(fileUri: Uri, extensions: readonly string[]): number {
+  const extension = extensionOf(fileUri, extensions);
+  const rank = extension ? extensions.indexOf(extension) : -1;
+  return rank < 0 ? Number.MAX_SAFE_INTEGER : rank;
 }
 
 /**
@@ -212,14 +281,37 @@ export function mayBeSameEntity(
 }
 
 /**
- * The single rule that decides whether a lookup may answer while a file it could not read is still
- * outstanding. It may, unless that file could be the sibling of the one it resolved — same folder,
- * same name under another extension, which is what a half-finished conversion leaves behind and the
- * only pair a write can overwrite.
+ * The unreadable file that stands between a caller and the file it resolved, or nothing when no
+ * file does. Two conditions, and the rule is the whole of the narrowing this module allows.
  *
- * Refusing for *any* unreadable file would guarantee the same invariant, and one broken file would
- * then make every entity not stored under that name unresolvable — a one-file problem turned into a
- * workspace-wide outage.
+ * It has to be a file that could be the sibling of the resolved one — same folder, same name under
+ * another extension, which is what a half-finished conversion leaves behind and the only pair a
+ * write can overwrite. Refusing for *any* unreadable file would guarantee the same invariant and
+ * turn one broken file into a workspace-wide outage.
+ *
+ * And it has to outrank it. The write recomputes the target name, so it lands on the name of
+ * highest precedence: a file *there* is the one that would be overwritten and the one that may hold
+ * the entity, while an unreadable file under a superseded name is a document nothing reads and
+ * nothing writes. `extensions` states that precedence, current names first, the same order the
+ * lookup scanned in. This is what makes the rule the same shape as `resolveFirstCandidate`, which
+ * collects unreadable candidates from earlier names alone.
+ */
+export function blockingSibling(
+  resolved: Uri,
+  unreadable: readonly Uri[],
+  extensions: readonly string[],
+): Uri | undefined {
+  const resolvedRank = precedenceOf(resolved, extensions);
+  return unreadable.find(
+    (candidate) =>
+      mayBeSameEntity(candidate, resolved, extensions) &&
+      precedenceOf(candidate, extensions) < resolvedRank,
+  );
+}
+
+/**
+ * The single rule that decides whether a lookup may answer while a file it could not read is still
+ * outstanding. It may, unless `blockingSibling` names one.
  */
 export function refuseUnreadableSibling(
   entityId: string,
@@ -229,9 +321,7 @@ export function refuseUnreadableSibling(
   makeError: (entityId: string, fileUri: Uri) => Error = (id, fileUri) =>
     new UnreadableSiblingError(id, fileUri),
 ): void {
-  const sibling = unreadable.find((candidate) =>
-    mayBeSameEntity(candidate, resolved, extensions),
-  );
+  const sibling = blockingSibling(resolved, unreadable, extensions);
   if (sibling) {
     throw makeError(entityId, sibling);
   }
@@ -265,6 +355,11 @@ export type ScannedEntities<T> = {
  * `.specification-group.` file behind an unreadable `.api-group.` one — which is the pair a re-save
  * overwrites. So `onUnreadable` is required here too: it runs once per resolved entity, with the
  * files the scan could not read, and `refuseUnreadableSibling` is what a caller states in it.
+ *
+ * It runs with every unreadable file of the listing, not with a pre-filtered set: which of them is
+ * this entity's, and which of them outranks the file it resolved, is the one rule's decision to
+ * make. An unreadable `.specification.` file beside a readable `.api.` one therefore blocks
+ * nothing, exactly as it does for a lookup by id.
  *
  * The files it could not read come back with the map, because an entity whose only file is one of
  * them is in neither: its id was in that file. A caller looking one id up reports them through

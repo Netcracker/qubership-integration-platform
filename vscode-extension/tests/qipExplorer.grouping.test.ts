@@ -495,4 +495,18 @@ describe("a service whose typed file cannot be read", () => {
 
     expect((await listServices()).map((item) => item.id)).toEqual(["svc"]);
   });
+
+  // The other way round is the state a failed conversion delete leaves: the typed file is the one
+  // the tree shows and every write lands on, so a broken legacy sibling takes nothing off the tree.
+  test("still lists it from the typed file when the legacy sibling is the broken one", async () => {
+    buildWorkspace([
+      { path: typedPath, data: service("svc") },
+      { path: legacyPath, data: "__unreadable__" },
+    ]);
+
+    const groups = await listGroups();
+
+    expect(groups.map((group) => group.label)).toEqual(["Internal"]);
+    expect(groups[0].children![0].fileUri?.path).toBe(typedPath);
+  });
 });

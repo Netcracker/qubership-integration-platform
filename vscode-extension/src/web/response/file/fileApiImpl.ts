@@ -1009,6 +1009,16 @@ export class VSCodeFileApi implements FileApi {
     }
   }
 
+  /** `getFileType` answers `UNKNOWN` for a path that is gone, so existence is asked of `stat`. */
+  async fileExists(fileUri: Uri): Promise<boolean> {
+    try {
+      await vscode.workspace.fs.stat(fileUri);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async getFileCreatedWhen(fileUri: Uri): Promise<number> {
     const fileStat = await vscode.workspace.fs.stat(fileUri);
     return fileStat.ctime;

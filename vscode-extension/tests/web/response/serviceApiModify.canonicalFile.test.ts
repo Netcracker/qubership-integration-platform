@@ -50,12 +50,9 @@ const findFileById = jest.fn(async (id: string, extension: string) => {
 const deleteFile = jest.fn(async (fileUri: any) => {
   disk.delete(fileUri.path);
 });
-const getFileType = jest.fn(async (fileUri: any) => {
-  if (!disk.has(fileUri.path)) {
-    throw new Error(`EntryNotFound: ${fileUri.path}`);
-  }
-  return "SERVICE";
-});
+// `getFileType` answers UNKNOWN for a path that is gone rather than failing, so the fallback to a
+// held uri asks `fileExists`, which is `stat`.
+const fileExists = jest.fn(async (fileUri: any) => disk.has(fileUri.path));
 
 jest.mock("../../../src/web/response/file/fileApiProvider", () => ({
   fileApi: {
@@ -63,7 +60,7 @@ jest.mock("../../../src/web/response/file/fileApiProvider", () => ({
     findFileById: (...args: any[]) => findFileById(args[0], args[1]),
     writeMainService: (...args: any[]) => writeMainService(args[0], args[1]),
     deleteFile: (...args: any[]) => deleteFile(args[0]),
-    getFileType: (...args: any[]) => getFileType(args[0]),
+    fileExists: (...args: any[]) => fileExists(args[0]),
     findFiles: jest.fn().mockResolvedValue([]),
   },
 }));

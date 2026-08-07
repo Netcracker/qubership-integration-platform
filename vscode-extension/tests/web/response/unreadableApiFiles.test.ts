@@ -316,6 +316,73 @@ describe("an entity whose only file cannot be read", () => {
   });
 });
 
+// The other way round, and nothing is at risk: the current file is the one every read answers from
+// and every write lands on, so a legacy sibling nobody can parse blocks nothing. Refusing here
+// takes down the whole API and group surface of a healthy service over a file no path touches —
+// which is the state a failed `deleteLegacySpecificationFile` leaves behind.
+describe("a legacy group or API sibling that cannot be read", () => {
+  beforeEach(() => {
+    disk.set(legacyGroupUri.path, UNREADABLE_TEXT);
+    disk.set(legacyApiUri.path, UNREADABLE_TEXT);
+    disk.set(apiGroupUri.path, groupText("current group"));
+    disk.set(apiUri.path, apiText("current api", "current op"));
+  });
+
+  it("lists the group and its API from the current files", async () => {
+    const groups = await getApiSpecifications(serviceUri, SERVICE_ID);
+
+    expect(groups.map((group) => group.name)).toEqual(["current group"]);
+    expect(groups[0].specifications.map((api) => api.name)).toEqual([
+      "current api",
+    ]);
+  });
+
+  it("lists the API under its group", async () => {
+    const apis = await getSpecificationModel(serviceUri, SERVICE_ID, GROUP_ID);
+
+    expect(apis.map((api) => api.name)).toEqual(["current api"]);
+  });
+
+  it("reads the operations of the current API file", async () => {
+    const operations = await getOperations(serviceUri, API_ID);
+
+    expect(operations.map((operation) => operation.name)).toEqual([
+      "current op",
+    ]);
+  });
+
+  it("reads an operation from the current API file", async () => {
+    const info = await getOperationInfo(serviceUri, OPERATION_ID);
+
+    expect(info.id).toBe("op1");
+  });
+
+  it("resolves the group file", async () => {
+    const resolved = await ApiGroupService.resolveGroupFile(
+      serviceUri,
+      GROUP_ID,
+    );
+
+    expect(resolved?.fileName).toBe(`${GROUP_ID}${ext.apiGroup}`);
+  });
+
+  it("writes an API edit to the current file and leaves the sibling alone", async () => {
+    await updateSpecificationModel(serviceUri, API_ID, { name: "Renamed" });
+
+    expect(JSON.parse(disk.get(apiUri.path) ?? "{}").name).toBe("Renamed");
+    expect(disk.get(legacyApiUri.path)).toBe(UNREADABLE_TEXT);
+  });
+
+  it("writes a group edit to the current file", async () => {
+    await updateApiSpecificationGroup(serviceUri, GROUP_ID, {
+      name: "Renamed",
+    });
+
+    expect(JSON.parse(disk.get(apiGroupUri.path) ?? "{}").name).toBe("Renamed");
+    expect(disk.get(legacyGroupUri.path)).toBe(UNREADABLE_TEXT);
+  });
+});
+
 // The same precedence with nothing broken: one entity, one file, and the read and the write pick
 // the same one regardless of the order the directory listed them in.
 describe("a group and an API stored under both names, both readable", () => {

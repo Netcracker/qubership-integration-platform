@@ -36,6 +36,7 @@ import {
   refuseUnreadableSibling,
   resolveFirstCandidate,
   scanMissRefusal,
+  UnreadableResolvedFileError,
 } from "./file/lookupOutcome";
 import { resolveApiFiles, resolveGroupFiles } from "./file/entityFiles";
 import { API_NAMES, candidateExtensions } from "./file/namePrecedence";
@@ -144,7 +145,7 @@ async function resolveServiceFileUri(
     // nobody could read.
     if (
       error instanceof UnreadableServiceFileError ||
-      !(await fileExists(currentFile))
+      !(await fileApi.fileExists(currentFile))
     ) {
       throw error;
     }
@@ -153,15 +154,6 @@ async function resolveServiceFileUri(
       error,
     );
     return currentFile;
-  }
-}
-
-async function fileExists(fileUri: Uri): Promise<boolean> {
-  try {
-    await fileApi.getFileType(fileUri);
-    return true;
-  } catch {
-    return false;
   }
 }
 
@@ -485,13 +477,17 @@ export async function getOperations(
     }
   } else {
     const specFileUri = await findModelFileById(ext, modelId);
+    let parsed: any;
     try {
-      const parsed = await fileApi.parseFile(specFileUri);
-
-      return await parseOperations(parsed.content.operations, parsed.id);
-    } catch (e) {
-      console.error(`Failed to parse specification file ${specFileUri}`, e);
+      parsed = await fileApi.parseFile(specFileUri);
+    } catch (error) {
+      // The other branch refuses for the same file, and for the same reason: "no operations" is a
+      // content answer, and nobody could read the content. A resolved uri can come from the cache,
+      // where only `stat` vouched for it, so this is reachable without the lookup ever parsing.
+      console.error(`Failed to parse API file ${specFileUri.path}`, error);
+      throw new UnreadableResolvedFileError(modelId, specFileUri, "API ");
     }
+    return await parseOperations(parsed?.content?.operations, parsed?.id);
   }
 
   return [];
