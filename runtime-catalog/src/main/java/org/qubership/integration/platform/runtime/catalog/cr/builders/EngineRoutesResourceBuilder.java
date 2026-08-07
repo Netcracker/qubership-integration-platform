@@ -13,6 +13,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -37,6 +38,7 @@ import java.util.List;
  * differ) would only produce duplicate, conflicting HTTPRoute objects here.
  */
 @Component
+@ConditionalOnProperty(name = "qip.control-plane.mesh-type", havingValue = "Istio")
 public class EngineRoutesResourceBuilder implements ResourceBuilder<List<Snapshot>> {
     private static final String TEMPLATE_NAME = "engine-routes";
 

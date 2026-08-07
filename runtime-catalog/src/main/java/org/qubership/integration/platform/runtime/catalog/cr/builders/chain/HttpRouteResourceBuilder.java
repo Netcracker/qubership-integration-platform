@@ -18,6 +18,7 @@ import org.qubership.integration.platform.runtime.catalog.service.RoutesGetterSe
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "qip.control-plane.mesh-type", havingValue = "Istio")
 public class HttpRouteResourceBuilder implements ResourceBuilder<List<Snapshot>> {
     public static final String PUBLIC_HTTP_ROUTE_CACHE_KEY = "publicHttpRoute";
     public static final String PRIVATE_HTTP_ROUTE_CACHE_KEY = "privateHttpRoute";

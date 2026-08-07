@@ -285,6 +285,7 @@ qip:
   engine:
     app-check-custom-label: qip_engine_app  # Need this label for domain resolution. Each new domain can have a fully custom deployment name
   control-plane:
+    mesh-type: ${SERVICE_MESH_TYPE:Core}
     chain-routes-registration:
       ingress-gateways: ${QIP_REGISTER_INGRESS_CHAIN_ROUTES:true} # public/private/internal gateway
       egress-gateway: ${QIP_REGISTER_EGRESS_CHAIN_ROUTES:true}
