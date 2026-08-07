@@ -88,8 +88,10 @@ Click "**Secured**" sub-tab in the menu on the right to open secured variables t
   - ![plus](img/plus.svg) - allows to create a new secret.
 
 Under each secret the following actions can be applied:
-* ![cloud-download](img/cloud-download.svg) - Export secret as Helm Chart.
-* ![plus](img/plus.svg) - Add variable.
+* ![cloud-download](img/cloud-download.svg) - export secret as Helm Chart.
+* ![plus](img/plus.svg) - add variable.
+
+> ⚠️ **Warning:** This icon is disabled for the **default secret**, since adding new variables to it is no longer allowed.
 
 ### Create Secret
 To create a secret, which represents a **secured storage object in Kubernetes**, click "**Add Secret**" button marked with ![plus](img/plus.svg), specify the name and confirm operation with "**Create**" button.
