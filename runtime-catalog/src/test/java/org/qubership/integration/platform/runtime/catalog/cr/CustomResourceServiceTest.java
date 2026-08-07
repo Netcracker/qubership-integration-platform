@@ -10,9 +10,7 @@ import org.qubership.integration.platform.runtime.catalog.cr.integrations.config
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomResources;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.NamingStrategy;
-import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.EngineRoutesInternalNamingStrategy;
-import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.EngineRoutesPrivateNamingStrategy;
-import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.EngineRoutesPublicNamingStrategy;
+import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.EngineRoutesNamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.HttpRoutePrivateNamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.strategies.HttpRoutePublicNamingStrategy;
 import org.qubership.integration.platform.runtime.catalog.cr.naming.validation.K8sNameValidator;
@@ -52,9 +50,7 @@ class CustomResourceServiceTest {
     private static final String DOMAIN = "my-domain";
     private static final String PUBLIC_ROUTE_NAME = "my-domain-v1-chain-public-routes";
     private static final String PRIVATE_ROUTE_NAME = "my-domain-v1-chain-private-routes";
-    private static final String ENGINE_PUBLIC_ROUTE_NAME = "my-domain-v1-public-routes";
-    private static final String ENGINE_PRIVATE_ROUTE_NAME = "my-domain-v1-private-routes";
-    private static final String ENGINE_INTERNAL_ROUTE_NAME = "my-domain-v1-internal-routes";
+    private static final String ENGINE_ROUTE_NAME = "my-domain-v1-routes";
 
     private KubeOperator kubeOperator;
     private RoutesGetterService routesGetterService;
@@ -73,15 +69,9 @@ class CustomResourceServiceTest {
         HttpRoutePrivateNamingStrategy privateNamingStrategy = new HttpRoutePrivateNamingStrategy(
                 new K8sNameVerifier(), new K8sNameValidator(), integrationResourceNamingStrategy,
                 "-chain-private-routes");
-        EngineRoutesPublicNamingStrategy enginePublicNamingStrategy = new EngineRoutesPublicNamingStrategy(
+        EngineRoutesNamingStrategy engineRoutesNamingStrategy = new EngineRoutesNamingStrategy(
                 new K8sNameVerifier(), new K8sNameValidator(), integrationResourceNamingStrategy,
-                "-public-routes");
-        EngineRoutesPrivateNamingStrategy enginePrivateNamingStrategy = new EngineRoutesPrivateNamingStrategy(
-                new K8sNameVerifier(), new K8sNameValidator(), integrationResourceNamingStrategy,
-                "-private-routes");
-        EngineRoutesInternalNamingStrategy engineInternalNamingStrategy = new EngineRoutesInternalNamingStrategy(
-                new K8sNameVerifier(), new K8sNameValidator(), integrationResourceNamingStrategy,
-                "-internal-routes");
+                "-routes");
 
         customResourceService = new CustomResourceService(
                 kubeOperator,
@@ -94,9 +84,7 @@ class CustomResourceServiceTest {
                 Mappers.getMapper(DeploymentRouteMapper.class),
                 publicNamingStrategy,
                 privateNamingStrategy,
-                enginePublicNamingStrategy,
-                enginePrivateNamingStrategy,
-                engineInternalNamingStrategy,
+                engineRoutesNamingStrategy,
                 new YAMLMapper()
         );
         ReflectionTestUtils.setField(customResourceService, "baseRoutePrefix", "/qip-routes");
@@ -149,12 +137,10 @@ class CustomResourceServiceTest {
     }
 
     @Test
-    void deleteEngineRoutesDeletesAllThreeComputedTierNamesUnconditionally() {
+    void deleteEngineRoutesDeletesTheComputedNameUnconditionally() {
         customResourceService.deleteEngineRoutes(DOMAIN);
 
-        verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, ENGINE_PUBLIC_ROUTE_NAME);
-        verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, ENGINE_PRIVATE_ROUTE_NAME);
-        verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, ENGINE_INTERNAL_ROUTE_NAME);
+        verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, ENGINE_ROUTE_NAME);
     }
 
     @Test

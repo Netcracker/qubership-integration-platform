@@ -13,40 +13,59 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class EngineRoutesInternalNamingStrategyTest {
+class EngineRoutesNamingStrategyTest {
 
     @Test
     void proposesNameWithDefaultSuffix() {
         NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy =
                 context -> "my-domain-v1";
-        EngineRoutesInternalNamingStrategy strategy = new EngineRoutesInternalNamingStrategy(
+        EngineRoutesNamingStrategy strategy = new EngineRoutesNamingStrategy(
                 new K8sNameVerifier(),
                 new K8sNameValidator(),
                 integrationResourceNamingStrategy,
-                "-internal-routes");
+                "-routes");
 
         ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(
                 BuildInfo.builder().options(ResourceBuildOptions.builder().name("my-domain").build()).build()
         ).updateTo(Collections.emptyList());
 
-        assertEquals("my-domain-v1-internal-routes", strategy.getName(context));
+        assertEquals("my-domain-v1-routes", strategy.getName(context));
     }
 
     @Test
     void proposesNameWithOverriddenSuffix() {
         NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy =
                 context -> "my-domain-v1";
-        EngineRoutesInternalNamingStrategy strategy = new EngineRoutesInternalNamingStrategy(
+        EngineRoutesNamingStrategy strategy = new EngineRoutesNamingStrategy(
                 new K8sNameVerifier(),
                 new K8sNameValidator(),
                 integrationResourceNamingStrategy,
-                "-internal");
+                "-engine-routes");
 
         ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(
                 BuildInfo.builder().options(ResourceBuildOptions.builder().name("my-domain").build()).build()
         ).updateTo(Collections.emptyList());
 
-        assertEquals("my-domain-v1-internal", strategy.getName(context));
+        assertEquals("my-domain-v1-engine-routes", strategy.getName(context));
+    }
+
+    @Test
+    void truncatesBaseSoNameNeverExceedsTheLengthLimit() {
+        String longBase = "a".repeat(80);
+        NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy =
+                context -> longBase;
+        EngineRoutesNamingStrategy strategy = new EngineRoutesNamingStrategy(
+                new K8sNameVerifier(), new K8sNameValidator(), integrationResourceNamingStrategy, "-routes");
+
+        ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(
+                BuildInfo.builder().options(ResourceBuildOptions.builder().name("my-domain").build()).build()
+        ).updateTo(Collections.emptyList());
+
+        String name = strategy.getName(context);
+
+        assertEquals(63, name.length());
+        assertTrue(name.endsWith("-routes"));
     }
 }

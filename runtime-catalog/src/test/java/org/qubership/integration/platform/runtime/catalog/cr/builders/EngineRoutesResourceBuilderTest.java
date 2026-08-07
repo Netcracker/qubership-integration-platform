@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.runtime.catalog.cr.builders;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.github.jknack.handlebars.EscapingStrategy;
 import com.github.jknack.handlebars.Handlebars;
 import com.github.jknack.handlebars.io.ClassPathTemplateLoader;
@@ -26,19 +28,20 @@ class EngineRoutesResourceBuilderTest {
 
     @BeforeEach
     void setUp() {
+        // Mirrors HandlebarConfiguration.customResourceTemplates() exactly, including
+        // prettyPrint(true) -- that flag controls the standalone-block-tag whitespace
+        // stripping that shapes the emitted YAML, so the test must use the same
+        // configuration production does.
         Handlebars handlebars = new Handlebars()
                 .with(new ClassPathTemplateLoader("/cr/templates", ".hbs"))
                 .with(EscapingStrategy.NOOP);
+        handlebars.prettyPrint(true);
 
-        NamingStrategy<ResourceBuildContext<List<Snapshot>>> publicNamingStrategy = ctx -> "my-domain-v1-public-routes";
-        NamingStrategy<ResourceBuildContext<List<Snapshot>>> privateNamingStrategy = ctx -> "my-domain-v1-private-routes";
-        NamingStrategy<ResourceBuildContext<List<Snapshot>>> internalNamingStrategy = ctx -> "my-domain-v1-internal-routes";
+        NamingStrategy<ResourceBuildContext<List<Snapshot>>> engineRoutesNamingStrategy = ctx -> "my-domain-v1-routes";
         NamingStrategy<ResourceBuildContext<List<Snapshot>>> serviceNamingStrategy = ctx -> "my-domain-v1";
 
         builder = new EngineRoutesResourceBuilder(
-                handlebars,
-                publicNamingStrategy, privateNamingStrategy, internalNamingStrategy,
-                serviceNamingStrategy, new K8sNameValidator());
+                handlebars, engineRoutesNamingStrategy, serviceNamingStrategy, new K8sNameValidator());
         ReflectionTestUtils.setField(builder, "publicRoutePrefixV1", "/api/v1/qip/engine");
         ReflectionTestUtils.setField(builder, "domainLabel", "my-domain-label");
         ReflectionTestUtils.setField(builder, "bgVersionLabel", "bg-version");
@@ -51,63 +54,28 @@ class EngineRoutesResourceBuilderTest {
         ).updateTo(Collections.<Snapshot>emptyList());
     }
 
-    private String tierDocument(String fullOutput, String tierName) {
-        for (String document : fullOutput.split("---")) {
-            if (document.contains("name: " + tierName)) {
-                return document;
-            }
-        }
-        throw new AssertionError("No document found containing tier name: " + tierName);
-    }
-
     @Test
     void enabledIsAlwaysTrue() {
         assertTrue(builder.enabled(contextFor("my-domain")));
     }
 
     @Test
-    void buildEmitsAllThreeTiers() throws Exception {
+    void buildEmitsTheNamedCr() throws Exception {
         String result = builder.build(contextFor("my-domain"));
 
-        assertTrue(result.contains("my-domain-v1-public-routes"));
-        assertTrue(result.contains("my-domain-v1-private-routes"));
-        assertTrue(result.contains("my-domain-v1-internal-routes"));
+        assertTrue(result.contains("my-domain-v1-routes"));
     }
 
     @Test
-    void publicTierHasAllThreeGatewaysAndAllThreeRules() throws Exception {
+    void crHasAllThreeGatewaysAndAllThreeRules() throws Exception {
         String result = builder.build(contextFor("my-domain"));
-        String publicTier = tierDocument(result, "my-domain-v1-public-routes");
 
-        assertTrue(publicTier.contains("name: public-gateway"));
-        assertTrue(publicTier.contains("name: private-gateway"));
-        assertTrue(publicTier.contains("name: internal-gateway-service"));
-        assertTrue(publicTier.contains("value: /api/v1/qip/engine/my-domain/sessions"));
-        assertTrue(publicTier.contains("value: /api/v1/qip/engine/my-domain/chains/"));
-        assertTrue(publicTier.contains("value: /api/v1/qip/engine/my-domain/live-exchanges"));
-    }
-
-    @Test
-    void privateTierHasTwoParentRefsAndNoLiveExchangesRule() throws Exception {
-        String result = builder.build(contextFor("my-domain"));
-        String privateTier = tierDocument(result, "my-domain-v1-private-routes");
-
-        assertTrue(privateTier.contains("name: private-gateway"));
-        assertTrue(privateTier.contains("name: internal-gateway-service"));
-        assertFalse(privateTier.contains("name: public-gateway"));
-        assertTrue(privateTier.contains("value: /api/v1/qip/engine/my-domain/sessions"));
-        assertTrue(privateTier.contains("value: /api/v1/qip/engine/my-domain/chains/"));
-        assertFalse(privateTier.contains("live-exchanges"));
-    }
-
-    @Test
-    void internalTierHasOnlyInternalGatewayServiceParentRef() throws Exception {
-        String result = builder.build(contextFor("my-domain"));
-        String internalTier = tierDocument(result, "my-domain-v1-internal-routes");
-
-        assertTrue(internalTier.contains("name: internal-gateway-service"));
-        assertFalse(internalTier.contains("name: public-gateway"));
-        assertFalse(internalTier.contains("name: private-gateway"));
+        assertTrue(result.contains("name: public-gateway"));
+        assertTrue(result.contains("name: private-gateway"));
+        assertTrue(result.contains("name: internal-gateway-service"));
+        assertTrue(result.contains("value: /api/v1/qip/engine/my-domain/sessions"));
+        assertTrue(result.contains("value: /api/v1/qip/engine/my-domain/chains/"));
+        assertTrue(result.contains("value: /api/v1/qip/engine/my-domain/live-exchanges"));
     }
 
     @Test
@@ -127,32 +95,36 @@ class EngineRoutesResourceBuilderTest {
     }
 
     @Test
-    void everyRuleHasABackendRefsBlockPointingAtTheDomainService() throws Exception {
-        String result = builder.build(contextFor("my-domain"));
-
-        long ruleCount = result.split("- matches:", -1).length - 1;
-        assertEquals(7, ruleCount, "3 rules in public tier + 2 in private + 2 in internal = 7 rules total");
-
-        long backendRefsCount = result.split("backendRefs:", -1).length - 1;
-        assertEquals(7, backendRefsCount, "one backendRefs block per rule");
-        assertTrue(result.contains("port: 8080"));
-        assertFalse(result.contains("port: 8080.0"));
-    }
-
-    @Test
     void domainNameLabelIsSanitizedButPathsUseRawDomainName() throws Exception {
         String result = builder.build(contextFor("test_domain"));
 
-        // Gateway-facing rule paths must use raw, unsanitized domain name
-        assertTrue(result.contains("value: /api/v1/qip/engine/test_domain/sessions"),
-                "gateway path must contain raw domain name 'test_domain'");
-        assertTrue(result.contains("value: /api/v1/qip/engine/test_domain/chains/"),
-                "gateway path must contain raw domain name 'test_domain'");
-        assertTrue(result.contains("value: /api/v1/qip/engine/test_domain/live-exchanges"),
-                "gateway path must contain raw domain name 'test_domain'");
+        assertTrue(result.contains("value: /api/v1/qip/engine/test_domain/sessions"));
+        assertTrue(result.contains("value: /api/v1/qip/engine/test_domain/chains/"));
+        assertTrue(result.contains("value: /api/v1/qip/engine/test_domain/live-exchanges"));
+        assertTrue(result.contains("my-domain-label: testdomain"));
+    }
 
-        // domainName label must use sanitized domain name (underscore removed)
-        assertTrue(result.contains("my-domain-label: testdomain"),
-                "domainName label must contain sanitized domain name 'testdomain'");
+    // Parses the rendered output as real YAML instead of relying only on substring
+    // checks, so a template indentation/whitespace regression (which prettyPrint
+    // controls) would actually fail this test.
+    @Test
+    void renderedOutputIsWellFormedYamlWithExpectedStructure() throws Exception {
+        String result = builder.build(contextFor("my-domain"));
+
+        YAMLMapper yamlMapper = new YAMLMapper();
+        JsonNode root = yamlMapper.readTree(result);
+
+        assertEquals("HTTPRoute", root.path("kind").asText());
+        assertEquals("my-domain-v1-routes", root.path("metadata").path("name").asText());
+
+        JsonNode parentRefs = root.path("spec").path("parentRefs");
+        assertEquals(3, parentRefs.size());
+
+        JsonNode rules = root.path("spec").path("rules");
+        assertEquals(3, rules.size());
+
+        JsonNode firstBackendRef = rules.get(0).path("backendRefs").get(0);
+        assertTrue(firstBackendRef.path("port").isIntegralNumber());
+        assertEquals(8080, firstBackendRef.path("port").asInt());
     }
 }

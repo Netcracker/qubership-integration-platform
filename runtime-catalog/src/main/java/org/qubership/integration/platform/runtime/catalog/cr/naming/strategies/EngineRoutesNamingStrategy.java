@@ -13,21 +13,21 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Component("engineRoutesInternalNamingStrategy")
-public class EngineRoutesInternalNamingStrategy extends K8sResourceNamingStrategy<ResourceBuildContext<List<Snapshot>>> {
+@Component("engineRoutesNamingStrategy")
+public class EngineRoutesNamingStrategy extends K8sResourceNamingStrategy<ResourceBuildContext<List<Snapshot>>> {
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
     private final K8sNameValidator nameValidator;
     private final String suffix;
 
     @Autowired
-    public EngineRoutesInternalNamingStrategy(
+    public EngineRoutesNamingStrategy(
             K8sNameVerifier nameVerifier,
             K8sNameValidator nameValidator,
 
             @Qualifier("integrationResourceNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
 
-            @Value("${qip.cr.naming.engine-routes.internal-suffix:-internal-routes}")
+            @Value("${qip.cr.naming.engine-routes.suffix:-routes}")
             String suffix
     ) {
         super(nameVerifier);
@@ -40,7 +40,7 @@ public class EngineRoutesInternalNamingStrategy extends K8sResourceNamingStrateg
     protected String proposeName(ResourceBuildContext<List<Snapshot>> context) {
         String base = integrationResourceNamingStrategy.getName(context);
         // Reserve room for the full suffix before truncating, so a long base name can never cut
-        // into the suffix and collide with a sibling tier's truncated name.
+        // into the suffix.
         int maxBaseLength = K8sNames.K8S_RESOURCE_NAME_LENGTH_LIMIT - suffix.length();
         if (maxBaseLength > 0 && base.length() > maxBaseLength) {
             base = base.substring(0, maxBaseLength);

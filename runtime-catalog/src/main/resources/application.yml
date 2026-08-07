@@ -193,9 +193,7 @@ qip:
         public-suffix: -chain-public-routes
         private-suffix: -chain-private-routes
       engine-routes:
-        public-suffix: -public-routes
-        private-suffix: -private-routes
-        internal-suffix: -internal-routes
+        suffix: -routes
     build:
       replicas: ${MICRO_DOMAIN_REPLICAS:1}
       container:
@@ -292,7 +290,7 @@ qip:
       egress-gateway: ${QIP_REGISTER_EGRESS_CHAIN_ROUTES:true}
     routes:
       public:
-        v1-prefix: /api/v1/qip/engine
+        v1-prefix: /api/v1/${app.prefix}/engine
   build:
     artifact-descriptor-version: ${ARTIFACT_DESCRIPTOR_VERSION:'0'}
   json:
