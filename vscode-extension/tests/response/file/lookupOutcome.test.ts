@@ -150,6 +150,32 @@ describe("mayBeSameEntity", () => {
       mayBeSameEntity(uri(`/root/${SERVICE_ID}/notes.md`), legacy, names),
     ).toBe(false);
   });
+
+  // The same path text under another scheme, authority or query is another file: `git:` names a
+  // revision of it, a remote authority names it on another machine, and a write reaches neither.
+  it.each([
+    ["scheme", { scheme: "git" }],
+    ["authority", { authority: "ssh-remote+box" }],
+    ["query", { query: "ref=HEAD" }],
+  ])("does not pair across a different %s", (_, difference) => {
+    const inFileSpace = { ...typed, scheme: "file", authority: "", query: "" };
+    const elsewhereEntirely = {
+      ...legacy,
+      scheme: "file",
+      authority: "",
+      query: "",
+      ...difference,
+    };
+
+    expect(mayBeSameEntity(inFileSpace, elsewhereEntirely, names)).toBe(false);
+    expect(
+      mayBeSameEntity(
+        inFileSpace,
+        { ...legacy, scheme: "file", authority: "", query: "" },
+        names,
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("refuseUnreadableSibling", () => {

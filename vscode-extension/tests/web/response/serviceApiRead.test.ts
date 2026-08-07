@@ -224,7 +224,9 @@ describe("getApiSpecifications - service -> group -> API -> operation", () => {
           name: "Model One",
           content: {
             parentId: GROUP_ID,
-            operations: [{ id: "op-1", name: "Op One", method: "GET", path: "/foo" }],
+            operations: [
+              { id: "op-1", name: "Op One", method: "GET", path: "/foo" },
+            ],
           },
         };
       }
@@ -359,7 +361,9 @@ describe("getOperations - operations for a given API id", () => {
       id: MODEL_ID,
       content: {
         parentId: GROUP_ID,
-        operations: [{ id: "op-1", name: "Op One", method: "GET", path: "/foo" }],
+        operations: [
+          { id: "op-1", name: "Op One", method: "GET", path: "/foo" },
+        ],
       },
     });
 
@@ -374,14 +378,12 @@ describe("getOperations - operations for a given API id", () => {
 
   test("falls back to the api extension when the model file is `.api.<app>.yaml`", async () => {
     const apiFileUri = { path: "model-1.api.qip.yaml" } as any;
-    findFileById.mockImplementation(
-      async (_id: string, extension: string) => {
-        if (extension === ext.specification) {
-          throw new Error("no .specification file");
-        }
-        return apiFileUri;
-      },
-    );
+    findFileById.mockImplementation(async (_id: string, extension: string) => {
+      if (extension === ext.specification) {
+        throw new Error("no .specification file");
+      }
+      return apiFileUri;
+    });
     parseFile.mockResolvedValue({
       id: MODEL_ID,
       content: {
@@ -600,7 +602,7 @@ describe("getOperationInfo - recomputes schemas from the raw source", () => {
   });
 
   function mockSpecificationFile(content: any) {
-    (ContentParser.parseContentFromFile as jest.Mock).mockResolvedValue({
+    parseFile.mockResolvedValue({
       id: MODEL_ID,
       content,
     });
@@ -859,7 +861,7 @@ describe("getOperationInfo - derives `specification` when the api file omits it"
   };
 
   function mockKafkaApiFile(operationOverrides: Record<string, unknown> = {}) {
-    (ContentParser.parseContentFromFile as jest.Mock).mockResolvedValue({
+    parseFile.mockResolvedValue({
       id: MODEL_ID,
       content: {
         parentId: GROUP_ID,

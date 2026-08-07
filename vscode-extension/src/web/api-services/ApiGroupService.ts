@@ -7,12 +7,16 @@ import { getBaseFolder } from "../response/serviceApiUtils";
 import { YamlFileUtils } from "./YamlFileUtils";
 import { LabelUtils } from "./LabelUtils";
 import { ProjectConfigService } from "../services/ProjectConfigService";
-import { getExtensionsForUri } from "../response/file/fileExtensions";
 import {
   noMatchError,
   refuseUnreadableSibling,
   resolveFirstCandidate,
+  UnreadableSiblingError,
 } from "../response/file/lookupOutcome";
+import {
+  resolveApiFiles,
+  resolveGroupFiles,
+} from "../response/file/entityFiles";
 import { ContentParser } from "./parsers/ContentParser";
 
 /** One group file plus any same-id siblings stored under the other group extension. */
@@ -45,40 +49,14 @@ export class ApiGroupService {
     serviceFileUri: Uri,
     groupId: string,
   ): Promise<ResolvedGroupFile | null> {
-    const serviceFolderUri = Uri.joinPath(serviceFileUri, "..");
-    const apiGroupExtension = getExtensionsForUri(serviceFileUri).apiGroup;
-    const groupFiles = await fileApi.getSpecificationGroupFiles(serviceFileUri);
-
-    const matches: { fileName: string; info: any }[] = [];
-    for (const fileName of groupFiles) {
-      try {
-        const parsed = await ContentParser.parseContentFromFile(
-          Uri.joinPath(serviceFolderUri, fileName),
-        );
-        if (parsed?.id === groupId) {
-          matches.push({ fileName, info: parsed });
-        }
-      } catch (error) {
-        console.error(
-          `[ApiGroupService] Error reading API group file ${fileName}:`,
-          error,
-        );
-      }
-    }
-
-    if (matches.length === 0) {
+    const resolved = (await resolveGroupFiles(serviceFileUri)).get(groupId);
+    if (!resolved) {
       return null;
     }
-
-    const preferred =
-      matches.find((match) => match.fileName.endsWith(apiGroupExtension)) ??
-      matches[0];
     return {
-      fileName: preferred.fileName,
-      info: preferred.info,
-      duplicates: matches
-        .filter((match) => match !== preferred)
-        .map((match) => match.fileName),
+      fileName: resolved.fileName,
+      info: resolved.parsed,
+      duplicates: resolved.duplicates.map((duplicate) => duplicate.fileName),
     };
   }
 
@@ -106,23 +84,13 @@ export class ApiGroupService {
     }
     const { fileName: groupFileName, info: groupInfo } = resolved;
 
+    // One entry per API id: an API stored under both names is one API, and listing it twice is
+    // what a scan over the raw file names does.
     const apiIds: string[] = [];
-    const specificationFiles =
-      await fileApi.getSpecificationFiles(serviceFileUri);
-    for (const fileName of specificationFiles) {
-      try {
-        const parsed = await ContentParser.parseContentFromFile(
-          Uri.joinPath(serviceFolderUri, fileName),
-        );
-        const parentId = parsed?.content?.parentId ?? parsed?.parentId;
-        if (parentId === groupId && parsed?.id) {
-          apiIds.push(parsed.id);
-        }
-      } catch (error) {
-        console.error(
-          `[ApiGroupService] Error reading specification file ${fileName}:`,
-          error,
-        );
+    for (const [apiId, { parsed }] of await resolveApiFiles(serviceFileUri)) {
+      const parentId = parsed?.content?.parentId ?? parsed?.parentId;
+      if (parentId === groupId) {
+        apiIds.push(apiId);
       }
     }
 
@@ -190,6 +158,11 @@ export class ApiGroupService {
         `[ApiGroupService] Error getting API group ${groupId}:`,
         error,
       );
+      // A file the scan could not read is no "no such group": answering null here would send the
+      // caller on as if the group were absent, and the file that may hold it stays unnamed.
+      if (error instanceof UnreadableSiblingError) {
+        throw error;
+      }
       return null;
     }
   }

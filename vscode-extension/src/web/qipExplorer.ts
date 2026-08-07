@@ -1,10 +1,12 @@
 import * as vscode from "vscode";
 import { getExtensionsForFile } from "./response/file/fileExtensions";
 import {
+  allServiceExtensions,
   isServiceFileOfAnyKind,
   resolveServiceType,
   serviceTypeFromUri,
 } from "./response/file/serviceFileType";
+import { mayBeSameEntity } from "./response/file/lookupOutcome";
 import { readDirectory } from "./response/file/fileApiImpl";
 import { ContentParser } from "./api-services/parsers/ContentParser";
 import { IntegrationSystemType } from "./api-services/servicesTypes";
@@ -64,6 +66,47 @@ interface DiscoveredService {
   item: QipExplorerItem;
   groupType: ServiceGroupType;
   statesType: boolean;
+}
+
+/** What the walk found: the services, and the files it could not read. */
+interface DiscoveredServices {
+  servicesById: Map<string, DiscoveredService>;
+  unreadable: vscode.Uri[];
+}
+
+/**
+ * The services the tree may show. A file the walk could not read is neither a service nor an
+ * absence: the sibling it outranks would otherwise be listed in its place, and the tree would name
+ * the superseded document as the current one — the same rule `getServices` and every lookup follow
+ * (`refuseUnreadableSibling` in `lookupOutcome.ts`). The tree cannot refuse, so it drops that entry
+ * instead; the file stays visible in the file explorer, and every read behind the id refuses by
+ * name. A file it could not read anywhere else takes nothing off the tree.
+ */
+function dropUnreadableSiblings({
+  servicesById,
+  unreadable,
+}: DiscoveredServices): Map<string, DiscoveredService> {
+  if (unreadable.length === 0) {
+    return servicesById;
+  }
+  const extensions = allServiceExtensions(getExtensionsForFile());
+  const shown = new Map<string, DiscoveredService>();
+  for (const [serviceId, service] of servicesById) {
+    const fileUri = service.item.fileUri;
+    const sibling =
+      fileUri &&
+      unreadable.find((candidate) =>
+        mayBeSameEntity(candidate, fileUri, extensions),
+      );
+    if (sibling) {
+      console.error(
+        `QIP Explorer: hiding service ${serviceId}; ${sibling.path} could not be read`,
+      );
+      continue;
+    }
+    shown.set(serviceId, service);
+  }
+  return shown;
 }
 
 let globalQipExplorerProvider: QipExplorerProvider | null = null;
@@ -239,20 +282,23 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
       `QIP Explorer: Searching for services in ${workspaceFolders.length} workspace folders`,
     );
 
-    const servicesById = new Map<string, DiscoveredService>();
+    const discovered: DiscoveredServices = {
+      servicesById: new Map<string, DiscoveredService>(),
+      unreadable: [],
+    };
 
     for (const folder of workspaceFolders) {
       try {
         console.log(
           `QIP Explorer: Searching for services in folder: ${folder.uri.fsPath}`,
         );
-        await this.findServiceFilesRecursively(folder.uri, servicesById);
+        await this.findServiceFilesRecursively(folder.uri, discovered);
       } catch (error) {
         console.error("Failed to read workspace folder:", error);
       }
     }
 
-    return this.buildServiceGroups(servicesById);
+    return this.buildServiceGroups(dropUnreadableSiblings(discovered));
   }
 
   private buildServiceGroups(
@@ -292,7 +338,7 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
 
   private async findServiceFilesRecursively(
     folderUri: vscode.Uri,
-    servicesById: Map<string, DiscoveredService>,
+    discovered: DiscoveredServices,
   ): Promise<void> {
     try {
       const entries = await readDirectory(folderUri);
@@ -334,9 +380,9 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
               // A half-converted service has both files on disk. List it once, from the typed
               // name, the same precedence `plainServiceExtensions` and `getServices` apply.
               const statesType = serviceTypeFromUri(name, ext) !== undefined;
-              const known = servicesById.get(serviceData.id);
+              const known = discovered.servicesById.get(serviceData.id);
               if (!known || (statesType && !known.statesType)) {
-                servicesById.set(serviceData.id, {
+                discovered.servicesById.set(serviceData.id, {
                   item: serviceItem,
                   groupType: serviceType,
                   statesType,
@@ -345,12 +391,15 @@ export class QipExplorerProvider implements vscode.TreeDataProvider<QipExplorerI
               console.log(`QIP Explorer: Added service: ${label}`);
             }
           } catch (error) {
+            // The file cannot be attributed to a service, and the tree must not put its sibling in
+            // its place — `dropUnreadableSiblings` decides that once the walk is done.
             console.error(`Failed to parse service file ${name}:`, error);
+            discovered.unreadable.push(vscode.Uri.joinPath(folderUri, name));
           }
         } else if (type === vscode.FileType.Directory) {
           // Recursively search in subdirectories
           const subFolderUri = vscode.Uri.joinPath(folderUri, name);
-          await this.findServiceFilesRecursively(subFolderUri, servicesById);
+          await this.findServiceFilesRecursively(subFolderUri, discovered);
         }
       }
     } catch (error) {

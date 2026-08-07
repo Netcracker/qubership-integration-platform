@@ -63,9 +63,13 @@ jest.mock("../src/web/response/file/fileApiImpl", () => ({
 
 jest.mock("../src/web/api-services/parsers/ContentParser", () => ({
   ContentParser: {
-    parseContentFromFile: jest.fn(
-      async (uri: { path: string }) => fileContents[uri.path],
-    ),
+    parseContentFromFile: jest.fn(async (uri: { path: string }) => {
+      const content = fileContents[uri.path];
+      if (content === "__unreadable__") {
+        throw new Error(`Cannot parse ${uri.path}`);
+      }
+      return content;
+    }),
   },
 }));
 
@@ -462,5 +466,33 @@ describe("a service with both a typed and a legacy file", () => {
       "one",
       "two",
     ]);
+  });
+});
+
+// A file the walk cannot read is neither a service nor an absence. Listing its sibling in its place
+// puts the superseded document in the tree as the current one — the shape every lookup refuses.
+describe("a service whose typed file cannot be read", () => {
+  const typedPath = "/workspace/svc/svc.internal-service.qip.yaml";
+  const legacyPath = "/workspace/svc/svc.service.qip.yaml";
+
+  test("is not listed from the legacy sibling", async () => {
+    buildWorkspace([
+      { path: typedPath, data: "__unreadable__" },
+      { path: legacyPath, data: service("svc", "EXTERNAL") },
+    ]);
+
+    expect(await listGroups()).toEqual([]);
+  });
+
+  test("still lists a service whose broken file is somewhere else", async () => {
+    buildWorkspace([
+      {
+        path: "/workspace/other/other.external-service.qip.yaml",
+        data: "__unreadable__",
+      },
+      { path: legacyPath, data: service("svc", "EXTERNAL") },
+    ]);
+
+    expect((await listServices()).map((item) => item.id)).toEqual(["svc"]);
   });
 });

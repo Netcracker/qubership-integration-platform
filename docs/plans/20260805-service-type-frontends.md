@@ -1267,11 +1267,14 @@ allowlist that states why catching there does not collapse the outcome. Twelve e
 decision a future author has to write down. A second case fails when an allowlist entry outlives the site it covers.
 Reverting each of the five findings turns it red, which is what a sixth site would do.
 
-➕ [decision] The guard covers resolving *which file an id owns* and reading a file a listing handed back, not content
+➕ [decision] ~~The guard covers resolving *which file an id owns* and reading a file a listing handed back, not content
 scans. `getApiSpecifications`, `getSpecificationModel`, `getOperations` and `getOperationInfo` skip a file they cannot
 parse while walking a service folder, and that tolerance is deliberate: they list what they can read rather than
 resolving one entity across candidate names. `qipExplorer.findServiceFilesRecursively` walks the tree itself and calls no
-lookup, so it stays outside the guard as well; a broken file drops out of the tree and the read behind it refuses.
+lookup, so it stays outside the guard as well; a broken file drops out of the tree and the read behind it refuses.~~
+**Wrong, and reversed in phase 8.** All four do resolve one entity across a candidate pair — they group what they
+parsed by id and keep the file under the current name — and so does the tree walk. See the phase-8 section for the
+reproduction.
 
 ➕ [deviation] The four navigation route arrays moved from `apiRouter.ts` to `response/navigationRoutes.ts`, re-exported
 from `apiRouter` so no importer changed. The file layer had been pulling the whole message dispatch in to name them,
@@ -1290,6 +1293,90 @@ loop (1 case plus the guard); and the two accessors swallowing the refusal again
 
 ➕ [deviation] `vscode-extension/CLAUDE.md` was edited on disk once more (untracked, git-excluded, so it cannot be
 committed): the scan paragraph now points at `lookupOutcome.ts` as the single contract and names the guard.
+
+## Review phase 8 — external cross-review
+
+*Six findings from a sixth Codex (gpt-5.6-luna) pass. Two of them say phase 7 drew its scope wrong, and settling that is
+the round: the four functions phase 7 excluded are the same shape as the five it fixed.*
+
+➕ **The phase-7 scope note was wrong, and every part of it.** It claimed `getApiSpecifications`,
+`getSpecificationModel`, `getOperations` and `getOperationInfo` "list what they can read" rather than "resolving one
+entity across names". Read against the code, all four group what they parsed **by entity id** and keep the file whose
+name ends with the current extension — `getApiSpecifications` says so in its own comment ("List it once, from the same
+file `ApiGroupService.resolveGroupFile` picks"), and `getOperations` / `getOperationInfo` return from the first file
+whose id matches. That is a resolution across `.specification-group.` versus `.api-group.` and `.specification.` versus
+`.api.`, the two pairs a re-save overwrites — the same shape as `.service.` versus `.external-service.`. Reproduced
+against the real file api over an in-memory disk, with an unreadable `.api-group.` and `.api.` file beside a readable
+sibling of each: `getApiSpecifications` listed the group named "superseded group", `getSpecificationModel` the api named
+"superseded api", `getOperations` the operation named "superseded op", and `getOperationInfo` answered from the
+superseded file. Four CONFIRMED, no split decision.
+
+➕ **The enumeration found four more sites of that shape**, none of them reported: `ApiGroupService.resolveGroupFile`
+(the group resolver every read, write and delete of a group goes through), `ApiGroupService.regenerateGroupApis` (which
+listed an id twice when both names were on disk), `serviceApiModify.findSpecificationFileById` (the **write** path) and
+`qipExplorer.findServiceFilesRecursively` (the tree). `findSpecificationFileById` also had no precedence rule at all —
+it took the first name the directory listed, so with both files readable the read answered from `.api.` while the write
+landed wherever the listing happened to start.
+
+➕ [decision] **The contract gets a second primitive rather than four patches**: `resolveScannedEntities` in
+`lookupOutcome.ts` is the listing counterpart of `resolveFirstCandidate`, with the same required `onUnreadable` handler,
+and `response/file/entityFiles.ts` states it once per level as `resolveGroupFiles` / `resolveApiFiles`. All six of the
+group and API sites route through those two, so the precedence rule and the refusal are written once. The scan uses
+`fileApi.parseFile` throughout; five test doubles that stubbed `ContentParser.parseContentFromFile` for one seam and
+`fileApi.parseFile` for the other now share one mock, which is what the production code does (`VSCodeFileApi.parseFile`
+*is* `ContentParser.parseContentFromFile`).
+
+➕ [decision] **The refusal fails the whole listing, and the tolerance is unchanged.** A listing that dropped only the
+refused entity would hide a group while showing its siblings, and `getServices` already fails the whole list for the
+same state. An unreadable file that is nobody's sibling still blocks nothing — `refuseUnreadableSibling` is still the
+only narrowing rule, and a total miss is still a miss.
+
+➕ [decision] **The tree drops rather than refuses.** `qipExplorer` cannot throw — that empties the whole explorer — so
+`dropUnreadableSiblings` keeps every service whose file may be a sibling of one the walk could not read off the tree
+instead. What this accepts: such a service vanishes from the tree while its broken file sits beside it, visible in the
+file explorer and named in the console; `getServices` fails loudly for the same state, so the webview still names the
+file to fix.
+
+➕ **CONFIRMED (MINOR): `mayBeSameEntity` compared paths alone.** Same path text under another scheme, authority or
+query is another file — `git:` names a revision of it, a remote authority names it on another machine — and this
+extension does hold `git:` uris (`chainDiffEditor`). The direction of the error was a false *refusal*, never a false
+answer, so no data was at risk. `sameFileSpace` now compares all three.
+
+➕ [decision] **The guard is rebuilt on the type checker, and gains a second rule.** Rule 1 is the old one — a lookup
+inside a `catch` that can answer — and rule 2 is the shape this round was about: a loop that reads candidate files and
+swallows what it cannot read. Three things make a spelling irrelevant. Callees resolve through
+`checker.getResolvedSignature` to the declaration they reach, so an alias, a renamed import, a destructured binding, a
+computed property and a call through a variable all land on one key. Both rules close over the call graph, so a wrapper
+that passes a lookup on counts as a lookup and a helper that swallows a parse counts as a parse wherever it is called.
+And `.catch(...)` and `.then(onFulfilled, onRejected)` count as `catch`, while a `catch` that always rethrows does not —
+it answers with nothing, which removed four allowlist entries that only said "rethrows unchanged".
+
+➕ Demonstrated rather than asserted: six swallowing sites were written into `src/web`, one per spelling codex named —
+an alias, a renamed import, a computed property, a wrapper, a hand-rolled loop, and a loop whose `catch` was extracted
+into a helper — and the guard named all six by `<file>#<function>`. Reverting `getOperations` and
+`findSpecificationFileById` to their old loops made it name those two as well, which is what a seventh site would look
+like. **What it cannot see**, and this is in the file header: a call on a value typed `any`, where there is no signature
+to resolve and the name at the call site is all there is. A fourth case is the canary — it fails if the share of calls
+the checker cannot resolve grows past a tenth.
+
+➕ [decision] The allowlists are 12 lookup-catch entries and 13 parse-loop entries, each with a reason. The parse-loop
+side is where the honest ones live: chains have one name, so a chain scan has no sibling to answer in its place; the
+three delete paths collect *both* names of one entity on purpose and leave a file they cannot attribute in place; and
+`collectFiles` is the layer the outcome is created in.
+
+➕ Mutations checked red, one per fix: `resolveScannedEntities` not calling `onUnreadable` (7 cases); the precedence rule
+ignored, winner = first listed (8 cases, 3 of them pre-existing); `dropUnreadableSiblings` disabled (1 case);
+`sameFileSpace` removed (3 cases); `getOperations` back to its swallowing loop (2 cases plus the guard);
+`findSpecificationFileById` back to its first-match loop (3 cases plus the guard).
+
+➕ New suite `tests/web/response/unreadableApiFiles.test.ts`: 13 cases over one in-memory disk — the four reads and the
+two writes refusing, the group resolver refusing, the read and the write agreeing on the current name with both files
+readable, and the tolerance for a broken file that is nobody's sibling. `lookupOutcome.test.ts`, the guard and the
+explorer suite gained the rest.
+
+➕ [deviation] `vscode-extension/CLAUDE.md` was edited on disk once more (untracked, git-excluded, so it cannot be
+committed): the folder scan is now a section of its own next to the lookups, the guard paragraph describes both rules
+and what the checker cannot see, and the tree paragraph says what it drops.
 
 ## Post-Completion
 

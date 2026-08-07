@@ -25,6 +25,7 @@ import {
 } from "./file/serviceFileType";
 import { writeServiceInCurrentFormat } from "./file/serviceFileWrite";
 import { fileApi } from "./file/fileApiProvider";
+import { resolveApiFiles } from "./file/entityFiles";
 import { isSafeResourcePath } from "./file/resourcePath";
 import { refreshQipExplorer } from "../extension";
 import { LabelUtils } from "../api-services/LabelUtils";
@@ -561,39 +562,24 @@ async function getSpecificationFilesByGroup(
   };
 }
 
+/**
+ * The file an API id owns, for a write. It is the file every read of that API already shows — the
+ * `.api.` one where both names exist — rather than whichever name the directory listed first, and a
+ * sibling the scan could not read refuses instead of handing the write to the other name.
+ */
 async function findSpecificationFileById(
   serviceFileUri: Uri,
   modelId: string,
 ): Promise<{ specificationFile: string; specificationInfo: any }> {
-  const specificationFiles =
-    await fileApi.getSpecificationFiles(serviceFileUri);
+  const resolved = (await resolveApiFiles(serviceFileUri)).get(modelId);
 
-  let specificationFileToDelete: string | null = null;
-  let specificationInfo: any = null;
-
-  for (const fileName of specificationFiles) {
-    try {
-      const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
-      const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-      const parsed = await ContentParser.parseContentFromFile(fileUri);
-
-      if (parsed.id === modelId) {
-        specificationFileToDelete = fileName;
-        specificationInfo = parsed;
-        break;
-      }
-    } catch (error) {
-      console.error(`Error reading specification file ${fileName}:`, error);
-    }
-  }
-
-  if (!specificationFileToDelete || !specificationInfo) {
+  if (!resolved) {
     throw new Error(`API with id ${modelId} not found`);
   }
 
   return {
-    specificationFile: specificationFileToDelete,
-    specificationInfo,
+    specificationFile: resolved.fileName,
+    specificationInfo: resolved.parsed,
   };
 }
 

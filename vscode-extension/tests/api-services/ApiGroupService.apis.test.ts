@@ -22,6 +22,7 @@ jest.mock("../../src/web/response/file/fileApiProvider", () =>
     getSpecificationGroupFiles: mockGetSpecificationGroupFiles,
     getSpecificationFiles: mockGetSpecificationFiles,
     writeFile: mockWriteFile,
+    parseFile: mockParseContentFromFile,
   }),
 );
 jest.mock("../../src/web/api-services/parsers/ContentParser", () => ({
@@ -84,10 +85,7 @@ describe("ApiGroupService.regenerateGroupApis", () => {
       },
     });
 
-    await ApiGroupService.regenerateGroupApis(
-      serviceFileUri,
-      "group-1",
-    );
+    await ApiGroupService.regenerateGroupApis(serviceFileUri, "group-1");
 
     expect(writtenGroupApis()).toEqual(["api-1"]);
   });
@@ -106,10 +104,7 @@ describe("ApiGroupService.regenerateGroupApis", () => {
       },
     });
 
-    await ApiGroupService.regenerateGroupApis(
-      serviceFileUri,
-      "group-1",
-    );
+    await ApiGroupService.regenerateGroupApis(serviceFileUri, "group-1");
 
     expect(writtenGroupApis()).toEqual(["api-2"]);
   });
@@ -142,10 +137,7 @@ describe("ApiGroupService.regenerateGroupApis", () => {
       },
     );
 
-    await ApiGroupService.regenerateGroupApis(
-      serviceFileUri,
-      "group-1",
-    );
+    await ApiGroupService.regenerateGroupApis(serviceFileUri, "group-1");
 
     expect(writtenGroupApis()).toEqual(["api-1", "api-2"]);
   });
@@ -159,10 +151,7 @@ describe("ApiGroupService.regenerateGroupApis", () => {
       },
     });
 
-    await ApiGroupService.regenerateGroupApis(
-      serviceFileUri,
-      "group-1",
-    );
+    await ApiGroupService.regenerateGroupApis(serviceFileUri, "group-1");
 
     expect(mockWriteFile).not.toHaveBeenCalled();
   });
@@ -175,20 +164,14 @@ describe("ApiGroupService.regenerateGroupApisSafely", () => {
   beforeEach(() => jest.clearAllMocks());
 
   test("no-ops when the group id is missing", async () => {
-    await ApiGroupService.regenerateGroupApisSafely(
-      serviceFileUri,
-      undefined,
-    );
+    await ApiGroupService.regenerateGroupApisSafely(serviceFileUri, undefined);
 
     expect(mockGetSpecificationGroupFiles).not.toHaveBeenCalled();
     expect(mockWriteFile).not.toHaveBeenCalled();
   });
 
   test("no-ops when the service file uri is missing", async () => {
-    await ApiGroupService.regenerateGroupApisSafely(
-      undefined,
-      "group-1",
-    );
+    await ApiGroupService.regenerateGroupApisSafely(undefined, "group-1");
 
     expect(mockGetSpecificationGroupFiles).not.toHaveBeenCalled();
   });
@@ -206,10 +189,7 @@ describe("ApiGroupService.regenerateGroupApisSafely", () => {
       },
     });
 
-    await ApiGroupService.regenerateGroupApisSafely(
-      serviceFileUri,
-      "group-1",
-    );
+    await ApiGroupService.regenerateGroupApisSafely(serviceFileUri, "group-1");
 
     expect(writtenGroupApis()).toEqual(["api-1"]);
   });
@@ -218,10 +198,7 @@ describe("ApiGroupService.regenerateGroupApisSafely", () => {
     mockGetSpecificationGroupFiles.mockRejectedValue(new Error("disk error"));
 
     await expect(
-      ApiGroupService.regenerateGroupApisSafely(
-        serviceFileUri,
-        "group-1",
-      ),
+      ApiGroupService.regenerateGroupApisSafely(serviceFileUri, "group-1"),
     ).resolves.toBeUndefined();
   });
 });

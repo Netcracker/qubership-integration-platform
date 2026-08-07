@@ -180,7 +180,7 @@ describe("apis[] regeneration wiring after a model write", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (fileApi.getSpecificationFiles as jest.Mock).mockResolvedValue([SPEC_FILE]);
-    (ContentParser.parseContentFromFile as jest.Mock).mockResolvedValue({
+    (fileApi.parseFile as jest.Mock).mockResolvedValue({
       id: MODEL_ID,
       name: "Model One",
       content: { parentId: GROUP_ID },

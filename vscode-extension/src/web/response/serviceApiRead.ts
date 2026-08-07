@@ -34,8 +34,8 @@ import {
   refuseUnreadableSibling,
   resolveFirstCandidate,
 } from "./file/lookupOutcome";
+import { resolveApiFiles, resolveGroupFiles } from "./file/entityFiles";
 import { Chain, ContextSystem, MCPSystem } from "@netcracker/qip-ui";
-import { ContentParser } from "../api-services/parsers/ContentParser";
 import { OperationSchemaExtractor } from "../api-services/parsers/OperationSchemaExtractor";
 import {
   deriveMethod,
@@ -337,61 +337,35 @@ export async function getApiSpecifications(
     serviceId,
   );
 
-  const specGroupFiles =
-    await fileApi.getSpecificationGroupFiles(serviceFileUri);
-  const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
+  // A group may have a file under both extensions. List it once, from the same file
+  // ApiGroupService.resolveGroupFile picks, so the tree and the editor never disagree — and refuse
+  // rather than list the sibling of a file the scan could not read.
+  const groupFiles = await resolveGroupFiles(serviceFileUri);
   const result: ApiGroup[] = [];
 
-  // A group may have a file under both extensions. List it once, from the same file
-  // ApiGroupService.resolveGroupFile picks, so the tree and the editor never disagree.
-  const groupExtension = getExtensionsForUri(serviceFileUri).apiGroup;
-  const parsedByGroupId = new Map<string, { fileName: string; parsed: any }>();
-  for (const fileName of specGroupFiles) {
-    try {
-      const parsed = await fileApi.parseFile(
-        vscode.Uri.joinPath(serviceFolderUri, fileName),
-      );
-      if (!parsed?.id) {
-        continue;
-      }
-      const current = parsedByGroupId.get(parsed.id);
-      if (!current?.fileName.endsWith(groupExtension)) {
-        parsedByGroupId.set(parsed.id, { fileName, parsed });
-      }
-    } catch (e) {
-      console.error(`Failed to parse specification group file ${fileName}`, e);
+  for (const { parsed } of groupFiles.values()) {
+    if (parsed?.content?.parentId !== serviceId) {
+      continue;
     }
-  }
+    const specifications = await getSpecificationModel(
+      serviceFileUri,
+      serviceId,
+      parsed.id,
+    );
+    const chains = await getChainsUsingSpecificationGroup(serviceId, parsed.id);
 
-  for (const { fileName, parsed } of parsedByGroupId.values()) {
-    try {
-      if (parsed && parsed.content && parsed.content.parentId === serviceId) {
-        const specifications = await getSpecificationModel(
-          serviceFileUri,
-          serviceId,
-          parsed.id,
-        );
-        const chains = await getChainsUsingSpecificationGroup(
-          serviceId,
-          parsed.id,
-        );
-
-        const group = {
-          id: parsed.id,
-          name: parsed.name,
-          description: parsed.content.description || "",
-          specifications: specifications,
-          synchronization: parsed.content.synchronization || false,
-          parentId: parsed.content.parentId,
-          labels: LabelUtils.toEntityLabels(parsed.content?.labels || []),
-          chains: chains,
-          systemId: parsed.content.parentId,
-        };
-        result.push(group);
-      }
-    } catch (e) {
-      console.error(`Failed to parse specification group file ${fileName}`, e);
-    }
+    const group = {
+      id: parsed.id,
+      name: parsed.name,
+      description: parsed.content.description || "",
+      specifications: specifications,
+      synchronization: parsed.content.synchronization || false,
+      parentId: parsed.content.parentId,
+      labels: LabelUtils.toEntityLabels(parsed.content?.labels || []),
+      chains: chains,
+      systemId: parsed.content.parentId,
+    };
+    result.push(group);
   }
 
   return result;
@@ -428,67 +402,42 @@ export async function getSpecificationModel(
     serviceFileUri,
     serviceId,
   );
-  const ext = getExtensionsForUri(actualServiceFileUri);
-
-  const specFiles = await fileApi.getSpecificationFiles(actualServiceFileUri);
-  const serviceFolderUri = vscode.Uri.joinPath(actualServiceFileUri, "..");
-  const result: Api[] = [];
 
   // An API may have a file under both extensions. List it once, from the newer
   // `.api.` one, the same rule the group level above follows.
-  const parsedByApiId = new Map<
-    string,
-    { fileName: string; fileUri: Uri; parsed: any }
-  >();
-  for (const fileName of specFiles) {
-    try {
-      const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-      const parsed = await fileApi.parseFile(fileUri);
-      if (!parsed?.id) {
-        continue;
-      }
-      const current = parsedByApiId.get(parsed.id);
-      if (!current?.fileName.endsWith(ext.api)) {
-        parsedByApiId.set(parsed.id, { fileName, fileUri, parsed });
-      }
-    } catch (e) {
-      console.error(`Failed to parse specification file ${fileName}`, e);
-    }
-  }
+  const apiFiles = await resolveApiFiles(actualServiceFileUri);
+  const result: Api[] = [];
 
-  for (const { fileName, fileUri, parsed } of parsedByApiId.values()) {
-    try {
-      if (parsed && parsed.content && parsed.content.parentId === groupId) {
-        const operations = await parseOperations(
-          parsed.content.operations,
-          parsed.id,
-        );
-        const chains = await getChainsUsingSpecification(serviceId, parsed.id);
-
-        const spec = {
-          id: parsed.id,
-          name: parsed.name,
-          description: parsed.content.description || "",
-          version: parsed.content.version || "",
-          format: parsed.content.format || "",
-          content: parsed.content.content || "",
-          deprecated: parsed.content.deprecated || false,
-          parentId: parsed.content.parentId,
-          labels: LabelUtils.toEntityLabels(parsed.content?.labels || []),
-          specificationGroupId: parsed.content.parentId,
-          source: parsed.content.content || "",
-          systemId: serviceId,
-          operations: operations,
-          chains: chains,
-          createdWhen: await fileApi.getFileCreatedWhen(fileUri),
-          specificationType: parsed.content.specificationType,
-          specificationVersion: parsed.content.specificationVersion,
-        };
-        result.push(spec);
-      }
-    } catch (e) {
-      console.error(`Failed to parse specification file ${fileName}`, e);
+  for (const { fileUri, parsed } of apiFiles.values()) {
+    if (parsed?.content?.parentId !== groupId) {
+      continue;
     }
+    const operations = await parseOperations(
+      parsed.content.operations,
+      parsed.id,
+    );
+    const chains = await getChainsUsingSpecification(serviceId, parsed.id);
+
+    const spec = {
+      id: parsed.id,
+      name: parsed.name,
+      description: parsed.content.description || "",
+      version: parsed.content.version || "",
+      format: parsed.content.format || "",
+      content: parsed.content.content || "",
+      deprecated: parsed.content.deprecated || false,
+      parentId: parsed.content.parentId,
+      labels: LabelUtils.toEntityLabels(parsed.content?.labels || []),
+      specificationGroupId: parsed.content.parentId,
+      source: parsed.content.content || "",
+      systemId: serviceId,
+      operations: operations,
+      chains: chains,
+      createdWhen: await fileApi.getFileCreatedWhen(fileUri),
+      specificationType: parsed.content.specificationType,
+      specificationVersion: parsed.content.specificationVersion,
+    };
+    result.push(spec);
   }
 
   return result;
@@ -507,20 +456,16 @@ export async function getOperations(
   const ext = getExtensionsForUri(actualServiceFileUri);
 
   if (isAnyServiceFile(actualServiceFileUri, ext)) {
-    const specFiles = await fileApi.getSpecificationFiles(actualServiceFileUri);
-    const serviceFolderUri = vscode.Uri.joinPath(actualServiceFileUri, "..");
+    // The api file wins over its `.specification.` sibling here too, and a sibling the scan could
+    // not read refuses rather than letting the other name answer for the model.
+    const apiFiles = await resolveApiFiles(actualServiceFileUri);
+    const model = apiFiles.get(modelId);
 
-    for (const fileName of specFiles) {
-      try {
-        const specFileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-        const parsed = await fileApi.parseFile(specFileUri);
-
-        if (parsed && parsed.id === modelId) {
-          return await parseOperations(parsed.content.operations, parsed.id);
-        }
-      } catch (e) {
-        console.error(`Failed to parse specification file ${fileName}`, e);
-      }
+    if (model) {
+      return await parseOperations(
+        model.parsed.content?.operations,
+        model.parsed.id,
+      );
     }
   } else {
     const specFileUri = await findModelFileById(ext, modelId);
@@ -572,42 +517,41 @@ export async function getOperationInfo(
     ? await resolveServiceFileUri(serviceFileUri, serviceId)
     : serviceFileUri;
 
-  const specFiles = await fileApi.getSpecificationFiles(actualServiceFileUri);
   const serviceFolderUri = vscode.Uri.joinPath(actualServiceFileUri, "..");
+  // One file per API — the `.api.` one where both names exist — so an operation is read from the
+  // same file `getOperations` and `getSpecificationModel` answer from, never from a sibling that
+  // lost the precedence race or stood in for a file the scan could not read.
+  const apiFiles = await resolveApiFiles(actualServiceFileUri);
 
-  for (const fileName of specFiles) {
-    try {
-      const fileUri = vscode.Uri.joinPath(serviceFolderUri, fileName);
-      const parsed = await ContentParser.parseContentFromFile(fileUri);
-
-      if (parsed && parsed.content && parsed.content.operations) {
-        const operation = parsed.content.operations.find((op: any) => {
-          return op.id === operationId || operationId.endsWith(`-${op.id}`);
-        });
-        if (operation) {
-          const {
-            specification: derivedSpecification,
-            requestSchema,
-            responseSchemas,
-          } = await extractOperationSchemas(
-            serviceFolderUri,
-            parsed.content,
-            operation,
-          );
-          return {
-            id: operation.id,
-            // The stored node wins, even when it is an empty object; derivation
-            // only fills a value the file does not carry (backend parity, see
-            // ServiceDeserializer.fillMissingOperationSpecifications).
-            specification: operation.specification ?? derivedSpecification,
-            requestSchema,
-            responseSchemas,
-          };
-        }
-      }
-    } catch (e) {
-      console.error(`Failed to parse specification file ${fileName}`, e);
+  for (const { parsed } of apiFiles.values()) {
+    const operations = parsed?.content?.operations;
+    if (!operations) {
+      continue;
     }
+    const operation = operations.find((op: any) => {
+      return op.id === operationId || operationId.endsWith(`-${op.id}`);
+    });
+    if (!operation) {
+      continue;
+    }
+    const {
+      specification: derivedSpecification,
+      requestSchema,
+      responseSchemas,
+    } = await extractOperationSchemas(
+      serviceFolderUri,
+      parsed.content,
+      operation,
+    );
+    return {
+      id: operation.id,
+      // The stored node wins, even when it is an empty object; derivation
+      // only fills a value the file does not carry (backend parity, see
+      // ServiceDeserializer.fillMissingOperationSpecifications).
+      specification: operation.specification ?? derivedSpecification,
+      requestSchema,
+      responseSchemas,
+    };
   }
 
   throw new Error(`Operation with id ${operationId} not found`);

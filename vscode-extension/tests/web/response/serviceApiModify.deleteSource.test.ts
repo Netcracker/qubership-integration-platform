@@ -42,9 +42,16 @@ jest.mock("../../../src/web/extension", () => ({
   refreshQipExplorer: jest.fn(),
 }));
 
-jest.mock("../../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForFile: jest.fn(),
-}));
+jest.mock("../../../src/web/response/file/fileExtensions", () => {
+  const { QIP_FILE_EXTENSIONS } = jest.requireActual("../../helpers/mocks");
+  return {
+    getExtensionsForFile: jest.fn(),
+    getExtensionsForUri: jest.fn().mockReturnValue(QIP_FILE_EXTENSIONS),
+    extractFilename: (fileRef: any) =>
+      (typeof fileRef === "string" ? fileRef : fileRef.path).split("/").pop() ??
+      "",
+  };
+});
 
 jest.mock("../../../src/web/api-services/LabelUtils", () => ({
   LabelUtils: {
@@ -70,11 +77,15 @@ jest.mock("../../../src/web/api-services/ApiGroupService", () => ({
 const getSpecificationFiles = jest.fn();
 const deleteFile = jest.fn();
 
-jest.mock("../../../src/web/response/file/fileApiProvider", () => ({
-  fileApi: { getSpecificationFiles, deleteFile },
-}));
-
 const parseContentFromFile = jest.fn();
+
+jest.mock("../../../src/web/response/file/fileApiProvider", () => ({
+  fileApi: {
+    getSpecificationFiles,
+    deleteFile,
+    parseFile: parseContentFromFile,
+  },
+}));
 
 jest.mock("../../../src/web/api-services/parsers/ContentParser", () => ({
   ContentParser: { parseContentFromFile },
@@ -112,7 +123,9 @@ describe("deleteSpecificationModel - source cleanup across both formats", () => 
     await deleteSpecificationModel(serviceFileUri, MODEL_ID);
 
     expect(deleteFile).toHaveBeenCalledWith(
-      expect.objectContaining({ path: "resources/source-model-1/payments.proto" }),
+      expect.objectContaining({
+        path: "resources/source-model-1/payments.proto",
+      }),
     );
   });
 
@@ -127,7 +140,9 @@ describe("deleteSpecificationModel - source cleanup across both formats", () => 
     await deleteSpecificationModel(serviceFileUri, MODEL_ID);
 
     expect(deleteFile).toHaveBeenCalledWith(
-      expect.objectContaining({ path: "resources/source-model-1/openapi.json" }),
+      expect.objectContaining({
+        path: "resources/source-model-1/openapi.json",
+      }),
     );
   });
 

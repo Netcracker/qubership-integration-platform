@@ -26,6 +26,9 @@ jest.mock("../../src/web/response/file/fileApiProvider", () =>
   stubFileApi({
     findFileById: mockFindFileById,
     getSpecificationGroupFiles: mockGetSpecificationGroupFiles,
+    // `VSCodeFileApi.parseFile` is `ContentParser.parseContentFromFile`, so the folder scan and the
+    // single-file read share one double here too.
+    parseFile: mockParseContentFromFile,
   }),
 );
 jest.mock("../../src/web/api-services/parsers/ContentParser", () => ({
@@ -107,8 +110,9 @@ describe("getApiGroupById", () => {
   });
 
   // The two files of one group are the pair a re-save overwrites, so the pre-rename name may not
-  // stand in for a renamed one the scan could not read.
-  it("does not answer from the sibling of a file it could not read", async () => {
+  // stand in for a renamed one the scan could not read. The refusal is not a "no such group"
+  // either: answering null would send the caller on with the file that may hold it unnamed.
+  it("reports the file it could not read rather than answering from the sibling", async () => {
     mockFindFileById.mockImplementation((_id: string, extension: string) =>
       extension === API_GROUP_EXT
         ? Promise.reject(
@@ -120,12 +124,9 @@ describe("getApiGroupById", () => {
     );
     mockParseContentFromFile.mockResolvedValue(parsed);
 
-    const group = await new ApiGroupService().getApiGroupById(
-      "group-1",
-      "system-1",
-    );
-
-    expect(group).toBeNull();
+    await expect(
+      new ApiGroupService().getApiGroupById("group-1", "system-1"),
+    ).rejects.toThrow(`/svc/group-1${API_GROUP_EXT}`);
     expect(mockParseContentFromFile).not.toHaveBeenCalled();
   });
 });

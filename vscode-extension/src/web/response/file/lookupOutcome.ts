@@ -17,9 +17,10 @@
 // nothing resolved there is no sibling for a write to land beside; it names the unreadable files
 // among its causes.
 //
-// `resolveFirstCandidate` is how a multi-candidate lookup runs. Its `onUnreadable` handler is not
-// optional on purpose: the failure this module exists to stop is a `catch` that continues to a
-// lower-precedence name, and the type system now makes a caller say what that means.
+// `resolveFirstCandidate` is how a multi-candidate lookup runs, and `resolveScannedEntities` is how
+// a scan of a folder listing that may hold both names of one entity runs. Neither takes an optional
+// `onUnreadable` handler: the failure this module exists to stop is a `catch` that continues to a
+// lower-precedence name, and the type system makes a caller say what that means.
 
 import type { Uri } from "vscode";
 import { UnreadableFileError } from "../fileFilteringUtils";
@@ -119,6 +120,19 @@ function baseOf(
 }
 
 /**
+ * Whether two uris address one place. A path alone does not say so: the same text under another
+ * scheme or authority is another file entirely — `git:` names a revision of it, and a remote
+ * authority names it on another machine — and a write lands in exactly one of those spaces.
+ */
+function sameFileSpace(candidate: Uri, resolved: Uri): boolean {
+  return (
+    candidate.scheme === resolved.scheme &&
+    candidate.authority === resolved.authority &&
+    candidate.query === resolved.query
+  );
+}
+
+/**
  * Whether two names can be the two files of one entity. A conversion changes the extension alone,
  * so a pair shares a folder and the name its extension is stripped from — and that is also the only
  * pair a write can destroy, because a write recomputes the target name in the folder of the file
@@ -134,7 +148,8 @@ export function mayBeSameEntity(
   return (
     candidateBase !== undefined &&
     candidateBase === resolvedBase &&
-    directoryOf(candidate.path) === directoryOf(resolved.path)
+    directoryOf(candidate.path) === directoryOf(resolved.path) &&
+    sameFileSpace(candidate, resolved)
   );
 }
 
@@ -162,4 +177,77 @@ export function refuseUnreadableSibling(
   if (sibling) {
     throw makeError(entityId, sibling);
   }
+}
+
+/** A candidate file of the scan, parsed. */
+export type ParsedFile<T> = {
+  readonly fileName: string;
+  readonly fileUri: Uri;
+  readonly parsed: T;
+};
+
+/** The file an entity id resolves to, and the same-id files the precedence rule outranked. */
+export type ResolvedEntity<T> = ParsedFile<T> & {
+  readonly duplicates: readonly ParsedFile<T>[];
+};
+
+/**
+ * Runs a scan of a folder listing that may hold both names of one entity, and answers with one file
+ * per entity id: the one under the current name.
+ *
+ * This is the listing counterpart of `resolveFirstCandidate`, and it exists for the same reason. A
+ * scan that skipped the file it could not parse answered every one of those ids from the sibling
+ * that lost the precedence race — the `.specification.` file behind an unreadable `.api.` one, the
+ * `.specification-group.` file behind an unreadable `.api-group.` one — which is the pair a re-save
+ * overwrites. So `onUnreadable` is required here too: it runs once per resolved entity, with the
+ * files the scan could not read, and `refuseUnreadableSibling` is what a caller states in it.
+ */
+export async function resolveScannedEntities<T>(
+  candidates: readonly Uri[],
+  parse: (fileUri: Uri) => Promise<T>,
+  handlers: {
+    idOf: (parsed: T) => string | undefined;
+    prefers: (fileUri: Uri) => boolean;
+    onUnreadable: (
+      entityId: string,
+      resolved: Uri,
+      unreadable: readonly Uri[],
+    ) => void;
+  },
+): Promise<Map<string, ResolvedEntity<T>>> {
+  const unreadable: Uri[] = [];
+  const byId = new Map<string, ParsedFile<T>[]>();
+
+  for (const fileUri of candidates) {
+    let parsed: T;
+    try {
+      parsed = await parse(fileUri);
+    } catch (error) {
+      console.error(`Failed to parse ${fileUri.path}`, error);
+      unreadable.push(fileUri);
+      continue;
+    }
+    const entityId = handlers.idOf(parsed);
+    if (!entityId) {
+      continue;
+    }
+    const files = byId.get(entityId) ?? [];
+    files.push({ fileName: extractFilename(fileUri), fileUri, parsed });
+    byId.set(entityId, files);
+  }
+
+  const resolved = new Map<string, ResolvedEntity<T>>();
+  for (const [entityId, files] of byId) {
+    const preferred = files.find((file) => handlers.prefers(file.fileUri));
+    const winner = preferred ?? files[0];
+    if (unreadable.length > 0) {
+      handlers.onUnreadable(entityId, winner.fileUri, unreadable);
+    }
+    resolved.set(entityId, {
+      ...winner,
+      duplicates: files.filter((file) => file !== winner),
+    });
+  }
+
+  return resolved;
 }
