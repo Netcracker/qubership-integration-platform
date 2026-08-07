@@ -42,10 +42,10 @@ import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 import { useAccessControlFilter } from "../../../hooks/filter/useAccessControlFilter.ts";
 
 function routeTypeLabel(record: AccessControlData): string {
-  const props = record.properties as unknown as
+  const properties = record.properties as unknown as
     | AccessControlProperty
     | undefined;
-  const { externalRoute, privateRoute } = props ?? {};
+  const { externalRoute, privateRoute } = properties ?? {};
   if (externalRoute && privateRoute) return "External, Private";
   if (externalRoute) return "External";
   if (privateRoute) return "Private";
@@ -56,17 +56,17 @@ function accessControlMatchesSearch(
   record: AccessControlData,
   term: string,
 ): boolean {
-  const props = record.properties as unknown as
+  const properties = record.properties as unknown as
     | AccessControlProperty
     | undefined;
-  const roles = props?.roles;
+  const roles = properties?.roles;
   const rolesStr = Array.isArray(roles) ? roles.join(" ") : "";
-  const act = props?.accessControlType;
+  const act = properties?.accessControlType;
   let actStr = "";
   if (typeof act === "string") actStr = act;
   else if (act != null) actStr = String(act);
   return matchesByFields(term, [
-    props?.contextPath ?? "",
+    properties?.contextPath ?? "",
     record.chainName,
     record.chainId,
     record.elementId,
@@ -232,10 +232,10 @@ export const AccessControl: React.FC = () => {
       title: "Type",
       key: "type",
       render: (_value: unknown, record: AccessControlData) => {
-        const props = record.properties as unknown as
+        const properties = record.properties as unknown as
           | AccessControlProperty
           | undefined;
-        const { externalRoute, privateRoute } = props ?? {};
+        const { externalRoute, privateRoute } = properties ?? {};
         return (
           <>
             {externalRoute && privateRoute
@@ -254,10 +254,10 @@ export const AccessControl: React.FC = () => {
       key: "accessControlType",
       dataIndex: "accessControlType",
       render: (_value: unknown, record: AccessControlData) => {
-        const props = record.properties as unknown as
+        const properties = record.properties as unknown as
           | AccessControlProperty
           | undefined;
-        const val = props?.accessControlType;
+        const val = properties?.accessControlType;
         return (
           <>{typeof val === "string" ? val : val != null ? String(val) : "—"}</>
         );
@@ -267,10 +267,10 @@ export const AccessControl: React.FC = () => {
       title: "Roles",
       key: "roles",
       render: (_value: unknown, record: AccessControlData) => {
-        const props = record.properties as unknown as
+        const properties = record.properties as unknown as
           | AccessControlProperty
           | undefined;
-        const roles = props?.roles;
+        const roles = properties?.roles;
         if (roles && Array.isArray(roles) && roles.length > 0) {
           return (
             <span>
@@ -614,10 +614,10 @@ export const AccessControl: React.FC = () => {
               </Descriptions.Item>
               <Descriptions.Item label="Type">
                 {(() => {
-                  const props = currentRecord.properties as unknown as
+                  const properties = currentRecord.properties as unknown as
                     | AccessControlProperty
                     | undefined;
-                  const { externalRoute, privateRoute } = props ?? {};
+                  const { externalRoute, privateRoute } = properties ?? {};
                   return externalRoute && privateRoute
                     ? "External, Private"
                     : externalRoute
@@ -629,10 +629,10 @@ export const AccessControl: React.FC = () => {
               </Descriptions.Item>
               <Descriptions.Item label="Access Control Type">
                 {(() => {
-                  const props = currentRecord.properties as unknown as
+                  const properties = currentRecord.properties as unknown as
                     | AccessControlProperty
                     | undefined;
-                  const val = props?.accessControlType;
+                  const val = properties?.accessControlType;
                   return typeof val === "string"
                     ? val
                     : val != null
@@ -642,10 +642,10 @@ export const AccessControl: React.FC = () => {
               </Descriptions.Item>
               <Descriptions.Item label="Roles">
                 {(() => {
-                  const props = currentRecord.properties as unknown as
+                  const properties = currentRecord.properties as unknown as
                     | AccessControlProperty
                     | undefined;
-                  const roles = props?.roles;
+                  const roles = properties?.roles;
                   return roles && Array.isArray(roles) && roles.length > 0 ? (
                     <span>
                       {roles.map((role, idx) => (
