@@ -557,29 +557,16 @@ export async function getNavigateUri(fileUri: vscode.Uri): Promise<string> {
   }
 }
 
-export const SERVICE_ROUTES: RegExp[] = [
-  /^\/services\/systems\/[^/]+\/parameters$/,
-  /^\/services\/systems\/[^/]+\/specificationGroups$/,
-  /^\/services\/systems\/[^/]+\/specificationGroups\/[^/]+\/specifications$/,
-  /^\/services\/systems\/[^/]+\/specificationGroups\/[^/]+\/specifications\/[^/]+$/,
-  /^\/services\/systems\/[^/]+\/environments$/,
-  /^\/services\/systems\/[^/]+\/specificationGroups\/[^/]+\/specifications\/[^/]+\/operations$/,
-  /^\/services\/systems\/[^/]+\/specificationGroups\/[^/]+\/specifications\/[^/]+\/operations\/[^/]+$/,
-];
-
-export const CONTEXT_SERVICE_ROUTES: RegExp[] = [
-  /^\/services\/context\/[^/]+\/parameters$/,
-];
-
-export const MCP_SERVICE_ROUTES: RegExp[] = [
-  /^\/services\/mcp\/[^/]+\/parameters$/,
-];
-
-export const CHAIN_ROUTES: RegExp[] = [/^\/chains\/[^/]+(?:\/.*)?$/];
+export {
+  SERVICE_ROUTES,
+  CONTEXT_SERVICE_ROUTES,
+  MCP_SERVICE_ROUTES,
+  CHAIN_ROUTES,
+  ROUTES,
+} from "./navigationRoutes";
+import { ROUTES } from "./navigationRoutes";
 
 export const CHAIN_DIFF_PATH = "/chains/diff";
-
-export const ROUTES: RegExp[] = [...SERVICE_ROUTES, ...CHAIN_ROUTES];
 
 async function parseNavigatePath(
   path: string,

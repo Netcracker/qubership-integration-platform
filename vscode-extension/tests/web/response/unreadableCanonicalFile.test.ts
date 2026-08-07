@@ -145,12 +145,22 @@ jest.mock("../../../src/web/api-services/parsers/ContentParser", () => ({
 import { VSCodeFileApi } from "../../../src/web/response/file/fileApiImpl";
 import { setFileApi } from "../../../src/web/response/file/fileApiProvider";
 import { findServiceFileById } from "../../../src/web/response/file/serviceFileLookup";
-import { getService } from "../../../src/web/response/serviceApiRead";
+import {
+  getContextServices,
+  getMcpServices,
+  getOperations,
+  getService,
+  getServices,
+} from "../../../src/web/response/serviceApiRead";
 import { updateService } from "../../../src/web/response/serviceApiModify";
 import { FileCacheService } from "../../../src/web/services/FileCacheService";
 
-const SERVICE_ID = "svc-1";
-const OTHER_ID = "svc-2";
+// Navigation paths carry a uuid, so the ids are uuids here — the same ids both create paths mint.
+const SERVICE_ID = "11111111-1111-4111-8111-111111111111";
+const OTHER_ID = "22222222-2222-4222-8222-222222222222";
+const MODEL_ID = "model-1";
+
+let api: VSCodeFileApi;
 
 const uri = fileRef;
 
@@ -161,7 +171,7 @@ const otherTypedUri = uri(
 );
 const otherLegacyUri = uri(`/root/${OTHER_ID}/${OTHER_ID}${ext.service}`);
 
-const UNREADABLE_TEXT = "id: svc-1\n  name: [broken";
+const UNREADABLE_TEXT = "id: broken\n  name: [broken";
 
 function serviceText(id: string, content: Record<string, unknown>): string {
   return JSON.stringify({
@@ -175,7 +185,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   disk.clear();
   FileCacheService.getInstance().clearAll();
-  setFileApi(new VSCodeFileApi({} as any));
+  api = new VSCodeFileApi({} as any);
+  setFileApi(api);
 });
 
 describe("a service whose typed file cannot be read, with the legacy sibling still there", () => {
@@ -216,6 +227,74 @@ describe("a service whose typed file cannot be read, with the legacy sibling sti
     );
     expect(writeFile).not.toHaveBeenCalled();
     expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  // Navigation opens an editor on whatever it resolves, so it obeys the same rule: falling through
+  // to the legacy name puts the superseded document in front of the user as the current one.
+  it("refuses to navigate to the sibling", async () => {
+    await expect(
+      api.findFileByNavigationPath(
+        `/services/systems/${SERVICE_ID}/parameters`,
+      ),
+    ).rejects.toThrow(typedUri.path);
+  });
+
+  it("refuses the extension-less lookup for the same reason", async () => {
+    await expect(api.findFileById(SERVICE_ID)).rejects.toThrow(typedUri.path);
+  });
+
+  // A listing that drops the file it cannot read shows the sibling it outranks in its place, and
+  // every id the list hands out then points at the superseded document.
+  it("fails the service listing rather than listing the sibling in its place", async () => {
+    await expect(getServices(uri("/root"))).rejects.toThrow(typedUri.path);
+  });
+
+  it("names the file in a filtered listing rather than dropping it", async () => {
+    await expect(
+      api.findFiles(
+        ext.externalService,
+        (content: any) => content?.id === SERVICE_ID,
+      ),
+    ).rejects.toThrow(typedUri.path);
+  });
+});
+
+// The same three outcomes one level down, where a model file may sit under `.specification.` and
+// `.api.` at once — the pair the conversion of an API leaves behind.
+describe("an API file that cannot be read, with its other-format sibling still there", () => {
+  const specUri = uri(`/root/${MODEL_ID}/${MODEL_ID}${ext.specification}`);
+  const apiUri = uri(`/root/${MODEL_ID}/${MODEL_ID}${ext.api}`);
+
+  beforeEach(() => {
+    disk.set(specUri.path, UNREADABLE_TEXT);
+    disk.set(
+      apiUri.path,
+      JSON.stringify({ id: MODEL_ID, name: "Orders", content: {} }),
+    );
+  });
+
+  it("refuses to resolve the model through the sibling", async () => {
+    await expect(
+      getOperations(uri(`/root/x/x${ext.chain}`), MODEL_ID),
+    ).rejects.toThrow(specUri.path);
+  });
+});
+
+describe("a context or MCP file that cannot be read", () => {
+  it("names it rather than reporting the parser's own failure", async () => {
+    disk.set(uri(`/root/ctx/ctx${ext.contextService}`).path, UNREADABLE_TEXT);
+
+    await expect(getContextServices(uri("/root"))).rejects.toThrow(
+      "/root/ctx/ctx.context-service.qip.yaml",
+    );
+  });
+
+  it("names an MCP file the same way", async () => {
+    disk.set(uri(`/root/mcp/mcp${ext.mcpService}`).path, UNREADABLE_TEXT);
+
+    await expect(getMcpServices(uri("/root"))).rejects.toThrow(
+      "/root/mcp/mcp.mcp-service.qip.yaml",
+    );
   });
 });
 
@@ -277,5 +356,46 @@ describe("a file the scan cannot read in another service's folder", () => {
     await expect(findServiceFileById(OTHER_ID, ext)).rejects.toThrow(
       otherTypedUri.path,
     );
+  });
+
+  it("still navigates to a service stored under the legacy name alone", async () => {
+    disk.set(
+      legacyUri.path,
+      serviceText(SERVICE_ID, { integrationSystemType: "EXTERNAL" }),
+    );
+
+    const fileUri = await api.findFileByNavigationPath(
+      `/services/systems/${SERVICE_ID}/parameters`,
+    );
+
+    expect(fileUri.path).toBe(legacyUri.path);
+  });
+
+  it("still answers the extension-less lookup for such a service", async () => {
+    disk.set(
+      legacyUri.path,
+      serviceText(SERVICE_ID, { integrationSystemType: "EXTERNAL" }),
+    );
+
+    expect((await api.findFileById(SERVICE_ID)).path).toBe(legacyUri.path);
+  });
+});
+
+// The convention path `<root>/<id>/<id><ext>` is read before the scan, and a document it cannot
+// parse is why the scan runs at all. A file of the *same* extension that answers instead can never
+// be that file's sibling — a sibling shares the folder and the name, so under one extension it is
+// the same file — which is what makes answering from elsewhere safe here.
+describe("an unreadable file at the convention path", () => {
+  const elsewhereUri = uri(`/root/aaa/aaa${ext.externalService}`);
+
+  beforeEach(() => {
+    disk.set(elsewhereUri.path, serviceText(SERVICE_ID, {}));
+    disk.set(typedUri.path, UNREADABLE_TEXT);
+  });
+
+  it("answers from the file of the same extension that does carry the id", async () => {
+    const fileUri = await findServiceFileById(SERVICE_ID, ext);
+
+    expect(fileUri.path).toBe(elsewhereUri.path);
   });
 });

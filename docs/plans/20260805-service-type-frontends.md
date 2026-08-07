@@ -1209,6 +1209,88 @@ without its guard for the new error (the read and the write cases).
 ➕ [deviation] `vscode-extension/CLAUDE.md` was edited on disk again (untracked, git-excluded, so it cannot be
 committed): the scan paragraph now says what an unreadable file is, where the refusal is decided, and how far it reaches.
 
+## Review phase 7 — external cross-review
+
+*Five findings from a fifth Codex (gpt-5.6-luna) pass, all of one shape: the unreadable outcome that phase 6 introduced
+is created at one layer and collapsed back into a miss at the layers above it. Fixed as a contract rather than as five
+patches.*
+
+➕ **CONFIRMED: `findFileByNavigationPath` (fileApiImpl.ts:101).** Reproduced against the real `VSCodeFileApi` over an
+in-memory disk: with an unreadable `<id>.external-service.` file and a readable `<id>.service.` sibling, navigation
+answered with the legacy file. No data loss follows (every read and write behind it resolves by id and refuses), but the
+user is put in front of the superseded document as if it were the current one. The phase-6 `[decision]` that left this
+alone is reversed: it rested on the strict rule's blast radius, and the sibling-scoped rule has none.
+
+➕ **CONFIRMED: the extension-less `findFileById` (fileApiImpl.ts:309).** Same shape, same fix. It has no in-repo caller
+today, so it is a contract hole on the published `FileApi` surface rather than a live bug.
+
+➕ **FALSE POSITIVE as a bug, CONFIRMED as a contract violation: the convention-path parse failure
+(fileApiImpl.ts:275).** The signal is not actually lost: the convention path is always inside the scanned root, so the
+scan that follows visits the same file and records it. And a match under the *same* extension can never be an unreadable
+file's sibling, because a sibling shares the folder and the name, which under one extension makes it the same file. The
+blanket `catch {}` is gone regardless: `findFileWithExtension` now separates "no file at the convention path" from "the
+convention file could not be parsed" and re-raises the second as `UnreadableFileError` when the scan reported a plain
+miss. No test can distinguish the two implementations; the invariant that makes them equivalent is pinned instead.
+
+➕ **CONFIRMED as latent: the predicate-free `findFiles` (serviceFileLookup.ts:118).** No caller passes a predicate, so
+nothing parses and nothing is dropped today. `findFiles` now collects unreadable files and reports them, so the hole
+closes before a caller opens it.
+
+➕ **CONFIRMED: the service listing (serviceApiRead.ts:864).** A listed file that cannot be read escaped as the parser's
+own error, naming neither the file nor the fact that the listing would otherwise show its sibling in its place.
+
+➕ [decision] **The contract lives in one module, `response/file/lookupOutcome.ts`**, stated at the top of the file: three
+outcomes, who may narrow the third, and under what condition. `refuseUnreadableSibling` is the only narrowing rule, and
+it is now shared rather than copied — the service lookup, navigation, the extension-less lookup, the model lookup and the
+group lookup all call it, each with the extension set it scans. `mayBeSameEntity` generalizes the phase-6
+`mayBeSameService` (same folder, same name once the entity extension is stripped) to every entity that can be stored
+under two names. `findServiceFileById` keeps its second narrowing — a total miss stays a miss — because with nothing
+resolved there is no sibling for a write to land beside; the unreadable files are named among its causes.
+
+➕ [decision] **`resolveFirstCandidate` replaces every hand-written candidate loop, and its `onUnreadable` handler is
+required.** The bug this round exists to stop is a `catch` that continues to a lower-precedence name, so the type system
+now makes each caller state what an outstanding unreadable file means for it. `noMatchError` is the matching default for
+the other half: when nothing matched, an unreadable file is reported over a plain miss.
+
+➕ **The enumeration found four sites beyond the five.** `serviceApiRead.findModelFileById` and
+`ApiGroupService.findGroupFileById` were the same swallowing loop one level down, on the `.specification.` → `.api.` and
+`.specification-group.` → `.api-group.` pairs — both pairs a re-save overwrites, so both now refuse.
+`getContextServices` and `getMcpServices` reparse a listed file exactly the way `getServices` did.
+`EnvironmentService.saveSystem` held a `try { … } catch (error) { throw error; }` that did nothing and is gone.
+`SystemService.getSystemById` / `getRawServiceById` and `EnvironmentService.getEnvironmentsForSystem` turned the refusal
+into `null` or an empty list, which reads as "no such service" and names no file to fix; they now rethrow the refusal and
+keep answering `null` for a plain miss.
+
+➕ [decision] **The guard is `tests/web/response/lookupOutcomeContract.test.ts`**, a TypeScript-AST scan of `src/web`. It
+fails on any `try`/`catch` or `.catch(` around a call to one of the lookups, unless `<file>#<function>` is on an
+allowlist that states why catching there does not collapse the outcome. Twelve entries carry a reason; a thirteenth is a
+decision a future author has to write down. A second case fails when an allowlist entry outlives the site it covers.
+Reverting each of the five findings turns it red, which is what a sixth site would do.
+
+➕ [decision] The guard covers resolving *which file an id owns* and reading a file a listing handed back, not content
+scans. `getApiSpecifications`, `getSpecificationModel`, `getOperations` and `getOperationInfo` skip a file they cannot
+parse while walking a service folder, and that tolerance is deliberate: they list what they can read rather than
+resolving one entity across candidate names. `qipExplorer.findServiceFilesRecursively` walks the tree itself and calls no
+lookup, so it stays outside the guard as well; a broken file drops out of the tree and the read behind it refuses.
+
+➕ [deviation] The four navigation route arrays moved from `apiRouter.ts` to `response/navigationRoutes.ts`, re-exported
+from `apiRouter` so no importer changed. The file layer had been pulling the whole message dispatch in to name them,
+which is also why the phase-6 test suite had to stub the router out.
+
+➕ New suites: `tests/response/file/lookupOutcome.test.ts` (13 cases on the contract primitives) and
+`tests/web/response/lookupOutcomeContract.test.ts` (the guard). `unreadableCanonicalFile.test.ts` gained nine cases —
+navigation, the extension-less lookup, the three listings, the model pair, and the tolerance each of them keeps — and its
+ids are uuids now, because a navigation path carries one.
+
+➕ Mutations checked red, one per fix: the sibling rule always passing (12 cases); the sibling rule ignoring the folder
+(2 tolerance cases); navigation back to the last-error loop (1 case plus the guard); the extension-less lookup back to
+`continue` (1 case plus the guard); `findFiles` dropping its report (1 case); the three listings back to a raw read
+(3 cases); the model lookup back to the bare fallback (1 case plus the guard); the group lookup back to the last-error
+loop (1 case plus the guard); and the two accessors swallowing the refusal again (3 cases).
+
+➕ [deviation] `vscode-extension/CLAUDE.md` was edited on disk once more (untracked, git-excluded, so it cannot be
+committed): the scan paragraph now points at `lookupOutcome.ts` as the single contract and names the guard.
+
 ## Post-Completion
 
 *Items requiring manual intervention or external systems — no checkboxes, informational only*

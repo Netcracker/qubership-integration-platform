@@ -71,6 +71,7 @@ jest.mock("../../src/web/api-services/LabelUtils", () => ({
 }));
 
 import { SystemService } from "../../src/web/api-services/SystemService";
+import { UnreadableFileError } from "../../src/web/response/fileFilteringUtils";
 
 const SYSTEM_ID = "sys-1";
 
@@ -242,5 +243,45 @@ describe("SystemService.saveSystem", () => {
     const [fileUri, service] = writeMainService.mock.calls[0];
     expect(fileUri.path).toBe(`/${SYSTEM_ID}/${SYSTEM_ID}${ext.service}`);
     expect(service.content).not.toHaveProperty("integrationSystemType");
+  });
+});
+
+// A lookup that refused because it would have answered with the sibling of a file it could not read
+// is not "no such system": both accessors feed environment edits and the specification import, and
+// `null` there reports an absence nobody can act on.
+describe("a service file the lookup refused to resolve", () => {
+  beforeEach(() => {
+    findFileById.mockImplementation((id: string, requested: string) =>
+      requested === ext.externalService
+        ? Promise.reject(
+            new UnreadableFileError(requested, [
+              { path: `/${id}/${id}${requested}` } as any,
+            ]),
+          )
+        : Promise.resolve({ path: `/${id}/${id}${requested}` }),
+    );
+    getMainService.mockResolvedValue({
+      id: SYSTEM_ID,
+      name: "Orders",
+      content: { protocol: "HTTP" },
+    });
+  });
+
+  it("reports the refusal from getSystemById rather than answering null", async () => {
+    await expect(new SystemService().getSystemById(SYSTEM_ID)).rejects.toThrow(
+      `/${SYSTEM_ID}/${SYSTEM_ID}${ext.externalService}`,
+    );
+  });
+
+  it("reports it from getRawServiceById too", async () => {
+    await expect(
+      new SystemService().getRawServiceById(SYSTEM_ID),
+    ).rejects.toThrow(`/${SYSTEM_ID}/${SYSTEM_ID}${ext.externalService}`);
+  });
+
+  it("still answers null for a plain miss", async () => {
+    findFileById.mockRejectedValue(new Error("not found"));
+
+    expect(await new SystemService().getSystemById(SYSTEM_ID)).toBeNull();
   });
 });

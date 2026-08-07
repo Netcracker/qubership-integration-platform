@@ -45,6 +45,7 @@ jest.mock("../../src/web/services/ProjectConfigService", () =>
 );
 
 import { ApiGroupService } from "../../src/web/api-services/ApiGroupService";
+import { UnreadableFileError } from "../../src/web/response/fileFilteringUtils";
 
 const API_GROUP_EXT = ".api-group.qip.yaml";
 const LEGACY_EXT = ".specification-group.qip.yaml";
@@ -103,6 +104,29 @@ describe("getApiGroupById", () => {
     );
 
     expect(group).toBeNull();
+  });
+
+  // The two files of one group are the pair a re-save overwrites, so the pre-rename name may not
+  // stand in for a renamed one the scan could not read.
+  it("does not answer from the sibling of a file it could not read", async () => {
+    mockFindFileById.mockImplementation((_id: string, extension: string) =>
+      extension === API_GROUP_EXT
+        ? Promise.reject(
+            new UnreadableFileError(extension, [
+              { path: `/svc/group-1${API_GROUP_EXT}` } as any,
+            ]),
+          )
+        : Promise.resolve({ path: `/svc/group-1${LEGACY_EXT}` }),
+    );
+    mockParseContentFromFile.mockResolvedValue(parsed);
+
+    const group = await new ApiGroupService().getApiGroupById(
+      "group-1",
+      "system-1",
+    );
+
+    expect(group).toBeNull();
+    expect(mockParseContentFromFile).not.toHaveBeenCalled();
   });
 });
 

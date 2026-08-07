@@ -22,7 +22,12 @@ import {
   CONTEXT_SERVICE_ROUTES,
   MCP_SERVICE_ROUTES,
   SERVICE_ROUTES,
-} from "../apiRouter";
+} from "../navigationRoutes";
+import {
+  noMatchError,
+  refuseUnreadableSibling,
+  resolveFirstCandidate,
+} from "./lookupOutcome";
 import { extractEntityId } from "../navigationUtils";
 import { shapeServiceFile, ServiceFileKind } from "./serviceFileShape";
 import {
@@ -109,18 +114,27 @@ export class VSCodeFileApi implements FileApi {
     }
 
     const entityId = extractEntityId(path);
+    const names = candidates;
 
-    let lastError: unknown;
-    for (const extension of candidates) {
-      try {
-        return await this.findFileById(entityId, extension);
-      } catch (error) {
-        lastError = error;
-      }
-    }
-    throw lastError instanceof Error
-      ? lastError
-      : new Error(`File with id ${entityId} not found for path: ${path}`);
+    return await resolveFirstCandidate(
+      names,
+      (extension) => this.findFileById(entityId, extension),
+      {
+        // Navigation opens an editor on the file it picks, so it obeys the same rule the read and
+        // write lookups do rather than falling through to a name of lower precedence.
+        onUnreadable: (unreadable, resolved) =>
+          refuseUnreadableSibling(entityId, resolved, unreadable, names),
+        onNoMatch: (failures) =>
+          noMatchError(failures, () => {
+            const lastError = failures.causes[failures.causes.length - 1];
+            return lastError instanceof Error
+              ? lastError
+              : new Error(
+                  `File with id ${entityId} not found for path: ${path}`,
+                );
+          }),
+      },
+    );
   }
 
   private isWindowsPath(p: string): boolean {
@@ -268,20 +282,7 @@ export class VSCodeFileApi implements FileApi {
     }
 
     if (extension) {
-      const rootDir = this.getRootDirectory();
-      const conventionUri = Uri.joinPath(rootDir, id, `${id}${extension}`);
-      try {
-        await vscode.workspace.fs.stat(conventionUri);
-        const content = await this.parseFile(conventionUri);
-        if (content?.id === id) {
-          cacheService.setFileUri(id, extension, conventionUri);
-          return conventionUri;
-        }
-      } catch {}
-
-      const uri = await this.findFile(extension, (fileContent: any) => {
-        return fileContent?.id === id;
-      });
+      const uri = await this.findFileWithExtension(id, extension);
       cacheService.setFileUri(id, extension, uri);
       return uri;
     }
@@ -299,19 +300,72 @@ export class VSCodeFileApi implements FileApi {
       extensions.api,
     ];
 
-    for (const ext of typesToTry) {
-      try {
-        const uri = await this.findFile(ext, (fileContent: any) => {
-          return fileContent?.id === id;
-        });
+    return await resolveFirstCandidate(
+      typesToTry,
+      async (ext) => {
+        const uri = await this.findFileWithExtension(id, ext);
         cacheService.setFileUri(id, ext, uri);
         return uri;
-      } catch (e) {
-        continue;
+      },
+      {
+        // The same rule the typed lookups apply: a name of lower precedence may answer, unless the
+        // file it names could be the sibling of one the scan could not read.
+        onUnreadable: (unreadable, resolved) =>
+          refuseUnreadableSibling(id, resolved, unreadable, typesToTry),
+        onNoMatch: (failures) =>
+          noMatchError(
+            failures,
+            () =>
+              new Error(
+                `File with id ${id} not found with any known extension`,
+              ),
+          ),
+      },
+    );
+  }
+
+  /**
+   * The file carrying the id under one extension. The convention path `<root>/<id>/<id><ext>` is
+   * tried first and the tree scanned second; a convention file the parser rejects is reported, not
+   * swallowed, so a caller that goes on to another extension still sees the outstanding file.
+   */
+  private async findFileWithExtension(
+    id: string,
+    extension: string,
+  ): Promise<Uri> {
+    const rootDir = this.getRootDirectory();
+    const conventionUri = Uri.joinPath(rootDir, id, `${id}${extension}`);
+    let conventionUnreadable = false;
+    try {
+      await vscode.workspace.fs.stat(conventionUri);
+    } catch {
+      // No file at the convention path — an absence, and the scan below answers.
+      return await this.findFile(
+        extension,
+        (fileContent: any) => fileContent?.id === id,
+      );
+    }
+    try {
+      const content = await this.parseFile(conventionUri);
+      if (content?.id === id) {
+        return conventionUri;
       }
+    } catch {
+      conventionUnreadable = true;
     }
 
-    throw new Error(`File with id ${id} not found with any known extension`);
+    try {
+      return await this.findFile(
+        extension,
+        (fileContent: any) => fileContent?.id === id,
+      );
+    } catch (error) {
+      // The scan walks the convention path too and reports it, so this only matters when the scan
+      // never reached it. Either way the outcome stays "unreadable" rather than "not found".
+      throw conventionUnreadable && !(error instanceof UnreadableFileError)
+        ? new UnreadableFileError(extension, [conventionUri])
+        : error;
+    }
   }
 
   async findFile(
@@ -344,22 +398,28 @@ export class VSCodeFileApi implements FileApi {
   /**
    * Every file carrying the extension. No caller passes a predicate — this is a listing by name,
    * and each one re-reads the file it picks — so nothing here parses and an unreadable file is
-   * listed like any other. A predicate would drop such a file silently; give one a reason to exist
-   * and report the drop, the way `findFile` does.
+   * listed like any other. A predicate has to parse, and a file it could not be answered for would
+   * drop out of the listing silently, which is the same collapse at list level: the listing reports
+   * it instead, the way `findFile` does.
    */
   async findFiles(
     extension: string,
     filterPredicate?: (fileContent: any) => boolean,
   ): Promise<Uri[]> {
     const result: Uri[] = [];
+    const unreadable: Uri[] = [];
     const folderUri = this.getRootDirectory();
 
     await this.collectFiles(
       folderUri,
       { extension: extension, predicate: filterPredicate, findFirst: false },
       result,
+      unreadable,
     );
 
+    if (unreadable.length > 0) {
+      throw new UnreadableFileError(extension, unreadable);
+    }
     return result;
   }
 

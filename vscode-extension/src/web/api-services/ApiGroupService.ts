@@ -8,6 +8,11 @@ import { YamlFileUtils } from "./YamlFileUtils";
 import { LabelUtils } from "./LabelUtils";
 import { ProjectConfigService } from "../services/ProjectConfigService";
 import { getExtensionsForUri } from "../response/file/fileExtensions";
+import {
+  noMatchError,
+  refuseUnreadableSibling,
+  resolveFirstCandidate,
+} from "../response/file/lookupOutcome";
 import { ContentParser } from "./parsers/ContentParser";
 
 /** One group file plus any same-id siblings stored under the other group extension. */
@@ -193,17 +198,23 @@ export class ApiGroupService {
     groupId: string,
     extensions: string[],
   ): Promise<Uri> {
-    let lastError: unknown;
-    for (const extension of extensions) {
-      try {
-        return await fileApi.findFileById(groupId, extension);
-      } catch (error) {
-        lastError = error;
-      }
-    }
-    throw lastError instanceof Error
-      ? lastError
-      : new Error(`API group file for id ${groupId} not found`);
+    return await resolveFirstCandidate(
+      extensions,
+      (extension) => fileApi.findFileById(groupId, extension),
+      {
+        // A group stored under both extensions is the pair a re-save can overwrite, so the
+        // lower-precedence name may not stand in for one the scan could not read.
+        onUnreadable: (unreadable, resolved) =>
+          refuseUnreadableSibling(groupId, resolved, unreadable, extensions),
+        onNoMatch: (failures) =>
+          noMatchError(failures, () => {
+            const lastError = failures.causes[failures.causes.length - 1];
+            return lastError instanceof Error
+              ? lastError
+              : new Error(`API group file for id ${groupId} not found`);
+          }),
+      },
+    );
   }
 
   /**

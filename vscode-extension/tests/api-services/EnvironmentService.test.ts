@@ -65,6 +65,7 @@ jest.mock("../../src/web/response/file/fileExtensions", () => ({
 }));
 
 import { EnvironmentService } from "../../src/web/api-services/EnvironmentService";
+import { UnreadableServiceFileError } from "../../src/web/response/file/serviceFileLookup";
 
 describe("EnvironmentService.createEnvironment", () => {
   beforeEach(() => {
@@ -141,5 +142,33 @@ describe("EnvironmentService.createEnvironment", () => {
     expect(deleteFile).toHaveBeenCalledWith(
       expect.objectContaining({ path: `/sys-1/sys-1${ext.service}` }),
     );
+  });
+});
+
+// An empty environments tab reads as "this service has none", which is the wrong answer for a
+// service the lookup refused to resolve — and the file to fix is never named.
+describe("EnvironmentService.getEnvironmentsForSystem", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("reports a refusal rather than an empty list", async () => {
+    getRawServiceById.mockRejectedValue(
+      new UnreadableServiceFileError("sys-1", {
+        path: `/sys-1/sys-1${ext.externalService}`,
+      } as any),
+    );
+
+    await expect(
+      new EnvironmentService().getEnvironmentsForSystem("sys-1"),
+    ).rejects.toThrow(`/sys-1/sys-1${ext.externalService}`);
+  });
+
+  it("still answers an empty list when the service is simply gone", async () => {
+    getRawServiceById.mockRejectedValue(new Error("not found"));
+
+    expect(
+      await new EnvironmentService().getEnvironmentsForSystem("sys-1"),
+    ).toEqual([]);
   });
 });

@@ -4,6 +4,7 @@ import { IntegrationSystem } from "./servicesTypes";
 import { fileApi } from "../response/file/fileApiProvider";
 import { getMainService } from "../response/serviceApiRead";
 import { findServiceFileById } from "../response/file/serviceFileLookup";
+import { UnreadableSiblingError } from "../response/file/lookupOutcome";
 import { resolveServiceType } from "../response/file/serviceFileType";
 import { writeServiceInCurrentFormat } from "../response/file/serviceFileWrite";
 import { LabelUtils } from "./LabelUtils";
@@ -11,6 +12,17 @@ import {
   getExtendedProtocol,
   getSpecificationType,
 } from "../response/serviceApiUtils";
+
+/**
+ * A lookup that refused because it would have answered with the sibling of a file it could not read
+ * is not "no such system": answering `null` here turns it into an unexplained absence, and the user
+ * never learns which file to fix.
+ */
+function rethrowRefusal(error: unknown): void {
+  if (error instanceof UnreadableSiblingError) {
+    throw error;
+  }
+}
 
 /**
  * Service for managing integration systems
@@ -44,6 +56,7 @@ export class SystemService {
       console.log(`[SystemService] System with id ${systemId} not found`);
       return null;
     } catch (error) {
+      rethrowRefusal(error);
       console.error(`[SystemService] Error getting system ${systemId}:`, error);
       return null;
     }
@@ -61,6 +74,7 @@ export class SystemService {
       }
       return null;
     } catch (error) {
+      rethrowRefusal(error);
       console.error(
         `[SystemService] Error getting raw service ${systemId}:`,
         error,

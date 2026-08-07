@@ -2,11 +2,16 @@ import { Uri } from "vscode";
 import { fileApi } from "./fileApiProvider";
 import { getExtensionsForFile } from "./fileExtensions";
 import {
+  allServiceExtensions,
   plainServiceExtensions,
   ServiceExtensions,
   serviceIdFromFileName,
 } from "./serviceFileType";
-import { UnreadableFileError } from "../fileFilteringUtils";
+import {
+  refuseUnreadableSibling,
+  resolveFirstCandidate,
+  UnreadableSiblingError,
+} from "./lookupOutcome";
 
 function extensionsToScan(extensions?: ServiceExtensions): string[] {
   return plainServiceExtensions(extensions ?? getExtensionsForFile());
@@ -35,38 +40,15 @@ function describeCause(error: unknown): string {
  * sibling's superseded body, and the next write would put that body over the file nobody could
  * read — the conversion recomputes the target name from the type, so it lands on exactly it.
  */
-export class UnreadableServiceFileError extends Error {
-  constructor(
-    readonly serviceId: string,
-    readonly fileUri: Uri,
-  ) {
-    super(
-      `Cannot resolve service ${serviceId}: ${fileUri.path} could not be read.` +
-        " Fix or delete that file — until then a save would overwrite it with another file's content.",
-    );
+export class UnreadableServiceFileError extends UnreadableSiblingError {
+  constructor(serviceId: string, fileUri: Uri) {
+    super(serviceId, fileUri, "service ");
     this.name = "UnreadableServiceFileError";
   }
-}
 
-function directoryOf(filePath: string): string {
-  return filePath.slice(0, filePath.lastIndexOf("/"));
-}
-
-/**
- * Whether two names can be the two files of one service. A conversion changes the extension alone,
- * so a pair shares a folder and the id its names state — and that is also the only pair a write
- * can destroy, because it writes the recomputed name into the folder of the file it resolved.
- */
-function mayBeSameService(
-  candidate: Uri,
-  resolved: Uri,
-  extensions: ServiceExtensions,
-): boolean {
-  return (
-    directoryOf(candidate.path) === directoryOf(resolved.path) &&
-    serviceIdFromFileName(candidate, extensions) ===
-      serviceIdFromFileName(resolved, extensions)
-  );
+  get serviceId(): string {
+    return this.entityId;
+  }
 }
 
 /**
@@ -76,39 +58,35 @@ function mayBeSameService(
  *
  * A miss and a broken scan both come back as one `ServiceFileNotFoundError` naming every failure.
  * `FileApi` reports both as a plain `Error`, so the two cannot be told apart here, and reporting
- * the last failure alone hid the broken file that made every later name fail too.
+ * the last failure alone hid the broken file that made every later name fail too. A file the scan
+ * could not read is named among those causes: with nothing resolved there is no sibling for a write
+ * to land beside, so it is a miss here — see the contract in `lookupOutcome.ts`.
  *
- * The one failure that is told apart is a file the scan could not read, which `FileApi` does
- * report as its own type: a lookup that would answer with the sibling of such a file refuses
- * instead. Falling through to the sibling is how a legacy body gets written over a typed file.
+ * The one failure that is told apart is a file the scan could not read while another name *did*
+ * answer: `refuseUnreadableSibling` decides, and falling through to the sibling is how a legacy body
+ * gets written over a typed file.
  */
 export async function findServiceFileById(
   serviceId: string,
   extensions?: ServiceExtensions,
 ): Promise<Uri> {
   const scanned = extensions ?? getExtensionsForFile();
-  const causes: unknown[] = [];
-  const unreadable: Uri[] = [];
-  for (const extension of extensionsToScan(scanned)) {
-    let fileUri: Uri;
-    try {
-      fileUri = await fileApi.findFileById(serviceId, extension);
-    } catch (error) {
-      if (error instanceof UnreadableFileError) {
-        unreadable.push(...error.files);
-      }
-      causes.push(error);
-      continue;
-    }
-    const sibling = unreadable.find((candidate) =>
-      mayBeSameService(candidate, fileUri, scanned),
-    );
-    if (sibling) {
-      throw new UnreadableServiceFileError(serviceId, sibling);
-    }
-    return fileUri;
-  }
-  throw new ServiceFileNotFoundError(serviceId, causes);
+  return await resolveFirstCandidate(
+    extensionsToScan(scanned),
+    (extension) => fileApi.findFileById(serviceId, extension),
+    {
+      onUnreadable: (unreadable, resolved) =>
+        refuseUnreadableSibling(
+          serviceId,
+          resolved,
+          unreadable,
+          allServiceExtensions(scanned),
+          (id, fileUri) => new UnreadableServiceFileError(id, fileUri),
+        ),
+      onNoMatch: (failures) =>
+        new ServiceFileNotFoundError(serviceId, failures.causes),
+    },
+  );
 }
 
 /** Every plain service file in the workspace, typed names ahead of legacy ones. */
@@ -121,4 +99,26 @@ export async function findServiceFiles(
     ),
   );
   return perExtension.flat();
+}
+
+/**
+ * A listed service file, read. `findFiles` lists by name, so the document behind a listed name may
+ * still be unreadable; reporting that as the parser's own failure loses both which file it was and
+ * that the listing would otherwise show its sibling in its place.
+ */
+export async function readListedServiceFile(
+  fileUri: Uri,
+  extensions?: ServiceExtensions,
+): Promise<any> {
+  try {
+    return await fileApi.getMainService(fileUri);
+  } catch (error) {
+    console.error(`Unable to read the listed service file ${fileUri.path}`, {
+      error,
+    });
+    throw new UnreadableServiceFileError(
+      serviceIdFromFileName(fileUri, extensions) ?? fileUri.path,
+      fileUri,
+    );
+  }
 }

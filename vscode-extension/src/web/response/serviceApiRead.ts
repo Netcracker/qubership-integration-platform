@@ -26,8 +26,14 @@ import {
 import {
   findServiceFileById,
   findServiceFiles,
+  readListedServiceFile,
   UnreadableServiceFileError,
 } from "./file/serviceFileLookup";
+import {
+  noMatchError,
+  refuseUnreadableSibling,
+  resolveFirstCandidate,
+} from "./file/lookupOutcome";
 import { Chain, ContextSystem, MCPSystem } from "@netcracker/qip-ui";
 import { ContentParser } from "../api-services/parsers/ContentParser";
 import { OperationSchemaExtractor } from "../api-services/parsers/OperationSchemaExtractor";
@@ -218,7 +224,7 @@ export async function getContextServices(
     const result: ContextSystem[] = [];
     const serviceFiles = await fileApi.findFiles(ext.contextService);
     for (const serviceFile of serviceFiles) {
-      const service: any = await getMainService(serviceFile);
+      const service: any = await readListedServiceFile(serviceFile, ext);
       result.push(await getContextService(serviceFile, service.id));
     }
 
@@ -241,7 +247,7 @@ export async function getMcpServices(
     const result: MCPSystem[] = [];
     const serviceFiles = await fileApi.findFiles(ext.mcpService);
     for (const serviceFile of serviceFiles) {
-      const service: any = await getMainService(serviceFile);
+      const service: any = await readListedServiceFile(serviceFile, ext);
       result.push(await getMcpService(serviceFile, service.id));
     }
 
@@ -532,16 +538,29 @@ export async function getOperations(
 
 // The model file may be stored as `.specification.<app>.yaml` (today's import
 // output) or `.api.<app>.yaml`, the renamed model level. Resolve by id against
-// the specification extension first, then fall back to the api one.
+// the specification extension first, then fall back to the api one — but not past
+// a file the scan could not read that the fallback may be the sibling of, which is
+// the pair the `.specification.` → `.api.` conversion leaves behind.
 async function findModelFileById(
   ext: FileExtensionsConfig,
   modelId: string,
 ): Promise<Uri> {
-  try {
-    return await fileApi.findFileById(modelId, ext.specification);
-  } catch {
-    return await fileApi.findFileById(modelId, ext.api);
-  }
+  const names = [ext.specification, ext.api];
+  return await resolveFirstCandidate(
+    names,
+    (extension) => fileApi.findFileById(modelId, extension),
+    {
+      onUnreadable: (unreadable, resolved) =>
+        refuseUnreadableSibling(modelId, resolved, unreadable, names),
+      onNoMatch: (failures) =>
+        noMatchError(failures, () => {
+          const lastError = failures.causes[failures.causes.length - 1];
+          return lastError instanceof Error
+            ? lastError
+            : new Error(`No API file carries id ${modelId}`);
+        }),
+    },
+  );
 }
 
 export async function getOperationInfo(
@@ -859,10 +878,12 @@ export async function getServices(
   // from the file findServiceFileById would resolve — the rule ApiGroupService.resolveGroupFile
   // applies to a group. findServiceFiles yields the typed names first, so first seen wins, and the
   // document in hand is already the winning one: resolving each id again would rescan per service.
+  // A listed file that cannot be read fails the listing by name rather than dropping out of it,
+  // which would let the very sibling it outranks be listed in its place.
   const listedIds = new Set<string>();
   const result: IntegrationSystem[] = [];
   for (const serviceFile of await findServiceFiles(ext)) {
-    const service: any = await getMainService(serviceFile);
+    const service: any = await readListedServiceFile(serviceFile, ext);
     if (!service?.id || listedIds.has(service.id)) {
       continue;
     }
