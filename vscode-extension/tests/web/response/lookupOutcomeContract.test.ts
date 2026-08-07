@@ -218,7 +218,9 @@ function analyze(root: string): Analysis {
 
   /** A declaration of the code under analysis, rather than one of `lib.es5.d.ts`. */
   function isLocal(declaration: ts.Node | undefined): boolean {
-    return !!declaration && declaration.getSourceFile().fileName.startsWith(root);
+    return (
+      !!declaration && declaration.getSourceFile().fileName.startsWith(root)
+    );
   }
 
   /**
