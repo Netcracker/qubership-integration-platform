@@ -27,7 +27,7 @@ function isGroupExtension(
   mode: MatchMode,
 ): boolean {
   const { specificationGroup, apiGroup } = config.extensions;
-  return matchesAny([specificationGroup, apiGroup], value, mode);
+  return matchesAny([apiGroup, specificationGroup], value, mode);
 }
 
 // A plain service file carries the legacy `.service.<app>.yaml` name or one of the three that state

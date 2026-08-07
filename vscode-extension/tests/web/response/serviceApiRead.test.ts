@@ -370,19 +370,20 @@ describe("getOperations - operations for a given API id", () => {
     const nonServiceUri = { path: "some-other-file.yaml" } as any;
     const operations = await getOperations(nonServiceUri, MODEL_ID);
 
-    expect(findFileById).toHaveBeenCalledWith(MODEL_ID, ext.specification);
+    expect(findFileById).toHaveBeenCalledWith(MODEL_ID, ext.api);
+    expect(findFileById).not.toHaveBeenCalledWith(MODEL_ID, ext.specification);
     expect(parseFile).toHaveBeenCalledWith(modelFileUri);
     expect(operations).toHaveLength(1);
     expect(operations[0].modelId).toBe(MODEL_ID);
   });
 
-  test("falls back to the api extension when the model file is `.api.<app>.yaml`", async () => {
-    const apiFileUri = { path: "model-1.api.qip.yaml" } as any;
+  test("falls back to the legacy extension when no `.api.<app>.yaml` file carries the id", async () => {
+    const legacyFileUri = { path: "model-1.specification.qip.yaml" } as any;
     findFileById.mockImplementation(async (_id: string, extension: string) => {
-      if (extension === ext.specification) {
-        throw new Error("no .specification file");
+      if (extension === ext.api) {
+        throw new Error("no .api file");
       }
-      return apiFileUri;
+      return legacyFileUri;
     });
     parseFile.mockResolvedValue({
       id: MODEL_ID,
@@ -397,8 +398,8 @@ describe("getOperations - operations for a given API id", () => {
     const nonServiceUri = { path: "some-other-file.yaml" } as any;
     const operations = await getOperations(nonServiceUri, MODEL_ID);
 
-    expect(findFileById).toHaveBeenCalledWith(MODEL_ID, ext.specification);
     expect(findFileById).toHaveBeenCalledWith(MODEL_ID, ext.api);
+    expect(findFileById).toHaveBeenCalledWith(MODEL_ID, ext.specification);
     expect(operations).toHaveLength(1);
     expect(operations[0].modelId).toBe(MODEL_ID);
   });

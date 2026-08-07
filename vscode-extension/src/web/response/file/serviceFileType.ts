@@ -1,55 +1,25 @@
-import {
-  extractFilename,
-  FileExtensionsConfig,
-  getExtensionsForFile,
-} from "./fileExtensions";
+import { extractFilename, getExtensionsForFile } from "./fileExtensions";
 import { IntegrationSystemType } from "../../api-services/servicesTypes";
+import {
+  candidateExtensions,
+  EXTENSION_KEY_BY_TYPE,
+  NAME_SETS,
+  PLAIN_SERVICE_TYPES,
+  ServiceExtensions,
+  TypedServiceExtensionKey,
+} from "./namePrecedence";
 
 /** A `vscode.Uri`, any `{ path }` shape, or a bare file name. */
 export type ServiceFileRef = string | { path: string };
 
-/** The extension keys a service file can carry. `ProjectConfig["extensions"]` satisfies it too. */
-export type ServiceExtensions = Pick<
-  FileExtensionsConfig,
-  | "service"
-  | "externalService"
-  | "internalService"
-  | "implementedService"
-  | "contextService"
-  | "mcpService"
->;
-
-// The `Record` keyed by the enum makes a new service type a compile error until it gets an extension.
-const EXTENSION_KEY_BY_TYPE: Record<
-  IntegrationSystemType,
-  keyof ServiceExtensions
-> = {
-  [IntegrationSystemType.EXTERNAL]: "externalService",
-  [IntegrationSystemType.INTERNAL]: "internalService",
-  [IntegrationSystemType.IMPLEMENTED]: "implementedService",
-  [IntegrationSystemType.CONTEXT]: "contextService",
-  [IntegrationSystemType.MCP]: "mcpService",
-};
+export type { ServiceExtensions } from "./namePrecedence";
 
 /** The `schemaUrls` entries that pair with the service extensions, one per kind. */
 export type ServiceSchemaUrls = Record<keyof ServiceExtensions, string>;
 
-/** The three types a plain service document can state. Context and MCP are separate kinds of document. */
-const PLAIN_SERVICE_TYPES: readonly IntegrationSystemType[] = [
-  IntegrationSystemType.EXTERNAL,
-  IntegrationSystemType.INTERNAL,
-  IntegrationSystemType.IMPLEMENTED,
-];
-
-/** The three extensions that state a plain type, ahead of the legacy type-less one. */
-const PLAIN_SERVICE_KEYS: readonly (keyof ServiceExtensions)[] = [
-  ...PLAIN_SERVICE_TYPES.map((type) => EXTENSION_KEY_BY_TYPE[type]),
-  "service",
-];
-
 const TYPED_ENTRIES = Object.entries(EXTENSION_KEY_BY_TYPE) as [
   IntegrationSystemType,
-  keyof ServiceExtensions,
+  TypedServiceExtensionKey,
 ][];
 
 function isServiceType(
@@ -130,7 +100,9 @@ export function isAnyServiceFile(
 ): boolean {
   const name = extractFilename(fileRef);
   const ext = resolveExtensions(name, extensions);
-  return PLAIN_SERVICE_KEYS.some((key) => name.endsWith(ext[key]));
+  return plainServiceExtensions(ext).some((extension) =>
+    name.endsWith(extension),
+  );
 }
 
 /** Whether the file is a service file of any kind, the context and MCP names included. */
@@ -168,19 +140,16 @@ export function serviceSchemaUrlForType(
     : schemaUrls.service;
 }
 
-/** Every extension a plain service file can carry, in write-preference order. */
+/** Every extension a plain service file can carry, typed names ahead of the legacy one. */
 export function plainServiceExtensions(
   extensions: ServiceExtensions,
 ): string[] {
-  return PLAIN_SERVICE_KEYS.map((key) => extensions[key]);
+  return candidateExtensions(NAME_SETS.plainService, extensions);
 }
 
 /** Every extension a service file of any kind can carry, typed names ahead of the legacy one. */
 export function allServiceExtensions(extensions: ServiceExtensions): string[] {
-  return [
-    ...TYPED_ENTRIES.map(([, key]) => extensions[key]),
-    extensions.service,
-  ];
+  return candidateExtensions(NAME_SETS.service, extensions);
 }
 
 /** The id a service file name states, and the extension carrying it, or nothing for a non-service name. */

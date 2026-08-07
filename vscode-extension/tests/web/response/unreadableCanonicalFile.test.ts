@@ -277,23 +277,39 @@ describe("a service whose typed file cannot be read, with the legacy sibling sti
 });
 
 // The same three outcomes one level down, where a model file may sit under `.specification.` and
-// `.api.` at once — the pair the conversion of an API leaves behind.
-describe("an API file that cannot be read, with its other-format sibling still there", () => {
+// `.api.` at once — the pair the conversion of an API leaves behind. The refusal is directional,
+// as it is for a service: only a name of *higher* precedence that the scan could not read blocks
+// the answer, because only that file is the one a write would land on.
+describe("an API model stored under both names, one of them unreadable", () => {
   const specUri = uri(`/root/${MODEL_ID}/${MODEL_ID}${ext.specification}`);
   const apiUri = uri(`/root/${MODEL_ID}/${MODEL_ID}${ext.api}`);
-
-  beforeEach(() => {
-    disk.set(specUri.path, UNREADABLE_TEXT);
-    disk.set(
-      apiUri.path,
-      JSON.stringify({ id: MODEL_ID, name: "Orders", content: {} }),
-    );
+  const modelText = JSON.stringify({
+    id: MODEL_ID,
+    name: "Orders",
+    content: { operations: [{ id: "op-1", name: "Op One" }] },
   });
 
-  it("refuses to resolve the model through the sibling", async () => {
+  it("refuses to answer from the legacy sibling when the `.api.` file is unreadable", async () => {
+    disk.set(apiUri.path, UNREADABLE_TEXT);
+    disk.set(specUri.path, modelText);
+
     await expect(
       getOperations(uri(`/root/x/x${ext.chain}`), MODEL_ID),
-    ).rejects.toThrow(specUri.path);
+    ).rejects.toThrow(apiUri.path);
+  });
+
+  // The other way round nothing is at risk: the `.api.` file is the one every read answers from and
+  // every write lands on, so an unreadable legacy sibling blocks nothing.
+  it("answers from the `.api.` file when the legacy sibling is unreadable", async () => {
+    disk.set(specUri.path, UNREADABLE_TEXT);
+    disk.set(apiUri.path, modelText);
+
+    const operations = await getOperations(
+      uri(`/root/x/x${ext.chain}`),
+      MODEL_ID,
+    );
+
+    expect(operations.map((operation) => operation.name)).toEqual(["Op One"]);
   });
 });
 

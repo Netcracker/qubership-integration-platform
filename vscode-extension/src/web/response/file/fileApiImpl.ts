@@ -37,6 +37,11 @@ import {
   serviceSchemaUrlForType,
 } from "./serviceFileType";
 import {
+  API_GROUP_NAMES,
+  API_NAMES,
+  candidateExtensions,
+} from "./namePrecedence";
+import {
   CHAIN_MIGRATIONS,
   MCP_SERVICE_MIGRATIONS,
   repairMigrationsClaim,
@@ -293,11 +298,8 @@ export class VSCodeFileApi implements FileApi {
       extensions.contextService,
       ...plainServiceExtensions(extensions),
       extensions.chain,
-      // `.api-group.` before `.specification-group.`, matching ApiGroupService.resolveGroupFile's precedence.
-      extensions.apiGroup,
-      extensions.specificationGroup,
-      extensions.specification,
-      extensions.api,
+      ...candidateExtensions(API_GROUP_NAMES, extensions),
+      ...candidateExtensions(API_NAMES, extensions),
     ];
 
     return await resolveFirstCandidate(
@@ -1023,10 +1025,10 @@ export class VSCodeFileApi implements FileApi {
     const serviceFolderUri = await this.getParentDirectoryUri(serviceFileUri);
     // A project may store the group file as `.specification-group.<app>.yaml` (pre-rename)
     // or `.api-group.<app>.yaml`, both at the same depth. Scan for either.
-    return await this.getFilesByExtensionsInDirectory(serviceFolderUri, [
-      extensions.specificationGroup,
-      extensions.apiGroup,
-    ]);
+    return await this.getFilesByExtensionsInDirectory(
+      serviceFolderUri,
+      candidateExtensions(API_GROUP_NAMES, extensions),
+    );
   }
 
   async getSpecificationFiles(serviceFileUri: Uri): Promise<string[]> {
@@ -1034,10 +1036,10 @@ export class VSCodeFileApi implements FileApi {
     const serviceFolderUri = await this.getParentDirectoryUri(serviceFileUri);
     // A project may store the API file as `.specification.<app>.yaml` (pre-rename)
     // or `.api.<app>.yaml`, both at the same depth. Scan for either.
-    return await this.getFilesByExtensionsInDirectory(serviceFolderUri, [
-      extensions.specification,
-      extensions.api,
-    ]);
+    return await this.getFilesByExtensionsInDirectory(
+      serviceFolderUri,
+      candidateExtensions(API_NAMES, extensions),
+    );
   }
 
   async getSpecApiFiles(): Promise<Uri[]> {

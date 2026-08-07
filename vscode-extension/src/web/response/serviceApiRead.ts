@@ -38,6 +38,7 @@ import {
   scanMissRefusal,
 } from "./file/lookupOutcome";
 import { resolveApiFiles, resolveGroupFiles } from "./file/entityFiles";
+import { API_NAMES, candidateExtensions } from "./file/namePrecedence";
 import { Chain, ContextSystem, MCPSystem } from "@netcracker/qip-ui";
 import { OperationSchemaExtractor } from "../api-services/parsers/OperationSchemaExtractor";
 import {
@@ -496,16 +497,15 @@ export async function getOperations(
   return [];
 }
 
-// The model file may be stored as `.specification.<app>.yaml` (today's import
-// output) or `.api.<app>.yaml`, the renamed model level. Resolve by id against
-// the specification extension first, then fall back to the api one — but not past
-// a file the scan could not read that the fallback may be the sibling of, which is
-// the pair the `.specification.` → `.api.` conversion leaves behind.
+// The model file may be stored as `.api.<app>.yaml`, the renamed model level, or as the
+// `.specification.<app>.yaml` file a conversion has not reached yet. `API_NAMES` decides which one
+// wins — the current name, as everywhere else — and the scan does not fall past a file it could not
+// read that the next candidate may be the sibling of, which is the pair the conversion leaves behind.
 async function findModelFileById(
   ext: FileExtensionsConfig,
   modelId: string,
 ): Promise<Uri> {
-  const names = [ext.specification, ext.api];
+  const names = candidateExtensions(API_NAMES, ext);
   return await resolveFirstCandidate(
     names,
     (extension) => fileApi.findFileById(modelId, extension),

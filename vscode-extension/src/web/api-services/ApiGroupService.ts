@@ -18,6 +18,12 @@ import {
   resolveApiFiles,
   resolveGroupFiles,
 } from "../response/file/entityFiles";
+import {
+  API_GROUP_NAMES,
+  candidateExtensions,
+  currentExtension,
+  legacyExtension,
+} from "../response/file/namePrecedence";
 import { ContentParser } from "./parsers/ContentParser";
 
 /** One group file plus any same-id siblings stored under the other group extension. */
@@ -150,11 +156,11 @@ export class ApiGroupService {
       const config = ProjectConfigService.getConfig();
       // A group file may sit under either extension: `.api-group.<app>.yaml` from the current backend export or
       // `.specification-group.<app>.yaml` from an older one. findFileById throws when an extension matches nothing,
-      // so try both before giving up. The `.api-group.` one comes first, matching resolveGroupFile's precedence.
-      const groupFileUri = await this.findGroupFileById(groupId, [
-        config.extensions.apiGroup,
-        config.extensions.specificationGroup,
-      ]);
+      // so try both before giving up, in the order `API_GROUP_NAMES` declares.
+      const groupFileUri = await this.findGroupFileById(
+        groupId,
+        candidateExtensions(API_GROUP_NAMES, config.extensions),
+      );
       const parsed = await ContentParser.parseContentFromFile(groupFileUri);
 
       return {
@@ -247,11 +253,11 @@ export class ApiGroupService {
       // does not leave two files for one group. Anything new is written in the `.api-group.` format.
       const apiGroupFile = Uri.joinPath(
         baseFolder,
-        `${apiGroup.id}${config.extensions.apiGroup}`,
+        `${apiGroup.id}${currentExtension(API_GROUP_NAMES, config.extensions)}`,
       );
       const legacyFile = Uri.joinPath(
         baseFolder,
-        `${apiGroup.id}${config.extensions.specificationGroup}`,
+        `${apiGroup.id}${legacyExtension(API_GROUP_NAMES, config.extensions)}`,
       );
       const useLegacyName =
         !(await this.fileExists(apiGroupFile)) &&
@@ -266,9 +272,11 @@ export class ApiGroupService {
 
       const yamlData = {
         id: apiGroup.id,
+        // `schemaUrls` carries the same keys as `extensions`, so the name and its schema URL come
+        // from one declaration and cannot drift apart.
         $schema: useLegacyName
-          ? config.schemaUrls.specificationGroup
-          : config.schemaUrls.apiGroup,
+          ? legacyExtension(API_GROUP_NAMES, config.schemaUrls)
+          : currentExtension(API_GROUP_NAMES, config.schemaUrls),
         name: apiGroup.name,
         content: {
           synchronization: apiGroup.synchronization || false,

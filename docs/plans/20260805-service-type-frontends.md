@@ -1457,6 +1457,76 @@ listing cases rewritten to the decision above, and the guard gained the fixture 
 ➕ [deviation] `vscode-extension/CLAUDE.md` was edited on disk once more (untracked, git-excluded, so it cannot be
 committed): the delete rule, the listing decision and the guard's blind spots.
 
+## Review phase 10 — external cross-review
+
+*One finding from an eighth Codex (gpt-5.6-luna) pass. Codex silently cleared the other three things it was asked to
+check — the delete rule, the drop-and-warn listing with its sibling suppression, and `scanMissRefusal` coverage — so
+the candidate-ordering rule was the last one standing.*
+
+➕ **CONFIRMED, and it was two sites rather than one.** `serviceApiRead.findModelFileById` (`serviceApiRead.ts:508`)
+listed `[ext.specification, ext.api]`, and the extension-less `fileApiImpl.findFileById` (`fileApiImpl.ts:299`) had the
+same pair the same way round. Reproduced against the real file api over an in-memory disk
+(`tests/web/response/currentNameWins.test.ts`), both files readable: `getOperations` handed a chain uri answered the
+operations of the `.specification.` file (`"old"`) rather than the `.api.` one (`"current"`), so the API's Operations
+tab showed the list the last conversion superseded; and `fileApi.findFileById(modelId)` resolved to the
+`.specification.` path, so opening the model by id opened the superseded file.
+
+➕ **The candidate-list enumeration, all eleven sites.** Wrong: the two above. Right but hand-written, and now derived:
+`ApiGroupService.getApiGroupById`'s group candidates, `fileApiImpl.getSpecificationFiles` /
+`getSpecificationGroupFiles`, `entityFiles.resolveApiFiles` / `resolveGroupFiles` (both the candidate set and the
+`prefers` winner), `ApiGroupService.saveApiGroupFile`'s two target names *and* the `$schema` it stamps, and
+`SpecificationImportService`'s api write with its legacy delete. Already derived and left alone:
+`serviceFileType.plainServiceExtensions` / `allServiceExtensions` (through `EXTENSION_KEY_BY_TYPE`), and every caller
+of them — `serviceFileLookup`, `qipExplorer`, `fileApiImpl.findFileByNavigationPath`. Not a candidate list:
+`FileCacheService`'s `isGroupExtension` / `isPlainServiceExtension` (membership through `matchesAny`, order-free) and
+its three `else if` chains (each name maps to a *different* cache, so no precedence is expressed);
+`lookupOutcome.baseOf` sorts its extensions longest-first itself, so the argument order never reached a decision.
+
+➕ [decision] **The order is declared once and derived everywhere, rather than reviewed.**
+`response/file/namePrecedence.ts` holds `NAME_SETS`: per name set, the names a write emits (`current`) and the ones
+kept for reading alone (`legacy`). `candidateExtensions` is the only way to build a scan order, so a caller cannot
+state one that disagrees — it never states one. `PairedNames` is the stronger shape for a true rename, one name on each
+side, so `currentExtension` / `legacyExtension` answer for an API and a group and fail `check-types` for a service,
+which has five current names and picks between them by type. The write paths read the same declaration, which is what
+makes it self-checking: inverting `NAME_SETS.api` makes every import write `.specification.`, and the conversion cases
+go red on their own.
+
+➕ [decision] **`EXTENSION_KEY_BY_TYPE` moved into that module,** because the service set's `current` is derived from
+it and the reverse import would be a cycle. Its value type narrowed from `keyof ServiceExtensions` to
+`TypedServiceExtensionKey`, so no service type can be mapped onto the legacy name. `serviceFileType.ts` keeps
+`ServiceExtensions` as a re-export, so no importer changed.
+
+➕ [decision] **The API refusal is directional, and the phase-9 case pinned it backwards.**
+`unreadableCanonicalFile.test.ts` set the `.specification.` file unreadable and expected the lookup to refuse — which
+only held because the buggy order scanned that name first. `resolveFirstCandidate` collects unreadable candidates from
+*earlier* names alone, and that is the rule: only a file of higher precedence blocks, because only that file is the one
+a write lands on. An unreadable *legacy* sibling blocks nothing, exactly as it already did for a service and a group.
+The case now runs both ways round: the `.api.` file unreadable refuses and names it, the legacy sibling unreadable
+answers from `.api.`.
+
+➕ [decision] **`FileCacheService.isGroupExtension` had its two names swapped** to `[apiGroup, specificationGroup]`.
+`matchesAny` is order-free, so this changes no behavior; it keeps the source guard below free of an allowlist, and an
+allowlist entry nobody can check is worth less than a swap nobody can be hurt by. The two helpers stay hand-written,
+as phase 5 decided — a sixth service *kind* still has to be added there by hand.
+
+➕ **New suite `tests/web/response/namePrecedenceGuard.test.ts`, three rules.** Every extension key belongs to a
+declared name set, so a new pair cannot be added without saying which name a write emits; no array literal under
+`src/web` puts a legacy name of a set ahead of a current one, read syntactically so it sees `ext.api`, a destructured
+`apiGroup`, or both mixed; and the declaration agrees with what the write paths emit. A canary case fails if the source
+rule stops matching array literals at all. `currentNameWins.test.ts` is the behavioral half: both names on disk, both
+readable, for the service lookup, navigation, the extension-less lookup, `getOperations`, `getApiGroupById` and both
+folder scans.
+
+➕ Mutations checked red, one per claim: `findModelFileById` back to its hand-written pair (the behavioral case and the
+source rule); the same for `fileApiImpl`'s `typesToTry`; `NAME_SETS.api` inverted (4 cases); `NAME_SETS.apiGroup`
+inverted (5 cases); `candidateExtensions` emitting legacy first (10 cases here, 39 across the suite);
+`NAME_SETS.apiGroup` deleted from the registry (the completeness rule); `FileCacheService`'s pair swapped back (the
+source rule); and `extensionKeyOf` blinded (the canary).
+
+➕ [deviation] `vscode-extension/CLAUDE.md` was edited on disk again (untracked, git-excluded, so it cannot be
+committed): the precedence declaration and the directional refusal.
+
+
 ## Post-Completion
 
 *Items requiring manual intervention or external systems — no checkboxes, informational only*

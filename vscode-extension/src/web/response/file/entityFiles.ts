@@ -3,9 +3,9 @@
 // pairs are what a conversion leaves behind and what a re-save overwrites, so both obey the contract
 // in `lookupOutcome.ts` — see `resolveScannedEntities` there for why the refusal is not optional.
 //
-// Every read, write, list and delete of a group or an API resolves through these two functions, so
-// the precedence rule is stated once: the current name wins, the same rule the service lookup
-// applies to a typed name over the legacy one.
+// Every read, write, list and delete of a group or an API resolves through these two functions, and
+// neither states a precedence of its own: `namePrecedence.ts` declares which name is current, and
+// both the candidate set and the winner are derived from that declaration.
 
 import { Uri } from "vscode";
 import * as vscode from "vscode";
@@ -16,6 +16,12 @@ import {
   ScannedEntities,
   resolveScannedEntities,
 } from "./lookupOutcome";
+import {
+  API_GROUP_NAMES,
+  API_NAMES,
+  candidateExtensions,
+  currentExtension,
+} from "./namePrecedence";
 
 /** The group files of a service folder, one per group id. */
 export async function resolveGroupFiles(
@@ -25,8 +31,8 @@ export async function resolveGroupFiles(
   return await resolveFolderEntities(
     serviceFileUri,
     await fileApi.getSpecificationGroupFiles(serviceFileUri),
-    [ext.specificationGroup, ext.apiGroup],
-    ext.apiGroup,
+    candidateExtensions(API_GROUP_NAMES, ext),
+    currentExtension(API_GROUP_NAMES, ext),
   );
 }
 
@@ -38,8 +44,8 @@ export async function resolveApiFiles(
   return await resolveFolderEntities(
     serviceFileUri,
     await fileApi.getSpecificationFiles(serviceFileUri),
-    [ext.specification, ext.api],
-    ext.api,
+    candidateExtensions(API_NAMES, ext),
+    currentExtension(API_NAMES, ext),
   );
 }
 

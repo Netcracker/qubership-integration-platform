@@ -26,6 +26,11 @@ import { EnvironmentService } from "./EnvironmentService";
 import { SystemService } from "./SystemService";
 import { fileApi } from "../response/file/fileApiProvider";
 import { RESOURCES_FOLDER } from "../response/file/fileApiImpl";
+import {
+  API_NAMES,
+  currentExtension,
+  legacyExtension,
+} from "../response/file/namePrecedence";
 import { SoapSpecificationParser } from "./parsers/SoapSpecificationParser";
 import { LabelUtils } from "./LabelUtils";
 import { ContentParser } from "./parsers/ContentParser";
@@ -412,7 +417,7 @@ export class SpecificationImportService {
         const baseName = `${systemId}-${specificationGroup.name}-${specification.version}`;
         const specFileUri = Uri.joinPath(
           baseFolder,
-          `${baseName}${config.extensions.api}`,
+          `${baseName}${currentExtension(API_NAMES, config.extensions)}`,
         );
         const specificationType = this.toApiSpecificationType(
           specification.format,
@@ -469,7 +474,7 @@ export class SpecificationImportService {
         // sibling so the two formats never linger side by side.
         await this.deleteLegacySpecificationFile(
           baseFolder,
-          `${baseName}${config.extensions.specification}`,
+          `${baseName}${legacyExtension(API_NAMES, config.extensions)}`,
         );
 
         // Copy source file and additional files to resources folder
