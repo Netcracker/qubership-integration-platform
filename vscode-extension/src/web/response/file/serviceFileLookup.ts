@@ -57,11 +57,10 @@ export class UnreadableServiceFileError extends UnreadableSiblingError {
  * the legacy sibling, the same precedence `ApiGroupService.resolveGroupFile` applies to a group
  * stored under two extensions, so a converted service resolves to the file the next write lands on.
  *
- * A miss and a broken scan both come back as one `ServiceFileNotFoundError` naming every failure.
- * `FileApi` reports both as a plain `Error`, so the two cannot be told apart here, and reporting
- * the last failure alone hid the broken file that made every later name fail too. A file the scan
- * could not read is named among those causes: with nothing resolved there is no sibling for a write
- * to land beside, so it is a miss here — see the contract in `lookupOutcome.ts`.
+ * A miss and a broken scan both come back as one `ServiceFileNotFoundError` naming every failure,
+ * because reporting the last failure alone hid the broken file that made every later name fail too.
+ * A file the scan could not read is named among those causes: with nothing resolved there is no
+ * sibling for a write to land beside, so it is a miss here — see the contract in `lookupOutcome.ts`.
  *
  * The one failure that is told apart is a file the scan could not read while another name *did*
  * answer: `refuseUnreadableSibling` decides, and falling through to the sibling is how a legacy body

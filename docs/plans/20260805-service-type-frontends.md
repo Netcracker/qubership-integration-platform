@@ -933,9 +933,12 @@ rather than keeping a second copy that would drift.
 
 ➕ [decision] The `readServiceFile` consolidation was taken only for the three **read** sites. `getService`,
 `getEnvironment` and `getEnvironments` now share a module-local `readServiceFileById`, which is `readServiceFile` plus
-the id-mismatch retry the three repeated verbatim. `updateService` keeps the plain `readServiceFile` and its own
+the id-mismatch retry the three repeated verbatim. ~~`updateService` keeps the plain `readServiceFile` and its own
 `throw`: folding the retry in there would silently redirect a **write** to another file, which is a behaviour change,
-not a smell fix. The stale-uri family was re-run afterwards — unit, integration, and the conversion suite all green.
+not a smell fix.~~ **Overturned in phase 5**: following the held uri let a write read the superseded legacy sibling and
+save it over the typed file, silently reverting every edit made since the conversion. `readServiceFile` is the
+resolve-first read now, and `readServiceFileById` is the same function. The stale-uri family was re-run afterwards —
+unit, integration, and the conversion suite all green.
 
 ➕ [decision] `SERVICE_ICONS` is now `Record<ServiceGroupType, string>`, the same enum-keyed guard `serviceFileType.ts`
 carries, and `Unknown` gained its own `question` icon instead of reusing `server` and reading as a second Context group.
@@ -1068,9 +1071,10 @@ applies the typed-wins order and the loop already dedups on it, so re-resolving 
 per service. This is also why the fix does not slow enumeration down: it removes a per-service read rather than adding a
 per-service lookup.
 
-➕ [decision] `readServiceFile` is untouched, and `updateService` still uses it. Redirecting a **write** by an id retry
-stays declined, as in phase 2. `readServiceFileByName` recovers by the name-stated id only after the direct read fails,
-so a hand-authored file whose name and id disagree still reads the way it always did.
+➕ [decision] ~~`readServiceFile` is untouched, and `updateService` still uses it. Redirecting a **write** by an id retry
+stays declined, as in phase 2.~~ **Overturned in phase 5**, for the data loss it turned out to allow. `readServiceFileByName`
+recovers by the name-stated id only after the direct read fails, so a hand-authored file whose name and id disagree still
+reads the way it always did — and it is `readServiceIdentity` from phase 5 on.
 
 ➕ Mutations checked red, one per fix: `readServiceFileById` back to trusting the held uri (13 unit cases, and the
 integration conversion test in the real web host); `getCurrentServiceId` and the `getServices` branch back to their
