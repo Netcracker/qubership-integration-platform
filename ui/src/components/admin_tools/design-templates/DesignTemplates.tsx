@@ -19,6 +19,7 @@ import { tableScroll } from "../../table/tableScroll.ts";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
+import { useDesignTemplatesFilter } from "../../../hooks/filter/useDesignTemplatesFilter.ts";
 
 const DESIGN_TEMPLATES_SELECTION_COLUMN_WIDTH = 48;
 
@@ -41,11 +42,19 @@ export const DesignTemplates: React.FC = () => {
   const [tableData, setTableData] = useState<DetailedDesignTemplate[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const { filterButton, matchFilters } = useDesignTemplatesFilter();
 
   const filteredTableData = useMemo(
     () =>
-      tableData.filter((row) => designTemplateMatchesSearch(row, searchTerm)),
-    [tableData, searchTerm],
+      tableData
+        .filter((row) => designTemplateMatchesSearch(row, searchTerm))
+        .filter((row) =>
+          matchFilters({
+            ...row,
+            typeLabel: row.builtIn ? "Built-in" : "Custom",
+          }),
+        ),
+    [tableData, searchTerm, matchFilters],
   );
 
   const columns: ColumnsTypeWithSettings<DetailedDesignTemplate> = [
@@ -231,6 +240,7 @@ export const DesignTemplates: React.FC = () => {
               allowClear: true,
             }}
             columnSettingsButton={columnSettingsButton}
+            filterButton={filterButton}
             actions={
               <>
                 <ProtectedButton

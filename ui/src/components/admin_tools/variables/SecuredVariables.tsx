@@ -31,6 +31,7 @@ import { hasPermissions } from "../../../permissions/funcs.ts";
 import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
+import { useVariableFilter } from "../../../hooks/filter/useVariableFilter.ts";
 
 type SecretRow = { key: string; secret: string };
 
@@ -65,6 +66,7 @@ export const SecuredVariables: React.FC = () => {
   const notificationService = useNotificationService();
   const permissions = usePermissions();
   const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
+  const { filterButton, matchFilters } = useVariableFilter(false);
 
   const canAddVariableToSecret = useCallback(
     (secret: string) => secret !== defaultSecret,
@@ -318,10 +320,30 @@ export const SecuredVariables: React.FC = () => {
     return 300 - headerHeight;
   }, []);
 
+  const { filteredSecrets, filteredVariables } = useMemo(() => {
+    const names: string[] = [];
+    const bySecret: Record<string, Variable[]> = {};
+
+    for (const secret of secrets) {
+      if (!secretNameMatchesSearch(secret, searchTerm)) continue;
+
+      const vars = variables[secret] || [];
+      const secretMatches = matchFilters({ key: secret });
+      const matchingVars = vars.filter((v) => matchFilters({ key: v.key }));
+
+      if (!secretMatches && matchingVars.length === 0) continue;
+
+      names.push(secret);
+      bySecret[secret] = secretMatches ? vars : matchingVars;
+    }
+
+    return { filteredSecrets: names, filteredVariables: bySecret };
+  }, [secrets, variables, searchTerm, matchFilters]);
+
   const expandedRowRender = useCallback(
     (secret: string) => (
       <VariablesTable
-        variables={variables[secret] || []}
+        variables={filteredVariables[secret] || []}
         selectedKeys={selectedKeys[secret] || []}
         isAddingNew={newVariableKeys[secret]}
         editingKey={editing?.secret === secret ? editing.key : null}
@@ -354,8 +376,6 @@ export const SecuredVariables: React.FC = () => {
         isValueHidden
         enableKeySort
         enableValueSort={false}
-        enableKeyFilter
-        enableValueFilter={false}
         calculateScrollHeight={calculateSecuredScrollHeight}
         enableEdit={hasPermissions(permissions, {
           securedVariable: ["update"],
@@ -366,7 +386,7 @@ export const SecuredVariables: React.FC = () => {
       />
     ),
     [
-      variables,
+      filteredVariables,
       selectedKeys,
       newVariableKeys,
       editing,
@@ -476,11 +496,6 @@ export const SecuredVariables: React.FC = () => {
     secret: 520,
   });
 
-  const filteredSecrets = useMemo(
-    () => secrets.filter((s) => secretNameMatchesSearch(s, searchTerm)),
-    [secrets, searchTerm],
-  );
-
   return (
     <Flex vertical gap={16} className={commonStyles["container"]}>
       {showDefaultSecretDeprecationBanner && (
@@ -502,6 +517,7 @@ export const SecuredVariables: React.FC = () => {
               placeholder: "Search secrets...",
               allowClear: true,
             }}
+            filterButton={filterButton}
             actions={
               <>
                 <ProtectedButton

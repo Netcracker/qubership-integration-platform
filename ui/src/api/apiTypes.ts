@@ -912,16 +912,10 @@ export type ActionLogSearchRequest = {
   filters?: unknown;
 };
 
-export type ActionLogFilterRequest = {
-  column: string;
-  condition: string;
-  value: string;
-};
-
 export type ActionLogPagedSearchRequest = {
   offset: number;
   limit: number;
-  filters?: ActionLogFilterRequest[];
+  filters?: EntityFilterModel[];
 };
 
 export type ActionLogPagedSearchResponse = {
@@ -1253,7 +1247,7 @@ export interface SpecApiFile {
 export type AccessControlSearchRequest = {
   offset: number;
   limit: number;
-  filters: unknown;
+  filters: EntityFilterModel[];
 };
 
 export type AccessControlUpdateRequest = {
