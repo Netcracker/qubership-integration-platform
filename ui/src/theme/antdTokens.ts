@@ -33,6 +33,16 @@ function getCSSVariable(name: string, fallback: string = ""): string {
   return value || fallback;
 }
 
+// `--vscode-border` is our own variable, defined only by the browser fallbacks in
+// theme-variables.css. The webview host injects `--vscode-editorGroup-border`
+// instead, so prefer it and keep the browser variable as the fallback.
+function getBorderColor(isDark: boolean): string {
+  return getCSSVariable(
+    "--vscode-editorGroup-border",
+    getCSSVariable("--vscode-border", isDark ? "#303030" : "#d9d9d9"),
+  );
+}
+
 export function getThemeTokens(isDark: boolean): Partial<AliasToken> {
   const editorBg = getCSSVariable(
     "--vscode-editor-background",
@@ -46,10 +56,7 @@ export function getThemeTokens(isDark: boolean): Partial<AliasToken> {
     "--vscode-foreground",
     isDark ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)",
   );
-  const border = getCSSVariable(
-    "--vscode-border",
-    isDark ? "#303030" : "#d9d9d9",
-  );
+  const border = getBorderColor(isDark);
   const buttonBg = getCSSVariable("--vscode-button-background", "#0078d4");
   const buttonHover = getCSSVariable(
     "--vscode-button-hoverBackground",
@@ -170,10 +177,7 @@ export function getAntdThemeConfig(
     tokens.colorText ??
       (isDark ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)"),
   );
-  const borderColor = getCSSVariable(
-    "--vscode-border",
-    isDark ? "#303030" : "#d9d9d9",
-  );
+  const borderColor = getBorderColor(isDark);
   const iconHover = getCSSVariable(
     "--vscode-button-hoverBackground",
     "#106ebe",
@@ -228,10 +232,7 @@ export function getAntdThemeConfig(
           "--vscode-editorGroup-border",
           isDark ? "#303030" : "#d9d9d9",
         ),
-        colorBorderSecondary: getCSSVariable(
-          "--vscode-border",
-          isDark ? "#303030" : "#d9d9d9",
-        ),
+        colorBorderSecondary: getBorderColor(isDark),
         colorBgContainer: getCSSVariable(
           "--vscode-editor-background",
           isDark ? "#141414" : "#ffffff",
@@ -294,6 +295,25 @@ export function getAntdThemeConfig(
           isDark ? "#1f1f1f" : "#ffffff",
         ),
       },
+      // Selects sit next to inputs in forms, so they follow the input colors.
+      Select: {
+        colorBgContainer: getCSSVariable(
+          "--vscode-input-background",
+          isDark ? "#1f1f1f" : "#ffffff",
+        ),
+        colorText: getCSSVariable(
+          "--vscode-input-foreground",
+          isDark ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)",
+        ),
+        colorBorder: getCSSVariable(
+          "--vscode-input-border",
+          isDark ? "#303030" : "#d9d9d9",
+        ),
+        colorTextPlaceholder: getCSSVariable(
+          "--vscode-input-placeholderForeground",
+          isDark ? "rgba(255, 255, 255, 0.45)" : "rgba(0, 0, 0, 0.45)",
+        ),
+      },
       Drawer: {
         colorBgElevated: getCSSVariable(
           "--vscode-editor-background",
@@ -303,10 +323,7 @@ export function getAntdThemeConfig(
           "--vscode-foreground",
           isDark ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)",
         ),
-        colorBorder: getCSSVariable(
-          "--vscode-border",
-          isDark ? "#303030" : "#d9d9d9",
-        ),
+        colorBorder: getBorderColor(isDark),
       },
       List: {
         colorBgContainer: getCSSVariable(
@@ -337,10 +354,7 @@ export function getAntdThemeConfig(
           "--vscode-foreground",
           isDark ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)",
         ),
-        colorBorder: getCSSVariable(
-          "--vscode-border",
-          isDark ? "#303030" : "#d9d9d9",
-        ),
+        colorBorder: getBorderColor(isDark),
       },
       FloatButton: {
         colorBgElevated: getCSSVariable(
@@ -351,10 +365,7 @@ export function getAntdThemeConfig(
           "--vscode-foreground",
           isDark ? "rgba(255, 255, 255, 0.85)" : "rgba(0, 0, 0, 0.88)",
         ),
-        colorBorder: getCSSVariable(
-          "--vscode-border",
-          isDark ? "#303030" : "#d9d9d9",
-        ),
+        colorBorder: getBorderColor(isDark),
         colorPrimary: getCSSVariable("--vscode-button-background", "#0078d4"),
         colorPrimaryHover: getCSSVariable(
           "--vscode-button-hoverBackground",

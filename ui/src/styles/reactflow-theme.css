@@ -635,7 +635,7 @@
 /* MiniMap theming - only colors, standard ReactFlow style */
 .react-flow__minimap {
   background-color: var(--vscode-editor-background) !important;
-  border: 1px solid var(--vscode-foreground) !important;
+  border: 1px solid var(--vscode-border) !important;
 }
 
 .react-flow__minimap-mask {
