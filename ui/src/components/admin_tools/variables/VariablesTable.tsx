@@ -4,11 +4,6 @@ import type { GetRef, InputRef } from "antd";
 import "./Resizable.css";
 import { NEW_VARIABLE_KEY } from "./useVariablesState";
 import styles from "./VariablesTable.module.css";
-import {
-  TextColumnFilterDropdown,
-  getTextColumnFilterFn,
-} from "../../table/TextColumnFilterDropdown";
-import type { FilterDropdownProps } from "antd/lib/table/interface";
 import type { Variable } from "../../../api/apiTypes.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import {
@@ -36,8 +31,6 @@ interface VariablesTableProps {
   onConfirmEdit: (key: string, newValue: string) => void;
   enableKeySort?: boolean;
   enableValueSort?: boolean;
-  enableKeyFilter?: boolean;
-  enableValueFilter?: boolean;
   calculateScrollHeight?: () => number;
   flex?: boolean;
   enableEdit?: boolean;
@@ -61,8 +54,6 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
   onConfirmEdit,
   enableKeySort,
   enableValueSort,
-  enableKeyFilter,
-  enableValueFilter,
   flex,
   enableEdit = true,
   enableDelete = true,
@@ -116,14 +107,6 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
       sorter: enableKeySort
         ? (a: Variable, b: Variable) => a.key.localeCompare(b.key)
         : undefined,
-      filterDropdown: enableKeyFilter
-        ? (props: FilterDropdownProps) => (
-            <TextColumnFilterDropdown {...props} />
-          )
-        : undefined,
-      onFilter: enableKeyFilter
-        ? getTextColumnFilterFn<Variable>((record) => record.key)
-        : undefined,
       render: (_: string, record: Variable) =>
         record.key === NEW_VARIABLE_KEY ? (
           <Input
@@ -144,14 +127,6 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
       width: variablesColumnResize.columnWidths.value,
       sorter: enableValueSort
         ? (a: Variable, b: Variable) => a.value.localeCompare(b.value)
-        : undefined,
-      filterDropdown: enableValueFilter
-        ? (props: FilterDropdownProps) => (
-            <TextColumnFilterDropdown {...props} />
-          )
-        : undefined,
-      onFilter: enableValueFilter
-        ? getTextColumnFilterFn<Variable>((record) => record.value)
         : undefined,
       render: (_: string, record: Variable) => {
         const isEditing = enableEdit && editingKey === record.key;

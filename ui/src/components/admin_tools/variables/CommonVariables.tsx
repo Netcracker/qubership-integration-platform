@@ -16,6 +16,7 @@ import { hasPermissions } from "../../../permissions/funcs.ts";
 import { usePermissions } from "../../../permissions/usePermissions.tsx";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
+import { useVariableFilter } from "../../../hooks/filter/useVariableFilter.ts";
 
 async function getVariables(): Promise<ApiResponse<Variable[]>> {
   return api.getCommonVariables();
@@ -33,6 +34,7 @@ export const CommonVariables = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const notificationService = useNotificationService();
   const permissions = usePermissions();
+  const { filterButton, matchFilters } = useVariableFilter();
 
   const {
     variables,
@@ -66,8 +68,11 @@ export const CommonVariables = () => {
   });
 
   const filteredVariables = useMemo(
-    () => variables.filter((v) => variableMatchesSearch(v, searchTerm)),
-    [variables, searchTerm],
+    () =>
+      variables
+        .filter((v) => variableMatchesSearch(v, searchTerm))
+        .filter((v) => matchFilters(v)),
+    [variables, searchTerm, matchFilters],
   );
 
   const onDeleteSelected = async () => {
@@ -100,6 +105,7 @@ export const CommonVariables = () => {
               placeholder: "Search variables...",
               allowClear: true,
             }}
+            filterButton={filterButton}
             actions={
               <>
                 <ProtectedButton
@@ -185,8 +191,6 @@ export const CommonVariables = () => {
         onAdd={(key, value) => void onAdd(key, value)}
         enableKeySort
         enableValueSort
-        enableKeyFilter
-        enableValueFilter
         isValueHidden={false}
         enableEdit={hasPermissions(permissions, { commonVariable: ["update"] })}
         enableDelete={hasPermissions(permissions, {

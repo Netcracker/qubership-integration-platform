@@ -1,9 +1,9 @@
-import React, { ReactNode, useState } from "react";
+import React, { ReactNode, useCallback, useState } from "react";
 import { FilterItemState } from "./FilterItem";
 import { Filter } from "./Filter.tsx";
 import { useModalsContext } from "../../../Modals";
 import { FilterButton } from "./FilterButton";
-import { EntityFilterModel, FilterColumn } from "./filterTypes";
+import { EntityFilterModel, FilterColumn, FilterCondition } from "./filterTypes";
 
 export const useFilter = (
   filterColumns: FilterColumn[],
@@ -15,6 +15,7 @@ export const useFilter = (
   filterItemStates: FilterItemState[];
   setFilterItemStates: React.Dispatch<React.SetStateAction<FilterItemState[]>>;
   applyFilters: (filterItems: FilterItemState[]) => void;
+  matchFilters: (object: unknown) => boolean;
 } => {
   const { showModal } = useModalsContext();
   const [filters, setFilters] = useState<EntityFilterModel[]>([]);
@@ -59,6 +60,15 @@ export const useFilter = (
     setFilterItemStates([]);
   };
 
+  const matchFilters = useCallback((object: unknown): boolean => {
+    return filters.every((filter) =>
+      FilterCondition.getById(filter.condition)?.func(
+        filter.value,
+        (object as Record<string, unknown>)[filter.column]?.toString(),
+      ),
+    );
+  }, [filters]);
+
   return {
     filters,
     filterButton,
@@ -67,5 +77,6 @@ export const useFilter = (
     filterItemStates,
     setFilterItemStates,
     applyFilters,
+    matchFilters,
   };
 };

@@ -82,6 +82,7 @@ import {
 import { Api } from "../api.ts";
 import { getAppName } from "../../appConfig.ts";
 import { DiffDocumentType } from "../../components/chains/diff/DiffDocumentContext.tsx";
+import { EntityFilterModel } from "../../components/table/filter/filterTypes.ts";
 
 export const NAVIGATE_EVENT = "navigate";
 export const STARTUP_EVENT = "startup";
@@ -1185,6 +1186,9 @@ export class VSCodeExtensionApi implements Api {
 
   getImportInstructions(): Promise<GeneralImportInstructions> {
     throw new Error("Method getImportInstructions not implemented.");
+  }
+  filterImportInstructions(_filters: EntityFilterModel[]): Promise<GeneralImportInstructions> {
+    throw new Error("Method filterImportInstructions not implemented.");
   }
   addImportInstruction(
     _request: ImportInstructionRequest,
