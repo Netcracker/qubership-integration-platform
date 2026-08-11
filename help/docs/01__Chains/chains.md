@@ -258,47 +258,38 @@ Under "Chains" folder, right-click on the chain name you want to delete. From th
 ### Compare Chains
 <ins>Web UI</ins>
 
-Select two chains using the checkboxes and click ![diff](img/diff.svg) to open the comparison widget with two comparison areas and supplementary elements. When a comparison window is requested while only a single snapshot is selected, the system compares it with the current state of the chain. The following elements are available in the comparison window:
+Select two chains using the checkboxes and click ![diff](img/diff.svg) to open the **Chain compare** dialog. The following controls are available:
 
-- **Chain Name** - read only text field, specifies chain name.
-- **Snapshot Name** - dropdown with snapshot versions, available for given chain. Current, unsaved version of the chain can be also selected in this dropdown.
-- Switcher **Graph/Table/Text** - allows to switch between three different comparison views.
-- **![caret-up](img/caret-up.svg) (Previous change)** and **![caret-down](img/caret-down.svg) (Next change)** - navigates to the previous or next detected difference. The corresponding element and its changed property are selected in the comparison areas, and the property details are displayed above the graphs.
+- **Graph/Table/Text** switcher - switches between the three comparison views.
+- **![caret-up](img/caret-up.svg) (Previous change)** and **![caret-down](img/caret-down.svg) (Next change)** - navigate to the previous or next detected difference. The corresponding element and its changed property are highlighted in the comparison areas, and property details are displayed above the graphs.
+- ![arrows-alt](img/arrows-alt.svg) ![shrink](img/shrink.svg) - opens the dialog in full screen and collapses it back.
 
-> ℹ️ **Note**: Comparison functionality was specifically introduced in order to compare two **similar** chains and quickly identify the differences between them. It won't provide much value when comparing two completely different chains.
+> ℹ️ **Note**: The comparison feature is designed for two **similar** chains. It provides little value when comparing two completely different chains.
 
-You can compare chains in three views, switchable at any time:
+You can view the comparison in three modes, switchable at any time:
 
-- **Graph View** - default view for the comparison widget. Comparison areas show configuration graphs based on the selected chains and their snapshots. The following tools are available:
+- **Graph View** - the default view. Each comparison area shows the chain's configuration graph. The following tools are available:
   - ![plus](img/plus.svg) ![minus](img/minus.svg) - zoom in/out the graph.
   - ![expand](img/expand.svg) - fit view.
-  - ![rotate-right](img/rotate-right.svg) - changes graphs orientation from vertical to horizontal and vice versa.
-  - ![arrows-alt](img/arrows-alt.svg) ![shrink](img/shrink.svg) - allows to open widget in full screen and collapse it back.
+  - ![rotate-right](img/rotate-right.svg) - toggles the graph orientation between vertical and horizontal.
 
-  Chain graph elements are marked based on the detected differences:
-   - **Identical (grey)** - no differences were found in the element or dependency.
-   - **Changed (yellow)** - the element exists in both chain versions, but its properties differ.
-   - **Removed (red)** - the element or dependency does not exist in the compared chain version.
-   - **Created (green)** - a new element or dependency exists in the compared chain version.
+  Elements are color-coded by their comparison state:
+  - **Identical (grey)** - no differences found in the element or its connections.
+  - **Changed (yellow)** - the element exists in both chains, but its properties differ.
+  - **Removed (red)** - the element or connection does not exist in the other chain.
+  - **Created (green)** - the element or connection exists only in the other chain.
 
-Clicking an element in one area also selects it in the other area, making it easier to find the corresponding element. Double-clicking an element opens another window with a text-based comparator compiled on the basis of the element's data.
+- **Table View** - select **Table** in the switcher to display differences as a table. Each row represents one detected difference and contains the following columns:
 
-- **Table View** - select **Table** in the **Graph/Table/Text** switcher to display the comparison results as a table. Each row represents a detected difference. The table contains the following columns:
+  - **Type** - the type of the changed entity: `element`, `element property`, `chain property`, or `connection`.
+  - Two columns named after the compared chains — each shows the change data from the corresponding chain version.
 
-  - **Type** - type of the changed entity.
-  - **Compared chain versions** - two columns named after the compared chains. Each column shows the data from the corresponding chain version:
-    - **Element** - element whose configuration differs. Click the element name to open its properties in a new browser window.
-    - **Name** - name of the changed property.
-    - **Value** - property value in the corresponding chain version.
+  Select a row using the radio button to focus on a particular difference. Use **Previous change** and **Next change** to navigate between differences.
 
-  Select a row using the radio button to focus on a particular difference. Use the **Previous change** and **Next change** arrows to move between the detected differences.
+- **Text View** - select **Text** in the switcher to display a side-by-side YAML representation of both chains. Per-line differences are highlighted:
 
-- **Text View** - select two chains using the checkboxes, click ![diff](img/diff.svg) to open the comparison widget, then use the **Graph/Table/Text** switcher to select "**Text**". Comparison areas in this view show a text representation of the chains with per-line differences highlighted in the following colors:
-
-  - **Red** - properties don't exist in the compared chain version.
-  - **Green** - new properties exist in the compared chain version.
-
-Text view is also accessible by double-clicking an element while in the Graph View of the comparator.
+  - **Red** - the line exists only in the left chain version.
+  - **Green** - the line exists only in the right chain version.
 
 <ins>VS Code Extension</ins>
 
