@@ -57,8 +57,32 @@ export function getRoleLabel(
   assistantName?: string,
 ): string {
   if (role === "user") return "You";
-  if (role === "assistant") return assistantName ?? "Assistant";
+  if (role === "assistant") return assistantName ?? "Rocky";
   return "System";
+}
+
+export function looksLikeChainImplementationPlanJson(code: string): boolean {
+  const trimmed = code.trim();
+  if (!trimmed.startsWith("{") || !trimmed.includes('"elements"')) {
+    return false;
+  }
+  return trimmed.includes('"chain"') || trimmed.includes('"name"');
+}
+
+/** Fenced blocks that should render collapsed in chat (expandable by the user). */
+export function isCollapsibleChainPlanJsonBlock(
+  language: string | undefined,
+  code: string,
+): boolean {
+  if (language === "chain-plan-json") {
+    return true;
+  }
+  return language === "json" && looksLikeChainImplementationPlanJson(code);
+}
+
+/** @deprecated use isCollapsibleChainPlanJsonBlock */
+export function isHiddenChainPlanJsonLanguage(language: string | undefined): boolean {
+  return language === "chain-plan-json";
 }
 
 export function extractMarkdownText(children: unknown): string {
@@ -121,8 +145,97 @@ export function upsertAssistantMessage(
   content: string,
 ): ChatMessage[] {
   const last = messages[messages.length - 1];
-  if (last?.role === "assistant") {
-    return [...messages.slice(0, -1), { role: "assistant" as const, content }];
+  if (last?.role === "assistant" && last.variant !== "error") {
+    return [
+      ...messages.slice(0, -1),
+      { ...last, role: "assistant" as const, content },
+    ];
   }
   return [...messages, { role: "assistant" as const, content }];
+}
+
+/** User-facing summary for a failed chat turn (reason lives in `detail`). */
+export const TURN_FAILURE_SUMMARY =
+  "The AI service failed to complete this reply.";
+
+export function isErrorVariantMessage(message: ChatMessage): boolean {
+  return message.variant === "error";
+}
+
+export function buildTurnFailureMessage(detail: string): ChatMessage {
+  const trimmed = detail.trim();
+  return {
+    role: "assistant",
+    variant: "error",
+    content: TURN_FAILURE_SUMMARY,
+    ...(trimmed ? { detail: trimmed } : {}),
+  };
+}
+
+/** Drop display-only error bubbles before sending history to the AI service. */
+export function withoutErrorVariantMessages(
+  messages: ChatMessage[],
+): ChatMessage[] {
+  return messages.filter((message) => !isErrorVariantMessage(message));
+}
+
+/**
+ * Keep any partial assistant reply, then append a turn-failure error bubble.
+ */
+export function appendTurnFailure(
+  messages: ChatMessage[],
+  detail: string,
+  partialAssistantContent?: string,
+): ChatMessage[] {
+  let next = [...messages];
+  const partial = partialAssistantContent?.trim();
+  if (partial) {
+    next = upsertAssistantMessage(next, partial);
+  } else {
+    const last = next[next.length - 1];
+    if (
+      last?.role === "assistant" &&
+      last.variant !== "error" &&
+      !last.content.trim()
+    ) {
+      next = next.slice(0, -1);
+    }
+  }
+  return [...next, buildTurnFailureMessage(detail)];
+}
+
+export type StreamingDoneOptions = {
+  turnFailed: boolean;
+  durationMs: number;
+  finishReason?: string;
+  usage?: ChatUsage;
+};
+
+/**
+ * Finalize a streaming turn. When the turn already failed, keep the error bubble
+ * and ignore accumulated content / meta from a trailing `done` event.
+ */
+export function applyStreamingDoneMessages(
+  currentMessages: ChatMessage[],
+  accumulatedContent: string,
+  options: StreamingDoneOptions,
+): ChatMessage[] {
+  if (options.turnFailed) {
+    return currentMessages;
+  }
+  let finalMessages = upsertAssistantMessage(
+    currentMessages,
+    accumulatedContent,
+  );
+  if (options.usage || options.finishReason) {
+    finalMessages = [
+      ...finalMessages,
+      buildMetaMessage(
+        options.durationMs,
+        options.finishReason,
+        options.usage,
+      ),
+    ];
+  }
+  return finalMessages;
 }

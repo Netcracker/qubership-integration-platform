@@ -1,0 +1,209 @@
+---
+
+# Reusable Maven module release workflow for Quarkus fast-jar modules.
+# Docker image is built from target/quarkus-app/ (not Spring Boot *-exec.jar).
+
+name: Maven Module Release Quarkus (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      module:
+        required: true
+        type: string
+        description: 'Module directory name (e.g. ai-service)'
+      version:
+        required: true
+        type: string
+        description: 'Release version (e.g., 1.0.0)'
+      version-type:
+        description: 'Version type to release'
+        type: string
+        required: false
+        default: 'patch'
+      profile:
+        description: 'Maven profile to use'
+        type: string
+        required: false
+        default: 'central'
+      build-docker:
+        description: 'Build Docker image'
+        required: false
+        default: true
+        type: boolean
+      create-github-release:
+        description: 'Create release'
+        required: false
+        default: true
+        type: boolean
+      mvn-args:
+        description: 'Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)'
+        required: false
+        default: ''
+        type: string
+    secrets:
+      MAVEN_USER:
+        required: false
+      MAVEN_PASSWORD:
+        required: false
+      MAVEN_GPG_PRIVATE_KEY:
+        required: false
+      MAVEN_GPG_PASSPHRASE:
+        required: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.module }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  check-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check if tag exists
+        id: check_tag
+        uses: netcracker/qubership-workflow-hub/actions/tag-action@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+        with:
+          ref: ${{ github.ref }}
+          tag-name: '${{ inputs.module }}-v${{ inputs.version }}'
+          create-tag: 'false'
+          check-tag: 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-publish:
+    needs: check-tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Build and Publish
+        uses: netcracker/qubership-workflow-hub/actions/maven-release@ac0b35120b940eaa644cdcfee7d4957038998ec2 # v2.0.9
+        with:
+          version-type: ${{ inputs.version-type }}
+          ref: ${{ github.ref }}
+          module: ${{ inputs.module }}
+          maven-args: ${{ inputs.mvn-args }}
+          profile: ${{ inputs.profile }}
+          server-id: ${{ inputs.profile }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          maven-user: ${{ inputs.profile == 'github' && github.actor || secrets.MAVEN_USER }}
+          maven-password: ${{ inputs.profile == 'github' && secrets.GITHUB_TOKEN || secrets.MAVEN_PASSWORD }}
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          gpg-passphrase: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+          dry-run: 'false'
+      - name: Upload Quarkus application
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: ${{ inputs.module }}-quarkus-app
+          path: ${{ inputs.module }}/target/quarkus-app/
+          if-no-files-found: error
+
+  publish-image:
+    if: ${{ inputs.build-docker == true }}
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Download Quarkus application
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: ${{ inputs.module }}-quarkus-app
+          path: ${{ inputs.module }}/target/quarkus-app
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@3b237d2c58bfe5a01e2ea6b0583ebc4f06d775bc # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@263435318d21b1cebf2d2e320790d09e67da8b2c # v6.18.0
+        with:
+          context: ${{ inputs.module }}
+          file: ${{ inputs.module }}/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/netcracker/qubership-integration-${{ inputs.module }}:${{ inputs.version }}
+            ghcr.io/netcracker/qubership-integration-${{ inputs.module }}:latest
+
+  docker-smoke:
+    if: ${{ inputs.build-docker == true }}
+    needs: publish-image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Download Quarkus application
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: ${{ inputs.module }}-quarkus-app
+          path: ${{ inputs.module }}/target/quarkus-app
+
+      - name: Build local image and smoke health
+        run: |
+          docker build -t qip-${{ inputs.module }}-smoke:${{ inputs.version }} ${{ inputs.module }}
+          cid=$(docker run -d -p 18094:8080 \
+            -e QUARKUS_HTTP_PORT=8080 \
+            -e LLM_API_KEY=smoke \
+            -e LLM_BASE_URL=http://localhost:9 \
+            -e LLM_CHAT_MODEL=smoke \
+            -e CATALOG_URL=http://localhost:9 \
+            -e STORAGE_INIT_BUCKET_ON_STARTUP=false \
+            qip-${{ inputs.module }}-smoke:${{ inputs.version }})
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:18094/q/health; then
+              docker rm -f "$cid"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs "$cid"
+          docker rm -f "$cid"
+          exit 1
+
+  create-release:
+    if: ${{ inputs.create-github-release == true }}
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+      - name: Run Release Drafter
+        uses: netcracker/release-drafter@86f4276a3894b5af70480e826c32fe3648ac6a70 # v1.0.0
+        with:
+          config-name: release-drafter-config.yml
+          publish: true
+          prerelease: ${{ github.ref_name != 'main' }}
+          name: '${{ inputs.module }}-${{ inputs.version }}'
+          tag: '${{ inputs.module }}-v${{ inputs.version }}'
+          version: '${{ inputs.module }}-v${{ inputs.version }}'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

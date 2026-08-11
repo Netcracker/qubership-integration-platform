@@ -13,6 +13,7 @@ This repository is a **monorepo** that consolidates the previously separate `qub
 | `micro-engine/`        | Execution engine (Quarkus variant) — faster startup, lower memory                             | Java 21, Quarkus 3.27, Apache Camel 4.14                                    |
 | `runtime-catalog/`     | Central catalog: chains, elements, deployments, snapshots, specifications, systems, variables | Java 21, Spring Boot 3.5, PostgreSQL, Consul, Flyway                        |
 | `sessions-management/` | Recorded sessions of integration flow executions                                              | Java 21, Spring Boot 3.5, OpenSearch, Consul                                |
+| `ai-service/`          | AI assistant for chain design, planning, and catalog implementation                           | Java 21, Quarkus 3.32, LangChain4j                                          |
 | `ui/`                  | Web UI — visual flow editor, chain/service management, session monitoring                     | React 18, TypeScript, Vite, Ant Design 5                                    |
 | `vscode-extension/`    | VS Code extension for offline chain/service editing                                           | TypeScript, VS Code Extension API                                           |
 | `schemas/`             | JSON Schema definitions for chains, services, elements                                        | TypeScript, JSON Schema, Gulp                                               |
@@ -69,6 +70,14 @@ docker compose -f infrastructure/docker-compose.yml -f infrastructure/docker-com
 
 Available overlays: `docker-compose.kafka.yml`, `docker-compose.rabbitmq.yml`, `docker-compose.redis.yml`, `docker-compose.pubsub.yml`.
 
+Optional AI service (requires LLM keys in `infrastructure/ai-service-dev.env`):
+
+```bash
+docker compose -f infrastructure/docker-compose.yml --profile ai up -d --build
+```
+
+AI Service (profile `ai`): `http://localhost:8094` (direct), health `GET /q/health`. Nginx proxy routes `/api/chat/`, `/api/v1/storage/`, and `/q/health` when profile `ai` is up.
+
 ### Step 5 — Start the UI dev server
 
 ```bash
@@ -105,7 +114,6 @@ npm -w @netcracker/qip-schemas test               # Schema conformance tests (AJ
 npm -w @netcracker/qip-ui test                    # UI unit tests (Jest)
 npm -w @netcracker/qip-vscode-extension test      # Extension unit tests (Jest)
 ```
-
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE).

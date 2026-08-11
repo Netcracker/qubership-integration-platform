@@ -2,6 +2,7 @@ node_modules/
 target/
 dist/
 dist-lib/
+io/
 .idea/
 *.iml
 .vscode/
@@ -22,3 +23,22 @@ pom.xml.next
 
 # APM dependencies
 apm_modules/
+
+# Local dev workspace (task notes, materials); keep out of version control
+.dev/
+.scratch/
+.superpowers/
+
+# Private skills, addons, and certified knowledge package supplied out of band
+integration-platform-skills/
+
+# Internal agent plans/specs (local only)
+docs/superpowers/
+docs/ai-service-a2a/prompts/
+
+# Local agent skill mirrors
+.cursor/skills/ai-service-e2e/
+.cursor/skills/compiler-skill-addon-maintainer/
+
+# Isolated local git worktrees
+.worktrees/

@@ -1,0 +1,143 @@
+schemaVersion: 1
+profileId: create-chain
+profileVersion: "2"
+runInputs:
+  - { type: user-input, schemaVersion: 1 }
+compilerPipeline:
+  supportedIndexSchemas: [2]
+  allowedPhases: [Discovery, Planning, Generation, Assembly, Validation]
+  preSatisfiedArtifacts:
+    - { type: requirement-brief, schemaVersion: 1 }
+  requiredTerminalArtifacts:
+    - { type: graph-assembly-result, schemaVersion: 1 }
+    - { type: compiler-validation-bundle, schemaVersion: 1 }
+stages:
+  - stageId: ids-entry
+    capabilityId: design-input
+    consumes: [{ type: user-input, schemaVersion: 1 }]
+    produces: [{ type: design-entry-route, schemaVersion: 1 }]
+    optionalProduces:
+      - { type: ids-document, schemaVersion: 1 }
+    retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
+  - stageId: requirement-discovery
+    capabilityId: requirement-discovery
+    consumes:
+      - { type: user-input, schemaVersion: 1 }
+      - { type: design-entry-route, schemaVersion: 1 }
+    produces:
+      - { type: requirement-draft, schemaVersion: 2 }
+    optionalProduces:
+      - { type: catalog-binding-hint, schemaVersion: 1 }
+    skip: { whenAny: [provided-design-route] }
+    retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
+  - stageId: import-stage
+    capabilityId: specification-import
+    consumes: [{ type: requirement-draft, schemaVersion: 2 }]
+    produces: [{ type: requirement-draft, schemaVersion: 2 }]
+    skip:
+      whenAny:
+        - no-apihub-candidate
+        - catalog-binding-present
+        - provided-design-route
+    retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
+  - stageId: requirement-analysis
+    capabilityId: requirement-analysis
+    consumes:
+      - { type: requirement-draft, schemaVersion: 2 }
+      - { type: design-entry-route, schemaVersion: 1 }
+    produces: [{ type: requirement-brief, schemaVersion: 1 }]
+    approval: { artifact: { type: requirement-brief, schemaVersion: 1 } }
+    skip: { whenAny: [provided-design-route] }
+    retry: { maxTechnicalRetries: 1, defaultDelayMs: 1000 }
+  - stageId: design-input
+    capabilityId: design-input
+    consumes: [{ type: design-entry-route, schemaVersion: 1 }]
+    optionalConsumes:
+      - { type: requirement-brief, schemaVersion: 1 }
+      - { type: ids-document, schemaVersion: 1 }
+    produces:
+      - { type: design-mode, schemaVersion: 1 }
+      - { type: ids-document, schemaVersion: 1 }
+      - { type: normalized-design-flow, schemaVersion: 1 }
+    approval:
+      artifact: { type: ids-document, schemaVersion: 1 }
+      candidateSet:
+        - { type: design-mode, schemaVersion: 1 }
+        - { type: ids-document, schemaVersion: 1 }
+        - { type: normalized-design-flow, schemaVersion: 1 }
+    retry: { maxTechnicalRetries: 1, defaultDelayMs: 1000 }
+  - stageId: design-planning
+    capabilityId: design-planning
+    consumes:
+      - { type: ids-document, schemaVersion: 1 }
+      - { type: normalized-design-flow, schemaVersion: 1 }
+      - { type: run-manifest, schemaVersion: 1 }
+    produces:
+      - { type: design-plan-report, schemaVersion: 1 }
+      - { type: design-execution-plan, schemaVersion: 1 }
+      - { type: implementation-plan, schemaVersion: 2 }
+    approval:
+      artifact: { type: implementation-plan, schemaVersion: 2 }
+      bindingResolutionPolicy: CATALOG_FIRST_V1
+      bindingResolutionPolicyHash: ce160e1a62abc9d33b117338b10134e6cf8eeb5065ba6e5392a42b7f9cd17421
+      candidateSet:
+        - { type: ids-document, schemaVersion: 1 }
+        - { type: normalized-design-flow, schemaVersion: 1 }
+        - { type: design-plan-report, schemaVersion: 1 }
+        - { type: design-execution-plan, schemaVersion: 1 }
+        - { type: implementation-plan, schemaVersion: 2 }
+    retry: { maxTechnicalRetries: 1, defaultDelayMs: 1000 }
+  - stageId: design-execution
+    capabilityId: design-execution
+    consumes:
+      - { type: ids-document, schemaVersion: 1 }
+      - { type: normalized-design-flow, schemaVersion: 1 }
+      - { type: design-plan-report, schemaVersion: 1 }
+      - { type: design-execution-plan, schemaVersion: 1 }
+      - { type: implementation-plan, schemaVersion: 2 }
+      - { type: approval-record, schemaVersion: 2 }
+      - { type: run-manifest, schemaVersion: 1 }
+    optionalConsumes:
+      - { type: catalog-binding-hint, schemaVersion: 1 }
+    produces:
+      - { type: catalog-binding-resolutions, schemaVersion: 1 }
+      - { type: execution-trace, schemaVersion: 1 }
+      - { type: api-operation-bindings, schemaVersion: 1 }
+      - { type: ordered-graph-patches, schemaVersion: 1 }
+      - { type: chain-plan-graph, schemaVersion: 1 }
+      - { type: graph-assembly-result, schemaVersion: 1 }
+      - { type: plan-validation-result, schemaVersion: 1 }
+      - { type: compiler-validation-bundle, schemaVersion: 1 }
+      - { type: executor-validation-bundle, schemaVersion: 1 }
+      - { type: validated-execution-bundle, schemaVersion: 1 }
+      - { type: materialization-request, schemaVersion: 1 }
+      - { type: design-execution-checkpoint, schemaVersion: 1 }
+    retry: { maxTechnicalRetries: 1, defaultDelayMs: 1000 }
+  - stageId: materialization
+    capabilityId: materialization
+    consumes:
+      - { type: materialization-request, schemaVersion: 1 }
+      - { type: validated-execution-bundle, schemaVersion: 1 }
+      - { type: design-execution-checkpoint, schemaVersion: 1 }
+      - { type: approval-record, schemaVersion: 2 }
+      - { type: run-manifest, schemaVersion: 1 }
+    produces:
+      - { type: materialization-result, schemaVersion: 1 }
+      - { type: catalog-chain-snapshot, schemaVersion: 1 }
+      - { type: reconcile-result, schemaVersion: 1 }
+      - { type: design-execution-checkpoint, schemaVersion: 1 }
+      - { type: design-execution-result, schemaVersion: 1 }
+    retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
+implementationGate:
+  afterStageId: design-planning
+  targetArtifact: { type: implementation-plan, schemaVersion: 2 }
+  waitingState: WAITING_FOR_IMPLEMENT
+terminal: { stageId: materialization, state: CHAIN_MATERIALIZED }
+dependencyRoots:
+  - ids-entry
+  - requirement-discovery
+  - requirement-analysis
+  - design-input
+  - design-planning
+  - design-execution
+  - materialization

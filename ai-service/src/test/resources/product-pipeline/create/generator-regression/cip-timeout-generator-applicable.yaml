@@ -1,0 +1,93 @@
+caseId: cip-timeout-generator-applicable
+skillId: cip-timeout-generator
+expectedApplicability: APPLICABLE
+requirementBrief:
+  goal: Apply descending timeout hierarchy.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Apply descending timeout hierarchy.
+  approvedDraftReference: approved-draft-cip-timeout-generator-applicable
+  approvedDraftText: Apply descending timeout hierarchy.
+  facts:
+    - sourceFactId: timeout-1
+      polarity: POSITIVE
+      kind: BEHAVIOR
+      capabilityKey: timeout
+      text: Set connectTimeout on the HTTP trigger.
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Timeout.Demo.Hierarchy
+    description: Apply descending timeouts.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: GET /orders
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "false"
+    - nodeId: service-call-1
+      type: service-call
+      label: Call orders
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges:
+    - edgeId: trigger-to-call
+      fromNodeId: http-trigger-1
+      toNodeId: service-call-1
+      scopeNodeId: null
+capturedPatch:
+  patchId: timeout-hierarchy
+  ownerCapabilityId: cip-timeout-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches:
+    - operation: ADD
+      targetNodeId: http-trigger-1
+      property:
+        key: connectTimeout
+        value: "120000"
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: Set http-trigger connectTimeout; service-call has no timeout property.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Timeout.Demo.Hierarchy
+    description: Apply descending timeouts.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: GET /orders
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "false"
+        - key: connectTimeout
+          value: "120000"
+    - nodeId: service-call-1
+      type: service-call
+      label: Call orders
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges:
+    - edgeId: trigger-to-call
+      fromNodeId: http-trigger-1
+      toNodeId: service-call-1
+      scopeNodeId: null

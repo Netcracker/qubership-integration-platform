@@ -1,0 +1,654 @@
+# VALIDATION RULES
+# Version: 1.0
+# Source: Corporate CIP Standards (Phase 6)
+# Purpose: Define validation rules for Language, Grammar, Element Configuration,
+#          Execution Order, Pattern Compliance, Corporate Standards, Naming, Reusable Components.
+
+validation_rules:
+  version: "1.0"
+  generated: "2026-06-15"
+
+  # ═══════════════════════════════════════════════════════════════
+  # 1. LANGUAGE VALIDATION
+  # ═══════════════════════════════════════════════════════════════
+
+  VR-L-001:
+    id: "VR-L-001"
+    category: "Language"
+    name: "v2 Element Mandate"
+    severity: "ERROR"
+    validation_logic: "IF element_type IN deprecated_list THEN FAIL"
+    deprecated_list: ["try-catch-finally", "try", "catch", "finally", "loop", "loop-expression", "split-async", "async-split-element", "sync-split-element", "split", "split-element", "main-split-element", "choice", "when", "otherwise"]
+    recommended_fix: "Replace with v2/current equivalent: try-catch-finally-2, try-2, catch-2, finally-2, loop-2, split-async-2, async-split-element-2, split-2, split-element-2, main-split-element-2; replace choice/when/otherwise with nested condition/if/else (MIG-014)."
+    references: ["CORPORATE_CIP_STANDARDS.md §1.2", "ADR-001", "ADR-007", "MIG-014"]
+
+  VR-L-002:
+    id: "VR-L-002"
+    category: "Language"
+    name: "Known Element Type"
+    severity: "ERROR"
+    validation_logic: "IF element_type NOT IN approved_42_types THEN FAIL"
+    approved_types_count: 42
+    recommended_fix: "Use only elements from the approved CIP language catalog."
+    references: ["CORPORATE_CIP_STANDARDS.md §1.1"]
+
+  VR-L-003:
+    id: "VR-L-003"
+    category: "Language"
+    name: "Deprecated Element Migration Warning"
+    severity: "WARNING"
+    validation_logic: "IF existing_chain contains deprecated elements THEN WARN with migration path"
+    recommended_fix: "Schedule migration per migration-matrix.md priority."
+    references: ["migration-matrix.md"]
+
+  # ═══════════════════════════════════════════════════════════════
+  # 2. GRAMMAR VALIDATION
+  # ═══════════════════════════════════════════════════════════════
+
+  VR-G-001:
+    id: "VR-G-001"
+    category: "Grammar"
+    name: "Minimum Trigger"
+    severity: "ERROR"
+    validation_logic: "IF chain.trigger_count == 0 THEN FAIL"
+    recommended_fix: "Add at least one trigger element (http-trigger, chain-trigger-2, async-api-trigger, kafka-trigger-2, quartz-scheduler, or rabbitmq-trigger-2)."
+    references: ["CORPORATE_CIP_STANDARDS.md §2.1"]
+
+  VR-G-002:
+    id: "VR-G-002"
+    category: "Grammar"
+    name: "Minimum Executable Element"
+    severity: "ERROR"
+    validation_logic: "IF chain.executable_element_count == 0 THEN FAIL"
+    recommended_fix: "Add at least one executable element to the chain body."
+    references: ["CORPORATE_CIP_STANDARDS.md §2.1"]
+
+  VR-G-003:
+    id: "VR-G-003"
+    category: "Grammar"
+    name: "Valid DAG"
+    severity: "ERROR"
+    validation_logic: "IF dependency_graph.has_cycle AND NOT (recursive_reuse_with_guard) THEN FAIL"
+    recommended_fix: "Remove circular dependencies. Only recursive reuse-reference with guard condition is permitted."
+    references: ["CORPORATE_CIP_STANDARDS.md §2.1"]
+
+  VR-G-004:
+    id: "VR-G-004"
+    category: "Grammar"
+    name: "Element Reachability"
+    severity: "ERROR"
+    validation_logic: "FOR EACH element: IF NOT reachable_from_any_trigger THEN FAIL"
+    recommended_fix: "Remove orphan elements or add dependency edges from reachable elements."
+    references: ["CORPORATE_CIP_STANDARDS.md §2.1"]
+
+  VR-G-005:
+    id: "VR-G-005"
+    category: "Grammar"
+    name: "Condition-If Parent-Child"
+    severity: "ERROR"
+    validation_logic: "IF condition.if_children_count != 1 THEN FAIL"
+    recommended_fix: "Every condition MUST have exactly one if child."
+    references: ["CORPORATE_CIP_STANDARDS.md §2.2"]
+
+  VR-G-006:
+    id: "VR-G-006"
+    category: "Grammar"
+    name: "Choice-When Parent-Child (legacy/deprecated)"
+    severity: "ERROR"
+    applies_to: "legacy chains only — choice/when/otherwise are DEPRECATED (ADR-007); MUST NOT be generated"
+    validation_logic: "IF choice.when_children_count == 0 THEN FAIL"
+    recommended_fix: "Legacy structural check only. New routing MUST use nested condition/if/else (MIG-014)."
+    references: ["CORPORATE_CIP_STANDARDS.md §2.2", "ADR-007", "MIG-014"]
+
+  VR-G-007:
+    id: "VR-G-007"
+    category: "Grammar"
+    name: "Try-Catch Structure"
+    severity: "ERROR"
+    validation_logic: "IF try_catch_finally_2.try_2_count != 1 OR try_catch_finally_2.catch_2_count == 0 THEN FAIL"
+    recommended_fix: "try-catch-finally-2 MUST have exactly one try-2 and at least one catch-2."
+    references: ["CORPORATE_CIP_STANDARDS.md §2.2"]
+
+  VR-G-008:
+    id: "VR-G-008"
+    category: "Grammar"
+    name: "Split-Async Minimum Branches"
+    severity: "ERROR"
+    validation_logic: "IF split_async_2.async_split_element_2_count < 2 THEN FAIL"
+    recommended_fix: "split-async-2 MUST have at least two async-split-element-2 children."
+    references: ["CORPORATE_CIP_STANDARDS.md §2.2"]
+
+  VR-G-009:
+    id: "VR-G-009"
+    category: "Grammar"
+    name: "Circuit Breaker Structure"
+    severity: "ERROR"
+    validation_logic: "IF circuit_breaker_2 missing circuit-breaker-configuration-2 OR missing on-fallback-2 THEN FAIL"
+    recommended_fix: "circuit-breaker-2 MUST have exactly one configuration and one fallback element."
+    references: ["CORPORATE_CIP_STANDARDS.md §2.2"]
+
+  VR-G-010:
+    id: "VR-G-010"
+    category: "Grammar"
+    name: "If Parent Validation"
+    severity: "ERROR"
+    validation_logic: "IF if_element.parent != condition THEN FAIL"
+    recommended_fix: "if MUST be a child of condition."
+    references: ["CORPORATE_CIP_STANDARDS.md §12.1"]
+
+  VR-G-011:
+    id: "VR-G-011"
+    category: "Grammar"
+    name: "When/Otherwise Parent Validation (legacy/deprecated)"
+    severity: "ERROR"
+    applies_to: "legacy chains only — choice/when/otherwise are DEPRECATED (ADR-007); MUST NOT be generated"
+    validation_logic: "IF when.parent != choice OR otherwise.parent != choice THEN FAIL"
+    recommended_fix: "Legacy structural check only. Migrate to nested condition/if/else (MIG-014)."
+    references: ["CORPORATE_CIP_STANDARDS.md §12.1", "ADR-007", "MIG-014"]
+
+  VR-G-012:
+    id: "VR-G-012"
+    category: "Grammar"
+    name: "Error Elements Parent Validation"
+    severity: "ERROR"
+    validation_logic: "IF try_2.parent != try-catch-finally-2 OR catch_2.parent != try-catch-finally-2 OR finally_2.parent != try-catch-finally-2 THEN FAIL"
+    recommended_fix: "try-2, catch-2, finally-2 MUST be children of try-catch-finally-2."
+    references: ["CORPORATE_CIP_STANDARDS.md §12.1"]
+
+  VR-G-013:
+    id: "VR-G-013"
+    category: "Grammar"
+    name: "Split Elements Parent Validation"
+    severity: "ERROR"
+    validation_logic: "IF async_split_element_2.parent != split-async-2 THEN FAIL; IF split_element_2.parent != split-2 THEN FAIL; IF main_split_element_2.parent != split-2 THEN FAIL"
+    recommended_fix: "Split child elements MUST be children of their respective split container."
+    references: ["CORPORATE_CIP_STANDARDS.md §12.1"]
+
+  VR-G-014:
+    id: "VR-G-014"
+    category: "Grammar"
+    name: "Swimlane Not In Dependencies"
+    severity: "ERROR"
+    validation_logic: "IF swimlane appears in dependency_graph THEN FAIL"
+    recommended_fix: "Swimlane elements MUST NOT have dependencies or appear in execution graph."
+    references: ["CORPORATE_CIP_STANDARDS.md §2.1"]
+
+  VR-G-015:
+    id: "VR-G-015"
+    category: "Grammar"
+    name: "Condition Nesting Depth"
+    severity: "WARNING"
+    validation_logic: "IF condition_nesting_depth > 3 THEN WARN"
+    recommended_fix: "Extract deeper branches to a sub-chain (chain-call-2). Do NOT use choice/when/otherwise (DEPRECATED)."
+    references: ["CORPORATE_CIP_STANDARDS.md §2.3", "anti-patterns.md AP-09", "ADR-007"]
+
+  VR-G-016:
+    id: "VR-G-016"
+    category: "Grammar"
+    name: "Try-Catch Nesting Depth"
+    severity: "WARNING"
+    validation_logic: "IF try_catch_nesting_depth > 2 THEN WARN"
+    recommended_fix: "Simplify error handling structure."
+    references: ["CORPORATE_CIP_STANDARDS.md §2.3"]
+
+  VR-G-017:
+    id: "VR-G-017"
+    category: "Grammar"
+    name: "Loop Nesting Depth"
+    severity: "WARNING"
+    validation_logic: "IF loop_nesting_depth > 2 THEN WARN"
+    recommended_fix: "Nested loops indicate design issue. Extract inner loop to sub-chain."
+    references: ["CORPORATE_CIP_STANDARDS.md §2.3"]
+
+  VR-G-018:
+    id: "VR-G-018"
+    category: "Grammar"
+    name: "Chain-Call Depth"
+    severity: "WARNING"
+    validation_logic: "IF chain_call_depth > 5 THEN WARN"
+    recommended_fix: "Deep chain-call nesting indicates over-decomposition."
+    references: ["CORPORATE_CIP_STANDARDS.md §2.3"]
+
+  VR-G-019:
+    id: "VR-G-019"
+    category: "Grammar"
+    name: "Element Count Limit"
+    severity: "WARNING"
+    validation_logic: "IF chain.element_count > 200 THEN WARN"
+    recommended_fix: "Decompose into sub-chains. Platform limit observed at ~171."
+    references: ["CORPORATE_CIP_STANDARDS.md §2.3"]
+
+  VR-G-020:
+    id: "VR-G-020"
+    category: "Grammar"
+    name: "When Priority Uniqueness (legacy/deprecated)"
+    severity: "ERROR"
+    applies_to: "legacy chains only — choice/when/otherwise are DEPRECATED (ADR-007)"
+    validation_logic: "IF any two when elements in same choice have same priorityNumber THEN FAIL"
+    recommended_fix: "Legacy check. New routing uses unique `priority` on `if` in nested condition/if/else (MIG-014)."
+    references: ["CORPORATE_CIP_STANDARDS.md §3.3", "ADR-007", "MIG-014"]
+
+  # ═══════════════════════════════════════════════════════════════
+  # 3. ELEMENT CONFIGURATION VALIDATION
+  # ═══════════════════════════════════════════════════════════════
+
+  VR-E-001:
+    id: "VR-E-001"
+    category: "Element Configuration"
+    name: "HTTP Trigger ExternalRoute"
+    severity: "ERROR"
+    validation_logic: "IF http_trigger.externalRoute is not explicitly set THEN FAIL"
+    recommended_fix: "Set externalRoute to true or false explicitly."
+    references: ["element-standards.md §1.1"]
+
+  VR-E-002:
+    id: "VR-E-002"
+    category: "Element Configuration"
+    name: "HTTP Trigger Timeout"
+    severity: "ERROR"
+    validation_logic: "IF http_trigger.connectTimeout != 120000 THEN FAIL"
+    recommended_fix: "Set connectTimeout: 120000 (platform default)."
+    references: ["element-standards.md §1.1"]
+
+  VR-E-003:
+    id: "VR-E-003"
+    category: "Element Configuration"
+    name: "Service-Call M2M v2"
+    severity: "ERROR"
+    validation_logic: "IF service_call uses m2m:true (v1) instead of authorizationConfiguration.type:m2m THEN FAIL"
+    recommended_fix: "Migrate to v2 syntax: authorizationConfiguration.type: 'm2m'."
+    references: ["element-standards.md §2.1"]
+
+  VR-E-004:
+    id: "VR-E-004"
+    category: "Element Configuration"
+    name: "Service-Call After Hooks"
+    severity: "WARNING"
+    validation_logic: "IF service_call.after_hooks is empty THEN WARN"
+    recommended_fix: "Add at minimum a '200' after hook."
+    references: ["element-standards.md §2.1", "best-practices.md BP-04"]
+
+  VR-E-005:
+    id: "VR-E-005"
+    category: "Element Configuration"
+    name: "Retry Count Maximum"
+    severity: "ERROR"
+    validation_logic: "IF service_call.retryCount > 5 THEN FAIL"
+    recommended_fix: "Set retryCount <= 5."
+    references: ["CORPORATE_CIP_STANDARDS.md §6.2"]
+
+  VR-E-006:
+    id: "VR-E-006"
+    category: "Element Configuration"
+    name: "Retry Delay Minimum"
+    severity: "ERROR"
+    validation_logic: "IF service_call.retryCount > 0 AND service_call.retryDelay < 5000 THEN FAIL"
+    recommended_fix: "Set retryDelay >= 5000ms."
+    references: ["CORPORATE_CIP_STANDARDS.md §6.2"]
+
+  VR-E-007:
+    id: "VR-E-007"
+    category: "Element Configuration"
+    name: "Kafka TLS"
+    severity: "ERROR"
+    validation_logic: "IF (kafka_trigger_2 OR kafka_sender_2).sslProtocol != 'TLS' THEN FAIL"
+    recommended_fix: "Set sslProtocol: 'TLS'."
+    references: ["CORPORATE_CIP_STANDARDS.md §5.3"]
+
+  VR-E-008:
+    id: "VR-E-008"
+    category: "Element Configuration"
+    name: "Kafka MaaS Connection"
+    severity: "ERROR"
+    validation_logic: "IF (kafka_trigger_2 OR kafka_sender_2).connectionSourceType != 'maas' THEN FAIL"
+    recommended_fix: "Set connectionSourceType: 'maas'."
+    references: ["element-standards.md §1.4, §2.3"]
+
+  VR-E-009:
+    id: "VR-E-009"
+    category: "Element Configuration"
+    name: "Kafka Topic MaaS Binding"
+    severity: "ERROR"
+    validation_logic: "IF kafka_sender_2.topic does not use %%{uuid_*} pattern THEN FAIL"
+    recommended_fix: "Use MaaS-managed topic placeholder: %%{uuid_topicName}."
+    references: ["element-standards.md §2.3", "best-practices.md BP-12"]
+
+  VR-E-010:
+    id: "VR-E-010"
+    category: "Element Configuration"
+    name: "Catch Exception Specification"
+    severity: "ERROR"
+    validation_logic: "IF catch_2.exception is empty THEN FAIL"
+    recommended_fix: "Set exception to fully qualified class name (e.g., java.lang.Exception)."
+    references: ["CORPORATE_CIP_STANDARDS.md §3.4"]
+
+  VR-E-011:
+    id: "VR-E-011"
+    category: "Element Configuration"
+    name: "Catch Priority Specification"
+    severity: "ERROR"
+    validation_logic: "IF catch_2.priority is undefined THEN FAIL"
+    recommended_fix: "Set priority to integer (0 = first evaluated)."
+    references: ["CORPORATE_CIP_STANDARDS.md §3.4"]
+
+  VR-E-012:
+    id: "VR-E-012"
+    category: "Element Configuration"
+    name: "Chain-Call Static ElementId"
+    severity: "ERROR"
+    validation_logic: "IF chain_call_2.elementId contains ${exchangeProperty THEN FAIL"
+    recommended_fix: "Use static UUID. Route via nested condition/if/else for multiple targets (choice/when DEPRECATED)."
+    references: ["CORPORATE_CIP_STANDARDS.md §3.5", "anti-patterns.md AP-05", "ADR-007"]
+
+  VR-E-013:
+    id: "VR-E-013"
+    category: "Element Configuration"
+    name: "Chain-Call Blocking Timeout"
+    severity: "WARNING"
+    validation_logic: "IF chain_call_2.block == true AND chain_call_2.timeout is undefined THEN WARN"
+    recommended_fix: "Set timeout: 30000 for blocking chain-calls."
+    references: ["element-standards.md §6.1"]
+
+  VR-E-014:
+    id: "VR-E-014"
+    category: "Element Configuration"
+    name: "Loop Safety Guard"
+    severity: "WARNING"
+    validation_logic: "IF loop_2.maxLoopIteration is undefined THEN WARN"
+    recommended_fix: "Set maxLoopIteration to prevent infinite loops."
+    references: ["element-standards.md §3.3"]
+
+  VR-E-015:
+    id: "VR-E-015"
+    category: "Element Configuration"
+    name: "Reuse Reference Validity"
+    severity: "ERROR"
+    validation_logic: "IF reuse_reference.reuseElementId does not resolve to existing reuse block THEN FAIL"
+    recommended_fix: "Ensure reuseElementId references a valid reuse block in the same chain."
+    references: ["CORPORATE_CIP_STANDARDS.md §3.5, §12.2"]
+
+  VR-E-016:
+    id: "VR-E-016"
+    category: "Element Configuration"
+    name: "Valid Camel Expression"
+    severity: "ERROR"
+    validation_logic: "IF if.expression OR loop_2.expression is syntactically invalid THEN FAIL"
+    recommended_fix: "Fix Camel Simple expression syntax."
+    references: ["CORPORATE_CIP_STANDARDS.md §12.2"]
+
+  VR-E-017:
+    id: "VR-E-017"
+    category: "Element Configuration"
+    name: "Exponential Backoff Retry (advisory)"
+    severity: "WARNING"
+    validation_logic: "IF service_call.retryCount > 0 AND retry uses fixed delay (no backoff/jitter) THEN WARN"
+    recommended_fix: "Prefer exponential backoff with jitter over fixed-delay retry. NOTE: runtime currently supports fixed-delay only (RTL-007); keep retryCount<=5 and retryDelay>=5000ms until backoff is available."
+    references: ["best-practices.md BP-15", "runtime gap GR-001", "RTL-007"]
+
+  # ═══════════════════════════════════════════════════════════════
+  # 3b. SCRIPT SAFETY VALIDATION
+  # ═══════════════════════════════════════════════════════════════
+
+  VR-S-001:
+    id: "VR-S-001"
+    category: "Script"
+    name: "No Thread.sleep in Script"
+    severity: "ERROR"
+    validation_logic: "IF script body contains Thread.sleep( (or equivalent blocking sleep) THEN FAIL"
+    recommended_fix: "Remove Thread.sleep(); use declarative element timeout/delay configuration instead."
+    references: ["best-practices.md BP-13", "anti-patterns.md AP-14", "runtime gap GV-001"]
+
+  VR-S-002:
+    id: "VR-S-002"
+    category: "Script"
+    name: "No Raw SQL in Script"
+    severity: "ERROR"
+    validation_logic: "IF script body contains raw SQL / direct JDBC usage THEN FAIL"
+    recommended_fix: "Use service-call with dbaas service type and parameterized operations instead of raw SQL."
+    references: ["best-practices.md BP-14", "anti-patterns.md AP-15", "runtime gap GV-002"]
+
+  # ═══════════════════════════════════════════════════════════════
+  # 4. EXECUTION ORDER VALIDATION
+  # ═══════════════════════════════════════════════════════════════
+
+  VR-X-001:
+    id: "VR-X-001"
+    category: "Execution Order"
+    name: "Timeout Hierarchy"
+    severity: "WARNING"
+    validation_logic: "IF child_timeout > parent_timeout THEN WARN"
+    recommended_fix: "Ensure trigger > chain-call > service-call timeout ordering."
+    references: ["CORPORATE_CIP_STANDARDS.md §6.1", "ADR-012"]
+
+  VR-X-002:
+    id: "VR-X-002"
+    category: "Execution Order"
+    name: "AsyncAPI Finally Block"
+    severity: "ERROR"
+    validation_logic: "IF trigger_type == async-api-trigger AND no finally-2 in try-catch-finally-2 THEN FAIL"
+    recommended_fix: "Add finally-2 with OM task result reporter."
+    references: ["CORPORATE_CIP_STANDARDS.md §7.1", "ADR-011"]
+
+  VR-X-003:
+    id: "VR-X-003"
+    category: "Execution Order"
+    name: "Multi-Way Default Branch Defensive"
+    severity: "WARNING"
+    validation_logic: "IF multi-way routing chain (nested condition/if/else) has no terminal else THEN WARN. (Legacy: choice without otherwise.)"
+    recommended_fix: "Add a final else (default branch) for defensive programming. choice/otherwise is DEPRECATED — use nested condition/if/else."
+    references: ["grammar-standard.md §1.5", "ADR-007"]
+
+  VR-X-004:
+    id: "VR-X-004"
+    category: "Execution Order"
+    name: "Condition Else Presence"
+    severity: "WARNING"
+    validation_logic: "IF condition has no else AND chain is production API THEN WARN"
+    recommended_fix: "Add else branch for complete path coverage."
+    references: ["grammar-standard.md §1.4"]
+
+  # ═══════════════════════════════════════════════════════════════
+  # 5. PATTERN COMPLIANCE VALIDATION
+  # ═══════════════════════════════════════════════════════════════
+
+  VR-P-001:
+    id: "VR-P-001"
+    category: "Pattern Compliance"
+    name: "HTTP API Pattern"
+    severity: "WARNING"
+    validation_logic: "IF trigger_type == http-trigger AND NOT follows GP-01 pattern THEN WARN"
+    recommended_fix: "Apply GP-01: Protected Request-Response pattern."
+    references: ["pattern-standards.md §12"]
+
+  VR-P-002:
+    id: "VR-P-002"
+    category: "Pattern Compliance"
+    name: "AsyncAPI Pattern"
+    severity: "ERROR"
+    validation_logic: "IF trigger_type == async-api-trigger AND NOT follows GP-02 pattern THEN FAIL"
+    recommended_fix: "Apply GP-02: AsyncAPI Task Processor with finally-2."
+    references: ["pattern-standards.md §12"]
+
+  VR-P-003:
+    id: "VR-P-003"
+    category: "Pattern Compliance"
+    name: "GDPR Pattern"
+    severity: "ERROR"
+    validation_logic: "IF chain_purpose == GDPR_deletion AND NOT follows GP-07 THEN FAIL"
+    recommended_fix: "Apply GP-07: GDPR Scatter-Gather Deletion."
+    references: ["pattern-standards.md §12"]
+
+  VR-P-004:
+    id: "VR-P-004"
+    category: "Pattern Compliance"
+    name: "Reuse Adoption"
+    severity: "WARNING"
+    validation_logic: "IF chain has 3+ duplicated_element_sequences AND no reuse blocks THEN WARN"
+    recommended_fix: "Extract to reuse block for DRY compliance."
+    references: ["best-practices.md BP-06"]
+
+  # ═══════════════════════════════════════════════════════════════
+  # 6. CORPORATE STANDARDS VALIDATION
+  # ═══════════════════════════════════════════════════════════════
+
+  VR-C-001:
+    id: "VR-C-001"
+    category: "Corporate Standards"
+    name: "External Route RBAC"
+    severity: "ERROR"
+    validation_logic: "IF http_trigger.externalRoute == true AND (accessControlType != 'RBAC' OR roles is empty) THEN FAIL"
+    recommended_fix: "Add accessControlType: RBAC with specific role array."
+    references: ["CORPORATE_CIP_STANDARDS.md §5.2"]
+
+  VR-C-002:
+    id: "VR-C-002"
+    category: "Corporate Standards"
+    name: "External Auth Generic.Auth"
+    severity: "WARNING"
+    validation_logic: "IF chain calls external system AND NOT through Generic.Auth THEN WARN"
+    recommended_fix: "Register system in Generic.Auth and use chain-call-2."
+    references: ["CORPORATE_CIP_STANDARDS.md §5.1", "ADR-004"]
+
+  VR-C-003:
+    id: "VR-C-003"
+    category: "Corporate Standards"
+    name: "Session Logging"
+    severity: "WARNING"
+    validation_logic: "IF chain.sessionsLoggingLevel != 'SESSION' THEN WARN"
+    recommended_fix: "Set sessionsLoggingLevel: SESSION."
+    references: ["CORPORATE_CIP_STANDARDS.md §8.1"]
+
+  VR-C-004:
+    id: "VR-C-004"
+    category: "Corporate Standards"
+    name: "DPT Events"
+    severity: "WARNING"
+    validation_logic: "IF chain.dptEventsEnabled != true THEN WARN"
+    recommended_fix: "Set dptEventsEnabled: true."
+    references: ["CORPORATE_CIP_STANDARDS.md §8.1"]
+
+  VR-C-005:
+    id: "VR-C-005"
+    category: "Corporate Standards"
+    name: "No Hardcoded Credentials"
+    severity: "ERROR"
+    validation_logic: "IF chain contains plaintext passwords, API keys, or tokens THEN FAIL"
+    recommended_fix: "Use #{SECURED_VAR} from secured.yaml."
+    references: ["CORPORATE_CIP_STANDARDS.md §5.3"]
+
+  VR-C-006:
+    id: "VR-C-006"
+    category: "Corporate Standards"
+    name: "Context Propagation"
+    severity: "WARNING"
+    validation_logic: "IF service_call.propagateContext != true THEN WARN"
+    recommended_fix: "Set propagateContext: true for cross-service correlation."
+    references: ["CORPORATE_CIP_STANDARDS.md §8.3"]
+
+  # ═══════════════════════════════════════════════════════════════
+  # 7. NAMING VALIDATION
+  # ═══════════════════════════════════════════════════════════════
+
+  VR-N-001:
+    id: "VR-N-001"
+    category: "Naming"
+    name: "Chain Name Convention"
+    severity: "WARNING"
+    validation_logic: "IF chain.name does not match '^[A-Z]+\\.(Inbound|Outbound|Internal)\\..+$' THEN WARN"
+    recommended_fix: "Use {Domain}.{Direction}.{Action} format."
+    references: ["CORPORATE_CIP_STANDARDS.md §9.1"]
+
+  VR-N-002:
+    id: "VR-N-002"
+    category: "Naming"
+    name: "No Ticket Numbers"
+    severity: "WARNING"
+    validation_logic: "IF chain.name matches '(NI-UIM-|JIRA-|[A-Z]+-\\d{3,})' THEN WARN"
+    recommended_fix: "Remove ticket references from chain name."
+    references: ["CORPORATE_CIP_STANDARDS.md §9.1"]
+
+  VR-N-003:
+    id: "VR-N-003"
+    category: "Naming"
+    name: "No Numeric Prefix"
+    severity: "WARNING"
+    validation_logic: "IF chain.name matches '^\\d' THEN WARN"
+    recommended_fix: "Remove numeric prefix from chain name."
+    references: ["CORPORATE_CIP_STANDARDS.md §9.1"]
+
+  VR-N-004:
+    id: "VR-N-004"
+    category: "Naming"
+    name: "Property Naming Convention"
+    severity: "WARNING"
+    validation_logic: "IF exchange_property name is not camelCase THEN WARN"
+    recommended_fix: "Use camelCase for exchange property names."
+    references: ["CORPORATE_CIP_STANDARDS.md §9.2"]
+
+  VR-N-005:
+    id: "VR-N-005"
+    category: "Naming"
+    name: "Service Naming Convention"
+    severity: "WARNING"
+    validation_logic: "IF service.name does not match '^[a-z]+-[a-z]+-service$' pattern THEN WARN"
+    recommended_fix: "Use {domain}-{purpose}-service format (lowercase, hyphenated)."
+    references: ["CORPORATE_CIP_STANDARDS.md §9.4"]
+
+  # ═══════════════════════════════════════════════════════════════
+  # 8. REUSABLE COMPONENTS VALIDATION
+  # ═══════════════════════════════════════════════════════════════
+
+  VR-R-001:
+    id: "VR-R-001"
+    category: "Reusable Components"
+    name: "Generic.Auth for External Systems"
+    severity: "WARNING"
+    validation_logic: "IF chain accesses external system AND does not invoke Generic.Auth THEN WARN"
+    recommended_fix: "Register system in Generic.Auth and invoke via chain-call-2."
+    references: ["reusable-components.md §1.1"]
+
+  VR-R-002:
+    id: "VR-R-002"
+    category: "Reusable Components"
+    name: "Reuse Block Documentation"
+    severity: "WARNING"
+    validation_logic: "IF reuse block exists AND has no descriptive name THEN WARN"
+    recommended_fix: "Give reuse block a descriptive name documenting its purpose."
+    references: ["CORPORATE_CIP_STANDARDS.md §11.2"]
+
+  VR-R-003:
+    id: "VR-R-003"
+    category: "Reusable Components"
+    name: "GDPR Deletion Orchestrator"
+    severity: "ERROR"
+    validation_logic: "IF chain_purpose == GDPR_deletion AND does not use deletion orchestrator pattern THEN FAIL"
+    recommended_fix: "Use the standard GDPR scatter-gather deletion orchestrator."
+    references: ["reusable-components.md §1.2"]
+
+  VR-R-004:
+    id: "VR-R-004"
+    category: "Reusable Components"
+    name: "OM Task Result Reporter"
+    severity: "ERROR"
+    validation_logic: "IF trigger_type == async-api-trigger AND finally-2 does not contain task result reporter THEN FAIL"
+    recommended_fix: "Add OM Task Result Reporter reuse block in finally-2."
+    references: ["reusable-components.md §6"]
+
+# ═══════════════════════════════════════════════════════════════
+# VALIDATION RULES METADATA
+# ═══════════════════════════════════════════════════════════════
+metadata:
+  total_rules: 58
+  severity_distribution:
+    ERROR: 32
+    WARNING: 26
+  category_distribution:
+    Language: 3
+    Grammar: 20
+    Element_Configuration: 17
+    Script: 2
+    Execution_Order: 4
+    Pattern_Compliance: 4
+    Corporate_Standards: 6
+    Naming: 5
+    Reusable_Components: 4

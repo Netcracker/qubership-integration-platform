@@ -17,3 +17,12 @@ global:
       micro:
         enabled: true
         image: ghcr.io/netcracker/qubership-integration-micro-engine:latest
+    ai:
+      image: ghcr.io/netcracker/qubership-integration-ai-service:main
+      knowledgeSidecarImage: ghcr.io/netcracker/qubership-integration-knowledge-sidecar:main
+      knowledgeVolume: null
+      llmApiKey: placeholder
+      # Runtime A2A rollout flag (default off). Does not delete Task data when flipped.
+      a2aEnabled: "false"
+      # Public base URL for the Agent Card. Set before enabling A2A (for example https://ai.example.com).
+      a2aPublicBaseUrl: ""

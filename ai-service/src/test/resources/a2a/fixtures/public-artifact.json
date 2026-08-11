@@ -1,0 +1,36 @@
+{
+  "allowlist": [
+    "requirement-draft",
+    "integration-design",
+    "implementation-plan",
+    "validation-report",
+    "materialization-result",
+    "failure-report"
+  ],
+  "artifact": {
+    "id": "art-requirement-draft",
+    "type": "requirement-draft",
+    "revision": 3,
+    "contentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "payload": {
+      "id": "art-requirement-draft",
+      "type": "requirement-draft",
+      "revision": 3,
+      "contentHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "contentRef": "app://create-chain/artifacts/art-requirement-draft?revision=3",
+      "summary": "Safe summary for requirement-draft"
+    }
+  },
+  "forbiddenInPublicSurfaces": [
+    "bucket",
+    "objectKey",
+    "s3://",
+    "compiler-artifacts/",
+    "prompt",
+    "modelTrace",
+    "credentials",
+    "rawLog",
+    "pipelineSnapshot",
+    "Reference["
+  ]
+}

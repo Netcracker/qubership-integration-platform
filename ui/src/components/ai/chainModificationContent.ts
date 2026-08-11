@@ -84,6 +84,23 @@ export function lastUserMessageIsAgree(messages: ChatMessage[]): boolean {
   );
 }
 
+/** True when the last user message is the explicit chain-build phrase for Gate 2 routing. */
+export function lastUserMessageIsBuildChainIntent(
+  messages: ChatMessage[],
+): boolean {
+  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  if (!lastUser || typeof lastUser.content !== "string") return false;
+  const t = lastUser.content.trim().toLowerCase();
+  return (
+    t === "create the chain" ||
+    t === "build the chain" ||
+    t === "implement the chain" ||
+    (t.length < 80 &&
+      (/\b(create|build|implement)\s+the\s+chain\b/i.test(t) ||
+        /\b(create|build)\s+chain\b/i.test(t)))
+  );
+}
+
 const ATTACHMENT_URL_PATTERN =
   /https?:\/\/[^\s"'<>)]*\/attachments\/[0-9a-f-]{36}(?:[^\s"'<>)]*)?/gi;
 

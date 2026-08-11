@@ -1,0 +1,144 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ .Release.Name }}-ai-service
+  name: {{ .Release.Name }}-ai-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-ai-service
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-ai-service
+    spec:
+      initContainers:
+        - name: a2a-db-preflight
+          image: postgres:17.2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: username
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: password
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              echo "Preflight: waiting for logical database ai_a2a on {{ .Release.Name }}-postgres"
+              until psql -h "{{ .Release.Name }}-postgres" -U "$PGUSER" -d postgres -tAc \
+                "SELECT 1 FROM pg_database WHERE datname = 'ai_a2a'" | grep -q 1; do
+                echo "ai_a2a not found yet; for existing PVC volumes create it once before deploy"
+                sleep 2
+              done
+              echo "Preflight passed: ai_a2a exists"
+      containers:
+        - name: {{ .Release.Name }}-ai-service
+          image: {{ .Values.global.qip.ai.image }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: QUARKUS_HTTP_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-ai-service-env
+                  key: QUARKUS_HTTP_PORT
+            - name: CATALOG_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-ai-service-env
+                  key: CATALOG_URL
+            - name: STORAGE_INIT_BUCKET_ON_STARTUP
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-ai-service-env
+                  key: STORAGE_INIT_BUCKET_ON_STARTUP
+            - name: QUARKUS_DATASOURCE_JDBC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-ai-service-env
+                  key: QUARKUS_DATASOURCE_JDBC_URL
+            - name: QUARKUS_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: username
+            - name: QUARKUS_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: password
+            - name: QIP_AI_A2A_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-ai-service-env
+                  key: QIP_AI_A2A_ENABLED
+            - name: QIP_AI_A2A_PUBLIC_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-ai-service-env
+                  key: QIP_AI_A2A_PUBLIC_BASE_URL
+            - name: LLM_API_KEY
+              value: {{ .Values.global.qip.ai.llmApiKey | default "placeholder" | quote }}
+            - name: QIP_KNOWLEDGE_SIDECAR_URL
+              value: http://127.0.0.1:8095
+          livenessProbe:
+            httpGet:
+              path: /q/health
+              port: 8080
+            failureThreshold: 15
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            timeoutSeconds: 15
+          resources: {}
+        - name: {{ .Release.Name }}-knowledge-sidecar
+          image: {{ .Values.global.qip.ai.knowledgeSidecarImage | default .Values.global.qip.ai.image }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8095
+          env:
+            - name: QIP_KNOWLEDGE_PATH
+              value: /knowledge
+{{- with .Values.global.qip.ai.knowledgeVolume }}
+{{- if .claimName }}
+          volumeMounts:
+            - name: knowledge
+              mountPath: /knowledge
+              readOnly: true
+{{- end }}
+{{- end }}
+          readinessProbe:
+            httpGet:
+              path: /v1/health/ready
+              port: 8095
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+{{- with .Values.global.qip.ai.knowledgeVolume }}
+{{- if .claimName }}
+      volumes:
+        - name: knowledge
+          persistentVolumeClaim:
+            claimName: {{ .claimName | quote }}
+{{- end }}
+{{- end }}
+      restartPolicy: Always

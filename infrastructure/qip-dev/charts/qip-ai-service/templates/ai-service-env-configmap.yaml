@@ -1,0 +1,19 @@
+{{- $a2aEnabled := .Values.global.qip.ai.a2aEnabled | default "false" | toString }}
+{{- $a2aPublicBaseUrl := .Values.global.qip.ai.a2aPublicBaseUrl | default "" | toString }}
+{{- if and (eq $a2aEnabled "true") (eq $a2aPublicBaseUrl "") }}
+{{- fail "Set global.qip.ai.a2aPublicBaseUrl before enabling A2A (global.qip.ai.a2aEnabled=true)." }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-ai-service-env
+data:
+  QUARKUS_HTTP_PORT: "8080"
+  CATALOG_URL: "http://{{ .Release.Name }}-runtime-catalog:8080"
+  STORAGE_INIT_BUCKET_ON_STARTUP: "false"
+  # Shared PostgreSQL; logical database ai_a2a (prompt 02 property names — do not rename).
+  QUARKUS_DATASOURCE_JDBC_URL: "jdbc:postgresql://{{ .Release.Name }}-postgres:5432/ai_a2a"
+  # Runtime A2A rollout flag (default off). Quarkus maps QIP_AI_A2A_ENABLED → qip.ai.a2a.enabled.
+  QIP_AI_A2A_ENABLED: {{ $a2aEnabled | quote }}
+  # Public Agent Card URL advertised on supportedInterfaces[].url (required before enabling A2A).
+  QIP_AI_A2A_PUBLIC_BASE_URL: {{ $a2aPublicBaseUrl | quote }}

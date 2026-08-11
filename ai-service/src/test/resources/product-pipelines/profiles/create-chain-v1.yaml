@@ -1,0 +1,81 @@
+schemaVersion: 1
+profileId: create-chain
+profileVersion: "1"
+runInputs:
+  - { type: user-input, schemaVersion: 1 }
+compilerPipeline:
+  supportedIndexSchemas: [2]
+  allowedPhases: [Discovery, Planning, Generation, Assembly, Validation]
+  preSatisfiedArtifacts:
+    - { type: requirement-brief, schemaVersion: 1 }
+  requiredTerminalArtifacts:
+    - { type: graph-assembly-result, schemaVersion: 1 }
+    - { type: compiler-validation-bundle, schemaVersion: 1 }
+stages:
+  - stageId: requirement-discovery
+    capabilityId: requirement-discovery
+    consumes: [{ type: user-input, schemaVersion: 1 }]
+    produces: [{ type: requirement-draft, schemaVersion: 2 }]
+    approval: { artifact: { type: requirement-draft, schemaVersion: 2 } }
+    retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
+  - stageId: import-stage
+    capabilityId: specification-import
+    consumes: [{ type: requirement-draft, schemaVersion: 2 }]
+    produces: [{ type: requirement-draft, schemaVersion: 2 }]
+    skip:
+      whenAny:
+        - no-apihub-candidate
+        - catalog-binding-present
+    retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
+  - stageId: requirement-analysis
+    capabilityId: requirement-analysis
+    consumes: [{ type: requirement-draft, schemaVersion: 2 }]
+    produces: [{ type: requirement-brief, schemaVersion: 1 }]
+    approval: { artifact: { type: requirement-brief, schemaVersion: 1 } }
+    retry: { maxTechnicalRetries: 1, defaultDelayMs: 1000 }
+  - stageId: ids-bypass
+    bypass:
+      produces: { type: ids-bypass, schemaVersion: 1 }
+    consumes: [{ type: requirement-brief, schemaVersion: 1 }]
+    produces: [{ type: ids-bypass, schemaVersion: 1 }]
+    retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
+  - stageId: planning
+    capabilityId: planning
+    consumes:
+      - { type: requirement-brief, schemaVersion: 1 }
+      - { type: ids-bypass, schemaVersion: 1 }
+    produces:
+      - { type: implementation-plan, schemaVersion: 2 }
+      - { type: plan-validation-result, schemaVersion: 1 }
+      - { type: chain-plan-graph, schemaVersion: 1 }
+      - { type: graph-assembly-result, schemaVersion: 1 }
+      - { type: compiler-validation-bundle, schemaVersion: 1 }
+    approval:
+      artifact: { type: implementation-plan, schemaVersion: 2 }
+      candidateSet:
+        - { type: implementation-plan, schemaVersion: 2 }
+        - { type: plan-validation-result, schemaVersion: 1 }
+        - { type: chain-plan-graph, schemaVersion: 1 }
+        - { type: graph-assembly-result, schemaVersion: 1 }
+        - { type: compiler-validation-bundle, schemaVersion: 1 }
+    retry: { maxTechnicalRetries: 1, defaultDelayMs: 1000 }
+  - stageId: materialization
+    capabilityId: materialization
+    consumes:
+      - { type: implementation-plan, schemaVersion: 2 }
+      - { type: plan-validation-result, schemaVersion: 1 }
+      - { type: chain-plan-graph, schemaVersion: 1 }
+      - { type: graph-assembly-result, schemaVersion: 1 }
+      - { type: compiler-validation-bundle, schemaVersion: 1 }
+      - { type: approval-record, schemaVersion: 2 }
+    produces:
+      - { type: materialization-result, schemaVersion: 1 }
+      - { type: catalog-chain-snapshot, schemaVersion: 1 }
+      - { type: reconcile-result, schemaVersion: 1 }
+    retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
+implementationGate:
+  afterStageId: planning
+  targetArtifact: { type: implementation-plan, schemaVersion: 2 }
+  waitingState: WAITING_FOR_IMPLEMENT
+terminal: { stageId: materialization, state: CHAIN_MATERIALIZED }
+dependencyRoots: [requirement-discovery, requirement-analysis, planning, materialization]

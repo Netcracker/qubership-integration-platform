@@ -1,0 +1,80 @@
+package org.qubership.integration.platform.ai.productpipeline.profile;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.InputStream;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+
+/** T4: create-chain profiles declare import-stage after discovery and before analysis. */
+class CreateChainImportStageProfileTest {
+
+  @Test
+  void importStageSitsBetweenDiscoveryAndAnalysisOnV1() throws Exception {
+    assertImportStageOrder(loadCreateChain("create-chain-v1.yaml"));
+  }
+
+  @Test
+  void importStageSitsBetweenDiscoveryAndAnalysisOnV2() throws Exception {
+    assertImportStageOrder(loadCreateChain("create-chain-v2.yaml"));
+  }
+
+  @Test
+  void importStageMutatesRequirementDraftInPlaceWithSkipAndConfirmGateOnV1() throws Exception {
+    assertImportStageContract(loadCreateChain("create-chain-v1.yaml"), false);
+  }
+
+  @Test
+  void importStageMutatesRequirementDraftInPlaceWithSkipAndConfirmGateOnV2() throws Exception {
+    assertImportStageContract(loadCreateChain("create-chain-v2.yaml"), true);
+  }
+
+  private static void assertImportStageOrder(ProductPipelineProfile profile) {
+    List<String> stageIds = profile.stages().stream().map(ProfileStage::stageId).toList();
+
+    int discovery = stageIds.indexOf("requirement-discovery");
+    int importStage = stageIds.indexOf("import-stage");
+    int analysis = stageIds.indexOf("requirement-analysis");
+
+    assertTrue(discovery >= 0, "requirement-discovery missing");
+    assertTrue(importStage >= 0, "import-stage missing");
+    assertTrue(analysis >= 0, "requirement-analysis missing");
+    assertEquals(discovery + 1, importStage);
+    assertEquals(importStage + 1, analysis);
+  }
+
+  private static void assertImportStageContract(
+      ProductPipelineProfile profile, boolean expectProvidedDesignRouteSkip) {
+    ProfileStage importStage =
+        profile.stages().stream()
+            .filter(stage -> "import-stage".equals(stage.stageId()))
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals("specification-import", importStage.capabilityId());
+    assertEquals(
+        List.of(new ArtifactTypeRef("requirement-draft", 2)), importStage.consumes());
+    assertEquals(
+        List.of(new ArtifactTypeRef("requirement-draft", 2)), importStage.produces());
+    assertNotNull(importStage.skip(), "skip policy required for ADR decision 9");
+    assertTrue(
+        importStage.skip().whenAny().contains(SkipPolicy.NO_APIHUB_CANDIDATE));
+    assertTrue(
+        importStage.skip().whenAny().contains(SkipPolicy.CATALOG_BINDING_PRESENT));
+    if (expectProvidedDesignRouteSkip) {
+      assertTrue(
+          importStage.skip().whenAny().contains(SkipPolicy.PROVIDED_DESIGN_ROUTE));
+    }
+  }
+
+  private static ProductPipelineProfile loadCreateChain(String resourceName) throws Exception {
+    try (InputStream in =
+        CreateChainImportStageProfileTest.class.getResourceAsStream(
+            "/product-pipelines/profiles/" + resourceName)) {
+      assertNotNull(in, resourceName + " fixture missing");
+      return ProductPipelineProfileParser.parse(in);
+    }
+  }
+}

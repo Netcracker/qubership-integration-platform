@@ -1,0 +1,487 @@
+{
+  "product-create-chain-greetings": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "uniqueChainNamePrefix": "AiCreateSmoke",
+    "retainCatalogChain": true,
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". It receives GET on internal route \"/greetings\" and returns a greeting from a script. Return plain text from a QIP script element. No service calls. No error handling. No MCP. No ABAC. No chain failure handler. No APIHub.",
+    "requiredFacts": [
+      "GET /greetings",
+      "script",
+      "No service calls",
+      "No MCP",
+      "No ABAC"
+    ],
+    "forbiddenFacts": [
+      "service-call",
+      "APIHub",
+      "try-catch-finally-2"
+    ],
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "script"
+      ],
+      "forbiddenTypes": [
+        "service-call"
+      ],
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Pass the data through unchanged. No field mapping and no transformation on any edge."
+    ]
+  },
+  "product-create-chain-dual-trigger-greetings": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "uniqueChainNamePrefix": "AiCreateDualTriggerSmoke",
+    "retainCatalogChain": true,
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". Dual entry: (1) HTTP GET on internal route \"/greetings\" and (2) quartz-scheduler hourly cron. Both triggers must connect independently to the same script that returns a plain-text greeting. Do not chain triggers through each other. No service calls. No error handling. No MCP. No chain failure handler. No APIHub.",
+    "requiredFacts": [
+      "GET /greetings",
+      "quartz-scheduler",
+      "script"
+    ],
+    "forbiddenFacts": [
+      "service-call",
+      "APIHub"
+    ],
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "quartz-scheduler",
+        "script"
+      ],
+      "forbiddenTypes": [
+        "service-call"
+      ],
+      "skeleton": {
+        "minDependencies": 2,
+        "triggerMustHaveOutgoing": true
+      },
+      "warnings": [
+        "Expect fan-in: http-trigger -> script and quartz-scheduler -> script (no trigger->trigger).",
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Pass the data through unchanged. No field mapping and no transformation on any edge."
+    ]
+  },
+  "product-create-chain-error-handling": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "uniqueChainNamePrefix": "AiCreateEhSmoke",
+    "retainCatalogChain": true,
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". HTTP GET internal \"/safe-echo\". Flow: http-trigger then try-catch-finally-2. Inside try-2: one script that returns plain text \"ok\". Inside catch-2: one script that returns plain text \"error\". Place scripts as children of try-2 and catch-2 with correct parentNodeId. Catch must set exception and priority. No service calls. No routing. No loop. No MCP. No APIHub. No chain failure handler.",
+    "requiredFacts": [
+      "GET /safe-echo",
+      "try-catch-finally-2",
+      "catch-2"
+    ],
+    "forbiddenFacts": [
+      "else.condition",
+      "else.priority"
+    ],
+    "requiredKnowledgeObjectIds": [
+      "CIP:GEN-000049"
+    ],
+    "requiredElementTypes": [
+      "try-catch-finally-2",
+      "try-2",
+      "catch-2"
+    ],
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "try-catch-finally-2",
+        "try-2",
+        "catch-2",
+        "script"
+      ],
+      "forbiddenTypes": [
+        "service-call",
+        "condition",
+        "if",
+        "else"
+      ],
+      "nestedContainers": [
+        {
+          "containerType": "try-catch-finally-2",
+          "mustHaveChildTypes": [
+            "try-2",
+            "catch-2"
+          ]
+        },
+        {
+          "containerType": "try-2",
+          "childType": "script",
+          "minChildren": 1
+        },
+        {
+          "containerType": "catch-2",
+          "childType": "script",
+          "minChildren": 1
+        }
+      ],
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Pass the data through unchanged. No field mapping and no transformation on any edge."
+    ]
+  },
+  "product-create-chain-lang-router": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "uniqueChainNamePrefix": "AiCreateRouteSmoke",
+    "retainCatalogChain": true,
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". HTTP GET internal \"/lang-router\". Flow: http-trigger then condition/if/else routing. A script under if reads the current minute from the system clock: if the minute is even, return plain text \"even minute\"; the else branch script returns plain text \"odd minute\". Put Camel Simple condition and priority on the if node only \u2014 never on else. Use only: http-trigger, script, condition, if, else. No service calls. No error handling. No MCP. No APIHub.",
+    "requiredFacts": [
+      "/lang-router",
+      "even minute",
+      "odd minute"
+    ],
+    "forbiddenFacts": [
+      "else.condition",
+      "else.priority"
+    ],
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "condition",
+        "if",
+        "else",
+        "script"
+      ],
+      "forbiddenTypes": [
+        "service-call",
+        "try-catch-finally-2",
+        "try-2",
+        "catch-2"
+      ],
+      "nestedContainers": [
+        {
+          "containerType": "condition",
+          "mustHaveChildTypes": [
+            "if",
+            "else"
+          ]
+        },
+        {
+          "containerType": "if",
+          "childType": "script",
+          "minChildren": 1
+        },
+        {
+          "containerType": "else",
+          "childType": "script",
+          "minChildren": 1
+        }
+      ],
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Pass the data through unchanged. No field mapping and no transformation on any edge."
+    ]
+  },
+  "product-create-chain-page-walker": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiCreateLoopSmoke",
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". HTTP GET internal \"/page-walker\" with query params startPage and maxPages. Flow: http-trigger then loop-2 do-while (max iterations from maxPages, default 3). Loop body: two scripts in sequence \u2014 first script computes current page number, second script appends page marker to response list. After loop: final script returns aggregated JSON array. No service calls. No catalog binding. No error handling. No RBAC. No MCP. No APIHub.",
+    "requiredFacts": [
+      "/page-walker",
+      "loop-2"
+    ],
+    "forbiddenFacts": [
+      "service-call",
+      "APIHub"
+    ],
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "loop-2",
+        "script"
+      ],
+      "nestedContainers": [
+        {
+          "containerType": "loop-2",
+          "childType": "script",
+          "minChildren": 2
+        }
+      ],
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Pass the data through unchanged. No field mapping and no transformation on any edge."
+    ]
+  },
+  "product-create-chain-requirement-greetings": {
+    "tier": "product-pipeline",
+    "status": "inactive",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiCreateReqGreet",
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". It receives GET on internal route \"/greetings\" and returns Hello world via a script. Return plain text from a QIP script element. No service calls. No error handling. No MCP. No ABAC. No APIHub.",
+    "requiredFacts": [
+      "GET /greetings",
+      "No service calls",
+      "No MCP",
+      "No ABAC"
+    ],
+    "forbiddenFacts": [
+      "try-catch-finally-2",
+      "service-call"
+    ],
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "script"
+      ],
+      "forbiddenTypes": [
+        "service-call"
+      ],
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [],
+    "designInputChoice": "Generate full IDS"
+  },
+  "product-create-chain-requirement-lang-router": {
+    "tier": "product-pipeline",
+    "status": "inactive",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiCreateReqRoute",
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". HTTP GET internal \"/lang-router\". Script reads the current minute and routes with condition/if/else for even vs odd minute plain-text responses (\"even minute\" / \"odd minute\"). Put Camel Simple condition and priority on the if node only \u2014 never on else. Use only: http-trigger, script, condition, if, else. No service calls. No error handling. No MCP. No APIHub.",
+    "requiredFacts": [
+      "/lang-router",
+      "even minute",
+      "odd minute"
+    ],
+    "forbiddenFacts": [
+      "else.condition",
+      "else.priority"
+    ],
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "condition",
+        "if",
+        "else",
+        "script"
+      ],
+      "forbiddenTypes": [
+        "service-call",
+        "try-catch-finally-2",
+        "try-2",
+        "catch-2"
+      ],
+      "nestedContainers": [
+        {
+          "containerType": "condition",
+          "mustHaveChildTypes": [
+            "if",
+            "else"
+          ]
+        },
+        {
+          "containerType": "if",
+          "childType": "script",
+          "minChildren": 1
+        },
+        {
+          "containerType": "else",
+          "childType": "script",
+          "minChildren": 1
+        }
+      ],
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [],
+    "designInputChoice": "Generate full IDS"
+  },
+  "product-create-chain-ambiguous-waiting": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiCreateClarify",
+    "prompt": "I need an integration but I am not sure which APIs yet. Prefer a simple internal HTTP GET \"/clarify-echo\" that returns plain text from a script once you have enough facts. No service calls. No MCP. No APIHub. No error handling.",
+    "requiredFacts": [
+      "GET /clarify-echo",
+      "script"
+    ],
+    "forbiddenFacts": [
+      "service-call",
+      "APIHub"
+    ],
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "script"
+      ],
+      "forbiddenTypes": [
+        "service-call"
+      ],
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [
+      "Use internal HTTP GET /clarify-echo with a script returning plain text.",
+      "No service calls, no APIHub, no MCP."
+    ],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Pass the data through unchanged. No field mapping and no transformation on any edge."
+    ]
+  },
+  "product-create-chain-multi-turn-revision": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiCreateRevise",
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". Start from a greetings-style GET \"/greetings\" script response. No service calls. No MCP. No APIHub.",
+    "requiredFacts": [
+      "GET /greetings",
+      "approvedDraftReference"
+    ],
+    "forbiddenFacts": [
+      "raw transcript",
+      "service-call"
+    ],
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "script"
+      ],
+      "forbiddenTypes": [
+        "service-call"
+      ],
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [
+      "Return Hello world as plain text from the script on GET /greetings."
+    ],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Pass the data through unchanged. No field mapping and no transformation on any edge."
+    ]
+  },
+  "product-create-chain-petstore-service-call": {
+    "tier": "product-pipeline",
+    "status": "inactive",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "uniqueChainNamePrefix": "AiCreateSmoke",
+    "retainCatalogChain": true,
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". It receives GET on internal route \"/pet-status\" with query param status. Flow: http-trigger then service-call. The service call target is \"Petstore Ext: GET /pet/findByStatus\" \u2014 bind it from the runtime catalog, the system is already registered there. Pass the status query param through to the service call and return its JSON response unchanged. No APIHub. No MCP. No error handling. No ABAC. No chain failure handler.",
+    "requiredFacts": [
+      "GET /pet-status",
+      "service-call",
+      "Petstore Ext",
+      "No APIHub"
+    ],
+    "forbiddenFacts": [
+      "APIHub",
+      "try-catch-finally-2"
+    ],
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "service-call"
+      ],
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [
+      "Use the \"Petstore Ext\" system already registered in the runtime catalog, operation GET /pet/findByStatus. Do not search APIHub.",
+      "Pass the status query parameter through unchanged and return the JSON response as is."
+    ],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "PASS_THROUGH"
+    ]
+  }
+}

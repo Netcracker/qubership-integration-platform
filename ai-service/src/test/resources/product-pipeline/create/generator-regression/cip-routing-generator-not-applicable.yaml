@@ -1,0 +1,57 @@
+caseId: cip-routing-generator-not-applicable
+skillId: cip-routing-generator
+expectedApplicability: NOT_APPLICABLE
+requirementBrief:
+  goal: Route by even or odd number field.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Route by even or odd number field.
+  approvedDraftReference: approved-draft-cip-routing-generator-not-applicable
+  approvedDraftText: Route by even or odd number field.
+  facts: []
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Routing.Demo.Parity
+    description: Route by even/odd number.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: if-shell
+      type: if
+      label: Even number branch
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []
+capturedPatch:
+  patchId: cip-routing-generator-no-changes
+  ownerCapabilityId: cip-routing-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches: []
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: No patch required for this requirement.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Routing.Demo.Parity
+    description: Route by even/odd number.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: if-shell
+      type: if
+      label: Even number branch
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []

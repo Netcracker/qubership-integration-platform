@@ -1,0 +1,169 @@
+package org.qubership.integration.platform.ai.integration.catalog.materialize;
+
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.plan.CatalogDependencyKeys;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateDependencyRequest;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+
+/** Creates catalog dependencies from plan graph edges. */
+@ApplicationScoped
+public class ChainPlanConnectionsMaterializer {
+
+  private static final Logger LOG = Logger.getLogger(ChainPlanConnectionsMaterializer.class);
+
+  private final CatalogRestClient catalogRestClient;
+
+  @Inject
+  public ChainPlanConnectionsMaterializer(@RestClient CatalogRestClient catalogRestClient) {
+    this.catalogRestClient = catalogRestClient;
+  }
+
+  public ConnectionsApplyResult apply(ChainPlanGraph graph, MaterializationMap map) {
+    Objects.requireNonNull(graph, "graph");
+    Objects.requireNonNull(map, "map");
+
+    if (graph.edges() == null || graph.edges().isEmpty()) {
+      return new ConnectionsApplyResult(0, List.of());
+    }
+
+    Map<String, ChainPlanNode> nodesById = nodesById(graph);
+    int createdCount = 0;
+    List<String> failedEdgeIds = new ArrayList<>();
+    boolean listDependenciesFailed = false;
+    Set<String> existing = Set.of();
+    try {
+      existing = CatalogDependencyKeys.edgeKeysFromDependencies(
+          catalogRestClient.listDependencies(map.chainId()));
+    } catch (Exception e) {
+      listDependenciesFailed = true;
+      LOG.warnf(e, "listDependencies failed chainId=%s", map.chainId());
+    }
+
+    for (ChainPlanEdge edge : graph.edges()) {
+      Projection projection = classify(edge, nodesById, map);
+      switch (projection.action()) {
+        case SKIP_STRUCTURAL, SKIP_NON_DEPENDENCY -> {
+          /* placement-only or non-catalog edge */ }
+        case FAIL_INVALID -> failedEdgeIds.add(edge.edgeId());
+        case CREATE -> {
+          if (listDependenciesFailed) {
+            failedEdgeIds.add(edge.edgeId());
+            continue;
+          }
+          String edgeKey = CatalogDependencyKeys.edgeKey(
+              projection.fromElementId(), projection.toElementId());
+          if (existing.contains(edgeKey)) {
+            continue;
+          }
+          try {
+            catalogRestClient.createConnection(
+                map.chainId(),
+                new CatalogCreateDependencyRequest(
+                    projection.fromElementId(), projection.toElementId()));
+            createdCount++;
+          } catch (Exception e) {
+            failedEdgeIds.add(edge.edgeId());
+          }
+        }
+      }
+    }
+
+    return new ConnectionsApplyResult(createdCount, List.copyOf(failedEdgeIds));
+  }
+
+  private static Map<String, ChainPlanNode> nodesById(ChainPlanGraph graph) {
+    Map<String, ChainPlanNode> index = new LinkedHashMap<>();
+    if (graph.nodes() == null) {
+      return index;
+    }
+    for (ChainPlanNode node : graph.nodes()) {
+      if (node.nodeId() != null) {
+        index.put(node.nodeId(), node);
+      }
+    }
+    return index;
+  }
+
+  private static Projection classify(
+      ChainPlanEdge edge, Map<String, ChainPlanNode> nodesById, MaterializationMap map) {
+    ChainPlanNode from = nodesById.get(edge.fromNodeId());
+    ChainPlanNode to = nodesById.get(edge.toNodeId());
+    if (from == null || to == null) {
+      return new Projection(ProjectionAction.FAIL_INVALID, null, null);
+    }
+
+    String fromElementId = map.nodeIdToElementId().get(edge.fromNodeId());
+    String toElementId = map.nodeIdToElementId().get(edge.toNodeId());
+    if (fromElementId == null || toElementId == null) {
+      return new Projection(ProjectionAction.FAIL_INVALID, null, null);
+    }
+
+    if (isStructuralBranchEntry(from, to)) {
+      return new Projection(ProjectionAction.SKIP_STRUCTURAL, null, null);
+    }
+
+    if (isRootLevel(from, to) || hasSameParent(from, to)) {
+      return new Projection(ProjectionAction.CREATE, fromElementId, toElementId);
+    }
+
+    // Cross-scope edges (e.g. catch-2 → service-call under try-2) are not catalog
+    // dependencies. Placement already encodes containment; failing them blocks
+    // PropertiesApplier and leaves otherwise-valid chains half-configured.
+    LOG.warnf(
+        "Skipping non-dependency cross-scope edge edgeId=%s from=%s to=%s",
+        edge.edgeId(), edge.fromNodeId(), edge.toNodeId());
+    return new Projection(ProjectionAction.SKIP_NON_DEPENDENCY, null, null);
+  }
+
+  /**
+   * Parent-to-direct-child edges express containment in the plan graph; the
+   * catalog represents
+   * them through element placement, not runtime dependencies.
+   */
+  private static boolean isStructuralBranchEntry(ChainPlanNode from, ChainPlanNode to) {
+    String toParent = to.parentNodeId();
+    return toParent != null && !toParent.isBlank() && toParent.equals(from.nodeId());
+  }
+
+  private static boolean isRootLevel(ChainPlanNode from, ChainPlanNode to) {
+    return isBlankParent(from.parentNodeId()) && isBlankParent(to.parentNodeId());
+  }
+
+  private static boolean hasSameParent(ChainPlanNode from, ChainPlanNode to) {
+    String fromParent = from.parentNodeId();
+    String toParent = to.parentNodeId();
+    if (fromParent == null || fromParent.isBlank()) {
+      return false;
+    }
+    return fromParent.equals(toParent);
+  }
+
+  private static boolean isBlankParent(String parentNodeId) {
+    return parentNodeId == null || parentNodeId.isBlank();
+  }
+
+  private enum ProjectionAction {
+    CREATE,
+    SKIP_STRUCTURAL,
+    SKIP_NON_DEPENDENCY,
+    FAIL_INVALID
+  }
+
+  private record Projection(ProjectionAction action, String fromElementId, String toElementId) {
+  }
+
+  public record ConnectionsApplyResult(int createdCount, List<String> failedEdgeIds) {
+  }
+}

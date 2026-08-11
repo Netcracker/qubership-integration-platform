@@ -1,0 +1,57 @@
+caseId: cip-script-generator-not-applicable
+skillId: cip-script-generator
+expectedApplicability: NOT_APPLICABLE
+requirementBrief:
+  goal: Return inventory data from a script.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Return inventory data from a script.
+  approvedDraftReference: approved-draft-cip-script-generator-not-applicable
+  approvedDraftText: Return inventory data from a script.
+  facts: []
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Script.Demo.Inventory
+    description: Return inventory from exchange property.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: script-1
+      type: script
+      label: Read inventory
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []
+capturedPatch:
+  patchId: cip-script-generator-no-changes
+  ownerCapabilityId: cip-script-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches: []
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: No patch required for this requirement.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Script.Demo.Inventory
+    description: Return inventory from exchange property.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: script-1
+      type: script
+      label: Read inventory
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []

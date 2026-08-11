@@ -1,0 +1,131 @@
+caseId: cip-service-call-generator-applicable
+skillId: cip-service-call-generator
+expectedApplicability: APPLICABLE
+requirementBrief:
+  goal: Call cataloged HTTP GET /users.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Call cataloged HTTP GET /users.
+  approvedDraftReference: approved-draft-cip-service-call-generator-applicable
+  approvedDraftText: Call cataloged HTTP GET /users.
+  facts:
+    - sourceFactId: service-call-1
+      polarity: POSITIVE
+      kind: BEHAVIOR
+      capabilityKey: service-call
+      text: Bind catalog operation and execution defaults on call-1.
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: ServiceCall.Demo.Users
+    description: Fetch users from cataloged HTTP API.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: call-1
+      type: service-call
+      label: GET /users
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []
+capturedPatch:
+  patchId: http-service-call-catalog-binding
+  ownerCapabilityId: cip-service-call-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches:
+    - operation: ADD
+      targetNodeId: call-1
+      property:
+        key: systemType
+        value: "EXTERNAL"
+    - operation: ADD
+      targetNodeId: call-1
+      property:
+        key: integrationSystemId
+        value: "955909b0-c14a-4b2c-af87-87dd1c45ad8c"
+    - operation: ADD
+      targetNodeId: call-1
+      property:
+        key: integrationSpecificationGroupId
+        value: "955909b0-c14a-4b2c-af87-87dd1c45ad8c-sample-api-inline"
+    - operation: ADD
+      targetNodeId: call-1
+      property:
+        key: integrationSpecificationId
+        value: "955909b0-c14a-4b2c-af87-87dd1c45ad8c-sample-api-inline-0.0.4"
+    - operation: ADD
+      targetNodeId: call-1
+      property:
+        key: integrationOperationId
+        value: "955909b0-c14a-4b2c-af87-87dd1c45ad8c-sample-api-inline-0.0.4-getUsers"
+    - operation: ADD
+      targetNodeId: call-1
+      property:
+        key: integrationOperationProtocolType
+        value: "http"
+    - operation: ADD
+      targetNodeId: call-1
+      property:
+        key: integrationOperationMethod
+        value: "GET"
+    - operation: ADD
+      targetNodeId: call-1
+      property:
+        key: integrationOperationPath
+        value: "/users"
+    - operation: ADD
+      targetNodeId: call-1
+      property:
+        key: propagateContext
+        value: "true"
+    - operation: ADD
+      targetNodeId: call-1
+      property:
+        key: errorThrowing
+        value: "true"
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: call-1 exists without catalog bindings. Bind the HTTP GET /users operation from the requirement brief and set service-call execution defaults.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: ServiceCall.Demo.Users
+    description: Fetch users from cataloged HTTP API.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: call-1
+      type: service-call
+      label: GET /users
+      parentNodeId: null
+      order: null
+      properties:
+        - key: systemType
+          value: "EXTERNAL"
+        - key: integrationSystemId
+          value: "955909b0-c14a-4b2c-af87-87dd1c45ad8c"
+        - key: integrationSpecificationGroupId
+          value: "955909b0-c14a-4b2c-af87-87dd1c45ad8c-sample-api-inline"
+        - key: integrationSpecificationId
+          value: "955909b0-c14a-4b2c-af87-87dd1c45ad8c-sample-api-inline-0.0.4"
+        - key: integrationOperationId
+          value: "955909b0-c14a-4b2c-af87-87dd1c45ad8c-sample-api-inline-0.0.4-getUsers"
+        - key: integrationOperationProtocolType
+          value: "http"
+        - key: integrationOperationMethod
+          value: "GET"
+        - key: integrationOperationPath
+          value: "/users"
+        - key: propagateContext
+          value: "true"
+        - key: errorThrowing
+          value: "true"
+  edges: []

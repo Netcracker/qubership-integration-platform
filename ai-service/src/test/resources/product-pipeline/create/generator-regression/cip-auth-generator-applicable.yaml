@@ -1,0 +1,92 @@
+caseId: cip-auth-generator-applicable
+skillId: cip-auth-generator
+expectedApplicability: APPLICABLE
+requirementBrief:
+  goal: Call a backend with M2M authentication.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Call a backend with M2M authentication.
+  approvedDraftReference: approved-draft-cip-auth-generator-applicable
+  approvedDraftText: Call a backend with M2M authentication.
+  facts:
+    - sourceFactId: auth-1
+      polarity: POSITIVE
+      kind: BEHAVIOR
+      capabilityKey: auth
+      text: Apply M2M authentication to the service-call.
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Auth.Demo.Get
+    description: Call backend with M2M auth.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: GET /orders
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "false"
+    - nodeId: service-call-1
+      type: service-call
+      label: Call orders
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges:
+    - edgeId: trigger-to-call
+      fromNodeId: http-trigger-1
+      toNodeId: service-call-1
+      scopeNodeId: null
+capturedPatch:
+  patchId: service-call-m2m-auth
+  ownerCapabilityId: cip-auth-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches:
+    - operation: ADD
+      targetNodeId: service-call-1
+      property:
+        key: authorizationConfiguration
+        value: "{\"type\":\"m2m\"}"
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: Apply M2M v2 authentication to an internal catalog service-call.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Auth.Demo.Get
+    description: Call backend with M2M auth.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: http-trigger-1
+      type: http-trigger
+      label: GET /orders
+      parentNodeId: null
+      order: null
+      properties:
+        - key: externalRoute
+          value: "false"
+    - nodeId: service-call-1
+      type: service-call
+      label: Call orders
+      parentNodeId: null
+      order: null
+      properties:
+        - key: authorizationConfiguration
+          value: "{\"type\":\"m2m\"}"
+  edges:
+    - edgeId: trigger-to-call
+      fromNodeId: http-trigger-1
+      toNodeId: service-call-1
+      scopeNodeId: null

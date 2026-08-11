@@ -46,7 +46,7 @@ public class EnvironmentPropertiesHelperTest {
                    {
                       "namespace": "a05",
                       "dbSystemName": "d711bef5-14fd-4295-a665-92b99936649e",
-                      "microserviceName": "cloud-integration-platform-engine"
+                      "microserviceName": "qubership-integration-platform-engine"
                    }
                 """;
 
@@ -57,7 +57,7 @@ public class EnvironmentPropertiesHelperTest {
                       "properties": {
                          "namespace": "a05",
                          "dbSystemName": "d711bef5-14fd-4295-a665-92b99936649e",
-                         "microserviceName": "cloud-integration-platform-engine"
+                         "microserviceName": "qubership-integration-platform-engine"
                       }
                    }
                 """;

@@ -30,7 +30,9 @@
     ".documentation-config.json.example"
   ],
   "scripts": {
+    "predev": "npm run build --workspace @netcracker/qip-schemas",
     "dev": "npm run fetch-docs && vite",
+    "prebuild": "npm run build --workspace @netcracker/qip-schemas",
     "build": "npm run fetch-docs && vite build",
     "build:lib": "vite build --config vite.config.lib.ts",
     "build:lib:external": "vite build --config vite.config.lib.ts",

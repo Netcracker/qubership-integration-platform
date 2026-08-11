@@ -21,6 +21,7 @@
         <module>micro-engine</module>
         <module>runtime-catalog</module>
         <module>sessions-management</module>
+        <module>ai-service</module>
     </modules>
 
     <licenses>

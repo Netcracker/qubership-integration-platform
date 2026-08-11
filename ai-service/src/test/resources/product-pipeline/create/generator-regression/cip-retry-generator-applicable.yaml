@@ -1,0 +1,75 @@
+caseId: cip-retry-generator-applicable
+skillId: cip-retry-generator
+expectedApplicability: APPLICABLE
+requirementBrief:
+  goal: Retry critical backend calls.
+  inputs: []
+  constraints: []
+  assumptions: []
+  citations: []
+  summary: Retry critical backend calls.
+  approvedDraftReference: approved-draft-cip-retry-generator-applicable
+  approvedDraftText: Retry critical backend calls.
+  facts:
+    - sourceFactId: retry-1
+      polarity: POSITIVE
+      kind: BEHAVIOR
+      capabilityKey: retry
+      text: Apply retryCount and retryDelay to the service-call.
+upstreamArtifacts:
+  CHAIN_STRUCTURE:
+    schemaVersion: 1
+inputGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Retry.Demo.Critical
+    description: Retry critical backend calls.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: service-call-1
+      type: service-call
+      label: Critical backend
+      parentNodeId: null
+      order: null
+      properties:
+        []
+  edges: []
+capturedPatch:
+  patchId: retry-critical-service-call
+  ownerCapabilityId: cip-retry-generator
+  nodePatches: []
+  edgePatches: []
+  propertyPatches:
+    - operation: ADD
+      targetNodeId: service-call-1
+      property:
+        key: retryCount
+        value: "3"
+    - operation: ADD
+      targetNodeId: service-call-1
+      property:
+        key: retryDelay
+        value: "1000"
+  chainPatches: []
+  usedKnowledgeRefs: []
+  rationale: Apply retry policy to a critical backend service-call.
+expectedGraph:
+  schemaVersion: "1.0"
+  chain:
+    name: Retry.Demo.Critical
+    description: Retry critical backend calls.
+    maskingEnabled: null
+    maskedFieldNames: []
+  nodes:
+    - nodeId: service-call-1
+      type: service-call
+      label: Critical backend
+      parentNodeId: null
+      order: null
+      properties:
+        - key: retryCount
+          value: "3"
+        - key: retryDelay
+          value: "1000"
+  edges: []

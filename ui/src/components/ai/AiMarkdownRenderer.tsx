@@ -4,7 +4,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import type { Components } from "react-markdown";
-import { extractMarkdownText } from "./chatMessageUtils.ts";
+import { extractMarkdownText, isCollapsibleChainPlanJsonBlock } from "./chatMessageUtils.ts";
+import { CollapsibleChainPlanJsonBlock } from "./CollapsibleChainPlanJsonBlock.tsx";
 
 const markdownComponents: Components = {
   code(props) {
@@ -21,6 +22,14 @@ const markdownComponents: Components = {
     }
 
     const language = match[1] || "text";
+    if (isCollapsibleChainPlanJsonBlock(language, code)) {
+      return (
+        <CollapsibleChainPlanJsonBlock
+          code={code}
+          language={language === "chain-plan-json" ? "chain-plan-json" : "json"}
+        />
+      );
+    }
     return (
       <div className="ai-code-block">
         <div className="ai-code-block__header">

@@ -1,0 +1,24 @@
+{
+  "target" : {
+    "kind" : "IMPLEMENTATION_PLAN",
+    "artifactId" : "plan-1",
+    "contentHash" : "hash-plan"
+  },
+  "targetContentHash" : "hash-plan",
+  "approvedCandidates" : [ {
+    "kind" : "IMPLEMENTATION_PLAN",
+    "artifactId" : "plan-1",
+    "contentHash" : "hash-plan"
+  }, {
+    "kind" : "PLAN_VALIDATION_RESULT",
+    "artifactId" : "val-1",
+    "contentHash" : "hash-val"
+  }, {
+    "kind" : "CHAIN_PLAN_GRAPH",
+    "artifactId" : "graph-1",
+    "contentHash" : "hash-graph"
+  } ],
+  "actor" : "user",
+  "comment" : null,
+  "approvedAt" : "2026-07-22T12:00:00Z"
+}

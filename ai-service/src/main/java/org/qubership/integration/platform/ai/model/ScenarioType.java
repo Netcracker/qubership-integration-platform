@@ -1,0 +1,15 @@
+package org.qubership.integration.platform.ai.model;
+
+public enum ScenarioType {
+  GATHER_REQUIREMENTS,
+  CREATE_CHAIN_PLAN,
+  ASK_PLAN,
+  ASK_CHAIN,
+  IMPLEMENT_CHAIN,
+  COMPARE_AND_PATCH,
+  CHAIN_TO_DESIGN,
+  CREATE_TEST_CASES,
+  CREATE_POSTMAN_COLLECTION,
+  IMPORT_SPECIFICATION,
+  UNKNOWN
+}
