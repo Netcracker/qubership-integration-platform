@@ -81,10 +81,6 @@ const operationAllColumnKeys = () => [
   "method",
   "url",
   "usedBy",
-  "createdWhen",
-  "createdBy",
-  "modifiedWhen",
-  "modifiedBy",
 ];
 
 const buildOperationDefaultVisibleKeys = () => [
