@@ -46,6 +46,13 @@ Qubership Integration Platform will apply its own default hardcoded option and n
   - **Warning** - logging of Integrations with Warnings. Log level - WARNING, ERROR, FATAL.
   - **Info** - log only external communications (sending and receiving external messages by any protocol, incoming and outgoing). Used for investigation of production incidents.
 - **Log Payload** - controls payload parts, which must be logged: Headers, Properties, Body. If nothing is selected - no payload data will be logged.
+
+> ⚠️ **Warning:** Log format and maximum size of logged headers, body, and exchange properties are configurable before installation:
+> - Log format options: _json_ or _plain text_.
+> - When logged content exceeds the configured size limit, it is truncated and appended with `...`.
+>
+> Contact your system administrator for the values configured in the environment.
+
 - **Produce DPT Events** - based on selected option, system either sends DPT events or not:
   - **checked** - deployed chain will be publishing events to DPT (Distributed Process Tracing and Monitoring system).
   - **unchecked** _(Default value)_ - no events will be published to DPT.
