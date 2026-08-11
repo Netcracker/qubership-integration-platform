@@ -150,7 +150,7 @@ This tab contains all chains that are going to be imported.
 The first element is a switcher "Validate By Hash". This option can reduce the import time by comparing the hash of each chain. If the hash matches, the system skips importing that chain.
 
 Under this option there is a table of chains with the following parameters:
-* Name - name of the imported chain;
+* Name - name of the imported chain. If a chain with the same ID already exists in the system, a ![diff](img/diff.svg) icon appears next to the name — click it to open the **Chain compare** dialog and preview the differences between the existing chain and the version being imported before proceeding with the import;
 * ID - ID of the imported chain;
 * Domain - the selected domain for deployment;
 * Instruction Action - shows the exact instruction for the particular chain. Available only on preview before import process is completed. Possible values:
@@ -258,7 +258,7 @@ Under "Chains" folder, right-click on the chain name you want to delete. From th
 ### Compare Chains
 <ins>Web UI</ins>
 
-Select two chains using the checkboxes and click ![diff](img/diff.svg) to open the **Chain compare** dialog. The following controls are available:
+Select two chains using the checkboxes and click ![diff](img/diff.svg) to open the **Chain compare** dialog. Above each comparison area, a chain name link and a version selector are shown; use the version selector to switch that side between the chain's **Current** (unsaved) state and any of its snapshots. The following controls are available:
 
 - **Graph/Table/Text** switcher - switches between the three comparison views.
 - **![caret-up](img/caret-up.svg) (Previous change)** and **![caret-down](img/caret-down.svg) (Next change)** - navigate to the previous or next detected difference. The corresponding element and its changed property are highlighted in the comparison areas, and property details are displayed above the graphs.
@@ -276,8 +276,8 @@ You can view the comparison in three modes, switchable at any time:
   Elements are color-coded by their comparison state:
   - **Identical (grey)** - no differences found in the element or its connections.
   - **Changed (yellow)** - the element exists in both chains, but its properties differ.
-  - **Removed (red)** - the element or connection does not exist in the other chain.
-  - **Created (green)** - the element or connection exists only in the other chain.
+  - **Removed (red)** - shown in the left comparison area; the element or connection does not exist in the right chain.
+  - **Created (green)** - shown in the right comparison area; the element or connection does not exist in the left chain.
 
 - **Table View** - select **Table** in the switcher to display differences as a table. Each row represents one detected difference and contains the following columns:
 
@@ -293,7 +293,11 @@ You can view the comparison in three modes, switchable at any time:
 
 <ins>VS Code Extension</ins>
 
-TBD
+Chain comparison is available from a chain's git history: use any Visual Studio Code action that opens a diff for a `*.chain.qip.yaml` file (for example, **Open Changes** or **Compare with...** in the Source Control view). By default, the QIP visual diff opens in place of the built-in text diff and shows the same **Graph** and **Table** views described above, with the **Previous change**/**Next change** controls. The **Text** view is not available, since it duplicates the built-in text diff.
+
+> ℹ️ **Note**: To compare `*.chain.qip.yaml` files with the built-in text diff instead, enable the **`qipExtension.useDefaultDiffView`** setting.
+
+Because the two compared versions are fixed by git, there is no chain/snapshot selector above the comparison areas. Clicking a chain or element link in either comparison area opens it in a new editor tab within Visual Studio Code instead of a browser tab.
 
 ### Constraints
 
