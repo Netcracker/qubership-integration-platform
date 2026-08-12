@@ -6,16 +6,17 @@ import jakarta.inject.Inject;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.concurrent.atomic.AtomicReference;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.chain.presentation.ChainMaterializedSummary;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
-import org.qubership.integration.platform.ai.llm.agent.ApprovalIntentAgent;
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
+import org.qubership.integration.platform.ai.llm.agent.GateReplyAgent;
 import org.qubership.integration.platform.ai.model.ScenarioType;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPublicArtifactTypes;
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
@@ -45,19 +46,18 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 @ApplicationScoped
 public class CreateProductPipelineCoordinator {
 
-  private static final Pattern IMPLEMENT_COMMAND =
-      Pattern.compile("^Implement ([0-9a-f]{64})$");
-
   private final CreateRunSelectionService selectionService;
   private final CreateRunBindingStore bindingStore;
   private final ProductPipelineRuntime runtime;
   private final ProductPipelineRunStore runStore;
   private final ProductPipelineProfileCatalog profileCatalog;
   private final ApprovalPrompts approvalPrompts;
-  private final ApprovalIntentAgent approvalIntentAgent;
+  private final GateReplyAgent gateReplyAgent;
 
-  /** Null in unit tests, which build the coordinator without a blob store. */
+  /** Both null in unit tests, which build the coordinator without CDI. */
   @Inject ApprovalQuestionStore approvalQuestions;
+
+  @Inject CreateChainApplicationFacade facade;
 
   private static final org.jboss.logging.Logger LOG =
       org.jboss.logging.Logger.getLogger(CreateProductPipelineCoordinator.class);
@@ -70,7 +70,7 @@ public class CreateProductPipelineCoordinator {
       ProductPipelineRunStore runStore,
       ProductPipelineProfileCatalog profileCatalog,
       ApprovalPromptAgent approvalPromptAgent,
-      ApprovalIntentAgent approvalIntentAgent) {
+      GateReplyAgent gateReplyAgent) {
     this(
         selectionService,
         bindingStore,
@@ -78,7 +78,7 @@ public class CreateProductPipelineCoordinator {
         runStore,
         profileCatalog,
         new ApprovalPrompts(approvalPromptAgent),
-        approvalIntentAgent);
+        gateReplyAgent);
   }
 
   /** Test helper without approval-prompt LLM (English fallback CTAs). */
@@ -108,8 +108,8 @@ public class CreateProductPipelineCoordinator {
       ProductPipelineRunStore runStore,
       ProductPipelineProfileCatalog profileCatalog,
       ApprovalPrompts approvalPrompts,
-      ApprovalIntentAgent approvalIntentAgent) {
-    this.approvalIntentAgent = approvalIntentAgent;
+      GateReplyAgent gateReplyAgent) {
+    this.gateReplyAgent = gateReplyAgent;
     this.selectionService = Objects.requireNonNull(selectionService, "selectionService");
     this.bindingStore = Objects.requireNonNull(bindingStore, "bindingStore");
     this.runtime = Objects.requireNonNull(runtime, "runtime");
@@ -203,29 +203,21 @@ public class CreateProductPipelineCoordinator {
                           : ": " + doc.attempts().get(doc.attempts().size() - 1).failureEvidence())));
     }
     if (status == RunStatus.WAITING_FOR_IMPLEMENT) {
-      String hash = resolveImplementHash(doc.run().runId(), text);
-      if (hash != null) {
-        return mapSignals(
-            runtime.implement(
-                new ImplementCommand(doc.run().runId(), hash, doc.run().runRevision())),
-            conversationId);
-      }
       return Multi.createFrom()
           .item(
               ChatEvent.token(
                   approvalPrompts.implementContinuationPrompt(languageReference(doc))));
     }
-    if (status == RunStatus.WAITING_FOR_APPROVAL && isApproval(text)) {
-      // Only a literal token carries a deliberate confirmation through to materialization. A
-      // classified approval advances the stage and then stops at the implement gate.
-      boolean literal = isLiteralApproval(text);
+    if (status == RunStatus.WAITING_FOR_APPROVAL && approvesCurrentCandidate(conversationId, doc, text)) {
+      // A model-driven approval never materializes: the run stops at the implement gate, which is
+      // a decision of its own.
       Reference candidate = approvableReference(doc);
       return mapSignals(
               runtime.approve(
                   new ApproveCommand(doc.run().runId(), candidate, doc.run().runRevision())),
               conversationId)
           .onCompletion()
-          .switchTo(() -> autoImplementAfterPlanApproval(conversationId, literal));
+          .switchTo(() -> autoImplementAfterPlanApproval(conversationId, false));
     }
     if (status == RunStatus.WAITING_FOR_INPUT || status == RunStatus.WAITING_FOR_APPROVAL) {
       return mapSignals(
@@ -441,70 +433,44 @@ public class CreateProductPipelineCoordinator {
     return "Chain is ready.";
   }
 
-  private String resolveImplementHash(String runId, String text) {
-    Matcher implement = IMPLEMENT_COMMAND.matcher(text == null ? "" : text.trim());
-    if (implement.matches()) {
-      return implement.group(1);
-    }
-    if (isImplementShortcut(text)) {
-      return runtime.approvedPlanContentHash(runId).filter(h -> !h.isBlank()).orElse(null);
-    }
-    return null;
-  }
-
-  private static boolean isImplementShortcut(String text) {
-    if (text == null) {
-      return false;
-    }
-    String normalized = text.trim().toLowerCase(Locale.ROOT);
-    return normalized.equals("implement")
-        || normalized.equals("agree")
-        || normalized.equals("approve")
-        || normalized.equals("approved")
-        || normalized.equals("yes");
-  }
-
   /**
-   * Decides whether a reply to an approval question accepts the candidate.
+   * Reads a typed reply at an open gate and reports whether it approves the current candidate.
    *
-   * <p>The literal comparison below stays first and settles the common case without a model call.
-   * It cannot settle the rest: the question is authored in the language of the conversation, so a
-   * reply arrives in that language, and an agent relaying a person's approval writes a sentence
-   * rather than the bare word. Both read as "not an approval" to a literal check, and the stage is
-   * then re-run with the approval as its input — the loop this method exists to end.
-   *
-   * <p>A model failure means not approved. Advancing a stage on a classification that did not
-   * happen is the one outcome worth ruling out.
+   * <p>No pattern match decides this. The reply reaches a model that can only express an approval
+   * by naming the artifact type, hash, and revision, and the facade refuses a binding that does not
+   * match the open gate — so a qualified reply, a reply about later work, or a stale one leaves the
+   * run where it is and travels on as input for the stage.
    */
-  private boolean isApproval(String text) {
-    if (text == null || text.isBlank()) {
+  private boolean approvesCurrentCandidate(
+      String conversationId, ProductPipelineRunDocument doc, String text) {
+    if (gateReplyAgent == null || text == null || text.isBlank()) {
       return false;
     }
-    if (isLiteralApproval(text)) {
-      LOG.debugf("Approval accepted by literal token");
-      return true;
-    }
-    if (approvalIntentAgent == null) {
+    Reference candidate = approvableReference(doc);
+    String artifactType = CreateChainPublicArtifactTypes.toApprovalType(candidate.kind());
+    AtomicReference<ApproveCandidateTool.Binding> named = new AtomicReference<>();
+    try (AutoCloseable ignored = ApproveCandidateTool.capture(named)) {
+      gateReplyAgent.interpretReply(
+          "gate:" + conversationId,
+          artifactType,
+          candidate.contentHash(),
+          doc.run().runRevision(),
+          text);
+    } catch (Exception ex) {
+      LOG.warnf(ex, "Gate reply agent failed; treating the reply as not an approval");
       return false;
     }
-    try {
-      String verdict = approvalIntentAgent.classifyApproval(text);
-      String normalized = verdict == null ? "" : verdict.trim().toUpperCase(Locale.ROOT);
-      boolean approved = normalized.startsWith("APPROVED");
-      // Logged because the decision is not readable from the code the way the literal check is.
-      LOG.infof("Approval intent verdict=%s approved=%s replyChars=%d", normalized, approved, text.length());
-      return approved;
-    } catch (RuntimeException ex) {
-      LOG.warnf(ex, "Approval intent classification failed; treating the reply as not an approval");
+    ApproveCandidateTool.Binding binding = named.get();
+    if (binding == null) {
       return false;
     }
-  }
-
-  private static boolean isLiteralApproval(String text) {
-    String normalized = text.trim().toLowerCase(Locale.ROOT);
-    return normalized.equals("agree")
-        || normalized.equals("approve")
-        || normalized.equals("approved")
-        || normalized.equals("yes");
+    if (facade == null) {
+      return false;
+    }
+    return facade
+        .validateApprove(
+            new ApproveCreateChainArtifactCommand(
+                conversationId, binding.artifactType(), binding.artifactHash(), binding.revision()))
+        .isEmpty();
   }
 }

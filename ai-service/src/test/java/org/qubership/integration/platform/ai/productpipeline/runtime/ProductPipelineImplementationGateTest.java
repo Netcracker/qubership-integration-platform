@@ -212,127 +212,32 @@ class ProductPipelineImplementationGateTest {
     verify(materializationCapability).execute(any());
   }
 
+  /**
+   * No wording materializes a chain.
+   *
+   * <p>Writing a chain into the catalog is the one irreversible step, and nothing removes it again.
+   * It is reachable only through a command that names the approved plan, never through text.
+   */
   @Test
-  void coordinatorAgreeOnPlanAutoImplementsWithoutExposingHash() {
-    runCreateChainToPlanCandidate();
-    CreateProductPipelineCoordinator coordinator = liveCoordinator();
-
-    List<org.qubership.integration.platform.ai.chat.ChatEvent> events =
-        coordinator
-            .handle(implementChat("Agree"), CONVERSATION_ID)
-            .collect()
-            .asList()
-            .await()
-            .indefinitely();
-
-    assertEquals(RunStatus.CHAIN_MATERIALIZED, loadRun().run().status());
-    verify(materializationCapability).execute(any());
-    String chat =
-        events.stream()
-            .filter(org.qubership.integration.platform.ai.chat.ChatEvent.Token.class::isInstance)
-            .map(e -> ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) e).text())
-            .reduce("", String::concat);
-    assertTrue(!chat.contains("SHA-256:"), chat);
-    assertTrue(!chat.contains("Implement " + "a".repeat(64)), chat);
-    assertTrue(!chat.contains("Creating the chain"), chat);
-    assertTrue(!chat.contains("Terminal state:"), chat);
-    assertTrue(chat.contains("Chain \"DemoChain\" is ready."), chat);
-    assertTrue(chat.contains("Id: catalog-chain-1"), chat);
-    assertTrue(chat.contains("[Open graph](/chains/catalog-chain-1/graph)"), chat);
-  }
-
-  @Test
-  void coordinatorPassesExplicitPlanHashToImplementCommand() {
-    ProductPipelineRuntime mockedRuntime = mock(ProductPipelineRuntime.class);
-    when(mockedRuntime.implement(any()))
-        .thenReturn(Multi.createFrom().item(new PipelineSignal.WaitingForImplement("planning", APPROVED_PLAN_SHA)));
-    CreateProductPipelineCoordinator coordinator =
-        coordinatorWithRunAtWaitingForImplement(mockedRuntime, APPROVED_PLAN_SHA);
-
-    coordinator
-        .handle(implementChat("Implement " + APPROVED_PLAN_SHA), CONVERSATION_ID)
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
-
-    verify(mockedRuntime)
-        .implement(new ImplementCommand(RUN_ID, APPROVED_PLAN_SHA, WAITING_FOR_IMPLEMENT_REVISION));
-  }
-
-  @Test
-  void blankMalformedOrUnknownHashLeavesRunUnchanged() {
+  void noTextAtTheImplementGateMaterializesAChain() {
     String planHash = runCreateChainToWaitingForImplement();
     long revision = loadRun().run().runRevision();
     CreateProductPipelineCoordinator coordinator = liveCoordinator();
 
     for (String text :
-        List.of("", "Implement not-a-hash", "Implement " + planHash.toUpperCase())) {
+        List.of("", "Agree", "yes", "Implement", "Implement " + planHash, "Implement not-a-hash")) {
       coordinator
           .handle(implementChat(text), CONVERSATION_ID)
           .collect()
           .asList()
           .await()
           .indefinitely();
-      assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status());
-      assertEquals(revision, loadRun().run().runRevision());
+      assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status(), text);
+      assertEquals(revision, loadRun().run().runRevision(), text);
     }
 
-    assertThrows(
-        Exception.class,
-        () ->
-            coordinator
-                .handle(
-                    implementChat(
-                        "Implement bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
-                    CONVERSATION_ID)
-                .collect()
-                .asList()
-                .await()
-                .indefinitely());
-    assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status());
-    assertEquals(revision, loadRun().run().runRevision());
     verify(materializationCapability, never()).execute(any());
   }
-
-  @Test
-  void bareImplementUsesApprovedPlanHash() {
-    runCreateChainToWaitingForImplement();
-    CreateProductPipelineCoordinator coordinator = liveCoordinator();
-
-    coordinator
-        .handle(implementChat("Implement"), CONVERSATION_ID)
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
-
-    assertEquals(RunStatus.CHAIN_MATERIALIZED, loadRun().run().status());
-    verify(materializationCapability).execute(any());
-  }
-
-  @Test
-  void coordinatorAgreeShortcutPassesApprovedHashToImplement() {
-    ProductPipelineRuntime mockedRuntime = mock(ProductPipelineRuntime.class);
-    when(mockedRuntime.approvedPlanContentHash(RUN_ID)).thenReturn(Optional.of(APPROVED_PLAN_SHA));
-    when(mockedRuntime.implement(any()))
-        .thenReturn(
-            Multi.createFrom().item(new PipelineSignal.Completed(RunStatus.CHAIN_MATERIALIZED)));
-    CreateProductPipelineCoordinator coordinator =
-        coordinatorWithRunAtWaitingForImplement(mockedRuntime, APPROVED_PLAN_SHA);
-
-    coordinator
-        .handle(implementChat("Agree"), CONVERSATION_ID)
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
-
-    verify(mockedRuntime)
-        .implement(new ImplementCommand(RUN_ID, APPROVED_PLAN_SHA, WAITING_FOR_IMPLEMENT_REVISION));
-  }
-
-
   private WaitingForApproval runCreateChainToPlanCandidate() {
     runtime
         .startOrResume(

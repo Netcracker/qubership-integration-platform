@@ -40,13 +40,29 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipe
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
-import org.qubership.integration.platform.ai.llm.agent.ApprovalIntentAgent;
+import org.qubership.integration.platform.ai.llm.agent.GateReplyAgent;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
+import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 public class CreateProductPipelineCoordinatorTest {
 
   private Fixture fixture;
+
+  /** Stands in for a model that reads the reply as accepting the candidate it was shown. */
+  private static GateReplyAgent approvingAgent() {
+    return (memoryId, artifactType, artifactHash, revision, reply) -> {
+      new ApproveCandidateTool().approveCandidate(artifactType, artifactHash, revision);
+      return "Approved.";
+    };
+  }
+
+  /** Stands in for a model that answers without approving anything. */
+  private static GateReplyAgent silentAgent() {
+    return (memoryId, artifactType, artifactHash, revision, reply) ->
+        "The reader wants a change.";
+  }
 
   @BeforeEach
   void setUp() throws Exception {
@@ -69,7 +85,7 @@ public class CreateProductPipelineCoordinatorTest {
       return delegate.coordinator();
     }
 
-    public CreateProductPipelineCoordinator coordinatorWith(ApprovalIntentAgent agent) {
+    public CreateProductPipelineCoordinator coordinatorWith(GateReplyAgent agent) {
       return delegate.coordinatorWith(agent);
     }
 
@@ -110,12 +126,12 @@ public class CreateProductPipelineCoordinatorTest {
    *
    * <p>Both shapes reach this service in practice: the approval question is authored in the
    * language of the conversation, so the reply arrives in that language, and an agent relaying a
-   * person's approval writes a sentence rather than the bare token. Without the classifier both
-   * are fed back into the stage as fresh input, which re-runs it instead of approving it.
+   * person's approval writes a sentence rather than the bare token. Read literally, both are fed
+   * back into the stage as fresh input, which re-runs it instead of approving it.
    */
   @Test
   void approvalInAnotherLanguageAdvancesTheStage() {
-    CreateProductPipelineCoordinator coordinator = fixture.coordinatorWith(reply -> "APPROVED");
+    CreateProductPipelineCoordinator coordinator = fixture.coordinatorWith(approvingAgent());
     ChatRequest request = new ChatRequest();
     request.setResolvedEffectiveUserText("create greetings API");
     coordinator.handle(request, "conv-lang").collect().asList().await().indefinitely();
@@ -131,11 +147,10 @@ public class CreateProductPipelineCoordinatorTest {
         coordinator.loadRun("conv-lang").orElseThrow().run().currentStageId());
   }
 
-  /** A reply the classifier does not read as acceptance leaves the stage where it was. */
+  /** A reply the model does not act on leaves the stage where it was. */
   @Test
   void requestedChangesDoNotApprove() {
-    CreateProductPipelineCoordinator coordinator =
-        fixture.coordinatorWith(reply -> "CHANGES_REQUESTED");
+    CreateProductPipelineCoordinator coordinator = fixture.coordinatorWith(silentAgent());
     ChatRequest request = new ChatRequest();
     request.setResolvedEffectiveUserText("create greetings API");
     coordinator.handle(request, "conv-changes").collect().asList().await().indefinitely();
@@ -151,10 +166,10 @@ public class CreateProductPipelineCoordinatorTest {
 
   /** A model failure must not advance a stage nobody approved. */
   @Test
-  void classifierFailureIsNotAnApproval() {
+  void gateAgentFailureIsNotAnApproval() {
     CreateProductPipelineCoordinator coordinator =
         fixture.coordinatorWith(
-            reply -> {
+            (memoryId, artifactType, artifactHash, revision, reply) -> {
               throw new IllegalStateException("model unavailable");
             });
     ChatRequest request = new ChatRequest();
@@ -171,20 +186,20 @@ public class CreateProductPipelineCoordinatorTest {
   }
 
   /**
-   * A classified approval never reaches materialization on its own.
+   * A model-driven approval never reaches materialization on its own.
    *
    * <p>Materializing writes a chain into the catalog and nothing removes it again, so it is the
-   * one step that stays behind a token this code can check literally. Classification carries the
-   * run to the implement gate and stops there.
+   * one step a model cannot reach: no tool offers it. An approval carries the run to the implement
+   * gate and stops there.
    */
   @Test
-  void classifiedApprovalStopsAtTheImplementGate() {
-    CreateProductPipelineCoordinator coordinator = fixture.coordinatorWith(reply -> "APPROVED");
+  void modelApprovalStopsAtTheImplementGate() {
+    CreateProductPipelineCoordinator coordinator = fixture.coordinatorWith(approvingAgent());
     ChatRequest start = new ChatRequest();
     start.setResolvedEffectiveUserText("create greetings API");
     coordinator.handle(start, "conv-gate").collect().asList().await().indefinitely();
 
-    // Drive every approval gate with prose the literal check cannot read.
+    // Drive every approval gate with prose no pattern match could read as an approval.
     for (int turn = 0; turn < 8; turn++) {
       RunStatus status = coordinator.loadRun("conv-gate").orElseThrow().run().status();
       if (status == RunStatus.WAITING_FOR_IMPLEMENT) {
@@ -200,14 +215,7 @@ public class CreateProductPipelineCoordinatorTest {
         coordinator.loadRun("conv-gate").orElseThrow().run().status(),
         "the run should have reached the implement gate");
     assertEquals(
-        0, fixture.materializationCalls().get(), "a classified approval must not materialize");
-
-    ChatRequest literal = new ChatRequest();
-    literal.setResolvedEffectiveUserText("Agree");
-    coordinator.handle(literal, "conv-gate").collect().asList().await().indefinitely();
-
-    assertEquals(
-        1, fixture.materializationCalls().get(), "an explicit token must materialize");
+        0, fixture.materializationCalls().get(), "a model approval must not materialize");
   }
 
   @Test
@@ -282,7 +290,7 @@ public class CreateProductPipelineCoordinatorTest {
       return buildCoordinator(blobs);
     }
 
-    CreateProductPipelineCoordinator coordinatorWith(ApprovalIntentAgent agent) {
+    CreateProductPipelineCoordinator coordinatorWith(GateReplyAgent agent) {
       return buildCoordinator(blobs, agent);
     }
 
@@ -313,7 +321,7 @@ public class CreateProductPipelineCoordinatorTest {
     }
 
     private CreateProductPipelineCoordinator buildCoordinator(
-        InMemoryArtifactBlobStore store, ApprovalIntentAgent approvalIntentAgent) {
+        InMemoryArtifactBlobStore store, GateReplyAgent gateReplyAgent) {
       CreateRunBindingStore bindingStore = new CreateRunBindingStore(store, mapper);
       CreateRunSelectionService selection =
           new CreateRunSelectionService(
@@ -336,9 +344,16 @@ public class CreateProductPipelineCoordinatorTest {
       ProductPipelineRuntime runtime =
           new ProductPipelineRuntime(
               runStore, storeFacade, capabilities, catalog, stubPinResolver(), clock);
-      return new CreateProductPipelineCoordinator(
-          selection, bindingStore, runtime, runStore, catalog, new ApprovalPrompts(),
-          approvalIntentAgent);
+      CreateProductPipelineCoordinator coordinator =
+          new CreateProductPipelineCoordinator(
+              selection, bindingStore, runtime, runStore, catalog, new ApprovalPrompts(),
+              gateReplyAgent);
+      // Same collaborators CDI injects in production: an approval is validated against the open
+      // gate, and the authored question outlives the wait that carried it.
+      coordinator.facade =
+          new CreateChainApplicationFacade(selection, bindingStore, runtime, runStore, catalog);
+      coordinator.approvalQuestions = new ApprovalQuestionStore(store);
+      return coordinator;
     }
 
     private static StageCapability discovery() {
