@@ -110,6 +110,14 @@ class CustomResourceServiceTest {
         return rule;
     }
 
+    private Map<String, Object> rule(String type, String value) {
+        Map<String, Object> pathMatch = Map.of("type", type, "value", value);
+        Map<String, Object> match = Map.of("path", pathMatch);
+        Map<String, Object> rule = new LinkedHashMap<>();
+        rule.put("matches", List.of(match));
+        return rule;
+    }
+
     // Mirrors what io.kubernetes.client.openapi.JSON (Gson, ToNumberPolicy.DOUBLE) actually
     // produces for a sibling chain's rule read back from the cluster: every JSON number, including
     // a whole-number port/weight, decodes as Double.
@@ -255,6 +263,23 @@ class CustomResourceServiceTest {
 
         verify(kubeOperator, never()).getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PUBLIC_ROUTE_NAME));
         verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, PRIVATE_ROUTE_NAME);
+    }
+
+    // A snapshot's own path/{param} route must be recognized against its RegularExpression rule
+    // in the HTTPRoute CR by (type, value) identity, not by comparing the rule's already-converted
+    // regex value against the route's still-unconverted "{param}" path string as a bare literal.
+    @Test
+    void deleteChainSnapshotRecognizesOwnPlaceholderPathAndDeletesCr() {
+        when(routesGetterService.getRoutes(any())).thenReturn(List.of(
+                DeploymentRoute.builder().path("/orders/{id}").type(RouteType.EXTERNAL_TRIGGER).build()));
+        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PUBLIC_ROUTE_NAME)))
+                .thenReturn(Optional.of(httpRoute(PUBLIC_ROUTE_NAME,
+                        List.of(rule("RegularExpression", "/qip-routes/orders/[^/]+")))));
+
+        customResourceService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
+
+        verify(kubeOperator, never()).getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PRIVATE_ROUTE_NAME));
+        verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME);
     }
 
     // Finding 3: egress routes (EXTERNAL_SENDER/EXTERNAL_SERVICE) are not gateway-tier paths at all

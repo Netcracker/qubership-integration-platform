@@ -34,6 +34,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.DeploymentRouteMapper;
 import org.qubership.integration.platform.runtime.catalog.service.RoutesGetterService;
+import org.qubership.integration.platform.runtime.catalog.util.paths.GatewayPathMatch;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -343,8 +344,8 @@ public class CustomResourceService {
         List<DeploymentRoute> ownRoutes = routesGetterService.getRoutes(spec);
         List<DeploymentRouteUpdate> ownUpdates = deploymentRouteMapper.asUpdates(ownRoutes);
 
-        Set<String> publicPaths = tierOwnPaths(ownUpdates, RouteType::isExternalTriggerRoute);
-        Set<String> privatePaths = tierOwnPaths(ownUpdates, RouteType::isPrivateTriggerRoute);
+        Set<GatewayPathMatch> publicPaths = tierOwnPaths(ownUpdates, RouteType::isExternalTriggerRoute);
+        Set<GatewayPathMatch> privatePaths = tierOwnPaths(ownUpdates, RouteType::isPrivateTriggerRoute);
 
         if (publicPaths.isEmpty() && privatePaths.isEmpty()) {
             return;
@@ -358,21 +359,22 @@ public class CustomResourceService {
     }
 
     /**
-     * Builds the set of this snapshot's own fully-prefixed route paths for a single gateway tier.
-     * Egress routes ({@code EXTERNAL_SENDER}/{@code EXTERNAL_SERVICE}, whose "paths" are absolute
-     * target URLs, not gateway paths) are excluded by the tier predicate, and each remaining path is
-     * prefixed with {@link #baseRoutePrefix} so it can be compared exactly against the paths recorded
-     * in the tier's HTTPRoute CR (mirroring {@code HttpRouteResourceBuilder}'s own path bookkeeping).
+     * Builds the set of this snapshot's own route path matches (type + value, via
+     * {@link GatewayPathMatch}) for a single gateway tier, so they can be compared exactly
+     * against the paths recorded in the tier's HTTPRoute CR (mirroring
+     * {@code HttpRouteResourceBuilder}'s own path bookkeeping). Egress routes
+     * ({@code EXTERNAL_SENDER}/{@code EXTERNAL_SERVICE}, whose "paths" are absolute target
+     * URLs, not gateway paths) are excluded by the tier predicate.
      */
-    private Set<String> tierOwnPaths(List<DeploymentRouteUpdate> ownUpdates, Predicate<RouteType> tierPredicate) {
+    private Set<GatewayPathMatch> tierOwnPaths(List<DeploymentRouteUpdate> ownUpdates, Predicate<RouteType> tierPredicate) {
         return ownUpdates.stream()
                 .filter(route -> tierPredicate.test(route.getType()))
-                .map(route -> baseRoutePrefix + route.getPath())
+                .map(route -> GatewayPathMatch.forPath(baseRoutePrefix + route.getPath()))
                 .collect(Collectors.toSet());
     }
 
     @SuppressWarnings("unchecked")
-    private void stripPathsFromTier(String routeName, Set<String> ownPaths, String tierName) {
+    private void stripPathsFromTier(String routeName, Set<GatewayPathMatch> ownPaths, String tierName) {
         Optional<KubeCustomObject> existing = kubeOperator
                 .getCustomObject(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, routeName);
         if (existing.isEmpty()) {
@@ -389,7 +391,7 @@ public class CustomResourceService {
         List<Map<String, Object>> remaining = rules.stream()
                 .map(rule -> (Map<String, Object>) rule)
                 .filter(rule -> {
-                    String path = extractRulePath(rule);
+                    GatewayPathMatch path = extractRulePath(rule);
                     if (path == null) {
                         log.warn("HTTPRoute '{}' ({} tier) has a rule with an unrecognized path match shape; "
                                 + "keeping it rather than risk dropping it during snapshot cleanup", routeName, tierName);
@@ -424,13 +426,13 @@ public class CustomResourceService {
     }
 
     /**
-     * Reads {@code matches[0].path.value} out of a raw (deserialized-from-YAML/JSON) HTTPRoute rule,
-     * returning {@code null} for any shape that doesn't hold a readable path (no {@code matches}, an
-     * empty {@code matches} list, a header-only match with no {@code path}, and similar) instead of
-     * throwing. The caller treats a {@code null} result as "not matched by any of ownPaths" and
-     * preserves the rule.
+     * Reads {@code matches[0].path.{type,value}} out of a raw (deserialized-from-YAML/JSON)
+     * HTTPRoute rule, returning {@code null} for any shape that doesn't hold a readable path (no
+     * {@code matches}, an empty {@code matches} list, a header-only match with no {@code path},
+     * and similar) instead of throwing. The caller treats a {@code null} result as "not matched
+     * by any of ownPaths" and preserves the rule.
      */
-    private String extractRulePath(Map<String, Object> rule) {
+    private GatewayPathMatch extractRulePath(Map<String, Object> rule) {
         try {
             if (!(rule.get("matches") instanceof List<?> matches) || matches.isEmpty()) {
                 return null;
@@ -441,7 +443,10 @@ public class CustomResourceService {
             if (!(match.get("path") instanceof Map<?, ?> path)) {
                 return null;
             }
-            return path.get("value") instanceof String value ? value : null;
+            if (!(path.get("type") instanceof String type) || !(path.get("value") instanceof String value)) {
+                return null;
+            }
+            return GatewayPathMatch.of(type, value);
         } catch (RuntimeException e) {
             return null;
         }
