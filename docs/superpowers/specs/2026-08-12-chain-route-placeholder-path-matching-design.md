@@ -133,14 +133,17 @@ first scoped:
 
 Today, `touchedPaths` is a `Set<String>` of literal path values, compared against a
 preserved rule's `matches[0].path.value` alone. With two possible match types now, identity
-must be `(type, value)`, not `value` alone — cheap to get right, and closes an edge case
-that matters here specifically: **a route's match type can change between deploys** if its
-configured path gains or loses a placeholder (e.g. a chain redeploy changes
-`/orders/{id}` to `/orders/active`). The old cached rule and the newly computed rule for
-the same route will have different `type` values in that case; comparing on `value` alone
-already produces a correct answer, but comparing on `(type, value)` (i.e. treating each
-`GatewayPathMatch` as the identity, via its `equals`/`hashCode`) is what actually reflects
-what "the same route's match" means once the match itself is typed.
+must be `(type, value)`, not `value` alone.
+
+`GatewayPathMatch.forPath` is a pure function of the path string, so **a route's type can
+never change between deploys without its value changing alongside it** — if the old and new
+rules for the same route ever had different `type`s, they would already have different
+`value`s too. Comparing on `value` alone is therefore already correct for that scenario, and
+`(type, value)` identity gives no additional benefit there. What `(type, value)` identity
+actually guards against is a `PathPrefix` rule and a `RegularExpression` rule that happen to
+share the same literal `value` string: without the `type` in the comparison, those two rules
+would be treated as the same route's match even though they are not. `GatewayPathMatch`'s
+own `equalityIsBasedOnTypeAndValueTogether` unit test verifies exactly this property.
 
 Concretely: `touchedPaths` is built as a `Set<GatewayPathMatch>` from the current
 deployment's routes, and a preserved rule is dropped from the preserved list (i.e. treated

@@ -233,12 +233,16 @@ public class HttpRouteResourceBuilder implements ResourceBuilder<List<Snapshot>>
             JsonNode pathNode = ruleNode.path("matches").path(0).path("path");
             String type = pathNode.path("type").asText(null);
             String value = pathNode.path("value").asText(null);
-            if (type == null || value == null) {
+            if (value == null) {
                 log.warn("Preserved HTTPRoute rule under cache key '{}' has no recognizable path match "
                         + "(matches[0].path.type/value); keeping it unconditionally rather than risk silently "
                         + "dropping it from the cluster: {}", cacheKey, ruleNode);
                 preserved.add(ruleNode);
                 continue;
+            }
+            if (type == null) {
+                // Gateway API defaults HTTPPathMatch.type to PathPrefix when omitted.
+                type = "PathPrefix";
             }
             if (!touchedPaths.contains(GatewayPathMatch.of(type, value))) {
                 preserved.add(ruleNode);

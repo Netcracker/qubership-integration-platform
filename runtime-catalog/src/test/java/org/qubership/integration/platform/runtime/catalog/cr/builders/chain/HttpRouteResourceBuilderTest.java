@@ -200,6 +200,27 @@ class HttpRouteResourceBuilderTest {
         assertTrue(result.contains("/qip-routes/a"));
     }
 
+    // Gateway API's HTTPPathMatch.type defaults to PathPrefix when the field is absent, so a
+    // cached rule with a "value" but no "type" key is a valid, fully-specified PathPrefix rule
+    // and must be recognized as touched (and dropped) rather than preserved as unrecognized.
+    @Test
+    void buildDropsCachedRuleWithNoTypeKeyWhenRecognizedAsEquivalentPathPrefix() throws Exception {
+        when(routesGetterService.getRoutes(any())).thenReturn(List.of(
+                DeploymentRoute.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).connectTimeout(9000L).build()));
+
+        ResourceBuildContext<List<Snapshot>> context = contextFor(List.of(mock(Snapshot.class)));
+        Map<String, Object> priorSpec = new LinkedHashMap<>();
+        priorSpec.put("rules", List.of(
+                Map.of("matches", List.of(Map.of("path", Map.of("value", "/qip-routes/a"))))));
+        context.getBuildCache().put("publicHttpRoute", priorSpec);
+
+        String result = builder.build(context);
+
+        long occurrences = result.split("/qip-routes/a", -1).length - 1;
+        assertEquals(1, occurrences);
+        assertTrue(result.contains("9000ms"));
+    }
+
     @Test
     void buildEmitsRegularExpressionMatchForPlaceholderPath() throws Exception {
         when(routesGetterService.getRoutes(any())).thenReturn(List.of(

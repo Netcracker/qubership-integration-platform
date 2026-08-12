@@ -92,7 +92,7 @@ public class CustomResourceService {
     private static final String GATEWAY_API_VERSION = "v1";
     private static final String HTTP_ROUTES_PLURAL = "httproutes";
 
-    @Value("${qip.chains.external-routes.base-path:/qip-routes}")
+    @Value("${qip.chains.external-routes.base-path}")
     String baseRoutePrefix;
 
     @Value("${qip.cr.labels.domain}")
@@ -443,9 +443,11 @@ public class CustomResourceService {
             if (!(match.get("path") instanceof Map<?, ?> path)) {
                 return null;
             }
-            if (!(path.get("type") instanceof String type) || !(path.get("value") instanceof String value)) {
+            if (!(path.get("value") instanceof String value)) {
                 return null;
             }
+            // Gateway API defaults HTTPPathMatch.type to PathPrefix when omitted.
+            String type = path.get("type") instanceof String t ? t : "PathPrefix";
             return GatewayPathMatch.of(type, value);
         } catch (RuntimeException e) {
             return null;

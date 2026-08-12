@@ -176,6 +176,16 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
         kubeOperator.createOrReplaceCustomObject(tierRequest);
     }
 
+    /**
+     * Reads the path match off an existing rule fetched from the cluster. Unlike
+     * {@code runtime-catalog}'s sibling code (which preserves an unrecognized rule and logs a
+     * warning), a malformed rule here throws (e.g. {@link IndexOutOfBoundsException} on an
+     * empty {@code matches} list), which {@link #mergeTierRoutes} wraps as a
+     * {@link ControlPlaneException} and aborts the whole write. That asymmetry is intentional:
+     * this write path merges into a live route the engine itself owns, so failing loudly and
+     * leaving the existing HTTPRoute untouched is safer than silently guessing at a rule's
+     * intent and possibly dropping or misapplying it.
+     */
     private GatewayPathMatch ruleMatch(HTTPRouteRule rule) {
         HTTPPathMatch path = rule.getMatches().get(0).getPath();
         return GatewayPathMatch.of(path.getType(), path.getValue());

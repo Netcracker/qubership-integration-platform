@@ -342,6 +342,27 @@ class CustomResourceServiceTest {
         verify(kubeOperator, never()).deleteCustomObject(any(), any(), any(), any());
     }
 
+    // Gateway API's HTTPPathMatch.type defaults to PathPrefix when the field is absent, so a
+    // cached rule with a "value" but no "type" key is a valid, fully-specified PathPrefix rule
+    // and must be recognized as this snapshot's own route (and stripped), not preserved as
+    // unrecognized.
+    @Test
+    void deleteChainSnapshotRecognizesRuleWithNoTypeKeyAsEquivalentPathPrefixAndStripsIt() {
+        when(routesGetterService.getRoutes(any())).thenReturn(List.of(
+                DeploymentRoute.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build()));
+        Map<String, Object> ruleWithoutType = new LinkedHashMap<>();
+        ruleWithoutType.put("matches", List.of(Map.of("path", Map.of("value", "/qip-routes/a"))));
+        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PUBLIC_ROUTE_NAME)))
+                .thenReturn(Optional.of(httpRoute(PUBLIC_ROUTE_NAME, List.of(ruleWithoutType))));
+        when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PRIVATE_ROUTE_NAME)))
+                .thenReturn(Optional.empty());
+
+        customResourceService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
+
+        verify(kubeOperator).deleteCustomObject(GROUP, VERSION, PLURAL, PUBLIC_ROUTE_NAME);
+        verify(kubeOperator, never()).createOrUpdateResource(any());
+    }
+
     // Finding 6: for a long enough domain name, the public and private tier names must not truncate
     // to the same 63-character string.
     @Test
