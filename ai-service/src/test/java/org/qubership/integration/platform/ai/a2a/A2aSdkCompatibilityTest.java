@@ -19,24 +19,24 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aProtocolConstants;
 
 /**
- * Compatibility gate for A2A on Quarkus 3.32.3. Slice 1 proves dependency convergence and boot.
+ * Compatibility gate for A2A on Quarkus 3.33.3. Slice 1 proves dependency convergence and boot.
  */
 @QuarkusTest
 class A2aSdkCompatibilityTest {
 
-  private static final String EXPECTED_QUARKUS_VERSION = "3.32.3";
+  private static final String EXPECTED_QUARKUS_VERSION = "3.33.3";
 
   @Inject
   @PublicAgentCard
   Instance<AgentCard> agentCard;
 
   @Test
-  void quarkusPlatformRemainsAt3323AndServiceBoots() {
+  void quarkusPlatformRemainsAt3333AndServiceBoots() {
     assertEquals(LaunchMode.TEST, LaunchMode.current(), "ai-service must boot in test mode");
     assertEquals(
         EXPECTED_QUARKUS_VERSION,
         LaunchMode.class.getPackage().getImplementationVersion(),
-        "Quarkus must stay pinned at 3.32.3; do not upgrade for A2A");
+        "Quarkus must stay pinned at 3.33.3");
   }
 
   @Test

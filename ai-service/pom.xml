@@ -32,9 +32,11 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.32.3</quarkus.platform.version>
+        <quarkus.platform.version>3.33.3</quarkus.platform.version>
         <a2a.version>1.1.0.Final</a2a.version>
-        <quarkus-langchain4j.version>1.8.0.CR2</quarkus-langchain4j.version>
+        <!-- Flow 0.14.0 and Quarkus LangChain4j 1.12.2 target the Quarkus 3.33 LTS line. -->
+        <quarkus-flow.version>0.14.0</quarkus-flow.version>
+        <quarkus-langchain4j.version>1.12.2</quarkus-langchain4j.version>
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.4</surefire-plugin.version>
         <wiremock.version>3.10.0</wiremock.version>
@@ -123,6 +125,13 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-smallrye-context-propagation</artifactId>
+        </dependency>
+
+        <!-- Workflow orchestration; product-pipeline execution remains on the legacy runtime. -->
+        <dependency>
+            <groupId>io.quarkiverse.flow</groupId>
+            <artifactId>quarkus-flow</artifactId>
+            <version>${quarkus-flow.version}</version>
         </dependency>
 
         <!-- LangChain4j / Quarkus LangChain4j -->
@@ -225,7 +234,7 @@
         <!-- Testing -->
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-junit5</artifactId>
+            <artifactId>quarkus-junit</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
