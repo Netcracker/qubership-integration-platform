@@ -69,6 +69,37 @@ class IstioRoutesRegistrationServiceTest {
     }
 
     @Test
+    void postPublicEngineRoutesCreatesRegularExpressionMatchForPlaceholderPath() {
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
+        DeploymentRouteUpdate route = route("/chain-a/{id}", RouteType.EXTERNAL_TRIGGER, null);
+
+        service.postPublicEngineRoutes(List.of(route), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
+
+        HTTPRouteSpec spec = new ObjectMapper().convertValue(captor.getValue().getBody().getSpec(), HTTPRouteSpec.class);
+        HTTPPathMatch pathMatch = spec.getRules().get(0).getMatches().get(0).getPath();
+        assertEquals("RegularExpression", pathMatch.getType());
+        assertEquals(BASE_PATH + "/chain-a/[^/]+", pathMatch.getValue());
+    }
+
+    @Test
+    void postPublicEngineRoutesReplacesOwnStaleRegularExpressionRuleInsteadOfDuplicating() {
+        HTTPRouteRule staleRule = rule("RegularExpression", BASE_PATH + "/chain-a/[^/]+", CLOUD_SERVICE_NAME);
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(staleRule))));
+
+        service.postPublicEngineRoutes(
+                List.of(route("/chain-a/{id}", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
+
+        HTTPRouteSpec spec = new ObjectMapper().convertValue(captor.getValue().getBody().getSpec(), HTTPRouteSpec.class);
+        assertEquals(1, spec.getRules().size());
+    }
+
+    @Test
     void postPublicEngineRoutesPreservesOtherChainsRules() {
         HTTPRouteRule otherChainRule = rule("/chain-b", "other-service");
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(otherChainRule))));
@@ -287,6 +318,25 @@ class IstioRoutesRegistrationServiceTest {
                         .path(HTTPPathMatch.builder()
                                 .type("PathPrefix")
                                 .value(BASE_PATH + path)
+                                .build())
+                        .build()))
+                .filters(List.of())
+                .backendRefs(List.of(HTTPBackendRef.builder()
+                        .group("")
+                        .kind("Service")
+                        .name(backendName)
+                        .port(8080)
+                        .weight(1)
+                        .build()))
+                .build();
+    }
+
+    private HTTPRouteRule rule(String type, String path, String backendName) {
+        return HTTPRouteRule.builder()
+                .matches(List.of(HTTPRouteMatch.builder()
+                        .path(HTTPPathMatch.builder()
+                                .type(type)
+                                .value(path)
                                 .build())
                         .build()))
                 .filters(List.of())

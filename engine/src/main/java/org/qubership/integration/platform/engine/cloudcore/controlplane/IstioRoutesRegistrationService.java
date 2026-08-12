@@ -19,6 +19,7 @@ import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteRule;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteSpec;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteTimeouts;
 import org.qubership.integration.platform.engine.model.gatewayapi.ParentReference;
+import org.qubership.integration.platform.engine.util.paths.GatewayPathMatch;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -142,12 +143,12 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
                 .filter(Objects::nonNull)
                 .orElse(List.of());
 
-        Set<String> touchedPaths = givenRoutes.stream()
-                .map(route -> baseRoutePrefix + route.getPath())
+        Set<GatewayPathMatch> touchedPaths = givenRoutes.stream()
+                .map(route -> GatewayPathMatch.forPath(baseRoutePrefix + route.getPath()))
                 .collect(Collectors.toSet());
 
         List<HTTPRouteRule> preservedRules = existingRules.stream()
-                .filter(rule -> !touchedPaths.contains(matchPath(rule)))
+                .filter(rule -> !touchedPaths.contains(ruleMatch(rule)))
                 .toList();
 
         List<HTTPRouteRule> newRules = buildRules
@@ -175,12 +176,13 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
         kubeOperator.createOrReplaceCustomObject(tierRequest);
     }
 
-    private String matchPath(HTTPRouteRule rule) {
-        return rule.getMatches().get(0).getPath().getValue();
+    private GatewayPathMatch ruleMatch(HTTPRouteRule rule) {
+        HTTPPathMatch path = rule.getMatches().get(0).getPath();
+        return GatewayPathMatch.of(path.getType(), path.getValue());
     }
 
     private HTTPRouteRule buildRule(DeploymentRouteUpdate route, String backendName) {
-        String path = baseRoutePrefix + route.getPath();
+        GatewayPathMatch pathMatch = GatewayPathMatch.forPath(baseRoutePrefix + route.getPath());
 
         HTTPRouteTimeouts timeouts = null;
         if (route.getConnectTimeout() != null && route.getConnectTimeout() > 0) {
@@ -191,7 +193,7 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
 
         return HTTPRouteRule.builder()
                 .matches(List.of(HTTPRouteMatch.builder()
-                        .path(HTTPPathMatch.builder().type("PathPrefix").value(path).build())
+                        .path(HTTPPathMatch.builder().type(pathMatch.getType()).value(pathMatch.getValue()).build())
                         .build()))
                 .filters(Collections.emptyList())
                 .backendRefs(List.of(HTTPBackendRef.builder()
