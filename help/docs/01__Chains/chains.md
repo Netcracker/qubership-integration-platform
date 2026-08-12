@@ -293,11 +293,11 @@ You can view the comparison in three modes, switchable at any time:
 
 <ins>VS Code Extension</ins>
 
-Chain comparison is available from a chain's git history: use any Visual Studio Code action that opens a diff for a `*.chain.qip.yaml` file (for example, **Open Changes** or **Compare with...** in the Source Control view). By default, the QIP visual diff opens in place of the built-in text diff and shows the same **Graph** and **Table** views described above, with the **Previous change**/**Next change** controls. The **Text** view is not available, since it duplicates the built-in text diff.
+Chain comparison is available from a chain's Git history: use any Visual Studio Code action that opens a diff for a `*.chain.qip.yaml` file (for example, **Open Changes** or **Compare with...** in the Source Control view). By default, the QIP visual diff opens in place of the built-in text diff and shows the same **Graph** and **Table** views described above, with the **Previous change**/**Next change** controls. The **Text** view is not available, since it duplicates the built-in text diff.
 
 > ℹ️ **Note**: To compare `*.chain.qip.yaml` files with the built-in text diff instead, enable the **`qipExtension.useDefaultDiffView`** setting.
 
-Because the two compared versions are fixed by git, there is no chain/snapshot selector above the comparison areas. Clicking a chain or element link in either comparison area opens it in a new editor tab within Visual Studio Code instead of a browser tab.
+Because the two compared versions are fixed by Git, there is no chain/snapshot selector above the comparison areas. Clicking a chain or element link in either comparison area opens it in a new editor tab within Visual Studio Code instead of a browser tab.
 
 ### Constraints
 
