@@ -266,6 +266,8 @@ qip:
       interval: ${ACTION_LOG_CLEANUP_INTERVAL:14 days} # logs older than interval will be deleted, for example: '1 hour', '7 days', '2 years 3 month'
       cron: ${ACTION_LOG_CLEANUP_CRON:0 0 0 ? * SAT} # Cleanup task schedule in cron expression format
   chains:
+    external-routes:
+      base-path: /${app.prefix}-routes
     triggers:
       check:
         enabled: true

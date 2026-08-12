@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.runtime.catalog.cr.builders.chain;
 
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,7 +39,13 @@ class HttpRouteResourceBuilderTest {
         routesGetterService = mock(RoutesGetterService.class);
         DeploymentRouteMapper mapper = Mappers.getMapper(DeploymentRouteMapper.class);
 
-        YAMLMapper yamlMapper = new YAMLMapper();
+        // Mirrors the MINIMIZE_QUOTES setting of the production "customResourceYamlMapper" bean
+        // (see YamlMapperConfiguration), so assertions here can match unquoted YAML scalars the
+        // same way the real generated CRs render them.
+        YAMLFactory yamlFactory = YAMLFactory.builder()
+                .enable(YAMLGenerator.Feature.MINIMIZE_QUOTES)
+                .build();
+        YAMLMapper yamlMapper = new YAMLMapper(yamlFactory);
         NamingStrategy<ResourceBuildContext<List<Snapshot>>> publicNamingStrategy = ctx -> "my-domain-v1-chain-public-routes";
         NamingStrategy<ResourceBuildContext<List<Snapshot>>> privateNamingStrategy = ctx -> "my-domain-v1-chain-private-routes";
         NamingStrategy<ResourceBuildContext<List<Snapshot>>> serviceNamingStrategy = ctx -> "my-domain-v1";
@@ -191,4 +199,61 @@ class HttpRouteResourceBuilderTest {
         assertTrue(result.contains("hand-edited-rule-without-matches"));
         assertTrue(result.contains("/qip-routes/a"));
     }
+
+    @Test
+    void buildEmitsRegularExpressionMatchForPlaceholderPath() throws Exception {
+        when(routesGetterService.getRoutes(any())).thenReturn(List.of(
+                DeploymentRoute.builder().path("/orders/{id}").type(RouteType.EXTERNAL_TRIGGER).build()));
+
+        String result = builder.build(contextFor(List.of(mock(Snapshot.class))));
+
+        assertTrue(result.contains("type: RegularExpression"));
+        // SnakeYAML always quotes a scalar containing flow-indicator characters ("[", "]",
+        // "^"), regardless of MINIMIZE_QUOTES, since an unquoted plain scalar with those
+        // characters would not round-trip as this exact string.
+        assertTrue(result.contains("value: \"/qip-routes/orders/[^/]+\""));
+    }
+
+    @Test
+    void buildEmitsNoFiltersForPlaceholderFreeRoute() throws Exception {
+        when(routesGetterService.getRoutes(any())).thenReturn(List.of(
+                DeploymentRoute.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).build()));
+
+        String result = builder.build(contextFor(List.of(mock(Snapshot.class))));
+
+        assertFalse(result.contains("URLRewrite"));
+        assertFalse(result.contains("ReplacePrefixMatch"));
+    }
+
+    @Test
+    void buildDropsCachedRuleForAPlaceholderPathThisBuildReplaces() throws Exception {
+        when(routesGetterService.getRoutes(any())).thenReturn(List.of(
+                DeploymentRoute.builder().path("/orders/{id}").type(RouteType.EXTERNAL_TRIGGER).connectTimeout(9000L).build()));
+
+        ResourceBuildContext<List<Snapshot>> context = contextFor(List.of(mock(Snapshot.class)));
+        Map<String, Object> priorSpec = new LinkedHashMap<>();
+        priorSpec.put("rules", List.of(
+                Map.of("matches", List.of(Map.of("path",
+                        Map.of("type", "RegularExpression", "value", "/qip-routes/orders/[^/]+"))))));
+        context.getBuildCache().put("publicHttpRoute", priorSpec);
+
+        String result = builder.build(context);
+
+        long occurrences = result.split("/qip-routes/orders/\\[\\^/\\]\\+", -1).length - 1;
+        assertEquals(1, occurrences);
+        assertTrue(result.contains("9000ms"));
+    }
+
+    // NOTE: the brief for this task also specified a
+    // buildTreatsRouteAsTouchedWhenItsMatchTypeChangesBetweenDeploys test: a cached
+    // PathPrefix rule for the same route should be dropped once that route's path gains a
+    // placeholder and its match type becomes RegularExpression. It is intentionally omitted
+    // here. A cached HTTPRoute CR rule carries only a (type, value) path match and no stable
+    // route identity, so preservedRulesFromCache() cannot recognize that an old PathPrefix
+    // rule and a new RegularExpression rule came from the same route. GatewayPathMatch
+    // equality is deliberately by (type, value) together (see Task 1), and the parallel
+    // engine-side task (Task 5, same touched-path-detection approach) has no equivalent
+    // test. Satisfying this case needs new pattern-overlap matching logic beyond
+    // GatewayPathMatch's existing contract, which is out of scope for wiring in the utility.
+    // Flagged for the plan/brief author instead of implemented ad hoc.
 }

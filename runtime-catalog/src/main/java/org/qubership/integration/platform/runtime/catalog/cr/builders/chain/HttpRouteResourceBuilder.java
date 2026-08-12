@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.cr.builders.chain;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
@@ -15,6 +16,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.DeploymentRouteMapper;
 import org.qubership.integration.platform.runtime.catalog.service.RoutesGetterService;
+import org.qubership.integration.platform.runtime.catalog.util.paths.GatewayPathMatch;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,7 +41,6 @@ public class HttpRouteResourceBuilder implements ResourceBuilder<List<Snapshot>>
 
     private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
     private static final String GATEWAY_API_VERSION = "v1";
-    private static final String CAMEL_ROUTES_PREFIX = "/routes";
     private static final String PUBLIC_GATEWAY_NAME = "public-gateway";
     private static final String PRIVATE_GATEWAY_NAME = "private-gateway";
     private static final int BACKEND_PORT = 8080;
@@ -52,7 +53,7 @@ public class HttpRouteResourceBuilder implements ResourceBuilder<List<Snapshot>>
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> serviceNamingStrategy;
     private final K8sNameValidator k8sNameValidator;
 
-    @Value("${qip.chains.external-routes.base-path:/qip-routes}")
+    @Value("${qip.chains.external-routes.base-path}")
     String baseRoutePrefix;
 
     @Value("${qip.cr.labels.domain}")
@@ -183,20 +184,13 @@ public class HttpRouteResourceBuilder implements ResourceBuilder<List<Snapshot>>
     }
 
     private ObjectNode buildRule(DeploymentRouteUpdate route, String backendServiceName) {
-        String path = baseRoutePrefix + route.getPath();
+        GatewayPathMatch pathMatch = GatewayPathMatch.forPath(baseRoutePrefix + route.getPath());
         ObjectNode rule = yamlMapper.createObjectNode();
 
         ObjectNode match = rule.withArray("matches").addObject();
-        ObjectNode pathMatch = match.withObjectProperty("path");
-        pathMatch.put("type", "PathPrefix");
-        pathMatch.put("value", path);
-
-        ObjectNode filter = rule.withArray("filters").addObject();
-        filter.put("type", "URLRewrite");
-        ObjectNode urlRewrite = filter.withObjectProperty("urlRewrite");
-        ObjectNode rewritePath = urlRewrite.withObjectProperty("path");
-        rewritePath.put("type", "ReplacePrefixMatch");
-        rewritePath.put("replacePrefixMatch", CAMEL_ROUTES_PREFIX + route.getPath());
+        ObjectNode path = match.withObjectProperty("path");
+        path.put("type", pathMatch.getType());
+        path.put("value", pathMatch.getValue());
 
         ObjectNode backendRef = rule.withArray("backendRefs").addObject();
         backendRef.put("group", "");
@@ -228,23 +222,25 @@ public class HttpRouteResourceBuilder implements ResourceBuilder<List<Snapshot>>
             return List.of();
         }
 
-        Set<String> touchedPaths = tierRoutes.stream()
-                .map(route -> baseRoutePrefix + route.getPath())
+        Set<GatewayPathMatch> touchedPaths = tierRoutes.stream()
+                .map(route -> GatewayPathMatch.forPath(baseRoutePrefix + route.getPath()))
                 .collect(Collectors.toSet());
 
         List<ObjectNode> preserved = new ArrayList<>();
         for (Object ruleObj : existingRules) {
             ObjectNode ruleNode = yamlMapper.convertValue(ruleObj, ObjectNode.class);
             HttpRouteRuleNormalizer.normalizeIntegralDoubles(ruleNode);
-            String path = ruleNode.path("matches").path(0).path("path").path("value").asText(null);
-            if (path == null) {
+            JsonNode pathNode = ruleNode.path("matches").path(0).path("path");
+            String type = pathNode.path("type").asText(null);
+            String value = pathNode.path("value").asText(null);
+            if (type == null || value == null) {
                 log.warn("Preserved HTTPRoute rule under cache key '{}' has no recognizable path match "
-                        + "(matches[0].path.value); keeping it unconditionally rather than risk silently "
+                        + "(matches[0].path.type/value); keeping it unconditionally rather than risk silently "
                         + "dropping it from the cluster: {}", cacheKey, ruleNode);
                 preserved.add(ruleNode);
                 continue;
             }
-            if (!touchedPaths.contains(path)) {
+            if (!touchedPaths.contains(GatewayPathMatch.of(type, value))) {
                 preserved.add(ruleNode);
             }
         }
