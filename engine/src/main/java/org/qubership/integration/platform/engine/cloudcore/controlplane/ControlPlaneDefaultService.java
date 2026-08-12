@@ -35,7 +35,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.qubership.integration.platform.engine.configuration.camel.CamelServletConfiguration.CAMEL_ROUTES_PREFIX;
+import static org.qubership.integration.platform.engine.configuration.camel.CamelServletConfiguration.CAMEL_ROUTES_LEGACY_PREFIX;
 
 @Slf4j
 @Component("controlPlaneService")
@@ -43,7 +43,7 @@ import static org.qubership.integration.platform.engine.configuration.camel.Came
 @ConditionalOnProperty(name = "qip.control-plane.mesh-type", havingValue = "Core", matchIfMissing = true)
 public class ControlPlaneDefaultService implements ControlPlaneService {
 
-    private static final String CAMEL_ROUTES_REWRITE_PREFIX = CAMEL_ROUTES_PREFIX;
+    private static final String CAMEL_ROUTES_REWRITE_PREFIX = CAMEL_ROUTES_LEGACY_PREFIX;
     public static final String PUBLIC_GATEWAY_SERVICE_NODEGROUP = "public-gateway-service";
     public static final String PRIVATE_GATEWAY_SERVICE_NODEGROUP = "private-gateway-service";
 

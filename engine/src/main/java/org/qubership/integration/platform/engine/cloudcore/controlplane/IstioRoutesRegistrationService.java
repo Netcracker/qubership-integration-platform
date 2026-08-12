@@ -14,28 +14,18 @@ import org.qubership.integration.platform.engine.model.deployment.update.Deploym
 import org.qubership.integration.platform.engine.model.deployment.update.RouteType;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPBackendRef;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPPathMatch;
-import org.qubership.integration.platform.engine.model.gatewayapi.HTTPPathModifier;
-import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteFilter;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteMatch;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteRule;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteSpec;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteTimeouts;
-import org.qubership.integration.platform.engine.model.gatewayapi.HTTPUrlRewriteFilter;
 import org.qubership.integration.platform.engine.model.gatewayapi.ParentReference;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
-
-import static org.qubership.integration.platform.engine.configuration.camel.CamelServletConfiguration.CAMEL_ROUTES_PREFIX;
 
 @Slf4j
 @Component("controlPlaneService")
@@ -203,15 +193,7 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
                 .matches(List.of(HTTPRouteMatch.builder()
                         .path(HTTPPathMatch.builder().type("PathPrefix").value(path).build())
                         .build()))
-                .filters(List.of(HTTPRouteFilter.builder()
-                        .type("URLRewrite")
-                        .urlRewrite(HTTPUrlRewriteFilter.builder()
-                                .path(HTTPPathModifier.builder()
-                                        .type("ReplacePrefixMatch")
-                                        .replacePrefixMatch(CAMEL_ROUTES_PREFIX + route.getPath())
-                                        .build())
-                                .build())
-                        .build()))
+                .filters(Collections.emptyList())
                 .backendRefs(List.of(HTTPBackendRef.builder()
                         .group("")
                         .kind("Service")

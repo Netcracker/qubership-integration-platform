@@ -27,6 +27,7 @@ import org.qubership.integration.platform.engine.camel.components.servlet.Servle
 import org.qubership.integration.platform.engine.configuration.camel.CamelServletConfiguration;
 import org.qubership.integration.platform.engine.registry.GatewayHttpRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.server.observation.DefaultServerRequestObservationConvention;
 import org.springframework.http.server.observation.ServerRequestObservationContext;
 import org.springframework.stereotype.Component;
@@ -37,6 +38,9 @@ import static java.util.Objects.isNull;
 @Component
 public class CamelServletObservationConvention extends DefaultServerRequestObservationConvention {
     private final GatewayHttpRegistry httpRegistry;
+
+    @Value("${qip.camel.routes.prefix}")
+    private String routesPrefix;
 
     @Autowired
     public CamelServletObservationConvention(GatewayHttpRegistry httpRegistry) {
@@ -56,7 +60,10 @@ public class CamelServletObservationConvention extends DefaultServerRequestObser
             if (!isNull(consumer)) {
                 HttpCommonEndpoint endpoint = consumer.getEndpoint();
 
-                values = values.and(KeyValue.of("uri", CamelServletConfiguration.CAMEL_ROUTES_PREFIX + endpoint.getPath()));
+                String pattern = context.getCarrier().getHttpServletMapping().getPattern();
+                String uri = getUriTagValue(pattern, endpoint.getPath());
+
+                values = values.and(KeyValue.of("uri", uri));
 
                 if (endpoint instanceof ServletCustomEndpoint servletCustomEndpoint) {
                     if (servletCustomEndpoint.getTagsProvider() != null) {
@@ -67,5 +74,12 @@ public class CamelServletObservationConvention extends DefaultServerRequestObser
         }
 
         return values;
+    }
+
+    private String getUriTagValue(String pattern, String path) {
+        String prefix = pattern.startsWith(CamelServletConfiguration.CAMEL_ROUTES_LEGACY_PREFIX)
+            ? CamelServletConfiguration.CAMEL_ROUTES_LEGACY_PREFIX
+            : routesPrefix;
+        return prefix + path;
     }
 }

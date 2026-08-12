@@ -248,6 +248,8 @@ qip:
       enabled: ${DEFAULT_SECRET_ENABLED:false}
   standalone: true
   camel:
+    routes:
+      prefix: /${app.prefix}-routes
     stream-caching:
       enabled: true # enable exchange payload spooling
       buffer:
@@ -350,7 +352,7 @@ qip:
     expired-records-cleanup-cron: ${IDEMPOTENCY_RECORDS_CLEANUP_CRON:0 */5 * ? * *}
   chains:
     external-routes:
-      base-path: /qip-routes
+      base-path: ${qip.camel.routes.prefix}
 
 kubernetes:
   devmode: ${KUBE_DEV_MODE:false}

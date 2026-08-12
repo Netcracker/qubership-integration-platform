@@ -103,7 +103,8 @@ qip:
       error-handling:
         ignore-variables-errors: false
         ignore-route-loading-errors: false
-    routes-prefix: /routes
+    routes-prefix: /${application.prefix}-routes
+    legacy-routes-prefix: /routes
     stream-caching:
       enabled: true # enable exchange payload spooling
       buffer:
@@ -295,6 +296,7 @@ quarkus:
       servlet-class: org.qubership.integration.platform.engine.camel.components.servlet.CustomCamelHttpTransportServlet
       url-patterns:
         - "${qip.camel.routes-prefix}/*"
+        - "${qip.camel.legacy-routes-prefix}/*"
     trace:
       enabled: ${TRACING_ENABLED:false}
   scheduler:
