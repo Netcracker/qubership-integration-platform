@@ -361,6 +361,80 @@ public class CreateChainApplicationFacade {
   }
 
   /**
+   * Approves without the implement leg.
+   *
+   * <p>The browser makes writing the chain into the catalog a decision of its own, so the two
+   * commands validate separately and a failure of the second leaves the run recoverable at the
+   * implementation gate rather than in an ambiguous half-state. A2A keeps the compound {@link
+   * #streamApprove} it already relies on.
+   */
+  public Multi<CreateChainEvent> streamApproveOnly(ApproveCreateChainArtifactCommand command) {
+    Objects.requireNonNull(command, "command");
+    String taskId = command.taskId();
+    ProductPipelineRunDocument doc =
+        runStore
+            .loadByConversation(taskId)
+            .orElseThrow(() -> new IllegalStateException("no run for taskId " + taskId));
+    if (approveAlreadyApplied(doc, command)) {
+      return Multi.createFrom().empty();
+    }
+    if (doc.run().status() == RunStatus.WAITING_FOR_IMPLEMENT) {
+      return streamBlockedRecovery(taskId, doc, command);
+    }
+    Reference expected = approvableReference(doc);
+    return mapSignals(
+        taskId,
+        runtime.approve(
+            approveStep(doc.run().runId(), expected, doc.run().runRevision(), command)));
+  }
+
+  /**
+   * Content hash of the plan a run is ready to materialize, or empty when it is not at that gate.
+   *
+   * <p>Reported to the chat so the implementation gate can be offered as a decision. Nothing here
+   * is reachable from the public A2A surface, which refuses a caller-initiated implement action.
+   */
+  public Optional<String> pendingCreationHash(String taskId) {
+    Objects.requireNonNull(taskId, "taskId");
+    return runStore
+        .loadByConversation(taskId)
+        .filter(doc -> doc.run().status() == RunStatus.WAITING_FOR_IMPLEMENT)
+        .flatMap(doc -> runtime.approvedPlanContentHash(doc.run().runId()))
+        .filter(hash -> !hash.isBlank());
+  }
+
+  /**
+   * Writes the chain into the catalog, validating its own binding.
+   *
+   * <p>Refuses anything but the approved plan of a run standing at the implementation gate, so a
+   * stale card cannot create a chain from a plan that was revised in the meantime.
+   */
+  public Multi<CreateChainEvent> streamCreateChain(String taskId, String planHash, long revision) {
+    Objects.requireNonNull(taskId, "taskId");
+    ProductPipelineRunDocument doc =
+        runStore
+            .loadByConversation(taskId)
+            .orElseThrow(() -> new IllegalStateException("no run for taskId " + taskId));
+    Optional<String> expected = pendingCreationHash(taskId);
+    if (expected.isEmpty()) {
+      return Multi.createFrom()
+          .item(
+              new CreateChainEvent.Failed(
+                  "This run is not waiting to create a chain.", snapshotOf(taskId, doc)));
+    }
+    if (!expected.get().equals(planHash) || revision != doc.run().runRevision()) {
+      return Multi.createFrom()
+          .item(
+              new CreateChainEvent.Failed(
+                  "The approved plan moved on. Nothing was created.", snapshotOf(taskId, doc)));
+    }
+    return mapSignals(
+        taskId,
+        runtime.implement(
+            new ImplementCommand(doc.run().runId(), planHash, doc.run().runRevision())));
+  }
+
+  /**
    * Runs the implement leg of a compound approval. Reached both after a fresh approval and when a
    * retry finds the approve step already applied, so the command always resumes from its first
    * missing internal step.

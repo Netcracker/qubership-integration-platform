@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.chat.service;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
@@ -11,6 +12,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Appro
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainOutcome;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainEvent;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPublicArtifactTypes;
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
 import org.qubership.integration.platform.ai.productpipeline.facade.ExecutionSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
@@ -44,18 +46,50 @@ public class ChatDecisionService {
    */
   public Optional<ChatEvent.Decision> openDecision(String conversationId) {
     Objects.requireNonNull(conversationId, "conversationId");
+    Optional<ChatEvent.Decision> waiting =
+        facade
+            .snapshot(conversationId)
+            .flatMap(
+                snapshot ->
+                    Optional.ofNullable(snapshot.pendingAction())
+                        .map(
+                            pending ->
+                                (ChatEvent.Decision)
+                                    ChatEvent.decision(
+                                        pending,
+                                        snapshot.revision(),
+                                        storedQuestion(conversationId, pending),
+                                        actionsFor(pending))));
+    if (waiting.isPresent()) {
+      return waiting;
+    }
+    return creationDecision(conversationId);
+  }
+
+  /** The implementation gate as a card, when the run stands at it. */
+  private Optional<ChatEvent.Decision> creationDecision(String conversationId) {
     return facade
-        .snapshot(conversationId)
-        .flatMap(
-            snapshot ->
-                Optional.ofNullable(snapshot.pendingAction())
-                    .map(
-                        pending ->
-                            (ChatEvent.Decision)
-                                ChatEvent.decision(
-                                    pending,
-                                    snapshot.revision(),
-                                    storedQuestion(conversationId, pending))));
+        .pendingCreationHash(conversationId)
+        .map(
+            hash ->
+                (ChatEvent.Decision)
+                    ChatEvent.createChainDecision(
+                        CreateChainPublicArtifactTypes.IMPLEMENTATION_PLAN,
+                        hash,
+                        facade.snapshot(conversationId).map(ExecutionSnapshot::revision).orElse(0L),
+                        approvalQuestions.find(conversationId, hash).orElse("")));
+  }
+
+  /**
+   * Actions a gate offers. The plan gate keeps the happy path at one click by sending approval and
+   * creation together; every other gate has nothing to create.
+   */
+  private static List<String> actionsFor(PendingAction pending) {
+    if (pending instanceof PendingAction.Approve approve
+        && CreateChainPublicArtifactTypes.IMPLEMENTATION_PLAN.equals(approve.artifactType())) {
+      return List.of(ChatEvent.APPROVE_AND_CREATE_ACTION, ChatEvent.REQUEST_CHANGES_ACTION);
+    }
+    return null;
   }
 
   private String storedQuestion(String conversationId, PendingAction pending) {
@@ -87,7 +121,12 @@ public class ChatDecisionService {
   public Multi<ChatEvent> apply(String conversationId, ChatDecisionCommand command) {
     Objects.requireNonNull(conversationId, "conversationId");
     Objects.requireNonNull(command, "command");
-    if (!ChatEvent.APPROVE_ACTION.equals(command.getAction())) {
+    String action = command.getAction() == null ? "" : command.getAction();
+    if (ChatEvent.CREATE_ACTION.equals(action)) {
+      return createChain(conversationId, command.getArtifactHash(), command.getRevision());
+    }
+    if (!ChatEvent.APPROVE_ACTION.equals(action)
+        && !ChatEvent.APPROVE_AND_CREATE_ACTION.equals(action)) {
       // Request-changes carries no command: the comment travels as an ordinary message instead.
       return Multi.createFrom().empty();
     }
@@ -103,7 +142,47 @@ public class ChatDecisionService {
     if (refusal.isPresent()) {
       return refused(conversationId, refusal.get());
     }
-    return facade.streamApprove(approval).onItem().transformToMultiAndConcatenate(this::toChatEvent);
+    Multi<ChatEvent> approved =
+        facade
+            .streamApproveOnly(approval)
+            .onItem()
+            .transformToMultiAndConcatenate(this::toChatEvent);
+    if (!ChatEvent.APPROVE_AND_CREATE_ACTION.equals(action)) {
+      return approved.onCompletion().switchTo(() -> openGateEvents(conversationId));
+    }
+    return approved.onCompletion().switchTo(() -> createAfterApproval(conversationId));
+  }
+
+  /** Runs the creation leg of the combined action, if the run reached the gate at all. */
+  private Multi<ChatEvent> createAfterApproval(String conversationId) {
+    Optional<String> hash = facade.pendingCreationHash(conversationId);
+    if (hash.isEmpty()) {
+      return openGateEvents(conversationId);
+    }
+    long revision = facade.snapshot(conversationId).map(ExecutionSnapshot::revision).orElse(0L);
+    return createChain(conversationId, hash.get(), revision);
+  }
+
+  /**
+   * Writes the chain, then re-issues the gate if it is still open.
+   *
+   * <p>A failure after the approval succeeded leaves the run at the implementation gate, and the
+   * card that comes back offers creation alone — a recoverable state rather than an ambiguous one.
+   */
+  private Multi<ChatEvent> createChain(String conversationId, String planHash, long revision) {
+    return facade
+        .streamCreateChain(conversationId, planHash, revision)
+        .onItem()
+        .transformToMultiAndConcatenate(this::toChatEvent)
+        .onCompletion()
+        .switchTo(() -> openGateEvents(conversationId));
+  }
+
+  /** The gate the run stands at now, as an event, or nothing when it waits for nothing. */
+  private Multi<ChatEvent> openGateEvents(String conversationId) {
+    return openDecision(conversationId)
+        .map(decision -> Multi.createFrom().item((ChatEvent) decision))
+        .orElseGet(() -> Multi.createFrom().empty());
   }
 
   /** Answers a refused command with the decision the run waits for now, or with the reason. */
@@ -145,7 +224,12 @@ public class ChatDecisionService {
     }
     if (event instanceof CreateChainEvent.Waiting waiting) {
       return Multi.createFrom()
-          .item(ChatEvent.decision(waiting.pendingAction(), revisionOf(waiting), ""));
+          .item(
+              ChatEvent.decision(
+                  waiting.pendingAction(),
+                  revisionOf(waiting),
+                  "",
+                  actionsFor(waiting.pendingAction())));
     }
     if (event instanceof CreateChainEvent.Failed failed) {
       return Multi.createFrom().item(ChatEvent.error(failed.message()));

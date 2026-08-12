@@ -203,10 +203,7 @@ public class CreateProductPipelineCoordinator {
                           : ": " + doc.attempts().get(doc.attempts().size() - 1).failureEvidence())));
     }
     if (status == RunStatus.WAITING_FOR_IMPLEMENT) {
-      return Multi.createFrom()
-          .item(
-              ChatEvent.token(
-                  approvalPrompts.implementContinuationPrompt(languageReference(doc))));
+      return Multi.createFrom().item(creationDecision(conversationId, doc));
     }
     if (status == RunStatus.WAITING_FOR_APPROVAL && approvesCurrentCandidate(conversationId, doc, text)) {
       // A model-driven approval never materializes: the run stops at the implement gate, which is
@@ -272,23 +269,18 @@ public class CreateProductPipelineCoordinator {
       return Multi.createFrom().empty();
     }
     if (!confirmedLiterally) {
-      // Materialization writes a chain into the catalog and nothing here removes it again, so it
-      // is the one step that does not run on a classified intent. The run stays at the implement
-      // gate and the caller is asked for a word this code can check literally.
+      // Writing a chain into the catalog is irreversible and nothing here removes it again, so it
+      // is never a side effect of approving the plan. The run stays at the implementation gate and
+      // the reader is offered creation as a decision of its own.
       LOG.infof(
-          "Plan approved by classified intent; holding at the implement gate for an explicit"
-              + " confirmation runId=%s",
+          "Plan approved; holding at the implementation gate for a creation command runId=%s",
           after.run().runId());
-      return Multi.createFrom()
-          .item(ChatEvent.token(approvalPrompts.implementContinuationPrompt(languageReference(after))));
+      return Multi.createFrom().item(creationDecision(conversationId, after));
     }
     Optional<String> hash =
         runtime.approvedPlanContentHash(after.run().runId()).filter(h -> !h.isBlank());
     if (hash.isEmpty()) {
-      return Multi.createFrom()
-          .item(
-              ChatEvent.token(
-                  approvalPrompts.implementContinuationPrompt(languageReference(after))));
+      return Multi.createFrom().item(creationDecision(conversationId, after));
     }
     return mapSignals(
         runtime.implement(
@@ -409,6 +401,25 @@ public class CreateProductPipelineCoordinator {
     }
     approvalQuestions.save(conversationId, artifactHash, question);
     return question;
+  }
+
+  /**
+   * The implementation gate as a card offering creation alone.
+   *
+   * <p>The question is authored in the language of the conversation and stored with the run, so a
+   * re-fetch after a reload finds the same text.
+   */
+  private ChatEvent creationDecision(String conversationId, ProductPipelineRunDocument doc) {
+    String hash = runtime.approvedPlanContentHash(doc.run().runId()).orElse("");
+    String question = approvalPrompts.implementContinuationPrompt(languageReference(doc));
+    if (!hash.isBlank() && approvalQuestions != null) {
+      approvalQuestions.save(conversationId, hash, question);
+    }
+    return ChatEvent.createChainDecision(
+        CreateChainPublicArtifactTypes.IMPLEMENTATION_PLAN,
+        hash,
+        doc.run().runRevision(),
+        question);
   }
 
   private String languageReference(ProductPipelineRunDocument doc) {

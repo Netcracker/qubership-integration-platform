@@ -15,6 +15,12 @@ public sealed interface ChatEvent {
 
   String REQUEST_CHANGES_ACTION = "request-changes";
 
+  /** Writes the chain into the catalog: the one irreversible step, never a model's to take. */
+  String CREATE_ACTION = "create-chain";
+
+  /** Approves the plan and creates the chain, each validated against its own binding. */
+  String APPROVE_AND_CREATE_ACTION = "approve-and-create";
+
   /** Stream metadata emitted once at the start of an SSE turn. */
   record Meta(String conversationId) implements ChatEvent {}
 
@@ -80,6 +86,17 @@ public sealed interface ChatEvent {
    * is resumed rather than freshly stopped.
    */
   static ChatEvent decision(PendingAction pending, long revision, String question) {
+    return decision(pending, revision, question, null);
+  }
+
+  /**
+   * Same, with the actions the caller knows this gate accepts.
+   *
+   * <p>The plan gate offers creation, the others do not, and only the pipeline knows which is
+   * which — so the list is passed in rather than guessed from the artifact type here.
+   */
+  static ChatEvent decision(
+      PendingAction pending, long revision, String question, List<String> actions) {
     Objects.requireNonNull(pending, "pending");
     String text = question == null ? "" : question.strip();
     if (pending instanceof PendingAction.Approve approve) {
@@ -92,7 +109,7 @@ public sealed interface ChatEvent {
           approve.revision(),
           null,
           List.of(),
-          List.of(APPROVE_ACTION, REQUEST_CHANGES_ACTION));
+          actions == null ? List.of(APPROVE_ACTION, REQUEST_CHANGES_ACTION) : actions);
     }
     if (pending instanceof PendingAction.Clarify clarify) {
       return new Decision(
@@ -104,9 +121,31 @@ public sealed interface ChatEvent {
           revision,
           clarify.reason(),
           clarify.missingEvidence(),
-          List.of());
+          actions == null ? List.of() : actions);
     }
     throw new IllegalArgumentException("unsupported pending action: " + pending.action());
+  }
+
+  /**
+   * The implementation gate, offered as its own decision.
+   *
+   * <p>Creating the chain is a command distinct from approving the plan, so it carries its own id
+   * and its own binding: a card left over from an earlier plan cannot create anything.
+   */
+  static ChatEvent createChainDecision(
+      String artifactType, String planHash, long revision, String question) {
+    Objects.requireNonNull(artifactType, "artifactType");
+    Objects.requireNonNull(planHash, "planHash");
+    return new Decision(
+        "create:" + planHash,
+        APPROVE_ACTION,
+        question == null ? "" : question.strip(),
+        artifactType,
+        planHash,
+        revision,
+        null,
+        List.of(),
+        List.of(CREATE_ACTION));
   }
 
   static ChatEvent error(String message) {

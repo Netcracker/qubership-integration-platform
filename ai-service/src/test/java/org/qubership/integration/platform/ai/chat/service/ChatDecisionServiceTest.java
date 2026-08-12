@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.chat.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -8,6 +9,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.smallrye.mutiny.Multi;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
@@ -16,6 +19,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactB
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionSnapshot;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainEvent;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionStatus;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
@@ -102,6 +106,55 @@ class ChatDecisionServiceTest {
 
     assertTrue(
         new ChatDecisionService(facade, questionStore()).openDecision("conv-1").isEmpty());
+  }
+
+  /**
+   * Creating the chain can fail after the plan was approved. The run must stay at the
+   * implementation gate with creation as its only action, never in a half-state the reader cannot
+   * act on.
+   */
+  @Test
+  void creationFailureAfterApprovalLeavesACreationOnlyCard() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    CreateChainExecutionSnapshot atGate =
+        new CreateChainExecutionSnapshot(
+            "conv-1", "run-1", CreateChainExecutionStatus.WORKING, 7L, null, "");
+    when(facade.validateApprove(any(ApproveCreateChainArtifactCommand.class)))
+        .thenReturn(Optional.empty());
+    when(facade.streamApproveOnly(any(ApproveCreateChainArtifactCommand.class)))
+        .thenReturn(Multi.createFrom().item(new CreateChainEvent.Message("Plan approved.")));
+    when(facade.pendingCreationHash("conv-1")).thenReturn(Optional.of("sha256:plan"));
+    when(facade.snapshot("conv-1")).thenReturn(Optional.of(atGate));
+    when(facade.streamCreateChain("conv-1", "sha256:plan", 7L))
+        .thenReturn(
+            Multi.createFrom()
+                .item(new CreateChainEvent.Failed("Catalog rejected the chain.", atGate)));
+    ApprovalQuestionStore questions = questionStore();
+    questions.save("conv-1", "sha256:plan", "Create the chain?");
+
+    List<ChatEvent> events =
+        new ChatDecisionService(facade, questions)
+            .apply(
+                "conv-1",
+                command(
+                    ChatEvent.APPROVE_AND_CREATE_ACTION, "implementation-plan", "sha256:plan", null))
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    assertTrue(
+        events.stream()
+            .anyMatch(
+                event ->
+                    event instanceof ChatEvent.Error error
+                        && error.message().contains("Catalog rejected")),
+        () -> "expected the creation failure to be surfaced, got: " + events);
+    ChatEvent last = events.get(events.size() - 1);
+    ChatEvent.Decision reissued = assertInstanceOf(ChatEvent.Decision.class, last);
+    assertEquals(List.of(ChatEvent.CREATE_ACTION), reissued.actions());
+    assertEquals("create:sha256:plan", reissued.id());
+    assertEquals("Create the chain?", reissued.question());
   }
 
   private static ApprovalQuestionStore questionStore() {

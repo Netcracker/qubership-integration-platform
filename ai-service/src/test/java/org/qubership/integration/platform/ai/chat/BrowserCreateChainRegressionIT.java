@@ -119,7 +119,7 @@ class BrowserCreateChainRegressionIT {
   void decisionCommandBypassesTheRouterAndStreamsTheNextGate() {
     when(facade.validateApprove(any(ApproveCreateChainArtifactCommand.class)))
         .thenReturn(Optional.empty());
-    when(facade.streamApprove(any(ApproveCreateChainArtifactCommand.class)))
+    when(facade.streamApproveOnly(any(ApproveCreateChainArtifactCommand.class)))
         .thenReturn(
             Multi.createFrom()
                 .items(
