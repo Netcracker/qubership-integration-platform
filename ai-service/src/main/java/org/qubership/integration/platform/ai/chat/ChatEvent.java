@@ -25,9 +25,6 @@ public sealed interface ChatEvent {
   record Step(String id, String kind, String status, String label, String parentId)
       implements ChatEvent {}
 
-  /** Human-in-the-loop checkpoint awaiting a user answer (rendered as {@code event: hitl}). */
-  record Hitl(String checkpointId, String question) implements ChatEvent {}
-
   /**
    * A gate the run stopped at, rendered as a card in the transcript (rendered as {@code event:
    * decision}).
@@ -73,10 +70,6 @@ public sealed interface ChatEvent {
   /** Convenience for skill steps when label equals the skill id. */
   static ChatEvent skillStep(String skillId, String status) {
     return step("skill:" + skillId, "skill", status, skillId, null);
-  }
-
-  static ChatEvent hitl(String checkpointId, String question) {
-    return new Hitl(checkpointId, question);
   }
 
   /**

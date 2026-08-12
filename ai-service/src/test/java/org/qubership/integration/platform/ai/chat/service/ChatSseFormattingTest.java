@@ -22,18 +22,6 @@ class ChatSseFormattingTest {
   }
 
   @Test
-  void hitlQuestionWithQuotesAndNewlineStaysValidJson() throws Exception {
-    String question = "Which \"binding\"?\nPick one";
-    String sse = ChatExecutionService.toSse(new ChatEvent.Hitl("cp-1", question), objectMapper);
-
-    assertTrue(sse.startsWith("event: hitl\ndata: "));
-    String payload = sse.substring("event: hitl\ndata: ".length(), sse.length() - 2);
-    JsonNode node = objectMapper.readTree(payload);
-    assertEquals("cp-1", node.get("checkpointId").asText());
-    assertEquals(question, node.get("question").asText());
-  }
-
-  @Test
   void framesMetaWithConversationId() {
     String sse = ChatExecutionService.toSse(ChatEvent.meta("conv-1"), objectMapper);
     assertTrue(sse.startsWith("event: meta\n"));

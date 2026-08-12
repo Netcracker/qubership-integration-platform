@@ -12,6 +12,7 @@ public class ChatRequest {
   private ScenarioType scenarioHint;
   private List<String> attachmentObjectKeys;
   private String resolvedEffectiveUserText;
+  private ChatDecisionCommand decision;
 
   public String getConversationId() { return conversationId; }
   public void setConversationId(String conversationId) { this.conversationId = conversationId; }
@@ -29,6 +30,10 @@ public class ChatRequest {
   public void setAttachmentObjectKeys(List<String> attachmentObjectKeys) {
     this.attachmentObjectKeys = attachmentObjectKeys;
   }
+
+  /** Typed answer to an open decision card; null for an ordinary message. */
+  public ChatDecisionCommand getDecision() { return decision; }
+  public void setDecision(ChatDecisionCommand decision) { this.decision = decision; }
 
   public String getEffectiveUserText() {
     return resolvedEffectiveUserText != null ? resolvedEffectiveUserText : message;

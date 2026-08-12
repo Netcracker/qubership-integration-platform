@@ -19,6 +19,19 @@ public sealed interface CreateChainEvent {
     }
   }
 
+  /**
+   * Prose written for the reader, as opposed to a stage label.
+   *
+   * <p>Kept apart from {@link Progress} because a chat renders the two differently: an activity row
+   * for a stage, a message for the text. A2A consumes neither.
+   */
+  record Message(String text) implements CreateChainEvent {
+
+    public Message {
+      text = text == null ? "" : text;
+    }
+  }
+
   record Waiting(CreateChainPendingAction pendingAction) implements CreateChainEvent {
 
     public Waiting {

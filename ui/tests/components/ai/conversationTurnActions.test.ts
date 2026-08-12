@@ -12,7 +12,6 @@ import {
   toServerUserIndex,
   visibleToFullMessageIndex,
 } from "../../../src/components/ai/conversationTurnIndex.ts";
-import { buildHitlResumeChatRequest } from "../../../src/components/ai/hitlResume.ts";
 
 const user0: ChatMessage = { role: "user", content: "hello" };
 const assistant0: ChatMessage = { role: "assistant", content: "hi" };
@@ -126,16 +125,5 @@ describe("abort handling", () => {
     expect(shouldShowErrorToastForAbort(new Error("network failed"))).toBe(
       true,
     );
-  });
-});
-
-describe("buildHitlResumeChatRequest", () => {
-  it("routes HITL answer through chat POST body", () => {
-    expect(
-      buildHitlResumeChatRequest({
-        conversationId: "conv-1",
-        answer: "my answer",
-      }),
-    ).toEqual({ message: "my answer", conversationId: "conv-1" });
   });
 });

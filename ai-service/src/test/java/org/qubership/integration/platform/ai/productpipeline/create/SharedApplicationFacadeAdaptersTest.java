@@ -63,7 +63,7 @@ class SharedApplicationFacadeAdaptersTest {
 
     List<ChatEvent> browserEvents = collect(browserStart(facade, "shared-1", "Build a chain"));
     assertTrue(browserEvents.stream().anyMatch(e -> e instanceof ChatEvent.Token));
-    assertTrue(browserEvents.stream().anyMatch(e -> e instanceof ChatEvent.Hitl));
+    assertTrue(browserEvents.stream().anyMatch(e -> e instanceof ChatEvent.Decision));
     assertTrue(browserEvents.stream().noneMatch(e -> e instanceof ChatEvent.Meta));
 
     A2aTaskSnapshotPersister persister = mock(A2aTaskSnapshotPersister.class);
@@ -133,8 +133,9 @@ class SharedApplicationFacadeAdaptersTest {
             event ->
                 switch (event) {
                   case CreateChainEvent.Progress progress -> ChatEvent.token(progress.label());
+                  case CreateChainEvent.Message message -> ChatEvent.token(message.text());
                   case CreateChainEvent.Waiting waiting ->
-                      ChatEvent.hitl("pending", waiting.pendingAction().toString());
+                      ChatEvent.decision(waiting.pendingAction(), 0L, "");
                   case CreateChainEvent.ArtifactReady artifact ->
                       ChatEvent.token(artifact.artifactType());
                   case CreateChainEvent.Completed completed ->

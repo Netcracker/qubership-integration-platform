@@ -674,7 +674,7 @@ public class CreateChainApplicationFacade {
                 if (text.isBlank()) {
                   return Multi.createFrom().empty();
                 }
-                return Multi.createFrom().item(new CreateChainEvent.Progress(text));
+                return Multi.createFrom().item(new CreateChainEvent.Message(text));
               }
               if (signal instanceof PipelineSignal.WaitingForInput waiting) {
                 CreateChainPendingAction.Clarify clarify =

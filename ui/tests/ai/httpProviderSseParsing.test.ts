@@ -33,22 +33,6 @@ describe("parseCipSseBlock", () => {
     ]);
   });
 
-  it("parses hitl without options", () => {
-    const chunks = parseCipSseBlock(
-      'event: hitl\ndata: {"checkpointId":"cp-1","question":"Which system?"}\n',
-    );
-    expect(chunks).toEqual([
-      {
-        type: "hitl",
-        hitl: { checkpointId: "cp-1", question: "Which system?" },
-      },
-    ]);
-    const hitl = chunks[0];
-    if (hitl.type === "hitl") {
-      expect(hitl.hitl).not.toHaveProperty("options");
-    }
-  });
-
   it("parses an approval decision with its binding and actions", () => {
     const chunks = parseCipSseBlock(
       'event: decision\ndata: {"id":"approve:sha256:abc","kind":"approve","question":"Approve the plan?",' +

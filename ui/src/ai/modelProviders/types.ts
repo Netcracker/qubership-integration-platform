@@ -67,6 +67,17 @@ export interface ChatRequest {
    * Optional backend scenario override (Jackson enum name), e.g. IMPLEMENT_CHAIN.
    */
   scenarioHint?: string;
+  /**
+   * Answer to a decision card. When set, the server skips the scenario router and the
+   * intent classifier and runs the typed facade command directly.
+   */
+  decision?: {
+    action: string;
+    artifactType?: string;
+    artifactHash?: string;
+    revision?: number;
+    comment?: string;
+  };
   context?: {
     type: "chain" | "service" | "operation";
     chainId?: string;
@@ -115,7 +126,6 @@ export type StreamingChunkType =
   | "meta"
   | "delta"
   | "step"
-  | "hitl"
   | "decision"
   | "done"
   | "error";
@@ -129,6 +139,5 @@ export interface StreamingChunk {
   contentDelta?: string;
   conversationId?: string;
   step?: ActivityStepPayload;
-  hitl?: { checkpointId: string; question: string };
   decision?: ChatDecision;
 }

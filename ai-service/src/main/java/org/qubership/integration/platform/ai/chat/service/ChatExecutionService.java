@@ -51,6 +51,7 @@ public class ChatExecutionService {
   private final ProductPipelineArtifactStore artifactStore;
   private final ObjectMapper objectMapper;
   private final ChatMemorySanitizer chatMemorySanitizer;
+  private final ChatDecisionService decisionService;
 
   public ChatExecutionService(
       ScenarioRouter router,
@@ -60,7 +61,9 @@ public class ChatExecutionService {
       ProductPipelineRunStore runStore,
       ProductPipelineArtifactStore artifactStore,
       ObjectMapper objectMapper,
-      ChatMemorySanitizer chatMemorySanitizer) {
+      ChatMemorySanitizer chatMemorySanitizer,
+      ChatDecisionService decisionService) {
+    this.decisionService = decisionService;
     this.router = router;
     this.conversationService = conversationService;
     this.effectiveUserTextService = effectiveUserTextService;
@@ -89,7 +92,13 @@ public class ChatExecutionService {
     // Repair dangling tool_calls left by prior ToolArgumentsException / aborted tool turns so the
     // next OpenAI request is well-formed (invalid_request_error otherwise).
     chatMemorySanitizer.repairDanglingToolCalls(conversationId);
-    request.setResolvedEffectiveUserText(effectiveUserTextService.resolve(request, conversationId));
+    if (request.getDecision() != null) {
+      // A typed answer needs no attachment or memory resolution: the marker is what the model reads.
+      request.setResolvedEffectiveUserText(
+          ChatDecisionService.transcriptMarker(request.getDecision()));
+    } else {
+      request.setResolvedEffectiveUserText(effectiveUserTextService.resolve(request, conversationId));
+    }
 
     LOG.infof(
         "Chat request (%s): conversationId=%s, scenarioHint=%s, userPreview=%s",
@@ -109,10 +118,12 @@ public class ChatExecutionService {
     AtomicReference<Cancellable> routedCancellation = new AtomicReference<>();
 
     Multi<ChatEvent> routed =
-        bindBackoffSinkForTurn(
-            router.route(request, conversationId),
-            routedCancellation,
-            appConfig.llm().rateLimit().maxTurnBackoffs());
+        request.getDecision() != null
+            ? decisionService.apply(conversationId, request.getDecision())
+            : bindBackoffSinkForTurn(
+                router.route(request, conversationId),
+                routedCancellation,
+                appConfig.llm().rateLimit().maxTurnBackoffs());
 
     return Multi.createBy()
         .concatenating()
@@ -290,10 +301,6 @@ public class ChatExecutionService {
       case ChatEvent.Error e -> "event: error\ndata: " + dataEscape(e.message()) + "\n\n";
       case ChatEvent.Step s ->
           "event: step\ndata: " + json(objectMapper, stepPayload(s)) + "\n\n";
-      case ChatEvent.Hitl h ->
-          "event: hitl\ndata: "
-              + json(objectMapper, Map.of("checkpointId", h.checkpointId(), "question", h.question()))
-              + "\n\n";
       case ChatEvent.Decision d ->
           "event: decision\ndata: " + json(objectMapper, decisionPayload(d)) + "\n\n";
     };

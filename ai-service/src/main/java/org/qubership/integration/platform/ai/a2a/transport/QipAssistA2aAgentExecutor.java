@@ -265,8 +265,8 @@ public final class QipAssistA2aAgentExecutor implements AgentExecutor {
               public void onItem(ChatEvent event) {
                 if (event instanceof ChatEvent.Token token) {
                   tokens.add(token.text());
-                } else if (event instanceof ChatEvent.Hitl hitl) {
-                  tokens.add(hitl.question());
+                } else if (event instanceof ChatEvent.Decision decision) {
+                  tokens.add(decision.question());
                 } else if (event instanceof ChatEvent.Error failure) {
                   error.set(failure.message());
                 } else if (event instanceof ChatEvent.Step step) {

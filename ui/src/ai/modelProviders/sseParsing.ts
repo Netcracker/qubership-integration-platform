@@ -43,22 +43,6 @@ function parseStepPayload(payload: string): ActivityStepPayload | null {
   }
 }
 
-function parseHitlPayload(
-  payload: string,
-): { checkpointId: string; question: string } | null {
-  try {
-    const parsed = JSON.parse(payload) as Record<string, unknown>;
-    const checkpointId = parsed.checkpointId;
-    const question = parsed.question;
-    if (typeof checkpointId !== "string" || typeof question !== "string") {
-      return null;
-    }
-    return { checkpointId, question };
-  } catch {
-    return null;
-  }
-}
-
 function parseDecisionPayload(payload: string): ChatDecision | null {
   try {
     const parsed = JSON.parse(payload) as Record<string, unknown>;
@@ -155,11 +139,6 @@ export function parseCipSseBlock(block: string): StreamingChunk[] {
     case "step": {
       const step = parseStepPayload(payload);
       return step ? [{ type: "step", step }] : [];
-    }
-
-    case "hitl": {
-      const hitl = parseHitlPayload(payload);
-      return hitl ? [{ type: "hitl", hitl }] : [];
     }
 
     case "decision": {

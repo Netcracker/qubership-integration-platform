@@ -126,7 +126,7 @@ public final class CompilerDerivedPlanningScheduler {
         }
         SkillExecutor executor = skillRegistry.require(node.skillId());
         SkillExecutionResult result = runSkill(executor, node);
-        if (result.status() == SkillRunStatus.FAILED || result.status() == SkillRunStatus.HITL_PENDING) {
+        if (result.status() == SkillRunStatus.FAILED) {
           throw new IllegalStateException(
               "contract failure: LLM skill did not complete " + node.skillId() + " status=" + result.status());
         }

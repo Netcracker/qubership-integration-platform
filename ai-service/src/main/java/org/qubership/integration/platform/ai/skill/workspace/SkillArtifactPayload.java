@@ -3,7 +3,6 @@ package org.qubership.integration.platform.ai.skill.workspace;
 import org.qubership.integration.platform.ai.compiler.plan.CompilerStatus;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
-import org.qubership.integration.platform.ai.skill.executor.HitlCheckpoint;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.GraphAssemblyResult;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerValidationBundle;
@@ -43,8 +42,7 @@ public sealed interface SkillArtifactPayload
         SkillArtifactPayload.PlanCaptureOutcomePayload,
         SkillArtifactPayload.MaterializationMapPayload,
         SkillArtifactPayload.ReconcileResultPayload,
-        SkillArtifactPayload.CatalogChainSnapshotPayload,
-        SkillArtifactPayload.HitlCheckpointPayload {
+        SkillArtifactPayload.CatalogChainSnapshotPayload {
 
   record RawUserRequestPayload(String effectiveText, List<String> attachmentObjectKeys)
       implements SkillArtifactPayload {}
@@ -90,5 +88,4 @@ public sealed interface SkillArtifactPayload
 
   record CatalogChainSnapshotPayload(ChainCatalogFacts facts) implements SkillArtifactPayload {}
 
-  record HitlCheckpointPayload(HitlCheckpoint checkpoint) implements SkillArtifactPayload {}
 }

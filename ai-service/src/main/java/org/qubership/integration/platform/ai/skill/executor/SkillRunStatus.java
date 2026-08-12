@@ -4,6 +4,5 @@ package org.qubership.integration.platform.ai.skill.executor;
 public enum SkillRunStatus {
   COMPLETED,
   FAILED,
-  HITL_PENDING,
   SKIPPED
 }

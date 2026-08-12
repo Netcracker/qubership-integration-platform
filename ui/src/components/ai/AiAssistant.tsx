@@ -16,6 +16,7 @@ import { getConfig } from "../../appConfig.ts";
 import { getDefaultAiProvider } from "../../ai/config.ts";
 import { getAiServiceUrl } from "../../ai/appConfig.ts";
 import type {
+  ChatDecision,
   ChatMessage,
   ChatRequest,
   ChatResponse,
@@ -40,7 +41,8 @@ import {
   upsertAssistantMessage,
   withoutErrorVariantMessages,
 } from "./chatMessageUtils.ts";
-import { appendDecision } from "./chatDecisionUtils.ts";
+import { appendDecision, markDecisionAnswered } from "./chatDecisionUtils.ts";
+import { AiDecisionCard } from "./AiDecisionCard.tsx";
 import {
   extractDesignUrlFromMessages,
   lastUserMessageIsBuildChainIntent,
@@ -75,7 +77,6 @@ import {
 import {
   API_HUB_IMPORT_FOLLOW_UP_MESSAGE,
   IMPORT_SPECIFICATION_SCENARIO_HINT,
-  shouldAutoFollowUpImportSpecification,
 } from "./apiHubImportHitl.ts";
 
 // ---------------------------------------------------------------------------
@@ -130,15 +131,6 @@ export const AiAssistant: React.FC = () => {
   const [pendingProposal, setPendingProposal] = useState<ChainModificationProposal | null>(null);
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
 
-  // HITL
-  const [hitlPending, setHitlPending] = useState<{
-    checkpointId: string;
-    question: string;
-    conversationId: string;
-  } | null>(null);
-  const [hitlAnswer, setHitlAnswer] = useState("");
-  const [hitlSubmitting, setHitlSubmitting] = useState(false);
-
   const activityStore = useActivityStore();
 
   // Chain plan
@@ -162,12 +154,6 @@ export const AiAssistant: React.FC = () => {
     const t = setTimeout(() => setShowLongRunningHint(true), 4000);
     return () => clearTimeout(t);
   }, [isLoading, isStreaming]);
-
-  useEffect(() => {
-    if (!hitlPending) {
-      setHitlAnswer("");
-    }
-  }, [hitlPending]);
 
   // ---------------------------------------------------------------------------
   // Session management
@@ -316,7 +302,7 @@ export const AiAssistant: React.FC = () => {
   );
 
   // ---------------------------------------------------------------------------
-  // Streaming path (with HITL + throttle)
+  // Streaming path (with UI-refresh throttle)
   // ---------------------------------------------------------------------------
 
   const runStreamingChat = useCallback(
@@ -348,22 +334,6 @@ export const AiAssistant: React.FC = () => {
           activityStore.applyStep(chunk.step);
           // Activity rows grow inside the scroll container without changing message text.
           scrollToBottom();
-          return;
-        }
-
-        if (chunk.type === "hitl" && chunk.hitl) {
-          if (accumulatedContent.trim()) {
-            currentMessages = upsertAssistantMessage(currentMessages, accumulatedContent);
-            sessionStore.updateSessionMessages(sessionId, currentMessages);
-          }
-          setHitlPending({
-            ...chunk.hitl,
-            conversationId: activeConversationId,
-          });
-          refreshSessions();
-          scrollToBottom();
-          setIsStreaming(false);
-          void refreshChainPlanStatus(activeConversationId);
           return;
         }
 
@@ -420,7 +390,6 @@ export const AiAssistant: React.FC = () => {
             durationMs,
           );
           activityStore.reset();
-          setHitlPending(null);
           handleResponseComplete(sessionId, {
             finalMessages,
             conversationId: chunk.conversationId ?? activeConversationId,
@@ -431,7 +400,6 @@ export const AiAssistant: React.FC = () => {
         }
 
         if (chunk.type === "error" && chunk.errorMessage) {
-          setHitlPending(null);
           if (!shouldShowErrorToastForAbort(new Error(chunk.errorMessage))) {
             setIsStreaming(false);
             return;
@@ -465,7 +433,6 @@ export const AiAssistant: React.FC = () => {
       refreshChainContexts,
       handleResponseComplete,
       flushRefresh,
-      refreshChainPlanStatus,
     ],
   );
 
@@ -556,6 +523,7 @@ export const AiAssistant: React.FC = () => {
       newMessages?: ChatMessage[],
       attachmentObjectKeys?: string[],
       scenarioHint?: string,
+      decision?: ChatRequest["decision"],
     ) => {
       if (sendInProgressRef.current) {
         console.warn("[AiAssistant] sendToProvider skipped – already in progress");
@@ -629,6 +597,7 @@ export const AiAssistant: React.FC = () => {
           attachmentObjectKeys: mergedAttachmentObjectKeys,
           temperature: 1,
           scenarioHint: scenarioHint?.trim() || undefined,
+          decision,
         };
 
         if (chainContext) {
@@ -715,16 +684,11 @@ export const AiAssistant: React.FC = () => {
   useEffect(() => {
     const sessionId = pendingImportFollowUpSessionIdRef.current;
     if (!sessionId) return;
-    if (isLoading || isStreaming || sendInProgressRef.current || hitlSubmitting) return;
+    if (isLoading || isStreaming || sendInProgressRef.current) return;
 
     pendingImportFollowUpSessionIdRef.current = null;
     void runImportSpecificationFollowUp(sessionId);
-  }, [
-    isLoading,
-    isStreaming,
-    hitlSubmitting,
-    runImportSpecificationFollowUp,
-  ]);
+  }, [isLoading, isStreaming, runImportSpecificationFollowUp]);
 
   // ---------------------------------------------------------------------------
   // Session UI handlers
@@ -783,7 +747,6 @@ export const AiAssistant: React.FC = () => {
   };
 
   const handleAbort = useCallback(() => {
-    if (hitlPending) return;
     abortControllerRef.current?.abort();
     activityStore.markRunningCancelled();
     if (currentSessionId) {
@@ -798,63 +761,43 @@ export const AiAssistant: React.FC = () => {
     activityStore.reset();
     setIsStreaming(false);
     setIsLoading(false);
-  }, [
-    hitlPending,
-    activityStore,
-    currentSessionId,
-    sessionStore,
-    refreshSessions,
-  ]);
+  }, [activityStore, currentSessionId, sessionStore, refreshSessions]);
 
   // ---------------------------------------------------------------------------
-  // HITL
+  // Decision card answer
   // ---------------------------------------------------------------------------
 
-  const handleHitlAnswer = useCallback(
-    async (answer: string) => {
-      const trimmed = answer.trim();
-      if (!hitlPending || !trimmed || !currentSessionId) return;
-
-      const scheduleImportFollowUp = shouldAutoFollowUpImportSpecification(trimmed);
+  const handleDecisionAnswer = useCallback(
+    async (decision: ChatDecision, action: string, comment: string) => {
+      if (!currentSessionId || sendInProgressRef.current) return;
       const session = sessionStore.getSession(currentSessionId);
       if (!session) return;
 
-      const userMessage: ChatMessage = { role: "user", content: trimmed };
-      const next = [...session.messages, userMessage];
+      const answeredMessages = markDecisionAnswered(
+        session.messages,
+        decision.id,
+        action,
+      );
+      sessionStore.updateSessionMessages(currentSessionId, answeredMessages);
+      refreshSessions();
 
-      setHitlSubmitting(true);
-      try {
-        sessionStore.updateSessionMessages(currentSessionId, next);
-        setHitlPending(null);
-        setHitlAnswer("");
-        refreshSessions();
-
-        if (scheduleImportFollowUp) {
-          pendingImportFollowUpSessionIdRef.current = currentSessionId;
-        }
-
-        await sendToProvider(
-          currentSessionId,
-          next,
-          session.lastAttachmentUrls,
-          [userMessage],
-          session.lastAttachmentObjectKeys,
-        );
-        void refreshChainPlanStatus(hitlPending.conversationId);
-      } catch (err) {
-        console.error("[AiAssistant] HITL resume failed", err);
-      } finally {
-        setHitlSubmitting(false);
-      }
+      await sendToProvider(
+        currentSessionId,
+        answeredMessages,
+        session.lastAttachmentUrls,
+        [],
+        session.lastAttachmentObjectKeys,
+        undefined,
+        {
+          action,
+          artifactType: decision.artifactType,
+          artifactHash: decision.artifactHash,
+          revision: decision.revision,
+          comment: comment || undefined,
+        },
+      );
     },
-    [
-      hitlPending,
-      currentSessionId,
-      sessionStore,
-      refreshSessions,
-      sendToProvider,
-      refreshChainPlanStatus,
-    ],
+    [currentSessionId, sessionStore, refreshSessions, sendToProvider],
   );
 
   // ---------------------------------------------------------------------------
@@ -864,7 +807,7 @@ export const AiAssistant: React.FC = () => {
   const handleSend = useCallback(async () => {
     const rawValue = inputValue || inputRef.current?.resizableTextArea?.textArea?.value || "";
     const messageText = rawValue.trim();
-    if ((!messageText && attachedFiles.length === 0) || isLoading || hitlPending) return;
+    if ((!messageText && attachedFiles.length === 0) || isLoading) return;
 
     const sessionId = currentSessionId ?? sessionStore.createSession().id;
     if (sessionId !== currentSessionId) setCurrentSessionId(sessionId);
@@ -913,7 +856,6 @@ export const AiAssistant: React.FC = () => {
     inputValue,
     isLoading,
     attachedFiles,
-    hitlPending,
     refreshSessions,
     sendToProvider,
     sessionStore,
@@ -924,7 +866,7 @@ export const AiAssistant: React.FC = () => {
   // ---------------------------------------------------------------------------
 
   const handleBuildChainClick = useCallback(async () => {
-    if (!currentSessionId || isLoading || isStreaming || hitlPending) return;
+    if (!currentSessionId || isLoading || isStreaming) return;
     const session = sessionStore.getSession(currentSessionId);
     if (!session) return;
     const conversationId = session.conversationId;
@@ -982,7 +924,6 @@ export const AiAssistant: React.FC = () => {
     currentSessionId,
     isLoading,
     isStreaming,
-    hitlPending,
     chainPlanStatus,
     sessionStore,
     refreshSessions,
@@ -1030,7 +971,6 @@ export const AiAssistant: React.FC = () => {
     sessionStore.updateSessionMessages(currentSessionId, []);
     sessionStore.updateSessionLastAttachmentUrls(currentSessionId, undefined);
     sessionStore.updateSessionLastAttachmentObjectKeys(currentSessionId, undefined);
-    setHitlPending(null);
     activityStore.reset();
     setChainPlanStatus(null);
     setChainPlanModalOpen(false);
@@ -1164,7 +1104,7 @@ export const AiAssistant: React.FC = () => {
     [currentSession?.messages],
   );
 
-  const showStreamAbort = (isLoading || isStreaming) && !hitlPending;
+  const showStreamAbort = isLoading || isStreaming;
   const hasActivity = activityStore.rows.length > 0;
 
   const msgs = currentSession?.messages ?? [];
@@ -1193,7 +1133,6 @@ export const AiAssistant: React.FC = () => {
     activityStore.version,
     isLoading,
     isStreaming,
-    hitlPending,
   ]);
 
   const handleScroll = useCallback(() => {
@@ -1317,7 +1256,7 @@ export const AiAssistant: React.FC = () => {
                 size="small"
                 type="primary"
                 onClick={() => void handleBuildChainClick()}
-                disabled={isLoading || isStreaming || Boolean(hitlPending)}
+                disabled={isLoading || isStreaming}
               >
                 Build chain
               </Button>
@@ -1406,6 +1345,19 @@ export const AiAssistant: React.FC = () => {
                           </div>
                         ) : narrativeContent.trim() ? (
                           <MarkdownRenderer>{narrativeContent}</MarkdownRenderer>
+                        ) : null}
+                        {message.decision ? (
+                          <AiDecisionCard
+                            decision={message.decision}
+                            busy={isLoading || isStreaming}
+                            onAnswer={(action, comment) =>
+                              void handleDecisionAnswer(
+                                message.decision!,
+                                action,
+                                comment,
+                              )
+                            }
+                          />
                         ) : null}
                         {showLiveActivity ? (
                           <AiActivityInline
@@ -1523,31 +1475,6 @@ export const AiAssistant: React.FC = () => {
 
           <Divider className="ai-divider" />
 
-          {hitlPending && (
-            <div className="ai-hitl-checkpoint">
-              <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
-                {hitlPending.question}
-              </Typography.Text>
-              <Input.TextArea
-                rows={3}
-                value={hitlAnswer}
-                onChange={(e) => setHitlAnswer(e.target.value)}
-                placeholder="Type your answer"
-                disabled={hitlSubmitting}
-              />
-              <Button
-                type="primary"
-                size="small"
-                style={{ marginTop: 8 }}
-                loading={hitlSubmitting}
-                disabled={!hitlAnswer.trim()}
-                onClick={() => void handleHitlAnswer(hitlAnswer)}
-              >
-                Submit answer
-              </Button>
-            </div>
-          )}
-
           <div className="ai-input">
             <input
               type="file"
@@ -1610,11 +1537,11 @@ export const AiAssistant: React.FC = () => {
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="Type your message..."
               rows={INPUT_TEXTAREA_ROWS}
-              disabled={isLoading || isStreaming || hitlSubmitting}
+              disabled={isLoading || isStreaming}
               onKeyDown={(e) => {
                 if (e.key === SEND_KEY && !e.shiftKey) {
                   e.preventDefault();
-                  if (!hitlPending) void handleSend();
+                  void handleSend();
                 }
               }}
             />
@@ -1626,7 +1553,7 @@ export const AiAssistant: React.FC = () => {
                   size="small"
                   icon={<OverridableIcon name="paperClip" />}
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={isLoading || isStreaming || hitlSubmitting}
+                  disabled={isLoading || isStreaming}
                   aria-label="Attach file"
                   title="Attach file"
                 />
@@ -1642,7 +1569,6 @@ export const AiAssistant: React.FC = () => {
                       ? "ai-send-button ai-send-button--loading"
                       : "ai-send-button"
                   }
-                  disabled={hitlSubmitting || (!showStreamAbort && Boolean(hitlPending))}
                   onClick={() => {
                     if (showStreamAbort) {
                       handleAbort();

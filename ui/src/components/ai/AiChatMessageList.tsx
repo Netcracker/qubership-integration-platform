@@ -1,6 +1,6 @@
 import { Button, Tooltip, Typography } from "antd";
 import React from "react";
-import type { ChatMessage } from "../../ai/modelProviders/types.ts";
+import type { ChatDecision, ChatMessage } from "../../ai/modelProviders/types.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { AiDecisionCard } from "./AiDecisionCard.tsx";
 import { MarkdownRenderer } from "./AiMarkdownRenderer.tsx";
@@ -26,6 +26,11 @@ export interface AiChatMessageListProps {
   onExecutePlan: () => void;
   onPrepareRegenerate: (messageIndex: number) => void;
   onRegenerate: (messageIndex: number) => void;
+  onDecisionAnswer: (
+    decision: ChatDecision,
+    action: string,
+    comment: string,
+  ) => void;
 }
 
 export const AiChatMessageList: React.FC<AiChatMessageListProps> = ({
@@ -40,6 +45,7 @@ export const AiChatMessageList: React.FC<AiChatMessageListProps> = ({
   onExecutePlan,
   onPrepareRegenerate,
   onRegenerate,
+  onDecisionAnswer,
 }) => (
   <div
     ref={scrollContainerRef as React.LegacyRef<HTMLDivElement>}
@@ -86,7 +92,13 @@ export const AiChatMessageList: React.FC<AiChatMessageListProps> = ({
                 ) : null}
 
                 {message.decision ? (
-                  <AiDecisionCard decision={message.decision} />
+                  <AiDecisionCard
+                    decision={message.decision}
+                    busy={isLoading || isStreaming}
+                    onAnswer={(action, comment) =>
+                      onDecisionAnswer(message.decision!, action, comment)
+                    }
+                  />
                 ) : null}
 
                 {message.role === "assistant" &&

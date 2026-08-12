@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.a2a.A2aSdkBootDisabledProfile;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 
@@ -47,7 +48,11 @@ class BrowserCreateChainA2aDisabledRegressionIT {
                 return Multi.createFrom()
                     .items(
                         ChatEvent.token("Drafting create-chain@2 design. Reply Agree to approve."),
-                        ChatEvent.hitl("approve-plan", "Agree to approve the design?"));
+                        ChatEvent.decision(
+                            new CreateChainPendingAction.Approve(
+                                "implementation-plan", "sha256:abc", 3L, "Approve the design?"),
+                            3L,
+                            ""));
               }
               return Multi.createFrom()
                   .item(ChatEvent.token("Approved. Continuing create-chain@2."));
@@ -69,7 +74,8 @@ class BrowserCreateChainA2aDisabledRegressionIT {
 
     assertTrue(createResponse.contains("event: meta"), createResponse);
     assertTrue(createResponse.contains("event: token"), createResponse);
-    assertTrue(createResponse.contains("event: hitl"), createResponse);
+    assertTrue(createResponse.contains("event: decision"), createResponse);
+    assertTrue(createResponse.contains("sha256:abc"), createResponse);
     assertTrue(createResponse.contains("event: done"), createResponse);
     assertTrue(!createResponse.contains("TASK_STATE_"), createResponse);
 

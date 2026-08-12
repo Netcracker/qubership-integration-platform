@@ -22,6 +22,7 @@ interface CipChatRequestBody {
   attachment?: string;
   attachmentObjectKeys?: string[];
   scenarioHint?: string | null;
+  decision?: ChatRequest["decision"];
 }
 
 function resolveScenarioHint(request: ChatRequest): string | undefined {
@@ -83,6 +84,7 @@ export class HttpAiModelProvider implements AiModelProvider {
         attachment: this.buildAttachment(request) || undefined,
         attachmentObjectKeys: this.mergeObjectKeys(request.attachmentObjectKeys),
         scenarioHint: hint ?? null,
+        decision: request.decision,
       };
 
       const headers: Record<string, string> = {
@@ -195,6 +197,7 @@ export class HttpAiModelProvider implements AiModelProvider {
         attachment: this.buildAttachment(request) || undefined,
         attachmentObjectKeys: this.mergeObjectKeys(request.attachmentObjectKeys),
         scenarioHint: hint ?? null,
+        decision: request.decision,
       };
       const response = await axios.post<ChatResponse>(url, requestBody, {
         headers: {

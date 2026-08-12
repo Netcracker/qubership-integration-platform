@@ -16,6 +16,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainEvent;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 
@@ -29,6 +33,8 @@ class BrowserCreateChainRegressionIT {
   @InjectMock ScenarioRouter router;
 
   @InjectMock ProductPipelineRunStore runStore;
+
+  @InjectMock CreateChainApplicationFacade facade;
 
   private final AtomicInteger turns = new AtomicInteger();
 
@@ -44,7 +50,11 @@ class BrowserCreateChainRegressionIT {
                 return Multi.createFrom()
                     .items(
                         ChatEvent.token("Drafting create-chain@2 design. Reply Agree to approve."),
-                        ChatEvent.hitl("approve-plan", "Agree to approve the design?"));
+                        ChatEvent.decision(
+                            new CreateChainPendingAction.Approve(
+                                "implementation-plan", "sha256:abc", 3L, "Approve the design?"),
+                            3L,
+                            ""));
               }
               return Multi.createFrom()
                   .item(ChatEvent.token("Approved. Continuing create-chain@2."));
@@ -73,7 +83,8 @@ class BrowserCreateChainRegressionIT {
     assertTrue(createResponse.contains("conversationId"), createResponse);
     assertTrue(createResponse.contains("event: token"), createResponse);
     assertTrue(createResponse.contains("create-chain@2"), createResponse);
-    assertTrue(createResponse.contains("event: hitl"), createResponse);
+    assertTrue(createResponse.contains("event: decision"), createResponse);
+    assertTrue(createResponse.contains("sha256:abc"), createResponse);
     assertTrue(createResponse.contains("event: done"), createResponse);
 
     String conversationId = extractConversationId(createResponse);
@@ -102,6 +113,44 @@ class BrowserCreateChainRegressionIT {
     assertTrue(approveResponse.contains(conversationId), approveResponse);
     assertTrue(!approveResponse.contains("TASK_STATE_"), approveResponse);
     assertTrue(!approveResponse.contains("a2a_tasks"), approveResponse);
+  }
+
+  @Test
+  void decisionCommandBypassesTheRouterAndStreamsTheNextGate() {
+    when(facade.validateApprove(any(ApproveCreateChainArtifactCommand.class)))
+        .thenReturn(Optional.empty());
+    when(facade.streamApprove(any(ApproveCreateChainArtifactCommand.class)))
+        .thenReturn(
+            Multi.createFrom()
+                .items(
+                    new CreateChainEvent.Message("Plan approved. Drafting the chain."),
+                    new CreateChainEvent.Waiting(
+                        new CreateChainPendingAction.Approve(
+                            "implementation-plan", "sha256:next", 4L, "Create the chain?"))));
+
+    String body =
+        """
+        {"conversationId":"conv-decision","message":"",
+         "decision":{"action":"approve","artifactType":"implementation-plan",
+                     "artifactHash":"sha256:abc","revision":3,"comment":"looks good"}}
+        """;
+
+    String response =
+        given()
+            .contentType(ContentType.JSON)
+            .body(body)
+            .when()
+            .post("/api/v1/chat")
+            .then()
+            .statusCode(200)
+            .extract()
+            .asString();
+
+    assertTrue(response.contains("Plan approved."), response);
+    assertTrue(response.contains("event: decision"), response);
+    assertTrue(response.contains("sha256:next"), response);
+    // The router answers every turn it sees with this line, so its absence proves the bypass.
+    assertTrue(!response.contains("Continuing create-chain@2"), response);
   }
 
   private static String extractConversationId(String sse) {
