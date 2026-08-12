@@ -9,13 +9,16 @@ import org.junit.jupiter.api.Test;
 class ApprovalPromptsTest {
 
   @Test
-  void englishFallbackUsedWithoutAgent() {
+  void englishFallbackAsksTheQuestionWithoutReplyToken() {
     ApprovalPrompts prompts = new ApprovalPrompts();
     String stage = prompts.stageApprovalPrompt("requirement-analysis", "Create an integration chain");
     assertFalse(stage.isBlank());
-    assertTrue(stage.toLowerCase().contains("agree"), stage);
+    assertFalse(stage.toLowerCase().contains("agree"), stage);
+    assertFalse(stage.toLowerCase().contains("reply"), stage);
     String implement = prompts.implementContinuationPrompt("Create an integration chain");
-    assertTrue(implement.toLowerCase().contains("agree"), implement);
+    assertFalse(implement.toLowerCase().contains("agree"), implement);
+    assertFalse(implement.toLowerCase().contains("reply"), implement);
+    assertTrue(implement.toLowerCase().contains("create"), implement);
   }
 
   @Test

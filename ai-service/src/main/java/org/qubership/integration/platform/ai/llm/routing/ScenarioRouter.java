@@ -12,7 +12,6 @@ import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
-import org.qubership.integration.platform.ai.chat.intent.UserIntentPatterns;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.llm.scenario.ForScenarioLiteral;
 import org.qubership.integration.platform.ai.llm.scenario.ScenarioHandler;

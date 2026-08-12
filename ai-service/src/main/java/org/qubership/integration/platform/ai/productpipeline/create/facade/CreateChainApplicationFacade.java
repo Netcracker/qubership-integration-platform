@@ -24,7 +24,6 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBinding;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBindingStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
-import org.qubership.integration.platform.ai.productpipeline.create.PipelineChatWaitView;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand;
@@ -1072,14 +1071,13 @@ public class CreateChainApplicationFacade {
   }
 
   private static String publicPrompt(String prompt) {
-    String chatSafe = PipelineChatWaitView.forChatWait(prompt);
-    return sanitizeLabel(chatSafe).strip();
+    return sanitizeLabel(prompt == null ? "" : prompt.strip()).strip();
   }
 
   /**
-   * Prefer the stage wait prompt; when it is blank or sanitized away (discovery leaves reason empty
-   * so chat does not glue jargon to streamed tokens), surface draft {@code openQuestions} so A2A
-   * clients see what is missing.
+   * Prefer the stage wait prompt; when it is blank (discovery leaves reason empty so chat does not
+   * glue jargon to streamed tokens), surface draft {@code openQuestions} so A2A clients see what is
+   * missing.
    */
   private CreateChainPendingAction.Clarify clarifyFromWait(String taskId, String waitPrompt) {
     String prompt = publicPrompt(waitPrompt);

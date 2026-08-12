@@ -43,11 +43,6 @@ public final class PhaseRoutingPolicy {
     }
 
     if (phase == ConversationPhase.DISCOVERY) {
-      // Ready draft + Agree leaves gather for product CREATE planning.
-      // Do not Agree→IMPORT from DISCOVERY (ADR decision 4 / IMPORT_PENDING).
-      if (hasReadyDraft && UserIntentPatterns.matchesShortPlanContinuation(msg)) {
-        return Optional.of(ScenarioType.CREATE_CHAIN_PLAN);
-      }
       return Optional.of(ScenarioType.GATHER_REQUIREMENTS);
     }
 
@@ -59,16 +54,16 @@ public final class PhaseRoutingPolicy {
       return Optional.of(ScenarioType.CREATE_CHAIN_PLAN);
     }
 
-    // Product planning approval phase. Compact Agree / build / execute advances CREATE.
+    // Product planning phase. Compact implement wording advances CREATE / IMPLEMENT; short Agree
+    // is not an approval shortcut — approvals arrive as decision commands.
     if (phase == ConversationPhase.PLAN_CANDIDATE
-        && (UserIntentPatterns.matchesShortPlanContinuation(msg)
-            || UserIntentPatterns.matchesStrongImplementChainIntent(msg))) {
+        && UserIntentPatterns.matchesStrongImplementChainIntent(msg)) {
       return Optional.of(
           hasCurrentBundle ? ScenarioType.IMPLEMENT_CHAIN : ScenarioType.CREATE_CHAIN_PLAN);
     }
 
     if (phase == ConversationPhase.PLAN_CANDIDATE) {
-      // Compact non-approve stays on product CREATE planning. Rich briefs fall through.
+      // Compact non-implement stays on product CREATE planning. Rich briefs fall through.
       if (!UserIntentPatterns.isCompactIntentMessage(msg)) {
         return Optional.empty();
       }
@@ -79,15 +74,11 @@ public final class PhaseRoutingPolicy {
       if (UserIntentPatterns.matchesPlanQuestion(msg)) {
         return Optional.of(ScenarioType.ASK_PLAN);
       }
-      // Compact implement / Agree only — rich prompts fall through to LLM; ScenarioRouter
-      // capability ladder still demotes IMPLEMENT_CHAIN when derived artifacts are missing.
-      if (UserIntentPatterns.matchesStrongImplementChainIntent(msg)
-          || UserIntentPatterns.matchesShortPlanContinuation(msg)) {
+      // Compact implement only — rich prompts fall through to LLM; ScenarioRouter capability
+      // ladder still demotes IMPLEMENT_CHAIN when derived artifacts are missing.
+      if (UserIntentPatterns.matchesStrongImplementChainIntent(msg)) {
         return Optional.of(
             hasCurrentBundle ? ScenarioType.IMPLEMENT_CHAIN : ScenarioType.CREATE_CHAIN_PLAN);
-      }
-      if (UserIntentPatterns.matchesSpineRetryContinuation(msg)) {
-        return Optional.of(ScenarioType.CREATE_CHAIN_PLAN);
       }
     }
 

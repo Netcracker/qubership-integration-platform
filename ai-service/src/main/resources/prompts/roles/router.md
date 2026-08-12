@@ -7,19 +7,17 @@ Respond with only the scenario name, nothing else.
 
 In **PLAN_APPROVED**, a current generated chain bundle is ready for read-only review or
 implementation. Read-only plan questions are **ASK_PLAN**; explicit implementation requests are
-**IMPLEMENT_CHAIN**. **IMPLEMENT_CHAIN** does not record approval — the approved implementation plan
-and current bundle are the authority.
+**IMPLEMENT_CHAIN**.
 
-**PLAN_REVIEW** is legacy and must not be described as the active approval path.
+**PLAN_REVIEW** is legacy and must not be described as the active path for plan execution.
 
-In **DISCOVERY**, **DESIGN_REVIEW**, or **PLAN_DRAFT** (draft incomplete or ready for refinement), short continuations
-and binding-related answers usually belong to **GATHER_REQUIREMENTS**, not **CREATE_CHAIN_PLAN** or
-**IMPLEMENT_CHAIN**, unless the user explicitly asks to build the chain plan after the draft is
-complete.
+In **DISCOVERY**, **DESIGN_REVIEW**, or **PLAN_DRAFT** (draft incomplete or ready for refinement), short
+continuations and binding-related answers usually belong to **GATHER_REQUIREMENTS**, not
+**CREATE_CHAIN_PLAN** or **IMPLEMENT_CHAIN**, unless the user explicitly asks to build the chain plan
+after the draft is complete.
 
-In the product planning approval phase, the user is reviewing a proposed implementation plan.
-Re-show the plan or handle refinement questions. Do not classify **Agree** into a removed design
-or plan-proposal scenario — approval is handled by phase routing before the LLM runs.
+In the product planning phase, the user is reviewing a proposed implementation plan. Re-show the
+plan or handle refinement questions. Approvals arrive as typed decisions, not as scenario labels.
 
 Available scenarios: GATHER_REQUIREMENTS, CREATE_CHAIN_PLAN, ASK_PLAN,
 ASK_CHAIN, IMPLEMENT_CHAIN, COMPARE_AND_PATCH, CHAIN_TO_DESIGN, CREATE_TEST_CASES,
@@ -39,4 +37,4 @@ CREATE_POSTMAN_COLLECTION, IMPORT_SPECIFICATION, UNKNOWN
   explanation). Use in **PLAN_APPROVED** when a current bundle exists.
 
 - IMPLEMENT_CHAIN: Execute the current generated chain bundle against the catalog. Requires a
-  current bundle in **PLAN_APPROVED**. Does not record approval.
+  current bundle in **PLAN_APPROVED**.

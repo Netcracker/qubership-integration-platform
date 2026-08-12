@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.ai.chat.intent;
 
-import java.util.Locale;
 import java.util.regex.Pattern;
 
 /** Shared regex intent matchers for routing and plan lifecycle. */
@@ -8,9 +7,6 @@ public final class UserIntentPatterns {
 
   private static final Pattern MODIFY_PLAN =
       Pattern.compile("(?ius)\\b(modify(\\s+plan)?|change(\\s+plan)?|revise(\\s+plan)?)\\b");
-
-  private static final Pattern IMPLEMENT_GATE_MODIFY_PLAN =
-      Pattern.compile("(?ius)\\bmodify(\\s+plan)?\\b");
 
   private static final Pattern CREATE_CHAIN_INTENT =
       Pattern.compile(
@@ -43,28 +39,9 @@ public final class UserIntentPatterns {
               + "show\\s+(the\\s+)?(graph|json|tree|script)"
               + ")\\b");
 
-  private static final Pattern IMPLEMENT_GATE_AFFIRMATIVE =
-      Pattern.compile("(?ius)\\b(yes|start\\s+implementation|proceed|implement)\\b");
-
-  private static final Pattern SHORT_PLAN_CONTINUATION =
-      Pattern.compile(
-          "(?ius)^\\s*(agree|i\\s+confirm|confirm(ed)?|yes|ok|proceed|start\\s+implementation)\\s*[.!]?\\s*$");
-
-  private static final Pattern IMPORT_PLAN_CONTINUATION =
-      Pattern.compile("(?ius)^\\s*continue\\s*[.!]?\\s*$");
-
-
-  private static final Pattern SPINE_RETRY_CONTINUATION =
-      Pattern.compile("(?ius)\\b(retry|try\\s+again|rerun|re-?run)\\b");
-
-  private static final Pattern NEGATED_CONTINUATION =
-      Pattern.compile(
-          "(?ius)\\b(do\\s+not|don't|dont|not)(?:\\s+\\w+){0,2}\\s+"
-              + "(yes|proceed|implement|start\\s+implementation|retry|try\\s+again|rerun|re-?run)\\b");
-
   /**
-   * Compact leading-intent budget for deterministic keyword routes (approve / implement). Rich
-   * multi-sentence prompts stay weak signals for the capability ladder / LLM classifier.
+   * Compact leading-intent budget for deterministic keyword routes (implement). Rich multi-sentence
+   * prompts stay weak signals for the capability ladder / LLM classifier.
    */
   static final int COMPACT_INTENT_MAX_CHARS = 160;
 
@@ -75,10 +52,6 @@ public final class UserIntentPatterns {
 
   public static boolean matchesModifyPlan(String text) {
     return text != null && MODIFY_PLAN.matcher(text.trim()).find();
-  }
-
-  public static boolean matchesImplementGateModifyAnswer(String answer) {
-    return answer != null && IMPLEMENT_GATE_MODIFY_PLAN.matcher(answer.trim()).find();
   }
 
   public static boolean matchesCreateChainIntent(String text) {
@@ -115,7 +88,7 @@ public final class UserIntentPatterns {
     if (intent.isBlank()) {
       return false;
     }
-    // Multi-line prompts are design/execute briefs, not approve / implement button text.
+    // Multi-line prompts are design/execute briefs, not implement button text.
     if (intent.indexOf('\n') >= 0) {
       return false;
     }
@@ -132,57 +105,6 @@ public final class UserIntentPatterns {
     }
     String intent = extractLeadingIntent(text);
     return CHAIN_QUESTION.matcher(intent).find();
-  }
-
-  public static boolean matchesImplementGateAffirmative(String answer) {
-    if (answer == null || answer.isBlank()) {
-      return false;
-    }
-    String t = answer.trim();
-    return IMPLEMENT_GATE_AFFIRMATIVE.matcher(t).find()
-        && !NEGATED_CONTINUATION.matcher(t).find()
-        && !matchesImplementGateModifyAnswer(t);
-  }
-
-  public static boolean matchesShortPlanContinuation(String text) {
-    if (text == null || text.isBlank()) {
-      return false;
-    }
-    String intent = extractLeadingIntent(text);
-    if (intent.isBlank()) {
-      return false;
-    }
-    if (SHORT_PLAN_CONTINUATION.matcher(intent).matches()) {
-      return true;
-    }
-    // Affirmative keywords (Agree / proceed / implement) are find-based — only honor them on
-    // compact intents so rich "Agree / implement the chain" prompts do not auto-approve.
-    return isCompactIntentMessage(text) && matchesImplementGateAffirmative(intent);
-  }
-
-  /** Short approval or explicit spine retry; not plan refinement. */
-  public static boolean matchesSpineRetryContinuation(String text) {
-    if (text == null || text.isBlank()) {
-      return false;
-    }
-    if (matchesModifyPlan(text)) {
-      return false;
-    }
-    String intent = extractLeadingIntent(text);
-    if (intent.isBlank() || NEGATED_CONTINUATION.matcher(intent).find()) {
-      return false;
-    }
-    if (matchesShortPlanContinuation(text)) {
-      return true;
-    }
-    return isCompactIntentMessage(text) && SPINE_RETRY_CONTINUATION.matcher(intent).find();
-  }
-
-  public static boolean matchesImportPlanContinuation(String text) {
-    if (text == null || text.isBlank()) {
-      return false;
-    }
-    return IMPORT_PLAN_CONTINUATION.matcher(extractLeadingIntent(text)).matches();
   }
 
   public static String extractLeadingIntent(String userText) {

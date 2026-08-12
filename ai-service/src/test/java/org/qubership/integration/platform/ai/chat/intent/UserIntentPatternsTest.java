@@ -14,13 +14,42 @@ class UserIntentPatternsTest {
     assertTrue(UserIntentPatterns.matchesCreateChainIntent("create chain"));
   }
 
+  /**
+   * Survives ticket 10: plan questions are non-gate intents. Phase routing still routes them to
+   * ASK_PLAN while a gate is open; approval no longer shares this matcher.
+   */
   @Test
-  void matchesPlanQuestionEnglish() {
+  void planQuestionSurvivesAsNonGateIntent() {
     assertTrue(UserIntentPatterns.matchesPlanQuestion("show graph"));
     assertTrue(UserIntentPatterns.matchesPlanQuestion("show json"));
     assertTrue(UserIntentPatterns.matchesPlanQuestion("how does the graph look"));
     assertTrue(UserIntentPatterns.matchesPlanQuestion("explain the plan"));
     assertFalse(UserIntentPatterns.matchesPlanQuestion("implement the chain"));
+  }
+
+  /**
+   * Survives ticket 10: chain questions are non-gate intents. With chain context present, phase
+   * routing still hard-routes them to ASK_CHAIN.
+   */
+  @Test
+  void chainQuestionSurvivesAsNonGateIntent() {
+    assertTrue(UserIntentPatterns.matchesChainQuestion("explain this chain"));
+    assertTrue(UserIntentPatterns.matchesChainQuestion("what does this chain do"));
+    assertTrue(UserIntentPatterns.matchesChainQuestion("how does this chain work"));
+    assertFalse(UserIntentPatterns.matchesChainQuestion("implement the chain"));
+  }
+
+  /**
+   * Survives ticket 10: modify-plan wording is a non-gate intent. Readers still ask to revise a
+   * plan in free text; the router prompt and heuristics keep that path without treating it as
+   * approval.
+   */
+  @Test
+  void modifyPlanSurvivesAsNonGateIntent() {
+    assertTrue(UserIntentPatterns.matchesModifyPlan("modify plan"));
+    assertTrue(UserIntentPatterns.matchesModifyPlan("revise the plan"));
+    assertTrue(UserIntentPatterns.matchesModifyPlan("change plan"));
+    assertFalse(UserIntentPatterns.matchesModifyPlan("Agree"));
   }
 
   @Test
@@ -52,34 +81,7 @@ class UserIntentPatternsTest {
   }
 
   @Test
-  void shortPlanContinuationIgnoresBuriedAgreeInRichPrompt() {
-    assertTrue(UserIntentPatterns.matchesShortPlanContinuation("Agree"));
-    assertTrue(UserIntentPatterns.matchesShortPlanContinuation("Agree, proceed"));
-    assertFalse(
-        UserIntentPatterns.matchesShortPlanContinuation(
-            """
-            Execute the approved plan. Treat this as Agree / Execute plan.
-            Then implement the chain with catalog companions.
-            """));
-  }
-
-  @Test
   void doesNotMatchUnrelatedText() {
     assertFalse(UserIntentPatterns.matchesCreateChainIntent("hello world"));
-  }
-
-  @Test
-  void doesNotTreatNegatedApprovalAsContinuation() {
-    assertFalse(UserIntentPatterns.matchesShortPlanContinuation("do not proceed"));
-    assertFalse(UserIntentPatterns.matchesShortPlanContinuation("don't implement yet"));
-    assertFalse(UserIntentPatterns.matchesSpineRetryContinuation("do not retry"));
-    assertFalse(UserIntentPatterns.matchesSpineRetryContinuation("don't try again"));
-  }
-
-  @Test
-  void keepsExplicitApprovalAndRetryContinuations() {
-    assertTrue(UserIntentPatterns.matchesShortPlanContinuation("Agree"));
-    assertTrue(UserIntentPatterns.matchesSpineRetryContinuation("please retry"));
-    assertTrue(UserIntentPatterns.matchesSpineRetryContinuation("try again"));
   }
 }

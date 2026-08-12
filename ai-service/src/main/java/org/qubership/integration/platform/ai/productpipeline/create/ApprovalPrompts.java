@@ -13,10 +13,10 @@ import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
 public final class ApprovalPrompts {
 
   static final String FALLBACK_STAGE_APPROVAL =
-      "Reply **Agree** to approve, or describe what to change.";
+      "Approve this candidate, or describe what to change.";
 
   static final String FALLBACK_IMPLEMENT =
-      "Reply **Agree** to create the chain, or describe what to change.";
+      "Create the chain now, or describe what to change.";
 
   private static final Logger LOG = Logger.getLogger(ApprovalPrompts.class);
 

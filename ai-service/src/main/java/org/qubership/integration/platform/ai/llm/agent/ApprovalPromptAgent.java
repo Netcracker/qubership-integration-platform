@@ -5,8 +5,8 @@ import io.quarkiverse.langchain4j.RegisterAiService;
 import jakarta.enterprise.context.ApplicationScoped;
 
 /**
- * Authors create-chain@2 approval / implement CTAs in the conversation language. English system
- * instructions only; reply tokens like Agree stay as classifier targets in code.
+ * Authors create-chain@2 approval / implement questions in the conversation language. English
+ * system instructions only; the reader answers from the decision card, not by typing a token.
  */
 @RegisterAiService(
     chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class)
@@ -21,8 +21,8 @@ Match the language of this reference text (do not mistranslate product terms; ju
 ---
 {reference}
 ---
-Tell them they can reply Agree to approve, or describe what to change. Reply with only the \
-user-facing question text. No markdown fences, no quotes, no preamble. You may bold Agree.\
+Ask the approval question only. Do not tell the reader which word to type or reply with. Reply with \
+only the user-facing question text. No markdown fences, no quotes, no preamble.\
 """)
   String askStageApproval(String stageId, String reference);
 
@@ -33,8 +33,8 @@ approved. Match the language of this reference text:
 ---
 {reference}
 ---
-Tell them they can reply Agree to create the chain, or describe what to change. Reply with only \
-the user-facing question text. No markdown fences, no quotes, no preamble. You may bold Agree.\
+Ask the confirmation question only. Do not tell the reader which word to type or reply with. Reply \
+with only the user-facing question text. No markdown fences, no quotes, no preamble.\
 """)
   String askImplementContinuation(String reference);
 }

@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.llm.routing;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -98,6 +99,26 @@ class ImportSpecificationRoutingPolicyTest {
             agreeRequest(), CONVERSATION_ID, draftStore);
 
     assertTrue(outcome.isEmpty());
+  }
+
+  @Test
+  void legacyAwaitingPlanContinuationAdvancesWithoutContinueKeyword() {
+    // Ticket 10: "Continue" is no longer a prose gate. A leftover awaiting flag clears and
+    // routes to CREATE_CHAIN_PLAN on the next turn.
+    draftStore.put(
+        CONVERSATION_ID,
+        new RequirementDraft(true, "GeoSite proxy").withAwaitingPlanContinuation(true));
+
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("what is next?");
+
+    Optional<ScenarioRouter.RoutingOutcome> outcome =
+        ImportSpecificationRoutingPolicy.tryResolveManagedImportRouting(
+            request, CONVERSATION_ID, draftStore);
+
+    assertTrue(outcome.isPresent());
+    assertEquals(ScenarioType.CREATE_CHAIN_PLAN, outcome.get().scenarioType());
+    assertFalse(draftStore.get(CONVERSATION_ID).orElseThrow().awaitingPlanContinuation());
   }
 
   @Test

@@ -1,7 +1,6 @@
 package org.qubership.integration.platform.ai.llm.routing;
 
 import java.util.Optional;
-import org.qubership.integration.platform.ai.chat.intent.UserIntentPatterns;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
@@ -10,12 +9,8 @@ import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 /** Managed ApiHub import handoff routing before phase policy and scenario hints. */
 public final class ImportSpecificationRoutingPolicy {
 
-  static final String AWAITING_PLAN_CONTINUATION_MESSAGE =
-      "The specification is imported. Reply \"Continue\", then Agree to approve the requirement"
-          + " and proceed toward the chain plan.";
-
   static final String ALREADY_IMPORTED_MESSAGE =
-      "The specification is already imported. Reply \"Continue\" to create the implementation plan.";
+      "The specification is already imported.";
 
   private ImportSpecificationRoutingPolicy() {}
 
@@ -29,17 +24,13 @@ public final class ImportSpecificationRoutingPolicy {
       return Optional.empty();
     }
 
-    String userMessage = request != null ? request.getEffectiveUserText() : null;
     ScenarioType hint = request != null ? request.getScenarioHint() : null;
 
+    // Legacy drafts may still carry awaitingPlanContinuation from before typed decisions. Clear
+    // it and advance — there is no "Continue" prose gate any more.
     if (draft.awaitingPlanContinuation()) {
-      if (UserIntentPatterns.matchesImportPlanContinuation(userMessage)) {
-        if (!draftStore.clearAwaitingPlanContinuation(conversationId)) {
-          return Optional.of(ScenarioRouter.RoutingOutcome.terminal(AWAITING_PLAN_CONTINUATION_MESSAGE));
-        }
-        return Optional.of(ScenarioRouter.RoutingOutcome.scenario(ScenarioType.CREATE_CHAIN_PLAN));
-      }
-      return Optional.of(ScenarioRouter.RoutingOutcome.terminal(AWAITING_PLAN_CONTINUATION_MESSAGE));
+      draftStore.clearAwaitingPlanContinuation(conversationId);
+      return Optional.of(ScenarioRouter.RoutingOutcome.scenario(ScenarioType.CREATE_CHAIN_PLAN));
     }
 
     if (draft.catalogBinding() != null && hint == ScenarioType.IMPORT_SPECIFICATION) {

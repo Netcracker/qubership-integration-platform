@@ -329,10 +329,9 @@ public class CreateProductPipelineCoordinator {
                         ChatEvent.skillStep(skillProgress.skillId(), skillProgress.status()));
               }
               if (signal instanceof PipelineSignal.WaitingForInput waiting) {
-                // An ordinary question stays prose: nothing durable turns on the answer. A wait
-                // whose prompt says nothing the reader can act on — blank, or internal jargon the
-                // chat view suppresses — becomes a clarification card naming what is missing.
-                String prompt = PipelineChatWaitView.forChatWait(waiting.prompt());
+                // An ordinary question stays prose: nothing durable turns on the answer. A blank
+                // wait becomes a clarification card naming what is missing.
+                String prompt = chatWaitPrompt(waiting.prompt());
                 if (!prompt.isBlank()) {
                   return Multi.createFrom().item(ChatEvent.token(prompt));
                 }
@@ -394,7 +393,7 @@ public class CreateProductPipelineCoordinator {
    * resumed. A resumed wait carries no prompt, and a blank card tells the reader nothing.
    */
   private String durableQuestion(String conversationId, String artifactHash, String prompt) {
-    String question = PipelineChatWaitView.forChatWait(prompt).strip();
+    String question = chatWaitPrompt(prompt).strip();
     if (approvalQuestions == null) {
       return question;
     }
@@ -403,6 +402,21 @@ public class CreateProductPipelineCoordinator {
     }
     approvalQuestions.save(conversationId, artifactHash, question);
     return question;
+  }
+
+  /**
+   * Formats a wait prompt for chat: blank stays blank; otherwise prefixes a blank line so the text
+   * does not glue to prior streamed tokens.
+   */
+  private static String chatWaitPrompt(String prompt) {
+    if (prompt == null || prompt.isBlank()) {
+      return "";
+    }
+    String trimmed = prompt.strip();
+    if (trimmed.startsWith("\n")) {
+      return trimmed;
+    }
+    return "\n\n" + trimmed;
   }
 
   /**

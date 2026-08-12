@@ -51,13 +51,15 @@ class PhaseRoutingPolicyTest {
   }
 
   @Test
-  void discoveryAgreeWithReadyDraftRoutesToCreateChainPlan() {
+  void discoveryAgreeWithReadyDraftNoLongerAdvancesViaProse() {
+    // Ticket 10: Agree is not an approval continuation. Discovery stays on gather; the decision
+    // card owns advancement.
     var result =
         PhaseRoutingPolicy.tryResolve(
             ConversationPhase.DISCOVERY, "Agree", false, false, false, true);
 
     assertTrue(result.isPresent());
-    assertEquals(ScenarioType.CREATE_CHAIN_PLAN, result.get());
+    assertEquals(ScenarioType.GATHER_REQUIREMENTS, result.get());
   }
 
   @Test
@@ -152,7 +154,9 @@ class PhaseRoutingPolicyTest {
   }
 
   @Test
-  void planProposalAgreeRoutesToCreateChainPlan() {
+  void planCandidateAgreeIsNotAnApprovalShortcut() {
+    // Compact Agree no longer means "approve"; it stays on product CREATE planning like any
+    // other short non-implement reply.
     var result =
         PhaseRoutingPolicy.tryResolve(
             ConversationPhase.PLAN_CANDIDATE, "Agree", false, false, false);
@@ -162,11 +166,11 @@ class PhaseRoutingPolicyTest {
   }
 
   @Test
-  void planProposalAgreeProceedMatchesViaImplementGateProceed() {
-    // matchesShortPlanContinuation also checks matchesImplementGateAffirmative (find-based).
+  void planCandidateAgreeWithBundleDoesNotImplement() {
+    // Ticket 10: Agree + current bundle used to hard-route IMPLEMENT_CHAIN. Approvals are cards.
     var result =
         PhaseRoutingPolicy.tryResolve(
-            ConversationPhase.PLAN_CANDIDATE, "Agree, proceed", false, false, false);
+            ConversationPhase.PLAN_CANDIDATE, "Agree", false, true, false);
 
     assertTrue(result.isPresent());
     assertEquals(ScenarioType.CREATE_CHAIN_PLAN, result.get());
@@ -300,6 +304,25 @@ class PhaseRoutingPolicyTest {
 
     assertTrue(result.isPresent());
     assertEquals(ScenarioType.IMPLEMENT_CHAIN, result.get());
+  }
+
+  @Test
+  void planApprovedAgreeNoLongerRoutesAsContinuation() {
+    // Ticket 10: short Agree / retry continuations are gone; Agree falls through to the LLM.
+    var result =
+        PhaseRoutingPolicy.tryResolve(
+            ConversationPhase.PLAN_APPROVED, "Agree", true, true, false);
+
+    assertTrue(result.isEmpty());
+  }
+
+  @Test
+  void planApprovedRetryNoLongerRoutesAsContinuation() {
+    var result =
+        PhaseRoutingPolicy.tryResolve(
+            ConversationPhase.PLAN_APPROVED, "please retry", true, true, false);
+
+    assertTrue(result.isEmpty());
   }
 
   @Test
