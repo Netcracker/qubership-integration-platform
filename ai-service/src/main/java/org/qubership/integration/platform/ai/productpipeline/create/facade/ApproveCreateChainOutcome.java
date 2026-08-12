@@ -2,12 +2,13 @@ package org.qubership.integration.platform.ai.productpipeline.create.facade;
 
 import java.util.List;
 import java.util.Objects;
+import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalOutcome;
 
 /** Typed result of an exact create-chain approval command. */
-public sealed interface ApproveCreateChainOutcome {
+public sealed interface ApproveCreateChainOutcome extends ApprovalOutcome {
 
   record Accepted(List<CreateChainEvent> events, CreateChainExecutionSnapshot snapshot)
-      implements ApproveCreateChainOutcome {
+      implements ApproveCreateChainOutcome, ApprovalOutcome.Accepted {
 
     public Accepted {
       events = events == null ? List.of() : List.copyOf(events);

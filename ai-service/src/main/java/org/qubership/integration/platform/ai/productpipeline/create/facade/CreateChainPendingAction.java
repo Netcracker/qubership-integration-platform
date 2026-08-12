@@ -2,16 +2,18 @@ package org.qubership.integration.platform.ai.productpipeline.create.facade;
 
 import java.util.List;
 import java.util.Objects;
+import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
 
 /** Structured pending action advertised on an input-required snapshot. */
-public sealed interface CreateChainPendingAction {
+public sealed interface CreateChainPendingAction extends PendingAction {
 
+  @Override
   String action();
 
   /** Exact approval of the current expected artifact. */
   record Approve(
       String artifactType, String artifactHash, long revision, String prompt)
-      implements CreateChainPendingAction {
+      implements CreateChainPendingAction, PendingAction.Approve {
 
     public Approve {
       Objects.requireNonNull(artifactType, "artifactType");
@@ -27,7 +29,7 @@ public sealed interface CreateChainPendingAction {
 
   /** Clarification when required evidence is missing and recovery can accept input. */
   record Clarify(String reason, List<String> missingEvidence)
-      implements CreateChainPendingAction {
+      implements CreateChainPendingAction, PendingAction.Clarify {
 
     public Clarify {
       Objects.requireNonNull(reason, "reason");

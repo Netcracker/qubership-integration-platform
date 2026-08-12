@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create.facade;
 
 import java.util.Objects;
+import org.qubership.integration.platform.ai.productpipeline.facade.ExecutionSnapshot;
 
 /** Latest transport-neutral create-chain execution snapshot. */
 public record CreateChainExecutionSnapshot(
@@ -9,7 +10,8 @@ public record CreateChainExecutionSnapshot(
     CreateChainExecutionStatus status,
     long revision,
     CreateChainPendingAction pendingAction,
-    String failureMessage) {
+    String failureMessage)
+    implements ExecutionSnapshot {
 
   public CreateChainExecutionSnapshot {
     Objects.requireNonNull(taskId, "taskId");
