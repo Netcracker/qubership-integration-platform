@@ -19,6 +19,7 @@ import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteRule;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteSpec;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteTimeouts;
 import org.qubership.integration.platform.engine.model.gatewayapi.ParentReference;
+import org.qubership.integration.platform.engine.util.GatewayDuration;
 import org.qubership.integration.platform.engine.util.paths.GatewayPathMatch;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -197,7 +198,7 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
         HTTPRouteTimeouts timeouts = null;
         if (route.getConnectTimeout() != null && route.getConnectTimeout() > 0) {
             timeouts = HTTPRouteTimeouts.builder()
-                    .request(route.getConnectTimeout() + "ms")
+                    .request(GatewayDuration.formatMillis(route.getConnectTimeout()))
                     .build();
         }
 

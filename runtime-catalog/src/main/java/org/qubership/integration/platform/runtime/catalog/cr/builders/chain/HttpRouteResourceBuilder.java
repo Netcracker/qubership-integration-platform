@@ -16,6 +16,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.mapper.DeploymentRouteMapper;
 import org.qubership.integration.platform.runtime.catalog.service.RoutesGetterService;
+import org.qubership.integration.platform.runtime.catalog.util.GatewayDuration;
 import org.qubership.integration.platform.runtime.catalog.util.paths.GatewayPathMatch;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -201,7 +202,7 @@ public class HttpRouteResourceBuilder implements ResourceBuilder<List<Snapshot>>
 
         if (route.getConnectTimeout() != null && route.getConnectTimeout() > 0) {
             ObjectNode timeouts = rule.withObjectProperty("timeouts");
-            timeouts.put("request", route.getConnectTimeout() + "ms");
+            timeouts.put("request", GatewayDuration.formatMillis(route.getConnectTimeout()));
         }
 
         return rule;

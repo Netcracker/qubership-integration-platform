@@ -85,6 +85,22 @@ class HttpRouteResourceBuilderTest {
         assertFalse(result.contains("my-domain-v1-chain-private-routes"));
         assertTrue(result.contains("/qip-routes/a"));
         assertTrue(result.contains("public-gateway"));
+        assertTrue(result.contains("request: 5000ms"));
+    }
+
+    // Gateway API's HTTPRoute CRD rejects spec.rules[].timeouts.request unless every unit run in
+    // it is 1-5 digits; a route's default connectTimeout (120000ms) has six digits, so a plain
+    // "<millis>ms" suffix produced an unschedulable CR. GatewayDuration decomposes it into "2m"
+    // instead.
+    @Test
+    void buildFormatsATimeoutAboveTheMillisDigitLimitIntoLargerUnits() throws Exception {
+        when(routesGetterService.getRoutes(any())).thenReturn(List.of(
+                DeploymentRoute.builder().path("/a").type(RouteType.EXTERNAL_TRIGGER).connectTimeout(120_000L).build()));
+
+        String result = builder.build(contextFor(List.of(mock(Snapshot.class))));
+
+        assertTrue(result.contains("request: 2m"));
+        assertFalse(result.contains("120000ms"));
     }
 
     // Finding 5: the mapper writes its own leading "---" document-start marker per document (Jackson

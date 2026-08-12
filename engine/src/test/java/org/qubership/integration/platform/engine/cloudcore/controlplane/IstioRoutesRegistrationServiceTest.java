@@ -68,6 +68,24 @@ class IstioRoutesRegistrationServiceTest {
         assertEquals("5000ms", spec.getRules().get(0).getTimeouts().getRequest());
     }
 
+    // Gateway API's HTTPRoute CRD rejects spec.rules[].timeouts.request unless every unit run in
+    // it is 1-5 digits; the default connectTimeout (120000ms) has six digits, so a plain
+    // "<millis>ms" suffix produced an unschedulable CR. GatewayDuration decomposes it into "2m"
+    // instead.
+    @Test
+    void postPublicEngineRoutesFormatsATimeoutAboveTheMillisDigitLimitIntoLargerUnits() {
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
+        DeploymentRouteUpdate route = route("/chain-a", RouteType.EXTERNAL_TRIGGER, 120_000L);
+
+        service.postPublicEngineRoutes(List.of(route), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
+
+        HTTPRouteSpec spec = new ObjectMapper().convertValue(captor.getValue().getBody().getSpec(), HTTPRouteSpec.class);
+        assertEquals("2m", spec.getRules().get(0).getTimeouts().getRequest());
+    }
+
     @Test
     void postPublicEngineRoutesCreatesRegularExpressionMatchForPlaceholderPath() {
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
