@@ -116,6 +116,7 @@ export type StreamingChunkType =
   | "delta"
   | "step"
   | "hitl"
+  | "decision"
   | "done"
   | "error";
 
@@ -129,4 +130,5 @@ export interface StreamingChunk {
   conversationId?: string;
   step?: ActivityStepPayload;
   hitl?: { checkpointId: string; question: string };
+  decision?: ChatDecision;
 }

@@ -615,3 +615,11 @@ button.ai-activity-inline__row:not(:disabled):hover {
 .ai-activity-inline__row--cancelled .ai-activity-inline__icon {
   color: var(--vscode-descriptionForeground, #9ca3af);
 }
+
+.ai-decision-card {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid var(--vscode-border, #d9d9d9);
+  border-radius: 8px;
+  background: var(--vscode-editorWidget-background, rgb(0 0 0 / 2%));
+}

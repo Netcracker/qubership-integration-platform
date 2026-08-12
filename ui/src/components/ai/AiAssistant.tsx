@@ -40,6 +40,7 @@ import {
   upsertAssistantMessage,
   withoutErrorVariantMessages,
 } from "./chatMessageUtils.ts";
+import { appendDecision } from "./chatDecisionUtils.ts";
 import {
   extractDesignUrlFromMessages,
   lastUserMessageIsBuildChainIntent,
@@ -363,6 +364,22 @@ export const AiAssistant: React.FC = () => {
           scrollToBottom();
           setIsStreaming(false);
           void refreshChainPlanStatus(activeConversationId);
+          return;
+        }
+
+        if (chunk.type === "decision" && chunk.decision) {
+          // Keep whatever the assistant streamed before the gate, then park the card after it.
+          if (accumulatedContent.trim()) {
+            currentMessages = upsertAssistantMessage(
+              currentMessages,
+              accumulatedContent,
+            );
+            accumulatedContent = "";
+          }
+          currentMessages = appendDecision(currentMessages, chunk.decision);
+          sessionStore.updateSessionMessages(sessionId, currentMessages);
+          refreshSessions();
+          scrollToBottom();
           return;
         }
 

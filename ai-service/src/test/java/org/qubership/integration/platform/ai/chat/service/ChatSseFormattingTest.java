@@ -5,8 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 
 class ChatSseFormattingTest {
 
@@ -63,6 +65,55 @@ class ChatSseFormattingTest {
     assertEquals("pipeline", node.get("kind").asText());
     assertEquals("error", node.get("status").asText());
     assertEquals("skeleton", node.get("label").asText());
+  }
+
+  @Test
+  void framesApprovalDecisionWithItsBindingAndActions() throws Exception {
+    String question = "Approve the \"plan\"?\nOr ask for changes";
+    String sse =
+        ChatExecutionService.toSse(
+            ChatEvent.decision(
+                new CreateChainPendingAction.Approve(
+                    "implementation-plan", "sha256:abc", 4L, question),
+                4L,
+                ""),
+            objectMapper);
+
+    assertTrue(sse.startsWith("event: decision\ndata: "));
+    JsonNode node =
+        objectMapper.readTree(
+            sse.substring("event: decision\ndata: ".length(), sse.length() - 2));
+    assertEquals("approve:sha256:abc", node.get("id").asText());
+    assertEquals("approve", node.get("kind").asText());
+    assertEquals(question, node.get("question").asText());
+    assertEquals("implementation-plan", node.get("artifactType").asText());
+    assertEquals("sha256:abc", node.get("artifactHash").asText());
+    assertEquals(4L, node.get("revision").asLong());
+    assertEquals("approve", node.get("actions").get(0).asText());
+    assertEquals("request-changes", node.get("actions").get(1).asText());
+  }
+
+  @Test
+  void framesClarificationDecisionWithoutActions() throws Exception {
+    String sse =
+        ChatExecutionService.toSse(
+            ChatEvent.decision(
+                new CreateChainPendingAction.Clarify(
+                    "Target system is unknown", List.of("target system")),
+                9L,
+                "Which system receives the message?"),
+            objectMapper);
+
+    JsonNode node =
+        objectMapper.readTree(
+            sse.substring("event: decision\ndata: ".length(), sse.length() - 2));
+    assertEquals("clarify:9", node.get("id").asText());
+    assertEquals("clarify", node.get("kind").asText());
+    assertEquals("Which system receives the message?", node.get("question").asText());
+    assertEquals("Target system is unknown", node.get("reason").asText());
+    assertEquals("target system", node.get("missingEvidence").get(0).asText());
+    assertTrue(node.get("actions").isEmpty());
+    assertTrue(node.get("artifactHash") == null);
   }
 
   @Test

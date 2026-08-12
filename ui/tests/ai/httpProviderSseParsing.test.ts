@@ -49,6 +49,34 @@ describe("parseCipSseBlock", () => {
     }
   });
 
+  it("parses an approval decision with its binding and actions", () => {
+    const chunks = parseCipSseBlock(
+      'event: decision\ndata: {"id":"approve:sha256:abc","kind":"approve","question":"Approve the plan?",' +
+        '"revision":4,"actions":["approve","request-changes"],"artifactType":"implementation-plan",' +
+        '"artifactHash":"sha256:abc"}\n',
+    );
+    expect(chunks).toEqual([
+      {
+        type: "decision",
+        decision: {
+          id: "approve:sha256:abc",
+          kind: "approve",
+          question: "Approve the plan?",
+          revision: 4,
+          actions: ["approve", "request-changes"],
+          artifactType: "implementation-plan",
+          artifactHash: "sha256:abc",
+        },
+      },
+    ]);
+  });
+
+  it("drops a decision when the kind is unknown", () => {
+    expect(
+      parseCipSseBlock('event: decision\ndata: {"id":"x","kind":"vote"}\n'),
+    ).toEqual([]);
+  });
+
   it("ignores legacy progress events", () => {
     const chunks = parseCipSseBlock(
       'event: progress\ndata: {"message":"working"}\n',

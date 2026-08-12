@@ -294,7 +294,31 @@ public class ChatExecutionService {
           "event: hitl\ndata: "
               + json(objectMapper, Map.of("checkpointId", h.checkpointId(), "question", h.question()))
               + "\n\n";
+      case ChatEvent.Decision d ->
+          "event: decision\ndata: " + json(objectMapper, decisionPayload(d)) + "\n\n";
     };
+  }
+
+  private static Map<String, Object> decisionPayload(ChatEvent.Decision decision) {
+    Map<String, Object> payload = new LinkedHashMap<>();
+    payload.put("id", decision.id());
+    payload.put("kind", decision.kind());
+    payload.put("question", decision.question());
+    payload.put("revision", decision.revision());
+    payload.put("actions", decision.actions());
+    if (decision.artifactType() != null) {
+      payload.put("artifactType", decision.artifactType());
+    }
+    if (decision.artifactHash() != null) {
+      payload.put("artifactHash", decision.artifactHash());
+    }
+    if (decision.reason() != null) {
+      payload.put("reason", decision.reason());
+    }
+    if (!decision.missingEvidence().isEmpty()) {
+      payload.put("missingEvidence", decision.missingEvidence());
+    }
+    return payload;
   }
 
   private static Map<String, Object> stepPayload(ChatEvent.Step step) {

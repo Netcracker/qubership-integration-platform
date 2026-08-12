@@ -2,6 +2,7 @@ import { Button, Tooltip, Typography } from "antd";
 import React from "react";
 import type { ChatMessage } from "../../ai/modelProviders/types.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { AiDecisionCard } from "./AiDecisionCard.tsx";
 import { MarkdownRenderer } from "./AiMarkdownRenderer.tsx";
 import {
   lastUserMessageIsAgree,
@@ -57,6 +58,7 @@ export const AiChatMessageList: React.FC<AiChatMessageListProps> = ({
           if (
             message.role === "assistant" &&
             !message.content.trim() &&
+            !message.decision &&
             (isLoading || isStreaming)
           ) {
             return null;
@@ -81,6 +83,10 @@ export const AiChatMessageList: React.FC<AiChatMessageListProps> = ({
               <div className="ai-message__bubble">
                 {narrativeContent.trim() ? (
                   <MarkdownRenderer>{narrativeContent}</MarkdownRenderer>
+                ) : null}
+
+                {message.decision ? (
+                  <AiDecisionCard decision={message.decision} />
                 ) : null}
 
                 {message.role === "assistant" &&

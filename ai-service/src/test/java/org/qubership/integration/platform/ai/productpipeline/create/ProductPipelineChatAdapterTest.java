@@ -29,15 +29,16 @@ class ProductPipelineChatAdapterTest {
     CreateProductPipelineCoordinator coordinator = helper.coordinator();
 
     ChatRequest request = request("create greetings");
-    List<String> tokens = collectTokens(coordinator.handle(request, "conv-adapter"));
+    List<ChatEvent> events =
+        coordinator.handle(request, "conv-adapter").collect().asList().await().indefinitely();
     assertTrue(
-        tokens.stream()
+        events.stream()
             .anyMatch(
-                t -> {
-                  String lower = t.toLowerCase();
-                  return lower.contains("agree") || lower.contains("approve");
-                }),
-        () -> "expected Agree/approve CTA in tokens: " + tokens);
+                event ->
+                    event instanceof ChatEvent.Decision decision
+                        && "approve".equals(decision.kind())
+                        && !decision.artifactHash().isBlank()),
+        () -> "expected an approval decision, got: " + events);
     assertEquals(
         RunStatus.WAITING_FOR_APPROVAL,
         coordinator.loadRun("conv-adapter").orElseThrow().run().status());

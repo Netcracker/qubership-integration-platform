@@ -16,6 +16,9 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.llm.agent.ApprovalIntentAgent;
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
 import org.qubership.integration.platform.ai.model.ScenarioType;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPublicArtifactTypes;
+import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand;
@@ -148,7 +151,7 @@ public class CreateProductPipelineCoordinator {
                       profileCatalog.require(
                           binding.runManifest().profileId(), binding.runManifest().profileVersion()),
                       binding.runManifest())),
-              text);
+              conversationId);
       return started
           .onCompletion()
           .switchTo(
@@ -162,7 +165,7 @@ public class CreateProductPipelineCoordinator {
                   return mapSignals(
                       runtime.acceptInput(
                           new AcceptInputCommand(created.run().runId(), text)),
-                      text);
+                      conversationId);
                 }
                 return Multi.createFrom().empty();
               });
@@ -201,7 +204,7 @@ public class CreateProductPipelineCoordinator {
         return mapSignals(
             runtime.implement(
                 new ImplementCommand(doc.run().runId(), hash, doc.run().runRevision())),
-            text);
+            conversationId);
       }
       return Multi.createFrom()
           .item(
@@ -216,14 +219,14 @@ public class CreateProductPipelineCoordinator {
       return mapSignals(
               runtime.approve(
                   new ApproveCommand(doc.run().runId(), candidate, doc.run().runRevision())),
-              text)
+              conversationId)
           .onCompletion()
           .switchTo(() -> autoImplementAfterPlanApproval(conversationId, literal));
     }
     if (status == RunStatus.WAITING_FOR_INPUT || status == RunStatus.WAITING_FOR_APPROVAL) {
       return mapSignals(
           runtime.acceptInput(new AcceptInputCommand(doc.run().runId(), text == null ? "" : text)),
-          text);
+          conversationId);
     }
     if (status == RunStatus.RUNNING) {
       // Resume an in-flight run (e.g. previous SSE aborted mid-stage). Do not acceptInput —
@@ -236,7 +239,7 @@ public class CreateProductPipelineCoordinator {
                   profileCatalog.require(
                       binding.runManifest().profileId(), binding.runManifest().profileVersion()),
                   binding.runManifest())),
-          text);
+          conversationId);
     }
     return mapSignals(
         runtime.startOrResume(
@@ -246,7 +249,7 @@ public class CreateProductPipelineCoordinator {
                 profileCatalog.require(
                     binding.runManifest().profileId(), binding.runManifest().profileVersion()),
                 binding.runManifest())),
-        text);
+        conversationId);
   }
 
   public Multi<ChatEvent> approveCurrent(String conversationId) {
@@ -257,7 +260,7 @@ public class CreateProductPipelineCoordinator {
     return mapSignals(
             runtime.approve(
                 new ApproveCommand(doc.run().runId(), candidate, doc.run().runRevision())),
-            "Agree")
+            conversationId)
         .onCompletion()
         .switchTo(() -> autoImplementAfterPlanApproval(conversationId, true));
   }
@@ -295,7 +298,7 @@ public class CreateProductPipelineCoordinator {
         runtime.implement(
             new ImplementCommand(
                 after.run().runId(), hash.get(), after.run().runRevision())),
-        "Agree");
+        conversationId);
   }
 
   private static Reference approvableReference(ProductPipelineRunDocument doc) {
@@ -314,7 +317,7 @@ public class CreateProductPipelineCoordinator {
         "no approvable reference for stage " + doc.run().currentStageId());
   }
 
-  private Multi<ChatEvent> mapSignals(Multi<PipelineSignal> signals, String ignored) {
+  private Multi<ChatEvent> mapSignals(Multi<PipelineSignal> signals, String conversationId) {
     return signals
         .onItem()
         .transformToMultiAndConcatenate(
@@ -348,11 +351,7 @@ public class CreateProductPipelineCoordinator {
                 return Multi.createFrom().item(ChatEvent.token(prompt));
               }
               if (signal instanceof PipelineSignal.WaitingForApproval waiting) {
-                String prompt = PipelineChatWaitView.forChatWait(waiting.prompt());
-                if (prompt.isBlank()) {
-                  return Multi.createFrom().empty();
-                }
-                return Multi.createFrom().item(ChatEvent.token(prompt));
+                return Multi.createFrom().item(approvalDecision(conversationId, waiting));
               }
               if (signal instanceof PipelineSignal.WaitingForImplement) {
                 // Chat auto-continues into implement; the materialization Message is the user-facing
@@ -374,6 +373,28 @@ public class CreateProductPipelineCoordinator {
               }
               return Multi.createFrom().empty();
             });
+  }
+
+  /**
+   * Turns an approval wait into the decision card the reader answers.
+   *
+   * <p>Emitted even when the wait carries no prompt: a gate the reader cannot see is worse than a
+   * card with a short question. Durable question text arrives with the pending-decision query.
+   */
+  private ChatEvent approvalDecision(
+      String conversationId, PipelineSignal.WaitingForApproval waiting) {
+    long revision =
+        runStore
+            .loadByConversation(conversationId)
+            .map(doc -> doc.run().runRevision())
+            .orElse(0L);
+    PendingAction pending =
+        new CreateChainPendingAction.Approve(
+            CreateChainPublicArtifactTypes.toApprovalType(waiting.candidate().kind()),
+            waiting.candidate().contentHash(),
+            revision,
+            PipelineChatWaitView.forChatWait(waiting.prompt()).strip());
+    return ChatEvent.decision(pending, revision, "");
   }
 
   private String languageReference(ProductPipelineRunDocument doc) {

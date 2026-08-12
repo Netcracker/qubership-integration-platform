@@ -1,4 +1,8 @@
-import type { ActivityStepPayload, StreamingChunk } from "./types.ts";
+import type {
+  ActivityStepPayload,
+  ChatDecision,
+  StreamingChunk,
+} from "./types.ts";
 
 function parseStepPayload(payload: string): ActivityStepPayload | null {
   try {
@@ -50,6 +54,47 @@ function parseHitlPayload(
       return null;
     }
     return { checkpointId, question };
+  } catch {
+    return null;
+  }
+}
+
+function parseDecisionPayload(payload: string): ChatDecision | null {
+  try {
+    const parsed = JSON.parse(payload) as Record<string, unknown>;
+    const id = parsed.id;
+    const kind = parsed.kind;
+    if (typeof id !== "string" || (kind !== "approve" && kind !== "clarify")) {
+      return null;
+    }
+    const decision: ChatDecision = {
+      id,
+      kind,
+      question: typeof parsed.question === "string" ? parsed.question : "",
+      actions: Array.isArray(parsed.actions)
+        ? parsed.actions.filter(
+            (action): action is string => typeof action === "string",
+          )
+        : [],
+    };
+    if (typeof parsed.artifactType === "string") {
+      decision.artifactType = parsed.artifactType;
+    }
+    if (typeof parsed.artifactHash === "string") {
+      decision.artifactHash = parsed.artifactHash;
+    }
+    if (typeof parsed.revision === "number") {
+      decision.revision = parsed.revision;
+    }
+    if (typeof parsed.reason === "string") {
+      decision.reason = parsed.reason;
+    }
+    if (Array.isArray(parsed.missingEvidence)) {
+      decision.missingEvidence = parsed.missingEvidence.filter(
+        (item): item is string => typeof item === "string",
+      );
+    }
+    return decision;
   } catch {
     return null;
   }
@@ -115,6 +160,11 @@ export function parseCipSseBlock(block: string): StreamingChunk[] {
     case "hitl": {
       const hitl = parseHitlPayload(payload);
       return hitl ? [{ type: "hitl", hitl }] : [];
+    }
+
+    case "decision": {
+      const decision = parseDecisionPayload(payload);
+      return decision ? [{ type: "decision", decision }] : [];
     }
 
     case "done":
