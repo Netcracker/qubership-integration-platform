@@ -146,7 +146,7 @@ public class ChatDecisionService {
         facade
             .streamApproveOnly(approval)
             .onItem()
-            .transformToMultiAndConcatenate(this::toChatEvent);
+            .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event));
     if (!ChatEvent.APPROVE_AND_CREATE_ACTION.equals(action)) {
       return approved.onCompletion().switchTo(() -> openGateEvents(conversationId));
     }
@@ -173,7 +173,7 @@ public class ChatDecisionService {
     return facade
         .streamCreateChain(conversationId, planHash, revision)
         .onItem()
-        .transformToMultiAndConcatenate(this::toChatEvent)
+        .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event))
         .onCompletion()
         .switchTo(() -> openGateEvents(conversationId));
   }
@@ -212,7 +212,7 @@ public class ChatDecisionService {
     };
   }
 
-  private Multi<ChatEvent> toChatEvent(CreateChainEvent event) {
+  private Multi<ChatEvent> toChatEvent(String conversationId, CreateChainEvent event) {
     if (event instanceof CreateChainEvent.Message message) {
       return Multi.createFrom().item(ChatEvent.token(message.text()));
     }
@@ -227,7 +227,7 @@ public class ChatDecisionService {
           .item(
               ChatEvent.decision(
                   waiting.pendingAction(),
-                  revisionOf(waiting),
+                  revisionOf(conversationId, waiting),
                   "",
                   actionsFor(waiting.pendingAction())));
     }
@@ -239,9 +239,11 @@ public class ChatDecisionService {
     return Multi.createFrom().empty();
   }
 
-  private static long revisionOf(CreateChainEvent.Waiting waiting) {
-    return waiting.pendingAction() instanceof PendingAction.Approve approve
-        ? approve.revision()
-        : 0L;
+  /** A clarification carries no revision of its own, so the run's is what identifies the card. */
+  private long revisionOf(String conversationId, CreateChainEvent.Waiting waiting) {
+    if (waiting.pendingAction() instanceof PendingAction.Approve approve) {
+      return approve.revision();
+    }
+    return facade.snapshot(conversationId).map(ExecutionSnapshot::revision).orElse(0L);
   }
 }

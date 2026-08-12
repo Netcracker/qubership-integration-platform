@@ -864,6 +864,42 @@ export const AiAssistant: React.FC = () => {
   );
 
   // ---------------------------------------------------------------------------
+  // handleClarificationSubmit
+  // ---------------------------------------------------------------------------
+
+  /**
+   * A clarification has no enumerable answer, so the reader's text goes through the ordinary
+   * chat-message path — a real user turn, not a decision command — while the card still freezes
+   * like an answered approval card.
+   */
+  const handleClarificationSubmit = useCallback(
+    async (decision: ChatDecision, text: string) => {
+      if (!currentSessionId || sendInProgressRef.current) return;
+      const session = sessionStore.getSession(currentSessionId);
+      if (!session) return;
+
+      const answeredMessages = markDecisionAnswered(
+        session.messages,
+        decision.id,
+        "clarify",
+      );
+      const userMessage: ChatMessage = { role: "user", content: text };
+      const next = [...answeredMessages, userMessage];
+      sessionStore.updateSessionMessages(currentSessionId, next);
+      refreshSessions();
+
+      await sendToProvider(
+        currentSessionId,
+        next,
+        session.lastAttachmentUrls,
+        [userMessage],
+        session.lastAttachmentObjectKeys,
+      );
+    },
+    [currentSessionId, sessionStore, refreshSessions, sendToProvider],
+  );
+
+  // ---------------------------------------------------------------------------
   // handleSend
   // ---------------------------------------------------------------------------
 
@@ -1418,6 +1454,12 @@ export const AiAssistant: React.FC = () => {
                                 message.decision!,
                                 action,
                                 comment,
+                              )
+                            }
+                            onSubmitClarification={(text) =>
+                              void handleClarificationSubmit(
+                                message.decision!,
+                                text,
                               )
                             }
                           />

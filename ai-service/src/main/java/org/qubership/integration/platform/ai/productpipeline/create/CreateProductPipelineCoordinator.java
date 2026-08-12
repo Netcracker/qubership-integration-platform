@@ -329,14 +329,16 @@ public class CreateProductPipelineCoordinator {
                         ChatEvent.skillStep(skillProgress.skillId(), skillProgress.status()));
               }
               if (signal instanceof PipelineSignal.WaitingForInput waiting) {
-                // Prefer the stage outcome prompt (e.g. design-input IDS path choice). Discovery /
-                // analysis often already streamed assistant tokens before NEEDS_INPUT — blank /
-                // internal-status prompts stay silent so we do not glue enum jargon to LLM text.
+                // An ordinary question stays prose: nothing durable turns on the answer. A wait
+                // whose prompt says nothing the reader can act on — blank, or internal jargon the
+                // chat view suppresses — becomes a clarification card naming what is missing.
                 String prompt = PipelineChatWaitView.forChatWait(waiting.prompt());
-                if (prompt.isBlank()) {
-                  return Multi.createFrom().empty();
+                if (!prompt.isBlank()) {
+                  return Multi.createFrom().item(ChatEvent.token(prompt));
                 }
-                return Multi.createFrom().item(ChatEvent.token(prompt));
+                return clarificationDecision(conversationId)
+                    .map(decision -> Multi.createFrom().item(decision))
+                    .orElseGet(() -> Multi.createFrom().empty());
               }
               if (signal instanceof PipelineSignal.WaitingForApproval waiting) {
                 return Multi.createFrom().item(approvalDecision(conversationId, waiting));
@@ -401,6 +403,25 @@ public class CreateProductPipelineCoordinator {
     }
     approvalQuestions.save(conversationId, artifactHash, question);
     return question;
+  }
+
+  /**
+   * The clarification the run is waiting on, as a card.
+   *
+   * <p>The reason and the list of missing evidence come from the run itself and stay server prose:
+   * they name this run's gap, not a phrase an interface could translate.
+   */
+  private Optional<ChatEvent> clarificationDecision(String conversationId) {
+    if (facade == null) {
+      return Optional.empty();
+    }
+    return facade
+        .snapshot(conversationId)
+        .flatMap(
+            snapshot ->
+                Optional.ofNullable(snapshot.pendingAction())
+                    .filter(PendingAction.Clarify.class::isInstance)
+                    .map(pending -> ChatEvent.decision(pending, snapshot.revision(), "")));
   }
 
   /**

@@ -68,4 +68,123 @@ describe("AiDecisionCard", () => {
 
     expect(onAnswer).not.toHaveBeenCalled();
   });
+
+  it("should render the reason, the missing-evidence items, and no action buttons for a clarify card", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: "The run needs the target service name before it can continue.",
+      question: "",
+      missingEvidence: ["Target service name", "Target operation id"],
+      actions: [],
+    });
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(
+      screen.getByText(
+        "The run needs the target service name before it can continue.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Target service name")).toBeInTheDocument();
+    expect(screen.getByText("Target operation id")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Request changes" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should fall back to the question when reason is empty for a clarify card", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: "",
+      question: "Which environment should this target?",
+      missingEvidence: [],
+      actions: [],
+    });
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(
+      screen.getByText("Which environment should this target?"),
+    ).toBeInTheDocument();
+  });
+
+  it("should keep the submit button disabled until text is typed for a clarify card", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: "Missing evidence.",
+      missingEvidence: [],
+      actions: [],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    const submitButton = screen.getByRole("button", { name: "Submit" });
+    expect(submitButton).toBeDisabled();
+
+    fireEvent.change(
+      screen.getByPlaceholderText("Provide the missing information"),
+      { target: { value: "It targets the billing service." } },
+    );
+    expect(submitButton).not.toBeDisabled();
+  });
+
+  it("should call onSubmitClarification with the typed text when submit is clicked", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: "Missing evidence.",
+      missingEvidence: [],
+      actions: [],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText("Provide the missing information"),
+      { target: { value: "It targets the billing service." } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    expect(onAnswer).not.toHaveBeenCalled();
+    expect(onSubmitClarification).toHaveBeenCalledTimes(1);
+    expect(onSubmitClarification).toHaveBeenCalledWith(
+      "It targets the billing service.",
+    );
+  });
+
+  it("should freeze the clarify card and hide the text area once submitted", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: "Missing evidence.",
+      missingEvidence: [],
+      actions: [],
+      answeredAction: "clarify",
+    });
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(screen.getByText("Sent")).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("Provide the missing information"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Submit" }),
+    ).not.toBeInTheDocument();
+  });
 });
