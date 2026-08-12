@@ -43,6 +43,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBindingStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
+import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementAnalysisCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
@@ -336,7 +337,7 @@ class CreateChainApplicationFacadeTest {
   void missingApprovedPlanHashReturnsTypedBlockedOrNonRecoverable() {
     Fixture base = Fixture.createWithMaterialization();
     ProductPipelineRuntime realRuntime = base.runtime();
-    ProductPipelineRuntime mocked = mock(ProductPipelineRuntime.class);
+    CreateChainOrchestrator mocked = mock(CreateChainOrchestrator.class);
     when(mocked.approvedPlanContentHash(any())).thenReturn(Optional.empty());
     when(mocked.approve(any())).thenAnswer(inv -> realRuntime.approve(inv.getArgument(0)));
     when(mocked.startOrResume(any())).thenAnswer(inv -> realRuntime.startOrResume(inv.getArgument(0)));
@@ -393,7 +394,7 @@ class CreateChainApplicationFacadeTest {
                         "planning", StageStatus.SUCCEEDED, List.of(), null)),
                 null));
 
-    ProductPipelineRuntime mocked = mock(ProductPipelineRuntime.class);
+    CreateChainOrchestrator mocked = mock(CreateChainOrchestrator.class);
     when(mocked.approvedPlanContentHash(any())).thenReturn(Optional.empty());
     CreateChainApplicationFacade facade =
         new CreateChainApplicationFacade(
@@ -442,7 +443,7 @@ class CreateChainApplicationFacadeTest {
                         1)),
                 null));
 
-    ProductPipelineRuntime mocked = mock(ProductPipelineRuntime.class);
+    CreateChainOrchestrator mocked = mock(CreateChainOrchestrator.class);
     when(mocked.approvedPlanContentHash(any())).thenReturn(Optional.empty());
     when(mocked.implement(any()))
         .thenReturn(
@@ -514,7 +515,7 @@ class CreateChainApplicationFacadeTest {
                         1)),
                 null));
 
-    ProductPipelineRuntime mocked = mock(ProductPipelineRuntime.class);
+    CreateChainOrchestrator mocked = mock(CreateChainOrchestrator.class);
     when(mocked.approvedPlanContentHash(any())).thenReturn(Optional.empty());
     when(mocked.implement(any()))
         .thenReturn(

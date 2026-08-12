@@ -32,6 +32,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifes
 import org.qubership.integration.platform.ai.productpipeline.artifact.UserInput;
 import org.qubership.integration.platform.ai.productpipeline.create.ApprovalPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
+import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
@@ -70,7 +71,7 @@ import org.qubership.integration.platform.ai.storage.S3Service;
 /**
  * Profile-neutral durable sequential runtime. Advances until a wait, failure, or terminal state.
  */
-public final class ProductPipelineRuntime {
+public final class ProductPipelineRuntime implements CreateChainOrchestrator {
 
   private static final Logger LOG = Logger.getLogger(ProductPipelineRuntime.class);
 
@@ -186,6 +187,7 @@ public final class ProductPipelineRuntime {
     this.s3Service = s3Service;
   }
 
+  @Override
   public Multi<PipelineSignal> startOrResume(StartOrResumeCommand command) {
     Objects.requireNonNull(command, "command");
     return Multi.createFrom()
@@ -282,6 +284,7 @@ public final class ProductPipelineRuntime {
             });
   }
 
+  @Override
   public Multi<PipelineSignal> acceptInput(AcceptInputCommand command) {
     Objects.requireNonNull(command, "command");
     return Multi.createFrom()
@@ -361,6 +364,7 @@ public final class ProductPipelineRuntime {
         : "user-input-" + command.commandId();
   }
 
+  @Override
   public Multi<PipelineSignal> approve(ApproveCommand command) {
     Objects.requireNonNull(command, "command");
     return Multi.createFrom()
@@ -532,6 +536,7 @@ public final class ProductPipelineRuntime {
             });
   }
 
+  @Override
   public Multi<PipelineSignal> implement(ImplementCommand command) {
     Objects.requireNonNull(command, "command");
     return Multi.createFrom()
@@ -1935,6 +1940,7 @@ public final class ProductPipelineRuntime {
   /**
    * Content hash of the implementation plan approved at the implementation gate, when present.
    */
+  @Override
   public Optional<String> approvedPlanContentHash(String runId) {
     Objects.requireNonNull(runId, "runId");
     return latestApprovalRecordV2Optional(runId).map(ApprovalRecordV2::targetContentHash);
@@ -1944,6 +1950,7 @@ public final class ProductPipelineRuntime {
    * Latest catalog snapshot after materialization, when present. Scripted tests may store a Map
    * stub; those payloads are ignored rather than failing deserialization.
    */
+  @Override
   public Optional<ChainCatalogFacts> latestCatalogChainSnapshot(String runId) {
     Objects.requireNonNull(runId, "runId");
     Optional<Revision> revision = artifactStore.latest(runId, Kind.CATALOG_CHAIN_SNAPSHOT);

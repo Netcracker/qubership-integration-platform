@@ -26,12 +26,12 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBinding;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBindingStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
+import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ImplementCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRuntime;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StaleApprovalException;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
@@ -44,7 +44,7 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 /**
  * Transport-neutral application facade for {@code create-chain@2}.
  *
- * <p>{@link ProductPipelineRuntime} remains the lifecycle authority. Browser and A2A adapters call
+ * <p>The {@link CreateChainOrchestrator} remains the lifecycle authority. Browser and A2A adapters call
  * this facade without sharing transport DTOs.
  */
 @ApplicationScoped
@@ -60,7 +60,7 @@ public class CreateChainApplicationFacade {
 
   private final CreateRunSelectionService selectionService;
   private final CreateRunBindingStore bindingStore;
-  private final ProductPipelineRuntime runtime;
+  private final CreateChainOrchestrator runtime;
   private final ProductPipelineRunStore runStore;
   private final ProductPipelineProfileCatalog profileCatalog;
   private final ProductPipelineArtifactStore artifactStore;
@@ -70,7 +70,7 @@ public class CreateChainApplicationFacade {
   public CreateChainApplicationFacade(
       CreateRunSelectionService selectionService,
       CreateRunBindingStore bindingStore,
-      ProductPipelineRuntime runtime,
+      CreateChainOrchestrator runtime,
       ProductPipelineRunStore runStore,
       ProductPipelineProfileCatalog profileCatalog,
       ProductPipelineArtifactStore artifactStore,
@@ -88,7 +88,7 @@ public class CreateChainApplicationFacade {
   public CreateChainApplicationFacade(
       CreateRunSelectionService selectionService,
       CreateRunBindingStore bindingStore,
-      ProductPipelineRuntime runtime,
+      CreateChainOrchestrator runtime,
       ProductPipelineRunStore runStore,
       ProductPipelineProfileCatalog profileCatalog) {
     this(selectionService, bindingStore, runtime, runStore, profileCatalog, new RequirementDraftStore());
@@ -98,7 +98,7 @@ public class CreateChainApplicationFacade {
   public CreateChainApplicationFacade(
       CreateRunSelectionService selectionService,
       CreateRunBindingStore bindingStore,
-      ProductPipelineRuntime runtime,
+      CreateChainOrchestrator runtime,
       ProductPipelineRunStore runStore,
       ProductPipelineProfileCatalog profileCatalog,
       ProductPipelineArtifactStore artifactStore) {
@@ -116,7 +116,7 @@ public class CreateChainApplicationFacade {
   public CreateChainApplicationFacade(
       CreateRunSelectionService selectionService,
       CreateRunBindingStore bindingStore,
-      ProductPipelineRuntime runtime,
+      CreateChainOrchestrator runtime,
       ProductPipelineRunStore runStore,
       ProductPipelineProfileCatalog profileCatalog,
       RequirementDraftStore draftStore) {

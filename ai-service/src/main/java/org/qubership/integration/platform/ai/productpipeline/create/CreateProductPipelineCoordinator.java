@@ -25,11 +25,11 @@ import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQues
 import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
+import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
 import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ImplementCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRuntime;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -40,7 +40,7 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 /**
  * Browser chat coordinator for product CREATE turns.
  *
- * <p>Maps {@code ChatRequest}/{@code ChatEvent} onto {@link ProductPipelineRuntime} commands and
+ * <p>Maps {@code ChatRequest}/{@code ChatEvent} onto {@link CreateChainOrchestrator} commands and
  * durable run evidence. Transport-neutral callers (A2A) must use {@link
  * org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade}
  * instead of this coordinator. Browser convenience approval ({@link #approveCurrent} and free-form
@@ -51,7 +51,7 @@ public class CreateProductPipelineCoordinator {
 
   private final CreateRunSelectionService selectionService;
   private final CreateRunBindingStore bindingStore;
-  private final ProductPipelineRuntime runtime;
+  private final CreateChainOrchestrator runtime;
   private final ProductPipelineRunStore runStore;
   private final ProductPipelineProfileCatalog profileCatalog;
   private final ApprovalPrompts approvalPrompts;
@@ -69,7 +69,7 @@ public class CreateProductPipelineCoordinator {
   public CreateProductPipelineCoordinator(
       CreateRunSelectionService selectionService,
       CreateRunBindingStore bindingStore,
-      ProductPipelineRuntime runtime,
+      CreateChainOrchestrator runtime,
       ProductPipelineRunStore runStore,
       ProductPipelineProfileCatalog profileCatalog,
       ApprovalPromptAgent approvalPromptAgent,
@@ -88,7 +88,7 @@ public class CreateProductPipelineCoordinator {
   public CreateProductPipelineCoordinator(
       CreateRunSelectionService selectionService,
       CreateRunBindingStore bindingStore,
-      ProductPipelineRuntime runtime,
+      CreateChainOrchestrator runtime,
       ProductPipelineRunStore runStore,
       ProductPipelineProfileCatalog profileCatalog) {
     this(selectionService, bindingStore, runtime, runStore, profileCatalog, new ApprovalPrompts());
@@ -97,7 +97,7 @@ public class CreateProductPipelineCoordinator {
   CreateProductPipelineCoordinator(
       CreateRunSelectionService selectionService,
       CreateRunBindingStore bindingStore,
-      ProductPipelineRuntime runtime,
+      CreateChainOrchestrator runtime,
       ProductPipelineRunStore runStore,
       ProductPipelineProfileCatalog profileCatalog,
       ApprovalPrompts approvalPrompts) {
@@ -107,7 +107,7 @@ public class CreateProductPipelineCoordinator {
   CreateProductPipelineCoordinator(
       CreateRunSelectionService selectionService,
       CreateRunBindingStore bindingStore,
-      ProductPipelineRuntime runtime,
+      CreateChainOrchestrator runtime,
       ProductPipelineRunStore runStore,
       ProductPipelineProfileCatalog profileCatalog,
       ApprovalPrompts approvalPrompts,
@@ -124,7 +124,7 @@ public class CreateProductPipelineCoordinator {
   CreateProductPipelineCoordinator(
       CreateRunSelectionService selectionService,
       CreateRunBindingStore bindingStore,
-      ProductPipelineRuntime runtime,
+      CreateChainOrchestrator runtime,
       ProductPipelineRunStore runStore,
       ProductPipelineProfileCatalog profileCatalog,
       boolean unused) {
