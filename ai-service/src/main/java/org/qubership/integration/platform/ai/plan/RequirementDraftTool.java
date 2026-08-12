@@ -6,7 +6,6 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Objects;
 import org.jboss.logging.Logger;
-import org.qubership.integration.platform.ai.chat.intent.UserIntentPatterns;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
@@ -65,16 +64,13 @@ public class RequirementDraftTool {
           + " captureRequirementDraft again and do not repeat the ready-for-planning message."
           + " Stop the tool loop; the server advances to the next phase.";
 
-  static final String IMPORT_SPECIFICATION_OPEN_QUESTION =
-      RequirementDraft.IMPORT_CONFIRM_OPEN_QUESTION;
-
   static final String IMPORT_PENDING_SOFT_DOWNGRADE_PREFIX =
       "Requirement draft stored as NEEDS_INPUT (not READY_FOR_PLAN): apiHubCandidate is pending"
           + " import. ";
 
   static final String IMPORT_PENDING_SOFT_DOWNGRADE_HINT =
-      "Ask the user to reply \"Import specification\" (or Agree). Do not claim the plan is ready"
-          + " until import completes. Do not call captureRequirementDraft again in this turn unless"
+      "The reader is offered the import as a decision. Do not claim the plan is ready until"
+          + " import completes. Do not call captureRequirementDraft again in this turn unless"
           + " openQuestions or assembledText must change.";
 
   static final String BLOCKED_WITH_CANDIDATE_SOFT_DOWNGRADE_PREFIX =
@@ -82,9 +78,9 @@ public class RequirementDraftTool {
           + " import. ";
 
   static final String BLOCKED_WITH_CANDIDATE_SOFT_DOWNGRADE_HINT =
-      "Ask the user to reply \"Import specification\" (or Agree). Do not claim the API was missing"
-          + " from API Hub. Do not call captureRequirementDraft again in this turn unless"
-          + " openQuestions or assembledText must change.";
+      "The reader is offered the import as a decision. Do not claim the API was missing from API"
+          + " Hub. Do not call captureRequirementDraft again in this turn unless openQuestions or"
+          + " assembledText must change.";
 
   private final RequirementDraftStore store;
   private final QipKnowledgePackRepository repository;
@@ -143,8 +139,8 @@ public class RequirementDraftTool {
       tool results (never invent UUIDs). catalogBinding allows READY_FOR_PLAN.
       When catalog lookup misses but API Hub returns a match, call selectApiHubCandidate with
       packageId, version, and operationId or documentId from the search hit (do not put
-      apiHubCandidate on this capture). Keep decision=NEEDS_INPUT and ask the user to reply
-      "Import specification" before planning.
+      apiHubCandidate on this capture). Keep decision=NEEDS_INPUT and leave openQuestions empty;
+      the server offers the import as a decision card.
       Do not set decision=READY_FOR_PLAN while an API Hub candidate is pending import.
       After a successful READY_FOR_PLAN capture in this turn, do not call captureRequirementDraft
       again and do not repeat the ready-for-planning assistant text.
@@ -267,8 +263,8 @@ public class RequirementDraftTool {
       }
 
       if (candidate != null && binding == null) {
-        // Decision 8: pin the sole open question while import is pending.
-        openQuestions = List.of(IMPORT_SPECIFICATION_OPEN_QUESTION);
+        // The pending import is offered as a decision, so it is not an open question to answer.
+        openQuestions = List.of();
       }
 
       if (decision == DraftDecision.READY_FOR_PLAN && candidate != null && binding == null) {
@@ -307,10 +303,7 @@ public class RequirementDraftTool {
       boolean importIntent =
           binding != null
               ? false
-              : (candidate != null
-                  || (previous != null && previous.importIntent())
-                  || UserIntentPatterns.matchesExplicitImportRequest(capture.assembledText())
-                  || UserIntentPatterns.matchesImportSpecificationCommand(capture.assembledText()));
+              : (candidate != null || (previous != null && previous.importIntent()));
 
       RequirementDraft draft =
           new RequirementDraft(
@@ -413,7 +406,8 @@ public class RequirementDraftTool {
       List<String> openQuestions,
       ApiHubRequirementRefs candidate,
       ResolvedCatalogBinding binding) {
-    if (decision == DraftDecision.NEEDS_INPUT && openQuestions.isEmpty()) {
+    boolean pendingImport = candidate != null && binding == null;
+    if (decision == DraftDecision.NEEDS_INPUT && openQuestions.isEmpty() && !pendingImport) {
       return "openQuestions is required when decision=NEEDS_INPUT";
     }
     if (decision == DraftDecision.READY_FOR_PLAN && !openQuestions.isEmpty()) {

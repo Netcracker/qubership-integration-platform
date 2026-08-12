@@ -21,6 +21,17 @@ public sealed interface ChatEvent {
   /** Approves the plan and creates the chain, each validated against its own binding. */
   String APPROVE_AND_CREATE_ACTION = "approve-and-create";
 
+  /** Imports the selected API Hub specification into the runtime catalog. */
+  String IMPORT_ACTION = "import-specification";
+
+  /**
+   * What the transcript records when the reader answers the import card.
+   *
+   * <p>Read by the import stage as the confirmation itself, so the stage checks a marker this
+   * service wrote rather than guessing at wording a reader chose.
+   */
+  String IMPORT_MARKER = "Import the API Hub specification";
+
   /** Stream metadata emitted once at the start of an SSE turn. */
   record Meta(String conversationId) implements ChatEvent {}
 
@@ -146,6 +157,26 @@ public sealed interface ChatEvent {
         null,
         List.of(),
         List.of(CREATE_ACTION));
+  }
+
+  /**
+   * The API Hub import, offered as its own decision.
+   *
+   * <p>A real transition backs it — the specification lands in the runtime catalog — so it is a
+   * decision rather than prose. The candidate the reader was shown identifies the card.
+   */
+  static ChatEvent importDecision(String candidateId, String question) {
+    Objects.requireNonNull(candidateId, "candidateId");
+    return new Decision(
+        "import:" + candidateId,
+        APPROVE_ACTION,
+        question == null ? "" : question.strip(),
+        null,
+        null,
+        0L,
+        null,
+        List.of(),
+        List.of(IMPORT_ACTION));
   }
 
   static ChatEvent error(String message) {

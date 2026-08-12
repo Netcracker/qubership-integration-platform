@@ -234,13 +234,6 @@ public class ScenarioRouter {
         .isPresent();
   }
 
-  private boolean hasImportConfirmOpenQuestion(String conversationId) {
-    return requirementDraftStore
-        .get(conversationId)
-        .filter(RequirementDraft::hasImportConfirmOpenQuestion)
-        .isPresent();
-  }
-
   private ScenarioType classify(
       ChatRequest request, String conversationId, ConversationPhase phase) {
     String userMessage = request.getEffectiveUserText();
@@ -253,8 +246,7 @@ public class ScenarioRouter {
             false,
             false,
             hasChainContext,
-            hasReadyDraft(conversationId),
-            hasImportConfirmOpenQuestion(conversationId));
+            hasReadyDraft(conversationId));
     if (phaseRoute.isPresent()) {
       logRoutingDecision(conversationId, "phase", phase, phaseRoute.get());
       return phaseRoute.get();

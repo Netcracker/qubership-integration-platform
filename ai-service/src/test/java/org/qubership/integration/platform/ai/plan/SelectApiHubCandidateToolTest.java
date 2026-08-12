@@ -55,7 +55,7 @@ class SelectApiHubCandidateToolTest {
 
     assertTrue(result.contains("\"ok\":true"));
     assertTrue(result.contains("S.ProdCat.PartyMgmt"));
-    assertTrue(result.contains("Import specification"));
+    assertTrue(result.contains("offered the import as a decision"));
     RequirementDraft draft = store.get("select-conv").orElseThrow();
     assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
     assertTrue(draft.hasPendingImport());
@@ -64,7 +64,7 @@ class SelectApiHubCandidateToolTest {
     assertEquals(
         "partyManagement-v5-partyManagement-v5-party-search-post",
         draft.apiHubCandidate().operationId());
-    assertEquals(List.of(RequirementDraft.IMPORT_CONFIRM_OPEN_QUESTION), draft.openQuestions());
+    assertTrue(draft.openQuestions().isEmpty());
     assertEquals(
         "S.ProdCat.PartyMgmt",
         apiHubCache.latestCandidate("select-conv").orElseThrow().packageId());

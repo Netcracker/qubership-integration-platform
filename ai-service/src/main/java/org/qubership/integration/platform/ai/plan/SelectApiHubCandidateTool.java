@@ -21,7 +21,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.ProductCapab
  * Structured gather tool that pins an API Hub import candidate for the active conversation.
  * Prefer this over stuffing {@code apiHubCandidate} into {@link RequirementDraftTool#captureRequirementDraft}.
  * When the runtime catalog already has a matching system/spec, binds that hierarchy instead of
- * asking for Import specification.
+ * offering the import decision.
  */
 @ApplicationScoped
 public class SelectApiHubCandidateTool {
@@ -152,7 +152,7 @@ public class SelectApiHubCandidateTool {
                 false,
                 assembled,
                 DraftDecision.NEEDS_INPUT,
-                List.of(RequirementDraft.IMPORT_CONFIRM_OPEN_QUESTION),
+                List.of(),
                 RequirementDraftTool.SOURCE_SKILL_ID,
                 "unknown",
                 "unknown",
@@ -169,8 +169,7 @@ public class SelectApiHubCandidateTool {
       ObjectNode root = objectMapper.createObjectNode();
       root.put("ok", true);
       root.put("tool", TOOL_NAME);
-      root.put("nextStep", "Ask the user to reply Import specification (or Agree).");
-      root.put("openQuestion", RequirementDraft.IMPORT_CONFIRM_OPEN_QUESTION);
+      root.put("nextStep", "The reader is offered the import as a decision; do not ask for a phrase.");
       putCandidate(root, candidate);
       String json = objectMapper.writeValueAsString(root);
       LOG.infof(

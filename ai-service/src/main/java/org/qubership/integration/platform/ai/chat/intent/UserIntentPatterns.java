@@ -53,8 +53,6 @@ public final class UserIntentPatterns {
   private static final Pattern IMPORT_PLAN_CONTINUATION =
       Pattern.compile("(?ius)^\\s*continue\\s*[.!]?\\s*$");
 
-  private static final Pattern IMPORT_SPECIFICATION_COMMAND =
-      Pattern.compile("(?ius)^\\s*import\\s+specification\\s*[.!]?\\s*$");
 
   private static final Pattern SPINE_RETRY_CONTINUATION =
       Pattern.compile("(?ius)\\b(retry|try\\s+again|rerun|re-?run)\\b");
@@ -185,27 +183,6 @@ public final class UserIntentPatterns {
       return false;
     }
     return IMPORT_PLAN_CONTINUATION.matcher(extractLeadingIntent(text)).matches();
-  }
-
-  public static boolean matchesImportSpecificationCommand(String text) {
-    if (text == null || text.isBlank()) {
-      return false;
-    }
-    return IMPORT_SPECIFICATION_COMMAND.matcher(extractLeadingIntent(text)).matches();
-  }
-
-  public static boolean matchesExplicitImportRequest(String text) {
-    if (text == null || text.isBlank()) {
-      return false;
-    }
-    String intent = extractLeadingIntent(text).toLowerCase(Locale.ROOT);
-    if (!intent.contains("import")) {
-      return false;
-    }
-    return intent.contains("specification")
-        || intent.contains("apihub")
-        || intent.contains("catalog")
-        || intent.contains("api hub");
   }
 
   public static String extractLeadingIntent(String userText) {

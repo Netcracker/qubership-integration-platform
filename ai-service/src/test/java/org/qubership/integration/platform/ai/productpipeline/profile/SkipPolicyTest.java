@@ -65,7 +65,7 @@ class SkipPolicyTest {
             false,
             "pending",
             DraftDecision.NEEDS_INPUT,
-            List.of(RequirementDraft.IMPORT_CONFIRM_OPEN_QUESTION),
+            List.of(),
             "brainstorming",
             "1",
             null,

@@ -50,15 +50,9 @@ public final class ImportSpecificationRoutingPolicy {
       return Optional.empty();
     }
 
-    boolean explicitImport =
-        hint == ScenarioType.IMPORT_SPECIFICATION
-            || UserIntentPatterns.matchesImportSpecificationCommand(userMessage)
-            || UserIntentPatterns.matchesExplicitImportRequest(userMessage);
-    // Agree answers the current open question only (ADR decision 4).
-    boolean agreeToImportConfirm =
-        draft.hasImportConfirmOpenQuestion()
-            && UserIntentPatterns.matchesShortPlanContinuation(userMessage);
-    if (explicitImport || agreeToImportConfirm) {
+    // Only the decision advances the import: it states the scenario outright, so no wording has
+    // to be recognized.
+    if (hint == ScenarioType.IMPORT_SPECIFICATION) {
       return Optional.of(ScenarioRouter.RoutingOutcome.scenario(ScenarioType.IMPORT_SPECIFICATION));
     }
 

@@ -90,7 +90,8 @@ class RequirementDraftImportIntentTest {
   }
 
   @Test
-  void withApiHubCandidatePinsSoleImportConfirmOpenQuestion() {
+  void withApiHubCandidateLeavesOpenQuestionsEmptyWhilePending() {
+    // The import reaches the reader as a decision card, not a pinned open question.
     RequirementDraft draft =
         new RequirementDraft(
                 false,
@@ -101,7 +102,7 @@ class RequirementDraftImportIntentTest {
                 null)
             .withApiHubCandidate(sampleCandidate());
 
-    assertEquals(List.of(RequirementDraft.IMPORT_CONFIRM_OPEN_QUESTION), draft.openQuestions());
+    assertTrue(draft.openQuestions().isEmpty());
     assertTrue(draft.importIntent());
     assertTrue(draft.hasPendingImport());
   }

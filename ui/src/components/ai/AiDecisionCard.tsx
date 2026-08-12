@@ -11,11 +11,17 @@ const ACTION_LABELS: Record<string, string> = {
   approve: "Approve",
   "approve-and-create": "Approve and create chain",
   "create-chain": "Create chain",
+  "import-specification": "Import specification",
   "request-changes": "Request changes",
 };
 
 /** Actions that run the primary command of their gate. */
-const PRIMARY_ACTIONS = new Set(["approve", "approve-and-create", "create-chain"]);
+const PRIMARY_ACTIONS = new Set([
+  "approve",
+  "approve-and-create",
+  "create-chain",
+  "import-specification",
+]);
 
 function actionLabel(action: string): string {
   return ACTION_LABELS[action] ?? action;

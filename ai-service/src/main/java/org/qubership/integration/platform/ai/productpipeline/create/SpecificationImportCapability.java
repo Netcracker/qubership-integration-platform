@@ -6,7 +6,7 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Objects;
 import org.jboss.logging.Logger;
-import org.qubership.integration.platform.ai.chat.intent.UserIntentPatterns;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
@@ -33,7 +33,7 @@ public class SpecificationImportCapability implements StageCapability {
   public static final String CAPABILITY_ID = "specification-import";
 
   public static final String IMPORT_CONFIRM_MESSAGE =
-      RequirementDraft.IMPORT_CONFIRM_OPEN_QUESTION;
+      "Import the API Hub specification into the runtime catalog before planning?";
 
   /**
    * Soft-recovery prompt after import failure (ADR 0001 decisions 7+9): candidate cleared,
@@ -41,8 +41,7 @@ public class SpecificationImportCapability implements StageCapability {
    */
   public static final String IMPORT_FAIL_SOFT_RECOVERY_MESSAGE =
       "API Hub specification import failed. The pending candidate was cleared; import intent is"
-          + " kept. Re-capture the API Hub match, then reply \"Import specification\" (or Agree)"
-          + " to retry.";
+          + " kept. Re-capture the API Hub match, then confirm the import again.";
 
   private static final Logger LOG = Logger.getLogger(SpecificationImportCapability.class);
 
@@ -241,10 +240,9 @@ public class SpecificationImportCapability implements StageCapability {
     return draft.apiHubCandidate() == null && !draft.importIntent();
   }
 
+  /** The reader answered the import card; the marker is this service's own, not the reader's. */
   private static boolean isImportConfirm(String userText) {
-    return UserIntentPatterns.matchesImportSpecificationCommand(userText)
-        || UserIntentPatterns.matchesExplicitImportRequest(userText)
-        || UserIntentPatterns.matchesShortPlanContinuation(userText);
+    return userText != null && userText.strip().startsWith(ChatEvent.IMPORT_MARKER);
   }
 
   private static Multi<CapabilitySignal> succeeded(

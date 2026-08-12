@@ -44,7 +44,6 @@ class PhaseRoutingPolicyTest {
             false,
             false,
             false,
-            false,
             false);
 
     assertTrue(result.isPresent());
@@ -55,51 +54,34 @@ class PhaseRoutingPolicyTest {
   void discoveryAgreeWithReadyDraftRoutesToCreateChainPlan() {
     var result =
         PhaseRoutingPolicy.tryResolve(
-            ConversationPhase.DISCOVERY, "Agree", false, false, false, true, false);
+            ConversationPhase.DISCOVERY, "Agree", false, false, false, true);
 
     assertTrue(result.isPresent());
     assertEquals(ScenarioType.CREATE_CHAIN_PLAN, result.get());
   }
 
   @Test
-  void discoveryAgreeWithPendingImportFlagStaysOnGather() {
-    // ADR decision 4: DISCOVERY must not Agree→IMPORT via a pending-import flag.
+  void importPendingAgreeStaysOnGatherRegardlessOfWording() {
+    // The import no longer advances on wording at all: only the decision's scenario hint does,
+    // and that hint is checked before phase routing runs (ImportSpecificationRoutingPolicy).
     var result =
         PhaseRoutingPolicy.tryResolve(
-            ConversationPhase.DISCOVERY, "Agree", false, false, false, false, true);
+            ConversationPhase.IMPORT_PENDING, "Agree", false, false, false);
 
     assertTrue(result.isPresent());
     assertEquals(ScenarioType.GATHER_REQUIREMENTS, result.get());
   }
 
   @Test
-  void importPendingAgreeWithImportConfirmRoutesToImportSpecification() {
-    var result =
-        PhaseRoutingPolicy.tryResolve(
-            ConversationPhase.IMPORT_PENDING, "Agree", false, false, false, false, true);
-
-    assertTrue(result.isPresent());
-    assertEquals(ScenarioType.IMPORT_SPECIFICATION, result.get());
-  }
-
-  @Test
-  void importPendingAgreeWithoutImportConfirmStaysOnGather() {
-    var result =
-        PhaseRoutingPolicy.tryResolve(
-            ConversationPhase.IMPORT_PENDING, "Agree", false, false, false, false, false);
-
-    assertTrue(result.isPresent());
-    assertEquals(ScenarioType.GATHER_REQUIREMENTS, result.get());
-  }
-
-  @Test
-  void importPendingImportSpecificationCommandRoutesToImport() {
+  void importPendingImportSpecificationPhraseNoLongerRoutesToImport() {
+    // Mirror of the deleted phrase-matching contract: typing the old command phrase as prose
+    // does not route to import any more.
     var result =
         PhaseRoutingPolicy.tryResolve(
             ConversationPhase.IMPORT_PENDING, "Import specification", false, false, false);
 
     assertTrue(result.isPresent());
-    assertEquals(ScenarioType.IMPORT_SPECIFICATION, result.get());
+    assertEquals(ScenarioType.GATHER_REQUIREMENTS, result.get());
   }
 
   @Test
@@ -120,7 +102,7 @@ class PhaseRoutingPolicyTest {
   void discoveryAgreeWithoutReadyDraftStaysOnGather() {
     var result =
         PhaseRoutingPolicy.tryResolve(
-            ConversationPhase.DISCOVERY, "Agree", false, false, false, false, false);
+            ConversationPhase.DISCOVERY, "Agree", false, false, false, false);
 
     assertTrue(result.isPresent());
     assertEquals(ScenarioType.GATHER_REQUIREMENTS, result.get());
@@ -135,8 +117,7 @@ class PhaseRoutingPolicyTest {
             false,
             false,
             false,
-            true,
-            false);
+            true);
 
     assertTrue(result.isPresent());
     assertEquals(ScenarioType.GATHER_REQUIREMENTS, result.get());

@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
@@ -89,7 +90,26 @@ class SpecificationImportCapabilityTest {
   }
 
   @Test
-  void importsOnAgreeAndMutatesDraft() {
+  void readerWordingAloneDoesNotConfirmImport() {
+    // Mirror of the deleted phrase-matching contract: "Agree" typed as prose no longer confirms
+    // the import. Only ChatEvent.IMPORT_MARKER, written by the server when the decision card is
+    // clicked, does.
+    CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
+    RequirementDraftStore store = mock(RequirementDraftStore.class);
+    RequirementDraft draft = pendingDraft();
+    when(store.get("conv-1")).thenReturn(Optional.of(draft));
+
+    CapabilitySignal.Completed completed =
+        run(
+            capability(gateway, store),
+            Map.of("approvedDraft", draft, "userText", "Agree"));
+
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.outcome().outcomeClass());
+    verify(gateway, never()).importApiHubSpecification(any(), any());
+  }
+
+  @Test
+  void importsOnDecisionMarkerAndMutatesDraft() {
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
     RequirementDraftStore store = mock(RequirementDraftStore.class);
     ConversationCatalogCache catalogCache = mock(ConversationCatalogCache.class);
@@ -108,7 +128,7 @@ class SpecificationImportCapabilityTest {
     CapabilitySignal.Completed completed =
         run(
             new SpecificationImportCapability(gateway, store, catalogCache),
-            Map.of("approvedDraft", draft, "userText", "Agree"));
+            Map.of("approvedDraft", draft, "userText", ChatEvent.IMPORT_MARKER));
 
     assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
     RequirementDraft produced =
@@ -133,7 +153,7 @@ class SpecificationImportCapabilityTest {
     CapabilitySignal.Completed completed =
         run(
             capability(gateway, store),
-            Map.of("approvedDraft", draft, "userText", "Agree"));
+            Map.of("approvedDraft", draft, "userText", ChatEvent.IMPORT_MARKER));
 
     assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.outcome().outcomeClass());
     assertTrue(
@@ -199,7 +219,7 @@ class SpecificationImportCapabilityTest {
         false,
         "Import GeoSite",
         DraftDecision.NEEDS_INPUT,
-        List.of(RequirementDraft.IMPORT_CONFIRM_OPEN_QUESTION),
+        List.of(),
         "brainstorming",
         "1",
         null,

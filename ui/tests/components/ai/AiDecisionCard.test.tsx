@@ -35,6 +35,30 @@ describe("AiDecisionCard", () => {
     expect(onAnswer).toHaveBeenCalledWith("approve", "Looks good to me");
   });
 
+  it("should render the import action as a primary button and send it on click", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          id: "import:pkg.geosite",
+          question: "Import the API Hub specification GeoSite API into the runtime catalog?",
+          artifactType: undefined,
+          artifactHash: undefined,
+          revision: 0,
+          actions: ["import-specification"],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    const importButton = screen.getByRole("button", { name: "Import specification" });
+    expect(importButton.className).toMatch(/ant-btn-primary/);
+    fireEvent.click(importButton);
+
+    expect(onAnswer).toHaveBeenCalledTimes(1);
+    expect(onAnswer).toHaveBeenCalledWith("import-specification", "");
+  });
+
   it("should render frozen with the chosen action once answered and hide the buttons", () => {
     const onAnswer = jest.fn();
     const decision = buildDecision({ answeredAction: "approve" });

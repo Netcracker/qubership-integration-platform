@@ -17,7 +17,7 @@ public final class PhaseRoutingPolicy {
       boolean hasCurrentBundle,
       boolean hasChainContext) {
     return tryResolve(
-        phase, userMessage, hasActivePlan, hasCurrentBundle, hasChainContext, false, false);
+        phase, userMessage, hasActivePlan, hasCurrentBundle, hasChainContext, false);
   }
 
   public static Optional<ScenarioType> tryResolve(
@@ -27,28 +27,6 @@ public final class PhaseRoutingPolicy {
       boolean hasCurrentBundle,
       boolean hasChainContext,
       boolean hasReadyDraft) {
-    return tryResolve(
-        phase,
-        userMessage,
-        hasActivePlan,
-        hasCurrentBundle,
-        hasChainContext,
-        hasReadyDraft,
-        false);
-  }
-
-  /**
-   * @param hasImportConfirmOpenQuestion current open question is the pinned import-confirm prompt
-   *     (Agree answers that question only; see ADR decision 4)
-   */
-  public static Optional<ScenarioType> tryResolve(
-      ConversationPhase phase,
-      String userMessage,
-      boolean hasActivePlan,
-      boolean hasCurrentBundle,
-      boolean hasChainContext,
-      boolean hasReadyDraft,
-      boolean hasImportConfirmOpenQuestion) {
     if (userMessage == null || userMessage.isBlank()) {
       return Optional.empty();
     }
@@ -59,15 +37,8 @@ public final class PhaseRoutingPolicy {
     }
 
     if (phase == ConversationPhase.IMPORT_PENDING) {
-      if (UserIntentPatterns.matchesImportSpecificationCommand(msg)
-          || UserIntentPatterns.matchesExplicitImportRequest(msg)) {
-        return Optional.of(ScenarioType.IMPORT_SPECIFICATION);
-      }
-      // Agree ≡ pinned import-confirm only; mixed / non-import open-Q stays on gather.
-      if (hasImportConfirmOpenQuestion
-          && UserIntentPatterns.matchesShortPlanContinuation(msg)) {
-        return Optional.of(ScenarioType.IMPORT_SPECIFICATION);
-      }
+      // The import arrives as a decision carrying its own scenario, so nothing here has to read
+      // the reader's words to spot it.
       return Optional.of(ScenarioType.GATHER_REQUIREMENTS);
     }
 

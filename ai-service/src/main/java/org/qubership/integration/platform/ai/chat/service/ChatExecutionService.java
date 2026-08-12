@@ -21,6 +21,7 @@ import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
+import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -74,6 +75,19 @@ public class ChatExecutionService {
     this.chatMemorySanitizer = chatMemorySanitizer;
   }
 
+  /** True when the request answers a card with a command the facade runs rather than a scenario. */
+  private static boolean runsAsCommand(ChatRequest request) {
+    return request.getDecision() != null
+        && !ChatEvent.IMPORT_ACTION.equals(request.getDecision().getAction());
+  }
+
+  private Multi<ChatEvent> openGate(String conversationId) {
+    return decisionService
+        .openDecision(conversationId)
+        .map(decision -> Multi.createFrom().item((ChatEvent) decision))
+        .orElseGet(() -> Multi.createFrom().empty());
+  }
+
   public Multi<String> streamV1Sse(ChatRequest request) {
     return streamSse(request);
   }
@@ -96,6 +110,11 @@ public class ChatExecutionService {
       // A typed answer needs no attachment or memory resolution: the marker is what the model reads.
       request.setResolvedEffectiveUserText(
           ChatDecisionService.transcriptMarker(request.getDecision()));
+      if (ChatEvent.IMPORT_ACTION.equals(request.getDecision().getAction())) {
+        // The import is a scenario rather than a pipeline command, so the click states the
+        // scenario outright instead of leaving it to be guessed from the words.
+        request.setScenarioHint(ScenarioType.IMPORT_SPECIFICATION);
+      }
     } else {
       request.setResolvedEffectiveUserText(effectiveUserTextService.resolve(request, conversationId));
     }
@@ -118,12 +137,16 @@ public class ChatExecutionService {
     AtomicReference<Cancellable> routedCancellation = new AtomicReference<>();
 
     Multi<ChatEvent> routed =
-        request.getDecision() != null
+        runsAsCommand(request)
             ? decisionService.apply(conversationId, request.getDecision())
             : bindBackoffSinkForTurn(
-                router.route(request, conversationId),
-                routedCancellation,
-                appConfig.llm().rateLimit().maxTurnBackoffs());
+                    router.route(request, conversationId),
+                    routedCancellation,
+                    appConfig.llm().rateLimit().maxTurnBackoffs())
+                // A routed turn can end at a gate without knowing it did, so the turn closes by
+                // reporting whatever the run waits for now.
+                .onCompletion()
+                .switchTo(() -> openGate(conversationId));
 
     return Multi.createBy()
         .concatenating()

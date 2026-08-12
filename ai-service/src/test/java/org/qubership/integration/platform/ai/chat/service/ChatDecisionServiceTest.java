@@ -16,6 +16,9 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
+import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionSnapshot;
@@ -57,7 +60,7 @@ class ChatDecisionServiceTest {
     CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
 
     assertTrue(
-        new ChatDecisionService(facade, questionStore())
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
             .apply(
                 "conv-1",
                 command(ChatEvent.REQUEST_CHANGES_ACTION, "implementation-plan", "sha256:abc", null))
@@ -87,7 +90,7 @@ class ChatDecisionServiceTest {
     questions.save("conv-1", "sha256:abc", "Approve the plan?");
 
     ChatEvent.Decision decision =
-        new ChatDecisionService(facade, questions).openDecision("conv-1").orElseThrow();
+        new ChatDecisionService(facade, questions, new RequirementDraftStore()).openDecision("conv-1").orElseThrow();
 
     assertEquals("approve:sha256:abc", decision.id());
     assertEquals("Approve the plan?", decision.question());
@@ -105,7 +108,42 @@ class ChatDecisionServiceTest {
                     "conv-1", "run-1", CreateChainExecutionStatus.WORKING, 5L, null, "")));
 
     assertTrue(
-        new ChatDecisionService(facade, questionStore()).openDecision("conv-1").isEmpty());
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore()).openDecision("conv-1").isEmpty());
+  }
+
+  @Test
+  void openDecisionOffersImportWhenACandidateIsPending() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-1")).thenReturn(Optional.empty());
+    when(facade.pendingCreationHash("conv-1")).thenReturn(Optional.empty());
+    RequirementDraftStore drafts = new RequirementDraftStore();
+    drafts.put(
+        "conv-1",
+        new RequirementDraft(false, "GeoSite proxy")
+            .withApiHubCandidate(
+                new ApiHubRequirementRefs(
+                    "pkg.geosite",
+                    "2024.4",
+                    "op-1",
+                    null,
+                    "rest",
+                    "GeoSite",
+                    "GeoSite API")));
+
+    ChatEvent.Decision decision =
+        new ChatDecisionService(facade, questionStore(), drafts).openDecision("conv-1").orElseThrow();
+
+    assertEquals("import:pkg.geosite", decision.id());
+    assertEquals(List.of(ChatEvent.IMPORT_ACTION), decision.actions());
+    assertTrue(decision.question().contains("GeoSite"), decision.question());
+  }
+
+  @Test
+  void markerNamesTheImportWithoutGuessingAtWording() {
+    assertEquals(
+        ChatEvent.IMPORT_MARKER,
+        ChatDecisionService.transcriptMarker(
+            command(ChatEvent.IMPORT_ACTION, null, null, null)));
   }
 
   /**
@@ -133,7 +171,7 @@ class ChatDecisionServiceTest {
     questions.save("conv-1", "sha256:plan", "Create the chain?");
 
     List<ChatEvent> events =
-        new ChatDecisionService(facade, questions)
+        new ChatDecisionService(facade, questions, new RequirementDraftStore())
             .apply(
                 "conv-1",
                 command(

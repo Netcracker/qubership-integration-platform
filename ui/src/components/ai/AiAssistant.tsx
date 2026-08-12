@@ -79,10 +79,6 @@ import {
   fetchChainPlanStatus,
 } from "../../api/ai/chainPlanClient.ts";
 import { fetchOpenDecision } from "../../api/ai/decisionClient.ts";
-import {
-  API_HUB_IMPORT_FOLLOW_UP_MESSAGE,
-  IMPORT_SPECIFICATION_SCENARIO_HINT,
-} from "./apiHubImportHitl.ts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -125,7 +121,6 @@ export const AiAssistant: React.FC = () => {
   const inputRef = React.useRef<TextAreaRef | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const sendInProgressRef = useRef(false);
-  const pendingImportFollowUpSessionIdRef = useRef<string | null>(null);
 
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
@@ -707,42 +702,6 @@ export const AiAssistant: React.FC = () => {
       runChatWithProgress,
     ],
   );
-
-  const runImportSpecificationFollowUp = useCallback(
-    async (sessionId: string) => {
-      if (sendInProgressRef.current) return;
-      const session = sessionStore.getSession(sessionId);
-      if (!session) return;
-
-      const importMessage: ChatMessage = {
-        role: "user",
-        content: API_HUB_IMPORT_FOLLOW_UP_MESSAGE,
-      };
-      const next = [...session.messages, importMessage];
-      sessionStore.updateSessionMessages(sessionId, next);
-      refreshSessions();
-
-      const latestSession = sessionStore.getSession(sessionId);
-      await sendToProvider(
-        sessionId,
-        next,
-        latestSession?.lastAttachmentUrls ?? session.lastAttachmentUrls,
-        [importMessage],
-        latestSession?.lastAttachmentObjectKeys ?? session.lastAttachmentObjectKeys,
-        IMPORT_SPECIFICATION_SCENARIO_HINT,
-      );
-    },
-    [sessionStore, refreshSessions, sendToProvider],
-  );
-
-  useEffect(() => {
-    const sessionId = pendingImportFollowUpSessionIdRef.current;
-    if (!sessionId) return;
-    if (isLoading || isStreaming || sendInProgressRef.current) return;
-
-    pendingImportFollowUpSessionIdRef.current = null;
-    void runImportSpecificationFollowUp(sessionId);
-  }, [isLoading, isStreaming, runImportSpecificationFollowUp]);
 
   // ---------------------------------------------------------------------------
   // Session UI handlers

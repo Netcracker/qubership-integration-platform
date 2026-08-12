@@ -18,13 +18,6 @@ public record RequirementDraft(
     List<RequirementFact> facts,
     boolean importIntent) {
 
-  /**
-   * Sole open question while an API Hub candidate is pending import (no catalog binding yet).
-   */
-  public static final String IMPORT_CONFIRM_OPEN_QUESTION =
-      "Reply \"Import specification\" to import the API Hub specification into the runtime catalog"
-          + " before planning.";
-
   public RequirementDraft {
     decision = decision != null ? decision : decisionFromComplete(complete);
     openQuestions = openQuestions == null ? List.of() : List.copyOf(openQuestions);
@@ -157,12 +150,6 @@ public record RequirementDraft(
     return apiHubCandidate != null && catalogBinding == null;
   }
 
-  /** True when the current open question is the pinned import-confirm prompt. */
-  public boolean hasImportConfirmOpenQuestion() {
-    return !openQuestions.isEmpty()
-        && IMPORT_CONFIRM_OPEN_QUESTION.equals(openQuestions.getFirst());
-  }
-
   public String planningText() {
     StringBuilder body = new StringBuilder(assembledText);
     if (catalogBinding != null) {
@@ -215,15 +202,15 @@ public record RequirementDraft(
   }
 
   /**
-   * Sets a pending API Hub candidate, pins the sole import-confirm open question, and records
-   * durable import intent.
+   * Sets a pending API Hub candidate and records durable import intent. The confirmation reaches
+   * the reader as a decision, so nothing is pinned as an open question.
    */
   public RequirementDraft withApiHubCandidate(ApiHubRequirementRefs candidate) {
     return new RequirementDraft(
         false,
         assembledText,
         DraftDecision.NEEDS_INPUT,
-        List.of(IMPORT_CONFIRM_OPEN_QUESTION),
+        List.of(),
         sourceSkillId,
         sourceSkillVersion,
         sourceSkillHash,

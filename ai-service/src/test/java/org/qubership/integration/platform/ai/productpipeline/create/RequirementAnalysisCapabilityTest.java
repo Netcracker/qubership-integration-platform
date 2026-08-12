@@ -96,7 +96,7 @@ class RequirementAnalysisCapabilityTest {
             false,
             "stale discovery draft",
             DraftDecision.NEEDS_INPUT,
-            List.of(RequirementDraft.IMPORT_CONFIRM_OPEN_QUESTION),
+            List.of("What response format should the chain return?"),
             "brainstorming",
             "1",
             null,

@@ -8,6 +8,8 @@ import java.util.Objects;
 import java.util.Optional;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
+import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainOutcome;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
@@ -29,12 +31,16 @@ public class ChatDecisionService {
 
   private final CreateChainApplicationFacade facade;
   private final ApprovalQuestionStore approvalQuestions;
+  private final RequirementDraftStore draftStore;
 
   @Inject
   public ChatDecisionService(
-      CreateChainApplicationFacade facade, ApprovalQuestionStore approvalQuestions) {
+      CreateChainApplicationFacade facade,
+      ApprovalQuestionStore approvalQuestions,
+      RequirementDraftStore draftStore) {
     this.facade = Objects.requireNonNull(facade, "facade");
     this.approvalQuestions = Objects.requireNonNull(approvalQuestions, "approvalQuestions");
+    this.draftStore = Objects.requireNonNull(draftStore, "draftStore");
   }
 
   /**
@@ -63,7 +69,32 @@ public class ChatDecisionService {
     if (waiting.isPresent()) {
       return waiting;
     }
-    return creationDecision(conversationId);
+    Optional<ChatEvent.Decision> creation = creationDecision(conversationId);
+    return creation.isPresent() ? creation : importDecision(conversationId);
+  }
+
+  /**
+   * The API Hub import as a card, while a candidate is selected and nothing is bound yet.
+   *
+   * <p>Replaces an instruction to type an English phrase, which no reply in another language ever
+   * matched.
+   */
+  private Optional<ChatEvent.Decision> importDecision(String conversationId) {
+    return draftStore
+        .get(conversationId)
+        .filter(RequirementDraft::hasPendingImport)
+        .map(
+            draft ->
+                (ChatEvent.Decision)
+                    ChatEvent.importDecision(
+                        draft.apiHubCandidate().packageId(), importQuestion(draft)));
+  }
+
+  private static String importQuestion(RequirementDraft draft) {
+    String name = draft.apiHubCandidate().packageName();
+    String subject =
+        name == null || name.isBlank() ? draft.apiHubCandidate().packageId() : name;
+    return "Import the API Hub specification " + subject + " into the runtime catalog?";
   }
 
   /** The implementation gate as a card, when the run stands at it. */
@@ -112,6 +143,8 @@ public class ChatDecisionService {
               "Approved " + command.getArtifactType() + " " + command.getArtifactHash();
           case ChatEvent.REQUEST_CHANGES_ACTION ->
               "Requested changes to " + command.getArtifactType();
+          case ChatEvent.CREATE_ACTION -> "Create the chain in the catalog";
+          case ChatEvent.IMPORT_ACTION -> ChatEvent.IMPORT_MARKER;
           default -> "Answered " + command.getAction();
         };
     String comment = command.getComment() == null ? "" : command.getComment().strip();

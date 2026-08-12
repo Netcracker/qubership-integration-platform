@@ -169,12 +169,12 @@ class RequirementDraftToolTest {
                 sampleFacts()));
 
     assertTrue(result.contains("pending"));
-    assertTrue(result.contains("Import specification"));
+    assertTrue(result.contains("offered the import as a decision"));
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
     assertTrue(draft.hasPendingImport());
     assertTrue(draft.importIntent());
-    assertEquals(List.of(RequirementDraft.IMPORT_CONFIRM_OPEN_QUESTION), draft.openQuestions());
+    assertTrue(draft.openQuestions().isEmpty());
     assertEquals("S.ProdCat.PartyMgmt", draft.apiHubCandidate().packageId());
     assertFalse(draft.readyForPlan());
   }
@@ -243,12 +243,12 @@ class RequirementDraftToolTest {
                 sampleFacts()));
 
     assertTrue(result.contains("not BLOCKED"));
-    assertTrue(result.contains("Import specification"));
+    assertTrue(result.contains("offered the import as a decision"));
     RequirementDraft draft = store.get("draft-conv").orElseThrow();
     assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
     assertTrue(draft.hasPendingImport());
     assertEquals("S.ProdCat.PartyMgmt", draft.apiHubCandidate().packageId());
-    assertEquals(List.of(RequirementDraft.IMPORT_CONFIRM_OPEN_QUESTION), draft.openQuestions());
+    assertTrue(draft.openQuestions().isEmpty());
   }
 
   @Test
@@ -396,7 +396,7 @@ class RequirementDraftToolTest {
     assertTrue(draft.importIntent());
     assertEquals("S.CustParty.Care.GeoSite", draft.apiHubCandidate().packageId());
     assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
-    assertEquals(List.of(RequirementDraft.IMPORT_CONFIRM_OPEN_QUESTION), draft.openQuestions());
+    assertTrue(draft.openQuestions().isEmpty());
   }
 
   @Test
