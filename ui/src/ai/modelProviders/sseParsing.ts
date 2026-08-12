@@ -43,7 +43,12 @@ function parseStepPayload(payload: string): ActivityStepPayload | null {
   }
 }
 
-function parseDecisionPayload(payload: string): ChatDecision | null {
+/**
+ * Parse a decision payload, tolerating the JSON `null` the server sends for absent optional
+ * fields. Shared by the SSE `decision` event and the `GET .../decision` reconciliation endpoint,
+ * which carry the same JSON shape.
+ */
+export function parseDecisionPayload(payload: string): ChatDecision | null {
   try {
     const parsed = JSON.parse(payload) as Record<string, unknown>;
     const id = parsed.id;

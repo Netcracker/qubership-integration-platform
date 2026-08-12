@@ -60,3 +60,27 @@ export function removeDecision(
 ): ChatMessage[] {
   return messages.filter((message) => message.decision?.id !== decisionId);
 }
+
+/**
+ * Reconcile the transcript's decision entries against the single open gate the server currently
+ * reports (or `null` for none). The server is the source of truth, so an unanswered entry that no
+ * longer matches it is dropped — whether the server reports nothing or a different gate — and a
+ * gate the transcript lacks is appended. Answered entries are history and are left untouched.
+ */
+export function reconcileDecisionMessages(
+  messages: ChatMessage[],
+  serverDecision: ChatDecision | null,
+): ChatMessage[] {
+  let result = messages;
+  for (const message of messages) {
+    const decision = message.decision;
+    if (
+      decision !== undefined &&
+      decision.answeredAction === undefined &&
+      decision.id !== serverDecision?.id
+    ) {
+      result = removeDecision(result, decision.id);
+    }
+  }
+  return serverDecision ? appendDecision(result, serverDecision) : result;
+}

@@ -7,6 +7,7 @@ import {
   findDecision,
   isDecisionMessage,
   markDecisionAnswered,
+  reconcileDecisionMessages,
   removeDecision,
 } from "../../../src/components/ai/chatDecisionUtils.ts";
 import type {
@@ -128,6 +129,70 @@ describe("isDecisionMessage / findDecision", () => {
     expect(isDecisionMessage(messages[1])).toBe(true);
     expect(findDecision(messages, "gate-1")).toEqual(buildDecision());
     expect(findDecision(messages, "missing-gate")).toBeUndefined();
+  });
+});
+
+describe("reconcileDecisionMessages", () => {
+  it("should append the gate when the server reports one the transcript lacks", () => {
+    const messages: ChatMessage[] = [{ role: "user", content: "Create the chain" }];
+    const decision = buildDecision();
+
+    const result = reconcileDecisionMessages(messages, decision);
+
+    const decisionEntries = result.filter(isDecisionMessage);
+    expect(decisionEntries).toHaveLength(1);
+    expect(decisionEntries[0].decision).toEqual(decision);
+  });
+
+  it("should drop an unanswered card when the server reports no open gate", () => {
+    const messages = appendDecision(
+      [{ role: "user", content: "Create the chain" }],
+      buildDecision(),
+    );
+
+    const result = reconcileDecisionMessages(messages, null);
+
+    expect(result.some(isDecisionMessage)).toBe(false);
+    expect(result).toEqual([{ role: "user", content: "Create the chain" }]);
+  });
+
+  it("should drop a stale unanswered card when the server reports a different gate", () => {
+    const messages = appendDecision([], buildDecision({ id: "gate-1" }));
+    const nextGate = buildDecision({ id: "gate-2", question: "Approve the next revision?" });
+
+    const result = reconcileDecisionMessages(messages, nextGate);
+
+    const decisionEntries = result.filter(isDecisionMessage);
+    expect(decisionEntries).toHaveLength(1);
+    expect(decisionEntries[0].decision).toEqual(nextGate);
+  });
+
+  it("should keep an answered card even when the server reports no open gate", () => {
+    const messages = markDecisionAnswered(
+      appendDecision(
+        [{ role: "user", content: "Create the chain" }],
+        buildDecision(),
+      ),
+      "gate-1",
+      "approve",
+    );
+
+    const result = reconcileDecisionMessages(messages, null);
+
+    expect(result).toEqual(messages);
+  });
+
+  it("should not duplicate the card when the same open gate is fetched again", () => {
+    const decision = buildDecision();
+    const messages = appendDecision(
+      [{ role: "user", content: "Create the chain" }],
+      decision,
+    );
+
+    const result = reconcileDecisionMessages(messages, decision);
+
+    expect(result.filter(isDecisionMessage)).toHaveLength(1);
+    expect(result).toEqual(messages);
   });
 });
 

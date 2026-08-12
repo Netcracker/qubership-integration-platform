@@ -41,7 +41,11 @@ import {
   upsertAssistantMessage,
   withoutErrorVariantMessages,
 } from "./chatMessageUtils.ts";
-import { appendDecision, markDecisionAnswered } from "./chatDecisionUtils.ts";
+import {
+  appendDecision,
+  markDecisionAnswered,
+  reconcileDecisionMessages,
+} from "./chatDecisionUtils.ts";
 import { AiDecisionCard } from "./AiDecisionCard.tsx";
 import {
   extractDesignUrlFromMessages,
@@ -74,6 +78,7 @@ import {
   fetchChainPlanDetail,
   fetchChainPlanStatus,
 } from "../../api/ai/chainPlanClient.ts";
+import { fetchOpenDecision } from "../../api/ai/decisionClient.ts";
 import {
   API_HUB_IMPORT_FOLLOW_UP_MESSAGE,
   IMPORT_SPECIFICATION_SCENARIO_HINT,
@@ -255,6 +260,44 @@ export const AiAssistant: React.FC = () => {
   }, [open, currentSession?.conversationId, refreshChainPlanStatus]);
 
   // ---------------------------------------------------------------------------
+  // Decision reconciliation
+  //
+  // The decision card is a projection of durable server state, not something the
+  // browser remembers: the server is asked what it is waiting on, and the
+  // transcript is made to match. A failed fetch is logged and otherwise ignored —
+  // it must never be read as "the server has nothing open" and drop a card that
+  // is, in fact, still pending.
+  // ---------------------------------------------------------------------------
+
+  const reconcileOpenDecision = useCallback(
+    async (conversationId: string | undefined, sessionId: string) => {
+      if (!conversationId) return;
+      let serverDecision: ChatDecision | null;
+      try {
+        serverDecision = await fetchOpenDecision(conversationId);
+      } catch (err) {
+        console.warn("[AiAssistant] Failed to reconcile open decision", err);
+        return;
+      }
+      const session = sessionStore.getSession(sessionId);
+      if (!session) return;
+      const reconciled = reconcileDecisionMessages(session.messages, serverDecision);
+      sessionStore.updateSessionMessages(sessionId, reconciled);
+      refreshSessions();
+    },
+    [sessionStore, refreshSessions],
+  );
+
+  // Reconcile on mount (for the session the store restores) and whenever the
+  // active session switches to one the server tracks a conversation for.
+  useEffect(() => {
+    if (!currentSessionId) return;
+    const conversationId = sessionStore.getSession(currentSessionId)?.conversationId;
+    if (!conversationId) return;
+    void reconcileOpenDecision(conversationId, currentSessionId);
+  }, [currentSessionId, sessionStore, reconcileOpenDecision]);
+
+  // ---------------------------------------------------------------------------
   // Chain context refresh
   // ---------------------------------------------------------------------------
 
@@ -297,8 +340,15 @@ export const AiAssistant: React.FC = () => {
       void refreshChainContexts();
       const cid = conversationId ?? sessionStore.getSession(sessionId)?.conversationId;
       void refreshChainPlanStatus(cid);
+      void reconcileOpenDecision(cid, sessionId);
     },
-    [sessionStore, flushRefresh, refreshChainContexts, refreshChainPlanStatus],
+    [
+      sessionStore,
+      flushRefresh,
+      refreshChainContexts,
+      refreshChainPlanStatus,
+      reconcileOpenDecision,
+    ],
   );
 
   // ---------------------------------------------------------------------------
@@ -400,6 +450,9 @@ export const AiAssistant: React.FC = () => {
         }
 
         if (chunk.type === "error" && chunk.errorMessage) {
+          // The turn ended without a "done" event: check whether the server still has
+          // a gate open so an aborted or failed turn does not leave a stale card.
+          void reconcileOpenDecision(activeConversationId, sessionId);
           if (!shouldShowErrorToastForAbort(new Error(chunk.errorMessage))) {
             setIsStreaming(false);
             return;
@@ -433,6 +486,7 @@ export const AiAssistant: React.FC = () => {
       refreshChainContexts,
       handleResponseComplete,
       flushRefresh,
+      reconcileOpenDecision,
     ],
   );
 
@@ -757,11 +811,20 @@ export const AiAssistant: React.FC = () => {
         sessionStore.updateSessionMessages(currentSessionId, next);
         refreshSessions();
       }
+      // The aborted turn never reaches the "done" or "error" chunk, so nothing else
+      // would otherwise check whether the server still has a gate open.
+      void reconcileOpenDecision(session?.conversationId, currentSessionId);
     }
     activityStore.reset();
     setIsStreaming(false);
     setIsLoading(false);
-  }, [activityStore, currentSessionId, sessionStore, refreshSessions]);
+  }, [
+    activityStore,
+    currentSessionId,
+    sessionStore,
+    refreshSessions,
+    reconcileOpenDecision,
+  ]);
 
   // ---------------------------------------------------------------------------
   // Decision card answer

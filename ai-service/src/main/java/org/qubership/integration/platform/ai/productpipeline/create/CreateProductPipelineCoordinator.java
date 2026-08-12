@@ -18,6 +18,7 @@ import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPublicArtifactTypes;
+import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
 import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
@@ -54,6 +55,9 @@ public class CreateProductPipelineCoordinator {
   private final ProductPipelineProfileCatalog profileCatalog;
   private final ApprovalPrompts approvalPrompts;
   private final ApprovalIntentAgent approvalIntentAgent;
+
+  /** Null in unit tests, which build the coordinator without a blob store. */
+  @Inject ApprovalQuestionStore approvalQuestions;
 
   private static final org.jboss.logging.Logger LOG =
       org.jboss.logging.Logger.getLogger(CreateProductPipelineCoordinator.class);
@@ -388,13 +392,31 @@ public class CreateProductPipelineCoordinator {
             .loadByConversation(conversationId)
             .map(doc -> doc.run().runRevision())
             .orElse(0L);
+    String hash = waiting.candidate().contentHash();
+    String question = durableQuestion(conversationId, hash, waiting.prompt());
     PendingAction pending =
         new CreateChainPendingAction.Approve(
             CreateChainPublicArtifactTypes.toApprovalType(waiting.candidate().kind()),
-            waiting.candidate().contentHash(),
+            hash,
             revision,
-            PipelineChatWaitView.forChatWait(waiting.prompt()).strip());
+            question);
     return ChatEvent.decision(pending, revision, "");
+  }
+
+  /**
+   * Question for this gate: the fresh prompt when the run just stopped, the stored one when it was
+   * resumed. A resumed wait carries no prompt, and a blank card tells the reader nothing.
+   */
+  private String durableQuestion(String conversationId, String artifactHash, String prompt) {
+    String question = PipelineChatWaitView.forChatWait(prompt).strip();
+    if (approvalQuestions == null) {
+      return question;
+    }
+    if (question.isBlank()) {
+      return approvalQuestions.find(conversationId, artifactHash).orElse("");
+    }
+    approvalQuestions.save(conversationId, artifactHash, question);
+    return question;
   }
 
   private String languageReference(ProductPipelineRunDocument doc) {

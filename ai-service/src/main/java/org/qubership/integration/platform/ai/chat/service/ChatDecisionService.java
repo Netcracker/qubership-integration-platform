@@ -11,6 +11,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Appro
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainOutcome;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainEvent;
+import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
 import org.qubership.integration.platform.ai.productpipeline.facade.ExecutionSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
 
@@ -25,10 +26,43 @@ import org.qubership.integration.platform.ai.productpipeline.facade.PendingActio
 public class ChatDecisionService {
 
   private final CreateChainApplicationFacade facade;
+  private final ApprovalQuestionStore approvalQuestions;
 
   @Inject
-  public ChatDecisionService(CreateChainApplicationFacade facade) {
+  public ChatDecisionService(
+      CreateChainApplicationFacade facade, ApprovalQuestionStore approvalQuestions) {
     this.facade = Objects.requireNonNull(facade, "facade");
+    this.approvalQuestions = Objects.requireNonNull(approvalQuestions, "approvalQuestions");
+  }
+
+  /**
+   * The gate a conversation is stopped at, or empty when it waits for nothing.
+   *
+   * <p>The server owns the open card: the browser re-fetches this on mount, on session switch, and
+   * after a reconnect, so a gate answered in another tab or over A2A shows as answered, and an
+   * aborted turn leaves nothing behind.
+   */
+  public Optional<ChatEvent.Decision> openDecision(String conversationId) {
+    Objects.requireNonNull(conversationId, "conversationId");
+    return facade
+        .snapshot(conversationId)
+        .flatMap(
+            snapshot ->
+                Optional.ofNullable(snapshot.pendingAction())
+                    .map(
+                        pending ->
+                            (ChatEvent.Decision)
+                                ChatEvent.decision(
+                                    pending,
+                                    snapshot.revision(),
+                                    storedQuestion(conversationId, pending))));
+  }
+
+  private String storedQuestion(String conversationId, PendingAction pending) {
+    if (pending instanceof PendingAction.Approve approve) {
+      return approvalQuestions.find(conversationId, approve.artifactHash()).orElse("");
+    }
+    return "";
   }
 
   /**
