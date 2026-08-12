@@ -18,6 +18,26 @@ export interface PersistedActivitySnapshot {
   collapsed: boolean;
 }
 
+/** Server-owned decision (approval gate or clarification) rendered as a card in the transcript. */
+export interface ChatDecision {
+  /** Stable identity of the gate: reuse the server's value, never generate one client-side. */
+  id: string;
+  kind: "approve" | "clarify";
+  /** Server-authored question, already in the language of the conversation. */
+  question: string;
+  /** Approval binding. Present when kind === "approve". */
+  artifactType?: string;
+  artifactHash?: string;
+  revision?: number;
+  /** Clarification detail. Present when kind === "clarify". */
+  reason?: string;
+  missingEvidence?: string[];
+  /** Actions the gate accepts, in display order, e.g. ["approve", "request-changes"]. */
+  actions: string[];
+  /** Set once the reader answered; the card then renders frozen. */
+  answeredAction?: string;
+}
+
 export interface ChatMessage {
   id?: string;
   role: ChatRole;
@@ -28,6 +48,8 @@ export interface ChatMessage {
   detail?: string;
   /** Collapsed activity for completed assistant turns (local session storage). */
   activity?: PersistedActivitySnapshot;
+  /** Pending or answered decision gate riding on this message (UI-side data, not sent to the API). */
+  decision?: ChatDecision;
 }
 
 export interface ChatRequest {
