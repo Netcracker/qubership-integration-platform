@@ -143,6 +143,32 @@ services:
       opensearch:
         condition: service_healthy
 
+  qip-testing-service:
+    build:
+      context: ../testing-service
+      dockerfile: Dockerfile
+    container_name: qip-testing-service
+    read_only: true
+    ports:
+      - "8095:8080"
+    environment:
+      QIP_TESTING_POSTGRES_DSN: "postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable&search_path=testing_service"
+      QIP_TESTING_CATALOG_ADDRESS: "http://runtime-catalog:8080"
+      QIP_TESTING_ENGINE_ADDRESS: "http://engine:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 15s
+      retries: 15
+      start_period: 30s
+    networks:
+      default:
+        aliases:
+          - testing-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   ui-proxy:
     image: nginx:latest
     container_name: ui-proxy
@@ -156,6 +182,8 @@ services:
       qip-sessions-management:
         condition: service_started
       qip-engine:
+        condition: service_started
+      qip-testing-service:
         condition: service_started
 
   #    ###### AI Assistant (optional, activated by `--profile ai`)

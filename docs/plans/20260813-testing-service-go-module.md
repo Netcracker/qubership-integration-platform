@@ -895,12 +895,38 @@ default `go test ./...` still needs no Docker. `golangci-lint run` is clean both
 - Create: `testing-service/Dockerfile`
 - Modify: `infrastructure/docker-compose.yml`, `infrastructure/nginx/routes.conf`
 
-- [ ] write a multi-stage Dockerfile on public images, uid 10001, port 8080, curl for the healthcheck; run only the default test suite during build, not the integration-tagged one
-- [ ] add `qip-testing-service` with the alias `testing-service` on host port 8095 — 8094 is taken by the commented-out AI assistant block
-- [ ] do not make the engine depend on this service; the dependency would form a cycle
-- [ ] add the nginx location for `^/api/(v\d+)/.*/testing-service`, remembering this service serves `/api/v1/*` while the Java modules serve `/v1/*`
-- [ ] exclude `/endpoint-mocks/call` from the public routes — only the engine calls it, from inside the network
-- [ ] verify the stack starts and the container reports healthy
+- [x] write a multi-stage Dockerfile on public images, uid 10001, port 8080, curl for the healthcheck; run only the default test suite during build, not the integration-tagged one
+- [x] add `qip-testing-service` with the alias `testing-service` on host port 8095 — 8094 is taken by the commented-out AI assistant block
+- [x] do not make the engine depend on this service; the dependency would form a cycle
+- [x] add the nginx location for `^/api/(v\d+)/.*/testing-service`, remembering this service serves `/api/v1/*` while the Java modules serve `/v1/*`
+- [x] exclude `/endpoint-mocks/call` from the public routes — only the engine calls it, from inside the network
+- [x] verify the stack starts and the container reports healthy
+
+[decision] The build stage is `golang:1.22-alpine`, which ships go1.22.12, with `GOTOOLCHAIN=local` so a dependency
+asking for a newer toolchain fails the build instead of quietly raising the ceiling the downstream depends on. The
+runtime stage is `alpine:3.21` with curl pinned to `8.14.1-r2` — the same version the three Java images pin, and what
+alpine 3.21 currently carries. Pinning is what `hadolint` DL3018 wants, and super-linter runs it over this file.
+
+[decision] The compose entry spells out the DSN and the catalog and engine addresses as `QIP_TESTING_*` variables even
+though the baked `application.yaml` already defaults to values that work on the compose network. The other services
+carry their configuration in the compose file through `env_file`, so a reader looking there for what this one talks to
+finds it in the same place, and the environment path gets exercised on every start.
+
+[decision] `ui-proxy` gains a `depends_on` on the new service. nginx resolves a statically named upstream when it loads
+its configuration and refuses to start if the name does not resolve, which is exactly why the three existing services
+are listed there.
+
+[decision] The `/endpoint-mocks/call` exclusion is a `return 404` location placed **before** the proxy location. nginx
+takes the first matching regex location in file order, so ordering is what makes the exclusion work; a negative
+lookahead in the proxy pattern would have to be repeated in the rewrite as well.
+
+✅ Verified against the local stack: the image builds and runs the untagged suite inside the build stage (the
+`integration`-tagged suite is excluded by the tag), the container comes up `healthy` on the real `/health` database
+ping, and `/api/v1/qip/testing-service/{mode,test-cases,endpoint-mocks,swagger/doc.json}` all reach the service through
+the nginx rule while `/endpoint-mocks/call` is refused by the proxy and still answers on the in-network port. Route
+verification ran against a throwaway nginx container bound to this worktree's `routes.conf`, since the stack's running
+`ui-proxy` mounts the main checkout's copy. `go test ./...`, `golangci-lint run ./...`, `hadolint` and the sanitization
+check are all clean.
 
 ### Task 17: Helm chart and the Kubernetes route
 
