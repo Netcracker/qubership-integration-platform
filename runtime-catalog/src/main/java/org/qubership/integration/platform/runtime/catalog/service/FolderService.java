@@ -186,7 +186,7 @@ public class FolderService {
                     criteriaBuilder.literal(0L)));
 
             Specification<Chain> chainSpecification = (r, q, cb) ->
-                    cb.isTrue(cb.function("is_parent_folder", Boolean.class, root.get("id"), chainRoot.get("parentFolder").get("id")));
+                    cb.isTrue(cb.function("catalog.is_parent_folder", Boolean.class, root.get("id"), chainRoot.get("parentFolder").get("id")));
             if (StringUtils.isNotBlank(request.getSearchString())) {
                 chainSpecification = chainSpecification.and(chainFilterSpecificationBuilder.buildSearch(request.getSearchString()));
             }
