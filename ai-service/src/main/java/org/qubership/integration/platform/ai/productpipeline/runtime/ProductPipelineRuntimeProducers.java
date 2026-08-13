@@ -5,6 +5,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.Produces;
+import jakarta.enterprise.inject.Typed;
 import jakarta.inject.Inject;
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,6 +22,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocumentService;
 import org.qubership.integration.platform.ai.compiler.artifact.ArtifactBlobStore;
@@ -43,6 +45,10 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.execu
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputIdsPathPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanningCapability;
+import org.qubership.integration.platform.ai.productpipeline.create.flow.ProvidedIdsFlow;
+import org.qubership.integration.platform.ai.productpipeline.create.flow.ProvidedIdsFlowOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.create.flow.ProvidedIdsFlowTasks;
+import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactSchemaRegistry;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineCompatibilityVerifier;
@@ -154,6 +160,7 @@ public class ProductPipelineRuntimeProducers {
 
   @Produces
   @ApplicationScoped
+  @Typed(ProductPipelineRuntime.class)
   ProductPipelineRuntime runtime(
       ProductPipelineRunStore runs,
       ProductPipelineArtifactStore artifacts,
@@ -173,6 +180,20 @@ public class ProductPipelineRuntimeProducers {
         new DesignInputIdsPathPrompts(designInputPromptAgent),
         new ApprovalPrompts(approvalPromptAgent),
         s3Service);
+  }
+
+  @Produces
+  @ApplicationScoped
+  CreateChainOrchestrator createChainOrchestrator(
+      ProductPipelineRuntime runtime,
+      ProductPipelineRunStore runs,
+      ProvidedIdsFlow flow,
+      ProvidedIdsFlowTasks flowTasks,
+      @ConfigProperty(name = "qip.ai.create.flow.enabled", defaultValue = "false")
+          boolean flowEnabled) {
+    return flowEnabled
+        ? new ProvidedIdsFlowOrchestrator(runtime, runs, flow, flowTasks)
+        : runtime;
   }
 
   private static ArtifactSchemaRegistry loadArtifactSchemas() {

@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -147,6 +148,106 @@ class ProductPipelineRuntimeTest {
                 .asList()
                 .await()
                 .indefinitely());
+  }
+
+  @Test
+  void executesOneProfileStageWhenFlowOwnsTheSequence() {
+    AtomicInteger firstCalls = new AtomicInteger();
+    AtomicInteger secondCalls = new AtomicInteger();
+    StageCapability first =
+        capability(
+            "flow-first",
+            context -> {
+              firstCalls.incrementAndGet();
+              return Multi.createFrom()
+                  .item(
+                      new CapabilitySignal.Completed(
+                          StageOutcome.of(StageOutcomeClass.SUCCEEDED, "first complete")));
+            });
+    StageCapability second =
+        capability(
+            "flow-second",
+            context -> {
+              secondCalls.incrementAndGet();
+              return Multi.createFrom()
+                  .item(
+                      new CapabilitySignal.Completed(
+                          StageOutcome.of(StageOutcomeClass.SUCCEEDED, "second complete")));
+            });
+    ProductPipelineProfile flowProfile =
+        new ProductPipelineProfile(
+            1,
+            "flow-test",
+            "2",
+            List.of(new ArtifactTypeRef("user-input", 1)),
+            List.of(
+                new ProfileStage(
+                    "first",
+                    "flow-first",
+                    List.of(new ArtifactTypeRef("user-input", 1)),
+                    List.of(),
+                    null,
+                    null,
+                    new RetryPolicy(0, 1L)),
+                new ProfileStage(
+                    "second",
+                    "flow-second",
+                    List.of(),
+                    List.of(),
+                    null,
+                    null,
+                    new RetryPolicy(0, 1L))),
+            new TerminalPolicy("second", "CHAIN_MATERIALIZED"),
+            List.of("first", "second"));
+    ProductPipelineRuntime runtime = newRuntime(first, second);
+    RunManifest flowManifest =
+        new RunManifest(
+            RUN_ID,
+            null,
+            List.of(),
+            "product",
+            flowProfile.profileId(),
+            flowProfile.profileVersion(),
+            "profile-sha",
+            "baseline",
+            "baseline-sha",
+            List.of(),
+            "closure-sha",
+            new KnowledgePackageRef(
+                "knowledge-1",
+                "1",
+                "1.0.0",
+                "checksum",
+                "CERTIFIED",
+                "sha256:certificate"),
+            "24.4",
+            List.of(new ArtifactTypeRef("user-input", 1)),
+            null);
+
+    runtime
+        .startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, flowProfile, flowManifest))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, "provided input"))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    runtime.executeStage(RUN_ID, "first").collect().asList().await().indefinitely();
+
+    assertEquals(1, firstCalls.get());
+    assertEquals(0, secondCalls.get());
+    assertEquals("second", runStore.load(RUN_ID).orElseThrow().run().currentStageId());
+    assertEquals(RunStatus.RUNNING, runStore.load(RUN_ID).orElseThrow().run().status());
+
+    runtime.executeStage(RUN_ID, "second").collect().asList().await().indefinitely();
+
+    assertEquals(1, secondCalls.get());
+    assertEquals(RunStatus.CHAIN_MATERIALIZED, runStore.load(RUN_ID).orElseThrow().run().status());
   }
 
   @Test

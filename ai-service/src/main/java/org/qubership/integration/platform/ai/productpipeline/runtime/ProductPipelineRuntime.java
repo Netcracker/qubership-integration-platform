@@ -286,6 +286,16 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
 
   @Override
   public Multi<PipelineSignal> acceptInput(AcceptInputCommand command) {
+    return acceptInput(command, true);
+  }
+
+  /** Records input without advancing, so an external workflow can own the stage sequence. */
+  public Multi<PipelineSignal> recordInput(AcceptInputCommand command) {
+    return acceptInput(command, false);
+  }
+
+  private Multi<PipelineSignal> acceptInput(
+      AcceptInputCommand command, boolean continueAfterInput) {
     Objects.requireNonNull(command, "command");
     return Multi.createFrom()
         .deferred(
@@ -293,7 +303,9 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
               ProductPipelineRunDocument doc = requireRun(command.runId());
               if (doc.appliedCommand(command.commandId(), command.commandPayloadHash())
                   .isPresent()) {
-                return advance(command.runId());
+                return continueAfterInput
+                    ? advance(command.runId())
+                    : Multi.createFrom().empty();
               }
               if (doc.run().status() != RunStatus.WAITING_FOR_INPUT
                   && doc.run().status() != RunStatus.WAITING_FOR_APPROVAL) {
@@ -350,7 +362,9 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
                   null,
                   command.commandId(),
                   command.commandPayloadHash());
-              return advance(command.runId());
+              return continueAfterInput
+                  ? advance(command.runId())
+                  : Multi.createFrom().empty();
             });
   }
 
@@ -655,6 +669,47 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
   }
 
   private Multi<PipelineSignal> advance(String runId) {
+    return advance(runId, true);
+  }
+
+  /** Executes the named current stage without advancing into the next profile stage. */
+  public Multi<PipelineSignal> executeStage(String runId, String expectedStageId) {
+    Objects.requireNonNull(expectedStageId, "expectedStageId");
+    ProductPipelineRunDocument doc = requireRun(runId);
+    StageSnapshot expected = currentStageSnapshot(doc, expectedStageId);
+    if (expected.status() == StageStatus.SUCCEEDED) {
+      return Multi.createFrom().empty();
+    }
+    if (doc.run().status() != RunStatus.RUNNING) {
+      return Multi.createFrom().empty();
+    }
+    if (!expectedStageId.equals(doc.run().currentStageId())) {
+      return Multi.createFrom()
+          .failure(
+              new IllegalStateException(
+                  "expected stage "
+                      + expectedStageId
+                      + " but run is at "
+                      + doc.run().currentStageId()));
+    }
+    return advance(runId, false);
+  }
+
+  /** Continues a run under the legacy sequential loop after a Flow route delegates back. */
+  public Multi<PipelineSignal> continueRun(String runId) {
+    return advance(runId);
+  }
+
+  /** True after {@code ids-entry} committed the provided-design route. */
+  public boolean isProvidedDesignRoute(String runId) {
+    return artifactStore
+        .latest(runId, Kind.DESIGN_ENTRY_ROUTE)
+        .map(revision -> artifactStore.payload(revision, DesignEntryRoute.class))
+        .filter(DesignEntryRoute.PROVIDE::equals)
+        .isPresent();
+  }
+
+  private Multi<PipelineSignal> advance(String runId, boolean continueAfterSuccess) {
     ProductPipelineRunDocument doc = requireRun(runId);
     if (isTerminalRunStatus(doc.run().status())) {
       return Multi.createFrom().item(new PipelineSignal.Completed(doc.run().status()));
@@ -669,7 +724,7 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
     ProductPipelineProfile profile = profilesByRun.get(runId);
     ProfileStage stage = currentStage(doc);
     if (stage.bypass() != null) {
-      return executeBypass(runId, doc, stage);
+      return executeBypass(runId, doc, stage, continueAfterSuccess);
     }
     List<Reference> committed = committedInputs(doc);
     Map<String, Object> attributes =
@@ -678,8 +733,9 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
     Optional<SkipPolicy.SkipAction> skipAction = evaluateSkip(stage, attributes);
     if (skipAction.isPresent()) {
       return switch (skipAction.get()) {
-        case NO_OUTPUT -> executeNoOutputSkip(runId, doc, stage);
-        case REQUIREMENT_DRAFT_PASSTHROUGH -> executeSkip(runId, doc, stage, attributes);
+        case NO_OUTPUT -> executeNoOutputSkip(runId, doc, stage, continueAfterSuccess);
+        case REQUIREMENT_DRAFT_PASSTHROUGH ->
+            executeSkip(runId, doc, stage, attributes, continueAfterSuccess);
       };
     }
     DeclaredInputResolution inputResolution = resolveDeclaredInputs(profile, stage, committed);
@@ -699,7 +755,8 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
           UUID.randomUUID().toString(),
           List.of(
               new CapabilitySignal.Completed(
-                  StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, prompt))));
+                  StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, prompt))),
+          continueAfterSuccess);
     }
     List<Reference> inputs = inputResolution.inputs();
     StageCapability capability = capabilities.require(stage.capabilityId());
@@ -736,7 +793,8 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
                 return Multi.createFrom().item(new PipelineSignal.Message(message.text()));
               }
               if (signal instanceof CapabilitySignal.Completed) {
-                return handleCapabilityResult(runId, stage, attemptId, List.of(signal));
+                return handleCapabilityResult(
+                    runId, stage, attemptId, List.of(signal), continueAfterSuccess);
               }
               return Multi.createFrom().empty();
             });
@@ -806,7 +864,10 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
 
   /** Marks a stage succeeded with no artifact candidates (route activation). */
   private Multi<PipelineSignal> executeNoOutputSkip(
-      String runId, ProductPipelineRunDocument doc, ProfileStage stage) {
+      String runId,
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      boolean continueAfterSuccess) {
     return handleCapabilityResult(
         runId,
         stage,
@@ -817,7 +878,8 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
                     StageOutcomeClass.SUCCEEDED,
                     List.of(),
                     "stage skipped with no output by profile skip policy",
-                    null))));
+                    null))),
+        continueAfterSuccess);
   }
 
   /**
@@ -886,7 +948,10 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
   }
 
   private Multi<PipelineSignal> executeBypass(
-      String runId, ProductPipelineRunDocument doc, ProfileStage stage) {
+      String runId,
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      boolean continueAfterSuccess) {
     BypassPolicy bypass = stage.bypass();
     Revision revision =
         artifactStore.append(
@@ -916,7 +981,7 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
     commitStatus(doc, RunStatus.RUNNING, StageStatus.SUCCEEDED, updated, "bypass committed");
     ProductPipelineRunDocument after = requireRun(runId);
     commitMove(after, next, markStageRunning(after, next), "advance after bypass");
-    return advance(runId);
+    return continueAfterSuccess ? advance(runId) : Multi.createFrom().empty();
   }
 
   /**
@@ -927,7 +992,8 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
       String runId,
       ProductPipelineRunDocument doc,
       ProfileStage stage,
-      Map<String, Object> attributes) {
+      Map<String, Object> attributes,
+      boolean continueAfterSuccess) {
     RequirementDraft draft =
         attributes.get("approvedDraft") instanceof RequirementDraft requirementDraft
             ? requirementDraft
@@ -941,7 +1007,8 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
               new CapabilitySignal.Completed(
                   StageOutcome.of(
                       StageOutcomeClass.MISSING_MANDATORY_INPUT,
-                      "skip requires committed requirement-draft"))));
+                      "skip requires committed requirement-draft"))),
+          continueAfterSuccess);
     }
     return handleCapabilityResult(
         runId,
@@ -953,11 +1020,16 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
                     StageOutcomeClass.SUCCEEDED,
                     List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, draft, List.of())),
                     "stage skipped by profile skip policy",
-                    null))));
+                    null))),
+        continueAfterSuccess);
   }
 
   private Multi<PipelineSignal> handleCapabilityResult(
-      String runId, ProfileStage stage, String attemptId, List<CapabilitySignal> signals) {
+      String runId,
+      ProfileStage stage,
+      String attemptId,
+      List<CapabilitySignal> signals,
+      boolean continueAfterSuccess) {
     List<PipelineSignal> emitted = new ArrayList<>();
     StageOutcome outcome = requireSingleCompleted(signals);
 
@@ -1047,10 +1119,10 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
         commitStatus(doc, RunStatus.RUNNING, StageStatus.SUCCEEDED, updated, outcome.message());
         ProductPipelineRunDocument after = requireRun(runId);
         commitMove(after, next, markStageRunning(after, next), "advance after success");
-        yield Multi.createFrom()
-            .iterable(emitted)
-            .onCompletion()
-            .switchTo(() -> advance(runId));
+        Multi<PipelineSignal> stageSignals = Multi.createFrom().iterable(emitted);
+        yield continueAfterSuccess
+            ? stageSignals.onCompletion().switchTo(() -> advance(runId))
+            : stageSignals;
       }
       case RETRYABLE_TECHNICAL_FAILURE -> {
         String key = stageRetryKey(runId, stage.stageId());
@@ -1080,7 +1152,8 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
                         .delayIt()
                         .by(Duration.ofMillis(Math.max(delay, 0L)))
                         .onItem()
-                        .transformToMulti(ignored -> advance(runId)));
+                        .transformToMulti(
+                            ignored -> advance(runId, continueAfterSuccess)));
       }
       case VALIDATION_FAILURE -> {
         List<Reference> refs =
