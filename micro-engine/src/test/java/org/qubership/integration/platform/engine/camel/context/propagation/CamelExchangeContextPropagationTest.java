@@ -6,6 +6,10 @@ import com.netcracker.cloud.context.propagation.core.ContextProvider;
 import com.netcracker.cloud.context.propagation.core.RequestContextPropagation;
 import com.netcracker.cloud.context.propagation.core.contextdata.IncomingContextData;
 import com.netcracker.cloud.context.propagation.core.contextdata.OutgoingContextData;
+import io.quarkus.arc.Arc;
+import io.quarkus.arc.ArcContainer;
+import io.quarkus.arc.ManagedContext;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
@@ -38,9 +42,28 @@ class CamelExchangeContextPropagationTest {
 
     private CamelExchangeContextPropagation contextPropagation;
 
+    // Set up a static mock that simulates an already-active request scope
+    // so that the guard is a no-op in tests that are not specifically testing scope activation.
+    private MockedStatic<Arc> arcMock;
+    private ManagedContext requestContextMock;
+
     @BeforeEach
     void setUp() {
+        ArcContainer containerMock = mock(ArcContainer.class);
+        requestContextMock = mock(ManagedContext.class);
+        // lenient: tests that don't go through withActiveRequestScope don't use these stubs
+        lenient().when(containerMock.requestContext()).thenReturn(requestContextMock);
+        lenient().when(requestContextMock.isActive()).thenReturn(true); // scope already active → no-op
+
+        arcMock = mockStatic(Arc.class);
+        arcMock.when(Arc::container).thenReturn(containerMock);
+
         contextPropagation = new CamelExchangeContextPropagation(contextPropsProvider);
+    }
+
+    @AfterEach
+    void tearDown() {
+        arcMock.close();
     }
 
     @Test
@@ -378,6 +401,38 @@ class CamelExchangeContextPropagationTest {
 
             contextManager.verify(() -> ContextManager.set("tenant", "override-tenant"));
         }
+    }
+
+    @Test
+    void shouldActivateCdiRequestScopeWhenNotAlreadyActiveAndTerminateAfterAction() {
+        when(requestContextMock.isActive()).thenReturn(false);
+
+        try (MockedStatic<ContextManager> contextManager = mockStatic(ContextManager.class)) {
+            contextManager.when(ContextManager::getContextProviders).thenReturn(Collections.emptyList());
+
+            contextPropagation.getContextForHeaders(
+                new CamelExchangeRequestContextData(Collections.emptyMap())
+            );
+        }
+
+        verify(requestContextMock).activate();
+        verify(requestContextMock).terminate();
+    }
+
+    @Test
+    void shouldNotActivateCdiRequestScopeWhenAlreadyActive() {
+        // isActive() already returns true by default from setUp()
+
+        try (MockedStatic<ContextManager> contextManager = mockStatic(ContextManager.class)) {
+            contextManager.when(ContextManager::getContextProviders).thenReturn(Collections.emptyList());
+
+            contextPropagation.getContextForHeaders(
+                new CamelExchangeRequestContextData(Collections.emptyMap())
+            );
+        }
+
+        verify(requestContextMock, never()).activate();
+        verify(requestContextMock, never()).terminate();
     }
 
     @SuppressWarnings("unchecked")

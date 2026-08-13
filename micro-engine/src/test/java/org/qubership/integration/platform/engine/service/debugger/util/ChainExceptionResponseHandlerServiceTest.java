@@ -123,6 +123,21 @@ class ChainExceptionResponseHandlerServiceTest {
         assertEquals("E-3", extras.get(CamelConstants.ChainProperties.EXCEPTION_EXTRA_FAILED_ELEMENT));
     }
 
+    @Test
+    void shouldInvokeDefaultHandlerWhenExceptionIsNull() throws Exception {
+        Exchange exchange = mockExchange("S-4", "E-4");
+
+        service.handleExceptionResponse(exchange, null);
+
+        assertNotNull(calledMethod.get());
+        assertEquals("handleGeneralException", calledMethod.get().getName());
+
+        assertEquals(4, calledArgs.get().length);
+        assertNull(calledArgs.get()[0]);
+        assertSame(exchange, calledArgs.get()[1]);
+        assertNull(calledArgs.get()[2]);
+    }
+
     private static Exchange mockExchange(String sessionId, String failedElementId) {
         Exchange ex = MockExchanges.basic();
         when(ex.getProperty(eq(CamelConstants.Properties.SESSION_ID), eq(String.class))).thenReturn(sessionId);

@@ -4,6 +4,7 @@ import com.netcracker.cloud.maas.client.api.Classifier;
 import com.netcracker.cloud.maas.client.api.kafka.KafkaMaaSClient;
 import com.netcracker.cloud.maas.client.api.kafka.TopicAddress;
 import io.quarkus.arc.lookup.LookupIfProperty;
+import io.quarkus.kafka.client.serialization.ObjectMapperSerializer;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -12,7 +13,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.engine.configuration.tenant.TenantConfiguration;
-import org.qubership.integration.platform.engine.model.opensearch.KafkaQueueElement;
+import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -39,7 +40,7 @@ public class MaasOpensearchKafkaProducer implements OpenSearchKafkaProducer {
     KafkaMaaSClient kafkaClient;
 
     private TopicAddress topicAddress;
-    private KafkaProducer<String, KafkaQueueElement> producer;
+    private KafkaProducer<String, SessionElementElastic> producer;
 
     @PostConstruct
     public void init() {
@@ -50,14 +51,14 @@ public class MaasOpensearchKafkaProducer implements OpenSearchKafkaProducer {
                 topicAddress.formatConnectionProperties()
                         .orElseThrow(() -> new RuntimeException("Failed to get connection Kafka properties")),
                 new StringSerializer(),
-                new KafkaQueueElementSerializer()
+                new ObjectMapperSerializer<SessionElementElastic>()
         );
     }
 
     @Override
-    public void send(String key, KafkaQueueElement kafkaQueueElement) {
+    public void send(String key, SessionElementElastic sessionElementElastic) {
         try {
-            producer.send(new ProducerRecord<>(topicAddress.getTopicName(), key, kafkaQueueElement));
+            producer.send(new ProducerRecord<>(topicAddress.getTopicName(), key, sessionElementElastic));
         } catch (Exception e) {
             log.error("Unable to send element to OpenSearch via Kafka", e);
         }
