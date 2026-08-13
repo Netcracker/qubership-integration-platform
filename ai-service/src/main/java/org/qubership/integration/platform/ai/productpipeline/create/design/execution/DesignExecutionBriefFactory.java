@@ -10,6 +10,7 @@ import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingResolution;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementDataMapping;
 
 /**
  * Builds the requirement brief seeded into compiler DAG execution for design-execution.
@@ -56,7 +57,7 @@ public final class DesignExecutionBriefFactory {
         brief.approvedDraftReference(),
         draftText,
         List.copyOf(facts),
-        brief.dataMappings());
+        flow.dataMappings().isEmpty() ? brief.dataMappings() : dataMappingsFrom(flow));
   }
 
   private static RequirementBrief fromFlow(
@@ -78,7 +79,27 @@ public final class DesignExecutionBriefFactory {
         null,
         firstNonBlank(formatBindingBlock(bindings), formatFlowSeed(flow)),
         List.copyOf(facts),
-        List.of());
+        dataMappingsFrom(flow));
+  }
+
+  private static List<RequirementDataMapping> dataMappingsFrom(NormalizedDesignFlow flow) {
+    return flow.dataMappings().stream()
+        .map(
+            mapping ->
+                new RequirementDataMapping(
+                    mapping.mappingId(),
+                    RequirementDataMapping.Stage.valueOf(mapping.stage().name()),
+                    mapping.fromStepId(),
+                    mapping.toStepId(),
+                    RequirementDataMapping.Mode.valueOf(mapping.mode().name()),
+                    mapping.rules().stream()
+                        .map(
+                            rule ->
+                                new RequirementDataMapping.Rule(
+                                    rule.sourcePath(), rule.targetPath(), rule.expression()))
+                        .toList(),
+                    mapping.sourceFactIds()))
+        .toList();
   }
 
   private static void appendFlowSignals(

@@ -103,4 +103,55 @@ class DesignExecutionBriefFactoryTest {
     assertTrue(brief.approvedDraftText().contains("approved text"));
     assertTrue(brief.inputs().stream().anyMatch(i -> i.contains("systemId=sys-9")));
   }
+
+  @Test
+  void carriesApprovedFlowMappingsIntoTheExecutionBrief() {
+    NormalizedDesignFlow flow =
+        new NormalizedDesignFlow(
+            "1",
+            "flow-1",
+            "HealthProxy",
+            "Proxy inventory",
+            new NormalizedDesignFlow.Trigger(
+                "http", "client", "HTTP", "/health-proxy", "GET", List.of("fact-trigger")),
+            List.of(
+                new NormalizedDesignFlow.Participant(
+                    "client", "Client", "EXTERNAL", List.of("fact-client")),
+                new NormalizedDesignFlow.Participant(
+                    "petstore", "Petstore", "EXTERNAL", List.of("fact-petstore"))),
+            List.of(
+                new NormalizedDesignFlow.Step(
+                    "call-1",
+                    "service-call",
+                    "client",
+                    "petstore",
+                    "GET /store/inventory",
+                    "",
+                    List.of("fact-call"))),
+            List.of(),
+            List.of(),
+            List.of(
+                new NormalizedDesignFlow.DataMapping(
+                    "map-init",
+                    NormalizedDesignFlow.MappingStage.INITIALIZATION,
+                    "step-trigger",
+                    "call-1",
+                    NormalizedDesignFlow.MappingMode.EXPLICIT,
+                    List.of(
+                        new NormalizedDesignFlow.MappingRule(
+                            "$.request.id",
+                            "$.headers.X-Request-Id",
+                            null,
+                            List.of("fact-rule"))),
+                    List.of("fact-map"))),
+            List.of(),
+            List.of());
+
+    RequirementBrief brief = DesignExecutionBriefFactory.build(null, flow, List.of());
+
+    assertTrue(brief.dataMappings().stream().anyMatch(mapping -> mapping.mappingId().equals("map-init")));
+    assertTrue(
+        brief.dataMappings().getFirst().rules().stream()
+            .anyMatch(rule -> rule.targetPath().equals("$.headers.X-Request-Id")));
+  }
 }

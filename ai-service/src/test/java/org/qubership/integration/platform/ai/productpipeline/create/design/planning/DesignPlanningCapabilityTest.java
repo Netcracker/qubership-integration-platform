@@ -212,6 +212,15 @@ class DesignPlanningCapabilityTest {
       assertTrue(plan.planText().contains(step.stepId()));
     }
     assertTrue(plan.planText().contains(ApprovalPolicy.CATALOG_FIRST_V1));
+    assertTrue(plan.scriptOutcomes().isEmpty(), "pass-through mappings do not require scripts");
+  }
+
+  @Test
+  void plannerInputDoesNotRequestScriptsForPassThroughMappings() {
+    String input =
+        DesignPlanningCapability.buildPlannerInput(sampleIds(), sampleFlow(), "2024.4");
+
+    assertTrue(input.contains("No explicit data mappings. Do not plan mapping scripts."), input);
   }
 
   @Test

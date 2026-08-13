@@ -193,45 +193,8 @@ public final class BriefFlowExtractor {
       }
     }
 
-    List<NormalizedDesignFlow.DataMapping> mappings = new ArrayList<>();
-    for (RequirementDataMapping mapping : brief.dataMappings()) {
-      String fromStep = intentToStep.get(mapping.fromIntentRef());
-      String toStep = intentToStep.get(mapping.toIntentRef());
-      if (fromStep == null || toStep == null) {
-        missing.add(
-            "mapping "
-                + mapping.mappingId()
-                + " intent refs "
-                + mapping.fromIntentRef()
-                + " → "
-                + mapping.toIntentRef());
-        continue;
-      }
-      NormalizedDesignFlow.MappingStage stage =
-          NormalizedDesignFlow.MappingStage.valueOf(mapping.stage().name());
-      NormalizedDesignFlow.MappingMode mode =
-          NormalizedDesignFlow.MappingMode.valueOf(mapping.mode().name());
-      List<NormalizedDesignFlow.MappingRule> rules = new ArrayList<>();
-      if (mapping.rules() != null) {
-        for (RequirementDataMapping.Rule rule : mapping.rules()) {
-          rules.add(
-              new NormalizedDesignFlow.MappingRule(
-                  rule.sourcePath(),
-                  rule.targetPath(),
-                  rule.expression(),
-                  mapping.sourceFactIds()));
-        }
-      }
-      mappings.add(
-          new NormalizedDesignFlow.DataMapping(
-              mapping.mappingId(),
-              stage,
-              fromStep,
-              toStep,
-              mode,
-              rules,
-              mapping.sourceFactIds()));
-    }
+    List<NormalizedDesignFlow.DataMapping> mappings =
+        toNormalizedMappings(brief, intentToStep, missing);
     if (!missing.isEmpty()) {
       return new ExtractionResult.NeedsInput(List.copyOf(missing));
     }
@@ -260,6 +223,101 @@ public final class BriefFlowExtractor {
             List.copyOf(brief.constraints()),
             List.copyOf(brief.assumptions()));
     return new ExtractionResult.Complete(flow);
+  }
+
+  /**
+   * Projects typed mapping intent onto the step ids of an authored IDS flow. The IDS author owns
+   * topology and labels; the approved brief remains the source of truth for mapping semantics.
+   */
+  public NormalizedDesignFlow withMappings(
+      RequirementBrief brief, NormalizedDesignFlow authoredFlow) {
+    Objects.requireNonNull(brief, "brief");
+    Objects.requireNonNull(authoredFlow, "authoredFlow");
+    if (brief.dataMappings().isEmpty()) {
+      return authoredFlow;
+    }
+
+    List<RequirementFact> endpoints = positive(brief, RequirementFactKind.ENDPOINT);
+    List<RequirementFact> calls = positive(brief, RequirementFactKind.SERVICE_CALL);
+    List<NormalizedDesignFlow.Step> serviceCallSteps =
+        authoredFlow.steps().stream()
+            .filter(step -> "service-call".equalsIgnoreCase(step.kind()))
+            .toList();
+    if (endpoints.isEmpty()) {
+      throw new IllegalArgumentException(
+          "Cannot project data mappings because the requirement brief has no ENDPOINT fact");
+    }
+    if (calls.size() != serviceCallSteps.size()) {
+      throw new IllegalArgumentException(
+          "Cannot project data mappings: requirement brief has "
+              + calls.size()
+              + " service calls but the authored IDS has "
+              + serviceCallSteps.size());
+    }
+
+    Map<String, String> intentToStep = new LinkedHashMap<>();
+    intentToStep.put(endpoints.getFirst().sourceFactId(), "step-trigger");
+    for (int i = 0; i < calls.size(); i++) {
+      intentToStep.put(calls.get(i).sourceFactId(), serviceCallSteps.get(i).stepId());
+    }
+    List<String> missing = new ArrayList<>();
+    List<NormalizedDesignFlow.DataMapping> mappings =
+        toNormalizedMappings(brief, intentToStep, missing);
+    if (!missing.isEmpty()) {
+      throw new IllegalArgumentException(String.join("; ", missing));
+    }
+    return new NormalizedDesignFlow(
+        authoredFlow.schemaVersion(),
+        authoredFlow.flowId(),
+        authoredFlow.chainName(),
+        authoredFlow.description(),
+        authoredFlow.trigger(),
+        authoredFlow.participants(),
+        authoredFlow.steps(),
+        authoredFlow.connections(),
+        authoredFlow.transformations(),
+        mappings,
+        authoredFlow.constraints(),
+        authoredFlow.assumptions());
+  }
+
+  private static List<NormalizedDesignFlow.DataMapping> toNormalizedMappings(
+      RequirementBrief brief, Map<String, String> intentToStep, List<String> missing) {
+    List<NormalizedDesignFlow.DataMapping> mappings = new ArrayList<>();
+    for (RequirementDataMapping mapping : brief.dataMappings()) {
+      String fromStep = intentToStep.get(mapping.fromIntentRef());
+      String toStep = intentToStep.get(mapping.toIntentRef());
+      if (fromStep == null || toStep == null) {
+        missing.add(
+            "mapping "
+                + mapping.mappingId()
+                + " intent refs "
+                + mapping.fromIntentRef()
+                + " → "
+                + mapping.toIntentRef());
+        continue;
+      }
+      List<String> sourceFactIds =
+          mapping.sourceFactIds().isEmpty()
+              ? List.of("requirement-mapping:" + mapping.mappingId())
+              : mapping.sourceFactIds();
+      List<NormalizedDesignFlow.MappingRule> rules = new ArrayList<>();
+      for (RequirementDataMapping.Rule rule : mapping.rules()) {
+        rules.add(
+            new NormalizedDesignFlow.MappingRule(
+                rule.sourcePath(), rule.targetPath(), rule.expression(), sourceFactIds));
+      }
+      mappings.add(
+          new NormalizedDesignFlow.DataMapping(
+              mapping.mappingId(),
+              NormalizedDesignFlow.MappingStage.valueOf(mapping.stage().name()),
+              fromStep,
+              toStep,
+              NormalizedDesignFlow.MappingMode.valueOf(mapping.mode().name()),
+              rules,
+              sourceFactIds));
+    }
+    return List.copyOf(mappings);
   }
 
   static boolean isScriptOnlyBrief(RequirementBrief brief) {

@@ -194,6 +194,9 @@ class RequirementAnalysisCapabilityTest {
     assertTrue(message.contains("Change request for this analysis turn:"));
     assertTrue(message.contains("add quartz scheduler"));
     assertTrue(message.contains(approved.planningText()));
+    assertTrue(message.contains("dataMappings"));
+    assertTrue(message.contains("PASS_THROUGH"));
+    assertTrue(message.contains("EXPLICIT"));
   }
 
   @Test

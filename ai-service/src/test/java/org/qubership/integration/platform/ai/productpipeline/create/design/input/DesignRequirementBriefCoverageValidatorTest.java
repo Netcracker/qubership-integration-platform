@@ -65,6 +65,42 @@ class DesignRequirementBriefCoverageValidatorTest {
   }
 
   @Test
+  void explicitRulesFillNumberedMissingEdges() {
+    RequirementBrief briefWithoutMappings = twoCallBrief(List.of());
+
+    RequirementBrief filled =
+        designValidator.withExplicitMappingsForMissingEdges(
+            briefWithoutMappings,
+            """
+            1: $.request.id -> $.headers.X-Request-Id
+            2: $.customer -> $.body.customer | normalizeCustomer(value)
+            3: $.inventory -> $.body
+            """);
+
+    assertDoesNotThrow(() -> designValidator.validate(filled));
+    assertEquals(3, filled.dataMappings().size());
+    RequirementDataMapping conversion = filled.dataMappings().get(1);
+    assertEquals(RequirementDataMapping.Mode.EXPLICIT, conversion.mode());
+    assertEquals("$.customer", conversion.rules().getFirst().sourcePath());
+    assertEquals("$.body.customer", conversion.rules().getFirst().targetPath());
+    assertEquals("normalizeCustomer(value)", conversion.rules().getFirst().expression());
+  }
+
+  @Test
+  void explicitRulesRequireEdgeNumbersWhenSeveralEdgesAreMissing() {
+    RequirementBrief briefWithoutMappings = twoCallBrief(List.of());
+
+    IllegalArgumentException thrown =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                designValidator.withExplicitMappingsForMissingEdges(
+                    briefWithoutMappings, "$.request.id -> $.headers.X-Request-Id"));
+
+    assertTrue(thrown.getMessage().contains("edge number"), thrown.getMessage());
+  }
+
+  @Test
   void rejectsBriefWithTwoCallsButWithoutConversionMapping() {
     RequirementBrief briefWithoutConversion = twoCallBrief(List.of(initialization(), response()));
 

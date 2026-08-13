@@ -270,7 +270,9 @@ public final class DesignPlanProjector {
       ParsedPlannerReport parsed, NormalizedDesignFlow flow) {
     Set<NormalizedDesignFlow.MappingStage> requiredStages = new LinkedHashSet<>();
     for (NormalizedDesignFlow.DataMapping mapping : flow.dataMappings()) {
-      requiredStages.add(mapping.stage());
+      if (mapping.mode() == NormalizedDesignFlow.MappingMode.EXPLICIT) {
+        requiredStages.add(mapping.stage());
+      }
     }
     if (requiredStages.isEmpty()) {
       return;

@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.llm.agent.DesignGeneratorSkillAgent;
@@ -26,6 +27,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
 
 /**
  * Shared create-chain@2 design-input capability for {@code ids-entry} and {@code design-input}
@@ -41,6 +43,8 @@ public class DesignInputCapability implements StageCapability {
       org.jboss.logging.Logger.getLogger(DesignInputCapability.class);
 
   private static final String IDS_FLOW_MARKER = "Integration flow for CIP Chain";
+  private static final Pattern MAPPING_RULE_HINT =
+      Pattern.compile("^(?:(?:\\d+)\\s*[:.)]\\s*|[$/]).*(?:->|→).+$");
 
   private final IdsDocumentParser idsDocumentParser;
   private final NormalizedDesignFlowValidator flowValidator;
@@ -225,9 +229,20 @@ public class DesignInputCapability implements StageCapability {
 
     RequirementBrief effectiveBrief = brief;
     if (effectiveBrief != null
-        && idsPathPrompts.isPassThroughConfirmation(userText)
         && !designCoverageValidator.listMissingEdges(effectiveBrief).isEmpty()) {
-      effectiveBrief = designCoverageValidator.withPassThroughForMissingEdges(effectiveBrief);
+      try {
+        if (pending != null && hasMappingRuleSyntax(userText)) {
+          effectiveBrief =
+              designCoverageValidator.withExplicitMappingsForMissingEdges(effectiveBrief, userText);
+        } else if (idsPathPrompts.isPassThroughConfirmation(userText)
+            || effectiveBrief.dataMappings().isEmpty()) {
+          // No mapping declaration means no transformation. Materialize that semantic default so
+          // legacy briefs and simple proxy chains do not stop at a false-positive mapping gap.
+          effectiveBrief = designCoverageValidator.withPassThroughForMissingEdges(effectiveBrief);
+        }
+      } catch (IllegalArgumentException ex) {
+        return mappingAnswerError(effectiveBrief, ex.getMessage());
+      }
     }
 
     return switch (mode) {
@@ -253,6 +268,15 @@ public class DesignInputCapability implements StageCapability {
       return false;
     }
     return userText.trim().equalsIgnoreCase(discoveryText.trim());
+  }
+
+  private static boolean hasMappingRuleSyntax(String userText) {
+    if (userText == null) {
+      return false;
+    }
+    List<String> lines = userText.lines().map(String::strip).filter(line -> !line.isEmpty()).toList();
+    return !lines.isEmpty()
+        && lines.stream().allMatch(line -> MAPPING_RULE_HINT.matcher(line).matches());
   }
 
   /**
@@ -282,13 +306,15 @@ public class DesignInputCapability implements StageCapability {
     IllegalArgumentException firstFailure;
     try {
       String markdown = generatedIdsAuthoringAdapter.generate(brief);
-      return new AuthoredDesign(markdown, idsDocumentParser.parseFirstFlow(markdown));
+      NormalizedDesignFlow parsed = idsDocumentParser.parseFirstFlow(markdown);
+      return new AuthoredDesign(markdown, briefFlowExtractor.withMappings(brief, parsed));
     } catch (IllegalArgumentException ex) {
       firstFailure = ex;
       LOG.infof("Authored IDS could not be read (%s); asking for a repair", ex.getMessage());
     }
     String markdown = generatedIdsAuthoringAdapter.generate(brief, firstFailure.getMessage());
-    return new AuthoredDesign(markdown, idsDocumentParser.parseFirstFlow(markdown));
+    NormalizedDesignFlow parsed = idsDocumentParser.parseFirstFlow(markdown);
+    return new AuthoredDesign(markdown, briefFlowExtractor.withMappings(brief, parsed));
   }
 
   private record AuthoredDesign(String markdown, NormalizedDesignFlow flow) {}
@@ -337,7 +363,7 @@ public class DesignInputCapability implements StageCapability {
               markdown,
               IdsDocument.Mode.GENERATED,
               "requirement-brief",
-              DesignContentHashes.sha256(brief.summary() + '\n' + brief.goal()),
+              DesignContentHashes.sha256(RequirementBriefText.format(brief)),
               flow,
               "cip-design-generator@1");
       return new StageOutcome(
@@ -377,7 +403,7 @@ public class DesignInputCapability implements StageCapability {
               markdown,
               IdsDocument.Mode.DERIVED,
               "requirement-brief",
-              DesignContentHashes.sha256(brief.summary() + '\n' + brief.goal()),
+              DesignContentHashes.sha256(RequirementBriefText.format(brief)),
               flow,
               "cip-design-generator@1");
       return succeededDesign(DesignMode.DERIVE, document, flow, "IDS ready");
@@ -411,6 +437,15 @@ public class DesignInputCapability implements StageCapability {
                 idsPathPrompts.mappingGapPrompt(
                     brief, pendingMode, missing, userText, discoveryText),
                 designCoverageValidator.listReadableMissingEdges(brief))));
+  }
+
+  private StageOutcome mappingAnswerError(RequirementBrief brief, String message) {
+    return StageOutcome.of(
+        StageOutcomeClass.NEEDS_INPUT,
+        PipelineGates.tag(
+            PipelineGates.MAPPING_GAP,
+            DesignInputIdsPathPrompts.encodeMappingGapWait(
+                message, designCoverageValidator.listReadableMissingEdges(brief))));
   }
 
   private StageOutcome waitingForIdsChoice(
@@ -482,7 +517,7 @@ public class DesignInputCapability implements StageCapability {
         mode,
         sourceReference,
         sourceHash,
-        DesignContentHashes.sha256(flow.flowId() + '|' + flow.chainName() + '|' + flow.steps()),
+        DesignContentHashes.sha256(flow.toString()),
         rendererVersion,
         markdown);
   }
@@ -519,10 +554,8 @@ public class DesignInputCapability implements StageCapability {
   static String authoringPrompt(RequirementBrief brief) {
     StringBuilder prompt = new StringBuilder();
     prompt
-        .append("Author a full IDS for goal: ")
-        .append(brief.goal())
-        .append("\nSummary: ")
-        .append(brief.summary())
+        .append("Author a full IDS from this approved structured requirement brief:\n\n")
+        .append(RequirementBriefText.format(brief))
         .append("\n\nReturn the document only: no preamble, no closing remarks, no ``` fence")
         .append(" around the whole answer.")
         .append("\nKeep the template's section headings exactly as they are and write each of")
@@ -534,12 +567,6 @@ public class DesignInputCapability implements StageCapability {
         .append(" A chain that answers from its own logic talks to no external system: its")
         .append(" diagram holds the caller and CIP alone, and the response comes from a script")
         .append(" step. Do not add an external participant to fill out the diagram.");
-    if (brief.constraints() != null && !brief.constraints().isEmpty()) {
-      prompt.append("\nConstraints:\n");
-      for (String constraint : brief.constraints()) {
-        prompt.append("- ").append(constraint).append('\n');
-      }
-    }
     prompt.append(
         "\nIf the brief forbids service calls or APIHub, model HTTP GET/POST paths as the CIP "
             + "chain trigger (Client -> CIP), and return the response from a script — never as an "

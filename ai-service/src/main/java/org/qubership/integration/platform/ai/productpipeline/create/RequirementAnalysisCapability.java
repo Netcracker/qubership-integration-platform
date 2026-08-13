@@ -444,6 +444,12 @@ public class RequirementAnalysisCapability implements StageCapability {
     String planning = approved.planningText() == null ? "" : approved.planningText();
     StringBuilder sb = new StringBuilder();
     sb.append("Analyze the approved requirement draft and call captureRequirementBrief now.\n\n");
+    sb.append(
+        "Capture typed dataMappings for every required edge around positive SERVICE_CALL facts. "
+            + "Use PASS_THROUGH with no rules when the user requested no transformation. Use "
+            + "EXPLICIT only for approved sourcePath and targetPath rules; never invent rules. "
+            + "Reuse the sourceFactId values below as fromIntentRef and toIntentRef. Give every "
+            + "PASS_THROUGH mapping at least one approved sourceFactId for provenance.\n\n");
     sb.append("Planning text:\n").append(planning).append('\n');
     if (!approved.facts().isEmpty()) {
       sb.append(

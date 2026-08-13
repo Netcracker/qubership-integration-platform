@@ -49,7 +49,7 @@ function commentPlaceholder(
   isFreeTextClarify: boolean,
 ): string {
   if (isMappingGapClarify) {
-    return "Describe field mappings (sourcePath to targetPath)";
+    return "One rule per line: 1: $.source -> $.target";
   }
   if (isFreeTextClarify) {
     return "Provide the missing information";
@@ -130,8 +130,7 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
     ? decision.reason?.trim() || decision.question.trim()
     : decision.question.trim();
   const missingEvidence = decision.missingEvidence ?? [];
-  const showTextArea =
-    isFreeTextClarify || isMappingGapClarify || !isClarify;
+  const showTextArea = isFreeTextClarify || isMappingGapClarify || !isClarify;
 
   return (
     <div className="ai-decision-card" data-decision-id={decision.id}>
@@ -146,7 +145,12 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
           className="ai-decision-card__missing-evidence"
           size="small"
           dataSource={missingEvidence}
-          renderItem={(item) => <List.Item>{item}</List.Item>}
+          renderItem={(item, index) => (
+            <List.Item>
+              {isMappingGapClarify ? `${index + 1}. ` : null}
+              {item}
+            </List.Item>
+          )}
           style={{ marginBottom: 8 }}
         />
       ) : null}

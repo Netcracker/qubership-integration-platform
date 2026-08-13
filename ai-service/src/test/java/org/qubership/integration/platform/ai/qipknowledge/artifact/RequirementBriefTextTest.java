@@ -41,6 +41,55 @@ class RequirementBriefTextTest {
   }
 
   @Test
+  void formatsTypedDataMappingsForGeneratorPrompts() {
+    RequirementBrief brief =
+        new RequirementBrief(
+            "Proxy inventory",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Map an HTTP request to an inventory call",
+            null,
+            null,
+            List.of(),
+            List.of(
+                new RequirementDataMapping(
+                    "map-init",
+                    RequirementDataMapping.Stage.INITIALIZATION,
+                    "step-trigger",
+                    "step-call",
+                    RequirementDataMapping.Mode.EXPLICIT,
+                    List.of(
+                        new RequirementDataMapping.Rule(
+                            "$.request.id", "$.headers.X-Request-Id", "string(value)")),
+                    List.of("fact-map")),
+                new RequirementDataMapping(
+                    "map-response",
+                    RequirementDataMapping.Stage.RESPONSE,
+                    "step-call",
+                    "step-trigger",
+                    RequirementDataMapping.Mode.PASS_THROUGH,
+                    List.of(),
+                    List.of("fact-pass-through"))));
+
+    String formatted = RequirementBriefText.format(brief);
+
+    assertTrue(
+        formatted.contains(
+            "map-init [INITIALIZATION, EXPLICIT] step-trigger -> step-call"),
+        formatted);
+    assertTrue(
+        formatted.contains(
+            "$.request.id -> $.headers.X-Request-Id | expression: string(value)"),
+        formatted);
+    assertTrue(
+        formatted.contains(
+            "map-response [RESPONSE, PASS_THROUGH] step-call -> step-trigger"),
+        formatted);
+  }
+
+  @Test
   void legacyJsonWithoutDataMappingsDecodesToEmptyList() throws Exception {
     String legacyJson =
         """

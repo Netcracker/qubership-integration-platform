@@ -70,6 +70,36 @@ class DesignPlanProjectorTest {
   }
 
   @Test
+  void passThroughMappingsDoNotRequireScriptSteps() {
+    String reportWithoutScripts =
+        """
+        1. Analyze requirements and name chain Orders (cip-requirement-analyzer + cip-naming-generator)
+        2. Find API Orders API for Orders Service in APIHub for version 2024.4 (APIHub MCP search_rest_api_operations)
+        3. Get API operation specification Orders API for Orders Service in APIHub (APIHub MCP get_rest_api_operations_specification)
+        4. Resolve External integration target Orders Service from the retrieved spec (binding for cip-service-call-generator)
+        5. Generate HTTP Trigger element with interface Orders API (cip-trigger-generator)
+        6. Generate Service Call element for Orders Service.createOrder bound to the retrieved spec (cip-service-call-generator)
+        7. Generate execution structure and element ordering (cip-structure-generator)
+        8. Connect steps trigger → service-call in the execution structure (cip-structure-generator)
+        9. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        10. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    DesignExecutionPlan projected =
+        projector.project(
+            new DesignPlanReport("1", reportWithoutScripts),
+            sampleFlow(),
+            sampleDag(),
+            "catalog-hash",
+            Map.of(),
+            Map.of());
+
+    assertEquals(10, projected.steps().size());
+  }
+
+  @Test
   void rejectsUnknownOwningSkill() {
     String report =
         """
@@ -313,7 +343,7 @@ class DesignPlanProjectorTest {
             () ->
                 projector.project(
                     new DesignPlanReport("1", report),
-                    sampleFlow(),
+                    flowWithExplicitInitialization(),
                     sampleDag(),
                     "catalog-hash",
                     Map.of(),
@@ -487,6 +517,35 @@ class DesignPlanProjectorTest {
                 List.of("fact-map"))),
         List.of(),
         List.of());
+  }
+
+  private static NormalizedDesignFlow flowWithExplicitInitialization() {
+    NormalizedDesignFlow flow = sampleFlow();
+    NormalizedDesignFlow.DataMapping initialization = flow.dataMappings().getFirst();
+    return new NormalizedDesignFlow(
+        flow.schemaVersion(),
+        flow.flowId(),
+        flow.chainName(),
+        flow.description(),
+        flow.trigger(),
+        flow.participants(),
+        flow.steps(),
+        flow.connections(),
+        flow.transformations(),
+        List.of(
+            new NormalizedDesignFlow.DataMapping(
+                initialization.mappingId(),
+                initialization.stage(),
+                initialization.fromStepId(),
+                initialization.toStepId(),
+                NormalizedDesignFlow.MappingMode.EXPLICIT,
+                List.of(
+                    new NormalizedDesignFlow.MappingRule(
+                        "$.id", "$.customerId", null, List.of("fact-map"))),
+                initialization.sourceFactIds()),
+            flow.dataMappings().get(1)),
+        flow.constraints(),
+        flow.assumptions());
   }
 
   private static ResolvedCompilerDag sampleDag() {

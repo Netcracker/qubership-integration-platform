@@ -20,7 +20,45 @@ public final class RequirementBriefText {
     appendList(body, "Constraints", brief.constraints());
     appendList(body, "Assumptions", brief.assumptions());
     appendFacts(body, brief.facts());
+    appendDataMappings(body, brief.dataMappings());
     return body.toString().trim();
+  }
+
+  private static void appendDataMappings(
+      StringBuilder body, List<RequirementDataMapping> mappings) {
+    if (mappings == null || mappings.isEmpty()) {
+      return;
+    }
+    if (!body.isEmpty()) {
+      body.append('\n');
+    }
+    body.append("Data mappings:");
+    for (RequirementDataMapping mapping : mappings) {
+      if (mapping == null) {
+        continue;
+      }
+      body.append('\n')
+          .append("- ")
+          .append(mapping.mappingId())
+          .append(" [")
+          .append(mapping.stage())
+          .append(", ")
+          .append(mapping.mode())
+          .append("] ")
+          .append(mapping.fromIntentRef())
+          .append(" -> ")
+          .append(mapping.toIntentRef());
+      for (RequirementDataMapping.Rule rule : mapping.rules()) {
+        body.append('\n')
+            .append("  - ")
+            .append(rule.sourcePath())
+            .append(" -> ")
+            .append(rule.targetPath());
+        if (rule.expression() != null) {
+          body.append(" | expression: ").append(rule.expression());
+        }
+      }
+    }
   }
 
   private static void appendFacts(StringBuilder body, List<RequirementFact> facts) {

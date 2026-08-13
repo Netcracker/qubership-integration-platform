@@ -91,14 +91,29 @@ public final class DesignImplementationPlanRenderer {
       for (NormalizedDesignFlow.DataMapping mapping : flow.dataMappings()) {
         String mappingFact =
             mapping.mappingId()
+                + " ["
+                + mapping.mode()
+                + "]"
                 + " "
                 + mapping.stage()
                 + " "
                 + mapping.fromStepId()
                 + " -> "
                 + mapping.toStepId();
-        scriptOutcomes.add(mappingFact);
+        if (mapping.mode() == NormalizedDesignFlow.MappingMode.EXPLICIT) {
+          scriptOutcomes.add(mappingFact);
+        }
         body.append("- ").append(mappingFact).append('\n');
+        for (NormalizedDesignFlow.MappingRule rule : mapping.rules()) {
+          body.append("  - ")
+              .append(rule.sourcePath())
+              .append(" -> ")
+              .append(rule.targetPath());
+          if (rule.expression() != null) {
+            body.append(" | expression: ").append(rule.expression());
+          }
+          body.append('\n');
+        }
       }
     }
 

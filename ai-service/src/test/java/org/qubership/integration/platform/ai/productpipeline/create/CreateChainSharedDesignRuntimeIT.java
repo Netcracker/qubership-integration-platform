@@ -485,7 +485,7 @@ class CreateChainSharedDesignRuntimeIT {
   }
 
   @Test
-  void missingMappingIntentWaitsForInputBeforePlannerInvocation() {
+  void missingMappingIntentDefaultsToPassThroughBeforePlannerInvocation() {
     DesignInputCapability designInput = designInputCapability();
     StageCapability discovery = discoveryStub();
     StageCapability analysis =
@@ -524,7 +524,7 @@ class CreateChainSharedDesignRuntimeIT {
         .indefinitely();
 
     assertEquals(0, plannerCalls.get());
-    assertEquals(RunStatus.WAITING_FOR_INPUT, loadRun().run().status());
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, loadRun().run().status());
   }
 
   @Test

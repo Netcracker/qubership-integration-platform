@@ -95,12 +95,19 @@ public class RequirementBriefTool {
       goal and summary cannot both be blank.
       Facts from the approved draft are pinned by the server (stable sourceFactId values). Focus\
        on goal, summary, inputs, constraints, and assumptions.
+      When positive SERVICE_CALL facts exist, capture dataMappings for endpoint to first call\
+       (INITIALIZATION), between adjacent calls (CONVERSION), and last call to endpoint (RESPONSE)\
+       for request-response triggers. Reuse approved sourceFactId values as fromIntentRef and\
+       toIntentRef. Use PASS_THROUGH with no rules when no transformation was requested. Use\
+       EXPLICIT only for user-approved sourcePath and targetPath rules; never invent rules. Give\
+       every PASS_THROUGH mapping at least one approved sourceFactId for provenance.
       Minimal example:
       {
         "goal": "Expose a greeting HTTP endpoint",
         "inputs": ["HTTP request body"],
         "constraints": ["External route", "RBAC required"],
         "assumptions": [],
+        "dataMappings": [],
         "summary": "HTTP trigger forwards to a script that returns a greeting."
       }""")
   public String captureRequirementBrief(RequirementBriefCapture capture) {

@@ -41,7 +41,8 @@ describe("AiDecisionCard", () => {
       <AiDecisionCard
         decision={buildDecision({
           id: "import:pkg.geosite",
-          question: "Import the API Hub specification GeoSite API into the runtime catalog?",
+          question:
+            "Import the API Hub specification GeoSite API into the runtime catalog?",
           artifactType: undefined,
           artifactHash: undefined,
           revision: 0,
@@ -51,7 +52,9 @@ describe("AiDecisionCard", () => {
       />,
     );
 
-    const importButton = screen.getByRole("button", { name: "Import specification" });
+    const importButton = screen.getByRole("button", {
+      name: "Import specification",
+    });
     expect(importButton.className).toMatch(/ant-btn-primary/);
     fireEvent.click(importButton);
 
@@ -86,7 +89,9 @@ describe("AiDecisionCard", () => {
 
   it("should disable the buttons while busy", () => {
     const onAnswer = jest.fn();
-    render(<AiDecisionCard decision={buildDecision()} onAnswer={onAnswer} busy />);
+    render(
+      <AiDecisionCard decision={buildDecision()} onAnswer={onAnswer} busy />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
 
@@ -227,7 +232,8 @@ describe("AiDecisionCard", () => {
     const onSubmitClarification = jest.fn();
     const decision = buildDecision({
       kind: "clarify",
-      reason: "Import the API Hub specification into the runtime catalog before planning?",
+      reason:
+        "Import the API Hub specification into the runtime catalog before planning?",
       missingEvidence: [],
       actions: ["import-specification"],
     });
@@ -239,7 +245,9 @@ describe("AiDecisionCard", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Import specification" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Import specification" }),
+    );
 
     expect(onSubmitClarification).not.toHaveBeenCalled();
     expect(onAnswer).toHaveBeenCalledWith("import-specification", "");
@@ -250,7 +258,8 @@ describe("AiDecisionCard", () => {
     const onSubmitClarification = jest.fn();
     const decision = buildDecision({
       kind: "clarify",
-      reason: "Some data mappings are still missing before design can continue.",
+      reason:
+        "Some data mappings are still missing before design can continue.",
       missingEvidence: [
         'INITIALIZATION: ENDPOINT "GET /orders" → SERVICE_CALL "Outbound call call-1"',
       ],
@@ -266,13 +275,11 @@ describe("AiDecisionCard", () => {
 
     expect(
       screen.getByText(
-        'INITIALIZATION: ENDPOINT "GET /orders" → SERVICE_CALL "Outbound call call-1"',
+        '1. INITIALIZATION: ENDPOINT "GET /orders" → SERVICE_CALL "Outbound call call-1"',
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText(
-        "Describe field mappings (sourcePath to targetPath)",
-      ),
+      screen.getByPlaceholderText("One rule per line: 1: $.source -> $.target"),
     ).toBeInTheDocument();
 
     const describe = screen.getByRole("button", { name: "Describe mappings" });
@@ -290,7 +297,8 @@ describe("AiDecisionCard", () => {
     const onSubmitClarification = jest.fn();
     const decision = buildDecision({
       kind: "clarify",
-      reason: "Some data mappings are still missing before design can continue.",
+      reason:
+        "Some data mappings are still missing before design can continue.",
       missingEvidence: [],
       actions: ["pass_through", "describe_mappings"],
     });
@@ -303,14 +311,14 @@ describe("AiDecisionCard", () => {
     );
 
     fireEvent.change(
-      screen.getByPlaceholderText(
-        "Describe field mappings (sourcePath to targetPath)",
-      ),
-      { target: { value: "$.id → $.customerId" } },
+      screen.getByPlaceholderText("One rule per line: 1: $.source -> $.target"),
+      { target: { value: "1: $.id → $.customerId" } },
     );
     fireEvent.click(screen.getByRole("button", { name: "Describe mappings" }));
 
-    expect(onSubmitClarification).toHaveBeenCalledWith("$.id → $.customerId");
+    expect(onSubmitClarification).toHaveBeenCalledWith(
+      "1: $.id → $.customerId",
+    );
   });
 
   it("should freeze the clarify card and hide the text area once submitted", () => {

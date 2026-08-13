@@ -181,8 +181,8 @@ class DesignInputCapabilityTest {
 
 
   @Test
-  void missingMappingIntentReturnsWaitingForInput() {
-    DesignInputCapability capability = capabilityWithFixedGenerate("unused");
+  void missingMappingIntentDefaultsToPassThrough() {
+    DesignInputCapability capability = capabilityWithFixedGenerate(VALID_IDS);
     RequirementBrief briefWithoutMappings =
         new RequirementBrief(
             "Orders",
@@ -209,26 +209,125 @@ class DesignInputCapabilityTest {
                     "Derive minimal IDS",
                     "requirementBrief",
                     briefWithoutMappings)));
-    assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass());
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
+    assertEquals(DesignMode.DERIVE, modePayload(prepared));
+    assertEquals(2, flowPayload(prepared).dataMappings().size());
+    assertTrue(
+        flowPayload(prepared).dataMappings().stream()
+            .allMatch(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.PASS_THROUGH));
+  }
+
+  @Test
+  void idsChoiceTextContainingAnArrowDoesNotBecomeAnExplicitMapping() {
+    DesignInputCapability capability = capabilityWithFixedGenerate(VALID_IDS);
+    RequirementBrief briefWithoutMappings =
+        new RequirementBrief(
+            "Orders",
+            List.of("HTTP POST /orders"),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Create order",
+            "draft-1",
+            "draft",
+            List.of(
+                fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger"),
+                fact("call-1", RequirementFactKind.SERVICE_CALL, "http-service-call")),
+            List.of());
+
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    DesignInputIdsPathPrompts.PENDING_DESIGN_MODE_ATTR,
+                    DesignMode.DERIVE,
+                    "userText",
+                    "Derive minimal IDS for endpoint -> service",
+                    "requirementBrief",
+                    briefWithoutMappings)));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
+    assertTrue(
+        flowPayload(prepared).dataMappings().stream()
+            .allMatch(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.PASS_THROUGH));
+  }
+
+  @Test
+  void describedMappingsBecomeExplicitRulesOnTheNormalizedFlow() {
+    DesignInputCapability capability = capabilityWithFixedGenerate(VALID_IDS);
+    RequirementBrief briefWithoutMappings =
+        new RequirementBrief(
+            "Orders",
+            List.of("HTTP POST /orders"),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Create order",
+            "draft-1",
+            "draft",
+            List.of(
+                fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger"),
+                fact("call-1", RequirementFactKind.SERVICE_CALL, "http-service-call")),
+            List.of());
+
+    StageOutcome prepared =
+        outcome(
+            capability,
+            context(
+                "design-input",
+                Map.of(
+                    "designEntryRoute",
+                    DesignEntryRoute.STANDARD,
+                    DesignInputIdsPathPrompts.PENDING_DESIGN_MODE_ATTR,
+                    DesignMode.GENERATE,
+                    "userText",
+                    "1: $.request.id -> $.headers.X-Request-Id\n2: $.inventory -> $.body",
+                    "requirementBrief",
+                    briefWithoutMappings)));
+
+    assertEquals(StageOutcomeClass.CANDIDATE, prepared.outcomeClass());
+    assertEquals(2, flowPayload(prepared).dataMappings().size());
+    assertTrue(
+        flowPayload(prepared).dataMappings().stream()
+            .allMatch(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.EXPLICIT));
     assertEquals(
-        PipelineGates.MAPPING_GAP,
-        PipelineGates.gateOf(prepared.message()).orElseThrow(),
-        prepared.message());
-    assertFalse(prepared.message().contains("Reply PASS_THROUGH"), prepared.message());
-    DesignInputIdsPathPrompts.MappingGapView view =
-        DesignInputIdsPathPrompts.parseMappingGapWait(prepared.message());
-    assertFalse(view.question().isBlank());
-    assertFalse(view.missingEdges().isEmpty());
-    assertTrue(
-        view.missingEdges().stream().anyMatch(edge -> edge.contains("INITIALIZATION")),
-        view.missingEdges().toString());
-    assertTrue(
-        view.missingEdges().stream().anyMatch(edge -> edge.contains("ENDPOINT")),
-        view.missingEdges().toString());
-    assertTrue(
-        view.missingEdges().stream()
-            .noneMatch(edge -> edge.contains("mapping required:")),
-        "readable edges must not use the technical id format: " + view.missingEdges());
+        "$.request.id",
+        flowPayload(prepared).dataMappings().getFirst().rules().getFirst().sourcePath());
+  }
+
+  @Test
+  void authoringPromptContainsTypedMappingRules() {
+    RequirementBrief brief =
+        new RequirementBrief(
+            "Orders",
+            List.of("HTTP POST /orders"),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Create order",
+            "draft-1",
+            "draft",
+            List.of(
+                fact("trigger-1", RequirementFactKind.ENDPOINT, "http-trigger"),
+                fact("call-1", RequirementFactKind.SERVICE_CALL, "http-service-call")),
+            List.of(
+                new RequirementDataMapping(
+                    "map-init",
+                    RequirementDataMapping.Stage.INITIALIZATION,
+                    "trigger-1",
+                    "call-1",
+                    RequirementDataMapping.Mode.EXPLICIT,
+                    List.of(new RequirementDataMapping.Rule("$.id", "$.customerId", null)),
+                    List.of("fact-map"))));
+
+    String prompt = DesignInputCapability.authoringPrompt(brief);
+
+    assertTrue(prompt.contains("map-init [INITIALIZATION, EXPLICIT]"), prompt);
+    assertTrue(prompt.contains("$.id -> $.customerId"), prompt);
   }
 
   @Test

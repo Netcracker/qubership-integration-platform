@@ -199,8 +199,8 @@ public class DesignPlanningCapability implements StageCapability {
    * Shows the planner the flow its report is checked against.
    *
    * <p>{@link DesignPlanProjector} rejects a report that names a participant outside the flow,
-   * that covers no trigger, or that leaves a mapping stage without a script step. The prose IDS
-   * alone does not carry those names, so a planner given only the IDS has to guess them.
+   * that covers no trigger, or that leaves an explicit mapping stage without a script step. The
+   * prose IDS alone does not carry those names, so a planner given only the IDS has to guess them.
    */
   static String buildPlannerInput(IdsDocument ids, NormalizedDesignFlow flow, String release) {
     return """
@@ -256,12 +256,35 @@ public class DesignPlanningCapability implements StageCapability {
           .append("\n");
     }
 
-    if (flow.dataMappings().isEmpty()) {
-      text.append("\nNo data mappings. Do not plan mapping scripts.\n");
+    List<NormalizedDesignFlow.DataMapping> explicitMappings =
+        flow.dataMappings().stream()
+            .filter(mapping -> mapping.mode() == NormalizedDesignFlow.MappingMode.EXPLICIT)
+            .toList();
+    if (explicitMappings.isEmpty()) {
+      text.append("\nNo explicit data mappings. Do not plan mapping scripts.\n");
     } else {
-      text.append("\nData mapping stages. Each needs a cip-script-generator step naming it:\n");
-      for (NormalizedDesignFlow.DataMapping mapping : flow.dataMappings()) {
-        text.append("- ").append(mapping.stage()).append("\n");
+      text.append(
+          "\nExplicit data mapping stages. Each needs a cip-script-generator step naming it:\n");
+      for (NormalizedDesignFlow.DataMapping mapping : explicitMappings) {
+        text.append("- ")
+            .append(mapping.mappingId())
+            .append(" ")
+            .append(mapping.stage())
+            .append(" ")
+            .append(mapping.fromStepId())
+            .append(" -> ")
+            .append(mapping.toStepId())
+            .append("\n");
+        for (NormalizedDesignFlow.MappingRule rule : mapping.rules()) {
+          text.append("  - ")
+              .append(rule.sourcePath())
+              .append(" -> ")
+              .append(rule.targetPath());
+          if (rule.expression() != null) {
+            text.append(" | expression: ").append(rule.expression());
+          }
+          text.append('\n');
+        }
       }
     }
     return text.toString();
