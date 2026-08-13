@@ -19,7 +19,7 @@ STRUCTURED="${5:-}"
 
 e2e_require_cmds curl python3
 
-# message:send blocks until the Task pauses or finishes, where a chat turn returns as soon as the
+# SendMessage blocks until the Task pauses or finishes, where a chat turn returns as soon as the
 # SSE stream closes. A whole stage can run inside one A2A turn, so it needs a longer budget.
 : "${E2E_A2A_TURN_TIMEOUT_SEC:=900}"
 
@@ -40,18 +40,31 @@ if structured:
 if not parts:
     raise SystemExit("a2a-turn: neither text nor structured data given")
 
-body = {"message": {"messageId": str(uuid.uuid4()), "role": "ROLE_USER", "parts": parts}}
+message_id = str(uuid.uuid4())
+body = {
+    "jsonrpc": "2.0",
+    "id": message_id,
+    "method": "SendMessage",
+    "params": {
+        "message": {
+            "messageId": message_id,
+            "role": "ROLE_USER",
+            "parts": parts,
+            "metadata": {"skillId": "create-chain@2"},
+        }
+    },
+}
 if task_id and task_id != "-":
-    body["message"]["taskId"] = task_id
+    body["params"]["message"]["taskId"] = task_id
 print(json.dumps(body))
 PY
 
-e2e_info "a2a POST ${BASE_URL}/message:send"
+e2e_info "a2a JSON-RPC SendMessage ${BASE_URL}/rpc"
 
 http_code="$(
   curl -sS --max-time "${E2E_A2A_TURN_TIMEOUT_SEC}" \
     -o "$OUT_JSON" -w '%{http_code}' \
-    -X POST "${BASE_URL}/message:send" \
+    -X POST "${BASE_URL}/rpc" \
     -H 'Content-Type: application/json' \
     -H 'A2A-Version: 1.0' \
     -d @"$payload_file"
@@ -61,9 +74,14 @@ if [[ "$http_code" != "200" ]]; then
   e2e_fail "a2a turn returned HTTP ${http_code}: $(head -c 400 "$OUT_JSON")"
 fi
 
+if jq -e '.error != null' "$OUT_JSON" >/dev/null; then
+  e2e_fail "a2a SendMessage returned JSON-RPC error: $(head -c 400 "$OUT_JSON")"
+fi
+
 NEW_TASK_ID="$(python3 -c '
 import json, sys
-task = json.load(open(sys.argv[1])).get("task") or {}
+result = json.load(open(sys.argv[1])).get("result") or {}
+task = result.get("task") or result
 print(task.get("id") or "")
 ' "$OUT_JSON")"
 

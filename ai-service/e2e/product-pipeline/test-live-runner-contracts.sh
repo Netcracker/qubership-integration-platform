@@ -32,6 +32,7 @@ rg -qF '${DIR}/scripts' "${SCENARIO_SH}" \
   || fail "run-product-scenario.sh must set SCRIPTS_DIR to product-pipeline/scripts"
 SCRIPTS_DIR="${DIR}/scripts"
 [[ -f "${SCRIPTS_DIR}/chat-turn.sh" ]] || fail "missing ${SCRIPTS_DIR}/chat-turn.sh"
+[[ -f "${SCRIPTS_DIR}/a2a-turn.sh" ]] || fail "missing ${SCRIPTS_DIR}/a2a-turn.sh"
 [[ -f "${SCRIPTS_DIR}/assert-catalog.sh" ]] || fail "missing ${SCRIPTS_DIR}/assert-catalog.sh"
 [[ -f "${SCRIPTS_DIR}/lib.sh" ]] || fail "missing ${SCRIPTS_DIR}/lib.sh"
 [[ ! -f "${DIR}/../scripts/run""-scenario.sh" ]] || fail "legacy CREATE scenario runner must be absent"
@@ -39,6 +40,20 @@ SCRIPTS_DIR="${DIR}/scripts"
 [[ ! -f "${DIR}/../scenarios.json" ]] || fail "legacy e2e/scenarios.json must be absent"
 [[ ! -f "${DIR}/../run-e2e.sh" ]] || fail "legacy e2e/run-e2e.sh must be absent"
 pass "shared helper paths and deleted CREATE-only harness"
+
+echo "=== A2A runner uses the advertised JSON-RPC interface ==="
+A2A_TURN_SH="${SCRIPTS_DIR}/a2a-turn.sh"
+rg -q '"method": "SendMessage"' "${A2A_TURN_SH}" \
+  || fail "a2a-turn.sh must call the A2A 1.0 SendMessage method"
+rg -q '"\$\{BASE_URL\}/rpc"' "${A2A_TURN_SH}" \
+  || fail "a2a-turn.sh must use the advertised /rpc endpoint"
+rg -q '"skillId": "create-chain@2"' "${A2A_TURN_SH}" \
+  || fail "a2a-turn.sh must select create-chain@2"
+rg -qF 'result.get("task")' "${A2A_TURN_SH}" \
+  || fail "a2a-turn.sh must read the JSON-RPC result.task envelope"
+! rg -q '/message:send' "${A2A_TURN_SH}" \
+  || fail "a2a-turn.sh must not call the unavailable REST message endpoint"
+pass "A2A JSON-RPC transport contract"
 
 
 echo "=== quality gate must deploy Compose without legacy runtime selectors ==="
