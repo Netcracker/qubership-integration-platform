@@ -469,13 +469,39 @@ cascade correctly under a schema not named `testing_service`.
 - Create: `testing-service/internal/qip/*.go`, `testing-service/internal/triggers/*.go`
 - Create: `testing-service/internal/triggers/http_trigger_test.go`
 
-- [ ] port the catalog and engine clients, dropping the M2M token calls — authorization rides on `Deps.HTTPClient`
-- [ ] point defaults at platform service names and pass the real `chainId` instead of the placeholder the source used
-- [ ] fix `resolvePathParameters`: strip the braces from the name and substitute the value
-- [ ] fix `buildUrl`: populate the query string from `requestSettings.QueryParameters`
-- [ ] move the per-case timeout from a per-activation client to `context.WithTimeout`, since the client is now shared, and build the request with `NewRequestWithContext`
-- [ ] write tests for path substitution (single, multiple, missing parameter), query parameters (none, one, repeated), and timeout cancellation
-- [ ] run `go test ./internal/triggers/...` - must pass before next task
+- [x] port the catalog and engine clients, dropping the M2M token calls — authorization rides on `Deps.HTTPClient`
+- [x] point defaults at platform service names and pass the real `chainId` instead of the placeholder the source used
+- [x] fix `resolvePathParameters`: strip the braces from the name and substitute the value
+- [x] fix `buildUrl`: populate the query string from `requestSettings.QueryParameters`
+- [x] move the per-case timeout from a per-activation client to `context.WithTimeout`, since the client is now shared, and build the request with `NewRequestWithContext`
+- [x] write tests for path substitution (single, multiple, missing parameter), query parameters (none, one, repeated), and timeout cancellation
+- [x] run `go test ./internal/triggers/...` - must pass before next task
+
+[decision] The aggregate client interface is gone. It existed to carry `M2MEnabled()` alongside `Catalog()` and
+`Engine()`, and with the M2M flag removed it was a pass-through. `qip.CatalogClient` and `qip.EngineClient` are now
+injected directly, so Task 8's trigger resolver takes the catalog client and the trigger factory takes the engine client.
+
+[decision] The clients take their address as a constructor argument rather than reading configuration themselves. The
+platform defaults already live in `config.Config` from Task 1, so nothing below `New` reads configuration.
+
+[decision] `FindChainElementById(ctx, id)` became `FindChainElement(ctx, chainID, elementID)`. The catalog ignores the
+chain segment and looks the element up by its own id, but `dao.TriggerReference` carries the real chain id, and sending
+`any-chain` made the request unreadable in the catalog's access log.
+
+[decision] `TriggerFactory` became `triggers.Factory` and `BuildHttpTrigger` became `NewHTTPTrigger`. `GetTrigger` also
+lost its `context.Context` parameter: the only thing that read it was the M2M token call.
+
+[decision] The session identifier moves through an unexported struct key, matching `dao.WithCurrentUser`. The source's
+untyped string key fails `staticcheck` SA1029. The accessors are `WithSessionID`/`SessionID` and return a `string`
+rather than a `*string`, since the empty case is already the error case.
+
+[deviation] Substituted path-parameter values are escaped with `url.PathEscape`. A value carrying a `/` or a `?` would
+otherwise reach a different route than the test case names. The source never substituted at all, so nothing depends on
+the unescaped form.
+
+[decision] Three smaller fixes that fell out of the port: `convertHttpResponseToExchange` dropped the underlying error
+on the floor, the response body is now closed by `Activate` rather than by the converter, and nil entries in the
+parameter and header slices are skipped instead of being dereferenced.
 
 ### Task 8: Services
 
