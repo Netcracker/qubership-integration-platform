@@ -88,6 +88,8 @@ public class SystemExportImportService {
     private static final String SPECIFICATION_EXISTS_ERROR_MESSAGE_START = "Specification with the version '";
     private static final String SPECIFICATION_EXISTS_BY_ID_ERROR_MESSAGE_START = "Specification with id '";
     private static final String SPECIFICATION_EXISTS_ERROR_MESSAGE_END = "' was not imported. ";
+    private static final List<IntegrationSystemType> SINGLE_ENVIRONMENT_SERVICE_TYPES = List
+            .of(IntegrationSystemType.INTERNAL, IntegrationSystemType.IMPLEMENTED);
     protected static final String CONFIG_DEPLOY_LABELS = "deployLabels";
 
     private final TransactionTemplate transactionTemplate;
@@ -531,38 +533,57 @@ public class SystemExportImportService {
             String deployLabel,
             Consumer<String> messageHandler,
             Set<String> technicalLabels) {
-        if (IntegrationSystemType.INTERNAL == newSystem.getIntegrationSystemType()) {
-            if (newSystem.getEnvironments().size() > 1) {
-                throw new RuntimeException("Can't have more than 1 environment on internal system");
-            }
-
-            Environment environment = newSystem.getEnvironments().isEmpty() ? null : newSystem.getEnvironments().get(0);
-            Environment oldEnvironment = oldSystem.getEnvironments().isEmpty() ? null : oldSystem.getEnvironments().get(0);
-
-            if (isInternalEnvironmentAddressChanged(environment, oldEnvironment)) {
-                messageHandler.accept(CHAINS_REDEPLOY_NEEDED_MSG);
-            }
-
-            if (environment == null && oldEnvironment != null) {
-                environmentService.deleteEnvironment(newSystem.getId(), oldEnvironment.getId());
-            } else if (environment != null && oldEnvironment != null) {
-                checkEnvironmentEquality(environment, oldEnvironment);
-                environment.setId(oldEnvironment.getId());
-            } else if (environment != null && oldEnvironment == null) {
-                markChainAsUnsaved(environment);
-            }
-
-            changeDiscoveredSourceLabels(newSystem, false);
-
+        if (SINGLE_ENVIRONMENT_SERVICE_TYPES.contains(newSystem.getIntegrationSystemType())) {
+            prepareSingleEnvironmentSystemForUpdate(newSystem, oldSystem, messageHandler);
         } else if (IntegrationSystemType.EXTERNAL == newSystem.getIntegrationSystemType()) {
-            removeDuplicateLabels(newSystem, oldSystem);
-            mergeEnvironmentsById(newSystem, oldSystem);
-
-            setActiveEnvironmentId(newSystem, oldSystem, deployLabel, messageHandler);
-            checkActiveEnvironmentEquality(newSystem, oldSystem);
+            prepareExternalSystemForUpdate(newSystem, oldSystem, deployLabel, messageHandler);
         }
         mergeNonTechnicalServiceLabels(newSystem, oldSystem);
         return mergeSpecificationGroups(newSystem, oldSystem, messageHandler, technicalLabels);
+    }
+
+    private void prepareSingleEnvironmentSystemForUpdate(
+            IntegrationSystem newSystem,
+            IntegrationSystem oldSystem,
+            Consumer<String> messageHandler) {
+        if (newSystem.getEnvironments().size() > 1) {
+            throw new RuntimeException(String.format("Can't have more than 1 environment on %s system",
+                    newSystem.getIntegrationSystemType().name().toLowerCase(Locale.ROOT)));
+        }
+
+        Environment environment = newSystem.getEnvironments().isEmpty() ? null : newSystem.getEnvironments().get(0);
+        Environment oldEnvironment = oldSystem.getEnvironments().isEmpty() ? null : oldSystem.getEnvironments().get(0);
+
+        if (isEnvironmentAddressChanged(environment, oldEnvironment)) {
+            messageHandler.accept(CHAINS_REDEPLOY_NEEDED_MSG);
+        }
+
+        mergeEnvironmentForUpdate(newSystem, environment, oldEnvironment);
+
+        changeDiscoveredSourceLabels(newSystem, false);
+    }
+
+    private void mergeEnvironmentForUpdate(IntegrationSystem newSystem, Environment environment, Environment oldEnvironment) {
+        if (environment == null && oldEnvironment != null) {
+            environmentService.deleteEnvironment(newSystem.getId(), oldEnvironment.getId());
+        } else if (environment != null && oldEnvironment != null) {
+            checkEnvironmentEquality(environment, oldEnvironment);
+            environment.setId(oldEnvironment.getId());
+        } else if (environment != null && oldEnvironment == null) {
+            markChainAsUnsaved(environment);
+        }
+    }
+
+    private void prepareExternalSystemForUpdate(
+            IntegrationSystem newSystem,
+            IntegrationSystem oldSystem,
+            String deployLabel,
+            Consumer<String> messageHandler) {
+        removeDuplicateLabels(newSystem, oldSystem);
+        mergeEnvironmentsById(newSystem, oldSystem);
+
+        setActiveEnvironmentId(newSystem, oldSystem, deployLabel, messageHandler);
+        checkActiveEnvironmentEquality(newSystem, oldSystem);
     }
 
     private void mergeNonTechnicalServiceLabels(IntegrationSystem newSystem, IntegrationSystem oldSystem) {
@@ -770,7 +791,7 @@ public class SystemExportImportService {
         return isNewSystem || systemModelService.getSystemModelOrElseNull(systemModel.getId()) == null;
     }
 
-    private boolean isInternalEnvironmentAddressChanged(Environment environment, Environment oldEnvironment) {
+    private boolean isEnvironmentAddressChanged(Environment environment, Environment oldEnvironment) {
         String environmentAddress = environment == null ? "" : StringUtils.defaultString(environment.getAddress());
         String oldEnvironmentAddress = oldEnvironment == null ? "" : StringUtils.defaultString(oldEnvironment.getAddress());
         return !environmentAddress.equals(oldEnvironmentAddress);
@@ -779,10 +800,6 @@ public class SystemExportImportService {
     private void checkActiveEnvironmentEquality(IntegrationSystem system, IntegrationSystem oldSystem) {
         String currentActiveEnv = system.getActiveEnvironmentId();
         String oldActiveEnv = oldSystem.getActiveEnvironmentId();
-
-        if (!Objects.equals(currentActiveEnv, oldActiveEnv)) {
-            return;
-        }
 
         Environment currentEnv = findEnvironment(system, currentActiveEnv);
         Environment oldEnv = findEnvironment(oldSystem, oldActiveEnv);
