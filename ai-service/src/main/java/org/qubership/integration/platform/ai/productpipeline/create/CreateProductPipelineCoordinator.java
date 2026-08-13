@@ -206,6 +206,10 @@ public class CreateProductPipelineCoordinator {
                           : ": " + doc.attempts().get(doc.attempts().size() - 1).failureEvidence())));
     }
     if (status == RunStatus.WAITING_FOR_IMPLEMENT) {
+      if (hint == ScenarioType.IMPLEMENT_CHAIN
+          || (text != null && text.toLowerCase(Locale.ROOT).contains("implement"))) {
+        return autoImplementAfterPlanApproval(conversationId, true);
+      }
       return Multi.createFrom().item(creationDecision(conversationId, doc));
     }
     if (status == RunStatus.WAITING_FOR_APPROVAL && approvesCurrentCandidate(conversationId, doc, text)) {

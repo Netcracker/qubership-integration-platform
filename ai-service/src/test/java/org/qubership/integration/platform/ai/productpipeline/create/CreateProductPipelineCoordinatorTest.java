@@ -219,6 +219,31 @@ public class CreateProductPipelineCoordinatorTest {
   }
 
   @Test
+  void implementIntentAtTheImplementationGateStartsMaterialization() {
+    CreateProductPipelineCoordinator coordinator = fixture.coordinatorWith(approvingAgent());
+    ChatRequest start = new ChatRequest();
+    start.setResolvedEffectiveUserText("create greetings API");
+    coordinator.handle(start, "conv-implement").collect().asList().await().indefinitely();
+
+    for (int turn = 0; turn < 8; turn++) {
+      RunStatus status = coordinator.loadRun("conv-implement").orElseThrow().run().status();
+      if (status == RunStatus.WAITING_FOR_IMPLEMENT) {
+        break;
+      }
+      ChatRequest reply = new ChatRequest();
+      reply.setResolvedEffectiveUserText("Looks good, continue");
+      coordinator.handle(reply, "conv-implement").collect().asList().await().indefinitely();
+    }
+
+    ChatRequest implement = new ChatRequest();
+    implement.setResolvedEffectiveUserText("Implement it");
+    implement.setScenarioHint(org.qubership.integration.platform.ai.model.ScenarioType.IMPLEMENT_CHAIN);
+    coordinator.handle(implement, "conv-implement").collect().asList().await().indefinitely();
+
+    assertEquals(1, fixture.materializationCalls().get());
+  }
+
+  @Test
   void restartsAfterRequirementApprovalWithoutAdapterState() {
     CreateProductPipelineCoordinator coordinator = fixture.coordinator();
     ChatRequest request = new ChatRequest();
