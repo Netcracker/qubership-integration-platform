@@ -16,6 +16,10 @@ import { ChainCreationRequest, EntityLabel } from "../../api/apiTypes.ts";
 import type { FieldData } from "../../types/antd.ts";
 import { api } from "../../api/api.ts";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
+import {
+  decodeStoredText,
+  normalizeStoredText,
+} from "../../misc/chainMetadataSanitizer.ts";
 
 const { TextArea } = Input;
 
@@ -84,8 +88,8 @@ export const ChainCreate: React.FC<ChainCreateProps> = (props) => {
         }
         form.setFieldsValue({
           name: chain.name ?? "",
-          labels: chain.labels?.map((l) => l.name) ?? [],
-          description: chain.description ?? "",
+          labels: chain.labels?.map((l) => decodeStoredText(l.name)) ?? [],
+          description: decodeStoredText(chain.description),
           businessDescription: chain.businessDescription ?? "",
           assumptions: chain.assumptions ?? "",
           outOfScope: chain.outOfScope ?? "",
@@ -176,19 +180,22 @@ export const ChainCreate: React.FC<ChainCreateProps> = (props) => {
             try {
               const labels: EntityLabel[] =
                 values.labels?.map((s) => ({
-                  name: s,
+                  name: normalizeStoredText(s) ?? "",
                   technical: false,
                 })) ?? [];
+              const metadataFields = {
+                description: normalizeStoredText(values.description),
+                businessDescription: values.businessDescription,
+                assumptions: values.assumptions,
+                outOfScope: values.outOfScope,
+              };
               if (props.variant === "editChainMetaData") {
                 const result = props.onUpdateMetadata(
                   props.chainId,
                   {
                     name: values.name,
                     labels,
-                    description: values.description,
-                    businessDescription: values.businessDescription,
-                    assumptions: values.assumptions,
-                    outOfScope: values.outOfScope,
+                    ...metadataFields,
                   },
                   values.openChain,
                   values.newTab,
@@ -198,10 +205,7 @@ export const ChainCreate: React.FC<ChainCreateProps> = (props) => {
                 const result = props.onSubmit(
                   {
                     name: values.name,
-                    description: values.description,
-                    businessDescription: values.businessDescription,
-                    assumptions: values.assumptions,
-                    outOfScope: values.outOfScope,
+                    ...metadataFields,
                     labels,
                   },
                   values.openChain,

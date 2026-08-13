@@ -105,6 +105,12 @@ import qs from "qs";
 import { getAppName, getConfig } from "../../appConfig.ts";
 import { EntityFilterModel } from "../../components/table/filter/filterTypes.ts";
 import { registerRestAxiosInstance } from "./requestHeadersInterceptor.ts";
+import {
+  sanitizeChainCreationRequest,
+  sanitizeChainUpdate,
+  sanitizeServiceRequest,
+  sanitizeServiceUpdate,
+} from "../../misc/chainMetadataSanitizer.ts";
 import type {
   ApiError,
   ApiResponse,
@@ -558,7 +564,7 @@ export class RestApi implements Api {
   updateChain = async (id: string, chain: Partial<Chain>): Promise<Chain> => {
     const response = await this.instance.put<Chain>(
       `${this.v1()}/catalog/chains/${id}`,
-      chain,
+      sanitizeChainUpdate(chain),
     );
     return response.data;
   };
@@ -566,7 +572,7 @@ export class RestApi implements Api {
   createChain = async (chain: ChainCreationRequest): Promise<Chain> => {
     const response = await this.instance.post<Chain>(
       `${this.v1()}/catalog/chains`,
-      chain,
+      sanitizeChainCreationRequest(chain),
     );
     return response.data;
   };
@@ -1328,7 +1334,7 @@ export class RestApi implements Api {
   createService = async (system: SystemRequest): Promise<IntegrationSystem> => {
     const response = await this.instance.post<IntegrationSystem>(
       `${this.v1()}/systems-catalog/systems`,
-      system,
+      sanitizeServiceRequest(system),
     );
     return response.data;
   };
@@ -1535,7 +1541,7 @@ export class RestApi implements Api {
   ): Promise<ContextSystem> => {
     const response = await this.instance.post<ContextSystem>(
       `${this.v1()}/catalog/context-system`,
-      system,
+      sanitizeServiceUpdate(system),
     );
     return response.data;
   };
@@ -1546,7 +1552,7 @@ export class RestApi implements Api {
   ): Promise<ContextSystem> => {
     const response = await this.instance.put<ContextSystem>(
       `${this.v1()}/catalog/context-system/${id}`,
-      data,
+      sanitizeServiceUpdate(data),
     );
     return response.data;
   };
@@ -1589,7 +1595,7 @@ export class RestApi implements Api {
   ): Promise<IntegrationSystem> => {
     const response = await this.instance.put<IntegrationSystem>(
       `${this.v1()}/systems-catalog/systems/${id}`,
-      data,
+      sanitizeServiceUpdate(data),
     );
     return response.data;
   };

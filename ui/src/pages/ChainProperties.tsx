@@ -23,6 +23,10 @@ import {
 import { usePermissions } from "../permissions/usePermissions.tsx";
 import { hasPermissions } from "../permissions/funcs.ts";
 import { Require } from "../permissions/Require.tsx";
+import {
+  decodeStoredText,
+  normalizeStoredText,
+} from "../misc/chainMetadataSanitizer.ts";
 
 const { TextArea } = Input;
 const { useForm } = Form;
@@ -100,8 +104,10 @@ export const ChainProperties: React.FC = () => {
               .map(([, value]) => value)
               .join("/")
           : undefined,
-        labels: chainContext.chain.labels?.map((label) => label.name) ?? [],
-        description: chainContext.chain.description ?? "",
+        labels: chainContext.chain.labels?.map((label) =>
+          decodeStoredText(label.name),
+        ) ?? [],
+        description: decodeStoredText(chainContext.chain.description),
         businessDescription: chainContext.chain.businessDescription ?? "",
         assumptions: chainContext.chain.assumptions ?? "",
         outOfScope: chainContext.chain.outOfScope ?? "",
@@ -116,8 +122,11 @@ export const ChainProperties: React.FC = () => {
 
     const changes: Partial<Chain> = {
       name: values.name,
-      labels: values.labels?.map((name) => ({ name, technical: false })),
-      description: values.description,
+      labels: values.labels?.map((name) => ({
+        name: normalizeStoredText(name) ?? "",
+        technical: false,
+      })),
+      description: normalizeStoredText(values.description),
       businessDescription: values.businessDescription,
       assumptions: values.assumptions,
       outOfScope: values.outOfScope,

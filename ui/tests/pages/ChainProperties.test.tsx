@@ -207,6 +207,22 @@ describe("ChainProperties", () => {
     expect(mockMoveChain).not.toHaveBeenCalled();
   });
 
+  it("escapes description on save", async () => {
+    render(<ChainProperties />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Description" }), {
+      target: { value: "<h1>test</h1>" },
+    });
+    fireEvent.submit(document.getElementById("chain-properties-form")!);
+
+    await waitFor(() => expect(mockChainUpdate).toHaveBeenCalled());
+    expect(mockChainUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: "&lt;h1&gt;test&lt;/h1&gt;",
+      }),
+    );
+  });
+
   it("should label the group field Group when running in the extension", () => {
     mockIsVsCode = true;
     render(<ChainProperties />);

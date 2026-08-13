@@ -132,6 +132,63 @@ describe("ChainCreate", () => {
     expect(mockCloseContainingModal).toHaveBeenCalled();
   });
 
+  it("create mode escapes description before submit", async () => {
+    const onSubmit = jest.fn();
+    render(<ChainCreate onSubmit={onSubmit} />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+      target: { value: "XSS Chain" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Description" }), {
+      target: { value: '<img src=x onerror=alert(1)>' },
+    });
+
+    const form = document.getElementById("createChainForm");
+    fireEvent.submit(form!);
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: "&lt;img src=x onerror=alert(1)&gt;",
+      }),
+      true,
+      false,
+    );
+  });
+
+  it("create mode escapes labels before submit (CIP-2236)", async () => {
+    const onSubmit = jest.fn();
+    render(<ChainCreate onSubmit={onSubmit} />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+      target: { value: "XSS Chain" },
+    });
+
+    const xssLabel = "<h1>test</h1>";
+    const labelsInput = screen.getByRole("combobox", { name: "Labels" });
+    fireEvent.change(labelsInput, { target: { value: xssLabel } });
+    fireEvent.keyDown(labelsInput, {
+      key: "Enter",
+      code: "Enter",
+      keyCode: 13,
+    });
+
+    fireEvent.submit(document.getElementById("createChainForm")!);
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        labels: [{ name: "&lt;h1&gt;test&lt;/h1&gt;", technical: false }],
+      }),
+      true,
+      false,
+    );
+  });
+
   it("create mode does not call onSubmit when name is empty", () => {
     const onSubmit = jest.fn();
     render(<ChainCreate onSubmit={onSubmit} />);
@@ -202,6 +259,65 @@ describe("ChainCreate", () => {
       false,
     );
     expect(mockCloseContainingModal).toHaveBeenCalled();
+  });
+
+  it("edit mode decodes stored description when loading", async () => {
+    mockGetChain.mockResolvedValue(
+      minimalChain({
+        description: "&lt;h1&gt;test&lt;/h1&gt;",
+      }),
+    );
+
+    render(
+      <ChainCreate
+        variant="editChainMetaData"
+        chainId="chain-1"
+        onUpdateMetadata={jest.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByDisplayValue("<h1>test</h1>"),
+    ).toBeInTheDocument();
+  });
+
+  it("edit mode escapes labels before update (CIP-2236)", async () => {
+    mockGetChain.mockResolvedValue(
+      minimalChain({ name: "Loaded Chain", labels: [] }),
+    );
+    const onUpdateMetadata = jest.fn();
+
+    render(
+      <ChainCreate
+        variant="editChainMetaData"
+        chainId="chain-1"
+        onUpdateMetadata={onUpdateMetadata}
+      />,
+    );
+
+    await screen.findByDisplayValue("Loaded Chain");
+    const xssLabel = "<h1>test</h1>";
+    const labelsInput = screen.getByRole("combobox", { name: "Labels" });
+    fireEvent.change(labelsInput, { target: { value: xssLabel } });
+    fireEvent.keyDown(labelsInput, {
+      key: "Enter",
+      code: "Enter",
+      keyCode: 13,
+    });
+
+    fireEvent.submit(document.getElementById("editChainMetadataForm")!);
+
+    await waitFor(() => {
+      expect(onUpdateMetadata).toHaveBeenCalled();
+    });
+    expect(onUpdateMetadata).toHaveBeenCalledWith(
+      "chain-1",
+      expect.objectContaining({
+        labels: [{ name: "&lt;h1&gt;test&lt;/h1&gt;", technical: false }],
+      }),
+      false,
+      false,
+    );
   });
 
   it("edit mode footer shows Submit after chain loads", async () => {
