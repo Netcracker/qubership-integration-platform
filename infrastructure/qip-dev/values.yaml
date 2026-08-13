@@ -2,6 +2,9 @@ postgres:
   username: postgres
   password: postgres
 
+gateways:
+  enabled: true
+
 global:
   blueGreenVersion: v1
   postgres:
