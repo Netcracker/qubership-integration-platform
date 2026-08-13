@@ -248,7 +248,7 @@ class HttpRouteResourceBuilderTest {
         // SnakeYAML always quotes a scalar containing flow-indicator characters ("[", "]",
         // "^"), regardless of MINIMIZE_QUOTES, since an unquoted plain scalar with those
         // characters would not round-trip as this exact string.
-        assertTrue(result.contains("value: \"/qip-routes/orders/[^/]+\""));
+        assertTrue(result.contains("value: \"/qip-routes/orders/[^/]+/?\""));
     }
 
     @Test
@@ -271,12 +271,12 @@ class HttpRouteResourceBuilderTest {
         Map<String, Object> priorSpec = new LinkedHashMap<>();
         priorSpec.put("rules", List.of(
                 Map.of("matches", List.of(Map.of("path",
-                        Map.of("type", "RegularExpression", "value", "/qip-routes/orders/[^/]+"))))));
+                        Map.of("type", "RegularExpression", "value", "/qip-routes/orders/[^/]+/?"))))));
         context.getBuildCache().put("publicHttpRoute", priorSpec);
 
         String result = builder.build(context);
 
-        long occurrences = result.split("/qip-routes/orders/\\[\\^/\\]\\+", -1).length - 1;
+        long occurrences = result.split("/qip-routes/orders/\\[\\^/\\]\\+/\\?", -1).length - 1;
         assertEquals(1, occurrences);
         assertTrue(result.contains("9000ms"));
     }

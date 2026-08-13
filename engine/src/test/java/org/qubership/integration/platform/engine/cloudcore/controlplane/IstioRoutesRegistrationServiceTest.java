@@ -99,12 +99,12 @@ class IstioRoutesRegistrationServiceTest {
         HTTPRouteSpec spec = new ObjectMapper().convertValue(captor.getValue().getBody().getSpec(), HTTPRouteSpec.class);
         HTTPPathMatch pathMatch = spec.getRules().get(0).getMatches().get(0).getPath();
         assertEquals("RegularExpression", pathMatch.getType());
-        assertEquals(BASE_PATH + "/chain-a/[^/]+", pathMatch.getValue());
+        assertEquals(BASE_PATH + "/chain-a/[^/]+/?", pathMatch.getValue());
     }
 
     @Test
     void postPublicEngineRoutesReplacesOwnStaleRegularExpressionRuleInsteadOfDuplicating() {
-        HTTPRouteRule staleRule = rule("RegularExpression", BASE_PATH + "/chain-a/[^/]+", CLOUD_SERVICE_NAME);
+        HTTPRouteRule staleRule = rule("RegularExpression", BASE_PATH + "/chain-a/[^/]+/?", CLOUD_SERVICE_NAME);
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(staleRule))));
 
         service.postPublicEngineRoutes(

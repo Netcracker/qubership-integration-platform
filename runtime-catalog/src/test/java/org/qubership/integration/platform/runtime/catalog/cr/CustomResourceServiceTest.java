@@ -274,7 +274,7 @@ class CustomResourceServiceTest {
                 DeploymentRoute.builder().path("/orders/{id}").type(RouteType.EXTERNAL_TRIGGER).build()));
         when(kubeOperator.getCustomObject(eq(GROUP), eq(VERSION), eq(PLURAL), eq(PUBLIC_ROUTE_NAME)))
                 .thenReturn(Optional.of(httpRoute(PUBLIC_ROUTE_NAME,
-                        List.of(rule("RegularExpression", "/qip-routes/orders/[^/]+")))));
+                        List.of(rule("RegularExpression", "/qip-routes/orders/[^/]+/?")))));
 
         customResourceService.deleteChainSnapshotHttpRoutes(DOMAIN, "snapshot-1");
 

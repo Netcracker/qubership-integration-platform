@@ -24,9 +24,12 @@ import java.util.regex.Pattern;
  * correctly matches it: {@code PathPrefix} for a literal path, or {@code RegularExpression}
  * for a path containing one or more {@code {param}} placeholders (each placeholder is
  * replaced with {@code [^/]+}; no anchors are added, since Istio/Envoy's regex path
- * matching already requires a full match). Equality is by (type, value), so an instance can
- * be used both to build a new rule's match and as an identity key when checking whether an
- * existing rule's match belongs to a given route.
+ * matching already requires a full match). Unless the path already ends in a slash, a
+ * trailing {@code /?} is appended to the regex so it stays optional, matching
+ * {@code PathPrefix}'s own behavior of treating a path and that same path with a trailing
+ * slash as equivalent. Equality is by (type, value), so an instance can be used both to
+ * build a new rule's match and as an identity key when checking whether an existing rule's
+ * match belongs to a given route.
  */
 public final class GatewayPathMatch {
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{[^{}/]+\\}");
@@ -42,9 +45,11 @@ public final class GatewayPathMatch {
     }
 
     public static GatewayPathMatch forPath(String path) {
-        return PLACEHOLDER.matcher(path).find()
-                ? new GatewayPathMatch(REGULAR_EXPRESSION, PLACEHOLDER.matcher(path).replaceAll("[^/]+"))
-                : new GatewayPathMatch(PATH_PREFIX, path);
+        if (!PLACEHOLDER.matcher(path).find()) {
+            return new GatewayPathMatch(PATH_PREFIX, path);
+        }
+        String regex = PLACEHOLDER.matcher(path).replaceAll("[^/]+");
+        return new GatewayPathMatch(REGULAR_EXPRESSION, regex.endsWith("/") ? regex : regex + "/?");
     }
 
     public static GatewayPathMatch of(String type, String value) {
