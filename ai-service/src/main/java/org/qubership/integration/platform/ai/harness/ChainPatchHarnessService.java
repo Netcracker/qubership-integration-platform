@@ -1,0 +1,154 @@
+package org.qubership.integration.platform.ai.harness;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
+import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchCapture;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchOwnership;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchPipeline;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchWriteResult;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchWriter;
+import org.qubership.integration.platform.ai.chain.patch.PatchedChain;
+import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
+import org.qubership.integration.platform.ai.llm.agent.ChainPatchAgent;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplyResult;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchShapeValidator;
+import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPatchApplier;
+
+/**
+ * Drives the COMPARE_AND_PATCH pipeline against an existing catalog chain for a regression run,
+ * applying the patch as soon as it validates rather than waiting on a decision card.
+ *
+ * <p>Same import-agent-capture-apply-write path {@code ChainPatchScenario} uses in production
+ * (via {@link ChainPatchPipeline}), minus the confirmation round trip: a regression run has no
+ * reader to answer a card, and ADR 0001 places that gate on the interactive path, not on this one.
+ */
+@ApplicationScoped
+public class ChainPatchHarnessService {
+
+  private static final Logger LOG = Logger.getLogger(ChainPatchHarnessService.class);
+
+  private final ChainCatalogFactsService factsService;
+  private final ChainPlanGraphImporter importer;
+  private final ChainPatchAgent agent;
+  private final ChainPatchStore patchStore;
+  private final ChainPatchOwnership ownership;
+  private final ValidatedGraphPatchApplier patchApplier;
+  private final ChainPatchWriter writer;
+  private final ObjectMapper objectMapper;
+
+  @Inject
+  public ChainPatchHarnessService(
+      ChainCatalogFactsService factsService,
+      ChainPlanGraphImporter importer,
+      ChainPatchAgent agent,
+      ChainPatchStore patchStore,
+      ChainPatchOwnership ownership,
+      ValidatedGraphPatchApplier patchApplier,
+      ChainPatchWriter writer,
+      ObjectMapper objectMapper) {
+    this.factsService = factsService;
+    this.importer = importer;
+    this.agent = agent;
+    this.patchStore = patchStore;
+    this.ownership = ownership;
+    this.patchApplier = patchApplier;
+    this.writer = writer;
+    this.objectMapper = objectMapper;
+  }
+
+  public ChainPatchHarnessResponse run(ChainPatchHarnessRequest request) {
+    String conversationId = resolveConversationId(request.conversationId());
+    String chainId = request.chainId().trim();
+    try {
+      return runPipeline(conversationId, chainId, request.prompt().trim());
+    } catch (RuntimeException e) {
+      LOG.errorf(
+          e, "Chain patch harness run failed conversationId=%s chainId=%s", conversationId, chainId);
+      return failed(conversationId, failureMessage(e), false);
+    }
+  }
+
+  private ChainPatchHarnessResponse runPipeline(String conversationId, String chainId, String prompt) {
+    ImportedChainPlan imported = importer.importChain(factsService.load(chainId));
+
+    // Cleared first so a run whose model proposes nothing cannot pick up a stale capture.
+    patchStore.takeCapture(conversationId);
+
+    List<String> tokens =
+        agent.chat(
+                conversationId,
+                ChainPatchPipeline.buildPatchRequest(objectMapper, imported.graph(), prompt))
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    Optional<ChainPatchCapture> captured = patchStore.takeCapture(conversationId);
+    if (captured.isEmpty()) {
+      String said = String.join("", tokens);
+      return failed(conversationId, said.isBlank() ? "No patch proposed." : said, false);
+    }
+
+    GraphPatch patch = ChainPatchPipeline.toGraphPatch(captured.get());
+    List<String> shapeErrors = GraphPatchShapeValidator.validate(patch);
+    if (!shapeErrors.isEmpty()) {
+      return failed(conversationId, GraphPatchShapeValidator.summarize(shapeErrors), false);
+    }
+
+    GraphPatchApplyResult applied =
+        patchApplier.apply(
+            ChainPatchPipeline.executionContext(imported, chainId, patch, ownership), patch);
+    if (!applied.applied()) {
+      return failed(
+          conversationId, "Outside what this skill may edit: " + applied.validationResult().summary(), true);
+    }
+
+    PatchedChain patched = new PatchedChain(applied.graph(), imported.materializationMap());
+    ChainPatchWriteResult result = writer.write(patched, patch);
+    List<String> changedElementIds = result.changedCatalogElementIds();
+    List<String> failedElementIds = result.failedCatalogElementIds();
+
+    if (result.succeeded()) {
+      return new ChainPatchHarnessResponse(
+          conversationId,
+          SkillHarnessStatus.COMPLETED,
+          "Changed " + changedElementIds.size() + " element(s).",
+          false,
+          changedElementIds,
+          failedElementIds);
+    }
+    String message = result.error() != null ? result.error() : "Some elements could not be changed.";
+    return new ChainPatchHarnessResponse(
+        conversationId, SkillHarnessStatus.FAILED, message, false, changedElementIds, failedElementIds);
+  }
+
+  private static ChainPatchHarnessResponse failed(
+      String conversationId, String message, boolean scopeViolation) {
+    return new ChainPatchHarnessResponse(
+        conversationId, SkillHarnessStatus.FAILED, message, scopeViolation, List.of(), List.of());
+  }
+
+  private static String resolveConversationId(String conversationId) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return UUID.randomUUID().toString();
+    }
+    return conversationId.trim();
+  }
+
+  private static String failureMessage(Exception e) {
+    String message = e.getMessage();
+    if (message == null || message.isBlank()) {
+      return e.getClass().getSimpleName();
+    }
+    return message;
+  }
+}

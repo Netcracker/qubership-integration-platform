@@ -10,6 +10,9 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.Map;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.harness.ChainPatchHarnessRequest;
+import org.qubership.integration.platform.ai.harness.ChainPatchHarnessResponse;
+import org.qubership.integration.platform.ai.harness.ChainPatchHarnessService;
 import org.qubership.integration.platform.ai.harness.SkillHarnessRequest;
 import org.qubership.integration.platform.ai.harness.SkillHarnessResponse;
 import org.qubership.integration.platform.ai.harness.SkillHarnessService;
@@ -22,10 +25,13 @@ public class SkillHarnessResource {
   private static final Logger LOG = Logger.getLogger(SkillHarnessResource.class);
 
   private final SkillHarnessService harnessService;
+  private final ChainPatchHarnessService chainPatchHarnessService;
 
   @Inject
-  public SkillHarnessResource(SkillHarnessService harnessService) {
+  public SkillHarnessResource(
+      SkillHarnessService harnessService, ChainPatchHarnessService chainPatchHarnessService) {
     this.harnessService = harnessService;
+    this.chainPatchHarnessService = chainPatchHarnessService;
   }
 
   @POST
@@ -51,6 +57,28 @@ public class SkillHarnessResource {
         request.conversationId(), request.chainId(), request.skillId());
 
     SkillHarnessResponse response = harnessService.run(request);
+    return Response.ok(response).build();
+  }
+
+  @POST
+  @Path("/chain-patch-run")
+  @Blocking
+  @Consumes(MediaType.APPLICATION_JSON)
+  public Response runChainPatch(ChainPatchHarnessRequest request) {
+    if (request == null) {
+      return badRequest("Request body is required");
+    }
+    if (isBlank(request.chainId())) {
+      return badRequest("chainId is required");
+    }
+    if (isBlank(request.prompt())) {
+      return badRequest("prompt is required");
+    }
+
+    LOG.infof(
+        "chain patch harness run: conversationId=%s chainId=%s", request.conversationId(), request.chainId());
+
+    ChainPatchHarnessResponse response = chainPatchHarnessService.run(request);
     return Response.ok(response).build();
   }
 

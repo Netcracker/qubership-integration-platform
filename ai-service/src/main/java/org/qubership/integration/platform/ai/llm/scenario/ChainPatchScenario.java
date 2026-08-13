@@ -1,6 +1,5 @@
 package org.qubership.integration.platform.ai.llm.scenario;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -13,6 +12,7 @@ import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporte
 import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchCapture;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchOwnership;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchPipeline;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchSummary;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchWriteResult;
@@ -26,13 +26,11 @@ import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.llm.agent.ChainPatchAgent;
-import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplyResult;
-import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchShapeValidator;
 import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPatchApplier;
 
@@ -49,7 +47,6 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPa
 public class ChainPatchScenario implements ScenarioHandler {
 
   private static final Logger LOG = Logger.getLogger(ChainPatchScenario.class);
-  private static final String OWNER = "chain-patch";
 
   private final ChainContextExtractor chainContextExtractor;
   private final ChainCatalogFactsService factsService;
@@ -119,7 +116,9 @@ public class ChainPatchScenario implements ScenarioHandler {
 
     String userMessage = request == null ? "" : request.getEffectiveUserText();
     return agent
-        .chat(conversationId, buildPatchRequest(imported.graph(), userMessage))
+        .chat(
+            conversationId,
+            ChainPatchPipeline.buildPatchRequest(objectMapper, imported.graph(), userMessage))
         .collect()
         .asList()
         .onItem()
@@ -146,14 +145,15 @@ public class ChainPatchScenario implements ScenarioHandler {
               : said);
     }
 
-    GraphPatch patch = toGraphPatch(captured.get());
+    GraphPatch patch = ChainPatchPipeline.toGraphPatch(captured.get());
     List<String> shapeErrors = GraphPatchShapeValidator.validate(patch);
     if (!shapeErrors.isEmpty()) {
       return message("The change could not be read: " + GraphPatchShapeValidator.summarize(shapeErrors));
     }
 
     GraphPatchApplyResult applied =
-        patchApplier.apply(executionContext(imported, chainId, patch), patch);
+        patchApplier.apply(
+            ChainPatchPipeline.executionContext(imported, chainId, patch, ownership), patch);
     if (!applied.applied()) {
       return message("That change is outside what I may edit here: " + applied.validationResult().summary());
     }
@@ -229,55 +229,6 @@ public class ChainPatchScenario implements ScenarioHandler {
         .map(node -> node.label() == null || node.label().isBlank() ? node.nodeId() : node.label())
         .findFirst()
         .orElse(nodeId);
-  }
-
-  private GraphPatchExecutionContext executionContext(
-      ImportedChainPlan imported, String chainId, GraphPatch patch) {
-    return new GraphPatchExecutionContext(
-        chainId,
-        OWNER,
-        null,
-        imported.baseGraphDigest(),
-        null,
-        null,
-        null,
-        List.of(),
-        imported.graph(),
-        ownership.forChain(imported.graph(), patch),
-        null);
-  }
-
-  private static GraphPatch toGraphPatch(ChainPatchCapture capture) {
-    return new GraphPatch(
-        capture.patchId(),
-        OWNER,
-        capture.nodePatches(),
-        capture.edgePatches(),
-        capture.propertyPatches(),
-        null,
-        List.of(),
-        capture.rationale());
-  }
-
-  private String buildPatchRequest(ChainPlanGraph graph, String userMessage) {
-    String graphJson;
-    try {
-      graphJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(graph);
-    } catch (JsonProcessingException e) {
-      throw new IllegalStateException("Cannot render the chain graph for the model", e);
-    }
-    String body =
-        """
-        Change this chain as the user asks.
-
-        User request:
-        %s
-
-        Chain graph (the current state of the chain; node ids are catalog element ids):
-        %s
-        """
-            .formatted(userMessage, graphJson);
-    return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body);
   }
 
   private static Multi<ChatEvent> message(String text) {

@@ -76,7 +76,7 @@ class ChainPatchScenarioTest {
             new GraphPatchOwnershipPolicy(
                 false, false, Set.of(), Set.of(), Map.of("script", Set.of("script"))));
     when(writer.write(any(), any()))
-        .thenReturn(new ChainPatchWriteResult(List.of("element-script"), List.of(), null));
+        .thenReturn(new ChainPatchWriteResult(List.of("element-script"), List.of(), null, null));
 
     scenario =
         new ChainPatchScenario(

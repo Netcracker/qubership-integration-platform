@@ -62,7 +62,7 @@ public class ChainPatchWriter {
     Map<String, Set<String>> changedKeysByNodeId = changedKeysByNodeId(patch);
     List<ChainPlanEdge> addedEdges = addedEdges(patch);
     if (addedNodeIds.isEmpty() && changedKeysByNodeId.isEmpty()) {
-      return new ChainPatchWriteResult(List.of(), List.of(), null);
+      return new ChainPatchWriteResult(List.of(), List.of(), null, patched.materializationMap());
     }
 
     Map<String, String> nodeIdToElementId =
@@ -121,7 +121,7 @@ public class ChainPatchWriter {
 
     List<String> changed =
         touched.stream().map(ChainPlanNode::nodeId).filter(id -> !failed.contains(id)).toList();
-    return new ChainPatchWriteResult(changed, List.copyOf(failed), error);
+    return new ChainPatchWriteResult(changed, List.copyOf(failed), error, map);
   }
 
   /** Added nodes in graph order, which puts a container before the children it holds. */

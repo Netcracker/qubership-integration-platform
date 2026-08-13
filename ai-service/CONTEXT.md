@@ -114,14 +114,15 @@ _Avoid_: approval prose, "type yes to confirm"
 (`SkillHarnessResource`) against a real catalog chain it creates for the run. This harness path is
 scoped to single-element regression checks for generator skills, deliberately avoids
 `ChainPlanGraph` (README: "Do not use ChainPlanGraph on this path"), and bypasses the chat router
-entirely — it is not a production entry point. The regression README already carves out
-"GraphPatch-only" generators as a known deferred/future suite category.
+entirely — it is not a production entry point.
 
-**COMPARE_AND_PATCH regression mode** (decided, not yet built):
-A second harness mode, separate from the existing single-element-on-empty-chain suites: seeds a
-small non-empty base chain, drives the `COMPARE_AND_PATCH` import->patch path directly (same
-bypass-the-router principle the harness already uses), and compares both (a) the patched
-element(s) against golden and (b) every untouched element stays byte-identical to the base golden
--- the second check is what actually proves the patch didn't touch anything outside its scope.
-The harness applies the patch without a decision card (ADR 0001), consistent with it already
-bypassing the router and the conversation model for every other skill.
+**COMPARE_AND_PATCH regression mode** (built):
+A second harness mode (`run-patch-suite.sh`), separate from the single-element-on-empty-chain
+suites above: seeds a small non-empty base chain per case, drives `POST
+/api/v1/harness/chain-patch-run` (`ChainPatchHarnessService`) — the same import→agent→capture→
+apply→write path `ChainPatchScenario` uses in production, via the shared `ChainPatchPipeline`,
+minus the decision card (ADR 0001; a regression run has no reader to answer one) — and compares
+both (a) the patched element(s) against golden and (b) every untouched element reads back exactly
+as seeded. The second check is what actually proves the patch didn't touch anything outside its
+scope; a violation reports as `SCOPE_VIOLATION`, distinct from an ordinary `FAIL`. Case files and
+the case-shape README section live under `integration-platform-skills/regression/`.
