@@ -7,8 +7,13 @@ import org.junit.jupiter.api.Test;
 
 class UserIntentPatternsTest {
 
+  /**
+   * Survives ticket 10: naming a chain to build is how a conversation starts, before any run
+   * exists and therefore before any gate. Nothing durable turns on the match — it picks which
+   * scenario answers the turn.
+   */
   @Test
-  void matchesCreateChainIntentEnglish() {
+  void createChainIntentSurvivesAsAConversationOpener() {
     assertTrue(UserIntentPatterns.matchesCreateChainIntent("implement the chain"));
     assertTrue(UserIntentPatterns.matchesCreateChainIntent("build a chain"));
     assertTrue(UserIntentPatterns.matchesCreateChainIntent("create chain"));
@@ -52,14 +57,23 @@ class UserIntentPatternsTest {
     assertFalse(UserIntentPatterns.matchesModifyPlan("Agree"));
   }
 
+  /**
+   * Survives ticket 10: it serves chat scenarios outside the product CREATE branch, which has no
+   * decision cards. Inside that branch nothing reaches the catalog through this matcher — writing
+   * a chain is a command bound to the approved plan, and no wording substitutes for it.
+   */
   @Test
-  void matchesImplementChainIntent() {
+  void implementChainIntentSurvivesOutsideTheProductCreateBranch() {
     assertTrue(UserIntentPatterns.matchesImplementChainIntent("implement the chain"));
     assertTrue(UserIntentPatterns.matchesImplementChainIntent("build the chain"));
     assertTrue(UserIntentPatterns.matchesImplementChainIntent("implement it"));
     assertFalse(UserIntentPatterns.matchesImplementChainIntent("create a Greetings chain"));
   }
 
+  /**
+   * Survives ticket 10 for the same reason, and keeps its compactness rule: a long message that
+   * merely mentions building a chain is not a request to build one.
+   */
   @Test
   void strongImplementIntentRequiresCompactMessage() {
     assertTrue(UserIntentPatterns.matchesStrongImplementChainIntent("implement the chain"));
