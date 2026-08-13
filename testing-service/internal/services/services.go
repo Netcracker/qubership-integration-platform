@@ -81,7 +81,7 @@ func NewServices(cfg config.Config, deps config.Deps, d *dao.Dao) *Services {
 
 	matchersService := NewMatchersService(repositories)
 	testCasesService := NewTestCasesService(d, repositories, matchersService)
-	testCaseRunsService := NewTestCaseRunsService(d, repositories)
+	testCaseRunsService := NewTestCaseRunsService(cfg, d, repositories)
 	testCaseRunErrorsService := NewTestCaseRunErrorsService(d, repositories)
 	triggerResolverService := NewTriggerResolverService(catalogClient, triggerFactory)
 

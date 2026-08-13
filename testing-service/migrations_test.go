@@ -42,6 +42,7 @@ func TestMigrationsDiscoversEveryEmbeddedFile(t *testing.T) {
 		names = append(names, migration.Name)
 	}
 	assert.Contains(t, names, "00000000000100")
+	assert.Contains(t, names, "00000000000101")
 }
 
 func TestMigrationFilesAreNamedForBun(t *testing.T) {
@@ -101,4 +102,49 @@ func TestInitMigrationCreatesEveryObjectIdempotently(t *testing.T) {
 	assert.Equal(t, strings.Count(sql, "create index"), strings.Count(sql, "create index if not exists"))
 	assert.Equal(t, strings.Count(sql, "create view"), 0)
 	assert.Equal(t, strings.Count(sql, "create type"), strings.Count(sql, "exception when duplicate_object"))
+}
+
+func executionMigration(t *testing.T) string {
+	t.Helper()
+	body, err := fs.ReadFile(migrationFiles, "migrations/00000000000101__execution.tx.up.sql")
+	require.NoError(t, err)
+	return strings.ToLower(string(body))
+}
+
+func TestExecutionMigrationAddsTheClaimColumnsIdempotently(t *testing.T) {
+	sql := executionMigration(t)
+
+	for _, column := range []string{"ordinal integer", "lease_until timestamptz", "lease_owner uuid"} {
+		assert.Contains(t, sql, "add column if not exists "+column)
+	}
+	assert.Equal(t, 3, strings.Count(sql, "alter table"))
+	assert.Equal(t, strings.Count(sql, "add column"), strings.Count(sql, "add column if not exists"))
+	assert.Equal(t, 2, strings.Count(sql, "create index if not exists"))
+	assert.Equal(t, strings.Count(sql, "create index"), strings.Count(sql, "create index if not exists"))
+
+	// The same rules migration 100 follows, for the same reason.
+	assert.NotContains(t, sql, "create schema")
+	assert.NotContains(t, sql, "set search_path")
+	assert.NotContains(t, sql, "varchar")
+}
+
+func TestExecutionMigrationBackfillsTheOrdinalOfExistingRows(t *testing.T) {
+	sql := executionMigration(t)
+
+	// Without the backfill every row created before this migration keeps a null
+	// ordinal and sorts last in arbitrary order.
+	assert.Contains(t, sql, "row_number() over (partition by tests_run_id order by start nulls last, id)")
+	// Re-applying the migration must not renumber rows that already have one.
+	assert.Contains(t, sql, "ordinal is null")
+}
+
+func TestExecutionMigrationRecreatesTheTestCaseRunsView(t *testing.T) {
+	sql := executionMigration(t)
+
+	// The view selects test_case_run.*, which PostgreSQL expands at creation
+	// time; create or replace can only append columns at the end, and the new
+	// ones belong ahead of the joined ones.
+	assert.Contains(t, sql, "drop view if exists test_case_runs_view")
+	assert.Contains(t, sql, "create view test_case_runs_view as")
+	assert.NotContains(t, sql, "create or replace view")
 }

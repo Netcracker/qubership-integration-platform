@@ -193,7 +193,14 @@ type TestCaseRun struct {
 	Finish     *time.Time         `bun:"finish,type:timestamptz" json:"finish"`
 	Status     *string            `bun:"status,type:run_status" json:"status"`
 	SessionID  *string            `json:"sessionId"`
+	Ordinal    *int               `bun:"ordinal" json:"ordinal"`
 	Errors     []*ValidationError `bun:"rel:has-many,join:id=test_case_run_id" json:"-"`
+
+	// LeaseUntil and LeaseOwner fence the attempt: the sweeper returns the case
+	// to the queue once the lease expires, and every write the worker makes has
+	// to name the owner it claimed under. Both stay out of the API payload.
+	LeaseUntil *time.Time `bun:"lease_until,type:timestamptz" json:"-"`
+	LeaseOwner *uuid.UUID `bun:"lease_owner,type:uuid" json:"-"`
 }
 
 type TestsRun struct {

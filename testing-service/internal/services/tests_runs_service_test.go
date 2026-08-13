@@ -8,13 +8,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/config"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
 )
 
 func testsRunsServiceOver(repositories Repositories) (TestsRunsService, *fakeRunner) {
 	runner := &fakeRunner{}
-	testCaseRunsService := NewTestCaseRunsService(runner, repositories)
+	testCaseRunsService := NewTestCaseRunsService(config.Config{}, runner, repositories)
 	return NewTestsRunsService(runner, repositories, testCaseRunsService), runner
 }
 
@@ -67,6 +68,31 @@ func TestStartNewQueuesOneCaseRunPerTestCase(t *testing.T) {
 	assert.Equal(t, first, *testCaseRuns.inserted[0].TestCaseID)
 	assert.Equal(t, second, *testCaseRuns.inserted[1].TestCaseID)
 	assert.Equal(t, *id, *testCaseRuns.inserted[0].TestsRunID)
+}
+
+func TestStartNewNumbersTheCaseRunsInTheOrderTheyWereSelected(t *testing.T) {
+	first := uuid.New()
+	second := uuid.New()
+	third := uuid.New()
+	testCaseRuns := &fakeTestCaseRunsRepository{}
+	service, _ := testsRunsServiceOver(Repositories{
+		TestCases: &fakeTestCasesRepository{
+			existing: map[uuid.UUID]bool{first: true, second: true, third: true},
+		},
+		TestsRuns:    &fakeTestsRunsRepository{},
+		TestCaseRuns: testCaseRuns,
+	})
+
+	_, err := service.StartNew(context.Background(), &[]uuid.UUID{first, second, third})
+
+	require.NoError(t, err)
+	require.Len(t, testCaseRuns.inserted, 3)
+	ordinals := make([]int, 0, len(testCaseRuns.inserted))
+	for _, testCaseRun := range testCaseRuns.inserted {
+		require.NotNil(t, testCaseRun.Ordinal, "the claim orders by ordinal, so it may not be left unset")
+		ordinals = append(ordinals, *testCaseRun.Ordinal)
+	}
+	assert.Equal(t, []int{1, 2, 3}, ordinals)
 }
 
 func TestStartNewFromEntitiesRejectsAnUnknownEntityType(t *testing.T) {

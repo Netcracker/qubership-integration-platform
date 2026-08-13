@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
 
+	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/config"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
 )
@@ -29,10 +30,9 @@ type TestCaseRunsService interface {
 	BulkCancel(ctx context.Context, ids *[]uuid.UUID) error
 	CancelByTestsRuns(ctx context.Context, testsRunIds *[]uuid.UUID) error
 
-	FindPendingTestCaseRun(ctx context.Context) (*dao.TestCaseRun, error)
-	Start(ctx context.Context, id uuid.UUID, sessionID string) error
-	Finish(ctx context.Context, id uuid.UUID) error
-	Skip(ctx context.Context, id uuid.UUID) error
+	ClaimNext(ctx context.Context, owner uuid.UUID, sessionID string) (*dao.TestCaseRun, error)
+	Finish(ctx context.Context, id uuid.UUID, owner uuid.UUID) error
+	Skip(ctx context.Context, id uuid.UUID, owner uuid.UUID) error
 
 	Export(ctx context.Context, ids *[]uuid.UUID) (string, error)
 	ExportByTestsRunIds(ctx context.Context, ids *[]uuid.UUID) (string, error)
@@ -40,14 +40,19 @@ type TestCaseRunsService interface {
 }
 
 type testCaseRunsService struct {
-	runner       dao.Runner
-	repositories Repositories
+	runner        dao.Runner
+	repositories  Repositories
+	leaseDuration time.Duration
 }
 
 // NewTestCaseRunsService returns a TestCaseRunsService over the given database
-// access.
-func NewTestCaseRunsService(runner dao.Runner, repositories Repositories) TestCaseRunsService {
-	return &testCaseRunsService{runner: runner, repositories: repositories}
+// access, leasing claimed runs for the duration cfg carries.
+func NewTestCaseRunsService(cfg config.Config, runner dao.Runner, repositories Repositories) TestCaseRunsService {
+	return &testCaseRunsService{
+		runner:        runner,
+		repositories:  repositories,
+		leaseDuration: cfg.WithDefaults().LeaseDuration,
+	}
 }
 
 func (s *testCaseRunsService) FindAll(
@@ -106,36 +111,30 @@ func (s *testCaseRunsService) cancelTestCaseRuns(ctx context.Context, selector f
 	})
 }
 
-func (s *testCaseRunsService) FindPendingTestCaseRun(ctx context.Context) (*dao.TestCaseRun, error) {
-	return dao.Run(ctx, s.runner, func(ctx context.Context, _ bun.IDB) (*dao.TestCaseRun, error) {
-		return s.repositories.TestCaseRuns.FindPending(ctx)
+// ClaimNext hands out the next test case run to execute, already stamped as
+// running and leased to owner. The claim is what starts the run, so no separate
+// start call follows it.
+func (s *testCaseRunsService) ClaimNext(ctx context.Context, owner uuid.UUID, sessionID string) (*dao.TestCaseRun, error) {
+	return dao.RunInTx(ctx, s.runner, defaultTxOptions(), func(ctx context.Context, _ bun.IDB) (*dao.TestCaseRun, error) {
+		return s.repositories.TestCaseRuns.Claim(ctx, owner, sessionID, s.leaseDuration)
 	})
 }
 
-func (s *testCaseRunsService) Start(ctx context.Context, id uuid.UUID, sessionID string) error {
-	return runInTx(ctx, s.runner, func(ctx context.Context) error {
-		timestamp := time.Now()
-		status := dao.RunStatusRunning
-		testCaseRun := &dao.TestCaseRun{ID: id, SessionID: &sessionID, Status: &status, Start: &timestamp}
-		return s.repositories.TestCaseRuns.Update(ctx, testCaseRun, true)
-	})
-}
-
-func (s *testCaseRunsService) Finish(ctx context.Context, id uuid.UUID) error {
+func (s *testCaseRunsService) Finish(ctx context.Context, id uuid.UUID, owner uuid.UUID) error {
 	return runInTx(ctx, s.runner, func(ctx context.Context) error {
 		timestamp := time.Now()
 		status := dao.RunStatusFinished
 		testCaseRun := &dao.TestCaseRun{ID: id, Status: &status, Finish: &timestamp}
-		return s.repositories.TestCaseRuns.Update(ctx, testCaseRun, true)
+		return s.repositories.TestCaseRuns.UpdateOwned(ctx, testCaseRun, owner, true)
 	})
 }
 
-func (s *testCaseRunsService) Skip(ctx context.Context, id uuid.UUID) error {
+func (s *testCaseRunsService) Skip(ctx context.Context, id uuid.UUID, owner uuid.UUID) error {
 	return runInTx(ctx, s.runner, func(ctx context.Context) error {
 		timestamp := time.Now()
 		status := dao.RunStatusSkipped
-		testCaseRun := &dao.TestCaseRun{ID: id, Status: &status, Start: &timestamp, Finish: &timestamp}
-		return s.repositories.TestCaseRuns.Update(ctx, testCaseRun, true)
+		testCaseRun := &dao.TestCaseRun{ID: id, Status: &status, Finish: &timestamp}
+		return s.repositories.TestCaseRuns.UpdateOwned(ctx, testCaseRun, owner, true)
 	})
 }
 

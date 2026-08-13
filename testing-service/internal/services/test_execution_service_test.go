@@ -47,29 +47,27 @@ func (s *stubTestCasesService) FindById(context.Context, uuid.UUID) (*dao.TestCa
 type stubTestCaseRunsService struct {
 	TestCaseRunsService
 
-	started  []string
-	finished int
-	skipped  int
+	finished []uuid.UUID
+	skipped  []uuid.UUID
+	owners   []uuid.UUID
 }
 
-func (s *stubTestCaseRunsService) Start(_ context.Context, _ uuid.UUID, sessionID string) error {
-	s.started = append(s.started, sessionID)
+func (s *stubTestCaseRunsService) Finish(_ context.Context, id uuid.UUID, owner uuid.UUID) error {
+	s.finished = append(s.finished, id)
+	s.owners = append(s.owners, owner)
 	return nil
 }
 
-func (s *stubTestCaseRunsService) Finish(context.Context, uuid.UUID) error {
-	s.finished++
-	return nil
-}
-
-func (s *stubTestCaseRunsService) Skip(context.Context, uuid.UUID) error {
-	s.skipped++
+func (s *stubTestCaseRunsService) Skip(_ context.Context, id uuid.UUID, owner uuid.UUID) error {
+	s.skipped = append(s.skipped, id)
+	s.owners = append(s.owners, owner)
 	return nil
 }
 
 type stubTestCaseRunErrorsService struct {
 	messages []string
 	matchers []*dao.Matcher
+	owners   []uuid.UUID
 }
 
 func (s *stubTestCaseRunErrorsService) FindByTestCaseRunId(
@@ -81,11 +79,13 @@ func (s *stubTestCaseRunErrorsService) FindByTestCaseRunId(
 func (s *stubTestCaseRunErrorsService) AddError(
 	_ context.Context,
 	_ uuid.UUID,
+	owner uuid.UUID,
 	matcher *dao.Matcher,
 	message string,
 ) (*dao.ValidationError, error) {
 	s.messages = append(s.messages, message)
 	s.matchers = append(s.matchers, matcher)
+	s.owners = append(s.owners, owner)
 	return &dao.ValidationError{}, nil
 }
 
@@ -133,9 +133,20 @@ func newExecutionFixture(testCase *dao.TestCaseView, trigger triggers.Trigger) *
 	return fixture
 }
 
-func pendingRun() *dao.TestCaseRun {
+// claimedRun is what the claim hands the executor: already running, leased to an
+// owner and carrying the session the trigger has to report.
+func claimedRun() *dao.TestCaseRun {
 	testCaseID := uuid.New()
-	return &dao.TestCaseRun{ID: uuid.New(), TestCaseID: &testCaseID}
+	owner := uuid.New()
+	sessionID := uuid.NewString()
+	status := dao.RunStatusRunning
+	return &dao.TestCaseRun{
+		ID:         uuid.New(),
+		TestCaseID: &testCaseID,
+		Status:     &status,
+		SessionID:  &sessionID,
+		LeaseOwner: &owner,
+	}
 }
 
 func enabledTestCase(rules ...*dao.Matcher) *dao.TestCaseView {
@@ -153,68 +164,98 @@ func TestRunTestCaseSkipsADisabledTestCase(t *testing.T) {
 	testCase := enabledTestCase()
 	testCase.Enabled = false
 	fixture := newExecutionFixture(testCase, &fakeTrigger{})
+	testCaseRun := claimedRun()
 
-	fixture.service.runTestCase(context.Background(), pendingRun())
+	fixture.service.runTestCase(context.Background(), testCaseRun)
 
-	assert.Equal(t, 1, fixture.runs.skipped)
-	assert.Empty(t, fixture.runs.started)
-	assert.Zero(t, fixture.runs.finished)
+	assert.Equal(t, []uuid.UUID{testCaseRun.ID}, fixture.runs.skipped)
+	assert.Empty(t, fixture.runs.finished)
+	assert.Equal(t, []uuid.UUID{*testCaseRun.LeaseOwner}, fixture.runs.owners, "the skip names the owner")
 }
 
-func TestRunTestCaseStopsWhenTheTestCaseIsGone(t *testing.T) {
+func TestRunTestCaseFinishesWithAnErrorWhenTheTestCaseIsGone(t *testing.T) {
 	fixture := newExecutionFixture(nil, &fakeTrigger{})
+	testCaseRun := claimedRun()
 
-	fixture.service.runTestCase(context.Background(), pendingRun())
+	fixture.service.runTestCase(context.Background(), testCaseRun)
 
-	assert.Empty(t, fixture.runs.started)
-	assert.Zero(t, fixture.runs.finished)
-	assert.Zero(t, fixture.runs.skipped)
+	// A missing test case never comes back, so the run has to reach a terminal
+	// state rather than wait for the sweeper to hand it out again.
+	require.Len(t, fixture.runErrors.messages, 1)
+	assert.Contains(t, fixture.runErrors.messages[0], testCaseRun.TestCaseID.String())
+	assert.Equal(t, []uuid.UUID{testCaseRun.ID}, fixture.runs.finished)
+	assert.Empty(t, fixture.runs.skipped)
 }
 
-func TestRunTestCaseStopsOnAFailingTestCaseLookup(t *testing.T) {
+func TestRunTestCaseLeavesTheLeaseToExpireOnAFailingTestCaseLookup(t *testing.T) {
 	fixture := newExecutionFixture(enabledTestCase(), &fakeTrigger{})
 	fixture.testCases.err = errors.New("no connection")
 
-	fixture.service.runTestCase(context.Background(), pendingRun())
+	fixture.service.runTestCase(context.Background(), claimedRun())
 
-	assert.Empty(t, fixture.runs.started)
-	assert.Zero(t, fixture.runs.finished)
+	// The failure may be transient, so the sweeper gets to return the case to
+	// the queue instead of the executor writing it off.
+	assert.Empty(t, fixture.runs.finished)
+	assert.Empty(t, fixture.runErrors.messages)
+}
+
+func TestRunTestCaseIgnoresARunThatCarriesNoLeaseOwner(t *testing.T) {
+	fixture := newExecutionFixture(enabledTestCase(), &fakeTrigger{})
+	testCaseRun := claimedRun()
+	testCaseRun.LeaseOwner = nil
+
+	fixture.service.runTestCase(context.Background(), testCaseRun)
+
+	assert.Empty(t, fixture.runs.finished, "without an owner token no write could be fenced")
+	assert.Empty(t, fixture.runErrors.messages)
 }
 
 func TestRunTestCaseRecordsAFailingTriggerResolutionAndStillFinishes(t *testing.T) {
 	fixture := newExecutionFixture(enabledTestCase(), nil)
 	fixture.resolver.err = errors.New("element not found")
 
-	fixture.service.runTestCase(context.Background(), pendingRun())
+	fixture.service.runTestCase(context.Background(), claimedRun())
 
 	require.Len(t, fixture.runErrors.messages, 1)
 	assert.Contains(t, fixture.runErrors.messages[0], "Failed to resolve trigger")
 	assert.Nil(t, fixture.runErrors.matchers[0])
-	assert.Equal(t, 1, fixture.runs.finished)
+	assert.Len(t, fixture.runs.finished, 1)
 }
 
 func TestRunTestCaseRecordsAFailingActivationAndStillFinishes(t *testing.T) {
 	trigger := &fakeTrigger{err: errors.New("connection refused")}
 	fixture := newExecutionFixture(enabledTestCase(), trigger)
 
-	fixture.service.runTestCase(context.Background(), pendingRun())
+	fixture.service.runTestCase(context.Background(), claimedRun())
 
 	require.Len(t, fixture.runErrors.messages, 1)
 	assert.Contains(t, fixture.runErrors.messages[0], "Failed to activate trigger")
-	assert.Equal(t, 1, fixture.runs.finished)
+	assert.Len(t, fixture.runs.finished, 1)
 }
 
-func TestRunTestCaseHandsTheSessionIdentifierToTheTrigger(t *testing.T) {
+func TestRunTestCaseHandsTheClaimedSessionIdentifierToTheTrigger(t *testing.T) {
 	trigger := &fakeTrigger{response: &model.Exchange{Status: http.StatusOK}}
 	fixture := newExecutionFixture(enabledTestCase(), trigger)
+	testCaseRun := claimedRun()
 
-	fixture.service.runTestCase(context.Background(), pendingRun())
+	fixture.service.runTestCase(context.Background(), testCaseRun)
 
-	require.Len(t, fixture.runs.started, 1)
-	assert.Equal(t, fixture.runs.started[0], trigger.sessionID)
+	assert.Equal(t, *testCaseRun.SessionID, trigger.sessionID)
 	assert.NotEmpty(t, trigger.sessionID)
 	assert.Empty(t, fixture.runErrors.messages)
-	assert.Equal(t, 1, fixture.runs.finished)
+	assert.Len(t, fixture.runs.finished, 1)
+}
+
+func TestRunTestCaseFencesEveryWriteOnTheClaimedOwner(t *testing.T) {
+	trigger := &fakeTrigger{response: &model.Exchange{Status: http.StatusInternalServerError}}
+	fixture := newExecutionFixture(enabledTestCase(statusRule("200", true)), trigger)
+	testCaseRun := claimedRun()
+	owner := *testCaseRun.LeaseOwner
+
+	fixture.service.runTestCase(context.Background(), testCaseRun)
+
+	assert.Equal(t, []uuid.UUID{owner}, fixture.runErrors.owners, "the recorded error names the owner")
+	assert.Equal(t, []uuid.UUID{owner}, fixture.runs.owners, "the finish names the owner")
 }
 
 func statusRule(expected string, enabled bool) *dao.Matcher {
@@ -232,7 +273,7 @@ func TestRunTestCaseRecordsAValidationRuleThatDoesNotHold(t *testing.T) {
 	rule := statusRule("200", true)
 	fixture := newExecutionFixture(enabledTestCase(rule), trigger)
 
-	fixture.service.runTestCase(context.Background(), pendingRun())
+	fixture.service.runTestCase(context.Background(), claimedRun())
 
 	require.Len(t, fixture.runErrors.messages, 1)
 	assert.Equal(t, rule, fixture.runErrors.matchers[0])
@@ -243,19 +284,21 @@ func TestRunTestCaseIgnoresDisabledValidationRules(t *testing.T) {
 	trigger := &fakeTrigger{response: &model.Exchange{Status: http.StatusInternalServerError}}
 	fixture := newExecutionFixture(enabledTestCase(statusRule("200", false), nil), trigger)
 
-	fixture.service.runTestCase(context.Background(), pendingRun())
+	fixture.service.runTestCase(context.Background(), claimedRun())
 
 	assert.Empty(t, fixture.runErrors.messages)
-	assert.Equal(t, 1, fixture.runs.finished)
+	assert.Len(t, fixture.runs.finished, 1)
 }
 
-func TestRunTestCaseStopsWhenTheRunReferencesNoTestCase(t *testing.T) {
+func TestRunTestCaseFinishesWithAnErrorWhenTheRunReferencesNoTestCase(t *testing.T) {
 	fixture := newExecutionFixture(enabledTestCase(), &fakeTrigger{})
+	testCaseRun := claimedRun()
+	testCaseRun.TestCaseID = nil
 
-	fixture.service.runTestCase(context.Background(), &dao.TestCaseRun{ID: uuid.New()})
+	fixture.service.runTestCase(context.Background(), testCaseRun)
 
-	assert.Empty(t, fixture.runs.started)
-	assert.Zero(t, fixture.runs.finished)
+	require.Len(t, fixture.runErrors.messages, 1)
+	assert.Equal(t, []uuid.UUID{testCaseRun.ID}, fixture.runs.finished)
 }
 
 func TestBuildParametersMapGroupsRepeatedNames(t *testing.T) {

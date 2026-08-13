@@ -134,13 +134,12 @@ func (s *fakeTestCaseRunsService) CancelByTestsRuns(context.Context, *[]uuid.UUI
 	return nil
 }
 
-func (s *fakeTestCaseRunsService) FindPendingTestCaseRun(context.Context) (*dao.TestCaseRun, error) {
+func (s *fakeTestCaseRunsService) ClaimNext(context.Context, uuid.UUID, string) (*dao.TestCaseRun, error) {
 	return nil, nil
 }
 
-func (s *fakeTestCaseRunsService) Start(context.Context, uuid.UUID, string) error { return nil }
-func (s *fakeTestCaseRunsService) Finish(context.Context, uuid.UUID) error        { return nil }
-func (s *fakeTestCaseRunsService) Skip(context.Context, uuid.UUID) error          { return nil }
+func (s *fakeTestCaseRunsService) Finish(context.Context, uuid.UUID, uuid.UUID) error { return nil }
+func (s *fakeTestCaseRunsService) Skip(context.Context, uuid.UUID, uuid.UUID) error   { return nil }
 
 func (s *fakeTestCaseRunsService) Export(context.Context, *[]uuid.UUID) (string, error) {
 	return "", nil
@@ -171,6 +170,7 @@ func (s *fakeTestCaseRunErrorsService) FindByTestCaseRunId(
 
 func (s *fakeTestCaseRunErrorsService) AddError(
 	context.Context,
+	uuid.UUID,
 	uuid.UUID,
 	*dao.Matcher,
 	string,

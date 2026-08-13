@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/config"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
 )
 
@@ -24,7 +25,7 @@ func exportedRows(t *testing.T, exported string) [][]string {
 }
 
 func TestExportToCsvReturnsNothingForAnEmptySelection(t *testing.T) {
-	service := NewTestCaseRunsService(&fakeRunner{}, Repositories{TestCaseRuns: &fakeTestCaseRunsRepository{}})
+	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: &fakeTestCaseRunsRepository{}})
 
 	exported, err := service.ExportToCsv(context.Background(), nil)
 
@@ -34,7 +35,7 @@ func TestExportToCsvReturnsNothingForAnEmptySelection(t *testing.T) {
 
 func TestExportSkipsTheQueryWhenNoIdsWereGiven(t *testing.T) {
 	repository := &fakeTestCaseRunsRepository{views: []dao.TestCaseRunView{{}}}
-	service := NewTestCaseRunsService(&fakeRunner{}, Repositories{TestCaseRuns: repository})
+	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: repository})
 
 	byIds, err := service.Export(context.Background(), &[]uuid.UUID{})
 	require.NoError(t, err)
@@ -60,7 +61,7 @@ func TestExportToCsvWritesOneRowPerRunWithoutErrors(t *testing.T) {
 			Status:     &status,
 		},
 	}}}
-	service := NewTestCaseRunsService(&fakeRunner{}, Repositories{TestCaseRuns: repository})
+	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: repository})
 
 	exported, err := service.ExportToCsv(context.Background(), nil)
 
@@ -89,7 +90,7 @@ func TestExportToCsvWritesOneRowPerValidationError(t *testing.T) {
 			{Message: "no response"},
 		},
 	}}
-	service := NewTestCaseRunsService(&fakeRunner{}, Repositories{
+	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{
 		TestCaseRuns:      repository,
 		TestCaseRunErrors: errorsRepository,
 	})
@@ -104,20 +105,61 @@ func TestExportToCsvWritesOneRowPerValidationError(t *testing.T) {
 	assert.Equal(t, []string{"", "", "", "no response"}, rows[2][11:])
 }
 
-func TestStartRunningAndFinishingStampTheExpectedStatuses(t *testing.T) {
+func TestFinishingAndSkippingStampTheExpectedStatusesUnderTheOwnerToken(t *testing.T) {
 	repository := &fakeTestCaseRunsRepository{}
-	service := NewTestCaseRunsService(&fakeRunner{}, Repositories{TestCaseRuns: repository})
+	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: repository})
 	id := uuid.New()
+	owner := uuid.New()
 
-	require.NoError(t, service.Start(context.Background(), id, "session-1"))
-	require.NoError(t, service.Finish(context.Background(), id))
-	require.NoError(t, service.Skip(context.Background(), id))
+	require.NoError(t, service.Finish(context.Background(), id, owner))
+	require.NoError(t, service.Skip(context.Background(), id, owner))
 
-	require.Len(t, repository.updated, 3)
-	assert.Equal(t, dao.RunStatusRunning, *repository.updated[0].Status)
-	assert.Equal(t, "session-1", *repository.updated[0].SessionID)
-	assert.NotNil(t, repository.updated[0].Start)
-	assert.Equal(t, dao.RunStatusFinished, *repository.updated[1].Status)
-	assert.NotNil(t, repository.updated[1].Finish)
-	assert.Equal(t, dao.RunStatusSkipped, *repository.updated[2].Status)
+	require.Len(t, repository.updated, 2)
+	assert.Equal(t, dao.RunStatusFinished, *repository.updated[0].Status)
+	assert.NotNil(t, repository.updated[0].Finish)
+	assert.Equal(t, dao.RunStatusSkipped, *repository.updated[1].Status)
+	assert.Equal(t, []uuid.UUID{owner, owner}, repository.updateOwners, "both writes name the owner they claimed under")
+}
+
+func TestFinishingAndSkippingAreRefusedOnceAnotherWorkerOwnsTheRun(t *testing.T) {
+	current := uuid.New()
+	repository := &fakeTestCaseRunsRepository{leaseOwner: &current}
+	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: repository})
+	id := uuid.New()
+	swept := uuid.New()
+
+	require.ErrorIs(t, service.Finish(context.Background(), id, swept), dao.ErrLeaseLost)
+	require.ErrorIs(t, service.Skip(context.Background(), id, swept), dao.ErrLeaseLost)
+
+	assert.Empty(t, repository.updated, "a worker whose lease was swept writes nothing")
+}
+
+func TestClaimNextLeasesTheRunToTheGivenOwner(t *testing.T) {
+	queued := &dao.TestCaseRun{ID: uuid.New()}
+	repository := &fakeTestCaseRunsRepository{claimable: queued}
+	cfg := config.Config{LeaseDuration: 90 * time.Second}
+	service := NewTestCaseRunsService(cfg, &fakeRunner{}, Repositories{TestCaseRuns: repository})
+	owner := uuid.New()
+
+	claimed, err := service.ClaimNext(context.Background(), owner, "session-1")
+
+	require.NoError(t, err)
+	require.NotNil(t, claimed)
+	assert.Equal(t, dao.RunStatusRunning, *claimed.Status, "the claim is what starts the run")
+	assert.Equal(t, owner, *claimed.LeaseOwner)
+	assert.Equal(t, "session-1", *claimed.SessionID)
+	require.Len(t, repository.claims, 1)
+	assert.Equal(t, claimCall{owner: owner, sessionID: "session-1", leaseDuration: 90 * time.Second}, repository.claims[0])
+}
+
+func TestClaimNextLeasesForTheDefaultDurationWhenNoneIsConfigured(t *testing.T) {
+	repository := &fakeTestCaseRunsRepository{}
+	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: repository})
+
+	claimed, err := service.ClaimNext(context.Background(), uuid.New(), "session-1")
+
+	require.NoError(t, err)
+	assert.Nil(t, claimed, "an empty queue yields no run")
+	require.Len(t, repository.claims, 1)
+	assert.Equal(t, config.DefaultLeaseDuration, repository.claims[0].leaseDuration)
 }

@@ -608,15 +608,47 @@ whole transitive closure, so the 1.22 ceiling holds; v3 requires `go 1.23` and i
 - Create: `testing-service/migrations/00000000000101__execution.tx.up.sql`
 - Modify: `testing-service/internal/dao/test_case_runs_repository.go`, `testing-service/internal/services/test_case_runs_service.go`, `testing-service/internal/services/tests_runs_service.go`
 
-- [ ] add `ordinal`, `lease_until` and `lease_owner`, and backfill `ordinal` for existing rows
-- [ ] add the `(tests_run_id, status, ordinal)` index and the partial `lease_until` index
-- [ ] drop and recreate `test_case_runs_view` so the new columns reach the list API — `create or replace` cannot do it
-- [ ] assign `ordinal` when a test run is created, in the order the cases were selected
-- [ ] implement the two-step claim from Technical Details, stamping `lease_owner`
-- [ ] when step 2 finds nothing, move on to the next run instead of waiting a poll interval
-- [ ] fence every worker write on `lease_owner` — `Finish`, `Skip` and the recording of validation errors, not just `Finish`
-- [ ] write tests for ordinal assignment and for the fenced writes against fakes
-- [ ] run `go test ./...` - must pass before next task
+- [x] add `ordinal`, `lease_until` and `lease_owner`, and backfill `ordinal` for existing rows
+- [x] add the `(tests_run_id, status, ordinal)` index and the partial `lease_until` index
+- [x] drop and recreate `test_case_runs_view` so the new columns reach the list API — `create or replace` cannot do it
+- [x] assign `ordinal` when a test run is created, in the order the cases were selected
+- [x] implement the two-step claim from Technical Details, stamping `lease_owner`
+- [x] when step 2 finds nothing, move on to the next run instead of waiting a poll interval
+- [x] fence every worker write on `lease_owner` — `Finish`, `Skip` and the recording of validation errors, not just `Finish`
+- [x] write tests for ordinal assignment and for the fenced writes against fakes
+- [x] run `go test ./...` - must pass before next task
+
+[decision] `TestCaseRunsRepository.FindPending` and `Update`, and `TestCaseRunsService.FindPendingTestCaseRun` and
+`Start`, are gone. The claim is what starts a run, so a separate start call would either duplicate the stamp or race
+with it, and the only remaining writes to a claimed case are the fenced ones. `Update` became `UpdateOwned` and
+`TestCaseRunErrorsRepository.Insert` became `InsertOwned`; both report the new `dao.ErrLeaseLost` when the fence
+rejects the write, and the executor logs that as a warning rather than a fault.
+
+[decision] The owner token is a plain parameter on every write (`Finish`, `Skip`, `AddError`) rather than a value
+carried in the context. A context-borne token would fence silently and leave nothing for a reader of the signature to
+check; the explicit parameter is what makes an unfenced write visible at the call site.
+
+[decision] `NewTestCaseRunsService` takes `config.Config` first, matching `NewTestExecutionService`. The lease duration
+is the only setting it reads, and nothing below the constructor reads configuration.
+
+[decision] Step 2 orders by `ordinal, id`. Rows that predate migration 101 in a downstream database are backfilled, but
+a tie is still possible, and an arbitrary order among tied rows would make the queue non-deterministic.
+
+[decision] The lease is stamped from `now()` in the database (`now() + make_interval(secs => ?)`), not from the
+worker's clock. Workers and the sweeper compare against database time, so a skewed pod clock cannot sweep an
+unexpired lease.
+
+[deviation] A permanent fault now finishes the case run with the fault recorded against it: a run that references no
+test case, and a test case that no longer exists. Before the claim, such a case was left `pending` and the poll loop
+picked it up forever; with leases it would be swept back into the queue forever instead. A failure that may pass on
+retry — the lookup itself failing — still leaves the lease to expire, which is what the sweeper is for.
+
+✅ Verified against PostgreSQL 14 in Docker with a throwaway build-tagged suite (removed afterwards; the real
+integration suite is Task 15): migrations 100 and 101 apply in one group to a fresh schema; the backfill numbers
+pre-existing rows by `start nulls last, id` and renumbers nothing on a second apply; two runs claim in parallel while a
+third claim finds nothing; eight concurrent workers over eight runs never claim the same case twice; `UpdateOwned` and
+`InsertOwned` refuse a foreign owner and accept the right one; the recreated view exposes `ordinal` and `lease_owner`;
+and a run whose next case is locked elsewhere is excluded by id so the claim reaches the next run.
 
 ### Task 11: Workers, lease sweeper and shutdown
 

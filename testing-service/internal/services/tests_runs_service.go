@@ -152,9 +152,13 @@ func (s *testsRunsService) verifyAllTestCasesExist(ctx context.Context, ids *[]u
 func (s *testsRunsService) createTestCaseRuns(ctx context.Context, testsRunID uuid.UUID, testCaseIds *[]uuid.UUID) error {
 	testCaseRuns := make([]dao.TestCaseRun, 0, len(*testCaseIds))
 	for index := range *testCaseIds {
+		// The ordinal is the order the cases were selected in, and it is what the
+		// claim runs them by. Leaving it unset would order a run arbitrarily.
+		ordinal := index + 1
 		testCaseRuns = append(testCaseRuns, dao.TestCaseRun{
 			TestsRunID: &testsRunID,
 			TestCaseID: &(*testCaseIds)[index],
+			Ordinal:    &ordinal,
 		})
 	}
 	return s.repositories.TestCaseRuns.Insert(ctx, &testCaseRuns)

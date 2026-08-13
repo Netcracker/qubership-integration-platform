@@ -15,7 +15,13 @@ import (
 // case run.
 type TestCaseRunErrorsService interface {
 	FindByTestCaseRunId(ctx context.Context, id uuid.UUID, withMatchers bool) (*[]dao.ValidationError, error)
-	AddError(ctx context.Context, testCaseRunID uuid.UUID, matcher *dao.Matcher, message string) (*dao.ValidationError, error)
+	AddError(
+		ctx context.Context,
+		testCaseRunID uuid.UUID,
+		owner uuid.UUID,
+		matcher *dao.Matcher,
+		message string,
+	) (*dao.ValidationError, error)
 	BulkExport(ctx context.Context, ids []uuid.UUID) (string, error)
 	BulkExportToCsv(ctx context.Context, ids []uuid.UUID, writer *csv.Writer) error
 }
@@ -41,9 +47,13 @@ func (s *testCaseRunErrorsService) FindByTestCaseRunId(
 	})
 }
 
+// AddError records a validation error against the attempt owner claimed. The
+// write is fenced on owner, so a worker whose lease was swept cannot report its
+// findings against the attempt that replaced it.
 func (s *testCaseRunErrorsService) AddError(
 	ctx context.Context,
 	testCaseRunID uuid.UUID,
+	owner uuid.UUID,
 	matcher *dao.Matcher,
 	message string,
 ) (*dao.ValidationError, error) {
@@ -52,7 +62,7 @@ func (s *testCaseRunErrorsService) AddError(
 		if matcher != nil {
 			validationError.MatcherID = &matcher.ID
 		}
-		createdValidationError, err := s.repositories.TestCaseRunErrors.Insert(ctx, &validationError)
+		createdValidationError, err := s.repositories.TestCaseRunErrors.InsertOwned(ctx, &validationError, owner)
 		if err != nil {
 			return nil, err
 		}

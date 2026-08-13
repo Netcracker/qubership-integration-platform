@@ -10,7 +10,7 @@ import (
 type TestCaseRunErrorsRepository interface {
 	FindByIds(ctx context.Context, ids []uuid.UUID, withMatchers bool) (*[]ValidationError, error)
 	FindByTestCaseRunId(ctx context.Context, id uuid.UUID, withMatchers bool) (*[]ValidationError, error)
-	Insert(ctx context.Context, validationError *ValidationError) (*ValidationError, error)
+	InsertOwned(ctx context.Context, validationError *ValidationError, owner uuid.UUID) (*ValidationError, error)
 }
 
 type testCaseRunErrorsRepository struct{}
@@ -60,14 +60,40 @@ func (r *testCaseRunErrorsRepository) FindByTestCaseRunId(ctx context.Context, i
 	return &result, nil
 }
 
-func (r *testCaseRunErrorsRepository) Insert(ctx context.Context, validationError *ValidationError) (*ValidationError, error) {
+// insertOwnedQuery records a validation error only while owner still holds the
+// lease on the case run. Fencing the errors matters as much as fencing the
+// status: a stalled worker would otherwise write its findings against the
+// attempt another worker now owns.
+const insertOwnedQuery = `
+insert into validation_errors (test_case_run_id, matcher_id, message)
+select ?::uuid, ?::uuid, ?::text
+where exists (select 1 from test_case_runs where id = ?::uuid and lease_owner = ?::uuid)
+returning *`
+
+// InsertOwned reports ErrLeaseLost when the fence rejected the write.
+func (r *testCaseRunErrorsRepository) InsertOwned(
+	ctx context.Context,
+	validationError *ValidationError,
+	owner uuid.UUID,
+) (*ValidationError, error) {
 	db, err := GetDb(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var result ValidationError
-	if _, err := db.NewInsert().Model(validationError).Returning("*").Exec(ctx, &result); err != nil {
+	var result []ValidationError
+	err = db.NewRaw(
+		insertOwnedQuery,
+		validationError.TestCaseRunID,
+		validationError.MatcherID,
+		validationError.Message,
+		validationError.TestCaseRunID,
+		owner,
+	).Scan(ctx, &result)
+	if err != nil {
 		return nil, err
 	}
-	return &result, nil
+	if len(result) == 0 {
+		return nil, ErrLeaseLost
+	}
+	return &result[0], nil
 }

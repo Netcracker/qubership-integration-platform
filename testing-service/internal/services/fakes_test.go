@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
@@ -113,14 +114,26 @@ func (r *fakeTestsRunsRepository) Insert(_ context.Context, testsRun *dao.TestsR
 	return nil
 }
 
+// claimCall records what a claim was made under, so a test can assert that the
+// owner token, the session and the lease duration reached the repository.
+type claimCall struct {
+	owner         uuid.UUID
+	sessionID     string
+	leaseDuration time.Duration
+}
+
 type fakeTestCaseRunsRepository struct {
 	dao.TestCaseRunsRepository
 
 	views          []dao.TestCaseRunView
-	pending        *dao.TestCaseRun
+	claimable      *dao.TestCaseRun
+	claimErr       error
+	claims         []claimCall
 	inserted       []dao.TestCaseRun
 	statusUpdates  []string
 	updated        []dao.TestCaseRun
+	updateOwners   []uuid.UUID
+	leaseOwner     *uuid.UUID
 	findAllErr     error
 	lastSpecFilter []model.Filter
 }
@@ -146,8 +159,19 @@ func (r *fakeTestCaseRunsRepository) Insert(_ context.Context, testCaseRuns *[]d
 	return nil
 }
 
-func (r *fakeTestCaseRunsRepository) Update(_ context.Context, testCaseRun *dao.TestCaseRun, _ bool) error {
+// UpdateOwned enforces the fence the real repository enforces in SQL: a write
+// naming an owner that no longer holds the lease does not apply.
+func (r *fakeTestCaseRunsRepository) UpdateOwned(
+	_ context.Context,
+	testCaseRun *dao.TestCaseRun,
+	owner uuid.UUID,
+	_ bool,
+) error {
+	if r.leaseOwner != nil && *r.leaseOwner != owner {
+		return dao.ErrLeaseLost
+	}
 	r.updated = append(r.updated, *testCaseRun)
+	r.updateOwners = append(r.updateOwners, owner)
 	return nil
 }
 
@@ -160,8 +184,25 @@ func (r *fakeTestCaseRunsRepository) UpdateStatus(
 	return nil
 }
 
-func (r *fakeTestCaseRunsRepository) FindPending(_ context.Context) (*dao.TestCaseRun, error) {
-	return r.pending, nil
+func (r *fakeTestCaseRunsRepository) Claim(
+	_ context.Context,
+	owner uuid.UUID,
+	sessionID string,
+	leaseDuration time.Duration,
+) (*dao.TestCaseRun, error) {
+	r.claims = append(r.claims, claimCall{owner: owner, sessionID: sessionID, leaseDuration: leaseDuration})
+	if r.claimErr != nil {
+		return nil, r.claimErr
+	}
+	if r.claimable == nil {
+		return nil, nil
+	}
+	status := dao.RunStatusRunning
+	claimed := *r.claimable
+	claimed.Status = &status
+	claimed.SessionID = &sessionID
+	claimed.LeaseOwner = &owner
+	return &claimed, nil
 }
 
 type fakeTestCaseRunErrorsRepository struct {
@@ -169,6 +210,8 @@ type fakeTestCaseRunErrorsRepository struct {
 
 	byTestCaseRun map[uuid.UUID][]dao.ValidationError
 	inserted      []dao.ValidationError
+	insertOwners  []uuid.UUID
+	leaseOwner    *uuid.UUID
 }
 
 func (r *fakeTestCaseRunErrorsRepository) FindByTestCaseRunId(
@@ -192,12 +235,17 @@ func (r *fakeTestCaseRunErrorsRepository) FindByIds(
 	return &validationErrors, nil
 }
 
-func (r *fakeTestCaseRunErrorsRepository) Insert(
+func (r *fakeTestCaseRunErrorsRepository) InsertOwned(
 	_ context.Context,
 	validationError *dao.ValidationError,
+	owner uuid.UUID,
 ) (*dao.ValidationError, error) {
+	if r.leaseOwner != nil && *r.leaseOwner != owner {
+		return nil, dao.ErrLeaseLost
+	}
 	stored := *validationError
 	stored.ID = uuid.New()
 	r.inserted = append(r.inserted, stored)
+	r.insertOwners = append(r.insertOwners, owner)
 	return &stored, nil
 }
