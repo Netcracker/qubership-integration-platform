@@ -45,6 +45,7 @@ import {
   appendDecision,
   markDecisionAnswered,
   reconcileDecisionMessages,
+  removeDecision,
 } from "./chatDecisionUtils.ts";
 import { AiDecisionCard } from "./AiDecisionCard.tsx";
 import {
@@ -267,6 +268,9 @@ export const AiAssistant: React.FC = () => {
   const reconcileOpenDecision = useCallback(
     async (conversationId: string | undefined, sessionId: string) => {
       if (!conversationId) return;
+      // Never project a durable gate onto an in-flight turn: startOrResume can leave a silent
+      // WAITING_FOR_INPUT that openGate would otherwise paint as a clarify card while skills run.
+      if (sendInProgressRef.current) return;
       let serverDecision: ChatDecision | null;
       try {
         serverDecision = await fetchOpenDecision(conversationId);
@@ -274,6 +278,7 @@ export const AiAssistant: React.FC = () => {
         console.warn("[AiAssistant] Failed to reconcile open decision", err);
         return;
       }
+      if (sendInProgressRef.current) return;
       const session = sessionStore.getSession(sessionId);
       if (!session) return;
       const reconciled = reconcileDecisionMessages(session.messages, serverDecision);
@@ -837,10 +842,11 @@ export const AiAssistant: React.FC = () => {
       const session = sessionStore.getSession(currentSessionId);
       if (!session) return;
 
+      const answeredLabel = decision.actions.includes(text) ? text : "clarify";
       const answeredMessages = markDecisionAnswered(
         session.messages,
         decision.id,
-        "clarify",
+        answeredLabel,
       );
       const userMessage: ChatMessage = { role: "user", content: text };
       const next = [...answeredMessages, userMessage];
@@ -896,7 +902,19 @@ export const AiAssistant: React.FC = () => {
       messageText ||
       (attachmentObjectKeys?.length ?? attachmentUrls?.length ? "See attached files." : "");
     const userMessage: ChatMessage = { role: "user", content: userContent };
-    const next = [...session.messages, userMessage];
+    // Drop unanswered cards from a prior wait so a silent bootstrap gate cannot linger
+    // above the new turn's skill spinner while the stream is still running.
+    let baseMessages = session.messages;
+    for (const message of session.messages) {
+      const openId =
+        message.decision?.answeredAction === undefined
+          ? message.decision?.id
+          : undefined;
+      if (openId) {
+        baseMessages = removeDecision(baseMessages, openId);
+      }
+    }
+    const next = [...baseMessages, userMessage];
     sessionStore.updateSessionMessages(sessionId, next);
     setInputValue("");
     refreshSessions();

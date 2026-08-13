@@ -11,6 +11,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.llm.agent.DesignGeneratorSkillAgent;
 import org.qubership.integration.platform.ai.llm.agent.DesignInputPromptAgent;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
@@ -404,14 +405,21 @@ public class DesignInputCapability implements StageCapability {
     }
     return StageOutcome.of(
         StageOutcomeClass.NEEDS_INPUT,
-        idsPathPrompts.mappingGapPrompt(brief, pendingMode, missing, userText, discoveryText));
+        PipelineGates.tag(
+            PipelineGates.MAPPING_GAP,
+            DesignInputIdsPathPrompts.encodeMappingGapWait(
+                idsPathPrompts.mappingGapPrompt(
+                    brief, pendingMode, missing, userText, discoveryText),
+                designCoverageValidator.listReadableMissingEdges(brief))));
   }
 
   private StageOutcome waitingForIdsChoice(
       RequirementBrief brief, String userText, String discoveryText) {
     return StageOutcome.of(
         StageOutcomeClass.NEEDS_INPUT,
-        idsPathPrompts.idsPathChoicePrompt(brief, userText, discoveryText));
+        PipelineGates.tag(
+            PipelineGates.IDS_PATH_CHOICE,
+            idsPathPrompts.idsPathChoicePrompt(brief, userText, discoveryText)));
   }
 
   /**

@@ -103,6 +103,27 @@ describe("applyStreamingDoneMessages", () => {
     expect(result[2]?.role).toBe("system");
     expect(result[2]?.content.startsWith("__META__")).toBe(true);
   });
+
+  it("should keep trailing assistant prose when done arrives with empty accumulated content", () => {
+    const current: ChatMessage[] = [
+      { role: "user", content: "hi" },
+      {
+        role: "assistant",
+        content: "Here is the brief.",
+        decision: {
+          id: "gate-1",
+          kind: "approve",
+          question: "Approve?",
+          actions: ["approve", "request-changes"],
+        },
+      },
+    ];
+    const result = applyStreamingDoneMessages(current, "", {
+      turnFailed: false,
+      durationMs: 10,
+    });
+    expect(result).toEqual(current);
+  });
 });
 
 describe("server transcript excludes error variants", () => {

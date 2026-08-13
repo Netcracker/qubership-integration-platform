@@ -192,6 +192,127 @@ describe("AiDecisionCard", () => {
     );
   });
 
+  it("should render Yes and No buttons for an IDS path-choice clarify gate", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason:
+        "Would you like an integration design document (IDS) for your approved requirements?",
+      missingEvidence: [],
+      actions: ["yes", "no"],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    expect(
+      screen.queryByPlaceholderText("Provide the missing information"),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+
+    expect(onAnswer).not.toHaveBeenCalled();
+    expect(onSubmitClarification).toHaveBeenCalledWith("yes");
+  });
+
+  it("should send a command action through onAnswer even on a clarify card", () => {
+    // The import gate is a clarification the server can execute: it has to arrive as a typed
+    // command so the transcript records the marker the import stage reads. A stage answer such as
+    // "yes" travels as an ordinary message instead.
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: "Import the API Hub specification into the runtime catalog before planning?",
+      missingEvidence: [],
+      actions: ["import-specification"],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Import specification" }));
+
+    expect(onSubmitClarification).not.toHaveBeenCalled();
+    expect(onAnswer).toHaveBeenCalledWith("import-specification", "");
+  });
+
+  it("should render Pass through and Describe mappings for a mapping-gap clarify gate", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: "Some data mappings are still missing before design can continue.",
+      missingEvidence: [
+        'INITIALIZATION: ENDPOINT "GET /orders" → SERVICE_CALL "Outbound call call-1"',
+      ],
+      actions: ["pass_through", "describe_mappings"],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        'INITIALIZATION: ENDPOINT "GET /orders" → SERVICE_CALL "Outbound call call-1"',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText(
+        "Describe field mappings (sourcePath to targetPath)",
+      ),
+    ).toBeInTheDocument();
+
+    const describe = screen.getByRole("button", { name: "Describe mappings" });
+    expect(describe).toBeDisabled();
+
+    const passThrough = screen.getByRole("button", { name: "Pass through" });
+    expect(passThrough.className).toMatch(/ant-btn-primary/);
+    fireEvent.click(passThrough);
+
+    expect(onAnswer).not.toHaveBeenCalled();
+    expect(onSubmitClarification).toHaveBeenCalledWith("pass_through");
+  });
+
+  it("should submit described mappings text when Describe mappings is clicked", () => {
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      reason: "Some data mappings are still missing before design can continue.",
+      missingEvidence: [],
+      actions: ["pass_through", "describe_mappings"],
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={jest.fn()}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        "Describe field mappings (sourcePath to targetPath)",
+      ),
+      { target: { value: "$.id → $.customerId" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Describe mappings" }));
+
+    expect(onSubmitClarification).toHaveBeenCalledWith("$.id → $.customerId");
+  });
+
   it("should freeze the clarify card and hide the text area once submitted", () => {
     const onAnswer = jest.fn();
     const decision = buildDecision({

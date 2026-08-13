@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Objects;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
@@ -33,7 +34,9 @@ public class SpecificationImportCapability implements StageCapability {
   public static final String CAPABILITY_ID = "specification-import";
 
   public static final String IMPORT_CONFIRM_MESSAGE =
-      "Import the API Hub specification into the runtime catalog before planning?";
+      PipelineGates.tag(
+          PipelineGates.IMPORT_SPECIFICATION,
+          "Import the API Hub specification into the runtime catalog before planning?");
 
   /**
    * Soft-recovery prompt after import failure (ADR 0001 decisions 7+9): candidate cleared,

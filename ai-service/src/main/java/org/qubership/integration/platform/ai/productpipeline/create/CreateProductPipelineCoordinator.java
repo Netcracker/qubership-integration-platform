@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -15,12 +16,14 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
 import org.qubership.integration.platform.ai.llm.agent.GateReplyAgent;
 import org.qubership.integration.platform.ai.model.ScenarioType;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputIdsPathPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPublicArtifactTypes;
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
 import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand;
@@ -329,15 +332,20 @@ public class CreateProductPipelineCoordinator {
                         ChatEvent.skillStep(skillProgress.skillId(), skillProgress.status()));
               }
               if (signal instanceof PipelineSignal.WaitingForInput waiting) {
-                // An ordinary question stays prose: nothing durable turns on the answer. A blank
-                // wait becomes a clarification card naming what is missing.
+                // A wait that names a gate becomes that gate's card. Everything else is ordinary
+                // prose, and a blank wait is bootstrap silence or a question discovery already
+                // streamed: no card mid-stream (startOrResume hits this before acceptInput while
+                // skills still run). ChatExecutionService.openGate at turn end owns durable cards.
+                Optional<String> gate = PipelineGates.gateOf(waiting.prompt());
                 String prompt = chatWaitPrompt(waiting.prompt());
+                if (gate.isPresent()) {
+                  return Multi.createFrom()
+                      .item(gateDecision(conversationId, gate.get(), prompt.strip()));
+                }
                 if (!prompt.isBlank()) {
                   return Multi.createFrom().item(ChatEvent.token(prompt));
                 }
-                return clarificationDecision(conversationId)
-                    .map(decision -> Multi.createFrom().item(decision))
-                    .orElseGet(() -> Multi.createFrom().empty());
+                return Multi.createFrom().empty();
               }
               if (signal instanceof PipelineSignal.WaitingForApproval waiting) {
                 return Multi.createFrom().item(approvalDecision(conversationId, waiting));
@@ -409,33 +417,44 @@ public class CreateProductPipelineCoordinator {
    * does not glue to prior streamed tokens.
    */
   private static String chatWaitPrompt(String prompt) {
-    if (prompt == null || prompt.isBlank()) {
+    String stripped = PipelineGates.strip(prompt);
+    if (stripped.isBlank()) {
       return "";
     }
-    String trimmed = prompt.strip();
+    String trimmed = stripped;
     if (trimmed.startsWith("\n")) {
       return trimmed;
     }
     return "\n\n" + trimmed;
   }
 
+  /** IDS path choice as a Yes / No card (not a free-text clarify field). */
   /**
-   * The clarification the run is waiting on, as a card.
+   * A named gate as its card: the question the run authored, plus the actions that gate accepts.
    *
-   * <p>The reason and the list of missing evidence come from the run itself and stay server prose:
-   * they name this run's gap, not a phrase an interface could translate.
+   * <p>Mapping gaps pack their edges into the wait so a resumed card can list them again; every
+   * other gate carries its question alone.
    */
-  private Optional<ChatEvent> clarificationDecision(String conversationId) {
-    if (facade == null) {
-      return Optional.empty();
+  private ChatEvent gateDecision(String conversationId, String gateId, String prompt) {
+    long revision =
+        runStore
+            .loadByConversation(conversationId)
+            .map(doc -> doc.run().runRevision())
+            .orElse(0L);
+    if (PipelineGates.MAPPING_GAP.equals(gateId)) {
+      DesignInputIdsPathPrompts.MappingGapView view =
+          DesignInputIdsPathPrompts.parseMappingGapWait(prompt);
+      return ChatEvent.decision(
+          new CreateChainPendingAction.Clarify(view.question(), view.missingEdges(), gateId),
+          revision,
+          view.question(),
+          ChatEvent.actionsForGate(gateId));
     }
-    return facade
-        .snapshot(conversationId)
-        .flatMap(
-            snapshot ->
-                Optional.ofNullable(snapshot.pendingAction())
-                    .filter(PendingAction.Clarify.class::isInstance)
-                    .map(pending -> ChatEvent.decision(pending, snapshot.revision(), "")));
+    return ChatEvent.decision(
+        new CreateChainPendingAction.Clarify(prompt, List.of(), gateId),
+        revision,
+        prompt,
+        ChatEvent.actionsForGate(gateId));
   }
 
   /**

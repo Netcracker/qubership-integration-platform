@@ -25,6 +25,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignEntryRoute;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignMode;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.NormalizedDesignFlow;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
@@ -209,9 +210,25 @@ class DesignInputCapabilityTest {
                     "requirementBrief",
                     briefWithoutMappings)));
     assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass());
-    assertTrue(prepared.message().contains("PASS_THROUGH"), prepared.message());
-    assertTrue(prepared.message().contains("INITIALIZATION"), prepared.message());
-    assertTrue(prepared.message().contains("trigger-1"), prepared.message());
+    assertEquals(
+        PipelineGates.MAPPING_GAP,
+        PipelineGates.gateOf(prepared.message()).orElseThrow(),
+        prepared.message());
+    assertFalse(prepared.message().contains("Reply PASS_THROUGH"), prepared.message());
+    DesignInputIdsPathPrompts.MappingGapView view =
+        DesignInputIdsPathPrompts.parseMappingGapWait(prepared.message());
+    assertFalse(view.question().isBlank());
+    assertFalse(view.missingEdges().isEmpty());
+    assertTrue(
+        view.missingEdges().stream().anyMatch(edge -> edge.contains("INITIALIZATION")),
+        view.missingEdges().toString());
+    assertTrue(
+        view.missingEdges().stream().anyMatch(edge -> edge.contains("ENDPOINT")),
+        view.missingEdges().toString());
+    assertTrue(
+        view.missingEdges().stream()
+            .noneMatch(edge -> edge.contains("mapping required:")),
+        "readable edges must not use the technical id format: " + view.missingEdges());
   }
 
   @Test

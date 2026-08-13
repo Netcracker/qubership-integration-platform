@@ -146,6 +146,10 @@ export function upsertAssistantMessage(
 ): ChatMessage[] {
   const last = messages[messages.length - 1];
   if (last?.role === "assistant" && last.variant !== "error") {
+    // A trailing empty finalize must not wipe prose (or a decision parked on it).
+    if (!content.trim()) {
+      return messages;
+    }
     return [
       ...messages.slice(0, -1),
       { ...last, role: "assistant" as const, content },
@@ -223,10 +227,9 @@ export function applyStreamingDoneMessages(
   if (options.turnFailed) {
     return currentMessages;
   }
-  let finalMessages = upsertAssistantMessage(
-    currentMessages,
-    accumulatedContent,
-  );
+  let finalMessages = accumulatedContent.trim()
+    ? upsertAssistantMessage(currentMessages, accumulatedContent)
+    : currentMessages;
   if (options.usage || options.finishReason) {
     finalMessages = [
       ...finalMessages,

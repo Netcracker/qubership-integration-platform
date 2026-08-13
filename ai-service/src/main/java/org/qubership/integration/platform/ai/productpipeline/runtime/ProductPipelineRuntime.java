@@ -1021,6 +1021,7 @@ public final class ProductPipelineRuntime {
             outcome.message());
         emitImplementationPlanForReview(runId, approvable, emitted);
         emitIdsDocumentForReview(runId, approvable, emitted);
+        emitRequirementBriefForReview(runId, approvable, emitted);
         emitted.add(
             new PipelineSignal.WaitingForApproval(
                 stage.stageId(), approvable, approvalPromptFor(runId, stage.stageId())));
@@ -2001,6 +2002,63 @@ public final class ProductPipelineRuntime {
       // Scripted tests may store a Map stub; still show Agree markers without digests in chat.
       emitted.add(new PipelineSignal.Message(markers));
     }
+  }
+
+  /**
+   * Surfaces the requirement brief before the analysis approval wait so chat shows what the reader
+   * is approving instead of only a stage CTA.
+   */
+  private void emitRequirementBriefForReview(
+      String runId, Reference approvable, List<PipelineSignal> emitted) {
+    if (approvable == null || approvable.kind() != Kind.REQUIREMENT_BRIEF) {
+      return;
+    }
+    Optional<Revision> revision = artifactStore.get(runId, approvable);
+    if (revision.isEmpty()) {
+      return;
+    }
+    try {
+      RequirementBrief brief = artifactStore.payload(revision.get(), RequirementBrief.class);
+      String body = requirementBriefChatReview(brief);
+      if (body.isBlank()) {
+        return;
+      }
+      emitted.add(new PipelineSignal.Message(body + "\n\n"));
+    } catch (RuntimeException ex) {
+      LOG.warnf(ex, "Failed to surface REQUIREMENT_BRIEF for approval review (runId=%s)", runId);
+    }
+  }
+
+  /** Compact markdown for the approval card's preceding narrative. */
+  static String requirementBriefChatReview(RequirementBrief brief) {
+    if (brief == null) {
+      return "";
+    }
+    StringBuilder body = new StringBuilder();
+    String summary = brief.summary() == null ? "" : brief.summary().trim();
+    String goal = brief.goal() == null ? "" : brief.goal().trim();
+    if (!summary.isBlank()) {
+      body.append(summary);
+    }
+    if (!goal.isBlank()) {
+      if (!body.isEmpty()) {
+        body.append("\n\n");
+      }
+      body.append("**Goal:** ").append(goal);
+    }
+    if (!brief.facts().isEmpty()) {
+      if (!body.isEmpty()) {
+        body.append("\n\n");
+      }
+      body.append("**Facts:**\n");
+      for (var fact : brief.facts()) {
+        if (fact == null || fact.text() == null || fact.text().isBlank()) {
+          continue;
+        }
+        body.append("- ").append(fact.text().trim()).append('\n');
+      }
+    }
+    return body.toString().strip();
   }
 
   /**

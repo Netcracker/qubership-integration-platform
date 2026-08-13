@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.chat;
 import java.util.List;
 import java.util.Objects;
 import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 
 /**
  * One item a {@code ScenarioHandler} emits during a chat turn. Handlers produce typed events only;
@@ -23,6 +24,12 @@ public sealed interface ChatEvent {
 
   /** Imports the selected API Hub specification into the runtime catalog. */
   String IMPORT_ACTION = "import-specification";
+
+  /** Wire actions for the IDS path-choice gate; the interface renders them as Yes / No. */
+  List<String> IDS_PATH_CHOICE_ACTIONS = List.of("yes", "no");
+
+  /** Wire actions for the mapping-gap gate: pass the payload through, or describe the mappings. */
+  List<String> MAPPING_GAP_ACTIONS = List.of("pass_through", "describe_mappings");
 
   /**
    * What the transcript records when the reader answers the import card.
@@ -177,6 +184,25 @@ public sealed interface ChatEvent {
         null,
         List.of(),
         List.of(IMPORT_ACTION));
+  }
+
+  /**
+   * Actions a gate accepts, keyed by the gate a run named rather than by words in its prompt.
+   *
+   * <p>A prompt is authored in the language of the conversation, so reading it to choose a card
+   * works only until the first reply in another language. Returns {@code null} for a gate with no
+   * enumerable answers, which is a free-text clarification.
+   */
+  static List<String> actionsForGate(String gateId) {
+    if (gateId == null) {
+      return null;
+    }
+    return switch (gateId) {
+      case PipelineGates.IMPORT_SPECIFICATION -> List.of(IMPORT_ACTION);
+      case PipelineGates.IDS_PATH_CHOICE -> IDS_PATH_CHOICE_ACTIONS;
+      case PipelineGates.MAPPING_GAP -> MAPPING_GAP_ACTIONS;
+      default -> null;
+    };
   }
 
   static ChatEvent error(String message) {

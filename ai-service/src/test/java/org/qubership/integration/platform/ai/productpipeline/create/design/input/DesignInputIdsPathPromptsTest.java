@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignMode;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
@@ -32,6 +34,51 @@ class DesignInputIdsPathPromptsTest {
         DesignMode.DERIVE,
         DesignInputIdsPathPrompts.resolveIdsPathChoiceKeywords("Derive minimal IDS"));
     assertEquals(DesignMode.DERIVE, DesignInputIdsPathPrompts.resolveIdsPathChoiceKeywords("no"));
+  }
+
+  /**
+   * The gate is named by the run, not recognized in its wording.
+   *
+   * <p>The question is authored in the language of the conversation, so a card chosen by matching
+   * English words disappears the moment a reader answers in another language.
+   */
+  @Test
+  void gateMarkerNamesTheCardWhateverLanguageTheQuestionIsIn() {
+    String spanish =
+        PipelineGates.tag(
+            PipelineGates.IDS_PATH_CHOICE,
+            "Quiere un documento de diseno de integracion para estos requisitos?");
+
+    assertEquals(PipelineGates.IDS_PATH_CHOICE, PipelineGates.gateOf(spanish).orElseThrow());
+    assertEquals(
+        "Quiere un documento de diseno de integracion para estos requisitos?",
+        PipelineGates.strip(spanish));
+    assertEquals(
+        ChatEvent.IDS_PATH_CHOICE_ACTIONS, ChatEvent.actionsForGate(PipelineGates.IDS_PATH_CHOICE));
+  }
+
+  @Test
+  void anUnmarkedPromptNamesNoGateAndIsAnsweredAsFreeText() {
+    assertTrue(PipelineGates.gateOf(DesignInputIdsPathPrompts.FALLBACK_IDS_PATH_CHOICE).isEmpty());
+    assertTrue(PipelineGates.gateOf("").isEmpty());
+    assertTrue(PipelineGates.gateOf(null).isEmpty());
+    assertEquals(null, ChatEvent.actionsForGate(""));
+  }
+
+  @Test
+  void encodeAndParseMappingGapWaitRoundTrip() {
+    List<String> edges =
+        List.of(
+            "INITIALIZATION: ENDPOINT \"HTTP POST /orders\" → SERVICE_CALL \"Create order\"",
+            "RESPONSE: SERVICE_CALL \"Create order\" → ENDPOINT \"HTTP POST /orders\"");
+    String encoded =
+        DesignInputIdsPathPrompts.encodeMappingGapWait(
+            "Some data mappings are still missing before design can continue.", edges);
+    assertFalse(encoded.toLowerCase(java.util.Locale.ROOT).contains("reply pass_through"), encoded);
+    DesignInputIdsPathPrompts.MappingGapView view =
+        DesignInputIdsPathPrompts.parseMappingGapWait(encoded);
+    assertEquals("Some data mappings are still missing before design can continue.", view.question());
+    assertEquals(edges, view.missingEdges());
   }
 
   @Test
@@ -66,15 +113,24 @@ class DesignInputIdsPathPromptsTest {
   }
 
   @Test
-  void mappingGapFallbackListsEdgesAndPassThroughAction() {
+  void mappingGapFallbackIsShortQuestionWithoutPassThroughInstruction() {
     DesignInputIdsPathPrompts prompts = new DesignInputIdsPathPrompts();
     String prompt =
         prompts.mappingGapPrompt(
             null,
             DesignMode.GENERATE,
             List.of("INITIALIZATION mapping required: trigger-1 → call-1"));
-    assertTrue(prompt.contains("PASS_THROUGH"), prompt);
-    assertTrue(prompt.contains("trigger-1"), prompt);
+    assertTrue(prompt.toLowerCase(java.util.Locale.ROOT).contains("data mapping"), prompt);
+    assertFalse(prompt.contains("Reply PASS_THROUGH"), prompt);
+    assertFalse(prompt.contains("trigger-1"), prompt);
+  }
+
+  @Test
+  void passThroughKeywordRecognizesCardAction() {
+    DesignInputIdsPathPrompts prompts = new DesignInputIdsPathPrompts();
+    assertTrue(prompts.isPassThroughConfirmation("pass_through"));
+    assertTrue(prompts.isPassThroughConfirmation("Pass through"));
+    assertFalse(prompts.isPassThroughConfirmation("$.id → $.customerId"));
   }
 
   @Test

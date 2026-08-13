@@ -34,16 +34,18 @@ Reply with only the user-facing question text. No markdown fences, no quotes, no
 
   @UserMessage(
       """
-Write a short chat question asking the user to supply missing data-mapping intent so design can \
-continue ({pendingMode}). List these missing edges exactly (keep the technical labels):
+Write a short chat question telling the user that some data mappings are still missing before \
+design can continue ({pendingMode}). The UI will list these edges and offer Pass through / \
+Describe mappings — do not list the edges in your reply, and do not tell the user to type \
+PASS_THROUGH or EXPLICIT.
+Missing edges (for your context only; do not repeat them):
 {missingEdges}
 Match the language of this reference text:
 ---
 {reference}
 ---
-Tell the user they can reply PASS_THROUGH to apply pass-through for every missing edge, or \
-describe EXPLICIT field mappings (sourcePath to targetPath). Reply with only the user-facing \
-question text. No markdown fences, no quotes, no preamble.\
+Reply with only one or two short sentences for the card. No markdown fences, no quotes, no \
+preamble, no bullet list.\
 """)
   String askMappingGap(String reference, String missingEdges, String pendingMode);
 

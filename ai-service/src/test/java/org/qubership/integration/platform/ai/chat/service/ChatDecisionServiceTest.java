@@ -26,6 +26,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionStatus;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 
 class ChatDecisionServiceTest {
 
@@ -193,6 +194,61 @@ class ChatDecisionServiceTest {
     assertEquals(List.of(ChatEvent.CREATE_ACTION), reissued.actions());
     assertEquals("create:sha256:plan", reissued.id());
     assertEquals("Create the chain?", reissued.question());
+  }
+
+  /**
+   * The import gate inside a run must offer the button that produces its marker.
+   *
+   * <p>Without it the reader gets a text field, and the stage accepts only the marker a click
+   * writes — the run would sit at the gate with no way through.
+   */
+  @Test
+  void anImportGateInsideARunOffersTheImportAction() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-1"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-1",
+                    "run-1",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    2L,
+                    new CreateChainPendingAction.Clarify(
+                        "Import the API Hub specification into the runtime catalog before planning?",
+                        List.of(),
+                        PipelineGates.IMPORT_SPECIFICATION),
+                    "")));
+
+    ChatEvent.Decision decision =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .openDecision("conv-1")
+            .orElseThrow();
+
+    assertEquals("clarify", decision.kind());
+    assertEquals(List.of(ChatEvent.IMPORT_ACTION), decision.actions());
+  }
+
+  /** A clarification the run does not name stays free text. */
+  @Test
+  void anUnnamedClarificationOffersNoActions() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-1"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-1",
+                    "run-1",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    2L,
+                    new CreateChainPendingAction.Clarify("Which system?", List.of()),
+                    "")));
+
+    ChatEvent.Decision decision =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .openDecision("conv-1")
+            .orElseThrow();
+
+    assertTrue(decision.actions().isEmpty());
   }
 
   private static ApprovalQuestionStore questionStore() {

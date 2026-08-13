@@ -13,7 +13,22 @@ const ACTION_LABELS: Record<string, string> = {
   "create-chain": "Create chain",
   "import-specification": "Import specification",
   "request-changes": "Request changes",
+  yes: "Yes",
+  no: "No",
+  pass_through: "Pass through",
+  describe_mappings: "Describe mappings",
 };
+
+/**
+ * Actions the server runs as a typed command against the run. Everything else is an answer the
+ * stage reads, so it travels as an ordinary message.
+ */
+const COMMAND_ACTIONS = new Set([
+  "approve",
+  "approve-and-create",
+  "create-chain",
+  "import-specification",
+]);
 
 /** Actions that run the primary command of their gate. */
 const PRIMARY_ACTIONS = new Set([
@@ -21,10 +36,39 @@ const PRIMARY_ACTIONS = new Set([
   "approve-and-create",
   "create-chain",
   "import-specification",
+  "yes",
+  "pass_through",
 ]);
 
 function actionLabel(action: string): string {
   return ACTION_LABELS[action] ?? action;
+}
+
+function commentPlaceholder(
+  isMappingGapClarify: boolean,
+  isFreeTextClarify: boolean,
+): string {
+  if (isMappingGapClarify) {
+    return "Describe field mappings (sourcePath to targetPath)";
+  }
+  if (isFreeTextClarify) {
+    return "Provide the missing information";
+  }
+  return "Add a comment (optional)";
+}
+
+function answeredLabel(decision: ChatDecision): string {
+  const answered = decision.answeredAction;
+  if (answered === undefined) {
+    return "";
+  }
+  if (answered === "yes" || answered === "no" || answered === "pass_through") {
+    return actionLabel(answered);
+  }
+  if (decision.kind === "clarify") {
+    return "Sent";
+  }
+  return actionLabel(answered);
 }
 
 export interface AiDecisionCardProps {
@@ -34,6 +78,7 @@ export interface AiDecisionCardProps {
   /**
    * Invoked with the typed text for kind === "clarify". The caller sends it as an ordinary chat
    * message rather than a decision command, since a clarification has no enumerable answer.
+   * Also used when a clarify gate offers enumerable actions (for example Yes / No).
    */
   onSubmitClarification?: (text: string) => void;
   /** Disables the buttons while a request is already in flight. */
@@ -48,6 +93,9 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
   busy = false,
 }) => {
   const isClarify = decision.kind === "clarify";
+  const isMappingGapClarify =
+    isClarify && decision.actions.includes("pass_through");
+  const isFreeTextClarify = isClarify && decision.actions.length === 0;
   const answeredAction = decision.answeredAction;
   const [text, setText] = useState("");
   // Guards against a double click sending the answer twice before `busy` catches up.
@@ -56,7 +104,18 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
 
   const handleClick = (action: string) => {
     if (disabled || clickedRef.current) return;
+    if (action === "describe_mappings") {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      clickedRef.current = true;
+      onSubmitClarification?.(trimmed);
+      return;
+    }
     clickedRef.current = true;
+    if (isClarify && !COMMAND_ACTIONS.has(action)) {
+      onSubmitClarification?.(action);
+      return;
+    }
     onAnswer(action, text.trim());
   };
 
@@ -71,6 +130,8 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
     ? decision.reason?.trim() || decision.question.trim()
     : decision.question.trim();
   const missingEvidence = decision.missingEvidence ?? [];
+  const showTextArea =
+    isFreeTextClarify || isMappingGapClarify || !isClarify;
 
   return (
     <div className="ai-decision-card" data-decision-id={decision.id}>
@@ -92,22 +153,25 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
 
       {answeredAction !== undefined ? (
         <Typography.Text type="secondary">
-          {isClarify ? "Sent" : actionLabel(answeredAction)}
+          {answeredLabel(decision)}
         </Typography.Text>
       ) : (
         <>
-          <Input.TextArea
-            className="ai-decision-card__comment"
-            placeholder={
-              isClarify ? "Provide the missing information" : "Add a comment (optional)"
-            }
-            autoSize={{ minRows: 1, maxRows: 4 }}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            disabled={disabled}
-          />
+          {showTextArea ? (
+            <Input.TextArea
+              className="ai-decision-card__comment"
+              placeholder={commentPlaceholder(
+                isMappingGapClarify,
+                isFreeTextClarify,
+              )}
+              autoSize={{ minRows: 1, maxRows: 4 }}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              disabled={disabled}
+            />
+          ) : null}
           <Space style={{ marginTop: 8 }}>
-            {isClarify ? (
+            {isFreeTextClarify ? (
               <Button
                 size="small"
                 type="primary"
@@ -122,7 +186,10 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
                   key={action}
                   size="small"
                   type={PRIMARY_ACTIONS.has(action) ? "primary" : "default"}
-                  disabled={disabled}
+                  disabled={
+                    disabled ||
+                    (action === "describe_mappings" && text.trim() === "")
+                  }
                   onClick={() => handleClick(action)}
                 >
                   {actionLabel(action)}

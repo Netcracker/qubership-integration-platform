@@ -120,6 +120,9 @@ public class ChatDecisionService {
         && CreateChainPublicArtifactTypes.IMPLEMENTATION_PLAN.equals(approve.artifactType())) {
       return List.of(ChatEvent.APPROVE_AND_CREATE_ACTION, ChatEvent.REQUEST_CHANGES_ACTION);
     }
+    if (pending instanceof PendingAction.Clarify clarify) {
+      return ChatEvent.actionsForGate(clarify.gateId());
+    }
     return null;
   }
 

@@ -13,8 +13,11 @@ export function findDecision(
 }
 
 /**
- * Append a decision as its own transcript entry, keeping every surrounding
- * message untouched. The server re-issues the same gate on reconnect, so an
+ * Attach a decision to the transcript without wiping surrounding narrative.
+ *
+ * Prefers the trailing assistant message when it already has prose (so the card
+ * sits under the explanation the model just streamed). Otherwise appends a
+ * decision-only entry. The server re-issues the same gate on reconnect, so an
  * unanswered entry for the same id is replaced in place instead of duplicated;
  * an already-answered entry is left alone and a fresh one is appended.
  */
@@ -30,12 +33,21 @@ export function appendDecision(
       existing.answeredAction === undefined
     );
   });
-  if (existingIndex === -1) {
-    return [...messages, { role: "assistant", content: "", decision }];
+  if (existingIndex !== -1) {
+    return messages.map((message, index) =>
+      index === existingIndex ? { ...message, decision } : message,
+    );
   }
-  return messages.map((message, index) =>
-    index === existingIndex ? { ...message, decision } : message,
-  );
+  const last = messages[messages.length - 1];
+  if (
+    last?.role === "assistant" &&
+    last.variant !== "error" &&
+    last.decision === undefined &&
+    last.content.trim()
+  ) {
+    return [...messages.slice(0, -1), { ...last, decision }];
+  }
+  return [...messages, { role: "assistant", content: "", decision }];
 }
 
 /** Freeze the entry once the reader answers it; a no-op when the id is absent. */

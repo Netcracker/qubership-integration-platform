@@ -18,6 +18,8 @@ import org.qubership.integration.platform.ai.plan.ImplementationPlanChatView;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputIdsPathPrompts;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
@@ -1071,7 +1073,7 @@ public class CreateChainApplicationFacade {
   }
 
   private static String publicPrompt(String prompt) {
-    return sanitizeLabel(prompt == null ? "" : prompt.strip()).strip();
+    return sanitizeLabel(PipelineGates.strip(prompt)).strip();
   }
 
   /**
@@ -1080,9 +1082,16 @@ public class CreateChainApplicationFacade {
    * missing.
    */
   private CreateChainPendingAction.Clarify clarifyFromWait(String taskId, String waitPrompt) {
+    String gateId = PipelineGates.gateOf(waitPrompt).orElse("");
     String prompt = publicPrompt(waitPrompt);
     if (!prompt.isBlank()) {
-      return new CreateChainPendingAction.Clarify(prompt, List.of());
+      if (PipelineGates.MAPPING_GAP.equals(gateId)) {
+        DesignInputIdsPathPrompts.MappingGapView view =
+            DesignInputIdsPathPrompts.parseMappingGapWait(prompt);
+        return new CreateChainPendingAction.Clarify(
+            view.question(), view.missingEdges(), gateId);
+      }
+      return new CreateChainPendingAction.Clarify(prompt, List.of(), gateId);
     }
     Optional<RequirementDraft> draft =
         draftStore == null || taskId == null || taskId.isBlank()

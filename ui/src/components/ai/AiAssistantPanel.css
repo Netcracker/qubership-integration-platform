@@ -118,6 +118,11 @@
   flex-direction: column;
   gap: 4px;
   margin-bottom: 10px;
+  align-items: flex-start;
+}
+
+.ai-message--user {
+  align-items: flex-end;
 }
 
 .ai-message__meta {
@@ -130,12 +135,17 @@
 }
 
 .ai-message__bubble {
-  max-width: 100%;
+  max-width: min(85%, 42rem);
+  width: fit-content;
   border: 1px solid var(--vscode-border, #d9d9d9);
   border-radius: 10px;
   padding: 8px 10px;
   background: var(--vscode-editorWidget-background, rgb(0 0 0 / 2%));
   color: var(--vscode-foreground, rgb(0 0 0 / 88%));
+}
+
+.ai-message--assistant .ai-message__bubble {
+  margin-right: auto;
 }
 
 .ai-message--user .ai-message__bubble {

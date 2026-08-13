@@ -52,8 +52,23 @@ public final class DesignRequirementBriefCoverageValidator {
   /**
    * Human-readable missing stage edges (empty when coverage passes). Does not invent mapping
    * rules; only reports topology gaps.
+   *
+   * <p>Lines keep internal {@code sourceFactId} values (often SHA-256). Prefer {@link
+   * #listReadableMissingEdges(RequirementBrief)} for chat cards.
    */
   public List<String> listMissingEdges(RequirementBrief brief) {
+    return listMissingEdges(brief, false);
+  }
+
+  /**
+   * Same topology gaps as {@link #listMissingEdges(RequirementBrief)}, labeled with fact {@code
+   * kind} and short {@code text} (or a role fallback). Digests stay out of the label.
+   */
+  public List<String> listReadableMissingEdges(RequirementBrief brief) {
+    return listMissingEdges(brief, true);
+  }
+
+  private List<String> listMissingEdges(RequirementBrief brief, boolean readable) {
     Objects.requireNonNull(brief, "brief");
     List<RequirementFact> outboundCalls = positiveFacts(brief, RequirementFactKind.SERVICE_CALL);
     if (outboundCalls.isEmpty()) {
@@ -67,14 +82,18 @@ public final class DesignRequirementBriefCoverageValidator {
 
     if (trigger == null) {
       missing.add(
-          "INITIALIZATION mapping required: trigger → first outbound call (no ENDPOINT fact)");
+          readable
+              ? "INITIALIZATION: trigger → first outbound call (no ENDPOINT fact)"
+              : "INITIALIZATION mapping required: trigger → first outbound call (no ENDPOINT fact)");
     } else {
       addMissingEdge(
           missing,
           mappings,
           RequirementDataMapping.Stage.INITIALIZATION,
           trigger.sourceFactId(),
-          firstCallId);
+          firstCallId,
+          brief,
+          readable);
     }
 
     for (int i = 0; i < outboundCalls.size() - 1; i++) {
@@ -83,7 +102,9 @@ public final class DesignRequirementBriefCoverageValidator {
           mappings,
           RequirementDataMapping.Stage.CONVERSION,
           outboundCalls.get(i).sourceFactId(),
-          outboundCalls.get(i + 1).sourceFactId());
+          outboundCalls.get(i + 1).sourceFactId(),
+          brief,
+          readable);
     }
 
     if (trigger != null && looksRequestResponse(trigger)) {
@@ -92,7 +113,9 @@ public final class DesignRequirementBriefCoverageValidator {
           mappings,
           RequirementDataMapping.Stage.RESPONSE,
           lastCallId,
-          trigger.sourceFactId());
+          trigger.sourceFactId(),
+          brief,
+          readable);
     }
     return List.copyOf(missing);
   }
@@ -154,11 +177,52 @@ public final class DesignRequirementBriefCoverageValidator {
       List<RequirementDataMapping> mappings,
       RequirementDataMapping.Stage stage,
       String fromIntentRef,
-      String toIntentRef) {
+      String toIntentRef,
+      RequirementBrief brief,
+      boolean readable) {
     if (hasStageEdge(mappings, stage, fromIntentRef, toIntentRef)) {
       return;
     }
+    if (readable) {
+      missing.add(
+          stage
+              + ": "
+              + factLabel(brief, fromIntentRef, "source")
+              + " → "
+              + factLabel(brief, toIntentRef, "target"));
+      return;
+    }
     missing.add(stage + " mapping required: " + fromIntentRef + " → " + toIntentRef);
+  }
+
+  /** Card label: {@code KIND "short text"}; falls back to a role when the fact is missing. */
+  private static String factLabel(RequirementBrief brief, String sourceFactId, String roleFallback) {
+    if (sourceFactId == null || sourceFactId.isBlank()) {
+      return roleFallback;
+    }
+    for (RequirementFact fact : brief.facts()) {
+      if (fact == null || fact.sourceFactId() == null) {
+        continue;
+      }
+      if (!sourceFactId.equals(fact.sourceFactId())) {
+        continue;
+      }
+      String kind = fact.kind() == null ? "FACT" : fact.kind().name();
+      String text = shorten(fact.text(), 72);
+      return kind + " \"" + text + '"';
+    }
+    return roleFallback;
+  }
+
+  private static String shorten(String text, int maxChars) {
+    if (text == null) {
+      return "";
+    }
+    String trimmed = text.strip();
+    if (trimmed.length() <= maxChars) {
+      return trimmed;
+    }
+    return trimmed.substring(0, Math.max(0, maxChars - 1)).stripTrailing() + "…";
   }
 
   private static void addPassThroughIfMissing(

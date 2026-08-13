@@ -27,11 +27,18 @@ public interface PendingAction {
     String prompt();
   }
 
-  /** Request for missing evidence, answered as free text. */
+  /** Request for missing evidence, answered as free text or by the actions its gate declares. */
   interface Clarify extends PendingAction {
 
     String reason();
 
     List<String> missingEvidence();
+
+    /**
+     * Gate this clarification belongs to, or an empty string when the run names none.
+     *
+     * @see PipelineGates
+     */
+    String gateId();
   }
 }

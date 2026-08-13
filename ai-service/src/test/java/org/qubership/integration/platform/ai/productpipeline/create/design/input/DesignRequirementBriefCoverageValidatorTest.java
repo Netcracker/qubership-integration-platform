@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.inpu
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -17,6 +18,24 @@ class DesignRequirementBriefCoverageValidatorTest {
 
   private final DesignRequirementBriefCoverageValidator designValidator =
       new DesignRequirementBriefCoverageValidator();
+
+  @Test
+  void readableMissingEdgesUseKindAndTextWithoutSourceFactIds() {
+    RequirementBrief brief = twoCallBrief(List.of());
+
+    List<String> technical = designValidator.listMissingEdges(brief);
+    List<String> readable = designValidator.listReadableMissingEdges(brief);
+
+    assertFalse(technical.isEmpty());
+    assertEquals(technical.size(), readable.size());
+    assertTrue(technical.getFirst().contains("trigger-1"), technical.getFirst());
+    assertTrue(technical.getFirst().contains("mapping required:"), technical.getFirst());
+    assertTrue(readable.getFirst().startsWith("INITIALIZATION: ENDPOINT"), readable.getFirst());
+    assertTrue(readable.getFirst().contains("GET /orders"), readable.getFirst());
+    assertTrue(readable.getFirst().contains("SERVICE_CALL"), readable.getFirst());
+    assertFalse(readable.getFirst().contains("mapping required:"), readable.getFirst());
+    assertFalse(readable.getFirst().contains("trigger-1 →"), readable.getFirst());
+  }
 
   @Test
   void rejectsBriefWithCallsButWithoutInitializationMapping() {

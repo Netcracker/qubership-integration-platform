@@ -28,6 +28,21 @@ public final class DesignInputIdsPathPrompts {
       "Do you want an integration design document (IDS) for these requirements? "
           + "Reply yes to write it, or no to carry on without one.";
 
+  /**
+   * Durable delimiter between the short mapping-gap question and readable edge lines stored in the
+   * wait reason. Parsed back into {@code missingEvidence} for the decision card; not shown as
+   * prose above the card.
+   */
+  static final String MAPPING_GAP_EDGES_MARKER = "__MAPPING_EDGES__";
+
+  /**
+   * Short card question when mappings are missing. Edges and actions live on the decision card;
+   * do not instruct the reader to type {@code PASS_THROUGH}.
+   */
+  static final String FALLBACK_MAPPING_GAP =
+      "Some data mappings are still missing before design can continue. "
+          + "Pass through the payload as-is, or describe the field mappings.";
+
   private static final Logger LOG = Logger.getLogger(DesignInputIdsPathPrompts.class);
 
   private final DesignInputPromptAgent promptAgent;
@@ -80,12 +95,59 @@ public final class DesignInputIdsPathPrompts {
         LOG.warnf(ex, "Mapping gap prompt LLM failed; using English fallback");
       }
     }
-    return "Data mappings are required before "
-        + pendingLabel
-        + " can continue. Missing:\n"
-        + edges
-        + "\nReply PASS_THROUGH to use pass-through for every missing stage, or describe EXPLICIT "
-        + "rules (sourcePath to targetPath).";
+    return FALLBACK_MAPPING_GAP;
+  }
+
+  /**
+   * Packs the short question and readable edges into one wait reason so durable clarify can restore
+   * both fields.
+   */
+  public static String encodeMappingGapWait(String question, List<String> readableEdges) {
+    String q =
+        question == null || question.isBlank() ? FALLBACK_MAPPING_GAP : question.strip();
+    List<String> edges =
+        readableEdges == null
+            ? List.of()
+            : readableEdges.stream()
+                .filter(edge -> edge != null && !edge.isBlank())
+                .map(String::strip)
+                .toList();
+    if (edges.isEmpty()) {
+      return q;
+    }
+    return q + "\n\n" + MAPPING_GAP_EDGES_MARKER + "\n" + String.join("\n", edges);
+  }
+
+  /** Short question plus readable edge lines recovered from an encoded wait reason. */
+  public record MappingGapView(String question, List<String> missingEdges) {
+    public MappingGapView {
+      question = question == null ? "" : question.strip();
+      missingEdges = missingEdges == null ? List.of() : List.copyOf(missingEdges);
+    }
+  }
+
+  public static MappingGapView parseMappingGapWait(String prompt) {
+    if (prompt == null || prompt.isBlank()) {
+      return new MappingGapView(FALLBACK_MAPPING_GAP, List.of());
+    }
+    String trimmed = prompt.strip();
+    int marker = trimmed.indexOf(MAPPING_GAP_EDGES_MARKER);
+    if (marker < 0) {
+      return new MappingGapView(trimmed, List.of());
+    }
+    String question = trimmed.substring(0, marker).strip();
+    String edgesBlock = trimmed.substring(marker + MAPPING_GAP_EDGES_MARKER.length()).strip();
+    List<String> edges =
+        edgesBlock.isBlank()
+            ? List.of()
+            : edgesBlock
+                .lines()
+                .map(String::strip)
+                .filter(line -> !line.isBlank())
+                .map(line -> line.startsWith("- ") ? line.substring(2).strip() : line)
+                .toList();
+    return new MappingGapView(
+        question.isBlank() ? FALLBACK_MAPPING_GAP : question, edges);
   }
 
   /**

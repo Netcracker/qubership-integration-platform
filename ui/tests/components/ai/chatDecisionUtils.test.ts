@@ -29,7 +29,7 @@ function buildDecision(overrides: Partial<ChatDecision> = {}): ChatDecision {
 }
 
 describe("appendDecision", () => {
-  it("should append the decision as its own entry while preserving surrounding messages", () => {
+  it("should attach the decision to the trailing assistant prose without wiping it", () => {
     const messages: ChatMessage[] = [
       { role: "user", content: "Create the chain" },
       { role: "assistant", content: "Working on it" },
@@ -38,12 +38,23 @@ describe("appendDecision", () => {
 
     const result = appendDecision(messages, decision);
 
-    expect(result).toHaveLength(3);
+    expect(result).toHaveLength(2);
     expect(result[0]).toEqual(messages[0]);
-    expect(result[1]).toEqual(messages[1]);
-    expect(result[2].decision).toEqual(decision);
+    expect(result[1].content).toBe("Working on it");
+    expect(result[1].decision).toEqual(decision);
     // Original array is untouched.
     expect(messages).toHaveLength(2);
+    expect(messages[1].decision).toBeUndefined();
+  });
+
+  it("should append a decision-only entry when the trailing message has no prose", () => {
+    const messages: ChatMessage[] = [{ role: "user", content: "Create the chain" }];
+    const decision = buildDecision();
+
+    const result = appendDecision(messages, decision);
+
+    expect(result).toHaveLength(2);
+    expect(result[1]).toEqual({ role: "assistant", content: "", decision });
   });
 
   it("should replace an unanswered entry for the same id instead of duplicating it", () => {
@@ -82,10 +93,11 @@ describe("markDecisionAnswered", () => {
 
     const result = markDecisionAnswered(messages, "gate-1", "approve");
 
-    expect(result[0]).toEqual(messages[0]);
-    expect(result[1].decision?.answeredAction).toBe("approve");
+    expect(result).toHaveLength(1);
+    expect(result[0].content).toBe("Ready when you are");
+    expect(result[0].decision?.answeredAction).toBe("approve");
     // Original array is untouched.
-    expect(messages[1].decision?.answeredAction).toBeUndefined();
+    expect(messages[0].decision?.answeredAction).toBeUndefined();
   });
 
   it("should no-op when the id is absent", () => {
@@ -142,6 +154,23 @@ describe("reconcileDecisionMessages", () => {
     const decisionEntries = result.filter(isDecisionMessage);
     expect(decisionEntries).toHaveLength(1);
     expect(decisionEntries[0].decision).toEqual(decision);
+  });
+
+  it("should attach a reconciled gate to trailing assistant prose", () => {
+    const messages: ChatMessage[] = [
+      { role: "user", content: "Create the chain" },
+      {
+        role: "assistant",
+        content: "Here is the requirement brief for HealthProxy.",
+      },
+    ];
+    const decision = buildDecision();
+
+    const result = reconcileDecisionMessages(messages, decision);
+
+    expect(result).toHaveLength(2);
+    expect(result[1].content).toContain("HealthProxy");
+    expect(result[1].decision).toEqual(decision);
   });
 
   it("should drop an unanswered card when the server reports no open gate", () => {

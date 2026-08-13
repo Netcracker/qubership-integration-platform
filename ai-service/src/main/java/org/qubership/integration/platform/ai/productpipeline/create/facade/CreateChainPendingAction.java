@@ -28,13 +28,18 @@ public sealed interface CreateChainPendingAction extends PendingAction {
   }
 
   /** Clarification when required evidence is missing and recovery can accept input. */
-  record Clarify(String reason, List<String> missingEvidence)
+  record Clarify(String reason, List<String> missingEvidence, String gateId)
       implements CreateChainPendingAction, PendingAction.Clarify {
+
+    public Clarify(String reason, List<String> missingEvidence) {
+      this(reason, missingEvidence, "");
+    }
 
     public Clarify {
       Objects.requireNonNull(reason, "reason");
       missingEvidence =
           missingEvidence == null ? List.of() : List.copyOf(missingEvidence);
+      gateId = gateId == null ? "" : gateId;
     }
 
     @Override
