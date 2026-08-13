@@ -1,0 +1,15 @@
+#!/bin/sh
+# Run the developer's global pre-commit hook, then refuse vendor-internal
+# identifiers in the staged content. Enable with:
+#   scripts/check-sanitization.sh --install-hook
+set -e
+
+root="$(git rev-parse --show-toplevel)"
+global_hooks="$(git config --global core.hooksPath || true)"
+
+# Only when git itself would have run it, so this chain changes nothing.
+if [ -n "$global_hooks" ] && [ -x "$global_hooks/pre-commit" ]; then
+	"$global_hooks/pre-commit" "$@"
+fi
+
+exec "$root/scripts/check-sanitization.sh" --staged

@@ -277,17 +277,28 @@ rule in Task 17 assumes.
 ### Task 1: Module skeleton and the commit gate
 
 **Files:**
-- Create: `testing-service/go.mod`, `testing-service/.golangci.yml`, `testing-service/VERSION`, `testing-service/README.md`
+- Create: `testing-service/go.mod`, `testing-service/go.sum`, `testing-service/.golangci.yml`, `testing-service/VERSION`, `testing-service/README.md`
 - Create: `testing-service/internal/config/config.go`, `testing-service/internal/config/config_test.go`
-- Create: `scripts/check-sanitization.sh`
+- Create: `testing-service/sanitization_test.go`
+- Create: `scripts/check-sanitization.sh`, `.githooks/pre-commit`
 
-- [ ] create `go.mod` with module path `github.com/Netcracker/qubership-integration-platform/testing-service` and directive `go 1.22` — the downstream build pins `GOTOOLCHAIN=local` to 1.22.x, so nothing may raise it. This binds **every** dependency, not just the obvious ones: pin any library whose current release declares `go 1.23` or later, and record why
-- [ ] declare `Config` (no DSN) and `Deps` in `internal/config`, with `DB` as the single-method `GetBunDb` interface and `CurrentUserFunc` as a named type
-- [ ] write `scripts/check-sanitization.sh` reading the token list from a path given by an environment variable, and install it as a pre-commit hook; it must fail closed when the list is missing
-- [ ] pin a golangci-lint version, write `.golangci.yml` against that version's schema, and exclude the generated `docs/` package
-- [ ] create `VERSION` with `0.1.0` and a `README.md` describing both usage modes
-- [ ] write tests for `Config` defaults and for the sanitization script, driving it with a **synthetic** token list — a fixture containing a real token would itself violate the gate it is testing
-- [ ] run `go test ./...` - must pass before next task
+- [x] create `go.mod` with module path `github.com/Netcracker/qubership-integration-platform/testing-service` and directive `go 1.22` — the downstream build pins `GOTOOLCHAIN=local` to 1.22.x, so nothing may raise it. This binds **every** dependency, not just the obvious ones: pin any library whose current release declares `go 1.23` or later, and record why
+- [x] declare `Config` (no DSN) and `Deps` in `internal/config`, with `DB` as the single-method `GetBunDb` interface and `CurrentUserFunc` as a named type
+- [x] write `scripts/check-sanitization.sh` reading the token list from a path given by an environment variable, and install it as a pre-commit hook; it must fail closed when the list is missing
+- [x] pin a golangci-lint version, write `.golangci.yml` against that version's schema, and exclude the generated `docs/` package
+- [x] create `VERSION` with `0.1.0` and a `README.md` describing both usage modes
+- [x] write tests for `Config` defaults and for the sanitization script, driving it with a **synthetic** token list — a fixture containing a real token would itself violate the gate it is testing
+- [x] run `go test ./...` - must pass before next task
+
+⚠️ The machine's git already points `core.hooksPath` at a shared global hooks directory, so the hook could not simply
+be written into `.git/hooks`. Installation now goes through a versioned `.githooks/pre-commit` that first delegates to
+the global hook and then runs the check, with `scripts/check-sanitization.sh --install-hook` setting the repository-local
+`core.hooksPath`.
+
+⚠️ `--tracked` over the whole repository reports around 70 pre-existing lines in `engine/`, `micro-engine/`,
+`runtime-catalog/`, `schemas/` and `ui/`. They are public code that predates this plan and matches a deny pattern by
+substring. Before Task 20 either widen the `[allow]` section of the token list or scope the working-tree scan to the
+paths this plan touches; the pre-commit hook is unaffected, since it only reads staged content.
 
 ### Task 2: Domain model
 
