@@ -839,18 +839,55 @@ the rest of the change set: clean.
 ### Task 15: Integration tests
 
 **Files:**
-- Create: `testing-service/internal/testsupport/postgres.go`
+- Create: `testing-service/internal/testsupport/postgres.go`, `testing-service/internal/testsupport/doc.go`
 - Create: `testing-service/internal/db/migrations_integration_test.go`, `testing-service/internal/services/execution_integration_test.go`
+- Modify: `testing-service/go.mod`, `testing-service/go.sum`
 
-- [ ] add `testcontainers-go` **pinned to a release that still supports go 1.22** — current versions require 1.23 and `go mod tidy` would raise the directive for the downstream too
-- [ ] put every integration test behind `//go:build integration`
-- [ ] test that migration 100 applies to an empty database and that applying it twice succeeds
-- [ ] test that migration 101 backfills `ordinal` for rows created before it and that the recreated view exposes the new columns
-- [ ] test the claim under concurrency: N workers against M pending cases, asserting no case is claimed twice
-- [ ] test that two runs progress concurrently while cases inside one run stay sequential and ordered
-- [ ] test lease expiry returning a stranded case to `pending`, that the stalled worker's later writes are rejected by the owner token, and that the reclaimed case re-executes without colliding with the previous attempt's validation errors
-- [ ] test that retention leaves a run with pending or running cases alone
-- [ ] run `go test -tags integration ./...` - must pass before next task
+- [x] add `testcontainers-go` **pinned to a release that still supports go 1.22** — current versions require 1.23 and `go mod tidy` would raise the directive for the downstream too
+- [x] put every integration test behind `//go:build integration`
+- [x] test that migration 100 applies to an empty database and that applying it twice succeeds
+- [x] test that migration 101 backfills `ordinal` for rows created before it and that the recreated view exposes the new columns
+- [x] test the claim under concurrency: N workers against M pending cases, asserting no case is claimed twice
+- [x] test that two runs progress concurrently while cases inside one run stay sequential and ordered
+- [x] test lease expiry returning a stranded case to `pending`, that the stalled worker's later writes are rejected by the owner token, and that the reclaimed case re-executes without colliding with the previous attempt's validation errors
+- [x] test that retention leaves a run with pending or running cases alone
+- [x] run `go test -tags integration ./...` - must pass before next task
+
+[decision] `github.com/testcontainers/testcontainers-go v0.35.0`, the last release that declares `go 1.22`: v0.36.0
+declares `go 1.23.0`. Only the base package is used, not `modules/postgres`, which would add pgx and the gRPC gateway for
+a wrapper that saves three lines here. Every module in the resulting graph still declares `go 1.22` or earlier — checked
+with `go list -m -f '{{.GoVersion}}' all` — and `go build`, `go vet` and `go test`, all with `-tags integration`, were
+run under a real go1.22.12 toolchain rather than at the 1.22 language level of the local one.
+
+[decision] `internal/testsupport` carries an untagged `doc.go` alongside the tagged `postgres.go`. Every helper is behind
+the tag, so the default build pulls in neither Docker nor testcontainers, and the package clause keeps `go build ./...`
+from failing with "build constraints exclude all Go files".
+
+[decision] One container per test binary, started on the first call and stopped by `testsupport.RunMain`, which a
+package using it calls from `TestMain`. Each test takes a schema of its own and a pool whose `search_path` points at it,
+so tests in one package neither see each other's rows nor pay for a container each.
+
+[decision] The stranded case is produced by backdating `lease_until`, not by sleeping out a short lease.
+`Config.WithDefaults` replaces a non-positive `LeaseDuration`, so a sub-second lease cannot be configured, and waiting
+one out would make the test both slow and timing-dependent.
+
+[decision] The execution suite is `package services_test`. `testsupport` imports the module root for `Migrations()`, and
+the root imports `internal/services`, so the same file inside `package services` would be an import cycle.
+
+[decision] Retention is asserted through `TestsRunsRepository.DeleteExpired` rather than through `RunRetention`. The
+guard that this task is about lives in the statement; the ticker, the batching and the disabled case are already covered
+against fakes in Task 12.
+
+[note] Task 18's dependency allowlist has to admit what testcontainers pulls in: `github.com/testcontainers/`,
+`github.com/docker/`, `github.com/moby/`, `github.com/containerd/`, `github.com/opencontainers/`,
+`github.com/distribution/`, `github.com/Microsoft/`, `github.com/Azure/`, `github.com/shirou/`, `github.com/tklauser/`,
+`github.com/lufia/`, `github.com/power-devops/`, `github.com/shoenig/`, `github.com/yusufpapurcu/`,
+`github.com/go-ole/`, `github.com/cpuguy83/`, `github.com/morikuni/`, `github.com/magiconair/`, `github.com/gogo/`,
+`github.com/sirupsen/`, `github.com/felixge/`, `github.com/cenkalti/`, `github.com/go-logr/`, `dario.cat/` and
+`go.opentelemetry.io/`.
+
+✅ Verified against PostgreSQL 14 in Docker: eight integration tests over two packages pass under go1.22.12, and the
+default `go test ./...` still needs no Docker. `golangci-lint run` is clean both with and without the build tag.
 
 ### Task 16: Container image and the local stack
 
