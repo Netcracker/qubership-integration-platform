@@ -3,12 +3,20 @@ package org.qubership.integration.platform.ai.productpipeline.facade;
 /**
  * Latest durable state of a pipeline run, named without reference to the pipeline that produced it.
  *
- * <p>Execution status is absent on purpose: status names are pipeline-owned, and {@link
- * #pendingAction()} already answers the only question a neutral reader asks — what, if anything,
- * the run waits for.
+ * <p>Execution status names stay pipeline-owned. {@link #pendingAction()} answers what the run
+ * waits for; {@link #finished()} answers whether it has anything left to do, which is what a reader
+ * outside the pipeline needs before claiming a turn, now that a conversation outlives the run bound
+ * to it.
  */
-// ponytail: no neutral status enum until a caller needs more than "is it waiting".
 public interface ExecutionSnapshot {
+
+  /**
+   * True when the run has reached an end, successful or not.
+   *
+   * <p>A finished run keeps its binding to the conversation but stops owning what the reader says
+   * next: the chain it built can then be asked about or changed like any other.
+   */
+  boolean finished();
 
   String taskId();
 

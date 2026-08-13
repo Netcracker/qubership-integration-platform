@@ -38,3 +38,12 @@ CREATE_POSTMAN_COLLECTION, IMPORT_SPECIFICATION, UNKNOWN
 
 - IMPLEMENT_CHAIN: Execute the current generated chain bundle against the catalog. Requires a
   current bundle in **PLAN_APPROVED**.
+
+- COMPARE_AND_PATCH: Change part of a chain that already exists in the catalog, with that chain open.
+  Covers editing an element's configuration — "fix the script in Normalize payload", or a pasted log
+  with "this element is wrong" — and structural changes to the live chain, such as adding a trigger
+  or an error-handling branch, or applying a change request to it. Prefer this over
+  **CREATE_CHAIN_PLAN** whenever the subject is the chain the user already has rather than a plan
+  being drafted. Drafting a plan from an IDS or a design ("take the operations from the IDS",
+  "create a chain plan from this design") stays **CREATE_CHAIN_PLAN**, as does a remark that
+  something is already in the current implementation plan.

@@ -25,6 +25,12 @@ public sealed interface ChatEvent {
   /** Imports the selected API Hub specification into the runtime catalog. */
   String IMPORT_ACTION = "import-specification";
 
+  /** Writes a proposed change into a chain the user already has: irreversible, so never a model's. */
+  String APPLY_CHAIN_PATCH_ACTION = "apply-chain-patch";
+
+  /** Artifact type a chain-patch card binds to. */
+  String CHAIN_PATCH_ARTIFACT = "CHAIN_PATCH";
+
   /** Wire actions for the IDS path-choice gate; the interface renders them as Yes / No. */
   List<String> IDS_PATH_CHOICE_ACTIONS = List.of("yes", "no");
 
@@ -184,6 +190,26 @@ public sealed interface ChatEvent {
         null,
         List.of(),
         List.of(IMPORT_ACTION));
+  }
+
+  /**
+   * A proposed change to an existing chain, offered as its own decision.
+   *
+   * <p>Bound to the patch it describes, so an answer to a card the conversation has moved past
+   * cannot write a change the reader never saw.
+   */
+  static ChatEvent chainPatchDecision(String patchHash, String question) {
+    Objects.requireNonNull(patchHash, "patchHash");
+    return new Decision(
+        "chain-patch:" + patchHash,
+        APPROVE_ACTION,
+        question == null ? "" : question.strip(),
+        CHAIN_PATCH_ARTIFACT,
+        patchHash,
+        0L,
+        null,
+        List.of(),
+        List.of(APPLY_CHAIN_PATCH_ACTION, REQUEST_CHANGES_ACTION));
   }
 
   /**

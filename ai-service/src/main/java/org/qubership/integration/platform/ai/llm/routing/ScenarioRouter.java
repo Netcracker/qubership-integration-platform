@@ -21,6 +21,8 @@ import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductPipelineChatAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
+import org.qubership.integration.platform.ai.productpipeline.facade.ExecutionSnapshot;
 
 import java.util.List;
 import java.util.Locale;
@@ -45,6 +47,7 @@ public class ScenarioRouter {
   private final Instance<ScenarioHandler> handlers;
   private final CreateRunSelectionService createRunSelectionService;
   private final ProductPipelineChatAdapter productPipelineChatAdapter;
+  private final CreateChainApplicationFacade createChainFacade;
 
   public ScenarioRouter(
       RouterAgent routerAgent,
@@ -61,6 +64,29 @@ public class ScenarioRouter {
         requirementDraftStore,
         handlers,
         null,
+        null,
+        null);
+  }
+
+  /** Kept for tests that bind a CREATE run without caring whether it has finished. */
+  public ScenarioRouter(
+      RouterAgent routerAgent,
+      ConversationPhaseResolver conversationPhaseResolver,
+      ConversationService conversationService,
+      ChainContextExtractor chainContextExtractor,
+      RequirementDraftStore requirementDraftStore,
+      @Any Instance<ScenarioHandler> handlers,
+      CreateRunSelectionService createRunSelectionService,
+      ProductPipelineChatAdapter productPipelineChatAdapter) {
+    this(
+        routerAgent,
+        conversationPhaseResolver,
+        conversationService,
+        chainContextExtractor,
+        requirementDraftStore,
+        handlers,
+        createRunSelectionService,
+        productPipelineChatAdapter,
         null);
   }
 
@@ -73,7 +99,9 @@ public class ScenarioRouter {
       RequirementDraftStore requirementDraftStore,
       @Any Instance<ScenarioHandler> handlers,
       CreateRunSelectionService createRunSelectionService,
-      ProductPipelineChatAdapter productPipelineChatAdapter) {
+      ProductPipelineChatAdapter productPipelineChatAdapter,
+      CreateChainApplicationFacade createChainFacade) {
+    this.createChainFacade = createChainFacade;
     this.routerAgent = routerAgent;
     this.conversationPhaseResolver = conversationPhaseResolver;
     this.conversationService = conversationService;
@@ -87,7 +115,8 @@ public class ScenarioRouter {
   public Multi<ChatEvent> route(ChatRequest request, String conversationId) {
     if (createRunSelectionService != null && productPipelineChatAdapter != null) {
       try {
-        if (createRunSelectionService.existing(conversationId).isPresent()) {
+        if (createRunSelectionService.existing(conversationId).isPresent()
+            && !createRunFinished(conversationId)) {
           LOG.infof("Routing conversationId=%s to product CREATE pipeline", conversationId);
           return productPipelineChatAdapter.handle(request, conversationId);
         }
@@ -160,6 +189,22 @@ public class ScenarioRouter {
               MDC.remove(ChatMdc.CONVERSATION_ID);
               MDC.remove(ChatMdc.SCENARIO_TYPE);
             });
+  }
+
+  /**
+   * Whether the CREATE run bound to this conversation has nothing left to do.
+   *
+   * <p>A binding is permanent, so without this a conversation that once created a chain would hand
+   * the pipeline every later turn — including a request to change the chain it just built. Unknown
+   * state counts as unfinished: the pipeline keeps the turn rather than a scenario taking it from a
+   * run that may still be mid-flight.
+   */
+  private boolean createRunFinished(String conversationId) {
+    return createChainFacade != null
+        && createChainFacade
+            .snapshot(conversationId)
+            .map(ExecutionSnapshot::finished)
+            .orElse(false);
   }
 
   RoutingOutcome resolveRouting(ChatRequest request, String conversationId) {

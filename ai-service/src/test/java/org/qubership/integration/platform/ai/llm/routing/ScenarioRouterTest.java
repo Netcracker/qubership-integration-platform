@@ -22,6 +22,9 @@ import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductPipelineChatAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.UnsupportedCreateRunBindingException;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionSnapshot;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionStatus;
 
 class ScenarioRouterTest {
 
@@ -137,6 +140,87 @@ class ScenarioRouterTest {
     assertEquals(
         "product",
         ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+  }
+
+  @Test
+  void finishedCreateRunReleasesTheConversationToOtherScenarios() {
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioHandler handler = mock(ScenarioHandler.class);
+    when(handler.handle(any(), anyString(), any()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("patch")));
+    when(handlers.get()).thenReturn(handler);
+    ScenarioRouter productRouter = boundRouter(adapter, snapshotWith(CreateChainExecutionStatus.COMPLETED));
+
+    var events =
+        productRouter
+            .route(patchRequest(), CONVERSATION_ID)
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    assertEquals(
+        "patch",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    org.mockito.Mockito.verify(adapter, org.mockito.Mockito.never()).handle(any(), anyString());
+  }
+
+  @Test
+  void unfinishedCreateRunKeepsOwningTheConversation() {
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    when(adapter.handle(any(), anyString()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("product")));
+    ScenarioRouter productRouter = boundRouter(adapter, snapshotWith(CreateChainExecutionStatus.WORKING));
+
+    var events =
+        productRouter
+            .route(patchRequest(), CONVERSATION_ID)
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    assertEquals(
+        "product",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+  }
+
+  private static ChatRequest patchRequest() {
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.COMPARE_AND_PATCH);
+    request.setResolvedEffectiveUserText("fix the script in Normalize payload");
+    return request;
+  }
+
+  private static CreateChainExecutionSnapshot snapshotWith(CreateChainExecutionStatus status) {
+    return new CreateChainExecutionSnapshot(CONVERSATION_ID, "run-1", status, 1L, null, "");
+  }
+
+  private ScenarioRouter boundRouter(
+      ProductPipelineChatAdapter adapter, CreateChainExecutionSnapshot snapshot) {
+    CreateRunSelectionService selection = mock(CreateRunSelectionService.class);
+    when(selection.existing(CONVERSATION_ID))
+        .thenReturn(
+            java.util.Optional.of(
+                new CreateRunSelectionService.CreateRunSelection(
+                    mock(org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest.class),
+                    "run-1")));
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot(CONVERSATION_ID)).thenReturn(java.util.Optional.of(snapshot));
+    return new ScenarioRouter(
+        routerAgent,
+        compilationRuntime.phaseResolver(),
+        mock(ConversationService.class),
+        chainContextExtractor,
+        requirementDraftStore,
+        handlers,
+        selection,
+        adapter,
+        facade);
   }
 
   @Test

@@ -23,4 +23,10 @@ public record CreateChainExecutionSnapshot(
   public boolean hasPendingAction() {
     return pendingAction != null;
   }
+
+  @Override
+  public boolean finished() {
+    return status == CreateChainExecutionStatus.COMPLETED
+        || status == CreateChainExecutionStatus.FAILED;
+  }
 }

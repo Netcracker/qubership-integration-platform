@@ -181,6 +181,7 @@ public class ChatDecisionService {
           case ChatEvent.REQUEST_CHANGES_ACTION ->
               "Requested changes to " + command.getArtifactType();
           case ChatEvent.CREATE_ACTION -> "Create the chain in the catalog";
+          case ChatEvent.APPLY_CHAIN_PATCH_ACTION -> "Apply the proposed change to the chain";
           case ChatEvent.IMPORT_ACTION -> ChatEvent.IMPORT_MARKER;
           default -> "Answered " + command.getAction();
         };

@@ -77,8 +77,13 @@ public class ChatExecutionService {
 
   /** True when the request answers a card with a command the facade runs rather than a scenario. */
   private static boolean runsAsCommand(ChatRequest request) {
-    return request.getDecision() != null
-        && !ChatEvent.IMPORT_ACTION.equals(request.getDecision().getAction());
+    return request.getDecision() != null && !runsAsScenario(request.getDecision().getAction());
+  }
+
+  /** Cards owned by a scenario rather than by the CREATE facade, answered by that scenario. */
+  private static boolean runsAsScenario(String action) {
+    return ChatEvent.IMPORT_ACTION.equals(action)
+        || ChatEvent.APPLY_CHAIN_PATCH_ACTION.equals(action);
   }
 
   private Multi<ChatEvent> openGate(String conversationId) {
@@ -114,6 +119,9 @@ public class ChatExecutionService {
         // The import is a scenario rather than a pipeline command, so the click states the
         // scenario outright instead of leaving it to be guessed from the words.
         request.setScenarioHint(ScenarioType.IMPORT_SPECIFICATION);
+      }
+      if (ChatEvent.APPLY_CHAIN_PATCH_ACTION.equals(request.getDecision().getAction())) {
+        request.setScenarioHint(ScenarioType.COMPARE_AND_PATCH);
       }
     } else {
       request.setResolvedEffectiveUserText(effectiveUserTextService.resolve(request, conversationId));

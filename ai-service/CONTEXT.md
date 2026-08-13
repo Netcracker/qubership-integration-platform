@@ -82,6 +82,13 @@ imported `ChainPlanGraph`. Ambiguous or no match -> the skill asks the user for 
 id, it does not guess. Same resolution path for chat requests and log-driven bugfixes; no separate
 mechanism for either.
 
+**Router prompt**:
+`RouterAgent` loads `prompts/router-system.md` from the classpath, and that file is **generated** at
+`process-resources` by `scripts/merge-system-prompts.groovy` from `prompts/qip-base-system.md` plus
+`prompts/roles/router.md`. It overwrites the same-named file checked in under
+`src/main/resources/prompts/`, which therefore never reaches the model — edit `roles/router.md`.
+`routing/route-examples.yaml` is read by nothing.
+
 **Routing** (decided):
 `COMPARE_AND_PATCH` stays with the LLM classifier (`router-system.md`/`RouterAgent`). No
 `PhaseRoutingPolicy`/`UserIntentPatterns` heuristic shortcut, unlike `ASK_CHAIN`, which a phase
