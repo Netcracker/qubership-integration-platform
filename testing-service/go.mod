@@ -5,6 +5,7 @@ module github.com/Netcracker/qubership-integration-platform/testing-service
 go 1.22
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.10.0
 	github.com/uptrace/bun v1.2.1 // held back: v1.2.18 declares go 1.24
 )

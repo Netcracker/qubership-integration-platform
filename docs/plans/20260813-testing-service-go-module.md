@@ -305,11 +305,21 @@ paths this plan touches; the pre-commit hook is unaffected, since it only reads 
 **Files:**
 - Create: `testing-service/internal/model/*.go`, `testing-service/internal/model/testing_context_test.go`
 
-- [ ] port `model/` (exchange, select, importexport, testing context)
-- [ ] move `DecodeTestingContext` here from `controllers/util`; leave `GetEndpointReference` behind, since it pulls in the DAO and only a controller uses it
-- [ ] keep the testing-context field names and the header value `Testing-Service-Context` exactly as they are — plan 2 encodes against this shape, and `path` and `operationPath` feed query- and path-parameter matching
-- [ ] write tests for decoding, including malformed base64 and malformed JSON, plus one golden base64 literal shared with plan 2's engine tests
-- [ ] run `go test ./internal/model/...` - must pass before next task
+- [x] port `model/` (exchange, select, importexport, testing context)
+- [x] move `DecodeTestingContext` here from `controllers/util`; leave `GetEndpointReference` behind, since it pulls in the DAO and only a controller uses it
+- [x] keep the testing-context field names and the header value `Testing-Service-Context` exactly as they are — plan 2 encodes against this shape, and `path` and `operationPath` feed query- and path-parameter matching
+- [x] write tests for decoding, including malformed base64 and malformed JSON, plus one golden base64 literal shared with plan 2's engine tests
+- [x] run `go test ./internal/model/...` - must pass before next task
+
+[decision] `DecodeTestingContext` now wraps its two failures with `fmt.Errorf(… %w)` naming the header. The source
+returned the bare `base64`/`json` error, which reaches the caller with no clue which header was malformed; no caller
+inspects the error type, so wrapping costs nothing.
+
+[decision] `FeatureFilterConfiguration.RequresConversionToText` is spelled `RequiresConversionToText` here. Nothing
+consumes it yet — `dao` arrives in Task 3 — so the misspelling is free to fix now and expensive to fix later.
+
+[deviation] `github.com/google/uuid v1.6.0` joins `go.mod` with this task rather than a later one: `ImportResult` and
+`SelectionSpecification` carry `uuid.UUID` fields. Its `go.mod` declares no `go` directive, so the 1.22 ceiling holds.
 
 ### Task 3: Repositories and the DB interface
 
