@@ -431,13 +431,37 @@ lock, so `go vet` is satisfied.
 - Create: `testing-service/migrations/00000000000100__init.tx.up.sql`, `testing-service/migrations.go`
 - Create: `testing-service/internal/db/postgres.go`
 
-- [ ] write migration 100 covering all 15 tables, 8 indexes, 4 enum types, 3 views, 2 trigger functions and 4 triggers, each idempotent per the table in Technical Details
-- [ ] take the trigger function bodies from the source's migration 02, not 01
-- [ ] use `text` and `timestamptz`, leave every object unqualified and rely on `search_path`, and do **not** create the schema here — see Technical Details for why that would break the downstream database
-- [ ] create `Migrations()` over `go:embed migrations/*.sql`, building a fresh `migrate.Migrations` on every call; the source registers into a package-level value, so a second call would register duplicates
-- [ ] create the bun/pgdriver `DB` implementation; it must not run migrations as a side effect the way the source does
-- [ ] write a test asserting the embedded set is discoverable and correctly named
-- [ ] run `go test ./...` - must pass before next task
+- [x] write migration 100 covering all 15 tables, 8 indexes, 4 enum types, 3 views, 2 trigger functions and 4 triggers, each idempotent per the table in Technical Details
+- [x] take the trigger function bodies from the source's migration 02, not 01
+- [x] use `text` and `timestamptz`, leave every object unqualified and rely on `search_path`, and do **not** create the schema here — see Technical Details for why that would break the downstream database
+- [x] create `Migrations()` over `go:embed migrations/*.sql`, building a fresh `migrate.Migrations` on every call; the source registers into a package-level value, so a second call would register duplicates
+- [x] create the bun/pgdriver `DB` implementation; it must not run migrations as a side effect the way the source does
+- [x] write a test asserting the embedded set is discoverable and correctly named
+- [x] run `go test ./...` - must pass before next task
+
+[decision] The migration file is executed by bun as a single `ExecContext`, since it carries no `--bun:split`
+directives. That is what makes `.tx.up.sql` meaningful, and pgdriver's simple query protocol accepts the multi-statement
+body including the `do $$ … $$` blocks.
+
+[decision] `internal/db` takes a DSN rather than the source's five separate connection fields. Task 13 owns the DSN per
+the plan, and a URL keeps `sslmode` and `search_path` in one place. `pgdriver.WithDSN` panics on a malformed URL, so
+`New` recovers and returns the failure as an error — a typo in `application.yaml` must not crash the process.
+
+[decision] `New` builds the pool eagerly and `GetBunDb` returns the stored handle, so no mutex is needed. The source
+built a fresh `bun.DB` wrapper on every call and guarded it with an `RWMutex`.
+
+[decision] The pool is capped at 16 connections by default. `database/sql` leaves it unlimited, which turns a burst of
+executor workers into a burst of PostgreSQL backends.
+
+[deviation] `github.com/uptrace/bun/dialect/pgdialect` and `github.com/uptrace/bun/driver/pgdriver`, both v1.2.1, join
+`go.mod` here rather than with the binary in Task 13, because `internal/db` needs them. They pull in
+`golang.org/x/crypto v0.21.0` and `mellium.im/sasl v0.3.1`; every one of the four declares `go 1.21` or earlier, so the
+1.22 ceiling holds. Task 18's dependency allowlist has to admit the `mellium.im/` prefix.
+
+✅ Verified against PostgreSQL 14 in Docker: migration 100 applies to an empty schema, applies a second time cleanly,
+and applies on top of a schema already carrying the source's migrations 01 and 02. Object counts after the first apply
+match the plan exactly — 15 tables, 8 indexes, 4 enums, 3 views, 2 functions, 4 triggers — and the statement triggers
+cascade correctly under a schema not named `testing_service`.
 
 ### Task 7: Platform clients and the HTTP trigger
 
