@@ -23,6 +23,7 @@ public class ProvidedIdsFlow extends Flow {
 
   static final String PROFILE_ID = "create-chain";
   static final String PROFILE_VERSION = "2";
+  static final String ENTRY_STAGE_ID = "ids-entry";
 
   private final ProductPipelineProfile profile;
   private final ProvidedIdsFlowTasks tasks;
@@ -69,6 +70,11 @@ public class ProvidedIdsFlow extends Flow {
       }
     }
     throw new IllegalArgumentException("implementation-gate stage is missing: " + boundary);
+  }
+
+  boolean ownsStage(String stageId) {
+    return stagesThroughPlanning(profile).stream()
+        .anyMatch(stage -> stage.stageId().equals(stageId));
   }
 
   /** Minimal workflow context; durable pipeline state remains in the existing stores. */

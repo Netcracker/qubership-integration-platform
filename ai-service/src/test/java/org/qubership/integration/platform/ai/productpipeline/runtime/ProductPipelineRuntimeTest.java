@@ -244,10 +244,86 @@ class ProductPipelineRuntimeTest {
     assertEquals("second", runStore.load(RUN_ID).orElseThrow().run().currentStageId());
     assertEquals(RunStatus.RUNNING, runStore.load(RUN_ID).orElseThrow().run().status());
 
+    runtime.executeStage(RUN_ID, "first").collect().asList().await().indefinitely();
+
+    assertEquals(1, firstCalls.get());
+    assertEquals(0, secondCalls.get());
+
     runtime.executeStage(RUN_ID, "second").collect().asList().await().indefinitely();
 
     assertEquals(1, secondCalls.get());
     assertEquals(RunStatus.CHAIN_MATERIALIZED, runStore.load(RUN_ID).orElseThrow().run().status());
+  }
+
+  @Test
+  void replayingFlowInputDoesNotAppendAnotherUserInput() {
+    ProductPipelineRuntime runtime =
+        newRuntime(FakeStageCapabilities.collector(), FakeStageCapabilities.finisher());
+    runtime
+        .startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    AcceptInputCommand command =
+        new AcceptInputCommand(RUN_ID, "provided input", "command-1", "payload-sha");
+
+    runtime.recordInput(command).collect().asList().await().indefinitely();
+    long revisionAfterFirstInput = runStore.load(RUN_ID).orElseThrow().run().runRevision();
+    runtime.recordInput(command).collect().asList().await().indefinitely();
+
+    ProductPipelineArtifactStore artifacts =
+        new ProductPipelineArtifactStore(
+            new CompilationArtifacts(blobStore, mapper, Clock.fixed(FIXED, ZoneOffset.UTC)));
+    assertEquals(1, artifacts.history(RUN_ID, Kind.USER_INPUT).size());
+    assertEquals(
+        revisionAfterFirstInput, runStore.load(RUN_ID).orElseThrow().run().runRevision());
+  }
+
+  @Test
+  void restoresRunningFlowWithoutAdvancingTheLegacySequence() {
+    AtomicInteger collectorCalls = new AtomicInteger();
+    StageCapability collector =
+        capability(
+            "fake-collector",
+            context -> {
+              collectorCalls.incrementAndGet();
+              return Multi.createFrom()
+                  .item(
+                      new CapabilitySignal.Completed(
+                          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "collector input")));
+            });
+    ProductPipelineRuntime runtime = newRuntime(collector, FakeStageCapabilities.finisher());
+    runtime
+        .startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, "provided input"))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    int callsBeforeRestore = collectorCalls.get();
+    ProductPipelineRuntime restarted =
+        newRuntime(collector, FakeStageCapabilities.finisher());
+
+    List<PipelineSignal> restored =
+        restarted
+            .restoreForExternalWorkflow(
+                new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest))
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    assertTrue(restored.isEmpty());
+    assertEquals(callsBeforeRestore, collectorCalls.get());
+    assertEquals(RunStatus.RUNNING, runStore.load(RUN_ID).orElseThrow().run().status());
+    restarted.executeStage(RUN_ID, "collect").collect().asList().await().indefinitely();
+    assertEquals(callsBeforeRestore + 1, collectorCalls.get());
   }
 
   @Test

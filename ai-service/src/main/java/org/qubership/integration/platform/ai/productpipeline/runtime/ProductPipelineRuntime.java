@@ -189,6 +189,16 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
 
   @Override
   public Multi<PipelineSignal> startOrResume(StartOrResumeCommand command) {
+    return startOrResume(command, true);
+  }
+
+  /** Restores caches and durable waits without advancing a running externally owned workflow. */
+  public Multi<PipelineSignal> restoreForExternalWorkflow(StartOrResumeCommand command) {
+    return startOrResume(command, false);
+  }
+
+  private Multi<PipelineSignal> startOrResume(
+      StartOrResumeCommand command, boolean continueRunningRun) {
     Objects.requireNonNull(command, "command");
     return Multi.createFrom()
         .deferred(
@@ -241,7 +251,9 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
                               StageOutcomeClass.DOMAIN_FAILURE,
                               "run is failed; use retry"));
                 }
-                return advance(doc.run().runId());
+                return continueRunningRun
+                    ? advance(doc.run().runId())
+                    : Multi.createFrom().empty();
               }
 
               profilesByRun.put(command.runId(), command.profile());

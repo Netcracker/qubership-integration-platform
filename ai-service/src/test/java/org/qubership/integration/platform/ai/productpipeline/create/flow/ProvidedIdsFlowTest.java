@@ -36,6 +36,8 @@ class ProvidedIdsFlowTest {
             "design-input",
             "design-planning"),
         taskNames);
+    assertTrue(flow.ownsStage("design-planning"));
+    assertFalse(flow.ownsStage("design-execution"));
   }
 
   @Test

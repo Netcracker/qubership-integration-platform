@@ -11,7 +11,9 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.ImplementCo
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRuntime;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
+import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 
 /** Selects the provided-IDS Flow at its entry stage and delegates every other route to legacy. */
 public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrator {
@@ -34,7 +36,22 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
 
   @Override
   public Multi<PipelineSignal> startOrResume(StartOrResumeCommand command) {
+    Optional<ProductPipelineRunDocument> existing =
+        runStore.loadByConversation(command.conversationId());
+    if (existing.isPresent() && resumesInFlow(existing.get())) {
+      String runId = existing.get().run().runId();
+      ProvidedIdsFlow.RunInput input = tasks.begin(runId);
+      return continueWithFlow(legacy.restoreForExternalWorkflow(command), input);
+    }
     return legacy.startOrResume(command);
+  }
+
+  private boolean resumesInFlow(ProductPipelineRunDocument document) {
+    String stageId = document.run().currentStageId();
+    return document.run().status() == RunStatus.RUNNING
+        && flow.ownsStage(stageId)
+        && (ProvidedIdsFlow.ENTRY_STAGE_ID.equals(stageId)
+            || legacy.isProvidedDesignRoute(document.run().runId()));
   }
 
   @Override
@@ -42,15 +59,21 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
     boolean atEntry =
         runStore
             .load(command.runId())
-            .map(document -> "ids-entry".equals(document.run().currentStageId()))
+            .map(
+                document ->
+                    ProvidedIdsFlow.ENTRY_STAGE_ID.equals(document.run().currentStageId()))
             .orElse(false);
     if (!atEntry) {
       return legacy.acceptInput(command);
     }
 
     ProvidedIdsFlow.RunInput input = tasks.begin(command.runId());
-    return legacy
-        .recordInput(command)
+    return continueWithFlow(legacy.recordInput(command), input);
+  }
+
+  private Multi<PipelineSignal> continueWithFlow(
+      Multi<PipelineSignal> precedingSignals, ProvidedIdsFlow.RunInput input) {
+    return precedingSignals
         .onCompletion()
         .switchTo(() -> runFlow(input))
         .onFailure()
