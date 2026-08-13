@@ -111,6 +111,8 @@ func (s *fakeTestsRunsService) Export(ctx context.Context, ids *[]uuid.UUID) (st
 	return s.export(ctx, ids)
 }
 
+func (s *fakeTestsRunsService) RunRetention(context.Context) {}
+
 type fakeTestCaseRunsService struct {
 	findAll func(context.Context, *model.SelectionSpecification, model.SortOptions, *model.PaginationOptions) (*[]dao.TestCaseRunView, error)
 }

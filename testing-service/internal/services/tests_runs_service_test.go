@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"testing"
 
 	"github.com/google/uuid"
@@ -21,8 +23,21 @@ func testsRunsServiceOver(repositories Repositories) (TestsRunsService, *fakeRun
 func testsRunsServiceWithNotifier(repositories Repositories) (TestsRunsService, *fakeRunner, *fakeWorkNotifier) {
 	runner := &fakeRunner{}
 	notifier := &fakeWorkNotifier{}
-	testCaseRunsService := NewTestCaseRunsService(config.Config{}, runner, repositories)
-	return NewTestsRunsService(runner, repositories, testCaseRunsService, notifier), runner, notifier
+	service := testsRunsServiceWith(config.Config{}, runner, repositories, notifier)
+	return service, runner, notifier
+}
+
+// testsRunsServiceWith wires the service over settings of the caller's choosing,
+// which is what the retention tests vary.
+func testsRunsServiceWith(
+	cfg config.Config,
+	runner dao.Runner,
+	repositories Repositories,
+	notifier WorkNotifier,
+) TestsRunsService {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	testCaseRunsService := NewTestCaseRunsService(cfg, runner, repositories)
+	return NewTestsRunsService(cfg, logger, runner, repositories, testCaseRunsService, notifier)
 }
 
 func TestStartNewRejectsAnEmptyTestCaseList(t *testing.T) {

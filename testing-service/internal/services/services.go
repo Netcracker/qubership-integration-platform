@@ -97,7 +97,7 @@ func NewServices(cfg config.Config, deps config.Deps, d *dao.Dao) *Services {
 	)
 
 	return &Services{
-		TestsRunsService:         NewTestsRunsService(d, repositories, testCaseRunsService, testExecutionService),
+		TestsRunsService:         NewTestsRunsService(cfg, logger, d, repositories, testCaseRunsService, testExecutionService),
 		TestCaseRunsService:      testCaseRunsService,
 		TestCaseRunErrorsService: testCaseRunErrorsService,
 		TestCasesService:         testCasesService,

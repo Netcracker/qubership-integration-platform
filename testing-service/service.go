@@ -10,6 +10,7 @@ package testingservice
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -67,13 +68,25 @@ func (s *Service) Mount(router fiber.Router) {
 	s.controllers.Mount(router)
 }
 
-// RunExecutor runs the test executor and its lease sweeper until ctx is canceled,
-// then returns nil once they have stopped. A canceled context is the ordinary
-// way to shut down, so it is not reported as a failure. Shutdown does not wait
-// for the queue to drain: the case a worker was on keeps its lease until it
-// expires, and the sweeper hands it out again.
+// RunExecutor runs the test executor, its lease sweeper and the retention of aged
+// test runs until ctx is canceled, then returns nil once they have stopped. A
+// canceled context is the ordinary way to shut down, so it is not reported as a
+// failure. Shutdown does not wait for the queue to drain: the case a worker was on
+// keeps its lease until it expires, and the sweeper hands it out again.
 func (s *Service) RunExecutor(ctx context.Context) error {
-	s.services.TestExecutionService.Run(dao.WithCurrentUser(ctx, s.backgroundUser(ctx)))
+	ctx = dao.WithCurrentUser(ctx, s.backgroundUser(ctx))
+
+	var running sync.WaitGroup
+	running.Add(2)
+	go func() {
+		defer running.Done()
+		s.services.TestExecutionService.Run(ctx)
+	}()
+	go func() {
+		defer running.Done()
+		s.services.TestsRunsService.RunRetention(ctx)
+	}()
+	running.Wait()
 	return nil
 }
 

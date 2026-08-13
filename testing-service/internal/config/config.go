@@ -19,6 +19,9 @@ const (
 	DefaultWorkerCount     = 4
 	DefaultLeaseDuration   = time.Minute
 	DefaultPaginationLimit = 20
+	// DefaultRetentionInterval only paces the sweep. Retention stays off until
+	// RetentionAge is set.
+	DefaultRetentionInterval = time.Hour
 )
 
 // Config carries the settings of the testing service. It holds no DSN: the host
@@ -37,6 +40,13 @@ type Config struct {
 	LeaseDuration time.Duration
 	// PaginationLimit caps the page size the list endpoints accept.
 	PaginationLimit int
+	// RetentionAge is how long a test run is kept before retention deletes it
+	// along with its case runs and validation errors. Zero keeps every run: this
+	// is the one setting WithDefaults does not fill in, because a host that names
+	// no age has not asked for anything to be deleted.
+	RetentionAge time.Duration
+	// RetentionInterval is how long retention waits between sweeps.
+	RetentionInterval time.Duration
 	// Production disables the operations that are unsafe on a live installation.
 	Production bool
 }
@@ -63,7 +73,16 @@ func (c Config) WithDefaults() Config {
 	if c.PaginationLimit <= 0 {
 		c.PaginationLimit = DefaultPaginationLimit
 	}
+	if c.RetentionInterval <= 0 {
+		c.RetentionInterval = DefaultRetentionInterval
+	}
 	return c
+}
+
+// RetentionEnabled reports whether test runs are deleted once they reach
+// RetentionAge.
+func (c Config) RetentionEnabled() bool {
+	return c.RetentionAge > 0
 }
 
 // DB hands out the bun handle that the repositories run their queries on. The

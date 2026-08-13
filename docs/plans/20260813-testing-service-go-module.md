@@ -704,12 +704,40 @@ qualifier after the commit and reclaims nothing.
 - Modify: `testing-service/internal/services/tests_runs_service.go`, `testing-service/internal/config/config.go`, `testing-service/service.go`
 - Create: `testing-service/internal/services/retention_test.go`
 
-- [ ] add retention settings to `Config` (age threshold and sweep interval; disabled when the threshold is zero)
-- [ ] delete by `tests_runs.created_at` and let the existing cascades remove case runs and validation errors — `test_case_runs` has no creation timestamp of its own
-- [ ] exclude runs that still have `pending` or `running` cases, so a long or stuck run is never deleted out from under a worker
-- [ ] batch the deletion so a large backlog does not hold a long transaction, and start the sweep from `RunExecutor`
-- [ ] write tests for threshold behavior, batching, the active-run exclusion, and the disabled case
-- [ ] run `go test ./...` - must pass before next task
+- [x] add retention settings to `Config` (age threshold and sweep interval; disabled when the threshold is zero)
+- [x] delete by `tests_runs.created_at` and let the existing cascades remove case runs and validation errors — `test_case_runs` has no creation timestamp of its own
+- [x] exclude runs that still have `pending` or `running` cases, so a long or stuck run is never deleted out from under a worker
+- [x] batch the deletion so a large backlog does not hold a long transaction, and start the sweep from `RunExecutor`
+- [x] write tests for threshold behavior, batching, the active-run exclusion, and the disabled case
+- [x] run `go test ./...` - must pass before next task
+
+[decision] `RetentionAge` is the one setting `WithDefaults` leaves alone. Every other non-positive number counts as
+unset and gets a default, but a host that named no age has not asked for anything to be deleted, so a default here would
+silently start deleting test runs on upgrade. `RetentionInterval` keeps the usual treatment, since it only paces a sweep
+that is off anyway. `Config.RetentionEnabled` names the rule so no caller has to repeat the comparison.
+
+[decision] The batch size is the constant `retentionBatchSize`, not a `Config` field. It trades statement duration
+against the number of statements, which is a property of the schema rather than of an installation, and nothing in the
+plan asks a host to tune it.
+
+[decision] The first sweep waits out an interval rather than running at startup. Retention is not urgent, and a restart
+loop that deletes on every boot is worse than one that waits.
+
+[decision] `NewTestsRunsService` takes `config.Config` and a `*slog.Logger` first, matching `NewTestCaseRunsService` and
+`NewTestExecutionService`. The retention loop is the first thing in this service with something to report.
+
+[deviation] `RunExecutor` now runs the executor and retention as two goroutines under a `WaitGroup` instead of calling
+the executor inline. Both stop on the same canceled context, and the function still returns only once both have.
+
+[deviation] The active-run exclusion is asserted in a new `internal/dao/tests_runs_repository_test.go` rather than in
+`internal/services/retention_test.go`: the guard lives in the statement, and the statement is unexported in `dao`. The
+service-level tests cover the threshold, the batching, the failure path and the disabled case against fakes.
+
+✅ Verified against PostgreSQL 14 in Docker with a throwaway build-tagged suite (removed afterwards; the real
+integration suite is Task 15): with migrations 100 and 101 applied, a sweep over five seeded runs deletes only the aged
+one whose cases are all finished — the aged runs holding a `pending` and a `running` case, the recent run and a run with
+no `created_at` all survive — and the cascades take the deleted run's case runs and its validation error. A second sweep
+finds nothing, and a backlog of five aged runs comes out as batches of 2, 2 and 1 under a batch size of two.
 
 ### Task 13: Standalone binary
 

@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
 
+	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/config"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
 )
@@ -40,7 +43,16 @@ type TestsRunsService interface {
 	Cancel(ctx context.Context, id uuid.UUID) error
 	BulkCancel(ctx context.Context, ids *[]uuid.UUID) error
 	Export(ctx context.Context, ids *[]uuid.UUID) (string, error)
+
+	// RunRetention deletes aged test runs until ctx is canceled, and returns at
+	// once when retention is off.
+	RunRetention(ctx context.Context)
 }
+
+// retentionBatchSize caps how many test runs one retention statement deletes.
+// A backlog is worked off one batch per statement rather than under a single
+// transaction that holds locks for as long as it takes.
+const retentionBatchSize = 500
 
 // WorkNotifier reports queued work to whatever executes it. Taking the notifier
 // rather than the executor keeps the queue writer independent of the pool.
@@ -49,25 +61,35 @@ type WorkNotifier interface {
 }
 
 type testsRunsService struct {
+	logger              *slog.Logger
 	runner              dao.Runner
 	repositories        Repositories
 	testCaseRunsService TestCaseRunsService
 	notifier            WorkNotifier
+	retentionAge        time.Duration
+	retentionInterval   time.Duration
 }
 
-// NewTestsRunsService returns a TestsRunsService over the given database access.
-// A nil notifier leaves the executor to find new runs on its next poll.
+// NewTestsRunsService returns a TestsRunsService over the given database access,
+// keeping test runs for the retention age cfg carries. A nil notifier leaves the
+// executor to find new runs on its next poll.
 func NewTestsRunsService(
+	cfg config.Config,
+	logger *slog.Logger,
 	runner dao.Runner,
 	repositories Repositories,
 	testCaseRunsService TestCaseRunsService,
 	notifier WorkNotifier,
 ) TestsRunsService {
+	cfg = cfg.WithDefaults()
 	return &testsRunsService{
+		logger:              logger,
 		runner:              runner,
 		repositories:        repositories,
 		testCaseRunsService: testCaseRunsService,
 		notifier:            notifier,
+		retentionAge:        cfg.RetentionAge,
+		retentionInterval:   cfg.RetentionInterval,
 	}
 }
 
@@ -158,6 +180,55 @@ func (s *testsRunsService) BulkCancel(ctx context.Context, ids *[]uuid.UUID) err
 
 func (s *testsRunsService) Export(ctx context.Context, ids *[]uuid.UUID) (string, error) {
 	return s.testCaseRunsService.ExportByTestsRunIds(ctx, ids)
+}
+
+// RunRetention sweeps once per retention interval until ctx is canceled. The
+// first sweep waits out an interval, so a restart does not delete anything before
+// the service is serving.
+func (s *testsRunsService) RunRetention(ctx context.Context) {
+	if s.retentionAge <= 0 {
+		s.logger.InfoContext(ctx, "Retention of test runs is off, so every run is kept")
+		return
+	}
+	s.logger.InfoContext(ctx, "Starting the retention of test runs",
+		"retentionAge", s.retentionAge, "retentionInterval", s.retentionInterval)
+
+	ticker := time.NewTicker(s.retentionInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			s.logger.InfoContext(ctx, "Stopped the retention of test runs")
+			return
+		case <-ticker.C:
+		}
+		deleted, err := s.deleteExpired(ctx)
+		if err != nil {
+			s.logger.ErrorContext(ctx, "Cannot delete the test runs that reached the retention age", "error", err)
+		}
+		if deleted > 0 {
+			s.logger.InfoContext(ctx, "Deleted the test runs that reached the retention age", "testsRuns", deleted)
+		}
+	}
+}
+
+// deleteExpired works off the backlog one batch per transaction, and reports how
+// many runs it deleted in total. A batch that comes back short is the last one.
+func (s *testsRunsService) deleteExpired(ctx context.Context) (int, error) {
+	total := 0
+	for ctx.Err() == nil {
+		deleted, err := dao.RunInTx(ctx, s.runner, defaultTxOptions(), func(ctx context.Context, _ bun.IDB) (int, error) {
+			return s.repositories.TestsRuns.DeleteExpired(ctx, s.retentionAge, retentionBatchSize)
+		})
+		total += deleted
+		if err != nil {
+			return total, err
+		}
+		if deleted < retentionBatchSize {
+			break
+		}
+	}
+	return total, nil
 }
 
 func (s *testsRunsService) verifyAllTestCasesExist(ctx context.Context, ids *[]uuid.UUID) error {

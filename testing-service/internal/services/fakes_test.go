@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"database/sql"
+	"slices"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -111,15 +113,56 @@ func (r *fakeTestCasesRepository) Exists(_ context.Context, id uuid.UUID) (bool,
 	return r.existing[id], nil
 }
 
+// deleteExpiredCall records the age and the batch size a retention sweep asked
+// for, so a test can assert what reached the repository.
+type deleteExpiredCall struct {
+	age       time.Duration
+	batchSize int
+}
+
 type fakeTestsRunsRepository struct {
 	dao.TestsRunsRepository
 
 	inserted []dao.TestsRun
+
+	mutex sync.Mutex
+	// expired holds the runs the sweep may take, oldest first. What each batch
+	// leaves behind is what the next one sees, which is how the fake stands in for
+	// the batching the real statement does with its LIMIT.
+	expired            []uuid.UUID
+	deleted            []uuid.UUID
+	deleteExpiredCalls []deleteExpiredCall
+	deleteExpiredErr   error
 }
 
 func (r *fakeTestsRunsRepository) Insert(_ context.Context, testsRun *dao.TestsRun) error {
 	r.inserted = append(r.inserted, *testsRun)
 	return nil
+}
+
+func (r *fakeTestsRunsRepository) DeleteExpired(_ context.Context, age time.Duration, batchSize int) (int, error) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	r.deleteExpiredCalls = append(r.deleteExpiredCalls, deleteExpiredCall{age: age, batchSize: batchSize})
+	if r.deleteExpiredErr != nil {
+		return 0, r.deleteExpiredErr
+	}
+	batch := min(batchSize, len(r.expired))
+	r.deleted = append(r.deleted, r.expired[:batch]...)
+	r.expired = r.expired[batch:]
+	return batch, nil
+}
+
+func (r *fakeTestsRunsRepository) sweeps() []deleteExpiredCall {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	return slices.Clone(r.deleteExpiredCalls)
+}
+
+func (r *fakeTestsRunsRepository) deletedRuns() []uuid.UUID {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	return slices.Clone(r.deleted)
 }
 
 // claimCall records what a claim was made under, so a test can assert that the

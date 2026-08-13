@@ -3,6 +3,7 @@ package dao
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
@@ -39,6 +40,7 @@ type TestsRunsRepository interface {
 	Insert(ctx context.Context, testsRun *TestsRun) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	BulkDelete(ctx context.Context, ids *[]uuid.UUID) error
+	DeleteExpired(ctx context.Context, age time.Duration, batchSize int) (int, error)
 }
 
 type testsRunsRepository struct {
@@ -149,4 +151,49 @@ func (r *testsRunsRepository) BulkDelete(ctx context.Context, ids *[]uuid.UUID) 
 	}
 	_, err = db.NewDelete().Model((*TestsRun)(nil)).Where("id IN (?)", bun.In(*ids)).Exec(ctx)
 	return err
+}
+
+// deleteExpiredTestsRunsQuery removes one batch of aged test runs. Age comes from
+// tests_runs.created_at, because test_case_runs has no creation timestamp of its
+// own, and the cascades on test_case_runs and validation_errors take the children.
+//
+// A run with a case still waiting or in flight is left alone whatever its age: the
+// case may be sitting under a live lease, and deleting the run would take the row
+// out from under the worker on it. A run whose created_at was never stamped is
+// left alone too, since the comparison against null selects nothing.
+const deleteExpiredTestsRunsQuery = `
+delete from tests_runs where id in (
+    select r.id from tests_runs r
+    where r.created_at < now() - make_interval(secs => ?)
+      and not exists (
+          select 1 from test_case_runs c
+          where c.tests_run_id = r.id and c.status in (?, ?)
+      )
+    order by r.created_at
+    limit ?
+)`
+
+// DeleteExpired deletes at most batchSize test runs older than age and reports how
+// many it took. The batch is what keeps a large backlog from being deleted under
+// one long transaction.
+func (r *testsRunsRepository) DeleteExpired(ctx context.Context, age time.Duration, batchSize int) (int, error) {
+	db, err := GetDb(ctx)
+	if err != nil {
+		return 0, err
+	}
+	result, err := db.NewRaw(
+		deleteExpiredTestsRunsQuery,
+		age.Seconds(),
+		RunStatusPending,
+		RunStatusRunning,
+		batchSize,
+	).Exec(ctx)
+	if err != nil {
+		return 0, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return int(affected), nil
 }
