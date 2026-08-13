@@ -15,6 +15,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
+import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
@@ -249,6 +250,98 @@ class ChatDecisionServiceTest {
             .orElseThrow();
 
     assertTrue(decision.actions().isEmpty());
+  }
+
+  /** The question is authored in the language the reader is using, not composed in English. */
+  @Test
+  void theImportQuestionIsAuthoredInTheLanguageOfTheConversation() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-1")).thenReturn(Optional.empty());
+    when(facade.pendingCreationHash("conv-1")).thenReturn(Optional.empty());
+    ChatDecisionService service =
+        new ChatDecisionService(facade, questionStore(), draftsWithCandidate("Crea una cadena"));
+    service.promptAgent = authoringAgent("Importar la especificacion GeoSite API al catalogo?");
+
+    ChatEvent.Decision decision = service.openDecision("conv-1").orElseThrow();
+
+    assertEquals("Importar la especificacion GeoSite API al catalogo?", decision.question());
+  }
+
+  /** A re-fetch shows the wording the reader already saw, not a fresh variant of it. */
+  @Test
+  void theImportQuestionIsStableAcrossReFetches() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-1")).thenReturn(Optional.empty());
+    when(facade.pendingCreationHash("conv-1")).thenReturn(Optional.empty());
+    ChatDecisionService service =
+        new ChatDecisionService(facade, questionStore(), draftsWithCandidate("Crea una cadena"));
+    service.promptAgent = authoringAgent("Primera redaccion?");
+
+    String first = service.openDecision("conv-1").orElseThrow().question();
+    service.promptAgent = authoringAgent("Segunda redaccion?");
+    String second = service.openDecision("conv-1").orElseThrow().question();
+
+    assertEquals(first, second);
+  }
+
+  @Test
+  void aFailingPromptModelLeavesTheEnglishQuestion() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-1")).thenReturn(Optional.empty());
+    when(facade.pendingCreationHash("conv-1")).thenReturn(Optional.empty());
+    ChatDecisionService service =
+        new ChatDecisionService(facade, questionStore(), draftsWithCandidate("Create a chain"));
+    service.promptAgent =
+        new ApprovalPromptAgent() {
+          @Override
+          public String askStageApproval(String stageId, String reference) {
+            return null;
+          }
+
+          @Override
+          public String askImplementContinuation(String reference) {
+            return null;
+          }
+
+          @Override
+          public String askImportConfirmation(String specification, String reference) {
+            throw new IllegalStateException("model unavailable");
+          }
+        };
+
+    ChatEvent.Decision decision = service.openDecision("conv-1").orElseThrow();
+
+    assertTrue(decision.question().startsWith("Import the API Hub specification"), decision.question());
+  }
+
+  private static ApprovalPromptAgent authoringAgent(String question) {
+    return new ApprovalPromptAgent() {
+      @Override
+      public String askStageApproval(String stageId, String reference) {
+        return null;
+      }
+
+      @Override
+      public String askImplementContinuation(String reference) {
+        return null;
+      }
+
+      @Override
+      public String askImportConfirmation(String specification, String reference) {
+        return question;
+      }
+    };
+  }
+
+  private static RequirementDraftStore draftsWithCandidate(String assembledText) {
+    RequirementDraftStore drafts = new RequirementDraftStore();
+    drafts.put(
+        "conv-1",
+        new RequirementDraft(false, assembledText)
+            .withApiHubCandidate(
+                new ApiHubRequirementRefs(
+                    "pkg.geosite", "2024.4", "op-1", null, "rest", "GeoSite", "GeoSite API")));
+    return drafts;
   }
 
   private static ApprovalQuestionStore questionStore() {

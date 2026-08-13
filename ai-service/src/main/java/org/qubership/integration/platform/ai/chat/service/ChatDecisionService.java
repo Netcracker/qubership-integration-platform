@@ -7,7 +7,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
+import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand;
@@ -29,9 +31,14 @@ import org.qubership.integration.platform.ai.productpipeline.facade.PendingActio
 @ApplicationScoped
 public class ChatDecisionService {
 
+  private static final Logger LOG = Logger.getLogger(ChatDecisionService.class);
+
   private final CreateChainApplicationFacade facade;
   private final ApprovalQuestionStore approvalQuestions;
   private final RequirementDraftStore draftStore;
+
+  /** Null in unit tests, which build the service without an LLM; the English fallback stands in. */
+  @Inject ApprovalPromptAgent promptAgent;
 
   @Inject
   public ChatDecisionService(
@@ -87,14 +94,41 @@ public class ChatDecisionService {
             draft ->
                 (ChatEvent.Decision)
                     ChatEvent.importDecision(
-                        draft.apiHubCandidate().packageId(), importQuestion(draft)));
+                        draft.apiHubCandidate().packageId(),
+                        importQuestion(conversationId, draft)));
   }
 
-  private static String importQuestion(RequirementDraft draft) {
+  /**
+   * The import question, authored in the language of the conversation and kept with the run.
+   *
+   * <p>Stored under the candidate the reader was shown, so a reload finds the same wording rather
+   * than a freshly authored variant of it. English only when the model is absent or fails.
+   */
+  private String importQuestion(String conversationId, RequirementDraft draft) {
+    String candidateId = draft.apiHubCandidate().packageId();
+    Optional<String> stored = approvalQuestions.find(conversationId, candidateId);
+    if (stored.isPresent()) {
+      return stored.get();
+    }
+    String subject = importSubject(draft);
+    String question = "Import the API Hub specification " + subject + " into the runtime catalog?";
+    if (promptAgent != null) {
+      try {
+        String authored = promptAgent.askImportConfirmation(subject, draft.assembledText());
+        if (authored != null && !authored.isBlank()) {
+          question = authored.strip();
+        }
+      } catch (RuntimeException ex) {
+        LOG.warnf(ex, "Import confirmation prompt LLM failed; using English fallback");
+      }
+    }
+    approvalQuestions.save(conversationId, candidateId, question);
+    return question;
+  }
+
+  private static String importSubject(RequirementDraft draft) {
     String name = draft.apiHubCandidate().packageName();
-    String subject =
-        name == null || name.isBlank() ? draft.apiHubCandidate().packageId() : name;
-    return "Import the API Hub specification " + subject + " into the runtime catalog?";
+    return name == null || name.isBlank() ? draft.apiHubCandidate().packageId() : name;
   }
 
   /** The implementation gate as a card, when the run stands at it. */

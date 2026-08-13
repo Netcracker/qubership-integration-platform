@@ -84,6 +84,12 @@ public final class ApprovalPrompts {
           public String askImplementContinuation(String reference) {
             return implementAuthor.apply(reference);
           }
+
+          @Override
+          public String askImportConfirmation(String specification, String reference) {
+            // Import questions are authored by the chat decision service, not by this double.
+            return null;
+          }
         };
     return new ApprovalPrompts(stub);
   }
