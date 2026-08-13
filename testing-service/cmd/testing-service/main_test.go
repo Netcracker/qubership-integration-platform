@@ -249,7 +249,7 @@ func TestHealthBoundsTheDatabaseRoundTrip(t *testing.T) {
 func swaggerRequest(t *testing.T, path string) (*http.Response, string) {
 	t.Helper()
 	app := fiber.New(fiber.Config{DisableStartupMessage: true})
-	app.Get(swaggerPath, fiberswagger.HandlerDefault)
+	app.Get(swaggerPath, fiberswagger.New(fiberswagger.Config{URL: swaggerDocURL}))
 
 	resp, err := app.Test(httptest.NewRequest(http.MethodGet, path, nil))
 	require.NoError(t, err)
@@ -289,8 +289,17 @@ func TestSwaggerServesTheUI(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Contains(t, resp.Header.Get(fiber.HeaderContentType), fiber.MIMETextHTML)
-	// The page must fetch the spec from the same prefix, or nginx never sees it.
-	assert.Contains(t, body, "/api/v1/swagger/doc.json")
+	assert.Contains(t, body, `"url":"doc.json"`)
+}
+
+// The nginx rule inserts its own segments between /api/v1 and the service path,
+// so a spec URL built from the internal route resolves to nothing behind the
+// proxy. Keeping it relative is what makes the UI work on both paths.
+func TestSwaggerAsksForTheSpecRelativeToThePage(t *testing.T) {
+	_, body := swaggerRequest(t, "/api/v1/swagger/index.html")
+
+	assert.NotContains(t, body, `"url":"/api/v1/swagger/doc.json"`)
+	assert.NotContains(t, body, `"url":"/`)
 }
 
 func TestSwaggerRedirectsToTheIndex(t *testing.T) {

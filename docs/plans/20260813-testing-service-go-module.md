@@ -300,6 +300,11 @@ the global hook and then runs the check, with `scripts/check-sanitization.sh --i
 substring. Before Task 20 either widen the `[allow]` section of the token list or scope the working-tree scan to the
 paths this plan touches; the pre-commit hook is unaffected, since it only reads staged content.
 
+✅ Resolved in Task 20 by scoping rather than by widening the list. The hits are 39 files, one of them
+`infrastructure/.gitignore`, and none is touched by this branch — the intersection with `git diff --name-only
+origin/main..HEAD` is empty. Widening the `[allow]` section would have weakened the gate for the sake of code the gate
+was never about.
+
 ### Task 2: Domain model
 
 **Files:**
@@ -1104,19 +1109,78 @@ repository `build-bom.sh` reports `"testing-service": null`, which is correct un
 
 ### Task 20: Verify acceptance criteria
 
-- [ ] verify all requirements from Overview are implemented
-- [ ] run `go test ./...`, then `go test -tags integration ./...`
-- [ ] run `golangci-lint run` and confirm it is clean
-- [ ] run the sanitization script over the working tree and over `git log -p` for the whole branch; if anything is found, rewrite the branch before it is pushed anywhere public
-- [ ] confirm the dependency allowlist passes
-- [ ] bring up the stack and exercise the API with curl: create a test case, list it with filters, sorting and pagination, check `?return_ids=true`, create an endpoint mock, call `/endpoint-mocks/call` with a base64 testing context and assert both a matching mock response and the not-found response
-- [ ] create a test run and observe cases move pending → running → finished, with errors recorded for a deliberately failing matcher
-- [ ] start two runs at once and confirm they progress in parallel while cases inside each stay ordered
-- [ ] inspect PostgreSQL: `testing_service` schema present, `ordinal`, `lease_until` and `lease_owner` populated, the recreated view exposing them, views returning aggregates
-- [ ] kill the service mid-run and confirm the stranded case returns to `pending` and completes
-- [ ] apply migration 100 twice against a database that already has the schema and confirm it succeeds
-- [ ] let retention run against a seeded old run and confirm cascades removed its cases and errors
-- [ ] open the swagger UI in Chrome and confirm the spec renders and carries no vendor naming
+**Files:**
+- Modify: `testing-service/cmd/testing-service/main.go`, `testing-service/cmd/testing-service/main_test.go`
+
+- [x] verify all requirements from Overview are implemented
+- [x] run `go test ./...`, then `go test -tags integration ./...`
+- [x] run `golangci-lint run` and confirm it is clean
+- [x] run the sanitization script over the working tree and over `git log -p` for the whole branch; if anything is found, rewrite the branch before it is pushed anywhere public
+- [x] confirm the dependency allowlist passes
+- [x] bring up the stack and exercise the API with curl: create a test case, list it with filters, sorting and pagination, check `?return_ids=true`, create an endpoint mock, call `/endpoint-mocks/call` with a base64 testing context and assert both a matching mock response and the not-found response
+- [x] create a test run and observe cases move pending → running → finished, with errors recorded for a deliberately failing matcher
+- [x] start two runs at once and confirm they progress in parallel while cases inside each stay ordered
+- [x] inspect PostgreSQL: `testing_service` schema present, `ordinal`, `lease_until` and `lease_owner` populated, the recreated view exposing them, views returning aggregates
+- [x] kill the service mid-run and confirm the stranded case returns to `pending` and completes
+- [x] apply migration 100 twice against a database that already has the schema and confirm it succeeds
+- [x] let retention run against a seeded old run and confirm cascades removed its cases and errors
+- [x] open the swagger UI in Chrome and confirm the spec renders and carries no vendor naming
+
+⚠️ **The swagger UI did not render behind the proxy, and this task fixed it.** Task 14 recorded that `fiberswagger`
+"honors `X-Forwarded-Prefix`, so it works behind the proxy as well as directly". It does not, for two reasons. The
+handler builds the spec URL as `X-Forwarded-Prefix` + its own **internal** route path, and the nginx rule inserts
+`/qip/testing-service` in the *middle* of the public path — no prefix value can turn `/api/v1/swagger/doc.json` into
+`/api/v1/qip/testing-service/swagger/doc.json`. The library also computes that URL once per process, under a
+`sync.Once`, so the first request that arrives decides it for every later one. Through the proxy the UI therefore
+fetched `/api/v1/swagger/doc.json`, got the front end's fallback HTML and reported "Unable to render this definition".
+The handler is now registered with a **relative** spec URL (`doc.json`), which the browser resolves against the UI page
+and which is correct under any prefix. `TestSwaggerAsksForTheSpecRelativeToThePage` locks it in, and
+`TestSwaggerServesTheUI` no longer asserts the absolute form it used to.
+
+⚠️ An unknown `sort_by` returns **500**, not 400: `ValidateSortOptions` lives in `dao` and the controllers report every
+service error as an internal failure. The body does name the field and list the accepted ones. This is the ported
+contract and "keep every path and payload identical" from Task 9 covers it, so it was left alone rather than fixed here.
+
+[decision] The executor checks ran against a second instance of the binary on the host, bound to its own
+`testing_service_acc` schema and pointed at a stub catalog and engine, rather than against the compose container. The
+container's own catalog and engine are the real runtime-catalog (unhealthy since before this branch, unrelated to it)
+and the real engine, and neither carries a chain with a deployed HTTP trigger after the Task 16 database reset. The stub
+answers `/v1/chains/{chainId}/elements/{elementId}` with an `http-trigger` element and serves `/routes/...`, with a
+`slow-<seconds>` element that holds the trigger open — which is what makes the intermediate states observable at all.
+The compose container served every API and routing check unchanged.
+
+[note] `sweepExpiredLeases` calls `NotifyWork` the moment it reclaims, so a reclaimed case is re-claimed within
+milliseconds and the `pending` state cannot be sampled from outside. The crash test therefore runs one worker and keeps
+it busy with a second run, which widens the window to the length of that run.
+
+✅ Verified end to end. `go test ./...` and `go test -tags integration ./...` pass under a real go1.22.12 with
+`GOTOOLCHAIN=local`; `golangci-lint run` (v1.64.8, the pinned version) is clean with and without the build tag; the
+dependency allowlist passes. **Sanitization is clean for everything this branch owns**: the 155 files it touches, the
+whole `testing-service/` tree including untracked files, `git log -p` over `origin/main..HEAD`, and the commit messages
+on their own. The roughly 70 `--tracked` hits noted in Task 1 were confirmed to be 39 pre-existing files under
+`engine/`, `micro-engine/`, `runtime-catalog/`, `schemas/`, `ui/` and `infrastructure/.gitignore`, with **no overlap**
+against this branch's file list. Against the running stack: test cases create, read, filter, sort, paginate and answer
+`?return_ids=true` (which ignores pagination, as the UI expects); bulk delete works; an endpoint mock answers a matching
+call with its configured status, body and headers, and a call that matches no mock — whether the element has none or its
+matchers fail — is refused with 404 by design; a missing or malformed testing-context header is a 400. A run of two
+cases was sampled through `pending`, `running` and `finished`, numbered `ordinal` 1 and 2 in selection order, recorded
+exactly one validation error against the failing matcher, and the query parameters reached the trigger — the `buildUrl`
+fix, observed on the wire. Two runs started together ran strictly in parallel while each kept its own cases sequential
+and in ordinal order. In PostgreSQL both schemas carry 15 domain tables, 3 views, 4 enums and 4 triggers; `ordinal`,
+`lease_until` and `lease_owner` exist with the right types, the recreated `test_case_runs_view` exposes all three, the
+claim index and the partial `lease_until where status = 'running'` index are both present, a running case carries a
+live lease that is renewed under the same owner, and both views return their aggregates. A `SIGKILL` mid-case left the
+case `running` under its owner; the sweeper returned it to `pending` with `lease_until`, `lease_owner` and `start`
+cleared, logged what it reclaimed, and the case was claimed under a **different** owner and completed with no leftover
+validation errors. Migration 100 applies to an empty schema with exactly the object counts in Technical Details, applies
+a second time unchanged, applies again after 101 without undoing its columns or its recreated view, and leaves seeded
+data intact. Retention with a 7-day age deleted only the aged run whose cases were all finished — the two aged runs
+holding a running and a pending case and the recent run all survived — and the cascades took its case runs and its
+validation errors, with nothing orphaned and nothing further deleted on later sweeps. The swagger UI renders in Chrome
+through this worktree's nginx rule and directly on the service port, with the title `Testing Service API`, no vendor
+naming in the served page or spec, and no console errors; `/endpoint-mocks/call` stays refused by the proxy. Route
+verification again used a throwaway nginx bound to this worktree's `routes.conf` — the stack's `ui-proxy` mounts the
+main checkout's copy and falls through to the front end — and the container was removed afterwards.
 
 ### Task 21: [Final] Update documentation
 

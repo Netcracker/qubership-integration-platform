@@ -44,6 +44,9 @@ const (
 	// swaggerPath serves the UI at .../swagger/index.html and the spec at
 	// .../swagger/doc.json.
 	swaggerPath = apiPrefix + "/swagger/*"
+	// swaggerDocURL is resolved by the browser against the UI page, so the spec
+	// is found under whatever public prefix the request arrived on.
+	swaggerDocURL = "doc.json"
 	// defaultUser is recorded on every audited write. This binary does not
 	// authenticate its callers; a host that does supplies its own CurrentUser.
 	defaultUser = "developer"
@@ -276,8 +279,10 @@ func run() error {
 	app.Get("/prometheus", adaptor.HTTPHandler(promhttp.Handler()))
 	svc.Mount(app.Group(apiPrefix))
 	// The UI and the spec sit under the API prefix, since that is the only path
-	// the nginx and Kubernetes rules expose.
-	app.Get(swaggerPath, fiberswagger.HandlerDefault)
+	// the nginx and Kubernetes rules expose. The spec URL stays relative to the
+	// UI page: the proxy inserts its own segments in the middle of the public
+	// path, so an absolute URL built from the internal route misses the spec.
+	app.Get(swaggerPath, fiberswagger.New(fiberswagger.Config{URL: swaggerDocURL}))
 
 	return serve(ctx, logger, cfg, app, svc)
 }
