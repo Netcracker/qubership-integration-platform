@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.engine.camel.processors;
 
+import org.apache.camel.Exchange;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
