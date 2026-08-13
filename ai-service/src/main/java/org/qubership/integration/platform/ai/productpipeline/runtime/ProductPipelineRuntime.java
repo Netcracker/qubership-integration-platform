@@ -392,6 +392,15 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
 
   @Override
   public Multi<PipelineSignal> approve(ApproveCommand command) {
+    return approve(command, true);
+  }
+
+  /** Records approval without running the next stage. */
+  public Multi<PipelineSignal> recordApprove(ApproveCommand command) {
+    return approve(command, false);
+  }
+
+  private Multi<PipelineSignal> approve(ApproveCommand command, boolean continueAfterApproval) {
     Objects.requireNonNull(command, "command");
     return Multi.createFrom()
         .deferred(
@@ -399,7 +408,9 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
               ProductPipelineRunDocument doc = requireRun(command.runId());
               if (doc.appliedCommand(command.commandId(), command.commandPayloadHash())
                   .isPresent()) {
-                return advance(command.runId());
+                return continueAfterApproval
+                    ? advance(command.runId())
+                    : Multi.createFrom().empty();
               }
               if (isTerminalRunStatus(doc.run().status())) {
                 return Multi.createFrom()
@@ -558,7 +569,9 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
                   command.commandPayloadHash());
               ProductPipelineRunDocument after = requireRun(command.runId());
               commitMove(after, nextStageId, markStageRunning(after, nextStageId), "advance after approval");
-              return advance(command.runId());
+              return continueAfterApproval
+                  ? advance(command.runId())
+                  : Multi.createFrom().empty();
             });
   }
 

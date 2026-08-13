@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRuntime;
 
-/** Executes one existing capability stage for each task in the provided-IDS Flow. */
+/** Executes one existing capability stage for each task in the create-chain Flow. */
 @ApplicationScoped
 public class ProvidedIdsFlowTasks {
 
@@ -33,9 +33,6 @@ public class ProvidedIdsFlowTasks {
   CompletableFuture<ProvidedIdsFlow.RunInput> execute(
       ProvidedIdsFlow.RunInput input, String stageId) {
     Invocation invocation = requireInvocation(input);
-    if (invocation.standardRoute) {
-      return CompletableFuture.completedFuture(input);
-    }
     return runtime
         .executeStage(input.runId(), stageId)
         .collect()
@@ -45,10 +42,6 @@ public class ProvidedIdsFlowTasks {
         .thenApply(
             signals -> {
               invocation.signals.addAll(signals);
-              if ("ids-entry".equals(stageId)
-                  && !runtime.isProvidedDesignRoute(input.runId())) {
-                invocation.standardRoute = true;
-              }
               return input;
             });
   }
@@ -56,9 +49,9 @@ public class ProvidedIdsFlowTasks {
   Result finish(ProvidedIdsFlow.RunInput input) {
     Invocation invocation = invocations.remove(input.invocationId());
     if (invocation == null) {
-      return new Result(List.of(), false);
+      return new Result(List.of());
     }
-    return new Result(List.copyOf(invocation.signals), invocation.standardRoute);
+    return new Result(List.copyOf(invocation.signals));
   }
 
   void discard(ProvidedIdsFlow.RunInput input) {
@@ -74,12 +67,11 @@ public class ProvidedIdsFlowTasks {
     return invocation;
   }
 
-  record Result(List<PipelineSignal> signals, boolean standardRoute) {}
+  record Result(List<PipelineSignal> signals) {}
 
   private static final class Invocation {
     private final String runId;
     private final List<PipelineSignal> signals = new ArrayList<>();
-    private boolean standardRoute;
 
     private Invocation(String runId) {
       this.runId = runId;

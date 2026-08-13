@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import io.smallrye.mutiny.Multi;
@@ -45,11 +44,10 @@ class ProvidedIdsFlowTest {
   }
 
   @Test
-  void stopsFlowTasksAfterIdsEntrySelectsTheStandardRoute() {
+  void keepsExecutingProfileTasksForTheGeneratedRoute() {
     ProductPipelineRuntime runtime = mock(ProductPipelineRuntime.class);
     when(runtime.executeStage("run-1", "ids-entry"))
         .thenReturn(Multi.createFrom().item(new PipelineSignal.Message("entry")));
-    when(runtime.isProvidedDesignRoute("run-1")).thenReturn(false);
     ProvidedIdsFlowTasks tasks = new ProvidedIdsFlowTasks(runtime);
     ProvidedIdsFlow.RunInput input = tasks.begin("run-1");
 
@@ -58,28 +56,24 @@ class ProvidedIdsFlowTest {
     ProvidedIdsFlowTasks.Result result = tasks.finish(input);
 
     assertEquals(List.of(new PipelineSignal.Message("entry")), result.signals());
-    assertTrue(result.standardRoute());
     verify(runtime).executeStage("run-1", "ids-entry");
-    verify(runtime).isProvidedDesignRoute("run-1");
-    verifyNoMoreInteractions(runtime);
+    verify(runtime).executeStage("run-1", "requirement-discovery");
   }
 
   @Test
-  void keepsExecutingProfileTasksForTheProvidedRoute() {
+  void keepsExecutingProfileTasksAfterTheEntryStage() {
     ProductPipelineRuntime runtime = mock(ProductPipelineRuntime.class);
     when(runtime.executeStage("run-1", "ids-entry"))
         .thenReturn(Multi.createFrom().item(new PipelineSignal.Message("entry")));
     when(runtime.executeStage("run-1", "requirement-discovery"))
         .thenReturn(Multi.createFrom().empty());
-    when(runtime.isProvidedDesignRoute("run-1")).thenReturn(true);
     ProvidedIdsFlowTasks tasks = new ProvidedIdsFlowTasks(runtime);
     ProvidedIdsFlow.RunInput input = tasks.begin("run-1");
 
     tasks.execute(input, "ids-entry").join();
     tasks.execute(input, "requirement-discovery").join();
-    ProvidedIdsFlowTasks.Result result = tasks.finish(input);
+    tasks.finish(input);
 
-    assertFalse(result.standardRoute());
     verify(runtime).executeStage("run-1", "requirement-discovery");
   }
 

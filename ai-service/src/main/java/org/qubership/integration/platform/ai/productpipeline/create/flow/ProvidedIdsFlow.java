@@ -15,14 +15,12 @@ import java.util.function.Function;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 
-/** Profile-defined provided-IDS Flow from {@code ids-entry} through materialization. */
+/** Profile-defined create-chain Flow from {@code ids-entry} through materialization. */
 @ApplicationScoped
 public class ProvidedIdsFlow extends Flow {
 
   static final String PROFILE_ID = "create-chain";
   static final String PROFILE_VERSION = "2";
-  static final String ENTRY_STAGE_ID = "ids-entry";
-
   private final ProductPipelineProfile profile;
   private final ProvidedIdsFlowTasks tasks;
 

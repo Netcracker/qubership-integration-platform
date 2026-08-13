@@ -151,6 +151,53 @@ class ProductPipelineRuntimeTest {
   }
 
   @Test
+  void flowRecordsApprovalBeforeExecutingTheNextStage() {
+    ProductPipelineRuntime runtime =
+        newRuntime(FakeStageCapabilities.collector(), FakeStageCapabilities.finisher());
+    runtime
+        .startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, "need greetings"))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    PipelineSignal.WaitingForApproval waiting =
+        runtime
+            .executeStage(RUN_ID, "collect")
+            .collect()
+            .asList()
+            .await()
+            .indefinitely()
+            .stream()
+            .filter(PipelineSignal.WaitingForApproval.class::isInstance)
+            .map(PipelineSignal.WaitingForApproval.class::cast)
+            .findFirst()
+            .orElseThrow();
+    ApproveCommand command =
+        new ApproveCommand(
+            RUN_ID,
+            waiting.candidate(),
+            runStore.load(RUN_ID).orElseThrow().run().runRevision(),
+            "approve-1",
+            "payload-sha");
+
+    runtime.recordApprove(command).collect().asList().await().indefinitely();
+
+    assertEquals(RunStatus.RUNNING, runStore.load(RUN_ID).orElseThrow().run().status());
+    assertEquals("finish", runStore.load(RUN_ID).orElseThrow().run().currentStageId());
+    long revisionAfterApproval = runStore.load(RUN_ID).orElseThrow().run().runRevision();
+
+    runtime.recordApprove(command).collect().asList().await().indefinitely();
+
+    assertEquals(revisionAfterApproval, runStore.load(RUN_ID).orElseThrow().run().runRevision());
+  }
+
+  @Test
   void executesOneProfileStageWhenFlowOwnsTheSequence() {
     AtomicInteger firstCalls = new AtomicInteger();
     AtomicInteger secondCalls = new AtomicInteger();

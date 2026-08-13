@@ -15,7 +15,7 @@ import org.qubership.integration.platform.ai.productpipeline.store.ProductPipeli
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 
-/** Runs the provided-IDS route through Flow and delegates the generated route to legacy. */
+/** Runs the create-chain profile through Flow and uses the runtime only to execute durable stages. */
 public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrator {
 
   private final ProductPipelineRuntime legacy;
@@ -51,10 +51,7 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
   }
 
   private boolean belongsToFlow(ProductPipelineRunDocument document) {
-    String stageId = document.run().currentStageId();
-    return flow.ownsStage(stageId)
-        && (ProvidedIdsFlow.ENTRY_STAGE_ID.equals(stageId)
-            || legacy.isProvidedDesignRoute(document.run().runId()));
+    return flow.ownsStage(document.run().currentStageId());
   }
 
   @Override
@@ -86,25 +83,26 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
         .transformToMulti(
             ignored -> {
               ProvidedIdsFlowTasks.Result result = tasks.finish(input);
-              Multi<PipelineSignal> signals = Multi.createFrom().iterable(result.signals());
-              return result.standardRoute()
-                  ? signals.onCompletion().switchTo(() -> legacy.continueRun(input.runId()))
-                  : signals;
+              return Multi.createFrom().iterable(result.signals());
             });
   }
 
   @Override
   public Multi<PipelineSignal> approve(ApproveCommand command) {
+    if (runStore.load(command.runId()).map(this::belongsToFlow).orElse(false)) {
+      ProvidedIdsFlow.RunInput input = tasks.begin(command.runId());
+      return continueWithFlow(legacy.recordApprove(command), input);
+    }
     return legacy.approve(command);
   }
 
   @Override
   public Multi<PipelineSignal> implement(ImplementCommand command) {
-    if (!legacy.isProvidedDesignRoute(command.runId())) {
-      return legacy.implement(command);
+    if (runStore.load(command.runId()).map(this::belongsToFlow).orElse(false)) {
+      ProvidedIdsFlow.RunInput input = tasks.begin(command.runId());
+      return continueWithFlow(legacy.recordImplement(command), input);
     }
-    ProvidedIdsFlow.RunInput input = tasks.begin(command.runId());
-    return continueWithFlow(legacy.recordImplement(command), input);
+    return legacy.implement(command);
   }
 
   @Override
