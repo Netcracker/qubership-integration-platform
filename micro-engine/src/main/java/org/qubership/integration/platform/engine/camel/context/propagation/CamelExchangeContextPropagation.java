@@ -3,13 +3,17 @@ package org.qubership.integration.platform.engine.camel.context.propagation;
 import com.netcracker.cloud.context.propagation.core.ContextManager;
 import com.netcracker.cloud.context.propagation.core.RequestContextPropagation;
 import com.netcracker.cloud.context.propagation.core.contextdata.IncomingContextData;
+import io.quarkus.arc.Arc;
+import io.quarkus.arc.ManagedContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.map.CaseInsensitiveMap;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.nonNull;
@@ -17,6 +21,8 @@ import static java.util.Objects.nonNull;
 @Slf4j
 @ApplicationScoped
 public class CamelExchangeContextPropagation {
+
+    private static final AtomicLong SCOPE_CALL_COUNT = new AtomicLong();
 
     private final ContextPropsProvider contextPropsProvider;
 
@@ -109,17 +115,82 @@ public class CamelExchangeContextPropagation {
     }
 
     public Map<String, Object> getContextForHeaders(IncomingContextData incomingContextData) {
-        return ContextManager.getContextProviders().stream()
+        return withActiveRequestScope(() -> ContextManager.getContextProviders().stream()
                 .map(contextProvider -> {
+                    // TEMPORARY: per-provider timing, see instrumentation note above the fields.
+                    long providerStartNanos = System.nanoTime();
                     Object contextValue = contextProvider.provide(incomingContextData);
+                    log.debug("[ctx-perf] provider={} tookMicros={} returnedValue={} thread={}",
+                            contextProvider.getClass().getName(),
+                            (System.nanoTime() - providerStartNanos) / 1000.0,
+                            nonNull(contextValue),
+                            Thread.currentThread().getName());
                     return nonNull(contextValue) ? Map.entry(contextProvider.contextName(), contextValue) : null;
                 })
                 .filter(Objects::nonNull)
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
     }
 
     protected void initRequestContextUnhandled(Map<String, Object> headers) {
-        RequestContextPropagation.clear();
-        RequestContextPropagation.initRequestContext(new CamelExchangeRequestContextData(headers));
+        withActiveRequestScope(() -> {
+            RequestContextPropagation.clear();
+            RequestContextPropagation.initRequestContext(new CamelExchangeRequestContextData(headers));
+        });
+    }
+
+    /**
+     * Ensures the Quarkus CDI {@code RequestScoped} context is active while {@code action} runs,
+     * activating it first if needed and terminating it again before returning.
+     *
+     * <p>Context providers invoked here (e.g. {@code WhoAmIProvider}) may need that scope, but
+     * Quarkus only activates it automatically for HTTP requests. Every other caller of this
+     * class — Quartz jobs, Kafka/RabbitMQ consumer threads, Camel's own multicast/wireTap/producer
+     * -callback threads — would otherwise hit {@code ContextNotActiveException}. This is the one
+     * choke point all of them pass through, so guarding it here covers every caller without a
+     * per-trigger fix. Already-active scopes (e.g. HTTP) are left untouched.
+     */
+    private <T> T withActiveRequestScope(Supplier<T> action) {
+        ManagedContext requestContext = Arc.container().requestContext();
+        boolean activated = !requestContext.isActive();
+
+        // TEMPORARY: call counter + timing, see instrumentation note above the fields.
+        // activateNanos/terminateNanos measure ONLY the activate()/terminate() calls themselves;
+        // wallNanos measures the whole guarded call (including the wrapped action, e.g. all
+        // provider.provide() calls, which are also timed individually in getContextForHeaders).
+        long callNumber = SCOPE_CALL_COUNT.incrementAndGet();
+        long wallStartNanos = System.nanoTime();
+        long activateNanos = 0L;
+
+        log.debug("[ctx-perf] call#={} start activatedNewScope={} thread={}",
+                callNumber, activated, Thread.currentThread().getName());
+
+        if (activated) {
+            long activateStartNanos = System.nanoTime();
+            requestContext.activate();
+            activateNanos = System.nanoTime() - activateStartNanos;
+        }
+        try {
+            return action.get();
+        } finally {
+            long terminateNanos = 0L;
+            if (activated) {
+                long terminateStartNanos = System.nanoTime();
+                requestContext.terminate();
+                terminateNanos = System.nanoTime() - terminateStartNanos;
+            }
+
+            long wallNanos = System.nanoTime() - wallStartNanos;
+            log.debug("[ctx-perf] call#={} end activatedNewScope={} activateMicros={} terminateMicros={} "
+                            + "totalWallMicros={} thread={}",
+                    callNumber, activated, activateNanos / 1000.0, terminateNanos / 1000.0,
+                    wallNanos / 1000.0, Thread.currentThread().getName());
+        }
+    }
+
+    private void withActiveRequestScope(Runnable action) {
+        withActiveRequestScope(() -> {
+            action.run();
+            return null;
+        });
     }
 }
