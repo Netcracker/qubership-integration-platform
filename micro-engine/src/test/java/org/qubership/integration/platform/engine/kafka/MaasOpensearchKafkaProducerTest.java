@@ -14,7 +14,7 @@ import org.mockito.Mock;
 import org.mockito.MockedConstruction;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.configuration.tenant.TenantConfiguration;
-import org.qubership.integration.platform.engine.model.opensearch.KafkaQueueElement;
+import org.qubership.integration.platform.engine.model.opensearch.SessionElementElastic;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import java.util.ArrayList;
@@ -52,7 +52,7 @@ class MaasOpensearchKafkaProducerTest {
     private TopicAddress topicAddress;
 
     @Mock
-    private KafkaQueueElement kafkaQueueElement;
+    private SessionElementElastic sessionElementElastic;
 
     private MaasOpensearchKafkaProducer producer;
 
@@ -155,7 +155,7 @@ class MaasOpensearchKafkaProducerTest {
     }
 
     @Test
-    void shouldSendKafkaQueueElementToResolvedTopic() {
+    void shouldSendSessionElementElasticToResolvedTopic() {
         Map<String, Object> connectionProperties = Map.of("bootstrap.servers", "kafka:9092");
 
         try (MockedConstruction<Classifier> classifierConstruction = mockConstruction(Classifier.class);
@@ -163,17 +163,17 @@ class MaasOpensearchKafkaProducerTest {
             stubInitializedProducerForSend(connectionProperties);
 
             producer.init();
-            producer.send(KEY, kafkaQueueElement);
+            producer.send(KEY, sessionElementElastic);
 
-            KafkaProducer<String, KafkaQueueElement> kafkaProducer = constructedKafkaProducer(kafkaProducerConstruction);
-            ArgumentCaptor<ProducerRecord<String, KafkaQueueElement>> recordCaptor = producerRecordCaptor();
+            KafkaProducer<String, SessionElementElastic> kafkaProducer = constructedKafkaProducer(kafkaProducerConstruction);
+            ArgumentCaptor<ProducerRecord<String, SessionElementElastic>> recordCaptor = producerRecordCaptor();
 
             verify(kafkaProducer).send(recordCaptor.capture());
 
-            ProducerRecord<String, KafkaQueueElement> record = recordCaptor.getValue();
+            ProducerRecord<String, SessionElementElastic> record = recordCaptor.getValue();
             assertEquals(TOPIC_NAME, record.topic());
             assertEquals(KEY, record.key());
-            assertSame(kafkaQueueElement, record.value());
+            assertSame(sessionElementElastic, record.value());
             assertEquals(1, classifierConstruction.constructed().size());
         }
     }
@@ -188,10 +188,10 @@ class MaasOpensearchKafkaProducerTest {
 
             producer.init();
 
-            KafkaProducer<String, KafkaQueueElement> kafkaProducer = constructedKafkaProducer(kafkaProducerConstruction);
+            KafkaProducer<String, SessionElementElastic> kafkaProducer = constructedKafkaProducer(kafkaProducerConstruction);
             when(kafkaProducer.send(any())).thenThrow(new RuntimeException("Kafka send failed"));
 
-            assertDoesNotThrow(() -> producer.send(KEY, kafkaQueueElement));
+            assertDoesNotThrow(() -> producer.send(KEY, sessionElementElastic));
 
             verify(kafkaProducer).send(any());
             assertEquals(1, classifierConstruction.constructed().size());
@@ -205,10 +205,10 @@ class MaasOpensearchKafkaProducerTest {
     }
 
     @SuppressWarnings("unchecked")
-    private static KafkaProducer<String, KafkaQueueElement> constructedKafkaProducer(
+    private static KafkaProducer<String, SessionElementElastic> constructedKafkaProducer(
         MockedConstruction<KafkaProducer> kafkaProducerConstruction
     ) {
-        return (KafkaProducer<String, KafkaQueueElement>) kafkaProducerConstruction.constructed().get(0);
+        return (KafkaProducer<String, SessionElementElastic>) kafkaProducerConstruction.constructed().get(0);
     }
 
     @SuppressWarnings("unchecked")
@@ -217,7 +217,7 @@ class MaasOpensearchKafkaProducerTest {
     }
 
     @SuppressWarnings("unchecked")
-    private static ArgumentCaptor<ProducerRecord<String, KafkaQueueElement>> producerRecordCaptor() {
+    private static ArgumentCaptor<ProducerRecord<String, SessionElementElastic>> producerRecordCaptor() {
         return ArgumentCaptor.forClass(ProducerRecord.class);
     }
 }
