@@ -326,13 +326,37 @@ consumes it yet — `dao` arrives in Task 3 — so the misspelling is free to fi
 **Files:**
 - Create: `testing-service/internal/dao/*.go`
 
-- [ ] port all fifteen repositories, the filtering and sorting helpers, and the bun models
-- [ ] replace the vendor client type with the `DB` interface from `internal/config`
-- [ ] change `AddPagination` to take the maximum limit as a parameter and thread it from `Config` — it currently reads the vendor config package, which would leave this package uncompilable
-- [ ] replace the package-level vendor logger with a `*slog.Logger` supplied at construction (10 of the 43 vendor logging call sites are in this package)
-- [ ] port `hooks.go` with a temporary local user resolver so this package compiles; Task 4 replaces it with the context seam — without this the task's own test gate is unreachable, since the source file imports the vendor helper
-- [ ] write tests for filter and sort validation, which need no database
-- [ ] run `go test ./internal/dao/...` - must pass before next task
+- [x] port all fifteen repositories, the filtering and sorting helpers, and the bun models
+- [x] replace the vendor client type with the `DB` interface from `internal/config`
+- [x] change `AddPagination` to take the maximum limit as a parameter and thread it from `Config` — it currently reads the vendor config package, which would leave this package uncompilable
+- [x] replace the package-level vendor logger with a `*slog.Logger` supplied at construction (10 of the 43 vendor logging call sites are in this package)
+- [x] port `hooks.go` with a temporary local user resolver so this package compiles; Task 4 replaces it with the context seam — without this the task's own test gate is unreachable, since the source file imports the vendor helper
+- [x] write tests for filter and sort validation, which need no database
+- [x] run `go test ./internal/dao/...` - must pass before next task
+
+[decision] `NewDao` takes `(config.Config, config.Deps)` rather than a loose parameter list. The pagination limit and
+the logger reach the four paginated repositories through their constructors, so nothing below `NewDao` reads
+configuration.
+
+[decision] The context key is already the unexported struct type Task 4 asks for. Keeping the source's untyped string
+constant would have failed `staticcheck` SA1029 in this task's own lint gate, and the change is one line.
+
+[decision] `golang.org/x/exp/maps` is gone. `sortedFeatures` collects and sorts the keys itself, which keeps the
+dependency set small and makes the "expected one of" message stable between runs — `maps.Keys` returned them in map
+order, so the same bad request produced a differently worded error each time.
+
+[decision] Validation messages are single lower-case clauses (`wrong sorting field "x", expected one of: …`) instead of
+the source's two capitalized sentences. They are Go error values first and response bodies second, and no caller parses
+them.
+
+[decision] `FindById` and `FindPending` test `len(result) == 0` rather than `result == nil`. The source indexes
+`result[0]` after a nil check, so an empty non-nil slice — what a re-used buffer yields — panics.
+
+[decision] Every bulk operation now returns early on an empty input set. `BulkDelete` with no ids built
+`... WHERE id IN ()`, which is a syntax error rather than a no-op.
+
+[decision] `AddSpecification` and the test-run listing tolerate a nil specification. The listing dereferenced
+`specification.SearchText` right after the nil-guarded validation block, so a nil specification panicked one line later.
 
 ### Task 4: Runner, generics and the user seam
 
