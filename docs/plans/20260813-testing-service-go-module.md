@@ -508,12 +508,51 @@ parameter and header slices are skipped instead of being dereferenced.
 **Files:**
 - Create: `testing-service/internal/services/*.go`, `testing-service/internal/services/importexport/*.go`
 
-- [ ] port every service — test cases, endpoint mocks, matchers, test runs, test case runs, run errors, trigger resolution, execution — plus zip import/export
-- [ ] replace config-loader reads with `Config` fields and delete the configuration package
-- [ ] replace the vendor logging calls in this package (17 of the 43, all in the execution service) with `slog`
-- [ ] depend on the runner and the repository interfaces, and drop the `result.(*[]dao.X)` assertions the generics replace
-- [ ] write tests for mock selection order (most enabled matchers first, then oldest) using fakes
-- [ ] run `go test ./...` - must pass before next task
+- [x] port every service — test cases, endpoint mocks, matchers, test runs, test case runs, run errors, trigger resolution, execution — plus zip import/export
+- [x] replace config-loader reads with `Config` fields and delete the configuration package
+- [x] replace the vendor logging calls in this package (17 of the 43, all in the execution service) with `slog`
+- [x] depend on the runner and the repository interfaces, and drop the `result.(*[]dao.X)` assertions the generics replace
+- [x] write tests for mock selection order (most enabled matchers first, then oldest) using fakes
+- [x] run `go test ./...` - must pass before next task
+
+[decision] The repository interfaces reach a service grouped in a `services.Repositories` value rather than one
+constructor parameter each — `testCasesService` alone needs eight. A service stores the runner and that value, so a test
+supplies only the repositories the path under test touches.
+
+[decision] `dao.Run`/`dao.RunInTx` cannot express "no result": `typedResult[any]` asserts an untyped nil and fails. The
+write paths that discard their result go through `runInTx`/`runQuery`, whose result type is the empty struct.
+
+[decision] `fiber.StatusOK` and `fiber.StatusNotFound` became the `net/http` constants of the same value. Fiber arrives
+with the controllers in Task 9, and nothing else here needs it.
+
+[decision] The mock-response delay now waits on a timer against the request context instead of `time.Sleep`, so a caller
+that gives up is not held for the full delay. When no request-start timestamp reached the context, the full delay
+applies; the source silently skipped the delay altogether.
+
+[decision] `TimestampKey`, an untyped string context key, became the unexported `requestStartKey` struct with a
+`WithRequestStart` accessor, matching `dao.WithCurrentUser` and `triggers.WithSessionID`. `staticcheck` SA1029 rejects
+the original.
+
+[decision] `ErrorEmptyTestCaseList`, a struct implementing `error`, became the `ErrEmptyTestCaseList` sentinel. The
+controller in Task 9 matches it with `errors.Is`.
+
+[deviation] Fixed the CSV export of test case runs. `Start.String()` and `Finish.String()` panicked on a pending run,
+whose timestamps are nil; the "Test Case Run ID" column carried the test case id, so the run id was never exported; and
+the per-error rows appended into the shared field slice, so the second error of a run overwrote the first row's matcher
+columns. Timestamps are now RFC 3339.
+
+[deviation] `ResolveTrigger` rejects a nil trigger reference instead of dereferencing it. The column is nullable, and a
+test case saved without a trigger crashed the executor.
+
+[deviation] `doUpdate` in both CRUD services checks the error from its `FindById` before the nil result. A failing lookup
+used to be reported as "not found", hiding the real failure.
+
+[deviation] `MigrateEntityData` rejects a version below one, which used to slice the migration list from -1 and panic on
+a hand-edited archive. Archive entries are also capped at 32 MiB — `gosec` G110 flags the unbounded copy as a
+decompression bomb.
+
+[deviation] `importEntityFromFile` checks the error from `zip.File.Open` before deferring `Close`; the source deferred
+first and dereferenced a nil reader whenever an entry could not be opened.
 
 ### Task 9: Controllers and the facade
 

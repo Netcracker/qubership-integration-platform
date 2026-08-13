@@ -1,0 +1,34 @@
+package services
+
+import (
+	"context"
+	"database/sql"
+
+	"github.com/uptrace/bun"
+
+	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
+)
+
+// defaultTxOptions is what every write path here runs under: the database default
+// isolation level, read-write.
+func defaultTxOptions() *sql.TxOptions {
+	return &sql.TxOptions{Isolation: sql.LevelDefault, ReadOnly: false}
+}
+
+// runInTx runs handler in a transaction and reports only whether it succeeded.
+// The empty struct is the result type on purpose: a handler declared to return
+// `any` and a nil result is indistinguishable from a runner that never ran it.
+func runInTx(ctx context.Context, runner dao.Runner, handler func(ctx context.Context) error) error {
+	_, err := dao.RunInTx(ctx, runner, defaultTxOptions(), func(ctx context.Context, _ bun.IDB) (struct{}, error) {
+		return struct{}{}, handler(ctx)
+	})
+	return err
+}
+
+// runQuery is runInTx without a transaction, for read-only work.
+func runQuery(ctx context.Context, runner dao.Runner, handler func(ctx context.Context) error) error {
+	_, err := dao.Run(ctx, runner, func(ctx context.Context, _ bun.IDB) (struct{}, error) {
+		return struct{}{}, handler(ctx)
+	})
+	return err
+}
