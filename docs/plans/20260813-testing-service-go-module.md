@@ -559,14 +559,48 @@ first and dereferenced a nil reader whenever an entry could not be opened.
 **Files:**
 - Create: `testing-service/internal/controllers/**/*.go`, `testing-service/service.go`
 
-- [ ] port the controllers and their pagination, sorting and response helpers, keeping `GetEndpointReference` alongside its only caller
-- [ ] register routes in `(*Service).Mount(router fiber.Router)` together with middleware that resolves the current user into the request context
-- [ ] read the production-mode flag from `Config` in the mode controller
-- [ ] keep every path and payload identical, including `?return_ids=true` on the list endpoints, which the UI relies on
-- [ ] create the root `service.go` in package `testingservice` with `New`, `Mount`, `RunExecutor` and the public aliases
-- [ ] update swagger annotations, removing the vendor product name
-- [ ] write tests mounting the service on a bare fiber app and asserting routing, status codes and that the user middleware populates the context
-- [ ] run `go test ./...` - must pass before next task
+- [x] port the controllers and their pagination, sorting and response helpers, keeping `GetEndpointReference` alongside its only caller
+- [x] register routes in `(*Service).Mount(router fiber.Router)` together with middleware that resolves the current user into the request context
+- [x] read the production-mode flag from `Config` in the mode controller
+- [x] keep every path and payload identical, including `?return_ids=true` on the list endpoints, which the UI relies on
+- [x] create the root `service.go` in package `testingservice` with `New`, `Mount`, `RunExecutor` and the public aliases
+- [x] update swagger annotations, removing the vendor product name
+- [x] write tests mounting the service on a bare fiber app and asserting routing, status codes and that the user middleware populates the context
+- [x] run `go test ./...` - must pass before next task
+
+[decision] The source's `controllers/util` and `controllers/v1` are one flat `internal/controllers` package. The split
+existed to share helpers across version packages, and there is only one version; flattening also retires the `util`
+package name and lets every controller stay unexported behind `New` and `Mount`.
+
+[decision] The response helpers became methods on an embedded `responder` holding a `*slog.Logger`. They are the last
+of the 43 vendor logging call sites, and a package-level logger cannot take the one the host supplies through `Deps`.
+
+[decision] `ErrorMessage.ServiceName` is the constant `testing-service`. The source read it from the vendor
+configuration loader, which is gone; the field is informational and no caller matches on it.
+
+[decision] `Mount` registers relative paths — `/test-cases`, not `/api/v1/test-cases`. The host owns the prefix, and the
+binary in Task 13 mounts under `/api/v1`, which is what the nginx rule in Task 16 assumes. The swagger `@Router`
+annotations still spell the full public path.
+
+[decision] The general swagger info moved from the source's router to `(*Controllers).Mount`, which is the new route
+table. The title is `Testing Service API` and the description names this platform, so neither carries the former product
+name. Task 14 points the generate directive here.
+
+[deviation] Two `@Router` annotations were wrong in the source and are corrected: the test case delete said
+`/api/v1/test-case/{id}` and the bulk delete said `/api/v1/tests-cases`. Both are annotations only; the registered
+routes are unchanged and stay byte-identical to the source.
+
+[decision] `New` returns `ErrNoDatabase` when `Deps.DB` is nil. Every operation needs it, so refusing at construction
+beats failing on the first request.
+
+[decision] `RunExecutor` returns nil once its context is canceled. Cancellation is the ordinary way to shut down, and an
+`errgroup` member that reports it as a failure hides the real one. Task 11 replaces the shutdown path itself.
+
+[decision] The executor's background writes are attributed to `Deps.CurrentUser` when a host supplied one, and to
+`dao.DefaultUser` otherwise. There is no request behind them, so a host that wants them named has to say so.
+
+[deviation] `github.com/gofiber/fiber/v2 v2.52.15` joins `go.mod` with this task. It declares `go 1.20`, as does its
+whole transitive closure, so the 1.22 ceiling holds; v3 requires `go 1.23` and is therefore out of reach.
 
 ### Task 10: Migration 101 and the atomic claim
 
