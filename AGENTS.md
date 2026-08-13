@@ -53,6 +53,11 @@ If the request touches English text and the skill has not been invoked, stop and
 Native-speaker intuition is not a substitute: the dialect policy, AI-tell catalog, em-dash and hyphen rules, hedging
 policy, and per-surface templates live in the skill, not in general fluency.
 
+`testing-service/` is a Go module, so the repository's Maven and npm commands do not
+cover it: build and test it with the Go toolchain from inside that directory
+(`go build ./...`, `go test ./...`), keep the `go` directive at 1.22, and read
+`testing-service/AGENTS.md` before changing anything under it.
+
 ## Files matching `**/{apm.yml,SKILL.md,*.instructions.md,*.prompt.md,*.agent.md,CLAUDE.md,AGENTS.md}`
 
 When editing any APM primitive (`apm.yml`, `*.instructions.md`, `SKILL.md`,
