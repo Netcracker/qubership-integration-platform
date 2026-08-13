@@ -11,6 +11,11 @@ global:
     variables:
       defaultSecret:
         enabled: false
+    # Turning the testing service off drops its chart and its nginx route: the
+    # route names the service statically, and nginx refuses to start on a name
+    # it cannot resolve.
+    testingService:
+      enabled: true
     deploy:
       classic:
         enabled: true

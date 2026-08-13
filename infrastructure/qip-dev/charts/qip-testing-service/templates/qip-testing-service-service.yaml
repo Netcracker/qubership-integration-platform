@@ -1,0 +1,15 @@
+{{- if .Values.global.qip.testingService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: {{ .Release.Name }}-testing-service
+  name: {{ .Release.Name }}-testing-service
+spec:
+  ports:
+    - name: "8080"
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: {{ .Release.Name }}-testing-service
+{{- end }}

@@ -934,11 +934,41 @@ check are all clean.
 - Create: `infrastructure/qip-dev/charts/qip-testing-service/Chart.yaml`, `.../templates/*.yaml`
 - Modify: `infrastructure/qip-dev/values.yaml`, `infrastructure/qip-dev/charts/ui/templates/config.yaml`
 
-- [ ] model the chart on `qip-sessions-management`
-- [ ] add the route to the UI chart's routing config — it is a second, independent copy of the nginx table, and without it the Kubernetes deployment has no path to the service
-- [ ] guard the templates on a values flag so the chart can be left out; note that no existing chart here does this, so there is no in-repo pattern to copy
-- [ ] pass catalog and engine addresses, the DSN and worker settings through the config map
-- [ ] verify with `helm lint` and `helm template`, with the flag both on and off
+- [x] model the chart on `qip-sessions-management`
+- [x] add the route to the UI chart's routing config — it is a second, independent copy of the nginx table, and without it the Kubernetes deployment has no path to the service
+- [x] guard the templates on a values flag so the chart can be left out; note that no existing chart here does this, so there is no in-repo pattern to copy
+- [x] pass catalog and engine addresses, the DSN and worker settings through the config map
+- [x] verify with `helm lint` and `helm template`, with the flag both on and off
+
+[decision] The flag is `global.qip.testingService.enabled`, not a subchart-local `.Values.enabled`. The nginx route
+names the service statically, so nginx refuses to start once the chart is gone; the UI subchart therefore has to read
+the same flag, and only a `global.` value is visible from both subcharts. The spelling follows the camelCase keys
+already under `global.qip` (`variables.defaultSecret`).
+
+[decision] The DSN is composed in the deployment from `$(POSTGRES_USER)`, `$(POSTGRES_PASSWORD)`, `$(POSTGRES_URL)` and
+`$(QIP_TESTING_POSTGRES_SCHEMA)` rather than spelled out in the config map. The credentials live in the shared
+`postgres-auth` secret, and a config map value cannot pull them in; Kubernetes expands `$(VAR)` in a `value:` against
+the variables declared above it, whichever source they came from. The schema is named once, in the config map, and
+reaches both `search_path` and `QIP_TESTING_POSTGRES_SCHEMA` from there.
+
+[decision] The config map hardcodes the worker, lease, poll, pagination and production settings the way
+`engine-env-configmap.yaml` hardcodes its own, instead of plumbing each through `values.yaml`. These charts are the dev
+stack, and no other setting in them is tunable.
+
+[decision] `QIP_TESTING_RETENTION_AGE` is absent, so retention stays off. Naming an age here would start deleting test
+runs on every installation that adopts the chart.
+
+[decision] The image is `ghcr.io/netcracker/qubership-integration-testing-service:latest`, hardcoded like every sibling
+chart's image. Task 19 publishes it.
+
+⚠️ `helm lint` on the parent chart fails with "chart metadata is missing these dependencies", listing all ten
+subcharts. Helm 4 wants an `apiVersion: v2` parent to declare its subcharts; this parent declares none, so the failure
+predates this task and reproduces with the new chart removed. Linting the new subchart on its own is clean, and
+`helm template` renders the parent both ways.
+
+✅ Verified: `helm template` with the flag on renders the config map, the service and the deployment plus the two nginx
+locations; with the flag off it renders none of them and no `testing` string reaches the routing config. Both rendered
+routing configs pass `nginx -t` in a throwaway container with the upstreams stubbed in `/etc/hosts`.
 
 ### Task 18: CI
 

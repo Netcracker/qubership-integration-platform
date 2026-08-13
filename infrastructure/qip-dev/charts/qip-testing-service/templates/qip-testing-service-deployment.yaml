@@ -1,0 +1,95 @@
+{{- if .Values.global.qip.testingService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ .Release.Name }}-testing-service
+  name: {{ .Release.Name }}-testing-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-testing-service
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-testing-service
+    spec:
+      containers:
+        - env:
+            - name: QIP_TESTING_CATALOG_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  key: QIP_TESTING_CATALOG_ADDRESS
+                  name: {{ .Release.Name }}-testing-service-env
+            - name: QIP_TESTING_ENGINE_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  key: QIP_TESTING_ENGINE_ADDRESS
+                  name: {{ .Release.Name }}-testing-service-env
+            - name: QIP_TESTING_EXECUTION_INTERVAL
+              valueFrom:
+                configMapKeyRef:
+                  key: QIP_TESTING_EXECUTION_INTERVAL
+                  name: {{ .Release.Name }}-testing-service-env
+            - name: QIP_TESTING_EXECUTION_LEASE
+              valueFrom:
+                configMapKeyRef:
+                  key: QIP_TESTING_EXECUTION_LEASE
+                  name: {{ .Release.Name }}-testing-service-env
+            - name: QIP_TESTING_EXECUTION_WORKERS
+              valueFrom:
+                configMapKeyRef:
+                  key: QIP_TESTING_EXECUTION_WORKERS
+                  name: {{ .Release.Name }}-testing-service-env
+            - name: QIP_TESTING_PAGINATION_LIMIT
+              valueFrom:
+                configMapKeyRef:
+                  key: QIP_TESTING_PAGINATION_LIMIT
+                  name: {{ .Release.Name }}-testing-service-env
+            - name: QIP_TESTING_POSTGRES_SCHEMA
+              valueFrom:
+                configMapKeyRef:
+                  key: QIP_TESTING_POSTGRES_SCHEMA
+                  name: {{ .Release.Name }}-testing-service-env
+            - name: QIP_TESTING_PRODUCTION
+              valueFrom:
+                configMapKeyRef:
+                  key: QIP_TESTING_PRODUCTION
+                  name: {{ .Release.Name }}-testing-service-env
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: password
+            - name: POSTGRES_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: POSTGRES_URL
+                  name: {{ .Release.Name }}-env
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-postgres-auth
+                  key: username
+            # The service takes one DSN, while the credentials belong in the secret,
+            # so the pod composes it from the variables declared above.
+            - name: QIP_TESTING_POSTGRES_DSN
+              value: "postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_URL)?sslmode=disable&search_path=$(QIP_TESTING_POSTGRES_SCHEMA)"
+          image: ghcr.io/netcracker/qubership-integration-testing-service:latest
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            failureThreshold: 15
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 15
+          name: {{ .Release.Name }}-testing-service
+          ports:
+            - containerPort: 8080
+          resources: {}
+      restartPolicy: Always
+{{- end }}
