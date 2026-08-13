@@ -3,9 +3,13 @@ postgres:
   password: postgres
 
 global:
+  blueGreenVersion: v1
   postgres:
     database: postgres
   qip:
+    controlPlane:
+      enabled: true
+      meshType: Istio
     ui:
       port: 30080
     variables:

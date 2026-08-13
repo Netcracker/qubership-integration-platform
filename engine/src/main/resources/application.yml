@@ -269,7 +269,7 @@ qip:
       core-size: 3
       max-size: 3
   control-plane:
-    enabled: false
+    enabled: ${CONTROL_PLANE_ENABLED:false}
     mesh-type: ${SERVICE_MESH_TYPE:Core}
   context-service:
     cleanup:
