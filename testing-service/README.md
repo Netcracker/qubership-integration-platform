@@ -21,9 +21,9 @@ go run ./cmd/testing-service
 ```
 
 The binary reads `application.yaml` — `-config` points it elsewhere — creates the schema, applies its migrations, serves
-the API under `/api/v1`, and exposes `/health` and `/prometheus`. Set `pprof.enabled` to serve the profiles on their own
-port. In the local stack it comes up as `qip-testing-service` on host port 8095; see
-`infrastructure/docker-compose.yml`.
+the API under `/api/v1`, and exposes `/health` and `/prometheus`. The OpenAPI spec is at `/api/v1/swagger/doc.json` and
+the browsable UI at `/api/v1/swagger/index.html`. Set `pprof.enabled` to serve the profiles on their own port. In the
+local stack it comes up as `qip-testing-service` on host port 8095; see `infrastructure/docker-compose.yml`.
 
 Every key can be overridden from the environment: uppercase it, replace the dots with underscores and prefix it with
 `QIP_TESTING_`. `QIP_TESTING_POSTGRES_DSN` sets `postgres.dsn`, `QIP_TESTING_EXECUTION_WORKERS` sets
@@ -73,7 +73,11 @@ and nothing else.
 go test ./...                    # no Docker needed
 go test -tags integration ./...  # PostgreSQL through testcontainers
 golangci-lint run                # pinned to v1.64.8
+go generate ./...                # regenerate docs/ after changing an annotation
 ```
+
+`docs/` is generated from the swagger annotations on `(*Controllers).Mount` and on the handlers around it. Edit the
+annotations, not the generated files.
 
 The `go` directive stays at 1.22, because the downstream build pins `GOTOOLCHAIN=local` to a 1.22 toolchain. That binds
 dependencies too: `github.com/uptrace/bun` is held at v1.2.1 because v1.2.18 declares `go 1.24`. Check the directive of

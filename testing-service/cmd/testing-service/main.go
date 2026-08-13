@@ -22,6 +22,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	fiberpprof "github.com/gofiber/fiber/v2/middleware/pprof"
 	fiberrecover "github.com/gofiber/fiber/v2/middleware/recover"
+	fiberswagger "github.com/gofiber/swagger"
 	koanfyaml "github.com/knadh/koanf/parsers/yaml"
 	koanfenv "github.com/knadh/koanf/providers/env"
 	koanffile "github.com/knadh/koanf/providers/file"
@@ -31,6 +32,8 @@ import (
 	"github.com/uptrace/bun/migrate"
 
 	testingservice "github.com/Netcracker/qubership-integration-platform/testing-service"
+	// Registers the generated OpenAPI spec that fiberswagger reads.
+	_ "github.com/Netcracker/qubership-integration-platform/testing-service/docs"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/db"
 )
 
@@ -38,6 +41,9 @@ const (
 	serviceName = "testing-service"
 	// apiPrefix is the mount point the nginx and Kubernetes routing rules expect.
 	apiPrefix = "/api/v1"
+	// swaggerPath serves the UI at .../swagger/index.html and the spec at
+	// .../swagger/doc.json.
+	swaggerPath = apiPrefix + "/swagger/*"
 	// defaultUser is recorded on every audited write. This binary does not
 	// authenticate its callers; a host that does supplies its own CurrentUser.
 	defaultUser = "developer"
@@ -269,6 +275,9 @@ func run() error {
 	app.Get("/health", newHealthHandler(bunDB.PingContext))
 	app.Get("/prometheus", adaptor.HTTPHandler(promhttp.Handler()))
 	svc.Mount(app.Group(apiPrefix))
+	// The UI and the spec sit under the API prefix, since that is the only path
+	// the nginx and Kubernetes rules expose.
+	app.Get(swaggerPath, fiberswagger.HandlerDefault)
 
 	return serve(ctx, logger, cfg, app, svc)
 }

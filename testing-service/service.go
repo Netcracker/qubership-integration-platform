@@ -7,6 +7,12 @@
 // executor alongside its other background work.
 package testingservice
 
+// The OpenAPI spec is generated from the annotations on (*Controllers).Mount and
+// on the handlers around it. --parseInternal reaches the controllers under
+// internal/, --parseDependency resolves the embedded bun.BaseModel.
+//
+//go:generate go run github.com/swaggo/swag/cmd/swag@v1.16.4 init --generalInfo internal/controllers/controllers.go --dir . --parseInternal --parseDependency --output docs --outputTypes go,json,yaml
+
 import (
 	"context"
 	"errors"

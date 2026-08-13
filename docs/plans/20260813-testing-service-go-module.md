@@ -794,12 +794,47 @@ the next start.
 - Create: `testing-service/docs/*.go`
 - Modify: `testing-service/cmd/testing-service/main.go`, `testing-service/.golangci.yml`, `.github/super-linter.env`
 
-- [ ] generate and commit the `docs/` package, pointing the generate directive at the new annotation location
-- [ ] confirm the generated spec carries no vendor product names
-- [ ] serve the spec and swagger UI from the binary
-- [ ] exclude the generated package from both the module's linter config and the repository's super-linter exclusions
-- [ ] run `go mod tidy` now that every import finally exists — koanf arrives with the binary in Task 13 and swagger with this task, so an earlier tidy would have stripped them — and verify the dependency set still builds under directive `go 1.22`
-- [ ] run `go build ./...` and the linter - must pass before next task
+- [x] generate and commit the `docs/` package, pointing the generate directive at the new annotation location
+- [x] confirm the generated spec carries no vendor product names
+- [x] serve the spec and swagger UI from the binary
+- [x] exclude the generated package from both the module's linter config and the repository's super-linter exclusions
+- [x] run `go mod tidy` now that every import finally exists — koanf arrives with the binary in Task 13 and swagger with this task, so an earlier tidy would have stripped them — and verify the dependency set still builds under directive `go 1.22`
+- [x] run `go build ./...` and the linter - must pass before next task
+
+[decision] The `go:generate` directive lives in the root `service.go`, not in the annotated
+`internal/controllers/controllers.go` and not in `cmd/testing-service/main.go`. `go generate` runs with the working
+directory set to the package that carries the directive, and the search dir, the general-info file and the output
+directory are all module-root paths; anywhere else they would be spelled `../..`.
+
+[decision] The directive runs the CLI as `go run github.com/swaggo/swag/cmd/swag@v1.16.4`, so regenerating needs no
+separately installed tool and always uses the same version. `go run pkg@version` builds in module-agnostic mode, so
+swag's own dependencies never enter this module's graph — only the small `github.com/swaggo/swag` runtime package that
+the generated `docs.go` imports does.
+
+[decision] `--parseDependency` is required, not optional: the response models embed `bun.BaseModel`, and without it swag
+fails with `cannot find type definition`. `--parseInternal` is required because every controller and model lives under
+`internal/`. The generated spec has 27 paths and 20 definitions, and none of the dependency types leaked into it.
+
+[decision] The spec carries no `@version`. `testing-service/VERSION` is the single source of the version and Task 19
+bumps it; a second copy in an annotation would go stale on the first release. The Swagger 2.0 `info.version` field
+stays empty, which the UI renders without complaint.
+
+[decision] Swagger is served under the API prefix — `/api/v1/swagger/index.html` for the UI, `/api/v1/swagger/doc.json`
+for the spec — because the nginx rule in Task 16 exposes nothing else. `fiberswagger` derives that prefix from the route
+it is registered on and honors `X-Forwarded-Prefix`, so it works behind the proxy as well as directly.
+
+[deviation] `github.com/gofiber/swagger v1.1.1` and `github.com/swaggo/swag v1.16.4` join `go.mod`, pulling in
+`swaggo/files/v2`, the `go-openapi` packages and `golang.org/x/tools`; `golang.org/x/crypto` moves from v0.21.0 to
+v0.24.0. Every module in the resulting graph still declares `go 1.22` or earlier — checked with
+`go list -m -f '{{.GoVersion}}' all` — and `go build ./...` and `go test ./...` were run under a real go1.22.12
+toolchain, not just under the 1.22 language level.
+
+[decision] The module's `.golangci.yml` already excluded `docs` from Task 1, so this task only added the repository's
+super-linter exclusion. `FILTER_REGEX_EXCLUDE` gains a second alternative for `testing-service/docs/`, which keeps
+yamllint and jsonlint off the generated `swagger.yaml` and `swagger.json`.
+
+✅ The sanitization script was run explicitly over `docs/docs.go`, `docs/swagger.json` and `docs/swagger.yaml`, and over
+the rest of the change set: clean.
 
 ### Task 15: Integration tests
 

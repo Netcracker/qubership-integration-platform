@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	fiberswagger "github.com/gofiber/swagger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -236,6 +237,62 @@ func TestHealthBoundsTheDatabaseRoundTrip(t *testing.T) {
 	})
 	assert.Equal(t, http.StatusOK, status)
 	assert.True(t, deadlineSet, "the ping must not outlive the healthcheck")
+}
+
+// swaggerRequest mounts the swagger route the way run does and asks for one path
+// under it.
+func swaggerRequest(t *testing.T, path string) (*http.Response, string) {
+	t.Helper()
+	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	app.Get(swaggerPath, fiberswagger.HandlerDefault)
+
+	resp, err := app.Test(httptest.NewRequest(http.MethodGet, path, nil))
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	return resp, string(body)
+}
+
+func TestSwaggerServesTheGeneratedSpec(t *testing.T) {
+	resp, body := swaggerRequest(t, "/api/v1/swagger/doc.json")
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var spec struct {
+		Info struct {
+			Title       string `json:"title"`
+			Description string `json:"description"`
+		} `json:"info"`
+		Paths       map[string]any `json:"paths"`
+		Definitions map[string]any `json:"definitions"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(body), &spec))
+
+	assert.Equal(t, "Testing Service API", spec.Info.Title)
+	assert.Equal(t, "API of the testing service of the Qubership Integration Platform.", spec.Info.Description)
+	// The paths are the public ones, so they carry the prefix the binary mounts under.
+	assert.Contains(t, spec.Paths, "/api/v1/test-cases")
+	assert.Contains(t, spec.Paths, "/api/v1/endpoint-mocks/call")
+	assert.Contains(t, spec.Paths, "/api/v1/tests-runs/create")
+	assert.Contains(t, spec.Definitions, "TestCase")
+	assert.Contains(t, spec.Definitions, "ErrorMessage")
+}
+
+func TestSwaggerServesTheUI(t *testing.T) {
+	resp, body := swaggerRequest(t, "/api/v1/swagger/index.html")
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Contains(t, resp.Header.Get(fiber.HeaderContentType), fiber.MIMETextHTML)
+	// The page must fetch the spec from the same prefix, or nginx never sees it.
+	assert.Contains(t, body, "/api/v1/swagger/doc.json")
+}
+
+func TestSwaggerRedirectsToTheIndex(t *testing.T) {
+	resp, _ := swaggerRequest(t, "/api/v1/swagger/")
+
+	assert.Equal(t, http.StatusMovedPermanently, resp.StatusCode)
+	assert.Equal(t, "/api/v1/swagger/index.html", resp.Header.Get(fiber.HeaderLocation))
 }
 
 func TestParseLevel(t *testing.T) {

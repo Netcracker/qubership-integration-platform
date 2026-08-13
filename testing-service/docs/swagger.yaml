@@ -1,0 +1,1515 @@
+definitions:
+  EndpointMock:
+    properties:
+      createdAt:
+        type: string
+      createdBy:
+        type: string
+      description:
+        type: string
+      enabled:
+        type: boolean
+      endpointReference:
+        $ref: '#/definitions/EndpointReference'
+      id:
+        type: string
+      name:
+        type: string
+      requestMatchers:
+        items:
+          $ref: '#/definitions/Matcher'
+        type: array
+      responseSettings:
+        $ref: '#/definitions/ResponseSettings'
+      updatedAt:
+        type: string
+      updatedBy:
+        type: string
+    type: object
+  EndpointReference:
+    properties:
+      chainId:
+        type: string
+      elementId:
+        type: string
+    type: object
+  ErrorMessage:
+    properties:
+      errorDate:
+        description: Time of the error, formatted as yyyy-mm-dd hh:mm:ss.mmm.
+        example: "2024-05-17 11:33:23.038"
+        type: string
+      errorMessage:
+        description: The error itself, which may be a custom message or an internal
+          failure.
+        example: Something went wrong.
+        type: string
+      serviceName:
+        description: Name of the service that produced the message.
+        example: testing-service
+        type: string
+      stacktrace:
+        description: The stack trace, when one is available; otherwise "No Stacktrace
+          Available".
+        example: No Stacktrace Available
+        type: string
+    type: object
+  Filter:
+    properties:
+      condition:
+        type: string
+      feature:
+        type: string
+      values:
+        items:
+          type: string
+        type: array
+    type: object
+  Header:
+    properties:
+      name:
+        type: string
+      value:
+        type: string
+    type: object
+  ImportResult:
+    properties:
+      archive:
+        type: string
+      entityId:
+        type: string
+      entityName:
+        type: string
+      fileName:
+        type: string
+      message:
+        type: string
+      result:
+        type: string
+    type: object
+  Matcher:
+    properties:
+      description:
+        type: string
+      enabled:
+        type: boolean
+      entityName:
+        type: string
+      entityType:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      parameters:
+        items:
+          $ref: '#/definitions/MatcherParameter'
+        type: array
+      type:
+        type: string
+    type: object
+  MatcherParameter:
+    properties:
+      name:
+        type: string
+      value:
+        type: string
+    type: object
+  Message:
+    properties:
+      body:
+        type: string
+      headers:
+        items:
+          $ref: '#/definitions/Header'
+        type: array
+    type: object
+  PathParameter:
+    properties:
+      name:
+        type: string
+      value:
+        type: string
+    type: object
+  QueryParameter:
+    properties:
+      name:
+        type: string
+      value:
+        type: string
+    type: object
+  RequestSettings:
+    properties:
+      message:
+        $ref: '#/definitions/Message'
+      method:
+        type: string
+      pathParameters:
+        items:
+          $ref: '#/definitions/PathParameter'
+        type: array
+      queryParameters:
+        items:
+          $ref: '#/definitions/QueryParameter'
+        type: array
+      timeout:
+        type: integer
+    type: object
+  ResponseSettings:
+    properties:
+      delay:
+        type: integer
+      message:
+        $ref: '#/definitions/Message'
+      status:
+        type: integer
+    type: object
+  SelectionSpecification:
+    properties:
+      filters:
+        items:
+          $ref: '#/definitions/Filter'
+        type: array
+      ids:
+        items:
+          type: string
+        type: array
+      searchText:
+        type: string
+    type: object
+  ServiceMode:
+    properties:
+      production:
+        type: boolean
+    type: object
+  TestCase:
+    properties:
+      createdAt:
+        type: string
+      createdBy:
+        type: string
+      description:
+        type: string
+      enabled:
+        type: boolean
+      id:
+        type: string
+      name:
+        type: string
+      requestSettings:
+        $ref: '#/definitions/RequestSettings'
+      responseValidationRules:
+        items:
+          $ref: '#/definitions/Matcher'
+        type: array
+      triggerReference:
+        $ref: '#/definitions/TriggerReference'
+      updatedAt:
+        type: string
+      updatedBy:
+        type: string
+    type: object
+  TestCaseRunView:
+    properties:
+      chainId:
+        type: string
+      errors:
+        type: integer
+      finish:
+        type: string
+      id:
+        type: string
+      ordinal:
+        type: integer
+      sessionId:
+        type: string
+      start:
+        type: string
+      status:
+        type: string
+      testCaseDescription:
+        type: string
+      testCaseId:
+        type: string
+      testCaseName:
+        type: string
+      testsRunId:
+        type: string
+    type: object
+  TestsRunView:
+    properties:
+      createdAt:
+        type: string
+      createdBy:
+        type: string
+      errors:
+        type: integer
+      finish:
+        type: string
+      id:
+        type: string
+      start:
+        type: string
+      status:
+        type: string
+      testCases:
+        type: integer
+      updatedAt:
+        type: string
+      updatedBy:
+        type: string
+    type: object
+  TriggerReference:
+    properties:
+      chainId:
+        type: string
+      elementId:
+        type: string
+    type: object
+  ValidationError:
+    properties:
+      id:
+        type: string
+      matcher:
+        $ref: '#/definitions/Matcher'
+      matcherId:
+        type: string
+      message:
+        type: string
+      testCaseRunId:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: API of the testing service of the Qubership Integration Platform.
+  title: Testing Service API
+paths:
+  /api/v1/endpoint-mocks:
+    delete:
+      consumes:
+      - application/json
+      operationId: deleteEndpointMocksV1
+      parameters:
+      - description: Endpoint mocks IDs to delete
+        in: body
+        name: ids
+        required: true
+        schema:
+          items:
+            type: string
+          type: array
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Delete endpoint mocks
+      tags:
+      - V1
+      - Endpoint Mocks
+    post:
+      consumes:
+      - application/json
+      operationId: findEndpointMocksV1
+      parameters:
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Sort field
+        enum:
+        - id
+        - chain_id
+        - element_id
+        - enabled
+        - status
+        - delay
+        - created_by
+        - created_at
+        - updated_by
+        - updated_at
+        in: query
+        name: sort_by
+        type: string
+      - default: ASC
+        description: Sort order
+        enum:
+        - ASC
+        - DESC
+        in: query
+        name: sort_order
+        type: string
+      - description: Return IDs list
+        in: query
+        name: return_ids
+        type: boolean
+      - description: Endpoint mocks specification
+        in: body
+        name: specification
+        required: true
+        schema:
+          $ref: '#/definitions/SelectionSpecification'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/EndpointMock'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Get endpoint mocks
+      tags:
+      - V1
+      - Endpoint Mocks
+  /api/v1/endpoint-mocks/{id}:
+    delete:
+      operationId: deleteEndpointMockV1
+      parameters:
+      - description: Endpoint mock UUID
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Delete endpoint mock
+      tags:
+      - V1
+      - Endpoint Mocks
+    get:
+      operationId: findEndpointMockByIdV1
+      parameters:
+      - description: Endpoint mock UUID
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/EndpointMock'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Get endpoint mock
+      tags:
+      - V1
+      - Endpoint Mocks
+    post:
+      consumes:
+      - application/json
+      operationId: updateEndpointMockV1
+      parameters:
+      - description: Endpoint mock UUID
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Endpoint mock
+        in: body
+        name: endpointMock
+        required: true
+        schema:
+          $ref: '#/definitions/EndpointMock'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/EndpointMock'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Update endpoint mock
+      tags:
+      - V1
+      - Endpoint Mocks
+  /api/v1/endpoint-mocks/call:
+    delete:
+      operationId: callEndpointMockV1
+      responses: {}
+      summary: Call endpoint mock
+      tags:
+      - V1
+      - Endpoint Mocks
+    get:
+      operationId: callEndpointMockV1
+      responses: {}
+      summary: Call endpoint mock
+      tags:
+      - V1
+      - Endpoint Mocks
+    head:
+      operationId: callEndpointMockV1
+      responses: {}
+      summary: Call endpoint mock
+      tags:
+      - V1
+      - Endpoint Mocks
+    patch:
+      operationId: callEndpointMockV1
+      responses: {}
+      summary: Call endpoint mock
+      tags:
+      - V1
+      - Endpoint Mocks
+    post:
+      operationId: callEndpointMockV1
+      responses: {}
+      summary: Call endpoint mock
+      tags:
+      - V1
+      - Endpoint Mocks
+    put:
+      operationId: callEndpointMockV1
+      responses: {}
+      summary: Call endpoint mock
+      tags:
+      - V1
+      - Endpoint Mocks
+  /api/v1/endpoint-mocks/create:
+    post:
+      consumes:
+      - application/json
+      operationId: createEndpointMockV1
+      parameters:
+      - description: Endpoint mock
+        in: body
+        name: endpointMock
+        required: true
+        schema:
+          $ref: '#/definitions/EndpointMock'
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/EndpointMock'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Create endpoint mock
+      tags:
+      - V1
+      - Endpoint Mocks
+  /api/v1/endpoint-mocks/export:
+    post:
+      consumes:
+      - application/json
+      operationId: exportEndpointMocksV1
+      parameters:
+      - description: Endpoint mocks IDs to export
+        in: body
+        name: ids
+        required: true
+        schema:
+          items:
+            type: string
+          type: array
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Export endpoint mocks
+      tags:
+      - V1
+      - Endpoint Mocks
+  /api/v1/endpoint-mocks/import:
+    post:
+      consumes:
+      - multipart/form-data
+      operationId: importEndpointMocksV1
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/ImportResult'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Import endpoint mocks
+      tags:
+      - V1
+      - Endpoint Mocks
+  /api/v1/mode:
+    get:
+      operationId: getModeV1
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ServiceMode'
+      summary: Get service mode
+      tags:
+      - V1
+      - Service
+  /api/v1/test-case-runs:
+    post:
+      consumes:
+      - application/json
+      operationId: findTestCaseRunsV1
+      parameters:
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Sort field
+        enum:
+        - id
+        - test_case_name
+        - start
+        - finish
+        - status
+        - errors
+        in: query
+        name: sort_by
+        type: string
+      - default: ASC
+        description: Sort order
+        enum:
+        - ASC
+        - DESC
+        in: query
+        name: sort_order
+        type: string
+      - description: Return IDs list
+        in: query
+        name: return_ids
+        type: boolean
+      - description: Test case runs specification
+        in: body
+        name: specification
+        required: true
+        schema:
+          $ref: '#/definitions/SelectionSpecification'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/TestCaseRunView'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Get test case runs
+      tags:
+      - V1
+      - Test Case Runs
+  /api/v1/test-case-runs/{id}:
+    get:
+      operationId: findTestCaseRunByIdV1
+      parameters:
+      - description: Test case run UUID
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/TestCaseRunView'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Get test case run
+      tags:
+      - V1
+      - Test Case Runs
+  /api/v1/test-case-runs/{id}/cancel:
+    post:
+      operationId: cancelTestCaseRunByIdV1
+      parameters:
+      - description: Test case run UUID
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Cancel test case run
+      tags:
+      - V1
+      - Test Case Runs
+  /api/v1/test-case-runs/{id}/errors:
+    get:
+      operationId: findTestCaseRunErrorsV1
+      parameters:
+      - description: Test case run UUID
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Include corresponding matchers
+        in: query
+        name: withMatchers
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/ValidationError'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Get test case run errors
+      tags:
+      - V1
+      - Test Case Runs
+  /api/v1/test-case-runs/{id}/export:
+    post:
+      consumes:
+      - application/json
+      operationId: exportTestCaseRunV1
+      parameters:
+      - description: Test case run UUID
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Export tests case run
+      tags:
+      - V1
+      - Test Case Runs
+  /api/v1/test-case-runs/cancel:
+    post:
+      consumes:
+      - application/json
+      operationId: cancelTestCaseRunsV1
+      parameters:
+      - description: Test case runs IDs to cancel
+        in: body
+        name: ids
+        required: true
+        schema:
+          items:
+            type: string
+          type: array
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Cancel test case runs
+      tags:
+      - V1
+      - Test Case Runs
+  /api/v1/test-case-runs/errors/export:
+    post:
+      consumes:
+      - application/json
+      operationId: exportValidationErrorsV1
+      parameters:
+      - description: Validation errors IDs to export
+        in: body
+        name: ids
+        required: true
+        schema:
+          items:
+            type: string
+          type: array
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Export validation errors
+      tags:
+      - V1
+      - Tests Case Runs
+  /api/v1/test-case-runs/export:
+    post:
+      consumes:
+      - application/json
+      operationId: exportTestCaseRunsV1
+      parameters:
+      - description: Test case runs IDs to export
+        in: body
+        name: ids
+        required: true
+        schema:
+          items:
+            type: string
+          type: array
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Export test case runs
+      tags:
+      - V1
+      - Test Case Runs
+  /api/v1/test-cases:
+    delete:
+      consumes:
+      - application/json
+      operationId: deleteTestsCasesV1
+      parameters:
+      - description: Test cases IDs to delete
+        in: body
+        name: ids
+        required: true
+        schema:
+          items:
+            type: string
+          type: array
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Delete test cases
+      tags:
+      - V1
+      - Test Cases
+    post:
+      consumes:
+      - application/json
+      operationId: findTestsCasesV1
+      parameters:
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Sort field
+        enum:
+        - id
+        - name
+        - description
+        - enabled
+        - chain_id
+        - element_id
+        - created_by
+        - created_at
+        - updated_by
+        - updated_at
+        - validation_rule_count
+        - enabled_rule_count
+        in: query
+        name: sort_by
+        type: string
+      - default: ASC
+        description: Sort order
+        enum:
+        - ASC
+        - DESC
+        in: query
+        name: sort_order
+        type: string
+      - description: Return IDs list
+        in: query
+        name: return_ids
+        type: boolean
+      - description: Test cases specification
+        in: body
+        name: specification
+        required: true
+        schema:
+          $ref: '#/definitions/SelectionSpecification'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/TestCase'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Get test cases
+      tags:
+      - V1
+      - Test Cases
+  /api/v1/test-cases/{id}:
+    delete:
+      operationId: deleteTestCaseV1
+      parameters:
+      - description: Test case UUID
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Delete test case
+      tags:
+      - V1
+      - Test Cases
+    get:
+      operationId: findTestCaseByIdV1
+      parameters:
+      - description: Test case UUID
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/TestCase'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Get test case
+      tags:
+      - V1
+      - Test Cases
+    post:
+      consumes:
+      - application/json
+      operationId: updateTestCaseV1
+      parameters:
+      - description: Test case UUID
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Test case
+        in: body
+        name: testCase
+        required: true
+        schema:
+          $ref: '#/definitions/TestCase'
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/TestCase'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Update test case
+      tags:
+      - V1
+      - Test Cases
+  /api/v1/test-cases/create:
+    post:
+      consumes:
+      - application/json
+      operationId: createTestCaseV1
+      parameters:
+      - description: Test case
+        in: body
+        name: testCase
+        required: true
+        schema:
+          $ref: '#/definitions/TestCase'
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/TestCase'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Create test case
+      tags:
+      - V1
+      - Test Cases
+  /api/v1/test-cases/export:
+    post:
+      consumes:
+      - application/json
+      operationId: exportTestCasesV1
+      parameters:
+      - description: Test cases IDs to export
+        in: body
+        name: ids
+        required: true
+        schema:
+          items:
+            type: string
+          type: array
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Export test cases
+      tags:
+      - V1
+      - Test Cases
+  /api/v1/test-cases/import:
+    post:
+      consumes:
+      - multipart/form-data
+      operationId: importTestCasesV1
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/ImportResult'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Import test cases
+      tags:
+      - V1
+      - Test Cases
+  /api/v1/tests-runs:
+    delete:
+      consumes:
+      - application/json
+      operationId: deleteTestsRunsV1
+      parameters:
+      - description: Tests runs IDs to delete
+        in: body
+        name: ids
+        required: true
+        schema:
+          items:
+            type: string
+          type: array
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Delete tests runs
+      tags:
+      - V1
+      - Tests Runs
+    post:
+      consumes:
+      - application/json
+      operationId: findTestsRunsV1
+      parameters:
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Sort field
+        enum:
+        - id
+        - start
+        - finish
+        - status
+        - errors
+        - test_cases
+        - created_by
+        - created_at
+        in: query
+        name: sort_by
+        type: string
+      - default: ASC
+        description: Sort order
+        enum:
+        - ASC
+        - DESC
+        in: query
+        name: sort_order
+        type: string
+      - description: Return IDs list
+        in: query
+        name: return_ids
+        type: boolean
+      - description: Tests runs specification
+        in: body
+        name: specification
+        required: true
+        schema:
+          $ref: '#/definitions/SelectionSpecification'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/TestsRunView'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Get tests runs
+      tags:
+      - V1
+      - Tests Runs
+  /api/v1/tests-runs/{id}:
+    delete:
+      operationId: deleteTestsRunV1
+      parameters:
+      - description: Tests run UUID
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Delete tests run
+      tags:
+      - V1
+      - Tests Runs
+    get:
+      operationId: findTestsRunByIdV1
+      parameters:
+      - description: Tests run UUID
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/TestsRunView'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Get tests run
+      tags:
+      - V1
+      - Tests Runs
+  /api/v1/tests-runs/{id}/cancel:
+    post:
+      operationId: cancelTestsRunByIdV1
+      parameters:
+      - description: Tests run UUID
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Cancel tests run
+      tags:
+      - V1
+      - Tests Runs
+  /api/v1/tests-runs/{id}/export:
+    post:
+      consumes:
+      - application/json
+      operationId: exportTestsRunV1
+      parameters:
+      - description: Tests run UUID
+        example: 00000000-0000-0000-0000-000000000000
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Export tests run
+      tags:
+      - V1
+      - Tests Runs
+  /api/v1/tests-runs/cancel:
+    post:
+      consumes:
+      - application/json
+      operationId: cancelTestsRunsV1
+      parameters:
+      - description: Tests runs IDs to cancel
+        in: body
+        name: ids
+        required: true
+        schema:
+          items:
+            type: string
+          type: array
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Cancel tests runs
+      tags:
+      - V1
+      - Tests Runs
+  /api/v1/tests-runs/create:
+    post:
+      consumes:
+      - application/json
+      operationId: startNewTestsRunV1
+      parameters:
+      - description: Entities IDs to run corresponding test cases
+        in: body
+        name: ids
+        required: true
+        schema:
+          items:
+            type: string
+          type: array
+      - default: test_cases
+        description: Entity type
+        enum:
+        - test_cases
+        - tests_runs
+        - test_case_runs
+        in: query
+        name: from
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created tests run ID
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Start new tests run
+      tags:
+      - V1
+      - Tests Runs
+  /api/v1/tests-runs/export:
+    post:
+      consumes:
+      - application/json
+      operationId: exportTestsRunsV1
+      parameters:
+      - description: Tests runs IDs to export
+        in: body
+        name: ids
+        required: true
+        schema:
+          items:
+            type: string
+          type: array
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: OK
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/ErrorMessage'
+      summary: Export tests runs
+      tags:
+      - V1
+      - Tests Runs
+produces:
+- application/json
+swagger: "2.0"
+tags:
+- description: operations for v1 apis
+  name: V1
+- description: operations for tests runs
+  name: Tests Runs
+- description: operations for test case runs
+  name: Test Case Runs
+- description: operations for test cases
+  name: Test Cases
+- description: operations for endpoint mocks
+  name: Endpoint Mocks
