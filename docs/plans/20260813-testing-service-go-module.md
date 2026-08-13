@@ -399,11 +399,31 @@ two dead branches at each call site.
 **Files:**
 - Create: `testing-service/internal/matching/*.go`, `testing-service/internal/matching/predicates/*.go`
 
-- [ ] port `matching/` and `matching/predicates/`, pointing the data getters at the relocated `DecodeTestingContext`
-- [ ] fix the path-parameter getter, which ignores the decode error and then dereferences a possibly-nil context — a third latent bug alongside the two trigger ones, and the new malformed-input tests will hit it
-- [ ] port the existing predicate tests unchanged
-- [ ] write tests for the entity data getters, especially the query- and path-parameter ones, which the source does not cover and which plan 2 depends on
-- [ ] run `go test ./internal/matching/...` - must pass before next task
+- [x] port `matching/` and `matching/predicates/`, pointing the data getters at the relocated `DecodeTestingContext`
+- [x] fix the path-parameter getter, which ignores the decode error and then dereferences a possibly-nil context — a third latent bug alongside the two trigger ones, and the new malformed-input tests will hit it
+- [x] port the existing predicate tests unchanged
+- [x] write tests for the entity data getters, especially the query- and path-parameter ones, which the source does not cover and which plan 2 depends on
+- [x] run `go test ./internal/matching/...` - must pass before next task
+
+[decision] The header lookup, the single-value check and the decode moved into one `testingContextOf` helper shared by
+the query- and path-parameter getters. The source duplicated all three, and the duplicate is exactly where the missing
+error check hid.
+
+[decision] `testingContextOf` returns `(nil, nil)` when the header is absent, keeping the source's behavior: an exchange
+that never went through a tested chain is not a matcher failure. Both callers return early on it, so the nil context is
+never dereferenced.
+
+[deviation] The three new dependencies land here rather than in a later task: `github.com/PaesslerAG/jsonpath v0.1.1`,
+`github.com/santhosh-tekuri/jsonschema/v6 v6.0.1` and `github.com/wI2L/jsondiff v0.6.0`, all at the versions the source
+used. Each declares `go 1.21` or earlier, as does every module they pull in, so the 1.22 ceiling holds without a pin.
+
+[decision] Three cosmetic fixes inside the predicates, none of which any test asserts on: the `exist` predicate says
+`does not exist` instead of `not exists`, the `match` predicate no longer prints the pattern and the data the wrong way
+round, and `NewMatchJsonPredicate` wraps its unmarshal failure the way its JSON Schema counterpart already did.
+
+[decision] `MatchPredicate.Test` calls `MatchString` instead of converting the string back to bytes for `Match`. The
+predicate keeps `regexp.Regexp` by value so the ported test can read `predicate.Pattern.String()`; the type carries no
+lock, so `go vet` is satisfied.
 
 ### Task 6: Migration 100 and the migrations entry point
 
