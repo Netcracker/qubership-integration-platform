@@ -14,9 +14,15 @@ import (
 )
 
 func testsRunsServiceOver(repositories Repositories) (TestsRunsService, *fakeRunner) {
+	service, runner, _ := testsRunsServiceWithNotifier(repositories)
+	return service, runner
+}
+
+func testsRunsServiceWithNotifier(repositories Repositories) (TestsRunsService, *fakeRunner, *fakeWorkNotifier) {
 	runner := &fakeRunner{}
+	notifier := &fakeWorkNotifier{}
 	testCaseRunsService := NewTestCaseRunsService(config.Config{}, runner, repositories)
-	return NewTestsRunsService(runner, repositories, testCaseRunsService), runner
+	return NewTestsRunsService(runner, repositories, testCaseRunsService, notifier), runner, notifier
 }
 
 func TestStartNewRejectsAnEmptyTestCaseList(t *testing.T) {
@@ -93,6 +99,34 @@ func TestStartNewNumbersTheCaseRunsInTheOrderTheyWereSelected(t *testing.T) {
 		ordinals = append(ordinals, *testCaseRun.Ordinal)
 	}
 	assert.Equal(t, []int{1, 2, 3}, ordinals)
+}
+
+func TestStartNewSignalsTheExecutorOnceTheCasesAreQueued(t *testing.T) {
+	testCaseID := uuid.New()
+	service, _, notifier := testsRunsServiceWithNotifier(Repositories{
+		TestCases:    &fakeTestCasesRepository{existing: map[uuid.UUID]bool{testCaseID: true}},
+		TestsRuns:    &fakeTestsRunsRepository{},
+		TestCaseRuns: &fakeTestCaseRunsRepository{},
+	})
+
+	_, err := service.StartNew(context.Background(), &[]uuid.UUID{testCaseID})
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(1), notifier.signals.Load(), "a worker should not wait out a poll interval")
+}
+
+func TestStartNewSignalsNothingWhenTheRunWasNotQueued(t *testing.T) {
+	known := uuid.New()
+	service, _, notifier := testsRunsServiceWithNotifier(Repositories{
+		TestCases:    &fakeTestCasesRepository{existing: map[uuid.UUID]bool{known: true}},
+		TestsRuns:    &fakeTestsRunsRepository{},
+		TestCaseRuns: &fakeTestCaseRunsRepository{},
+	})
+
+	_, err := service.StartNew(context.Background(), &[]uuid.UUID{known, uuid.New()})
+
+	require.Error(t, err)
+	assert.Zero(t, notifier.signals.Load())
 }
 
 func TestStartNewFromEntitiesRejectsAnUnknownEntityType(t *testing.T) {

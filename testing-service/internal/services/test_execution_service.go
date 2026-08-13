@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,22 +19,30 @@ import (
 
 // TestExecutionService runs the queued test case runs.
 type TestExecutionService interface {
-	Start(ctx context.Context)
-	GracefullyStop(ctx context.Context)
+	// Run executes queued test cases until ctx is canceled.
+	Run(ctx context.Context)
+	// NotifyWork reports that work was queued.
+	NotifyWork()
 }
 
 type testExecutionService struct {
-	logger                   *slog.Logger
-	quit                     chan bool
-	pollInterval             time.Duration
+	logger        *slog.Logger
+	workerCount   int
+	pollInterval  time.Duration
+	renewInterval time.Duration
+	sweepInterval time.Duration
+	// wake carries the signal a queue writer sends. It holds one token: a worker
+	// that takes it drains the queue and signals on in turn, so a second pending
+	// token would buy nothing.
+	wake                     chan struct{}
 	testCasesService         TestCasesService
 	testCaseRunsService      TestCaseRunsService
 	testCaseRunErrorsService TestCaseRunErrorsService
 	triggerResolverService   TriggerResolverService
 }
 
-// NewTestExecutionService returns a TestExecutionService polling the queue at the
-// interval cfg carries.
+// NewTestExecutionService returns a TestExecutionService over the worker count,
+// the poll interval and the lease duration cfg carries.
 func NewTestExecutionService(
 	cfg config.Config,
 	logger *slog.Logger,
@@ -42,10 +51,17 @@ func NewTestExecutionService(
 	testCaseRunErrorsService TestCaseRunErrorsService,
 	triggerResolverService TriggerResolverService,
 ) TestExecutionService {
+	cfg = cfg.WithDefaults()
 	return &testExecutionService{
-		logger:                   logger,
-		quit:                     make(chan bool),
-		pollInterval:             cfg.WithDefaults().PollInterval,
+		logger:       logger,
+		workerCount:  cfg.WorkerCount,
+		pollInterval: cfg.PollInterval,
+		// A running case renews three times per lease and the sweeper looks
+		// twice, so a slow case keeps its claim while an abandoned one waits at
+		// most half a lease longer than the lease itself.
+		renewInterval:            fractionOf(cfg.LeaseDuration, 3),
+		sweepInterval:            fractionOf(cfg.LeaseDuration, 2),
+		wake:                     make(chan struct{}, 1),
 		testCasesService:         testCasesService,
 		testCaseRunsService:      testCaseRunsService,
 		testCaseRunErrorsService: testCaseRunErrorsService,
@@ -53,40 +69,136 @@ func NewTestExecutionService(
 	}
 }
 
-func (s *testExecutionService) Start(ctx context.Context) {
-	s.logger.InfoContext(ctx, "Starting the test execution loop")
-	go s.runTestCases(ctx)
+// fractionOf divides d, never returning an interval a ticker would reject.
+func fractionOf(d time.Duration, divisor int) time.Duration {
+	fraction := d / time.Duration(divisor)
+	if fraction <= 0 {
+		return time.Nanosecond
+	}
+	return fraction
 }
 
-func (s *testExecutionService) GracefullyStop(ctx context.Context) {
-	s.logger.InfoContext(ctx, "Stopping the test execution loop")
-	s.quit <- true
+// Run executes queued test cases until ctx is canceled: a pool of workers, each
+// claiming a case of its own under a fresh owner token, plus the sweeper that
+// returns expired leases to the queue. It returns once they have all stopped.
+//
+// Cancellation stops the pool where it stands rather than draining the queue.
+// The case a worker was on keeps its lease until it expires, and the sweeper —
+// here or in another replica — hands it out again.
+func (s *testExecutionService) Run(ctx context.Context) {
+	s.logger.InfoContext(ctx, "Starting the test executor",
+		"workers", s.workerCount, "pollInterval", s.pollInterval)
+
+	var running sync.WaitGroup
+	running.Add(s.workerCount + 1)
+	for range s.workerCount {
+		go func() {
+			defer running.Done()
+			s.work(ctx)
+		}()
+	}
+	go func() {
+		defer running.Done()
+		s.sweepExpiredLeases(ctx)
+	}()
+	running.Wait()
+
+	s.logger.InfoContext(ctx, "Stopped the test executor")
 }
 
-func (s *testExecutionService) runTestCases(ctx context.Context) {
+// NotifyWork wakes one worker. The signal is dropped when a wake-up is already
+// pending, and the ticker covers a signal that never arrived.
+func (s *testExecutionService) NotifyWork() {
+	select {
+	case s.wake <- struct{}{}:
+	default:
+	}
+}
+
+func (s *testExecutionService) work(ctx context.Context) {
 	ticker := time.NewTicker(s.pollInterval)
 	defer ticker.Stop()
 	for {
-		for {
-			// A fresh owner token per claim: it fences every write this worker
-			// then makes about the case.
-			testCaseRun, err := s.testCaseRunsService.ClaimNext(ctx, uuid.New(), uuid.NewString())
-			if err != nil {
-				s.logger.ErrorContext(ctx, "Cannot claim the next test case run", "error", err)
-			}
-			if testCaseRun == nil {
-				s.logger.DebugContext(ctx, "No test case run to claim", "pollInterval", s.pollInterval)
-				ticker.Reset(s.pollInterval)
-				break
-			}
-			s.runTestCase(ctx, testCaseRun)
-		}
-
+		s.claimAndRun(ctx)
 		select {
-		case <-s.quit:
+		case <-ctx.Done():
+			return
+		case <-s.wake:
+		case <-ticker.C:
+		}
+	}
+}
+
+// claimAndRun takes cases one at a time until the queue hands out nothing more.
+func (s *testExecutionService) claimAndRun(ctx context.Context) {
+	for ctx.Err() == nil {
+		// A fresh owner token per claim: it fences every write this worker then
+		// makes about the case.
+		testCaseRun, err := s.testCaseRunsService.ClaimNext(ctx, uuid.New(), uuid.NewString())
+		if err != nil {
+			s.logger.ErrorContext(ctx, "Cannot claim the next test case run", "error", err)
+			return
+		}
+		if testCaseRun == nil {
+			s.logger.DebugContext(ctx, "No test case run to claim", "pollInterval", s.pollInterval)
+			return
+		}
+		// Another run may have a case of its own waiting, and this worker is
+		// busy for as long as the one it just took.
+		s.NotifyWork()
+		s.runTestCase(ctx, testCaseRun)
+	}
+}
+
+// sweepExpiredLeases returns the cases of workers that stopped reporting to the
+// queue, one guarded statement at a time.
+func (s *testExecutionService) sweepExpiredLeases(ctx context.Context) {
+	ticker := time.NewTicker(s.sweepInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
 			return
 		case <-ticker.C:
 		}
+		reclaimed, err := s.testCaseRunsService.ReclaimExpired(ctx)
+		if err != nil {
+			s.logger.ErrorContext(ctx, "Cannot reclaim the test case runs with an expired lease", "error", err)
+			continue
+		}
+		if reclaimed > 0 {
+			s.logger.InfoContext(ctx, "Returned test case runs with an expired lease to the queue",
+				"testCaseRuns", reclaimed)
+			s.NotifyWork()
+		}
+	}
+}
+
+// renewLease keeps the claim alive while the case runs, and returns the function
+// that stops it. Without renewal the sweeper would take a case that merely runs
+// longer than one lease and hand it to a second worker.
+func (s *testExecutionService) renewLease(ctx context.Context, testCaseRunID uuid.UUID, owner uuid.UUID) func() {
+	ctx, cancel := context.WithCancel(ctx)
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		ticker := time.NewTicker(s.renewInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+			if err := s.testCaseRunsService.RenewLease(ctx, testCaseRunID, owner); err != nil {
+				s.logWriteFailure(ctx, "Cannot renew the lease of the test case run", testCaseRunID, err)
+				return
+			}
+		}
+	}()
+	return func() {
+		cancel()
+		<-stopped
 	}
 }
 
@@ -100,6 +212,8 @@ func (s *testExecutionService) runTestCase(ctx context.Context, testCaseRun *dao
 		return
 	}
 	owner := *testCaseRun.LeaseOwner
+	stopRenewal := s.renewLease(ctx, testCaseRun.ID, owner)
+	defer stopRenewal()
 
 	if testCaseRun.TestCaseID == nil {
 		s.logger.ErrorContext(ctx, "Test case run references no test case", "testCaseRunId", testCaseRun.ID)

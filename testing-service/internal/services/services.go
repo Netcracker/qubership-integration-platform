@@ -85,20 +85,24 @@ func NewServices(cfg config.Config, deps config.Deps, d *dao.Dao) *Services {
 	testCaseRunErrorsService := NewTestCaseRunErrorsService(d, repositories)
 	triggerResolverService := NewTriggerResolverService(catalogClient, triggerFactory)
 
+	// The executor is wired before the test runs service, which signals it as
+	// soon as it has queued a run.
+	testExecutionService := NewTestExecutionService(
+		cfg,
+		logger,
+		testCasesService,
+		testCaseRunsService,
+		testCaseRunErrorsService,
+		triggerResolverService,
+	)
+
 	return &Services{
-		TestsRunsService:         NewTestsRunsService(d, repositories, testCaseRunsService),
+		TestsRunsService:         NewTestsRunsService(d, repositories, testCaseRunsService, testExecutionService),
 		TestCaseRunsService:      testCaseRunsService,
 		TestCaseRunErrorsService: testCaseRunErrorsService,
 		TestCasesService:         testCasesService,
 		EndpointMocksService:     NewEndpointMocksService(d, repositories, matchersService),
 		TriggerResolverService:   triggerResolverService,
-		TestExecutionService: NewTestExecutionService(
-			cfg,
-			logger,
-			testCasesService,
-			testCaseRunsService,
-			testCaseRunErrorsService,
-			triggerResolverService,
-		),
+		TestExecutionService:     testExecutionService,
 	}
 }

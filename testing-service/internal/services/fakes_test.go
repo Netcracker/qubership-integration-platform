@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"database/sql"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,6 +35,13 @@ func (r *fakeRunner) RunInTx(
 	r.txCalls++
 	return r.Run(ctx, handler)
 }
+
+// fakeWorkNotifier counts the wake-up signals the queue writer sent.
+type fakeWorkNotifier struct {
+	signals atomic.Int32
+}
+
+func (n *fakeWorkNotifier) NotifyWork() { n.signals.Add(1) }
 
 type fakeEndpointMocksRepository struct {
 	dao.EndpointMocksRepository
@@ -122,6 +130,14 @@ type claimCall struct {
 	leaseDuration time.Duration
 }
 
+// renewCall records a lease renewal, so a test can assert the duration and the
+// owner token reached the repository.
+type renewCall struct {
+	id            uuid.UUID
+	owner         uuid.UUID
+	leaseDuration time.Duration
+}
+
 type fakeTestCaseRunsRepository struct {
 	dao.TestCaseRunsRepository
 
@@ -133,6 +149,10 @@ type fakeTestCaseRunsRepository struct {
 	statusUpdates  []string
 	updated        []dao.TestCaseRun
 	updateOwners   []uuid.UUID
+	renewals       []renewCall
+	reclaimable    int
+	reclaimErr     error
+	reclaims       int
 	leaseOwner     *uuid.UUID
 	findAllErr     error
 	lastSpecFilter []model.Filter
@@ -203,6 +223,28 @@ func (r *fakeTestCaseRunsRepository) Claim(
 	claimed.SessionID = &sessionID
 	claimed.LeaseOwner = &owner
 	return &claimed, nil
+}
+
+// RenewLease enforces the fence the real repository enforces in SQL.
+func (r *fakeTestCaseRunsRepository) RenewLease(
+	_ context.Context,
+	id uuid.UUID,
+	owner uuid.UUID,
+	leaseDuration time.Duration,
+) error {
+	if r.leaseOwner != nil && *r.leaseOwner != owner {
+		return dao.ErrLeaseLost
+	}
+	r.renewals = append(r.renewals, renewCall{id: id, owner: owner, leaseDuration: leaseDuration})
+	return nil
+}
+
+func (r *fakeTestCaseRunsRepository) ReclaimExpired(context.Context) (int, error) {
+	r.reclaims++
+	if r.reclaimErr != nil {
+		return 0, r.reclaimErr
+	}
+	return r.reclaimable, nil
 }
 
 type fakeTestCaseRunErrorsRepository struct {

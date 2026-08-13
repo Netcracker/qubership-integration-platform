@@ -47,6 +47,8 @@ type TestCaseRunsRepository interface {
 	UpdateOwned(ctx context.Context, testCaseRun *TestCaseRun, owner uuid.UUID, omitZero bool) error
 	UpdateStatus(ctx context.Context, selector func(bun.QueryBuilder) bun.QueryBuilder, status string) error
 	Claim(ctx context.Context, owner uuid.UUID, sessionID string, leaseDuration time.Duration) (*TestCaseRun, error)
+	RenewLease(ctx context.Context, id uuid.UUID, owner uuid.UUID, leaseDuration time.Duration) error
+	ReclaimExpired(ctx context.Context) (int, error)
 }
 
 type testCaseRunsRepository struct {
@@ -257,6 +259,79 @@ func (r *testCaseRunsRepository) claimTestsRun(
 		return nil, nil
 	}
 	return &ids[0], nil
+}
+
+// renewLeaseQuery pushes the deadline of a lease the worker still holds. The new
+// deadline comes from the database clock, the one the sweeper compares against,
+// so a skewed pod clock cannot extend a lease past its expiry.
+const renewLeaseQuery = `
+update test_case_runs set lease_until = now() + make_interval(secs => ?)
+where id = ? and status = ? and lease_owner = ?`
+
+// RenewLease keeps a claim alive while its case is still running, and reports
+// ErrLeaseLost once the case is no longer held under owner.
+func (r *testCaseRunsRepository) RenewLease(
+	ctx context.Context,
+	id uuid.UUID,
+	owner uuid.UUID,
+	leaseDuration time.Duration,
+) error {
+	db, err := GetDb(ctx)
+	if err != nil {
+		return err
+	}
+	result, err := db.NewRaw(renewLeaseQuery, leaseDuration.Seconds(), id, RunStatusRunning, owner).Exec(ctx)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return ErrLeaseLost
+	}
+	return nil
+}
+
+// reclaimExpiredQuery returns the cases of workers that stopped reporting to the
+// queue, and drops what their abandoned attempt recorded.
+//
+// It is one statement on purpose. PostgreSQL rechecks the qualifier at write
+// time, so an update guarded by `lease_until < now()` cannot take a lease that
+// was renewed while the statement ran; selecting the expired rows first and
+// updating them by id afterwards can. The delete rides in the same statement
+// because validation_errors carries unique (test_case_run_id, matcher_id): with
+// the previous attempt's rows still there, the reclaimed case would fail on its
+// first repeated matcher instead of running again.
+const reclaimExpiredQuery = `
+with reclaimed as (
+    update test_case_runs set
+        status = ?,
+        start = null,
+        lease_until = null,
+        lease_owner = null
+    where status = ? and lease_until < now()
+    returning id
+), discarded as (
+    delete from validation_errors where test_case_run_id in (select id from reclaimed)
+)
+select count(*) from reclaimed`
+
+// ReclaimExpired reports how many cases it returned to the queue.
+func (r *testCaseRunsRepository) ReclaimExpired(ctx context.Context) (int, error) {
+	db, err := GetDb(ctx)
+	if err != nil {
+		return 0, err
+	}
+	var counts []int
+	if err := db.NewRaw(reclaimExpiredQuery, RunStatusPending, RunStatusRunning).Scan(ctx, &counts); err != nil {
+		return 0, err
+	}
+	if len(counts) == 0 {
+		return 0, nil
+	}
+	return counts[0], nil
 }
 
 func (r *testCaseRunsRepository) claimTestCaseRun(

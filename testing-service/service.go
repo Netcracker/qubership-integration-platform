@@ -67,13 +67,13 @@ func (s *Service) Mount(router fiber.Router) {
 	s.controllers.Mount(router)
 }
 
-// RunExecutor runs the test executor until ctx is canceled, then stops it and
-// returns nil. A canceled context is the ordinary way to shut down, so it is not
-// reported as a failure.
+// RunExecutor runs the test executor and its lease sweeper until ctx is canceled,
+// then returns nil once they have stopped. A canceled context is the ordinary
+// way to shut down, so it is not reported as a failure. Shutdown does not wait
+// for the queue to drain: the case a worker was on keeps its lease until it
+// expires, and the sweeper hands it out again.
 func (s *Service) RunExecutor(ctx context.Context) error {
-	s.services.TestExecutionService.Start(dao.WithCurrentUser(ctx, s.backgroundUser(ctx)))
-	<-ctx.Done()
-	s.services.TestExecutionService.GracefullyStop(context.WithoutCancel(ctx))
+	s.services.TestExecutionService.Run(dao.WithCurrentUser(ctx, s.backgroundUser(ctx)))
 	return nil
 }
 

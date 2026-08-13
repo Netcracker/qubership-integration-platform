@@ -42,19 +42,33 @@ type TestsRunsService interface {
 	Export(ctx context.Context, ids *[]uuid.UUID) (string, error)
 }
 
+// WorkNotifier reports queued work to whatever executes it. Taking the notifier
+// rather than the executor keeps the queue writer independent of the pool.
+type WorkNotifier interface {
+	NotifyWork()
+}
+
 type testsRunsService struct {
 	runner              dao.Runner
 	repositories        Repositories
 	testCaseRunsService TestCaseRunsService
+	notifier            WorkNotifier
 }
 
 // NewTestsRunsService returns a TestsRunsService over the given database access.
+// A nil notifier leaves the executor to find new runs on its next poll.
 func NewTestsRunsService(
 	runner dao.Runner,
 	repositories Repositories,
 	testCaseRunsService TestCaseRunsService,
+	notifier WorkNotifier,
 ) TestsRunsService {
-	return &testsRunsService{runner: runner, repositories: repositories, testCaseRunsService: testCaseRunsService}
+	return &testsRunsService{
+		runner:              runner,
+		repositories:        repositories,
+		testCaseRunsService: testCaseRunsService,
+		notifier:            notifier,
+	}
 }
 
 func (s *testsRunsService) FindAll(
@@ -78,7 +92,7 @@ func (s *testsRunsService) StartNew(ctx context.Context, testCaseIds *[]uuid.UUI
 	if testCaseIds == nil || len(*testCaseIds) == 0 {
 		return nil, ErrEmptyTestCaseList
 	}
-	return dao.RunInTx(ctx, s.runner, defaultTxOptions(), func(ctx context.Context, _ bun.IDB) (*uuid.UUID, error) {
+	testsRunID, err := dao.RunInTx(ctx, s.runner, defaultTxOptions(), func(ctx context.Context, _ bun.IDB) (*uuid.UUID, error) {
 		if err := s.verifyAllTestCasesExist(ctx, testCaseIds); err != nil {
 			return nil, err
 		}
@@ -97,6 +111,16 @@ func (s *testsRunsService) StartNew(ctx context.Context, testCaseIds *[]uuid.UUI
 		}
 		return &testsRunID, nil
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	// The cases are committed, so a worker can start on them now instead of
+	// waiting out a poll interval.
+	if s.notifier != nil {
+		s.notifier.NotifyWork()
+	}
+	return testsRunID, nil
 }
 
 func (s *testsRunsService) StartNewFromEntitiesWithType(

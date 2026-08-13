@@ -33,6 +33,8 @@ type TestCaseRunsService interface {
 	ClaimNext(ctx context.Context, owner uuid.UUID, sessionID string) (*dao.TestCaseRun, error)
 	Finish(ctx context.Context, id uuid.UUID, owner uuid.UUID) error
 	Skip(ctx context.Context, id uuid.UUID, owner uuid.UUID) error
+	RenewLease(ctx context.Context, id uuid.UUID, owner uuid.UUID) error
+	ReclaimExpired(ctx context.Context) (int, error)
 
 	Export(ctx context.Context, ids *[]uuid.UUID) (string, error)
 	ExportByTestsRunIds(ctx context.Context, ids *[]uuid.UUID) (string, error)
@@ -135,6 +137,22 @@ func (s *testCaseRunsService) Skip(ctx context.Context, id uuid.UUID, owner uuid
 		status := dao.RunStatusSkipped
 		testCaseRun := &dao.TestCaseRun{ID: id, Status: &status, Finish: &timestamp}
 		return s.repositories.TestCaseRuns.UpdateOwned(ctx, testCaseRun, owner, true)
+	})
+}
+
+// RenewLease extends the claim on a case that is still running, for the same
+// duration the claim itself leased it for.
+func (s *testCaseRunsService) RenewLease(ctx context.Context, id uuid.UUID, owner uuid.UUID) error {
+	return runInTx(ctx, s.runner, func(ctx context.Context) error {
+		return s.repositories.TestCaseRuns.RenewLease(ctx, id, owner, s.leaseDuration)
+	})
+}
+
+// ReclaimExpired returns the cases whose lease ran out to the queue and reports
+// how many it took back.
+func (s *testCaseRunsService) ReclaimExpired(ctx context.Context) (int, error) {
+	return dao.RunInTx(ctx, s.runner, defaultTxOptions(), func(ctx context.Context, _ bun.IDB) (int, error) {
+		return s.repositories.TestCaseRuns.ReclaimExpired(ctx)
 	})
 }
 

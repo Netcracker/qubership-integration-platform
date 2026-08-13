@@ -655,14 +655,48 @@ and a run whose next case is locked elsewhere is excluded by id so the claim rea
 **Files:**
 - Modify: `testing-service/internal/services/test_execution_service.go`, `testing-service/service.go`, `testing-service/go.mod`
 
-- [ ] run a configurable pool of workers, each claiming its own case with its own owner token
-- [ ] wake workers by signal when a run is created, keeping the ticker as a fallback
-- [ ] renew the lease while a case runs, guarded by the owner token
-- [ ] add a sweeper that reclaims expired leases in **one** guarded statement (`where status = 'running' and lease_until < now()`), clearing `lease_owner` and deleting the attempt's validation errors; a select-then-update-by-id form can steal a lease renewed between the two statements
-- [ ] replace the `quit` channel with a context so shutdown no longer blocks until the queue drains
-- [ ] run `go mod tidy`
-- [ ] write tests for lease renewal, expiry selection, owner-token rejection, and that a reclaimed case re-executes cleanly rather than colliding with its previous attempt's validation errors
-- [ ] run `go test ./...` - must pass before next task
+- [x] run a configurable pool of workers, each claiming its own case with its own owner token
+- [x] wake workers by signal when a run is created, keeping the ticker as a fallback
+- [x] renew the lease while a case runs, guarded by the owner token
+- [x] add a sweeper that reclaims expired leases in **one** guarded statement (`where status = 'running' and lease_until < now()`), clearing `lease_owner` and deleting the attempt's validation errors; a select-then-update-by-id form can steal a lease renewed between the two statements
+- [x] replace the `quit` channel with a context so shutdown no longer blocks until the queue drains
+- [x] run `go mod tidy`
+- [x] write tests for lease renewal, expiry selection, owner-token rejection, and that a reclaimed case re-executes cleanly rather than colliding with its previous attempt's validation errors
+- [x] run `go test ./...` - must pass before next task
+
+[decision] The sweep and the delete of the reclaimed attempt's errors are one statement, not two: a data-modifying CTE
+updates the expired rows and a second one deletes the validation errors of exactly what it returned. Two statements
+would leave a window in which a reclaimed case is pending again while its previous errors still exist, and a worker fast
+enough to claim it in that window would hit the unique constraint the delete exists to clear.
+
+[decision] The sweep also clears `lease_until` and `start`. The plan's statement names only `status` and `lease_owner`,
+but the claim stamps all four together, so clearing all four is what makes a reclaimed row indistinguishable from one
+that was never claimed. Nothing reads `lease_until` outside the `status = 'running'` guard, so this is hygiene rather
+than correctness.
+
+[decision] The renewal and sweep intervals are derived from `LeaseDuration` — a third and a half of it — rather than
+added to `Config`. A case renews three times per lease and the sweeper looks twice, so the two rates stay in the
+relation the lease defines and a host cannot configure them into contradiction.
+
+[decision] The wake signal reaches the executor through a `services.WorkNotifier` interface that `TestsRunsService`
+takes, not through the executor type. The queue writer has no other reason to know what runs its work, and the interface
+is what a test asserts the signal on. A nil notifier is allowed and leaves the executor to find the run on its next poll.
+
+[decision] The wake channel holds one token. A worker that takes it drains the queue and signals on in turn before
+executing its case, so a second pending token would buy nothing; the ticker covers a signal that was dropped.
+
+[deviation] Shutdown no longer runs the queue dry, and it no longer runs the case in flight to completion either: the
+canceled context reaches the trigger activation and the fenced writes. The case keeps its lease until it expires, and
+the sweeper — here or in another replica — hands it out again. That is the same path a crashed pod takes, and it is what
+lets `RunExecutor` return promptly instead of blocking on a test case that hangs.
+
+✅ Verified against PostgreSQL 14 in Docker with a throwaway build-tagged suite (removed afterwards; the real
+integration suite is Task 15): a live lease survives the sweep, an expired one returns to `pending` with `lease_owner`,
+`lease_until` and `start` cleared and its validation errors gone, and the reclaimed case is claimed again and records
+the same matcher without hitting `unique (test_case_run_id, matcher_id)`; `RenewLease` refuses a foreign owner and a
+case that is no longer running, and a renewed lease is skipped by the sweep. The single-statement claim was checked
+against the race it exists for: with a renewal holding the row uncommitted, the sweep blocks, then rechecks its
+qualifier after the commit and reclaims nothing.
 
 ### Task 12: Run retention
 

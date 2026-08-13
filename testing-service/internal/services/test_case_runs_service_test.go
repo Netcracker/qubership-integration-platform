@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -150,6 +151,50 @@ func TestClaimNextLeasesTheRunToTheGivenOwner(t *testing.T) {
 	assert.Equal(t, "session-1", *claimed.SessionID)
 	require.Len(t, repository.claims, 1)
 	assert.Equal(t, claimCall{owner: owner, sessionID: "session-1", leaseDuration: 90 * time.Second}, repository.claims[0])
+}
+
+func TestRenewLeaseExtendsTheClaimForTheConfiguredDuration(t *testing.T) {
+	repository := &fakeTestCaseRunsRepository{}
+	cfg := config.Config{LeaseDuration: 90 * time.Second}
+	service := NewTestCaseRunsService(cfg, &fakeRunner{}, Repositories{TestCaseRuns: repository})
+	id := uuid.New()
+	owner := uuid.New()
+
+	require.NoError(t, service.RenewLease(context.Background(), id, owner))
+
+	assert.Equal(t, []renewCall{{id: id, owner: owner, leaseDuration: 90 * time.Second}}, repository.renewals)
+}
+
+func TestRenewLeaseIsRefusedOnceAnotherWorkerOwnsTheRun(t *testing.T) {
+	current := uuid.New()
+	repository := &fakeTestCaseRunsRepository{leaseOwner: &current}
+	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: repository})
+
+	err := service.RenewLease(context.Background(), uuid.New(), uuid.New())
+
+	require.ErrorIs(t, err, dao.ErrLeaseLost)
+	assert.Empty(t, repository.renewals, "a swept worker may not extend a lease it no longer holds")
+}
+
+func TestReclaimExpiredReportsHowManyRunsReturnedToTheQueue(t *testing.T) {
+	repository := &fakeTestCaseRunsRepository{reclaimable: 3}
+	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: repository})
+
+	reclaimed, err := service.ReclaimExpired(context.Background())
+
+	require.NoError(t, err)
+	assert.Equal(t, 3, reclaimed)
+	assert.Equal(t, 1, repository.reclaims)
+}
+
+func TestReclaimExpiredReportsAFailingSweep(t *testing.T) {
+	repository := &fakeTestCaseRunsRepository{reclaimErr: errors.New("no connection")}
+	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: repository})
+
+	reclaimed, err := service.ReclaimExpired(context.Background())
+
+	require.Error(t, err)
+	assert.Zero(t, reclaimed)
 }
 
 func TestClaimNextLeasesForTheDefaultDurationWhenNoneIsConfigured(t *testing.T) {

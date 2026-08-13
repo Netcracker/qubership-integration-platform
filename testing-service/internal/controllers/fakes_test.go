@@ -138,8 +138,11 @@ func (s *fakeTestCaseRunsService) ClaimNext(context.Context, uuid.UUID, string) 
 	return nil, nil
 }
 
-func (s *fakeTestCaseRunsService) Finish(context.Context, uuid.UUID, uuid.UUID) error { return nil }
-func (s *fakeTestCaseRunsService) Skip(context.Context, uuid.UUID, uuid.UUID) error   { return nil }
+func (s *fakeTestCaseRunsService) Finish(context.Context, uuid.UUID, uuid.UUID) error     { return nil }
+func (s *fakeTestCaseRunsService) Skip(context.Context, uuid.UUID, uuid.UUID) error       { return nil }
+func (s *fakeTestCaseRunsService) RenewLease(context.Context, uuid.UUID, uuid.UUID) error { return nil }
+
+func (s *fakeTestCaseRunsService) ReclaimExpired(context.Context) (int, error) { return 0, nil }
 
 func (s *fakeTestCaseRunsService) Export(context.Context, *[]uuid.UUID) (string, error) {
 	return "", nil
