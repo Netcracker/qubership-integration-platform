@@ -973,15 +973,71 @@ routing configs pass `nginx -t` in a throwaway container with the upstreams stub
 ### Task 18: CI
 
 **Files:**
-- Create: `.github/workflows/testing-service-build.yaml`
-- Modify: `.github/workflows/main-build.yaml`
+- Create: `.github/workflows/testing-service-build.yaml`, `scripts/check-go-dependencies.sh`, `testing-service/dependencies_test.go`
+- Modify: `.github/workflows/main-build.yaml`, `.github/super-linter.env`, `.editorconfig`
+- Modify: `scripts/check-sanitization.sh`, `.githooks/pre-commit`, `testing-service/cmd/testing-service/main_test.go`, `testing-service/internal/dao/test_case_runs_repository.go`, `testing-service/internal/dao/tests_runs_repository.go`, `testing-service/internal/db/migrations_integration_test.go` (whitespace only, see below)
 
-- [ ] add a build workflow path-filtered on `testing-service/**` running `go build`, `go vet`, `golangci-lint` and `go test`
-- [ ] add the dependency-allowlist step over `go.mod` and `go.sum`
-- [ ] add a Go job to `main-build.yaml` **and extend that workflow's own `paths:` filter**, or a testing-service-only change will never trigger it
-- [ ] check how `super-linter.yaml` reacts to Go files — it pulls a shared config and may run a second, differently configured Go linter
-- [ ] leave Sonar out of the Go pipeline for now
-- [ ] verify the workflow actually runs on a draft PR touching only this module
+- [x] add a build workflow path-filtered on `testing-service/**` running `go build`, `go vet`, `golangci-lint` and `go test`
+- [x] add the dependency-allowlist step over `go.mod` and `go.sum`
+- [x] add a Go job to `main-build.yaml` **and extend that workflow's own `paths:` filter**, or a testing-service-only change will never trigger it
+- [x] check how `super-linter.yaml` reacts to Go files — it pulls a shared config and may run a second, differently configured Go linter
+- [x] leave Sonar out of the Go pipeline for now
+- [x] verify the workflow actually runs on a draft PR touching only this module — skipped, not automatable: the branch is not pushed and opening a PR is the maintainer's call. The filters were reasoned through against the change set instead (see below)
+
+[decision] The allowlist is a script, `scripts/check-go-dependencies.sh`, next to `check-sanitization.sh`, rather than
+inline YAML. It runs locally in one command, it is covered by `testing-service/dependencies_test.go` the way the
+sanitization script is covered by `sanitization_test.go`, and `main-build.yaml` reuses it without repeating it.
+
+[decision] The allowlist is one GitHub organization per entry — 73 prefixes — not `github.com/` as a whole. The plan's
+threat is a vendor module reappearing, and a host-level list would wave through anything published under any GitHub
+account. A new dependency source therefore has to arrive as a visible edit to the list. The entries are exactly what
+go.mod and go.sum name today; `go.uber.org/` turned out not to be among them.
+
+[decision] The script fails closed three ways: a missing module directory, an unreadable `go.mod` or `go.sum`, and a
+scan that collected nothing all exit 2 rather than reporting success.
+
+[decision] The check is a step in the build job, before `setup-go`. A module from an unvetted source is worth reporting
+as itself rather than as whatever the module download fails with a minute later.
+
+[decision] CI runs the integration suite in a job of its own. GitHub's runners carry a Docker daemon, so testcontainers
+works there, and the claim, the lease fence and the migrations have no coverage outside that suite. Keeping it separate
+from `build` means a container failure does not hide a compile failure. `go vet -tags integration ./...` runs there too,
+since the default vet never sees the tagged files.
+
+[decision] `main-build.yaml` gets `build`, `vet` and `test` but neither the linter nor the integration suite. That
+workflow exists to catch cross-module semantic conflicts, the Go module has no cross-module coupling to catch, and both
+of the omitted checks give a clearer signal on the PR that caused them. It mirrors what the `npm` job there already
+does.
+
+⚠️ Super-linter would have run a second Go linter. Our own `.github/super-linter.env` replaces the shared one wholesale,
+and any validator it does not name defaults to on — so `GO` and `GO_MODULES` were both live. Super-linter v8.1.0 ships
+golangci-lint **v2.4.0** and points it at `.github/linters/.golangci.yml`, a v2-schema file copied in from
+`netcracker/.github`; that binary cannot read this module's v1.64.8 config, and the copied config lints against a
+different rule set. Both validators are now off, with the module's own pinned linter named as the owner.
+
+⚠️ Three more shared linters reacted to the new files, all of them enabled for the same reason. `shfmt` and
+`editorconfig-checker` are off in the shared environment file and on in ours, and this plan's own shell scripts were the
+only ones in the repository that failed them:
+
+- `scripts/check-sanitization.sh`, `.githooks/pre-commit` and the new script are reformatted to the repository's
+  `.editorconfig` — four-space indentation, indented `case` branches, spaced redirections. Whitespace only, verified with
+  `shfmt -l` and re-checked with `shellcheck`. Every script that predates this plan already complied.
+- `.editorconfig` gains `[*.go] indent_style = tab`, which gofmt leaves no choice about, and `indent_style = unset` for
+  `[*.md]`, because a fenced block carries the indentation of the language inside it and `README.md` embeds Go.
+- The SQL inside the raw string literals in `test_case_runs_repository.go`, `tests_runs_repository.go` and
+  `migrations_integration_test.go` is re-indented with tabs, so those files use one indentation character throughout.
+  The YAML fixture in `cmd/testing-service/main_test.go` cannot follow — YAML forbids tabs — and carries an
+  `editorconfig-checker-disable` block instead. `gofmt -l` stays clean and no test text changed.
+- The generated `testing-service/docs/` still fails both, and stays excluded by `FILTER_REGEX_EXCLUDE` from Task 14.
+
+✅ Verified locally, since CI was not observed running: both workflows parse, `actionlint` is clean on them,
+`yamllint` is clean under `.github/linters/.yaml-lint.yml`, `shellcheck` and `shfmt` are clean on all three scripts, and
+`editorconfig-checker` is clean over `testing-service/` apart from the excluded `docs/`. The allowlist passes over the
+real `go.mod` and `go.sum` and rejects a synthetic module from an unlisted source. `go build`, `go vet`, `go test` and
+`golangci-lint run` (v1.64.8, the pinned version) all pass, as do `go vet -tags integration` and `go test -tags
+integration`; the untagged suite was re-run under a real go1.22.12 with `GOTOOLCHAIN=local`. The path filters were
+traced against `git diff --name-only`: this change set touches `testing-service/**` and
+`scripts/check-go-dependencies.sh`, so the new workflow fires and no other module build does.
 
 ### Task 19: Release workflow
 

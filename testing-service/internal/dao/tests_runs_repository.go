@@ -163,14 +163,14 @@ func (r *testsRunsRepository) BulkDelete(ctx context.Context, ids *[]uuid.UUID) 
 // left alone too, since the comparison against null selects nothing.
 const deleteExpiredTestsRunsQuery = `
 delete from tests_runs where id in (
-    select r.id from tests_runs r
-    where r.created_at < now() - make_interval(secs => ?)
-      and not exists (
-          select 1 from test_case_runs c
-          where c.tests_run_id = r.id and c.status in (?, ?)
-      )
-    order by r.created_at
-    limit ?
+	select r.id from tests_runs r
+	where r.created_at < now() - make_interval(secs => ?)
+		and not exists (
+			select 1 from test_case_runs c
+			where c.tests_run_id = r.id and c.status in (?, ?)
+		)
+	order by r.created_at
+	limit ?
 )`
 
 // DeleteExpired deletes at most batchSize test runs older than age and reports how

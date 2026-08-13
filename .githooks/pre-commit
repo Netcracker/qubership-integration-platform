@@ -9,7 +9,7 @@ global_hooks="$(git config --global core.hooksPath || true)"
 
 # Only when git itself would have run it, so this chain changes nothing.
 if [ -n "$global_hooks" ] && [ -x "$global_hooks/pre-commit" ]; then
-	"$global_hooks/pre-commit" "$@"
+    "$global_hooks/pre-commit" "$@"
 fi
 
 exec "$root/scripts/check-sanitization.sh" --staged

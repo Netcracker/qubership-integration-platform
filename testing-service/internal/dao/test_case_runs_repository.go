@@ -178,17 +178,17 @@ func (r *testCaseRunsRepository) UpdateStatus(ctx context.Context, selector func
 // a case another transaction holds, a cancellation in flight for example.
 const claimTestCaseRunQuery = `
 update test_case_runs set
-    status = ?,
-    start = now(),
-    session_id = ?,
-    lease_until = now() + make_interval(secs => ?),
-    lease_owner = ?
+	status = ?,
+	start = now(),
+	session_id = ?,
+	lease_until = now() + make_interval(secs => ?),
+	lease_owner = ?
 where id = (
-    select id from test_case_runs
-    where tests_run_id = ? and status = ?
-    order by ordinal, id
-    for update skip locked
-    limit 1
+	select id from test_case_runs
+	where tests_run_id = ? and status = ?
+	order by ordinal, id
+	for update skip locked
+	limit 1
 )
 returning *`
 
@@ -199,7 +199,7 @@ returning *`
 const claimTestsRunQuery = `
 select r.id from tests_runs r
 where exists (select 1 from test_case_runs c where c.tests_run_id = r.id and c.status = ?)
-  and not exists (select 1 from test_case_runs c where c.tests_run_id = r.id and c.status = ?)`
+	and not exists (select 1 from test_case_runs c where c.tests_run_id = r.id and c.status = ?)`
 
 // Claim takes the next test case run the caller may execute, or returns nil when
 // there is none. It runs two statements, and both belong to the caller's
@@ -306,15 +306,15 @@ func (r *testCaseRunsRepository) RenewLease(
 // first repeated matcher instead of running again.
 const reclaimExpiredQuery = `
 with reclaimed as (
-    update test_case_runs set
-        status = ?,
-        start = null,
-        lease_until = null,
-        lease_owner = null
-    where status = ? and lease_until < now()
-    returning id
+	update test_case_runs set
+		status = ?,
+		start = null,
+		lease_until = null,
+		lease_owner = null
+	where status = ? and lease_until < now()
+	returning id
 ), discarded as (
-    delete from validation_errors where test_case_run_id in (select id from reclaimed)
+	delete from validation_errors where test_case_run_id in (select id from reclaimed)
 )
 select count(*) from reclaimed`
 

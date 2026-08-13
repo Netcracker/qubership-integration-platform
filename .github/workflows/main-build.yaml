@@ -30,6 +30,8 @@ on:
       - 'vscode-extension/**'
       - 'package.json'
       - 'package-lock.json'
+      - 'testing-service/**'
+      - 'scripts/check-go-dependencies.sh'
   workflow_dispatch: null
 
 concurrency:
@@ -93,3 +95,39 @@ jobs:
 
       - name: Test
         run: npm test --workspaces --if-present
+
+  # The Go module has no cross-module coupling to catch, so this repeats the PR
+  # build's fast checks only: golangci-lint and the integration suite stay on the
+  # PR, where a failure still points at the change that caused it.
+  go:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Dependency allowlist
+        run: scripts/check-go-dependencies.sh testing-service
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: testing-service/go.mod
+          cache-dependency-path: testing-service/go.sum
+
+      - name: Build
+        working-directory: testing-service
+        run: go build ./...
+
+      - name: Vet
+        working-directory: testing-service
+        run: go vet ./...
+
+      - name: Test
+        working-directory: testing-service
+        run: go test ./...

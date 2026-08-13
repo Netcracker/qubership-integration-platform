@@ -19,6 +19,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// YAML forbids tabs in indentation, so this literal keeps the spaces that the
+// rest of the file replaces with tabs.
+// editorconfig-checker-disable
 const sampleConfig = `
 server:
   bind: ":9090"
@@ -47,6 +50,8 @@ pprof:
   bind: ":7070"
 production: true
 `
+
+// editorconfig-checker-enable
 
 func writeConfig(t *testing.T, body string) string {
 	t.Helper()

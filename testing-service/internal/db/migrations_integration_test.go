@@ -42,20 +42,20 @@ type objectCounts struct {
 // backing a primary key come with the table rather than from a create index.
 const countObjectsQuery = `
 select
-    (select count(*) from information_schema.tables
-     where table_schema = current_schema() and table_type = 'BASE TABLE') as tables,
-    (select count(*) from pg_indexes
-     where schemaname = current_schema() and indexname like 'idx\_%') as indexes,
-    (select count(*) from pg_type t join pg_namespace n on n.oid = t.typnamespace
-     where n.nspname = current_schema() and t.typtype = 'e') as enums,
-    (select count(*) from information_schema.views
-     where table_schema = current_schema()) as views,
-    (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-     where n.nspname = current_schema()) as functions,
-    (select count(*) from pg_trigger g
-     join pg_class c on c.oid = g.tgrelid
-     join pg_namespace n on n.oid = c.relnamespace
-     where n.nspname = current_schema() and not g.tgisinternal) as triggers`
+	(select count(*) from information_schema.tables
+		where table_schema = current_schema() and table_type = 'BASE TABLE') as tables,
+	(select count(*) from pg_indexes
+		where schemaname = current_schema() and indexname like 'idx\_%') as indexes,
+	(select count(*) from pg_type t join pg_namespace n on n.oid = t.typnamespace
+		where n.nspname = current_schema() and t.typtype = 'e') as enums,
+	(select count(*) from information_schema.views
+		where table_schema = current_schema()) as views,
+	(select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+		where n.nspname = current_schema()) as functions,
+	(select count(*) from pg_trigger g
+		join pg_class c on c.oid = g.tgrelid
+		join pg_namespace n on n.oid = c.relnamespace
+		where n.nspname = current_schema() and not g.tgisinternal) as triggers`
 
 func countObjects(t *testing.T, database *testsupport.Database) objectCounts {
 	t.Helper()
@@ -136,7 +136,7 @@ func TestExecutionMigrationRecreatesTheViewWithTheNewColumns(t *testing.T) {
 	var columns []string
 	require.NoError(t, database.Bun.NewRaw(
 		`select column_name from information_schema.columns
-		 where table_schema = current_schema() and table_name = 'test_case_runs_view'`,
+		where table_schema = current_schema() and table_name = 'test_case_runs_view'`,
 	).Scan(context.Background(), &columns))
 
 	// create or replace view cannot add these, because they belong ahead of the

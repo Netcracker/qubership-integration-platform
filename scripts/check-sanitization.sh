@@ -26,12 +26,12 @@ set -euo pipefail
 tokens_path="${QIP_SANITIZATION_TOKENS:-$HOME/.config/qip-sanitization-tokens.txt}"
 
 bail() {
-	printf '%s\n' "$*" >&2
-	exit 2
+    printf '%s\n' "$*" >&2
+    exit 2
 }
 
 usage() {
-	cat <<'USAGE'
+    cat << 'USAGE'
 Usage:
   check-sanitization.sh --staged        # what git is about to commit
   check-sanitization.sh --tracked       # every tracked file in the work tree
@@ -47,84 +47,84 @@ USAGE
 # The versioned .githooks/pre-commit chains any global hook the developer already
 # has, so pointing core.hooksPath at it takes nothing away.
 install_hook() {
-	local root configured
-	root="$(git rev-parse --show-toplevel)" ||
-		bail "Not inside a git repository. Run --install-hook from a clone."
-	[ -x "$root/.githooks/pre-commit" ] ||
-		bail "Missing the versioned hook at '$root/.githooks/pre-commit'."
-	configured="$(git -C "$root" config --local core.hooksPath || true)"
-	if [ -n "$configured" ] && [ "$configured" != ".githooks" ]; then
-		bail "This clone already sets core.hooksPath to '$configured'. Chain the sanitization check from that directory by hand."
-	fi
-	git -C "$root" config core.hooksPath .githooks
-	printf 'Pointed core.hooksPath at .githooks; the sanitization check now runs on every commit in this clone.\n'
+    local root configured
+    root="$(git rev-parse --show-toplevel)" ||
+        bail "Not inside a git repository. Run --install-hook from a clone."
+    [ -x "$root/.githooks/pre-commit" ] ||
+        bail "Missing the versioned hook at '$root/.githooks/pre-commit'."
+    configured="$(git -C "$root" config --local core.hooksPath || true)"
+    if [ -n "$configured" ] && [ "$configured" != ".githooks" ]; then
+        bail "This clone already sets core.hooksPath to '$configured'. Chain the sanitization check from that directory by hand."
+    fi
+    git -C "$root" config core.hooksPath .githooks
+    printf 'Pointed core.hooksPath at .githooks; the sanitization check now runs on every commit in this clone.\n'
 }
 
 [ $# -gt 0 ] || {
-	usage >&2
-	exit 2
+    usage >&2
+    exit 2
 }
 
 if [ "$1" = "--install-hook" ]; then
-	install_hook
-	exit 0
+    install_hook
+    exit 0
 fi
 
 if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-	usage
-	exit 0
+    usage
+    exit 0
 fi
 
 [ -r "$tokens_path" ] ||
-	bail "Cannot read the sanitization token list at '$tokens_path'. Set QIP_SANITIZATION_TOKENS to its location; without the list this check cannot pass."
+    bail "Cannot read the sanitization token list at '$tokens_path'. Set QIP_SANITIZATION_TOKENS to its location; without the list this check cannot pass."
 
 workdir="$(mktemp -d)"
 trap 'rm -rf "$workdir"' EXIT
 manifest="$workdir/manifest"
-: >"$manifest"
+: > "$manifest"
 blob_count=0
 
 # Record a label shown in the report and the file actually scanned.
 record() {
-	printf '%s\t%s\n' "$1" "$2" >>"$manifest"
+    printf '%s\t%s\n' "$1" "$2" >> "$manifest"
 }
 
 record_staged() {
-	local path blob
-	while IFS= read -r -d '' path; do
-		blob_count=$((blob_count + 1))
-		blob="$workdir/blob.$blob_count"
-		git show ":$path" >"$blob" 2>/dev/null || continue
-		record "$path" "$blob"
-	done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+    local path blob
+    while IFS= read -r -d '' path; do
+        blob_count=$((blob_count + 1))
+        blob="$workdir/blob.$blob_count"
+        git show ":$path" > "$blob" 2> /dev/null || continue
+        record "$path" "$blob"
+    done < <(git diff --cached --name-only --diff-filter=ACMR -z)
 }
 
 record_tracked() {
-	local root path
-	root="$(git rev-parse --show-toplevel)" || bail "Not inside a git repository."
-	while IFS= read -r -d '' path; do
-		[ -f "$root/$path" ] || continue
-		record "$path" "$root/$path"
-	done < <(git -C "$root" ls-files -z)
+    local root path
+    root="$(git rev-parse --show-toplevel)" || bail "Not inside a git repository."
+    while IFS= read -r -d '' path; do
+        [ -f "$root/$path" ] || continue
+        record "$path" "$root/$path"
+    done < <(git -C "$root" ls-files -z)
 }
 
 case "$1" in
---staged) record_staged ;;
---tracked) record_tracked ;;
---stdin)
-	cat >"$workdir/stdin"
-	record "<stdin>" "$workdir/stdin"
-	;;
--*) bail "Unknown option '$1'. Run --help for usage." ;;
-*)
-	for path in "$@"; do
-		[ -r "$path" ] || bail "Cannot read '$path'."
-		record "$path" "$path"
-	done
-	;;
+    --staged) record_staged ;;
+    --tracked) record_tracked ;;
+    --stdin)
+        cat > "$workdir/stdin"
+        record "<stdin>" "$workdir/stdin"
+        ;;
+    -*) bail "Unknown option '$1'. Run --help for usage." ;;
+    *)
+        for path in "$@"; do
+            [ -r "$path" ] || bail "Cannot read '$path'."
+            record "$path" "$path"
+        done
+        ;;
 esac
 
-cat >"$workdir/scan.pl" <<'SCAN'
+cat > "$workdir/scan.pl" << 'SCAN'
 use strict;
 use warnings;
 
@@ -204,7 +204,7 @@ status=0
 perl "$workdir/scan.pl" "$tokens_path" "$manifest" || status=$?
 
 if [ "$status" -eq 1 ]; then
-	printf 'Forbidden identifiers reached the lines above. The matches themselves are not printed, because printing them would leak them; compare those lines against %s and remove the identifier before committing.\n' "$tokens_path" >&2
+    printf 'Forbidden identifiers reached the lines above. The matches themselves are not printed, because printing them would leak them; compare those lines against %s and remove the identifier before committing.\n' "$tokens_path" >&2
 fi
 
 exit "$status"
