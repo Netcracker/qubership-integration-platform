@@ -123,7 +123,8 @@ public class ChainPatchScenario implements ScenarioHandler {
         .collect()
         .asList()
         .onItem()
-        .transformToMulti(ignored -> proposalFrom(conversationId, chainId, imported))
+        .transformToMulti(
+            said -> proposalFrom(conversationId, chainId, imported, String.join("", said)))
         .onFailure()
         .recoverWithMulti(
             e -> {
@@ -133,10 +134,16 @@ public class ChainPatchScenario implements ScenarioHandler {
   }
 
   private Multi<ChatEvent> proposalFrom(
-      String conversationId, String chainId, ImportedChainPlan imported) {
+      String conversationId, String chainId, ImportedChainPlan imported, String said) {
     Optional<ChainPatchCapture> captured = patchStore.takeCapture(conversationId);
     if (captured.isEmpty()) {
-      return message("I read the chain but proposed no change. Say which element to change and how.");
+      // The model resolves the target element itself. When a description fits several elements or
+      // none, it names the candidates or asks for an exact name instead of calling the tool, and
+      // that question is what the reader has to see to answer it.
+      return message(
+          said.isBlank()
+              ? "I read the chain but proposed no change. Say which element to change and how."
+              : said);
     }
 
     GraphPatch patch = toGraphPatch(captured.get());

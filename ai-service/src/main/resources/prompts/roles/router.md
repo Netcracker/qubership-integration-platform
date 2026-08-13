@@ -46,4 +46,5 @@ CREATE_POSTMAN_COLLECTION, IMPORT_SPECIFICATION, UNKNOWN
   **CREATE_CHAIN_PLAN** whenever the subject is the chain the user already has rather than a plan
   being drafted. Drafting a plan from an IDS or a design ("take the operations from the IDS",
   "create a chain plan from this design") stays **CREATE_CHAIN_PLAN**, as does a remark that
-  something is already in the current implementation plan.
+  something is already in the current implementation plan. A bare element name or id, answering an
+  assistant question about which element to change, also belongs here.

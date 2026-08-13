@@ -18,6 +18,8 @@ import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.stubbing.Answer;
 import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchCapture;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchOwnership;
@@ -220,16 +222,80 @@ class ChainPatchScenarioTest {
     verify(writer, never()).write(any(), any());
   }
 
-  private void captures(PropertyPatch propertyPatch) {
+  @Test
+  void asksWhichElementItShouldChangeWhenSeveralMatch() {
+    asks("Two elements match: Normalize payload and Normalize headers. Which one did you mean?");
+
+    List<ChatEvent> events = run(request("fix the normalize step"));
+
+    assertTrue(text(events).contains("Normalize headers"), text(events));
+    verify(writer, never()).write(any(), any());
+    assertTrue(
+        events.stream().noneMatch(ChatEvent.Decision.class::isInstance),
+        "no card should be offered: " + text(events));
+  }
+
+  @Test
+  void asksForAnExactNameOrIdWhenNothingMatches() {
+    asks("No element in this chain matches that. Give me the exact element name or id.");
+
+    List<ChatEvent> events = run(request("fix the deduplicate step"));
+
+    assertTrue(text(events).contains("exact element name or id"), text(events));
+    verify(writer, never()).write(any(), any());
+    assertTrue(
+        events.stream().noneMatch(ChatEvent.Decision.class::isInstance),
+        "no card should be offered: " + text(events));
+  }
+
+  @Test
+  void patchesTheElementNamedInTheAnswerToItsQuestion() {
     when(agent.chat(eq(CONVERSATION_ID), any()))
-        .thenAnswer(
-            invocation -> {
-              patchStore.putCapture(
-                  CONVERSATION_ID,
-                  new ChainPatchCapture(
-                      "patch-1", List.of(), List.of(), List.of(propertyPatch), "keeps the customer id"));
-              return Multi.createFrom().empty();
-            });
+        .thenReturn(
+            Multi.createFrom()
+                .item("Two elements match: Normalize payload and Normalize headers. Which one?"))
+        .thenAnswer(capturing(propertyPatch("element-script", "script", "return 201")));
+
+    List<ChatEvent> question = run(request("fix the normalize step"));
+    ChatEvent.Decision card = decision(run(request("Normalize payload")));
+
+    assertTrue(text(question).contains("Normalize headers"), text(question));
+    assertTrue(card.question().contains("Normalize payload"), card.question());
+  }
+
+  @Test
+  void resolvesFromAPastedLogThroughTheSameRequestPath() {
+    ArgumentCaptor<String> agentMessage = ArgumentCaptor.forClass(String.class);
+    captures(propertyPatch("element-script", "script", "return 201"));
+
+    ChatEvent.Decision card =
+        decision(
+            run(
+                request(
+                    "ERROR element-script: customer id missing from the outgoing body\n"
+                        + "fix this script")));
+
+    verify(agent).chat(eq(CONVERSATION_ID), agentMessage.capture());
+    assertTrue(agentMessage.getValue().contains("customer id missing"), agentMessage.getValue());
+    assertTrue(card.question().contains("Normalize payload"), card.question());
+  }
+
+  private void captures(PropertyPatch propertyPatch) {
+    when(agent.chat(eq(CONVERSATION_ID), any())).thenAnswer(capturing(propertyPatch));
+  }
+
+  private void asks(String question) {
+    when(agent.chat(eq(CONVERSATION_ID), any())).thenReturn(Multi.createFrom().item(question));
+  }
+
+  private Answer<Multi<String>> capturing(PropertyPatch propertyPatch) {
+    return invocation -> {
+      patchStore.putCapture(
+          CONVERSATION_ID,
+          new ChainPatchCapture(
+              "patch-1", List.of(), List.of(), List.of(propertyPatch), "keeps the customer id"));
+      return Multi.createFrom().empty();
+    };
   }
 
   private void capturesStructural() {
