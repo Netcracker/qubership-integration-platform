@@ -1,8 +1,5 @@
 package org.qubership.integration.platform.engine.camel.processors;
 
-import org.apache.camel.Exchange;
-import org.apache.camel.MessageHistory;
-import org.apache.camel.NamedNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
@@ -21,10 +18,6 @@ import org.qubership.integration.platform.engine.service.debugger.logging.ChainL
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
-
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -88,19 +81,12 @@ class HttpTriggerFinishProcessorTest {
 
     @Test
     void shouldLogHttpTriggerRequestFinishedWithSelectedLogPayloadAndNodeIdWhenInfoLevel() throws Exception {
-        MessageHistory messageHistory = mock(MessageHistory.class);
-        NamedNode triggerNode = mock(NamedNode.class);
-
         when(exchange.getProperty(CamelConstants.Properties.HTTP_TRIGGER_CHAIN_FAILED, false, Boolean.class))
                 .thenReturn(false);
         when(exchange.getProperty(CamelConstants.Properties.START_TIME_MS, Long.class))
                 .thenReturn(System.currentTimeMillis() - 1000);
-        when(exchange.getAllProperties())
-                .thenReturn(Map.of(Exchange.MESSAGE_HISTORY, List.of(messageHistory)));
-
-        when(messageHistory.getNode()).thenReturn(triggerNode);
-        when(triggerNode.getLabel()).thenReturn("ref:httpTriggerProcessor");
-        when(triggerNode.getId()).thenReturn(HTTP_TRIGGER_NODE_ID);
+        when(exchange.getProperty(CamelConstants.Properties.HTTP_TRIGGER_STEP_ID, String.class))
+                .thenReturn(HTTP_TRIGGER_NODE_ID);
 
         mockDebuggerProperties(exchange, LogLoggingLevel.INFO);
 
@@ -134,7 +120,8 @@ class HttpTriggerFinishProcessorTest {
                 .thenReturn(exception);
         when(exchange.getProperty(CamelConstants.Properties.START_TIME_MS, Long.class))
                 .thenReturn(System.currentTimeMillis() - 1000);
-        when(exchange.getAllProperties()).thenReturn(Collections.emptyMap());
+        when(exchange.getProperty(CamelConstants.Properties.HTTP_TRIGGER_STEP_ID, String.class))
+                .thenReturn(null);
 
         mockDebuggerProperties(exchange, LogLoggingLevel.WARN);
 
@@ -159,19 +146,13 @@ class HttpTriggerFinishProcessorTest {
     }
 
     @Test
-    void shouldUseNullNodeIdWhenHttpTriggerProcessorNotFoundInMessageHistory() throws Exception {
-        MessageHistory messageHistory = mock(MessageHistory.class);
-        NamedNode anotherNode = mock(NamedNode.class);
-
+    void shouldUseNullNodeIdWhenHttpTriggerStepIdNotSet() throws Exception {
         when(exchange.getProperty(CamelConstants.Properties.HTTP_TRIGGER_CHAIN_FAILED, false, Boolean.class))
                 .thenReturn(false);
         when(exchange.getProperty(CamelConstants.Properties.START_TIME_MS, Long.class))
                 .thenReturn(System.currentTimeMillis() - 1000);
-        when(exchange.getAllProperties())
-                .thenReturn(Map.of(Exchange.MESSAGE_HISTORY, List.of(messageHistory)));
-
-        when(messageHistory.getNode()).thenReturn(anotherNode);
-        when(anotherNode.getLabel()).thenReturn("ref:anotherProcessor");
+        when(exchange.getProperty(CamelConstants.Properties.HTTP_TRIGGER_STEP_ID, String.class))
+                .thenReturn(null);
 
         mockDebuggerProperties(exchange, LogLoggingLevel.INFO);
 
@@ -199,7 +180,8 @@ class HttpTriggerFinishProcessorTest {
                 .thenReturn(false);
         when(exchange.getProperty(CamelConstants.Properties.START_TIME_MS, Long.class))
                 .thenReturn(System.currentTimeMillis() - 1000);
-        when(exchange.getAllProperties()).thenReturn(Collections.emptyMap());
+        when(exchange.getProperty(CamelConstants.Properties.HTTP_TRIGGER_STEP_ID, String.class))
+                .thenReturn(null);
 
         mockDebuggerProperties(exchange, LogLoggingLevel.INFO);
 

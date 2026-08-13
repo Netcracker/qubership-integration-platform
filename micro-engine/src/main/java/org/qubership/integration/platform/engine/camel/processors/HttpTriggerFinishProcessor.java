@@ -21,8 +21,6 @@ import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.camel.Exchange;
-import org.apache.camel.MessageHistory;
-import org.apache.camel.NamedNode;
 import org.apache.camel.Processor;
 import org.qubership.integration.platform.engine.metadata.ChainInfo;
 import org.qubership.integration.platform.engine.metadata.DeploymentInfo;
@@ -33,9 +31,6 @@ import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePr
 import org.qubership.integration.platform.engine.service.debugger.logging.AbstractChainLogger;
 import org.qubership.integration.platform.engine.service.debugger.metrics.MetricsService;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
-
-import java.util.Collections;
-import java.util.List;
 
 @Slf4j
 @ApplicationScoped
@@ -88,14 +83,7 @@ public class HttpTriggerFinishProcessor implements Processor {
                 Long.class);
         long duration = System.currentTimeMillis() - started;
 
-        List<MessageHistory> messageHistory = (List<MessageHistory>) exchange.getAllProperties()
-                .getOrDefault(Exchange.MESSAGE_HISTORY, Collections.emptyList());
-        String nodeId = messageHistory.stream()
-                .map(MessageHistory::getNode)
-                .filter(node -> "ref:httpTriggerProcessor".equals(node.getLabel()))
-                .findFirst()
-                .map(NamedNode::getId)
-                .orElse(null);
+        String nodeId = exchange.getProperty(CamelConstants.Properties.HTTP_TRIGGER_STEP_ID, String.class);
 
         chainLogger.logHTTPExchangeFinished(exchange, nodeId, duration, exception);
     }
