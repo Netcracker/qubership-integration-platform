@@ -62,7 +62,7 @@ public class ChainExceptionResponseHandlerService {
                 continue;
             }
 
-            if (Arrays.stream(annotation.value()).anyMatch(c -> c.equals(exception.getClass()))) {
+            if (exception != null && Arrays.stream(annotation.value()).anyMatch(c -> c.equals(exception.getClass()))) {
                 return method;
             }
         }
