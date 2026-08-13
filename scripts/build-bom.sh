@@ -4,8 +4,9 @@
 # released version of each module derived from git tags. Output is JSON on
 # stdout.
 #
-# Tag scheme: <module>-v<X.Y.Z>. Modules with no released tag yet appear as
-# null. This makes the BOM safe to commit and to diff across releases.
+# Tag scheme: <module>-v<X.Y.Z>, except testing-service, which is a Go module and
+# tags as <module>/v<X.Y.Z> (see tag_prefix). Modules with no released tag yet
+# appear as null. This makes the BOM safe to commit and to diff across releases.
 #
 # Usage:
 #   scripts/build-bom.sh                  # write JSON to stdout
@@ -25,19 +26,31 @@ MODULES=(
     "micro-engine"
     "runtime-catalog"
     "sessions-management"
+    "testing-service"
     "checkstyle"
     "schemas"
     "ui"
     "vscode-extension"
 )
 
-# Strip the "<module>-v" prefix from the latest matching tag.
+# Tag prefix a module releases under. The go command resolves a module living in
+# a repository subdirectory only from <subdir>/vX.Y.Z tags, so testing-service
+# cannot use the repository's usual <module>-vX.Y.Z form.
+tag_prefix() {
+    case "$1" in
+        testing-service) printf '%s/v' "$1" ;;
+        *) printf '%s-v' "$1" ;;
+    esac
+}
+
+# Strip the module's tag prefix from the latest matching tag.
 latest_version() {
     local module="$1"
-    local tag
-    tag=$(git tag --list "${module}-v*" --sort=-version:refname 2> /dev/null | head -1)
+    local prefix tag
+    prefix=$(tag_prefix "$module")
+    tag=$(git tag --list "${prefix}*" --sort=-version:refname 2> /dev/null | head -1)
     if [ -n "$tag" ]; then
-        printf '%s' "${tag#"${module}-v"}"
+        printf '%s' "${tag#"$prefix"}"
     fi
 }
 

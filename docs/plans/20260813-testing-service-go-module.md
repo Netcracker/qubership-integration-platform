@@ -1043,12 +1043,64 @@ traced against `git diff --name-only`: this change set touches `testing-service/
 
 **Files:**
 - Create: `.github/workflows/testing-service-release.yaml`
-- Modify: `.github/workflows/release-all.yaml`, `scripts/build-bom.sh`
+- Modify: `.github/workflows/release-all.yaml`, `scripts/build-bom.sh`, `scripts/compute-release-version.sh`
 
-- [ ] publish the image and tag as `testing-service/vX.Y.Z` — Go resolves nested modules only from tags prefixed with the module subdirectory
-- [ ] read the version from `testing-service/VERSION` and bump it the way other modules do
-- [ ] decide whether the module joins release waves: `release-all.yaml` hardcodes the module list and rejects unknown tokens, and `scripts/build-bom.sh` hardcodes both the list and the tag scheme
-- [ ] verify on a dry run before the first real tag
+- [x] publish the image and tag as `testing-service/vX.Y.Z` — Go resolves nested modules only from tags prefixed with the module subdirectory
+- [x] read the version from `testing-service/VERSION` and bump it the way other modules do
+- [x] decide whether the module joins release waves: `release-all.yaml` hardcodes the module list and rejects unknown tokens, and `scripts/build-bom.sh` hardcodes both the list and the tag scheme
+- [x] verify on a dry run before the first real tag — exercised locally against a throwaway repository; no tag, branch or image left the machine (see below)
+
+[decision] **The module joins release waves.** `release-all.yaml` excludes only `schemas` and `checkstyle`, and its own
+comment gives the reason: they are libraries released manually at a rare cadence. testing-service is a deployable
+platform service — it sits in `docker-compose.yml`, it has a Helm chart, and that chart pulls
+`ghcr.io/netcracker/qubership-integration-testing-service:latest`, which nothing else would ever publish. Leaving it out
+would also leave it out of the drop's BOM, since `build-drop-release.sh` renders the release notes from
+`build-bom.sh`. It is therefore in `ALL_MODULES`, has a `release-testing-service` job, and is in the `needs` of both
+`publish-bom` and `create-drop-release` — the second of which is what makes a failed Go release stop the drop.
+
+[deviation] The version read, the bump, the override and the recovery sentinel come from the shared
+`scripts/compute-release-version.sh`, extended with `ECOSYSTEM=go`, rather than from an inline copy in the new workflow.
+The plan's file list did not name that script, but "bump it the way other modules do" is exactly what it implements, and
+a second copy of the semver arithmetic would drift. The addition is one `case` branch reading `$MODULE/VERSION` and one
+conditional for the tag form; the `maven` and `npm` outputs are byte-identical to what they were.
+
+[decision] The tag form is keyed on the ecosystem — `$MODULE/v$release` for `go`, `$MODULE-v$release` otherwise — not on
+a `TAG_PREFIX` input. Go's module resolution is the whole reason the form differs, so the ecosystem is the honest
+discriminator, and a caller cannot get it wrong by omission.
+
+[decision] `next-dev` stays empty for `go`, as it does for `npm`. It exists so the maven workflow can write the released
+version back into `<revision>`; the Go workflow writes `RELEASE_VERSION` into `VERSION` directly, so a second output
+carrying the same string would only be one more thing to keep in step.
+
+[decision] No `_go-module-release.yaml` reusable. The maven and npm reusables exist because four and three modules share
+them; there is one Go module, and `checkstyle`-style ceremony around a single caller would put the logic one file
+further from the thing it releases. `testing-service-release.yaml` is self-contained and still exposes both
+`workflow_call` and `workflow_dispatch`, so `release-all` calls it exactly like the others.
+
+[decision] The release job builds and tests before it tags. The maven and npm flows get this for free — a broken module
+fails its deploy — but for a Go module the tag *is* the publication, and it is immutable once a module proxy has fetched
+it. The dependency allowlist runs there too, for the same reason it runs before `setup-go` on the pull request.
+
+[decision] `publish-image` runs in recovery, unlike the maven reusable's. Maven skips it because recovery has no jar to
+download; here the image is built from source, and a recovering run is precisely one that tagged but never reached the
+image job, so its released version has no image yet.
+
+[decision] `scripts/build-bom.sh` gains a `tag_prefix` function rather than a second module list. One module departs
+from the scheme, and a lookup keyed by module name keeps the departure in one place — the comment above it says why the
+slash is there.
+
+✅ Verified locally, since CI was not observed running and nothing was released: `actionlint` and `zizmor` (1.12.1, the
+version super-linter ships, under `.github/linters/zizmor.yaml`) are clean on the new workflow and on `release-all.yaml`
+and report nothing new across all workflows; `yamllint` under `.github/linters/.yaml-lint.yml` reports only the same
+`comments-indentation` warning the existing reusable release workflow already carries; `shellcheck`, `shfmt` and
+`editorconfig-checker` are clean on both scripts; and the sanitization check passes over the whole change set. The
+version logic was run for real: `ECOSYSTEM=go` reads `0.1.0` from `VERSION` and computes `0.1.1`, `0.2.0`, `1.0.0` and
+the override, each with the tag `testing-service/v<version>`, while the maven and npm paths return what they always did.
+The slash form was then exercised end to end in a throwaway git repository under the scratchpad — never this one, and no
+tag, branch or image left the machine: `build-bom.sh` picks `testing-service/v0.10.0` over `testing-service/v0.4.5`
+alongside `engine-v1.2.3`, `git ls-remote` finds the slash tag so recovery mode engages on a re-release of an already
+tagged version, and the released version written back into `VERSION` is what the next run bumps from. Against the real
+repository `build-bom.sh` reports `"testing-service": null`, which is correct until the first tag.
 
 ### Task 20: Verify acceptance criteria
 

@@ -1,21 +1,22 @@
 #!/usr/bin/env bash
 #
 # Compute the release version, next dev version, tag and recovery flag for a
-# module release, and append them to $GITHUB_OUTPUT. Shared by the maven and npm
-# reusable release workflows.
+# module release, and append them to $GITHUB_OUTPUT. Shared by the maven, npm and
+# go release workflows.
 #
 # Usage: ECOSYSTEM=maven MODULE=engine RELEASE_TYPE=patch VERSION_OVERRIDE= \
 #            scripts/compute-release-version.sh
 #
-# Env: ECOSYSTEM (maven|npm), MODULE, RELEASE_TYPE (patch|minor|major),
+# Env: ECOSYSTEM (maven|npm|go), MODULE, RELEASE_TYPE (patch|minor|major),
 #      VERSION_OVERRIDE (explicit X.Y.Z, or empty to derive from the file).
 #
 # Model (bump-before): the file holds the LAST RELEASED version (maven pom
-# <revision>, npm package.json); a release bumps it per release-type and
-# publishes that. Deciding the version at release time (not pre-writing the next
-# one into the file) keeps forked release lines from colliding on a shared
+# <revision>, npm package.json, go VERSION); a release bumps it per release-type
+# and publishes that. Deciding the version at release time (not pre-writing the
+# next one into the file) keeps forked release lines from colliding on a shared
 # pending version. maven also emits next-dev (= the released version) for the
-# workflow to write back into <revision>; npm's release already updated the file.
+# workflow to write back into <revision>; the npm and go releases write the file
+# themselves.
 
 set -euo pipefail
 
@@ -39,7 +40,8 @@ bump() { # $1=X.Y.Z $2=patch|minor|major -> next on stdout (10# avoids octal)
     esac
 }
 
-# Current version: maven from the pom <revision>, npm from package.json.
+# Current version: maven from the pom <revision>, npm from package.json, go from
+# the module's VERSION file.
 case "$ECOSYSTEM" in
     maven)
         POM="$MODULE/pom.xml"
@@ -57,8 +59,16 @@ case "$ECOSYSTEM" in
         }
         current=$(node -p "require('./$PKG').version")
         ;;
+    go)
+        VERSION_FILE="$MODULE/VERSION"
+        [ -f "$VERSION_FILE" ] || {
+            echo "::error::No VERSION at $MODULE/"
+            exit 1
+        }
+        current=$(tr -d '[:space:]' < "$VERSION_FILE")
+        ;;
     *)
-        echo "::error::ECOSYSTEM must be maven|npm (got '$ECOSYSTEM')"
+        echo "::error::ECOSYSTEM must be maven|npm|go (got '$ECOSYSTEM')"
         exit 1
         ;;
 esac
@@ -86,9 +96,16 @@ if [ "$ECOSYSTEM" = maven ]; then
     next="$release"
 fi
 
+# Tag form: <module>-vX.Y.Z everywhere except go, where the go command resolves a
+# module living in a repository subdirectory only from <subdir>/vX.Y.Z tags.
+if [ "$ECOSYSTEM" = go ]; then
+    tag="$MODULE/v$release"
+else
+    tag="$MODULE-v$release"
+fi
+
 # Tag already there => a prior run published+tagged but its bump never landed:
 # recover (re-apply the bump only) instead of wedging the module.
-tag="$MODULE-v$release"
 recover=false
 if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null 2>&1; then
     recover=true
