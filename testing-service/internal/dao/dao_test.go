@@ -68,27 +68,6 @@ func TestNewDaoKeepsTheSuppliedLogger(t *testing.T) {
 	assert.Same(t, logger, dao.logger)
 }
 
-func TestGetDbRejectsAContextThatNeverWentThroughRun(t *testing.T) {
-	db, err := GetDb(context.Background())
-
-	require.Error(t, err)
-	assert.Nil(t, db)
-	assert.ErrorContains(t, err, "dao.Run")
-}
-
-func TestCreateDbContextKeepsTheHandleAlreadyInTheContext(t *testing.T) {
-	first := &bun.DB{}
-	ctx, err := createDbContext(context.Background(), first)
-	require.NoError(t, err)
-
-	again, err := createDbContext(ctx, &bun.DB{})
-	require.NoError(t, err)
-
-	handle, err := GetDb(again)
-	require.NoError(t, err)
-	assert.Same(t, first, handle)
-}
-
 func TestBeforeAppendModelStampsTheAuditColumnsOnInsert(t *testing.T) {
 	metadata := &Metadata{}
 
@@ -132,4 +111,45 @@ func TestBeforeAppendModelIgnoresOtherQueries(t *testing.T) {
 
 	assert.Nil(t, metadata.UpdatedAt)
 	assert.Nil(t, metadata.UpdatedBy)
+}
+
+func TestBeforeAppendModelRecordsTheUserFromTheContextOnInsert(t *testing.T) {
+	metadata := &Metadata{}
+	ctx := WithCurrentUser(context.Background(), "alice")
+
+	require.NoError(t, metadata.BeforeAppendModel(ctx, (*bun.InsertQuery)(nil)))
+
+	require.NotNil(t, metadata.CreatedBy)
+	assert.Equal(t, "alice", *metadata.CreatedBy)
+	assert.Equal(t, "alice", *metadata.UpdatedBy)
+}
+
+func TestBeforeAppendModelRecordsTheUserFromTheContextOnUpdate(t *testing.T) {
+	metadata := &Metadata{}
+	ctx := WithCurrentUser(context.Background(), "alice")
+
+	require.NoError(t, metadata.BeforeAppendModel(ctx, (*bun.UpdateQuery)(nil)))
+
+	require.NotNil(t, metadata.UpdatedBy)
+	assert.Equal(t, "alice", *metadata.UpdatedBy)
+}
+
+func TestBeforeAppendModelFallsBackToTheDefaultUser(t *testing.T) {
+	metadata := &Metadata{}
+
+	require.NoError(t, metadata.BeforeAppendModel(context.Background(), (*bun.InsertQuery)(nil)))
+
+	require.NotNil(t, metadata.CreatedBy)
+	assert.Equal(t, DefaultUser, *metadata.CreatedBy)
+}
+
+func TestCurrentUserFallsBackWhenTheContextCarriesNoUsableUser(t *testing.T) {
+	assert.Equal(t, DefaultUser, CurrentUser(context.Background()))
+	assert.Equal(t, DefaultUser, CurrentUser(WithCurrentUser(context.Background(), "")))
+}
+
+func TestWithCurrentUserOverridesAnEarlierUser(t *testing.T) {
+	ctx := WithCurrentUser(WithCurrentUser(context.Background(), "alice"), "bob")
+
+	assert.Equal(t, "bob", CurrentUser(ctx))
 }

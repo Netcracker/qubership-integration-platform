@@ -364,12 +364,35 @@ them.
 - Create: `testing-service/internal/dao/runner.go`, `testing-service/internal/dao/runner_test.go`
 - Modify: `testing-service/internal/dao/hooks.go`
 
-- [ ] convert `Run`/`RunInTx` into package-level generic functions `Run[T]`/`RunInTx[T]`
-- [ ] define a `Runner` interface, and make services depend on it **together with the repository interfaces** — faking the runner alone still leaves repositories issuing real queries
-- [ ] replace the string context key with an unexported struct key type
-- [ ] resolve the current user from the request context instead of the vendor helper: the audit hook is a bun model method with no constructor to inject into, so a context key is the only seam
-- [ ] write tests for the generic runner covering success, handler error, and the connection-failure path that panics today, plus a test that the audit hook picks up the user from context
-- [ ] run `go test ./internal/dao/...` - must pass before next task
+- [x] convert `Run`/`RunInTx` into package-level generic functions `Run[T]`/`RunInTx[T]`
+- [x] define a `Runner` interface, and make services depend on it **together with the repository interfaces** — faking the runner alone still leaves repositories issuing real queries
+- [x] replace the string context key with an unexported struct key type
+- [x] resolve the current user from the request context instead of the vendor helper: the audit hook is a bun model method with no constructor to inject into, so a context key is the only seam
+- [x] write tests for the generic runner covering success, handler error, and the connection-failure path that panics today, plus a test that the audit hook picks up the user from context
+- [x] run `go test ./internal/dao/...` - must pass before next task
+
+[decision] `Runner` keeps the erased signature (`func(ctx, bun.IDB) (any, error)`) and `*Dao` implements it; the
+generics sit on top as `Run[T]`/`RunInTx[T]`. A generic interface would have forced one `Runner[T]` field per result
+type in every service.
+
+[decision] The runner machinery — `Runner`, the generic entry points, `GetDb`, the context key and the connection
+handling — moved to `runner.go`; `dao.go` keeps only the `Dao` struct and `NewDao`. The `GetDb` tests moved along with
+it to `runner_test.go`.
+
+[decision] The context key was already an unexported struct type, introduced in Task 3 to satisfy `staticcheck` SA1029.
+The checkbox stands as verified rather than changed.
+
+[decision] `CurrentUser` falls back to `DefaultUser` (`developer`) rather than failing the write. The source returned an
+error when the vendor helper found no user, which would make every background write fail before Task 13 supplies a
+`CurrentUser`; the platform's own open-source default is the same fixed name.
+
+[deviation] Fixed a bug the port inherited: `RunInTx` put the *connection* into the context while handing the handler
+the transaction, so every repository — which reads its handle from the context — issued its statements outside the
+transaction object that commits or rolls back. The context now carries the transaction. Task 10's two-step claim
+depends on this, since the row lock and the update it guards must share one transaction.
+
+[deviation] `createDbContext` became `withDb` and returns only a context. Its error result was always nil and forced
+two dead branches at each call site.
 
 ### Task 5: Matching engine
 
