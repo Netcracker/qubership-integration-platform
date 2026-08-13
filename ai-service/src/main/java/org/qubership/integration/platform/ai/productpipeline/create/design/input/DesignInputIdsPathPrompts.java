@@ -25,8 +25,7 @@ public final class DesignInputIdsPathPrompts {
    * the reader to weigh two documents when only one of them will ever be shown.
    */
   static final String FALLBACK_IDS_PATH_CHOICE =
-      "Do you want an integration design document (IDS) for these requirements? "
-          + "Reply yes to write it, or no to carry on without one.";
+      "Do you want an integration design document (IDS) for these requirements?";
 
   /**
    * Durable delimiter between the short mapping-gap question and readable edge lines stored in the

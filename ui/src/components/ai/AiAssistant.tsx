@@ -161,6 +161,9 @@ export const AiAssistant: React.FC = () => {
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
+    // A session becoming current is the reader looking at it fresh, whatever scroll position a
+    // previous session was left at — start following again rather than carrying that over.
+    shouldAutoScrollRef.current = true;
     if (currentSessionId) {
       const session = sessionStore.getSession(currentSessionId);
       if (session) {
@@ -797,6 +800,7 @@ export const AiAssistant: React.FC = () => {
   const handleDecisionAnswer = useCallback(
     async (decision: ChatDecision, action: string, comment: string) => {
       if (!currentSessionId || sendInProgressRef.current) return;
+      shouldAutoScrollRef.current = true;
       const session = sessionStore.getSession(currentSessionId);
       if (!session) return;
 
@@ -839,6 +843,7 @@ export const AiAssistant: React.FC = () => {
   const handleClarificationSubmit = useCallback(
     async (decision: ChatDecision, text: string) => {
       if (!currentSessionId || sendInProgressRef.current) return;
+      shouldAutoScrollRef.current = true;
       const session = sessionStore.getSession(currentSessionId);
       if (!session) return;
 
@@ -872,6 +877,7 @@ export const AiAssistant: React.FC = () => {
     const rawValue = inputValue || inputRef.current?.resizableTextArea?.textArea?.value || "";
     const messageText = rawValue.trim();
     if ((!messageText && attachedFiles.length === 0) || isLoading) return;
+    shouldAutoScrollRef.current = true;
 
     const sessionId = currentSessionId ?? sessionStore.createSession().id;
     if (sessionId !== currentSessionId) setCurrentSessionId(sessionId);
@@ -1183,33 +1189,25 @@ export const AiAssistant: React.FC = () => {
   const showStreamAbort = isLoading || isStreaming;
   const hasActivity = activityStore.rows.length > 0;
 
-  const msgs = currentSession?.messages ?? [];
-  const lastMessageContentLength =
-    msgs.length > 0 ? (msgs[msgs.length - 1]?.content?.length ?? 0) : 0;
-
+  /**
+   * Re-pins to the bottom on every real DOM change instead of guessing how long a paint (markdown,
+   * syntax highlighting, activity rows, a long historical plan on session switch) takes. A fixed
+   * wait — even two animation frames — races that paint and can freeze the view partway down a
+   * long message once nothing schedules another attempt.
+   */
   useEffect(() => {
-    if (!shouldAutoScrollRef.current) return;
-    if (!scrollContainerRef.current) return;
-    // Double rAF: wait for layout after activity rows / markdown paint.
-    let innerId = 0;
-    const outerId = requestAnimationFrame(() => {
-      innerId = requestAnimationFrame(() => {
-        if (!shouldAutoScrollRef.current || !scrollContainerRef.current) return;
-        scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
-      });
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const observer = new MutationObserver(() => {
+      if (shouldAutoScrollRef.current) {
+        el.scrollTop = el.scrollHeight;
+      }
     });
-    return () => {
-      cancelAnimationFrame(outerId);
-      if (innerId) cancelAnimationFrame(innerId);
-    };
-  }, [
-    currentSession?.messages?.length,
-    lastMessageContentLength,
-    open,
-    activityStore.version,
-    isLoading,
-    isStreaming,
-  ]);
+    observer.observe(el, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
+    // `open`: the Drawer lazily mounts its body on first open, so scrollContainerRef.current is
+    // still null when this effect first runs; re-attaching once it becomes true finds the real node.
+  }, [open]);
 
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
@@ -1277,7 +1275,12 @@ export const AiAssistant: React.FC = () => {
         open={open}
         closable
         onClose={onClose}
-        afterOpenChange={() => {}}
+        // The panel slides in over a CSS transition the scroll-to-bottom effect cannot see;
+        // this fires once that transition genuinely finishes, so a restored session lands on its
+        // latest message rather than wherever the effect guessed mid-animation.
+        afterOpenChange={(nowOpen) => {
+          if (nowOpen) scrollToBottom();
+        }}
         width={drawerWidth}
         zIndex={2000}
         rootClassName="ai-assistant-drawer"

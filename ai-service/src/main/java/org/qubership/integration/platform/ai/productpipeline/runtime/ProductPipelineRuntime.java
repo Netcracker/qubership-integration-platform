@@ -54,7 +54,6 @@ import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.productpipeline.store.RunTransition;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
-import org.qubership.integration.platform.ai.plan.ImplementationPlanApprovalMarkers;
 import org.qubership.integration.platform.ai.plan.ImplementationPlanChatView;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignInputIdsPathPrompts;
@@ -1978,8 +1977,11 @@ public final class ProductPipelineRuntime {
   }
 
   /**
-   * Surfaces the human-readable plan (with Agree markers) before the approval wait so chat shows
-   * the candidate instead of only a stage-id banner.
+   * Surfaces the human-readable plan before the approval wait so chat shows the candidate instead
+   * of only a stage-id banner.
+   *
+   * <p>No CTA here: the decision card carries the approve / create actions, and telling the reader
+   * to reply with a word is the instruction the card replaces.
    */
   private void emitImplementationPlanForReview(
       String runId, Reference approvable, List<PipelineSignal> emitted) {
@@ -1990,17 +1992,18 @@ public final class ProductPipelineRuntime {
     if (revision.isEmpty()) {
       return;
     }
-    String markers = ImplementationPlanApprovalMarkers.forRevision(revision.get());
     try {
       ImplementationPlan plan = artifactStore.payload(revision.get(), ImplementationPlan.class);
       String planText = plan == null || plan.planText() == null ? "" : plan.planText().trim();
       // Stored planText may keep digests; chat omits "* hash:" metadata lines.
       String chatPlan = ImplementationPlanChatView.forChatReview(planText);
-      String body = chatPlan.isBlank() ? markers : chatPlan + "\n\n" + markers;
-      emitted.add(new PipelineSignal.Message(body));
+      if (chatPlan.isBlank()) {
+        return;
+      }
+      emitted.add(new PipelineSignal.Message(chatPlan));
     } catch (RuntimeException ex) {
-      // Scripted tests may store a Map stub; still show Agree markers without digests in chat.
-      emitted.add(new PipelineSignal.Message(markers));
+      // Scripted tests may store a Map stub with no readable plan text; nothing to surface.
+      LOG.debugf(ex, "No readable plan text for review (runId=%s)", runId);
     }
   }
 
@@ -2082,8 +2085,7 @@ public final class ProductPipelineRuntime {
       if (markdown.isBlank()) {
         return;
       }
-      // Match emitImplementationPlanForReview: blank line between body sections, and end with
-      // blank lines so the Agree CTA token does not glue to the download link (ids.mdDo…).
+      // Blank line between body sections so the download link does not glue to the markdown.
       StringBuilder body = new StringBuilder(markdown);
       String downloadLink = idsDownloadMarkdownLink(markdown);
       if (downloadLink != null && !downloadLink.isBlank()) {

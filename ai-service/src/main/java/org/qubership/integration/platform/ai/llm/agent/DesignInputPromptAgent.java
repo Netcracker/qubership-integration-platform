@@ -22,7 +22,8 @@ product terms; just match the language):
 ---
 {reference}
 ---
-Offer exactly two reply options: yes, write the document, or no, carry on without one.
+The UI shows Yes / No buttons below the question — do not tell the reader which word to type or \
+reply with, and do not list the two options yourself.
 
 Say nothing about what happens when the answer is no. The pipeline continues either way, and \
 describing the internal shortcut turns a plain choice into a comparison the reader cannot make. \
