@@ -20,9 +20,15 @@ cd testing-service
 go run ./cmd/testing-service
 ```
 
-The binary reads `application.yaml` and environment overrides, applies its migrations, serves the API under `/api/v1`,
-and exposes `/health` and `/prometheus`. In the local stack it comes up as `qip-testing-service` on host port 8095; see
+The binary reads `application.yaml` — `-config` points it elsewhere — creates the schema, applies its migrations, serves
+the API under `/api/v1`, and exposes `/health` and `/prometheus`. Set `pprof.enabled` to serve the profiles on their own
+port. In the local stack it comes up as `qip-testing-service` on host port 8095; see
 `infrastructure/docker-compose.yml`.
+
+Every key can be overridden from the environment: uppercase it, replace the dots with underscores and prefix it with
+`QIP_TESTING_`. `QIP_TESTING_POSTGRES_DSN` sets `postgres.dsn`, `QIP_TESTING_EXECUTION_WORKERS` sets
+`execution.workers`. `postgres.schema` names the schema the binary creates, and the `search_path` of the DSN has to
+point at the same one.
 
 ## Use it as a library
 

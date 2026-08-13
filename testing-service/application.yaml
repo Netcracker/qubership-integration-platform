@@ -1,0 +1,46 @@
+# Configuration of the standalone testing-service binary.
+#
+# Every key can be overridden from the environment: uppercase it, replace the
+# dots with underscores and prefix it with QIP_TESTING_. For example
+# QIP_TESTING_POSTGRES_DSN sets postgres.dsn and QIP_TESTING_EXECUTION_WORKERS
+# sets execution.workers.
+
+server:
+  bind: ":8080"
+
+postgres:
+  # search_path must name the same schema as postgres.schema below, which the
+  # binary creates on startup.
+  dsn: "postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable&search_path=testing_service"
+  schema: "testing_service"
+  maxconnections: 16
+
+catalog:
+  address: "http://qip-runtime-catalog:8080"
+
+engine:
+  address: "http://qip-engine:8080"
+
+pagination:
+  limit: 20
+
+execution:
+  interval: 30s
+  workers: 4
+  lease: 1m
+
+retention:
+  # Zero keeps every test run. Set an age to have old runs deleted along with
+  # their case runs and validation errors.
+  age: 0s
+  interval: 1h
+
+log:
+  level: info
+  format: json
+
+pprof:
+  enabled: false
+  bind: ":6060"
+
+production: false

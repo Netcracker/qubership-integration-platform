@@ -744,14 +744,49 @@ finds nothing, and a backlog of five aged runs comes out as batches of 2, 2 and 
 **Files:**
 - Create: `testing-service/cmd/testing-service/main.go`, `testing-service/application.yaml`
 
-- [ ] read configuration with koanf from `application.yaml` plus environment overrides; the DSN lives here, not in `Config`
-- [ ] construct `slog`, the bun-backed `DB`, an `http.Client`, and a `CurrentUser` defaulting to `developer`
-- [ ] create the schema before initializing the migrator: bun creates its bookkeeping table first, and with `search_path` pointing at a schema that does not exist yet the initialization fails
-- [ ] mount the service under `/api/v1`, which the nginx rule depends on, and start `RunExecutor`
-- [ ] serve `/health` for the compose healthcheck and `/prometheus`; keep pprof behind a flag
-- [ ] handle SIGINT and SIGTERM with graceful shutdown of server and executor
-- [ ] write tests for configuration precedence and the health handler
-- [ ] run `go test ./...` - must pass before next task
+- [x] read configuration with koanf from `application.yaml` plus environment overrides; the DSN lives here, not in `Config`
+- [x] construct `slog`, the bun-backed `DB`, an `http.Client`, and a `CurrentUser` defaulting to `developer`
+- [x] create the schema before initializing the migrator: bun creates its bookkeeping table first, and with `search_path` pointing at a schema that does not exist yet the initialization fails
+- [x] mount the service under `/api/v1`, which the nginx rule depends on, and start `RunExecutor`
+- [x] serve `/health` for the compose healthcheck and `/prometheus`; keep pprof behind a flag
+- [x] handle SIGINT and SIGTERM with graceful shutdown of server and executor
+- [x] write tests for configuration precedence and the health handler
+- [x] run `go test ./...` - must pass before next task
+
+[decision] Every configuration key is a single word under one level of nesting, so an environment variable maps onto a
+key by lowercasing it and replacing `_` with `.`: `QIP_TESTING_POSTGRES_DSN` is `postgres.dsn`. A key spelled with a
+dash, as the source spelled `maximum-limit`, has no unambiguous environment form.
+
+[decision] A missing configuration file is not an error. Defaults plus `QIP_TESTING_*` configure the service on their
+own, which is what the Helm chart in Task 17 does; only an unreadable or malformed file stops startup.
+
+[decision] `defaultAppConfig` fills in only the settings this binary owns — the listen addresses, the schema, the pool
+size and the logging. Everything the library owns stays zero and picks up its value from `Config.WithDefaults`, so no
+default is written down twice and `RetentionAge` stays off unless `application.yaml` names one.
+
+[decision] pprof is a configuration flag (`pprof.enabled`) on a listener of its own (`pprof.bind`, `:6060`), not a route
+on the API port. The nginx rule exposes only `/api/v1/…`, but the API port is reachable from inside the network, and the
+source kept pprof on a separate port too.
+
+[decision] `/health` reports `UP` only after a database round-trip, bounded by a three-second timeout. The compose
+healthcheck gates `depends_on: service_healthy`, and an instance that cannot reach PostgreSQL serves nothing.
+
+[decision] A failed migration is not rolled back, unlike the source. Both files carry the `.tx.up.sql` suffix, so a
+failure leaves nothing behind, and there are no down migrations for `Rollback` to run.
+
+[deviation] `github.com/knadh/koanf/v2 v2.1.2` and `github.com/prometheus/client_golang v1.20.5` join `go.mod` with this
+task. koanf is held back because v2.2.2 declares `go 1.23`; `client_golang` and its whole transitive closure declare
+`go 1.20` or earlier, and every module in the graph still declares `go 1.21` or earlier. `/prometheus` serves the default
+registry through `promhttp` — the Go and process collectors, no custom metrics.
+
+[deviation] `serve` cancels the whole process on the first failure among the API listener, the executor and pprof, and
+reports that one failure. Whatever the others report afterwards is the shutdown it set off, so surfacing it would bury
+the cause.
+
+✅ Verified against PostgreSQL 14 in Docker: the binary creates the `testing_service` schema, applies migrations 100 and
+101 in one group, answers `/health` with `UP`, exposes the Go collectors on `/prometheus`, serves `/api/v1/mode` and
+`/api/v1/test-cases`, serves pprof on its own port when enabled, exits 0 on SIGTERM, and finds the schema up to date on
+the next start.
 
 ### Task 14: Swagger docs
 
