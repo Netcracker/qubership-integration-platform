@@ -564,6 +564,16 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
 
   @Override
   public Multi<PipelineSignal> implement(ImplementCommand command) {
+    return implement(command, true);
+  }
+
+  /** Records the implementation gate command without running the next stage. */
+  public Multi<PipelineSignal> recordImplement(ImplementCommand command) {
+    return implement(command, false);
+  }
+
+  private Multi<PipelineSignal> implement(
+      ImplementCommand command, boolean continueAfterImplement) {
     Objects.requireNonNull(command, "command");
     return Multi.createFrom()
         .deferred(
@@ -571,7 +581,9 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
               ProductPipelineRunDocument doc = requireRun(command.runId());
               if (doc.appliedCommand(command.commandId(), command.commandPayloadHash())
                   .isPresent()) {
-                return advance(command.runId());
+                return continueAfterImplement
+                    ? advance(command.runId())
+                    : Multi.createFrom().empty();
               }
               if (doc.run().status() != RunStatus.WAITING_FOR_IMPLEMENT) {
                 return Multi.createFrom()
@@ -618,7 +630,9 @@ public final class ProductPipelineRuntime implements CreateChainOrchestrator {
                   "advance after implement",
                   command.commandId(),
                   command.commandPayloadHash());
-              return advance(command.runId());
+              return continueAfterImplement
+                  ? advance(command.runId())
+                  : Multi.createFrom().empty();
             });
   }
 

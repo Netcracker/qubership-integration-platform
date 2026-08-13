@@ -17,6 +17,7 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ImplementCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRuntime;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
@@ -49,7 +50,9 @@ class ProvidedIdsFlowOrchestratorTest {
             "import-stage",
             "requirement-analysis",
             "design-input",
-            "design-planning");
+            "design-planning",
+            "design-execution",
+            "materialization");
     when(flow.ownsStage(anyString()))
         .thenAnswer(invocation -> ownedStages.contains(invocation.getArgument(0)));
     orchestrator = new ProvidedIdsFlowOrchestrator(legacy, runStore, flow, tasks);
@@ -101,20 +104,26 @@ class ProvidedIdsFlowOrchestratorTest {
   }
 
   @Test
-  void keepsPostPlanningStagesOnLegacyUntilTheirFlowMigration() {
+  void resumesPostPlanningProvidedRouteThroughFlow() {
     StartOrResumeCommand command = mock(StartOrResumeCommand.class);
     when(command.conversationId()).thenReturn(CONVERSATION_ID);
     when(runStore.loadByConversation(CONVERSATION_ID))
         .thenReturn(Optional.of(document(RunStatus.RUNNING, "design-execution")));
-    PipelineSignal progress = new PipelineSignal.Message("legacy execution");
-    when(legacy.startOrResume(command)).thenReturn(Multi.createFrom().item(progress));
+    when(legacy.isProvidedDesignRoute(RUN_ID)).thenReturn(true);
+    when(legacy.restoreForExternalWorkflow(command)).thenReturn(Multi.createFrom().empty());
+    ProvidedIdsFlow.RunInput input = new ProvidedIdsFlow.RunInput(RUN_ID, "invocation-1");
+    when(tasks.begin(RUN_ID)).thenReturn(input);
+    when(flow.startInstance(input)).thenReturn(Uni.createFrom().item(mock(WorkflowModel.class)));
+    PipelineSignal progress = new PipelineSignal.Message("Flow execution");
+    when(tasks.finish(input))
+        .thenReturn(new ProvidedIdsFlowTasks.Result(List.of(progress), false));
 
     List<PipelineSignal> actual =
         orchestrator.startOrResume(command).collect().asList().await().indefinitely();
 
     assertEquals(List.of(progress), actual);
-    verify(flow, never()).startInstance(any());
-    verify(legacy, never()).isProvidedDesignRoute(RUN_ID);
+    verify(legacy).restoreForExternalWorkflow(command);
+    verify(legacy, never()).startOrResume(command);
   }
 
   @Test
@@ -158,6 +167,28 @@ class ProvidedIdsFlowOrchestratorTest {
   }
 
   @Test
+  void continuesPostApprovalInputThroughFlowForTheProvidedRoute() {
+    AcceptInputCommand command = new AcceptInputCommand(RUN_ID, "clarification");
+    when(runStore.load(RUN_ID))
+        .thenReturn(Optional.of(document(RunStatus.WAITING_FOR_INPUT, "design-execution")));
+    when(legacy.isProvidedDesignRoute(RUN_ID)).thenReturn(true);
+    when(legacy.recordInput(command)).thenReturn(Multi.createFrom().empty());
+    ProvidedIdsFlow.RunInput input = new ProvidedIdsFlow.RunInput(RUN_ID, "invocation-1");
+    when(tasks.begin(RUN_ID)).thenReturn(input);
+    when(flow.startInstance(input)).thenReturn(Uni.createFrom().item(mock(WorkflowModel.class)));
+    PipelineSignal progress = new PipelineSignal.Message("execution resumed");
+    when(tasks.finish(input))
+        .thenReturn(new ProvidedIdsFlowTasks.Result(List.of(progress), false));
+
+    List<PipelineSignal> actual =
+        orchestrator.acceptInput(command).collect().asList().await().indefinitely();
+
+    assertEquals(List.of(progress), actual);
+    verify(legacy).recordInput(command);
+    verify(legacy, never()).acceptInput(command);
+  }
+
+  @Test
   void delegatesTheStandardRouteBackToTheLegacySequence() {
     AcceptInputCommand command = new AcceptInputCommand(RUN_ID, "generate an IDS");
     when(runStore.load(RUN_ID))
@@ -176,6 +207,45 @@ class ProvidedIdsFlowOrchestratorTest {
         orchestrator.acceptInput(command).collect().asList().await().indefinitely();
 
     assertEquals(List.of(entry, downstream), actual);
+  }
+
+  @Test
+  void executesAnApprovedProvidedRouteThroughFlow() {
+    ImplementCommand command = new ImplementCommand(RUN_ID, "plan-sha", 3L);
+    when(runStore.load(RUN_ID))
+        .thenReturn(Optional.of(document(RunStatus.WAITING_FOR_IMPLEMENT, "design-planning")));
+    when(legacy.isProvidedDesignRoute(RUN_ID)).thenReturn(true);
+    when(legacy.recordImplement(command)).thenReturn(Multi.createFrom().empty());
+    ProvidedIdsFlow.RunInput input = new ProvidedIdsFlow.RunInput(RUN_ID, "invocation-1");
+    when(tasks.begin(RUN_ID)).thenReturn(input);
+    when(flow.startInstance(input)).thenReturn(Uni.createFrom().item(mock(WorkflowModel.class)));
+    PipelineSignal completed = new PipelineSignal.Completed(RunStatus.CHAIN_MATERIALIZED);
+    when(tasks.finish(input))
+        .thenReturn(new ProvidedIdsFlowTasks.Result(List.of(completed), false));
+
+    List<PipelineSignal> actual =
+        orchestrator.implement(command).collect().asList().await().indefinitely();
+
+    assertEquals(List.of(completed), actual);
+    verify(legacy).recordImplement(command);
+    verify(legacy, never()).implement(command);
+  }
+
+  @Test
+  void keepsGeneratedRouteImplementationOnLegacy() {
+    ImplementCommand command = new ImplementCommand(RUN_ID, "plan-sha", 3L);
+    when(runStore.load(RUN_ID))
+        .thenReturn(Optional.of(document(RunStatus.WAITING_FOR_IMPLEMENT, "design-planning")));
+    when(legacy.isProvidedDesignRoute(RUN_ID)).thenReturn(false);
+    PipelineSignal completed = new PipelineSignal.Completed(RunStatus.CHAIN_MATERIALIZED);
+    when(legacy.implement(command)).thenReturn(Multi.createFrom().item(completed));
+
+    List<PipelineSignal> actual =
+        orchestrator.implement(command).collect().asList().await().indefinitely();
+
+    assertEquals(List.of(completed), actual);
+    verify(legacy, never()).recordImplement(command);
+    verify(flow, never()).startInstance(any());
   }
 
   private static ProductPipelineRunDocument document(RunStatus status, String stageId) {

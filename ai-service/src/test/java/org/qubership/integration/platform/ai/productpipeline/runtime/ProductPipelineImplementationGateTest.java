@@ -212,6 +212,36 @@ class ProductPipelineImplementationGateTest {
     verify(materializationCapability).execute(any());
   }
 
+  @Test
+  void flowRecordsImplementOnceBeforeExecutingMaterialization() {
+    String planHash = runCreateChainToWaitingForImplement();
+    long revision = loadRun().run().runRevision();
+    ImplementCommand command =
+        new ImplementCommand(RUN_ID, planHash, revision, "implement-1", "payload-sha");
+
+    runtime.recordImplement(command).collect().asList().await().indefinitely();
+
+    assertEquals(RunStatus.RUNNING, loadRun().run().status());
+    assertEquals("materialization", loadRun().run().currentStageId());
+    verify(materializationCapability, never()).execute(any());
+    long revisionAfterGate = loadRun().run().runRevision();
+
+    runtime.recordImplement(command).collect().asList().await().indefinitely();
+
+    assertEquals(revisionAfterGate, loadRun().run().runRevision());
+    verify(materializationCapability, never()).execute(any());
+
+    runtime.executeStage(RUN_ID, "materialization").collect().asList().await().indefinitely();
+
+    assertEquals(RunStatus.CHAIN_MATERIALIZED, loadRun().run().status());
+    verify(materializationCapability).execute(any());
+
+    runtime.recordImplement(command).collect().asList().await().indefinitely();
+
+    assertEquals(RunStatus.CHAIN_MATERIALIZED, loadRun().run().status());
+    verify(materializationCapability).execute(any());
+  }
+
   /**
    * No wording materializes a chain.
    *

@@ -8,16 +8,14 @@ import io.quarkiverse.flow.dsl.configurers.FuncTaskConfigurer;
 import io.serverlessworkflow.api.types.Workflow;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
-import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
 
-/** Profile-defined Flow route from {@code ids-entry} through implementation-plan review. */
+/** Profile-defined provided-IDS Flow from {@code ids-entry} through materialization. */
 @ApplicationScoped
 public class ProvidedIdsFlow extends Flow {
 
@@ -42,7 +40,7 @@ public class ProvidedIdsFlow extends Flow {
   @Override
   public Workflow descriptor() {
     List<FuncTaskConfigurer> flowTasks =
-        stagesThroughPlanning(profile).stream()
+        profile.stages().stream()
             .<FuncTaskConfigurer>map(
                 stage ->
                     function(
@@ -56,24 +54,8 @@ public class ProvidedIdsFlow extends Flow {
         .build();
   }
 
-  static List<ProfileStage> stagesThroughPlanning(ProductPipelineProfile profile) {
-    Objects.requireNonNull(profile, "profile");
-    if (profile.implementationGate() == null) {
-      throw new IllegalArgumentException("profile has no implementation gate");
-    }
-    String boundary = profile.implementationGate().afterStageId();
-    List<ProfileStage> stages = new ArrayList<>();
-    for (ProfileStage stage : profile.stages()) {
-      stages.add(stage);
-      if (boundary.equals(stage.stageId())) {
-        return List.copyOf(stages);
-      }
-    }
-    throw new IllegalArgumentException("implementation-gate stage is missing: " + boundary);
-  }
-
   boolean ownsStage(String stageId) {
-    return stagesThroughPlanning(profile).stream()
+    return profile.stages().stream()
         .anyMatch(stage -> stage.stageId().equals(stageId));
   }
 

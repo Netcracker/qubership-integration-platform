@@ -15,7 +15,7 @@ import org.qubership.integration.platform.ai.productpipeline.store.ProductPipeli
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 
-/** Selects the provided-IDS Flow at its entry stage and delegates every other route to legacy. */
+/** Runs the provided-IDS route through Flow and delegates the generated route to legacy. */
 public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrator {
 
   private final ProductPipelineRuntime legacy;
@@ -47,23 +47,20 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
   }
 
   private boolean resumesInFlow(ProductPipelineRunDocument document) {
+    return document.run().status() == RunStatus.RUNNING && belongsToFlow(document);
+  }
+
+  private boolean belongsToFlow(ProductPipelineRunDocument document) {
     String stageId = document.run().currentStageId();
-    return document.run().status() == RunStatus.RUNNING
-        && flow.ownsStage(stageId)
+    return flow.ownsStage(stageId)
         && (ProvidedIdsFlow.ENTRY_STAGE_ID.equals(stageId)
             || legacy.isProvidedDesignRoute(document.run().runId()));
   }
 
   @Override
   public Multi<PipelineSignal> acceptInput(AcceptInputCommand command) {
-    boolean atEntry =
-        runStore
-            .load(command.runId())
-            .map(
-                document ->
-                    ProvidedIdsFlow.ENTRY_STAGE_ID.equals(document.run().currentStageId()))
-            .orElse(false);
-    if (!atEntry) {
+    boolean continueInFlow = runStore.load(command.runId()).map(this::belongsToFlow).orElse(false);
+    if (!continueInFlow) {
       return legacy.acceptInput(command);
     }
 
@@ -103,7 +100,11 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
 
   @Override
   public Multi<PipelineSignal> implement(ImplementCommand command) {
-    return legacy.implement(command);
+    if (!legacy.isProvidedDesignRoute(command.runId())) {
+      return legacy.implement(command);
+    }
+    ProvidedIdsFlow.RunInput input = tasks.begin(command.runId());
+    return continueWithFlow(legacy.recordImplement(command), input);
   }
 
   @Override

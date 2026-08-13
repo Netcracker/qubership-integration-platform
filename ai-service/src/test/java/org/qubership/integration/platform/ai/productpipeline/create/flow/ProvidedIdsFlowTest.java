@@ -20,7 +20,7 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipe
 class ProvidedIdsFlowTest {
 
   @Test
-  void buildsTasksFromTheProfileThroughDesignPlanning() {
+  void buildsTasksFromTheProfileThroughMaterialization() {
     ProductPipelineProfile profile = createChainV2();
     ProvidedIdsFlow flow = new ProvidedIdsFlow(profile, mock(ProvidedIdsFlowTasks.class));
 
@@ -34,10 +34,14 @@ class ProvidedIdsFlowTest {
             "import-stage",
             "requirement-analysis",
             "design-input",
-            "design-planning"),
+            "design-planning",
+            "design-execution",
+            "materialization"),
         taskNames);
     assertTrue(flow.ownsStage("design-planning"));
-    assertFalse(flow.ownsStage("design-execution"));
+    assertTrue(flow.ownsStage("design-execution"));
+    assertTrue(flow.ownsStage("materialization"));
+    assertFalse(flow.ownsStage("unknown"));
   }
 
   @Test
