@@ -168,14 +168,21 @@ public class ChainPatchHarnessService {
     List<String> changedElementIds = result.changedCatalogElementIds();
     List<String> failedElementIds = result.failedCatalogElementIds();
 
+    List<String> removedElementIds = result.removedElementIds();
+
     if (result.succeeded()) {
       return new ChainPatchHarnessResponse(
           conversationId,
           SkillHarnessStatus.COMPLETED,
-          "Changed " + changedElementIds.size() + " element(s).",
+          "Changed "
+              + changedElementIds.size()
+              + " element(s), removed "
+              + removedElementIds.size()
+              + ".",
           ChainPatchRefusal.NONE,
           changedElementIds,
-          failedElementIds);
+          failedElementIds,
+          removedElementIds);
     }
     String message = result.error() != null ? result.error() : "Some elements could not be changed.";
     return new ChainPatchHarnessResponse(
@@ -184,7 +191,8 @@ public class ChainPatchHarnessService {
         message,
         ChainPatchRefusal.WRITE,
         changedElementIds,
-        failedElementIds);
+        failedElementIds,
+        removedElementIds);
   }
 
   private static ChainPatchHarnessResponse failed(

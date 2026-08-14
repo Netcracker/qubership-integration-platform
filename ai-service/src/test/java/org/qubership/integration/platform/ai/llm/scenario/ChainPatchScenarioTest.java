@@ -259,6 +259,30 @@ class ChainPatchScenarioTest {
     assertTrue(card.question().contains("to Enrich payload"), card.question());
   }
 
+  /**
+   * A removal changes no element, so the reply has to be built from what went rather than from what
+   * changed -- otherwise a delete the reader just approved comes back as "nothing needed changing".
+   */
+  @Test
+  void namesWhatItRemovedWhenTheCardIsAnswered() {
+    when(ownership.forChain(any(), any(), anyBoolean()))
+        .thenReturn(
+            new GraphPatchOwnershipPolicy(
+                true, true, true, true, Set.of("script"), Set.of(), Map.of("script", Set.of("script"))));
+    when(writer.write(any(), any()))
+        .thenReturn(
+            new ChainPatchWriteResult(
+                List.of(), List.of(), null, null, List.of("element-script")));
+    capturesRemovalOf("element-script");
+    ChatEvent.Decision card = decision(run(request("delete the Normalize payload step")));
+
+    List<ChatEvent> events = run(answer(card.artifactHash()));
+
+    assertTrue(card.question().contains("Removes Normalize payload"), card.question());
+    assertTrue(card.question().contains("cannot be undone"), card.question());
+    assertTrue(text(events).contains("Removed Normalize payload"), text(events));
+  }
+
   @Test
   void saysSoWhenTheModelProposedNothing() {
     List<ChatEvent> events = run(request("do something vague"));
@@ -327,6 +351,24 @@ class ChainPatchScenarioTest {
 
   private void captures(PropertyPatch propertyPatch) {
     when(agent.chat(eq(CONVERSATION_ID), any())).thenAnswer(capturing(propertyPatch));
+  }
+
+  private void capturesRemovalOf(String nodeId) {
+    when(agent.chat(eq(CONVERSATION_ID), any()))
+        .thenAnswer(
+            invocation -> {
+              patchStore.putCapture(
+                  CONVERSATION_ID,
+                  new ChainPatchCapture(
+                      "patch-4",
+                      List.of(
+                          new org.qubership.integration.platform.ai.qipknowledge.patch.NodePatch(
+                              GraphPatchOperation.REMOVE, null, nodeId)),
+                      List.of(),
+                      List.of(),
+                      "the step is no longer needed"));
+              return Multi.createFrom().<String>empty();
+            });
   }
 
   private void asks(String question) {

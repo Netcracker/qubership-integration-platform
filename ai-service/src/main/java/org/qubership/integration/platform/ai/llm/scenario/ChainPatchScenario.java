@@ -232,10 +232,23 @@ public class ChainPatchScenario implements ScenarioHandler {
         result.changedElementIds().stream()
             .map(elementId -> elementName(proposed.patched().graph(), elementId))
             .toList();
+    // Removed elements are named from the chain as it was: the patched graph no longer holds them.
+    List<String> removed =
+        result.removedElementIds().stream()
+            .map(elementId -> elementName(proposed.patched().before(), elementId))
+            .toList();
     if (result.succeeded()) {
-      return changed.isEmpty()
-          ? "Nothing needed changing."
-          : "Changed " + String.join(", ", changed) + " in the chain.";
+      StringBuilder done = new StringBuilder();
+      if (!removed.isEmpty()) {
+        done.append("Removed ").append(String.join(", ", removed)).append(" from the chain.");
+      }
+      if (!changed.isEmpty()) {
+        if (!done.isEmpty()) {
+          done.append(" ");
+        }
+        done.append("Changed ").append(String.join(", ", changed)).append(" in the chain.");
+      }
+      return done.isEmpty() ? "Nothing needed changing." : done.toString();
     }
     List<String> failed =
         result.failedElementIds().stream()

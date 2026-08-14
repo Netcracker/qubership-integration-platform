@@ -5,10 +5,11 @@ import java.util.List;
 /**
  * Response body for {@code POST /api/v1/harness/chain-patch-run}.
  *
- * <p>{@code changedElementIds} and {@code failedElementIds} are catalog element ids, so the caller
- * can fetch each one back from the catalog without knowing how the patch pipeline named it
- * internally. {@code refusal} names which gate turned the patch away, so a report can tell a
- * permissions problem from a malformed patch from one that would break the chain.
+ * <p>{@code changedElementIds}, {@code failedElementIds} and {@code removedElementIds} are catalog
+ * element ids, so the caller can fetch each one back from the catalog -- or confirm it is gone --
+ * without knowing how the patch pipeline named it internally. {@code refusal} names which gate
+ * turned the patch away, so a report can tell a permissions problem from a malformed patch from one
+ * that would break the chain.
  */
 public record ChainPatchHarnessResponse(
     String conversationId,
@@ -16,12 +17,25 @@ public record ChainPatchHarnessResponse(
     String message,
     ChainPatchRefusal refusal,
     List<String> changedElementIds,
-    List<String> failedElementIds) {
+    List<String> failedElementIds,
+    List<String> removedElementIds) {
+
+  /** For a run that removed nothing. */
+  public ChainPatchHarnessResponse(
+      String conversationId,
+      SkillHarnessStatus status,
+      String message,
+      ChainPatchRefusal refusal,
+      List<String> changedElementIds,
+      List<String> failedElementIds) {
+    this(conversationId, status, message, refusal, changedElementIds, failedElementIds, List.of());
+  }
 
   public ChainPatchHarnessResponse {
     refusal = refusal == null ? ChainPatchRefusal.NONE : refusal;
     changedElementIds = changedElementIds == null ? List.of() : List.copyOf(changedElementIds);
     failedElementIds = failedElementIds == null ? List.of() : List.copyOf(failedElementIds);
+    removedElementIds = removedElementIds == null ? List.of() : List.copyOf(removedElementIds);
   }
 
   /**

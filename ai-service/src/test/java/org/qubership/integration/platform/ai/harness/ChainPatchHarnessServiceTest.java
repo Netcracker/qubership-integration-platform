@@ -201,6 +201,36 @@ class ChainPatchHarnessServiceTest {
     assertEquals("schema said no", response.message());
   }
 
+  /** A removal changes no element, so without this the run would report as having done nothing. */
+  @Test
+  void namesWhatItRemovedRatherThanReportingAnEmptyRun() {
+    when(ownership.forChain(any(), any(), eq(true)))
+        .thenReturn(
+            new GraphPatchOwnershipPolicy(
+                true,
+                true,
+                true,
+                true,
+                Set.of("script", "http-trigger"),
+                Set.of(),
+                Map.of("script", Set.of("script"), "http-trigger", Set.of())));
+    capturesRemovalOf("element-script");
+    when(writer.write(any(), any()))
+        .thenReturn(
+            new ChainPatchWriteResult(
+                List.of(),
+                List.of(),
+                null,
+                new MaterializationMap(CHAIN_ID, Map.of()),
+                List.of("element-script")));
+
+    ChainPatchHarnessResponse response = service.run(removalRequest("delete Normalize payload"));
+
+    assertEquals(SkillHarnessStatus.COMPLETED, response.status());
+    assertEquals(List.of("element-script"), response.removedElementIds());
+    assertTrue(response.message().contains("removed 1"), response.message());
+  }
+
   @Test
   void reportsAChainReadFailure() {
     when(factsService.load(CHAIN_ID)).thenThrow(new IllegalStateException("catalog unreachable"));
@@ -283,12 +313,32 @@ class ChainPatchHarnessServiceTest {
             });
   }
 
+  private void capturesRemovalOf(String nodeId) {
+    when(agent.chat(eq(CONVERSATION_ID), any()))
+        .thenAnswer(
+            invocation -> {
+              patchStore.putCapture(
+                  CONVERSATION_ID,
+                  new ChainPatchCapture(
+                      "patch-4",
+                      List.of(new NodePatch(GraphPatchOperation.REMOVE, null, nodeId)),
+                      List.of(),
+                      List.of(),
+                      "the step is no longer needed"));
+              return Multi.createFrom().<String>empty();
+            });
+  }
+
   private static PropertyPatch propertyPatch(String nodeId, String key, String value) {
     return new PropertyPatch(GraphPatchOperation.UPDATE, nodeId, new PlanProperty(key, value));
   }
 
   private static ChainPatchHarnessRequest request(String prompt) {
     return new ChainPatchHarnessRequest(CONVERSATION_ID, CHAIN_ID, prompt);
+  }
+
+  private static ChainPatchHarnessRequest removalRequest(String prompt) {
+    return new ChainPatchHarnessRequest(CONVERSATION_ID, CHAIN_ID, prompt, true);
   }
 
   private static ChainCatalogFacts facts() {
