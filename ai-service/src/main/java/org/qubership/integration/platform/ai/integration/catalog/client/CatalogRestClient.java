@@ -52,6 +52,27 @@ public interface CatalogRestClient {
   @Path("/v1/folders/search")
   List<FolderItemDto> searchFolderItems(CatalogChainSearchRequest request);
 
+  // ── Snapshots ────────────────────────────────────────────────────────────
+
+  /**
+   * Builds a snapshot of the chain as it stands.
+   *
+   * <p>This is the only way back from a change this service cannot undo on its own: reverting a
+   * snapshot restores elements with their original ids, which is what a deleted element otherwise
+   * loses forever.
+   *
+   * <p>Fails with 400 when the chain does not pass the catalog's own property verification, so a
+   * half-configured chain cannot be snapshotted at all. Building one also moves the chain's
+   * {@code currentSnapshot} pointer to the new snapshot.
+   */
+  @POST
+  @Path("/v1/catalog/chains/{chainId}/snapshots")
+  SnapshotDto createSnapshot(@PathParam("chainId") String chainId);
+
+  @GET
+  @Path("/v1/catalog/chains/{chainId}/snapshots")
+  List<SnapshotDto> listSnapshots(@PathParam("chainId") String chainId);
+
   // ── Elements ─────────────────────────────────────────────────────────────
 
   @POST
@@ -163,6 +184,9 @@ public interface CatalogRestClient {
       List<ElementSummaryDto> createdElements,
       List<ElementSummaryDto> updatedElements,
       List<DependencySummaryDto> createdDependencies) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  record SnapshotDto(String id, String name) {}
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record SystemDto(String id, String name, String type, String protocol) {}

@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
@@ -40,7 +41,13 @@ public class GraphPatchOwnershipValidator {
     validateNodeOwnership(
         ownership, patch, nodeTypeByNodeId, samePatchAddedNodeIds, existingNodesById, findings);
     validateEdgeOwnership(
-        ownership, patch, preExistingNodeTypeByNodeId, nodeTypeByNodeId, samePatchAddedNodeIds, findings);
+        ownership,
+        patch,
+        indexEdges(context.inputGraph()),
+        preExistingNodeTypeByNodeId,
+        nodeTypeByNodeId,
+        samePatchAddedNodeIds,
+        findings);
     validatePropertyOwnership(ownership, patch, nodeTypeByNodeId, findings);
     validateChainOwnership(ownership, patch, findings);
 
@@ -65,7 +72,7 @@ public class GraphPatchOwnershipValidator {
         continue;
       }
       if (nodePatch.operation() == GraphPatchOperation.REMOVE) {
-        findings.add("ownership violation: node REMOVE is not allowed");
+        validateNodeRemoval(ownership, nodePatch, existingNodesById, findings);
         continue;
       }
       if (nodePatch.operation() == GraphPatchOperation.ADD) {
@@ -110,6 +117,67 @@ public class GraphPatchOwnershipValidator {
       }
       validateForeignNodeUpdate(
           ownership, targetNodeId, existing, incoming, samePatchAddedNodeIds, nodeTypeByNodeId, findings);
+    }
+  }
+
+  /**
+   * A removal is permitted only when the policy allows removing nodes at all and the element's own
+   * type is owned -- the same bar an ADD of that type has to clear. An unknown target is a finding
+   * rather than a silent pass: refusing to delete something we cannot see is the safe reading.
+   */
+  private static void validateNodeRemoval(
+      GraphPatchOwnershipPolicy ownership,
+      NodePatch nodePatch,
+      Map<String, ChainPlanNode> existingNodesById,
+      List<String> findings) {
+    if (!ownership.mayRemoveNodes()) {
+      findings.add("ownership violation: node REMOVE is not allowed");
+      return;
+    }
+    String targetNodeId = nodePatch.targetNodeId();
+    ChainPlanNode existing = targetNodeId == null ? null : existingNodesById.get(targetNodeId);
+    if (existing == null) {
+      findings.add("ownership violation: node REMOVE names unknown node '" + targetNodeId + "'");
+      return;
+    }
+    if (existing.type() != null && !ownership.nodeTypes().contains(existing.type())) {
+      findings.add(
+          "ownership violation: node type '" + existing.type() + "' is not owned, so it may not be removed");
+    }
+  }
+
+  /**
+   * Mirrors {@link #validateNodeRemoval} for edges, reusing the ADD path's endpoint rule: one end
+   * of the edge must be something this policy owns.
+   */
+  private static void validateEdgeRemoval(
+      GraphPatchOwnershipPolicy ownership,
+      EdgePatch edgePatch,
+      Map<String, ChainPlanEdge> existingEdgesById,
+      Map<String, String> preExistingNodeTypeByNodeId,
+      Map<String, String> nodeTypeByNodeId,
+      Set<String> samePatchAddedNodeIds,
+      List<String> findings) {
+    if (!ownership.mayRemoveEdges()) {
+      findings.add("ownership violation: edge REMOVE is not allowed");
+      return;
+    }
+    String targetEdgeId = edgePatch.targetEdgeId();
+    ChainPlanEdge existing = targetEdgeId == null ? null : existingEdgesById.get(targetEdgeId);
+    if (existing == null) {
+      findings.add("ownership violation: edge REMOVE names unknown edge '" + targetEdgeId + "'");
+      return;
+    }
+    if (!isAllowedEdgeEndpoint(
+            existing.fromNodeId(), ownership, preExistingNodeTypeByNodeId, nodeTypeByNodeId, samePatchAddedNodeIds)
+        && !isAllowedEdgeEndpoint(
+            existing.toNodeId(), ownership, preExistingNodeTypeByNodeId, nodeTypeByNodeId, samePatchAddedNodeIds)) {
+      findings.add(
+          "ownership violation: edge endpoint ownership is required to remove the edge between '"
+              + existing.fromNodeId()
+              + "' and '"
+              + existing.toNodeId()
+              + "'");
     }
   }
 
@@ -233,6 +301,7 @@ public class GraphPatchOwnershipValidator {
   private static void validateEdgeOwnership(
       GraphPatchOwnershipPolicy ownership,
       GraphPatch patch,
+      Map<String, ChainPlanEdge> existingEdgesById,
       Map<String, String> preExistingNodeTypeByNodeId,
       Map<String, String> nodeTypeByNodeId,
       Set<String> samePatchAddedNodeIds,
@@ -245,7 +314,14 @@ public class GraphPatchOwnershipValidator {
         continue;
       }
       if (edgePatch.operation() == GraphPatchOperation.REMOVE) {
-        findings.add("ownership violation: edge REMOVE is not allowed");
+        validateEdgeRemoval(
+            ownership,
+            edgePatch,
+            existingEdgesById,
+            preExistingNodeTypeByNodeId,
+            nodeTypeByNodeId,
+            samePatchAddedNodeIds,
+            findings);
         continue;
       }
       if (edgePatch.operation() != GraphPatchOperation.ADD
@@ -362,6 +438,20 @@ public class GraphPatchOwnershipValidator {
       byNodeId.put(node.nodeId(), node);
     }
     return byNodeId;
+  }
+
+  private static Map<String, ChainPlanEdge> indexEdges(ChainPlanGraph graph) {
+    Map<String, ChainPlanEdge> byEdgeId = new LinkedHashMap<>();
+    if (graph == null || graph.edges() == null) {
+      return byEdgeId;
+    }
+    for (ChainPlanEdge edge : graph.edges()) {
+      if (edge == null || edge.edgeId() == null) {
+        continue;
+      }
+      byEdgeId.put(edge.edgeId(), edge);
+    }
+    return byEdgeId;
   }
 
   private static Map<String, String> indexNodeTypes(ChainPlanGraph graph) {

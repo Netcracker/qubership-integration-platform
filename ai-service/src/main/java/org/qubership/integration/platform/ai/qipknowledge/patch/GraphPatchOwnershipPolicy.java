@@ -9,6 +9,8 @@ import java.util.Set;
 public record GraphPatchOwnershipPolicy(
     boolean mayAddNodes,
     boolean mayAddEdges,
+    boolean mayRemoveNodes,
+    boolean mayRemoveEdges,
     Set<String> nodeTypes,
     Set<String> chainFields,
     Map<String, Set<String>> properties) {
@@ -19,8 +21,23 @@ public record GraphPatchOwnershipPolicy(
     properties = normalizeProperties(properties);
   }
 
+  /**
+   * Additive-only policy: removal is off.
+   *
+   * <p>Kept so the callers that predate removal read as what they are -- policies that never
+   * intended to delete anything -- rather than each having to spell out two false flags.
+   */
+  public GraphPatchOwnershipPolicy(
+      boolean mayAddNodes,
+      boolean mayAddEdges,
+      Set<String> nodeTypes,
+      Set<String> chainFields,
+      Map<String, Set<String>> properties) {
+    this(mayAddNodes, mayAddEdges, false, false, nodeTypes, chainFields, properties);
+  }
+
   public static GraphPatchOwnershipPolicy denyAll() {
-    return new GraphPatchOwnershipPolicy(false, false, Set.of(), Set.of(), Map.of());
+    return new GraphPatchOwnershipPolicy(false, false, false, false, Set.of(), Set.of(), Map.of());
   }
 
   private static Map<String, Set<String>> normalizeProperties(Map<String, Set<String>> properties) {
