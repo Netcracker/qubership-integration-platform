@@ -565,6 +565,57 @@ func TestUpdateRefusesAValidationRuleThatCannotBeBuilt(t *testing.T) {
 	}
 }
 
+// A rule stored before these checks existed keeps the test case editable: the
+// executor already degrades it into a validation error, and refusing the update
+// only kept the caller from fixing the rest of the case.
+func TestUpdateKeepsAValidationRuleTheStoredTestCaseAlreadyCarries(t *testing.T) {
+	for name, rule := range refusedValidationRules() {
+		t.Run(name, func(t *testing.T) {
+			f := newTestCasesFixture()
+			id := uuid.New()
+			legacy := *rule
+			stored := testCaseWithRule(&legacy)
+			stored.ID = id
+			f.testCases.existing[id] = &dao.TestCaseView{TestCase: *stored}
+			testCase := testCaseWithRule(rule)
+			testCase.ID = id
+			testCase.Name = "renamed while the legacy rule stays"
+
+			updated, err := f.service.Update(context.Background(), testCase)
+
+			require.NoError(t, err)
+			require.NotNil(t, updated)
+			require.Len(t, f.testCases.updated, 1)
+			assert.Equal(t, "renamed while the legacy rule stays", f.testCases.updated[0].Name)
+			assert.Contains(t, f.logs.String(), "test case")
+			assert.Contains(t, f.logs.String(), id.String())
+		})
+	}
+}
+
+// One unbuildable rule in the stored case does not admit another.
+func TestUpdateRefusesAValidationRuleTheStoredTestCaseDoesNotCarry(t *testing.T) {
+	f := newTestCasesFixture()
+	id := uuid.New()
+	stored := testCaseWithRule(&dao.Matcher{
+		Name: "r", Type: "match", EntityType: matching.EntityTypeBody,
+		Parameters: []*dao.MatcherParameter{{Name: "pattern", Value: "("}},
+	})
+	stored.ID = id
+	f.testCases.existing[id] = &dao.TestCaseView{TestCase: *stored}
+	testCase := testCaseWithRule(&dao.Matcher{
+		Name: "r", Type: "match", EntityType: matching.EntityTypeBody,
+		Parameters: []*dao.MatcherParameter{{Name: "pattern", Value: "["}},
+	})
+	testCase.ID = id
+
+	updated, err := f.service.Update(context.Background(), testCase)
+
+	require.ErrorIs(t, err, ErrInvalidRequest)
+	assert.Nil(t, updated)
+	assert.Empty(t, f.testCases.updated)
+}
+
 // The refusal is about the imported file, so the importer reads what to fix
 // rather than the generic message a failing save reports.
 func TestImportReportsARefusedValidationRuleWithItsReason(t *testing.T) {

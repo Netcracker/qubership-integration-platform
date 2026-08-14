@@ -432,7 +432,7 @@ func TestStartNewPassesTheEntityType(t *testing.T) {
 
 func TestServiceModeReportsTheConfiguredFlag(t *testing.T) {
 	for _, production := range []bool{false, true} {
-		app := mount(t, newFakes(), config.Config{Production: production}, config.Deps{})
+		app := mount(t, newFakes(), config.Config{Production: &production}, config.Deps{})
 		response := request(t, app, http.MethodGet, "/mode", "")
 		require.Equal(t, http.StatusOK, response.StatusCode)
 
@@ -440,6 +440,18 @@ func TestServiceModeReportsTheConfiguredFlag(t *testing.T) {
 		require.NoError(t, json.NewDecoder(response.Body).Decode(&mode))
 		assert.Equal(t, production, mode.Production)
 	}
+}
+
+// An installation that names no mode is a production one, so the front end hides
+// the operations that are unsafe there until it is told otherwise.
+func TestServiceModeReportsProductionWhenNoFlagIsConfigured(t *testing.T) {
+	app := mount(t, newFakes(), config.Config{}, config.Deps{})
+	response := request(t, app, http.MethodGet, "/mode", "")
+	require.Equal(t, http.StatusOK, response.StatusCode)
+
+	var mode ServiceMode
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&mode))
+	assert.True(t, mode.Production)
 }
 
 func TestEndpointMockCall(t *testing.T) {

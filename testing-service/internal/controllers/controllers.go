@@ -30,7 +30,7 @@ func New(cfg config.Config, deps config.Deps, svcs *services.Services) *Controll
 		testCaseRuns:      newTestCaseRunsController(logger, svcs.TestCaseRunsService),
 		testCaseRunErrors: newTestCaseRunErrorsController(logger, svcs.TestCaseRunErrorsService),
 		endpointMocks:     newEndpointMocksController(logger, svcs.EndpointMocksService),
-		serviceMode:       newServiceModeController(cfg.Production),
+		serviceMode:       newServiceModeController(cfg.ProductionMode()),
 	}
 }
 

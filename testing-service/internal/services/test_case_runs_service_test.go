@@ -79,7 +79,7 @@ func TestExportToCsvWritesOneRowPerRunWithoutErrors(t *testing.T) {
 	assert.Equal(t, testsRunID.String(), rows[1][0])
 	assert.Equal(t, runID.String(), rows[1][1], "the run id belongs in its own column")
 	assert.Equal(t, testCaseID.String(), rows[1][3])
-	assert.Equal(t, start.Format(time.RFC3339Nano), rows[1][6])
+	assert.Equal(t, start.String(), rows[1][6], "the timestamp layout is the one the ported service wrote")
 	assert.Empty(t, rows[1][7], "a run with no finish timestamp leaves the column empty rather than panicking")
 	assert.Equal(t, dao.RunStatusFinished, rows[1][8])
 }

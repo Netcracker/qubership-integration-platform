@@ -29,7 +29,13 @@ QIP_TESTING_POSTGRES_DSN='postgres://postgres:postgres@localhost:5432/postgres?s
 
 The binary reads `application.yaml` — `-config` points it elsewhere — serves the API under `/api/v1`, and exposes
 `/health` and `/prometheus`. The OpenAPI spec is at `/api/v1/swagger/doc.json` and the browsable UI at
-`/api/v1/swagger/index.html`. Set `pprof.enabled` to serve the profiles on their own port.
+`/api/v1/swagger/index.html`. The same spec is also served at `/v2/api-docs`, with its own UI at
+`/swagger-ui/index.html`, and `/api-version` answers with the API version document; these three sit outside `/api/v1`,
+so only a caller reaching the service directly gets them. Set `pprof.enabled` to serve the profiles on their own port.
+
+`GET /api/v1/mode` reports whether this is a live installation, and the front end hides the operations that are unsafe
+there while it says so. An installation that names no mode is a live one: set `production: false`, or
+`QIP_TESTING_PRODUCTION=false`, on a sandbox to show those operations.
 
 Every key can be overridden from the environment: uppercase it, replace the dots with underscores and prefix it with
 `QIP_TESTING_`. `QIP_TESTING_POSTGRES_DSN` sets `postgres.dsn`, `QIP_TESTING_EXECUTION_WORKERS` sets
@@ -85,6 +91,9 @@ go func() { _ = svc.RunExecutor(ctx) }()
 `Config` carries no DSN: the host connects to the database itself and hands over a `DB`. Authorization rides on
 `Deps.HTTPClient` as an `http.RoundTripper`. A host that applies migrations through its own tooling gets the set from
 `testingservice.Migrations()` instead of letting the binary apply them.
+
+`Config.Production` is a `*bool`, because a host that leaves it unset gets production mode: a nil there is not the same
+answer as `false`. Read it back through `Config.ProductionMode()`, which resolves the nil.
 
 Migrating over an installation that already runs test cases needs a single writer: **stop the executor that ran them
 before you migrate**. Migration 101 re-queues every case left `running` and deletes that attempt's validation errors,

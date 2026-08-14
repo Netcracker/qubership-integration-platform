@@ -28,18 +28,14 @@ spec:
                 configMapKeyRef:
                   key: QIP_TESTING_ENGINE_ADDRESS
                   name: {{ .Release.Name }}-testing-service-env
-            # The execution and pagination settings are left to the service's own
-            # defaults: the config map does not render them, and a reference to a
-            # key it lacks would pin the pod in CreateContainerConfigError.
+            # The execution, pagination and production settings are left to the
+            # service's own defaults: the config map does not render them, and a
+            # reference to a key it lacks would pin the pod in
+            # CreateContainerConfigError.
             - name: QIP_TESTING_POSTGRES_SCHEMA
               valueFrom:
                 configMapKeyRef:
                   key: QIP_TESTING_POSTGRES_SCHEMA
-                  name: {{ .Release.Name }}-testing-service-env
-            - name: QIP_TESTING_PRODUCTION
-              valueFrom:
-                configMapKeyRef:
-                  key: QIP_TESTING_PRODUCTION
                   name: {{ .Release.Name }}-testing-service-env
             # The credentials are passed on their own rather than spliced into the
             # DSN below. Only kubelet can expand $(VAR), and it cannot encode what

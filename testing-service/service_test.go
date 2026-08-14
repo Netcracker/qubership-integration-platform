@@ -71,6 +71,27 @@ func TestMountServesTheApiUnderTheGivenPrefix(t *testing.T) {
 	}
 }
 
+// The spec, the swagger UI and the version document belong to whoever runs the
+// process: they sit outside the API prefix, and a host mounting this service on
+// a router of its own owns everything beside it. The binary serves them; Mount
+// must not.
+func TestMountLeavesTheRoutesBesideTheApiToTheHost(t *testing.T) {
+	service, err := New(Config{}, Deps{DB: unreachableDB{}, Logger: discardLogger()})
+	require.NoError(t, err)
+
+	app := fiber.New()
+	service.Mount(app)
+
+	for _, target := range []string{"/v2/api-docs", "/swagger-ui/index.html", "/api-version"} {
+		t.Run(target, func(t *testing.T) {
+			response, err := app.Test(httptest.NewRequest(http.MethodGet, target, nil), 2000)
+			require.NoError(t, err)
+			defer func() { _ = response.Body.Close() }()
+			assert.Equal(t, http.StatusNotFound, response.StatusCode)
+		})
+	}
+}
+
 func TestMountedHandlersReachTheDatabase(t *testing.T) {
 	service, err := New(Config{}, Deps{DB: unreachableDB{}, Logger: discardLogger()})
 	require.NoError(t, err)

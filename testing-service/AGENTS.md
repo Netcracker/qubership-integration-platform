@@ -46,6 +46,7 @@ formality: every name here is something a downstream host has to keep working.
 | Name | What it is |
 | --- | --- |
 | `Config` | settings: catalog and engine addresses, poll interval, worker count, lease duration, retention, pagination limit, production flag. No DSN. |
+| `(Config).ProductionMode() bool` | reads the tri-state production flag, resolving an unset one |
 | `Deps` | `DB`, `Logger`, `HTTPClient`, `CurrentUser` |
 | `DB`, `CurrentUserFunc` | aliases so a caller can name the types it implements |
 | `New(Config, Deps) (*Service, error)` | wires repositories, services and controllers |
@@ -60,6 +61,13 @@ so the canonical declarations cannot live in the root.
 database client already has, so it satisfies the interface without an adapter. Authorization is injected as an
 `http.RoundTripper` on `Deps.HTTPClient`, not as a token the module fetches.
 
+`Config.Production` is the one field that is a pointer, and it has to stay one. `GET /mode` tells the front end to hide
+the operations that are unsafe on a live installation, so an installation that names no mode has to be reported as a
+live one — which a bare `bool` cannot express, since its zero value is the permissive answer. `WithDefaults` resolves
+nil to `true` the way it fills in a non-positive number, and `ProductionMode()` resolves it again for a `Config` that
+never went through `WithDefaults`. Inverting the field into a `NonProduction bool` would read as `false` in every
+configuration file that means "hide nothing", which is the same trap one field further along.
+
 ## The library and the binary
 
 The library registers routes and runs the executor. Everything else belongs to the host:
@@ -71,11 +79,30 @@ The library registers routes and runs the executor. Everything else belongs to t
 - The generated spec does not follow the prefix: `basePath` is empty and every `@Router` annotation spells out
   `/api/v1/…`, so `docs/` describes the standalone binary. A host that mounts elsewhere serves paths the spec does not
   match, and publishes its own spec instead.
+- The routes beside the API belong to the binary too: `/v2/api-docs` and `/swagger-ui/*` serve the same spec as
+  `/api/v1/swagger/*`, and `/api-version` answers the version document the ported service served from
+  `api-version-info.json`. All three were public in the ported service and its direct callers still ask for them. No
+  routing rule in front of this service exposes them, which is why they cost nothing here and why the library must not
+  grow them: a host mounts the API on a router of its own and owns everything beside it.
 - New infrastructure concerns go in `cmd/`. A health check or a metrics exporter added to the library would be dead
   weight downstream and would pull its dependency into every host.
 - No default is written down twice. `defaultAppConfig` fills in what the binary owns, and the shipped
   `application.yaml` and the Helm ConfigMap carry only that plus what an installation has to choose; the library's
   settings are left unset there and picked up from `Config.WithDefaults`.
+
+## Wire compatibility with the ported service
+
+A downstream vendor runs the service this module was ported from, and a separate front-end plan is written against these
+endpoints, so what goes over the wire is not ours to improve on its own. Three rules carry that:
+
+- `optionalTime` writes the two CSV timestamp columns with `(*time.Time).String()`, the Go layout
+  `2006-01-02 15:04:05.999999999 -0700 MST`, and not RFC 3339. The nil guard around it is ours and has to stay: the
+  ported service dereferenced the nil of a pending run and panicked. The layout is theirs, and four exports share the
+  writer.
+- The routes beside the API and the production default, both above.
+
+A fix to a real defect is still a fix: the run's own id in column 2 of the test case run export, the spreadsheet-formula
+escaping, and the nil guard above all changed the bytes on purpose.
 
 ## Naming
 
@@ -163,7 +190,7 @@ A matcher that cannot be built — a bad regular expression, an unparseable JSON
 parameter, or an entity name no request can carry a value under — is handled twice, and the two halves have opposite
 defaults:
 
-- `validateMatchers` builds every matcher on create, update and import, so a matcher that cannot be built is a **400**
+- `matcherViolations` builds every matcher on create, update and import, so a matcher that cannot be built is a **400**
   at save time. It covers both kinds: the request matchers of an endpoint mock and the response validation rules of a
   test case, which are the same rows under different owners. Disabled matchers are checked too.
 - The run paths **degrade** rather than fail, because a row stored before these checks still has to be served. `Call`
@@ -185,6 +212,29 @@ RFC 9110 token for a header, any non-blank string for a query parameter, and for
 `{name}` placeholder can spell, checked by writing the placeholder and reading it back. Extend those checks that way
 too; three rounds of review each banned the character the round before had named, and the round after found another.
 `TestEntityNameValidationAcceptsExactlyTheMatchableNames` holds the result to the property over the byte space.
+
+## Strict on create, lenient on update
+
+The save-time rules — the matcher checks above, the 100–599 range of a mock response status, and the field-name and
+field-value checks on its response headers — are collected as `violation` values rather than raised on the first one.
+Each violation carries a key naming the **offending value alone**, not the element carrying it.
+
+`doCreate` refuses any violation. `doUpdate` reads the stored row first and refuses only the violations whose key the
+stored row does not already carry, logging the rest as warnings. A row saved before these rules existed still reads
+back — an unbuildable matcher is skipped, an unwritable header is left out of the response — and it used to become
+uneditable, because an update validates the whole entity: one legacy header with an empty name blocked every other
+edit. Introducing a violation is still a 400, and so is replacing one bad value with a different bad value, since that
+key was never stored. Import routes through `doCreate` and `doUpdate`, so an archive entry creating an entity is strict
+and one updating an existing entity is lenient, which is what a vendor moving its data needs.
+
+Keys are why leniency does not leak. Keying on the element instead — the matcher, the header — would let an update swap
+the value under a legacy element for any other bad one; keying on the value lets the caller rename and re-describe the
+element while the refused value stays as it was stored. `parametersKey` sorts, so reordering the parameters of a legacy
+matcher is still the same violation. A row with several legacy values tolerates each of them on its own and nothing
+else.
+
+`doUpdate` therefore reads the stored row **before** it validates. A payload that is invalid for an entity that does
+not exist is now a 404 rather than a 400: the lookup is what decides which of the two answers applies.
 
 ## Go version ceiling
 

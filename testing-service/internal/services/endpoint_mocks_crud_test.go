@@ -685,3 +685,181 @@ func TestCreateAcceptsAMockThatNamesNoStatus(t *testing.T) {
 	require.NotNil(t, created)
 	assert.Len(t, f.endpointMocks.inserted, 1)
 }
+
+// storedMock is the row an update is measured against: the same mock, already in
+// the database under the given id.
+func storedMock(id uuid.UUID, endpointMock *dao.EndpointMock) *dao.EndpointMock {
+	stored := *endpointMock
+	stored.ID = id
+	return &stored
+}
+
+// A row saved before these rules existed still reads back, and until now it could
+// not be saved again: an update validates the whole entity, so the legacy value
+// blocked every other edit. The update now keeps that value and goes through, and
+// the log names the entity, the offending element and the rule.
+func TestUpdateKeepsAResponseTheStoredMockAlreadyCarries(t *testing.T) {
+	for name, responseSettings := range refusedResponses() {
+		t.Run(name, func(t *testing.T) {
+			f := newEndpointMocksFixture()
+			id := uuid.New()
+			f.endpointMocks.existing[id] = storedMock(id, mockWithResponse(responseSettings))
+			endpointMock := mockWithResponse(responseSettings)
+			endpointMock.ID = id
+			endpointMock.Name = "renamed while the legacy response stays"
+
+			updated, err := f.service.Update(context.Background(), endpointMock)
+
+			require.NoError(t, err)
+			require.NotNil(t, updated)
+			require.Len(t, f.endpointMocks.updated, 1)
+			assert.Equal(t, "renamed while the legacy response stays", f.endpointMocks.updated[0].Name)
+			assert.Contains(t, f.logs.String(), "endpoint mock")
+			assert.Contains(t, f.logs.String(), id.String())
+		})
+	}
+}
+
+func TestUpdateKeepsAMatcherTheStoredMockAlreadyCarries(t *testing.T) {
+	for name, matcher := range refusedMatchers() {
+		t.Run(name, func(t *testing.T) {
+			f := newEndpointMocksFixture()
+			id := uuid.New()
+			legacy := *matcher
+			f.endpointMocks.existing[id] = storedMock(id, mockWithMatcher(&legacy))
+			endpointMock := mockWithMatcher(matcher)
+			endpointMock.ID = id
+
+			updated, err := f.service.Update(context.Background(), endpointMock)
+
+			require.NoError(t, err)
+			require.NotNil(t, updated)
+			assert.Len(t, f.endpointMocks.updated, 1)
+			assert.Contains(t, f.logs.String(), "endpoint mock")
+		})
+	}
+}
+
+// Leniency covers the value that is already stored, and nothing else. Replacing
+// one refused value with another is new input, whichever rule it breaks.
+func TestUpdateRefusesADifferentBadValueThanTheStoredOne(t *testing.T) {
+	spaced, otherSpaced := "X Kind", "Y Kind"
+	cases := map[string]struct{ stored, incoming *dao.EndpointMock }{
+		"another status outside the range": {
+			stored:   mockWithResponse(&dao.ResponseSettings{Status: 70000}),
+			incoming: mockWithResponse(&dao.ResponseSettings{Status: 80000}),
+		},
+		"another header name that is not a field name": {
+			stored: mockWithResponse(&dao.ResponseSettings{Status: 200, Message: &dao.Message{
+				Headers: []*dao.Header{{Name: "X Mocked", Value: "yes"}},
+			}}),
+			incoming: mockWithResponse(&dao.ResponseSettings{Status: 200, Message: &dao.Message{
+				Headers: []*dao.Header{{Name: "Y Mocked", Value: "yes"}},
+			}}),
+		},
+		"another control character in the same header value": {
+			stored: mockWithResponse(&dao.ResponseSettings{Status: 200, Message: &dao.Message{
+				Headers: []*dao.Header{{Name: "X-Mocked", Value: "yes\x00no"}},
+			}}),
+			incoming: mockWithResponse(&dao.ResponseSettings{Status: 200, Message: &dao.Message{
+				Headers: []*dao.Header{{Name: "X-Mocked", Value: "yes\vno"}},
+			}}),
+		},
+		"another entity name outside the grammar": {
+			stored: mockWithMatcher(&dao.Matcher{
+				Name: "m", Type: "empty", EntityType: matching.EntityTypeHeader, EntityName: &spaced,
+			}),
+			incoming: mockWithMatcher(&dao.Matcher{
+				Name: "m", Type: "empty", EntityType: matching.EntityTypeHeader, EntityName: &otherSpaced,
+			}),
+		},
+		"another pattern that is not a regular expression": {
+			stored: mockWithMatcher(&dao.Matcher{
+				Name: "m", Type: "match", EntityType: matching.EntityTypeBody,
+				Parameters: []*dao.MatcherParameter{{Name: "pattern", Value: "("}},
+			}),
+			incoming: mockWithMatcher(&dao.Matcher{
+				Name: "m", Type: "match", EntityType: matching.EntityTypeBody,
+				Parameters: []*dao.MatcherParameter{{Name: "pattern", Value: "["}},
+			}),
+		},
+	}
+	for name, testCase := range cases {
+		t.Run(name, func(t *testing.T) {
+			f := newEndpointMocksFixture()
+			id := uuid.New()
+			f.endpointMocks.existing[id] = storedMock(id, testCase.stored)
+			testCase.incoming.ID = id
+
+			updated, err := f.service.Update(context.Background(), testCase.incoming)
+
+			require.ErrorIs(t, err, ErrInvalidRequest)
+			assert.Nil(t, updated)
+			assert.Empty(t, f.endpointMocks.updated, "nothing is stored for a refused mock")
+		})
+	}
+}
+
+// legacyMock is a mock breaking three rules at once: the row the vendor has to be
+// able to edit, and the one that must not turn into a row accepting anything.
+func legacyMock(id uuid.UUID, status int) *dao.EndpointMock {
+	spaced := "X Kind"
+	return &dao.EndpointMock{
+		ID:   id,
+		Name: "legacy",
+		RequestMatchers: []*dao.Matcher{{
+			Name: "m", Type: "empty", EntityType: matching.EntityTypeHeader, EntityName: &spaced,
+		}},
+		ResponseSettings: &dao.ResponseSettings{Status: status, Message: &dao.Message{
+			Headers: []*dao.Header{{Name: "X Mocked", Value: "yes"}},
+		}},
+	}
+}
+
+func TestUpdateKeepsEveryViolationTheStoredMockCarries(t *testing.T) {
+	f := newEndpointMocksFixture()
+	id := uuid.New()
+	f.endpointMocks.existing[id] = legacyMock(id, 70000)
+
+	updated, err := f.service.Update(context.Background(), legacyMock(id, 70000))
+
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	assert.Len(t, f.endpointMocks.updated, 1)
+}
+
+// A row carrying several legacy values is not a row that accepts any value: each
+// one is tolerated on its own.
+func TestUpdateRefusesANewViolationBesideTheStoredOnes(t *testing.T) {
+	f := newEndpointMocksFixture()
+	id := uuid.New()
+	f.endpointMocks.existing[id] = legacyMock(id, 70000)
+
+	// The matcher and the header stay as they were stored; only the status moves
+	// to a value the stored row never carried.
+	updated, err := f.service.Update(context.Background(), legacyMock(id, 80000))
+
+	require.ErrorIs(t, err, ErrInvalidRequest)
+	assert.Nil(t, updated)
+	assert.Contains(t, err.Error(), "80000")
+	assert.Empty(t, f.endpointMocks.updated)
+}
+
+// The vendor moves its data with the importer, so an archive entry that updates
+// an existing mock is as lenient as the update endpoint, while one that creates a
+// mock stays as strict as the create endpoint.
+func TestImportKeepsAViolationTheStoredMockAlreadyCarries(t *testing.T) {
+	f := newEndpointMocksFixture()
+	id := uuid.New()
+	endpointMock := *mockWithResponse(&dao.ResponseSettings{Status: 70000})
+	endpointMock.ID = id
+	f.endpointMocks.existing[id] = storedMock(id, mockWithResponse(&dao.ResponseSettings{Status: 70000}))
+
+	results, err := f.service.Import(context.Background(),
+		[]*multipart.FileHeader{archiveOf(t, exportedEndpointMock(t, endpointMock))})
+
+	require.NoError(t, err)
+	require.Len(t, *results, 1)
+	assert.Equal(t, model.ImportResultUpdated, (*results)[0].Result)
+	assert.Len(t, f.endpointMocks.updated, 1)
+}

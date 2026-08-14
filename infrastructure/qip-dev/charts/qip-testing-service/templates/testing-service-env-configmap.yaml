@@ -5,10 +5,13 @@ data:
   # here. The execution and pagination settings keep the defaults the service
   # ships with, and retention is left out so that it stays off: without
   # QIP_TESTING_RETENTION_AGE the service keeps every test run.
+  #
+  # QIP_TESTING_PRODUCTION is left out for the same reason. An installation that
+  # names no mode is a production one, and the front end then hides the
+  # operations that are unsafe there; set it to "false" to show them.
   QIP_TESTING_CATALOG_ADDRESS: http://{{ .Release.Name }}-runtime-catalog:8080
   QIP_TESTING_ENGINE_ADDRESS: http://{{ .Release.Name }}-engine:8080
   QIP_TESTING_POSTGRES_SCHEMA: testing_service
-  QIP_TESTING_PRODUCTION: "false"
 kind: ConfigMap
 metadata:
   labels:

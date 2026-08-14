@@ -122,7 +122,7 @@ func (s *endpointMocksService) Create(ctx context.Context, endpointMock *dao.End
 }
 
 func (s *endpointMocksService) doCreate(ctx context.Context, endpointMock *dao.EndpointMock) (*dao.EndpointMock, error) {
-	if err := validateEndpointMock(endpointMock); err != nil {
+	if err := refuse(endpointMockViolations(endpointMock)); err != nil {
 		return nil, err
 	}
 	createdEndpointMock, err := s.repositories.EndpointMocks.Insert(ctx, endpointMock)
@@ -166,15 +166,18 @@ func (s *endpointMocksService) Update(ctx context.Context, endpointMock *dao.End
 }
 
 func (s *endpointMocksService) doUpdate(ctx context.Context, endpointMock *dao.EndpointMock) (*dao.EndpointMock, error) {
-	if err := validateEndpointMock(endpointMock); err != nil {
-		return nil, err
-	}
 	existingEndpointMock, err := s.repositories.EndpointMocks.FindById(ctx, endpointMock.ID, true)
 	if err != nil {
 		return nil, err
 	}
 	if existingEndpointMock == nil {
 		return nil, notFound("endpoint mock %v not found", endpointMock.ID)
+	}
+	// The stored row decides what is tolerated, so it is read before the update
+	// is validated rather than after.
+	if err = tolerateStoredViolations(ctx, s.logger, "endpoint mock", endpointMock.ID,
+		endpointMockViolations(endpointMock), endpointMockViolations(existingEndpointMock)); err != nil {
+		return nil, err
 	}
 
 	if err = s.repositories.EndpointMocks.Update(ctx, endpointMock); err != nil {
@@ -502,47 +505,57 @@ const (
 	maxResponseStatus = 599
 )
 
-// validateEndpointMock refuses a mock the call path could not use: a matcher it
-// cannot build, or a response it cannot answer with. The response checks are
-// about what reaches the wire verbatim — a status outside the range above breaks
-// the status line, a name that is not a field name names no header a client
-// reads, and a control character in a value truncates the header line or splits
-// the response into two.
+// endpointMockViolations lists what a mock carries that the call path could not
+// use: a matcher it cannot build, or a response it cannot answer with. The
+// response checks are about what reaches the wire verbatim — a status outside the
+// range above breaks the status line, a name that is not a field name names no
+// header a client reads, and a control character in a value truncates the header
+// line or splits the response into two.
 //
 // A stored row that predates these checks is degraded rather than refused: an
 // unbuildable matcher is skipped in Call, and the response is repaired in
-// buildResponseExchange and in the controller that writes the headers out.
-func validateEndpointMock(endpointMock *dao.EndpointMock) error {
+// buildResponseExchange and in the controller that writes the headers out. It is
+// also editable, since doUpdate lets a violation the stored row already carries
+// through.
+func endpointMockViolations(endpointMock *dao.EndpointMock) []violation {
 	if endpointMock == nil {
 		return nil
 	}
-	if err := validateMatchers("request matcher", endpointMock.RequestMatchers); err != nil {
-		return err
-	}
-	if endpointMock.ResponseSettings == nil {
-		return nil
-	}
+	violations := matcherViolations("request matcher", endpointMock.RequestMatchers)
 	responseSettings := endpointMock.ResponseSettings
+	if responseSettings == nil {
+		return violations
+	}
 	// Zero is a mock that never named a status, and it answers 200.
 	if responseSettings.Status != 0 && !answerableStatus(responseSettings.Status) {
-		return invalidRequest("response status %v is not between %v and %v",
-			responseSettings.Status, minResponseStatus, maxResponseStatus)
+		violations = append(violations, violation{
+			key: fmt.Sprintf("response status %d", responseSettings.Status),
+			message: fmt.Sprintf("response status %v is not between %v and %v",
+				responseSettings.Status, minResponseStatus, maxResponseStatus),
+		})
 	}
 	if responseSettings.Message == nil {
-		return nil
+		return violations
 	}
 	for _, header := range responseSettings.Message.Headers {
 		if header == nil {
 			continue
 		}
 		if !httpfield.IsName(header.Name) {
-			return invalidRequest("response header name %q is not an HTTP field name", header.Name)
+			violations = append(violations, violation{
+				key:     fmt.Sprintf("response header name %q", header.Name),
+				message: fmt.Sprintf("response header name %q is not an HTTP field name", header.Name),
+			})
+			continue
 		}
 		if !httpfield.IsValue(header.Value) {
-			return invalidRequest("response header %q carries a control character in its value", header.Name)
+			violations = append(violations, violation{
+				key:     fmt.Sprintf("response header %q value %q", header.Name, header.Value),
+				message: fmt.Sprintf("response header %q carries a control character in its value", header.Name),
+			})
 		}
 	}
-	return nil
+	return violations
 }
 
 func answerableStatus(status int) bool {

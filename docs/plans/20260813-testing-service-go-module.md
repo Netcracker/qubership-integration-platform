@@ -101,6 +101,7 @@ today — no speculative extension points:
 | Name | Purpose |
 |---|---|
 | `Config` | flat value struct: catalog and engine addresses, poll interval, worker count, lease duration, retention, pagination limit, production flag. **No DSN** — downstream supplies its own `DB`. |
+| | **Amended by the compatibility remediation:** the production flag is a `*bool`, read through `Config.ProductionMode()`. Nil means production, which a `bool` cannot say. |
 | `Deps` | `DB`, `Logger`, `HTTPClient`, `CurrentUser` |
 | `DB`, `CurrentUserFunc` | aliases so callers can name the types they must implement |
 | `New(Config, Deps) (*Service, error)` | wires repositories, services and controllers |
@@ -448,6 +449,14 @@ it outranked on creation time. The body and the status are the message itself an
 reaches create, update and import through the existing `validateMatchers` path; a row stored before it degrades the way
 a broken matcher already does, skipped in `Call` and recorded as a validation error by the executor.
 
+**Amended by the compatibility remediation.** Degrading on read was not enough: an update revalidates the whole entity,
+so a row stored before the check could be read but no longer saved, and a legacy element made the entity uneditable.
+The checks — this one, the unbuildable matcher, the 100–599 mock response status and the response header name and value
+— now yield keyed `violation` values. Create refuses any of them. Update reads the stored row first and refuses only
+the violations whose key it does not already carry, logging the rest. The key names the offending value, so replacing
+one bad value with a different bad value is a 400, and a row with several legacy values tolerates each on its own.
+Import routes through `doCreate` and `doUpdate`, so a new entity in an archive is strict and an existing one lenient.
+
 Each entity type is held to the grammar its name actually travels under, stated as what a name may be rather than as a
 list of banned characters — three review rounds each banned the one character that round had named, and the next round
 found another:
@@ -601,6 +610,11 @@ whose timestamps are nil; the "Test Case Run ID" column carried the test case id
 the per-error rows appended into the shared field slice, so the second error of a run overwrote the first row's matcher
 columns. Timestamps are now RFC 3339.
 
+**Overturned by the compatibility remediation.** The layout is back to `(*time.Time).String()`, the one the ported
+service wrote. The nil guard and the layout were two independent lines, and only the guard was forced: a downstream
+vendor and a front-end plan read these four CSV exports against the ported layout. The nil guard, the run id in
+column 2 and the per-error rows stand as fixes to real defects.
+
 [deviation] `ResolveTrigger` rejects a nil trigger reference instead of dereferencing it. The column is nullable, and a
 test case saved without a trigger crashed the executor.
 
@@ -646,6 +660,16 @@ of the 43 vendor logging call sites, and a package-level logger cannot take the 
 
 [decision] `ErrorMessage.ServiceName` is the constant `testing-service`. The source read it from the vendor
 configuration loader, which is gone; the field is informational and no caller matches on it.
+
+[decision] The mode controller reads `Config.Production`, a plain `bool` left at its zero value when nothing sets it,
+and the shipped `application.yaml` and the Helm config map both pin it to `false`. **Overturned by the compatibility
+remediation.** The ported service defaulted `production.mode` to **true**, so an unconfigured installation used to be
+told to hide the operations that are unsafe on a live one and was now told the opposite — the port was worse than what
+it replaced. `Config.Production` is a `*bool`; `WithDefaults` resolves nil to `true` the way it fills in a non-positive
+number, `ProductionMode()` resolves it for a `Config` that skipped `WithDefaults`, and neither the shipped file nor the
+config map names the setting any more. Inverting the field into `NonProduction bool` was rejected: it reads as `false`
+in every file that means "hide nothing", which is the same trap one field along. The pointer is a breaking change to
+the public `Config`, which the module can still take before its first release.
 
 [decision] `Mount` registers relative paths — `/test-cases`, not `/api/v1/test-cases`. The host owns the prefix, and the
 binary in Task 13 mounts under `/api/v1`, which is what the nginx rule in Task 16 assumes. The swagger `@Router`
@@ -900,6 +924,13 @@ for the spec — because the nginx rule in Task 16 exposes nothing else. `fibers
 it is registered on and honors `X-Forwarded-Prefix`, so it works behind the proxy as well as directly. **Overturned in
 Task 20:** it does not. The handler is registered with a relative `doc.json` instead; see the finding recorded there.
 
+**Amended by the compatibility remediation.** Moving swagger under the prefix also dropped the ported service's own
+`/v2/api-docs` and `/swagger-ui/*`, and `/api-version` went with them; all three were `permitAll` there, and its direct
+callers still ask for them. The three are restored in `cmd/testing-service` **alongside** `/api/v1/swagger/*`, which
+keeps the route the nginx rule exposes. No routing table in front of the service reaches them, so they serve the
+in-cluster and local-stack callers only, and `Mount` does not register them: they belong to whoever runs the process.
+`TestThePortedSpecRouteServesTheSameDocumentAsSwagger` holds the two spec routes to one document.
+
 [deviation] `github.com/gofiber/swagger v1.1.1` and `github.com/swaggo/swag v1.16.4` join `go.mod`, pulling in
 `swaggo/files/v2`, the `go-openapi` packages and `golang.org/x/tools`; `golang.org/x/crypto` moves from v0.21.0 to
 v0.24.0, and later to v0.31.0. Every module in the resulting graph still declares `go 1.22` or earlier — checked with
@@ -1044,6 +1075,11 @@ naming them there repeats a default the service already ships. The deployment no
 `env` entry with a `configMapKeyRef` is not optional, so a key the config map stopped rendering left the pod in
 `CreateContainerConfigError`. The four settings now come from `Config.WithDefaults` alone, which is the only place they
 are spelled out.
+
+[decision] **Overturned by the compatibility remediation.** `QIP_TESTING_PRODUCTION` went the same way, for the same
+reason and one more: pinning `"false"` there repeated what was then the library default, and after the default was
+restored to `true` it would have kept overriding it. The deployment dropped its reference along with the key, and an
+installation that wants the unsafe operations shown sets the variable itself.
 
 ⚠️ `helm lint` does not resolve `configMapKeyRef` and `secretKeyRef` against the manifests the same render produced, so
 it passes a deployment that can never start. Verify the chart by rendering it and then checking that every

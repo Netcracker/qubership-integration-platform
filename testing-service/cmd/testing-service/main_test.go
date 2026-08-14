@@ -87,7 +87,8 @@ func TestLoadConfigReadsEveryKeyFromTheFile(t *testing.T) {
 	assert.Equal(t, "text", cfg.Log.Format)
 	assert.True(t, cfg.Pprof.Enabled)
 	assert.Equal(t, ":7070", cfg.Pprof.Bind)
-	assert.True(t, cfg.Production)
+	require.NotNil(t, cfg.Production)
+	assert.True(t, *cfg.Production)
 }
 
 func TestLoadConfigKeepsDefaultsForKeysTheFileOmits(t *testing.T) {
@@ -134,7 +135,8 @@ func TestEnvironmentOverridesTheFile(t *testing.T) {
 	assert.Equal(t, 45*time.Second, cfg.Execution.Interval)
 	assert.Equal(t, 9, cfg.Execution.Workers)
 	assert.False(t, cfg.Pprof.Enabled)
-	assert.False(t, cfg.Production)
+	require.NotNil(t, cfg.Production)
+	assert.False(t, *cfg.Production)
 	// Keys the environment left alone keep the value from the file.
 	assert.Equal(t, ":9090", cfg.Server.Bind)
 	assert.Equal(t, "from_file", cfg.Postgres.Schema)
@@ -201,7 +203,7 @@ func TestServiceSettingsCarryTheFileOverAndDefaultTheRest(t *testing.T) {
 	assert.Equal(t, 55, settings.PaginationLimit)
 	assert.Equal(t, 48*time.Hour, settings.RetentionAge)
 	assert.Equal(t, 30*time.Minute, settings.RetentionInterval)
-	assert.True(t, settings.Production)
+	assert.True(t, settings.ProductionMode())
 	assert.True(t, settings.RetentionEnabled())
 }
 
@@ -218,6 +220,7 @@ func TestUnsetSettingsFallBackToTheLibraryDefaults(t *testing.T) {
 	assert.Positive(t, settings.PaginationLimit)
 	// Retention stays off until an age is named.
 	assert.False(t, settings.RetentionEnabled())
+	assert.True(t, settings.ProductionMode(), "an installation that names no mode is a production one")
 }
 
 func TestTheShippedConfigurationIsUsable(t *testing.T) {
@@ -230,6 +233,21 @@ func TestTheShippedConfigurationIsUsable(t *testing.T) {
 	// The DSN carries a password, so the image ships none and run refuses to
 	// start until an installation supplies one.
 	assert.Empty(t, cfg.Postgres.DSN)
+	assert.Nil(t, cfg.Production, "the shipped file names no mode")
+	assert.True(t, cfg.serviceSettings().ProductionMode(), "and an unnamed mode is production")
+}
+
+// The environment is the only place a deployment turns production mode off, so
+// the false it sets has to survive all the way into the settings the library
+// reads.
+func TestTheEnvironmentTurnsProductionModeOff(t *testing.T) {
+	t.Setenv("QIP_TESTING_PRODUCTION", "false")
+
+	cfg, err := loadConfig(filepath.Join("..", "..", "application.yaml"))
+	require.NoError(t, err)
+
+	require.NotNil(t, cfg.Production)
+	assert.False(t, cfg.serviceSettings().WithDefaults().ProductionMode())
 }
 
 func TestTheShippedConfigurationTakesTheDsnFromTheEnvironment(t *testing.T) {
@@ -353,6 +371,69 @@ func TestSwaggerRedirectsToTheIndex(t *testing.T) {
 
 	assert.Equal(t, http.StatusMovedPermanently, resp.StatusCode)
 	assert.Equal(t, "/api/v1/swagger/index.html", resp.Header.Get(fiber.HeaderLocation))
+}
+
+// portedRequest mounts the routes the ported service served outside the API
+// prefix, the way run does, and asks for one of them.
+func portedRequest(t *testing.T, path string) (*http.Response, string) {
+	t.Helper()
+	app := fiber.New(fiber.Config{DisableStartupMessage: true})
+	mountPortedRoutes(app)
+
+	resp, err := app.Test(httptest.NewRequest(http.MethodGet, path, nil))
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	return resp, string(body)
+}
+
+func TestThePortedSpecRouteAnswers(t *testing.T) {
+	resp, body := portedRequest(t, specPath)
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Contains(t, resp.Header.Get(fiber.HeaderContentType), fiber.MIMEApplicationJSON)
+	var spec map[string]any
+	require.NoError(t, json.Unmarshal([]byte(body), &spec))
+	assert.Contains(t, spec, "paths")
+}
+
+// One service, one spec: a consumer reading /v2/api-docs and one reading the
+// swagger UI under the API prefix must not see two different documents.
+func TestThePortedSpecRouteServesTheSameDocumentAsSwagger(t *testing.T) {
+	_, ported := portedRequest(t, specPath)
+	_, underPrefix := swaggerRequest(t, apiPrefix+"/swagger/doc.json")
+
+	var portedSpec, prefixedSpec any
+	require.NoError(t, json.Unmarshal([]byte(ported), &portedSpec))
+	require.NoError(t, json.Unmarshal([]byte(underPrefix), &prefixedSpec))
+	assert.Equal(t, prefixedSpec, portedSpec)
+}
+
+func TestThePortedSwaggerUIAnswers(t *testing.T) {
+	resp, body := portedRequest(t, "/swagger-ui/index.html")
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Contains(t, resp.Header.Get(fiber.HeaderContentType), fiber.MIMETextHTML)
+	// Nothing proxies this route, so the page reads the spec off the absolute
+	// path the ported service pointed it at.
+	assert.Contains(t, body, `"url":"`+specPath+`"`)
+}
+
+func TestThePortedApiVersionRouteAnswers(t *testing.T) {
+	resp, body := portedRequest(t, apiVersionPath)
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Contains(t, resp.Header.Get(fiber.HeaderContentType), fiber.MIMEApplicationJSON)
+	assert.JSONEq(t, `{"specs":[{"specRootUrl":"/api","major":1,"minor":0,"supportedMajors":[1]}]}`, body)
+}
+
+// The swagger route under the API prefix is the one the routing rules expose,
+// and restoring the ported routes must not have moved it.
+func TestSwaggerStaysUnderTheApiPrefix(t *testing.T) {
+	resp, _ := swaggerRequest(t, apiPrefix+"/swagger/index.html")
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 // newServeApp is a listener that answers nothing: the tests below are about the

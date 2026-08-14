@@ -34,8 +34,9 @@ import (
 	"github.com/uptrace/bun/migrate"
 
 	testingservice "github.com/Netcracker/qubership-integration-platform/testing-service"
-	// Registers the generated OpenAPI spec that fiberswagger reads.
-	_ "github.com/Netcracker/qubership-integration-platform/testing-service/docs"
+	// Registers the generated OpenAPI spec that fiberswagger reads, and serves it
+	// on the ported /v2/api-docs route.
+	swaggerdocs "github.com/Netcracker/qubership-integration-platform/testing-service/docs"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/db"
 )
 
@@ -49,6 +50,13 @@ const (
 	// swaggerDocURL is resolved by the browser against the UI page, so the spec
 	// is found under whatever public prefix the request arrived on.
 	swaggerDocURL = "doc.json"
+	// The three routes the ported service served next to its API, all public
+	// there. They sit outside apiPrefix, so no nginx or Kubernetes rule reaches
+	// them; they answer the consumers that call this service directly, in the
+	// cluster or on a local stack.
+	specPath          = "/v2/api-docs"
+	legacySwaggerPath = "/swagger-ui/*"
+	apiVersionPath    = "/api-version"
 	// envPrefix selects the environment variables that override the file.
 	envPrefix       = "QIP_TESTING_"
 	healthTimeout   = 3 * time.Second
@@ -112,7 +120,10 @@ type appConfig struct {
 		Enabled bool   `koanf:"enabled"`
 		Bind    string `koanf:"bind"`
 	} `koanf:"pprof"`
-	Production bool `koanf:"production"`
+	// Production is left unset when the file and the environment name no mode,
+	// and the library reads that as production. Only a pointer keeps that case
+	// apart from an explicit `production: false`.
+	Production *bool `koanf:"production"`
 }
 
 // defaultAppConfig covers only the settings this binary owns. The rest stays
@@ -202,6 +213,45 @@ func newHealthHandler(ping func(context.Context) error) fiber.Handler {
 		}
 		return c.JSON(fiber.Map{"status": "UP"})
 	}
+}
+
+// apiVersionDocument is what GET /api-version answers: the root the API is
+// mounted under, the version it speaks and the majors it still serves. The
+// ported service kept it in api-version-info.json, and its consumers read the
+// same three fields.
+type apiVersionDocument struct {
+	Specs []apiSpecVersion `json:"specs"`
+}
+
+type apiSpecVersion struct {
+	SpecRootURL     string `json:"specRootUrl"`
+	Major           int    `json:"major"`
+	Minor           int    `json:"minor"`
+	SupportedMajors []int  `json:"supportedMajors"`
+}
+
+var apiVersion = apiVersionDocument{Specs: []apiSpecVersion{{
+	SpecRootURL:     "/api",
+	Major:           1,
+	Minor:           0,
+	SupportedMajors: []int{1},
+}}}
+
+// mountPortedRoutes registers the routes the ported service served outside its
+// API prefix, alongside the swagger route this binary mounts under the prefix.
+// They belong to the binary and not to the library: a host mounts the API on a
+// router of its own and owns everything beside it.
+func mountPortedRoutes(app *fiber.App) {
+	app.Get(specPath, func(c *fiber.Ctx) error {
+		return c.Type("json").SendString(swaggerdocs.SwaggerInfo.ReadDoc())
+	})
+	// The absolute spec URL is the one the ported service used, and it is
+	// correct here for the same reason: nothing proxies this route, so the page
+	// and the spec are always siblings on the same host.
+	app.Get(legacySwaggerPath, fiberswagger.New(fiberswagger.Config{URL: specPath}))
+	app.Get(apiVersionPath, func(c *fiber.Ctx) error {
+		return c.JSON(apiVersion)
+	})
 }
 
 // migrationLockKey identifies the advisory lock the migrations are applied
@@ -392,6 +442,7 @@ func run() error {
 	// UI page: the proxy inserts its own segments in the middle of the public
 	// path, so an absolute URL built from the internal route misses the spec.
 	app.Get(swaggerPath, fiberswagger.New(fiberswagger.Config{URL: swaggerDocURL}))
+	mountPortedRoutes(app)
 
 	return serve(ctx, logger, cfg, app, svc.RunExecutor)
 }

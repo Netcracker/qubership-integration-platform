@@ -307,9 +307,13 @@ func optionalUUID(id *uuid.UUID) string {
 	return id.String()
 }
 
+// optionalTime writes a timestamp the way the ported service wrote it, since
+// the exports are read by tooling built against that layout. A run that has not
+// started yet carries no timestamp, and the column stays empty rather than
+// panicking on the nil the ported service dereferenced.
 func optionalTime(t *time.Time) string {
 	if t == nil {
 		return ""
 	}
-	return t.Format(time.RFC3339Nano)
+	return t.String()
 }

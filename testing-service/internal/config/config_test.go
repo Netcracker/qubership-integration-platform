@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
@@ -22,7 +23,20 @@ func TestWithDefaultsFillsAnEmptyConfig(t *testing.T) {
 	assert.Equal(t, DefaultPaginationLimit, got.PaginationLimit)
 	assert.Equal(t, DefaultRetentionInterval, got.RetentionInterval)
 	assert.Zero(t, got.RetentionAge, "a host that named no age has not asked for anything to be deleted")
-	assert.False(t, got.Production)
+	require.NotNil(t, got.Production)
+	assert.True(t, *got.Production)
+}
+
+// The flag hides operations rather than enabling them, so an installation that
+// names no mode is treated as a live one. Only a pointer keeps that case apart
+// from an installation that turned production mode off.
+func TestProductionModeIsOnUnlessItIsTurnedOff(t *testing.T) {
+	off, on := false, true
+
+	assert.True(t, Config{}.WithDefaults().ProductionMode(), "an unset flag means production")
+	assert.False(t, Config{Production: &off}.WithDefaults().ProductionMode(), "an explicit false survives")
+	assert.True(t, Config{Production: &on}.WithDefaults().ProductionMode())
+	assert.True(t, Config{}.ProductionMode(), "the reading holds without WithDefaults")
 }
 
 func TestRetentionIsOffUntilAnAgeIsConfigured(t *testing.T) {
@@ -32,6 +46,7 @@ func TestRetentionIsOffUntilAnAgeIsConfigured(t *testing.T) {
 }
 
 func TestWithDefaultsKeepsSuppliedValues(t *testing.T) {
+	production := true
 	cfg := Config{
 		CatalogAddress:    "http://catalog.test:9000",
 		EngineAddress:     "http://engine.test:9001",
@@ -41,7 +56,7 @@ func TestWithDefaultsKeepsSuppliedValues(t *testing.T) {
 		PaginationLimit:   500,
 		RetentionAge:      30 * 24 * time.Hour,
 		RetentionInterval: 15 * time.Minute,
-		Production:        true,
+		Production:        &production,
 	}
 
 	assert.Equal(t, cfg, cfg.WithDefaults())

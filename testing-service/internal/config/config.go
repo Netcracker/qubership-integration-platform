@@ -22,6 +22,10 @@ const (
 	// DefaultRetentionInterval only paces the sweep. Retention stays off until
 	// RetentionAge is set.
 	DefaultRetentionInterval = time.Hour
+	// DefaultProduction is what an installation that names no mode is treated
+	// as. The flag hides operations rather than enabling them, so the safe
+	// answer for an unconfigured installation is the restrictive one.
+	DefaultProduction = true
 )
 
 // Config carries the settings of the testing service. It holds no DSN: the host
@@ -50,7 +54,13 @@ type Config struct {
 	// Production is reported through GET /mode so the front end can hide the
 	// operations that are unsafe on a live installation. Nothing in the module
 	// refuses a request because of it.
-	Production bool
+	//
+	// It is a pointer because nil has to mean something other than false: an
+	// installation that names no mode is a production one, and only a pointer
+	// tells "unset" from "explicitly false" the way a non-positive number does
+	// for the settings above. Read it through ProductionMode rather than
+	// dereferencing it.
+	Production *bool
 }
 
 // WithDefaults returns a copy of c with every unset field filled in. A
@@ -78,6 +88,10 @@ func (c Config) WithDefaults() Config {
 	if c.RetentionInterval <= 0 {
 		c.RetentionInterval = DefaultRetentionInterval
 	}
+	if c.Production == nil {
+		production := DefaultProduction
+		c.Production = &production
+	}
 	return c
 }
 
@@ -85,6 +99,12 @@ func (c Config) WithDefaults() Config {
 // RetentionAge.
 func (c Config) RetentionEnabled() bool {
 	return c.RetentionAge > 0
+}
+
+// ProductionMode reports what GET /mode answers. It reads an unset flag as
+// production, so it holds whether or not WithDefaults has run.
+func (c Config) ProductionMode() bool {
+	return c.Production == nil || *c.Production
 }
 
 // DB hands out the bun handle that the repositories run their queries on. The

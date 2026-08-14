@@ -89,7 +89,7 @@ func (s *testCasesService) Create(ctx context.Context, testCase *dao.TestCase) (
 }
 
 func (s *testCasesService) doCreate(ctx context.Context, testCase *dao.TestCase) (*dao.TestCase, error) {
-	if err := validateTestCase(testCase); err != nil {
+	if err := refuse(testCaseViolations(testCase)); err != nil {
 		return nil, err
 	}
 	createdTestCase, err := s.repositories.TestCases.Insert(ctx, testCase)
@@ -133,15 +133,18 @@ func (s *testCasesService) Update(ctx context.Context, testCase *dao.TestCase) (
 }
 
 func (s *testCasesService) doUpdate(ctx context.Context, testCase *dao.TestCase) (*dao.TestCase, error) {
-	if err := validateTestCase(testCase); err != nil {
-		return nil, err
-	}
 	existingTestCase, err := s.repositories.TestCases.FindById(ctx, testCase.ID, true)
 	if err != nil {
 		return nil, err
 	}
 	if existingTestCase == nil {
 		return nil, notFound("test case %v not found", testCase.ID)
+	}
+	// The stored row decides what is tolerated, so it is read before the update
+	// is validated rather than after.
+	if err = tolerateStoredViolations(ctx, s.logger, "test case", testCase.ID,
+		testCaseViolations(testCase), testCaseViolations(&existingTestCase.TestCase)); err != nil {
+		return nil, err
 	}
 
 	if err = s.repositories.TestCases.Update(ctx, testCase); err != nil {
@@ -173,16 +176,16 @@ func (s *testCasesService) doUpdate(ctx context.Context, testCase *dao.TestCase)
 	return testCase, nil
 }
 
-// validateTestCase refuses a test case the executor could not evaluate as
-// written. A response validation rule is built exactly like the request matcher
-// of an endpoint mock, so an unbuildable one is a 400 at save time here too.
-// Left to the run, it would be recorded against every attempt as a validation
-// error that says nothing about the case that produced it.
-func validateTestCase(testCase *dao.TestCase) error {
+// testCaseViolations lists what a test case carries that the executor could not
+// evaluate as written. A response validation rule is built exactly like the
+// request matcher of an endpoint mock, so an unbuildable one is a 400 at save
+// time here too. Left to the run, it would be recorded against every attempt as a
+// validation error that says nothing about the case that produced it.
+func testCaseViolations(testCase *dao.TestCase) []violation {
 	if testCase == nil {
 		return nil
 	}
-	return validateMatchers("response validation rule", testCase.ResponseValidationRules)
+	return matcherViolations("response validation rule", testCase.ResponseValidationRules)
 }
 
 func (s *testCasesService) updateTriggerReference(
