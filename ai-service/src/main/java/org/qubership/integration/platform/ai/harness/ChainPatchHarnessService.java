@@ -13,6 +13,7 @@ import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchCapture;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchOwnership;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchPipeline;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchSemanticValidator;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchWriteResult;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchWriter;
@@ -44,6 +45,7 @@ public class ChainPatchHarnessService {
   private final ChainPatchStore patchStore;
   private final ChainPatchOwnership ownership;
   private final ValidatedGraphPatchApplier patchApplier;
+  private final ChainPatchSemanticValidator semanticValidator;
   private final ChainPatchWriter writer;
   private final ObjectMapper objectMapper;
 
@@ -55,6 +57,7 @@ public class ChainPatchHarnessService {
       ChainPatchStore patchStore,
       ChainPatchOwnership ownership,
       ValidatedGraphPatchApplier patchApplier,
+      ChainPatchSemanticValidator semanticValidator,
       ChainPatchWriter writer,
       ObjectMapper objectMapper) {
     this.factsService = factsService;
@@ -63,6 +66,7 @@ public class ChainPatchHarnessService {
     this.patchStore = patchStore;
     this.ownership = ownership;
     this.patchApplier = patchApplier;
+    this.semanticValidator = semanticValidator;
     this.writer = writer;
     this.objectMapper = objectMapper;
   }
@@ -75,7 +79,7 @@ public class ChainPatchHarnessService {
     } catch (RuntimeException e) {
       LOG.errorf(
           e, "Chain patch harness run failed conversationId=%s chainId=%s", conversationId, chainId);
-      return failed(conversationId, failureMessage(e), false);
+      return failed(conversationId, failureMessage(e), ChainPatchRefusal.WRITE);
     }
   }
 
@@ -107,13 +111,17 @@ public class ChainPatchHarnessService {
     Optional<ChainPatchCapture> captured = patchStore.takeCapture(conversationId);
     if (captured.isEmpty()) {
       String said = String.join("", tokens);
-      return failed(conversationId, said.isBlank() ? "No patch proposed." : said, false);
+      return failed(
+          conversationId, said.isBlank() ? "No patch proposed." : said, ChainPatchRefusal.NONE);
     }
 
     GraphPatch patch = ChainPatchPipeline.toGraphPatch(captured.get());
     List<String> shapeErrors = GraphPatchShapeValidator.validate(patch);
     if (!shapeErrors.isEmpty()) {
-      return failed(conversationId, GraphPatchShapeValidator.summarize(shapeErrors), false);
+      return failed(
+          conversationId,
+          GraphPatchShapeValidator.summarize(shapeErrors),
+          ChainPatchRefusal.STRUCTURAL);
     }
 
     GraphPatchApplyResult applied =
@@ -126,7 +134,19 @@ public class ChainPatchHarnessService {
           ownershipViolation
               ? "Outside what this skill may edit: " + summary
               : "The change could not be applied: " + summary;
-      return failed(conversationId, message, ownershipViolation);
+      return failed(
+          conversationId,
+          message,
+          ownershipViolation ? ChainPatchRefusal.OWNERSHIP : ChainPatchRefusal.STRUCTURAL);
+    }
+
+    List<String> introduced =
+        semanticValidator.introducedProblems(imported.graph(), applied.graph(), patch);
+    if (!introduced.isEmpty()) {
+      return failed(
+          conversationId,
+          "The change would leave the chain broken: " + String.join("; ", introduced),
+          ChainPatchRefusal.SEMANTIC);
     }
 
     PatchedChain patched = new PatchedChain(applied.graph(), imported.materializationMap());
@@ -139,19 +159,24 @@ public class ChainPatchHarnessService {
           conversationId,
           SkillHarnessStatus.COMPLETED,
           "Changed " + changedElementIds.size() + " element(s).",
-          false,
+          ChainPatchRefusal.NONE,
           changedElementIds,
           failedElementIds);
     }
     String message = result.error() != null ? result.error() : "Some elements could not be changed.";
     return new ChainPatchHarnessResponse(
-        conversationId, SkillHarnessStatus.FAILED, message, false, changedElementIds, failedElementIds);
+        conversationId,
+        SkillHarnessStatus.FAILED,
+        message,
+        ChainPatchRefusal.WRITE,
+        changedElementIds,
+        failedElementIds);
   }
 
   private static ChainPatchHarnessResponse failed(
-      String conversationId, String message, boolean scopeViolation) {
+      String conversationId, String message, ChainPatchRefusal refusal) {
     return new ChainPatchHarnessResponse(
-        conversationId, SkillHarnessStatus.FAILED, message, scopeViolation, List.of(), List.of());
+        conversationId, SkillHarnessStatus.FAILED, message, refusal, List.of(), List.of());
   }
 
   private static String resolveConversationId(String conversationId) {

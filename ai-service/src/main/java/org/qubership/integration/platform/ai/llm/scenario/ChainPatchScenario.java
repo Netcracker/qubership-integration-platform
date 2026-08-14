@@ -13,6 +13,7 @@ import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchCapture;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchOwnership;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchPipeline;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchSemanticValidator;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchSummary;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchWriteResult;
@@ -55,6 +56,7 @@ public class ChainPatchScenario implements ScenarioHandler {
   private final ChainPatchStore patchStore;
   private final ChainPatchOwnership ownership;
   private final ValidatedGraphPatchApplier patchApplier;
+  private final ChainPatchSemanticValidator semanticValidator;
   private final ChainPatchWriter writer;
   private final CanonicalGraphDigest canonicalGraphDigest;
   private final ObjectMapper objectMapper;
@@ -68,6 +70,7 @@ public class ChainPatchScenario implements ScenarioHandler {
       ChainPatchStore patchStore,
       ChainPatchOwnership ownership,
       ValidatedGraphPatchApplier patchApplier,
+      ChainPatchSemanticValidator semanticValidator,
       ChainPatchWriter writer,
       CanonicalGraphDigest canonicalGraphDigest,
       ObjectMapper objectMapper) {
@@ -78,6 +81,7 @@ public class ChainPatchScenario implements ScenarioHandler {
     this.patchStore = Objects.requireNonNull(patchStore);
     this.ownership = Objects.requireNonNull(ownership);
     this.patchApplier = Objects.requireNonNull(patchApplier);
+    this.semanticValidator = Objects.requireNonNull(semanticValidator);
     this.writer = Objects.requireNonNull(writer);
     this.canonicalGraphDigest = Objects.requireNonNull(canonicalGraphDigest);
     this.objectMapper = Objects.requireNonNull(objectMapper);
@@ -160,6 +164,15 @@ public class ChainPatchScenario implements ScenarioHandler {
           ChainPatchPipeline.isOwnershipViolation(applied)
               ? "That change is outside what I may edit here: " + summary
               : "The change could not be applied: " + summary);
+    }
+
+    // Asked before the card, not after it: a card for a change already known to be refused costs
+    // the reader an answer that can only be thrown away.
+    List<String> introduced =
+        semanticValidator.introducedProblems(imported.graph(), applied.graph(), patch);
+    if (!introduced.isEmpty()) {
+      return message(
+          "That change would leave the chain broken: " + String.join("; ", introduced));
     }
 
     PatchedChain patched = new PatchedChain(applied.graph(), imported.materializationMap());

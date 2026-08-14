@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessRequest;
+import org.qubership.integration.platform.ai.harness.ChainPatchRefusal;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessResponse;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessService;
 import org.qubership.integration.platform.ai.harness.SkillHarnessRequest;
@@ -108,7 +109,7 @@ class SkillHarnessResourceTest {
                 CONVERSATION_ID,
                 SkillHarnessStatus.COMPLETED,
                 "Changed 1 element(s).",
-                false,
+                ChainPatchRefusal.NONE,
                 List.of("element-script"),
                 List.of()));
 

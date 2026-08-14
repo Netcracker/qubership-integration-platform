@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchCapture;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchOwnership;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchSemanticValidator;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchWriteResult;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchWriter;
@@ -46,6 +49,7 @@ class ChainPatchHarnessServiceTest {
   private ChainCatalogFactsService factsService;
   private ChainPatchAgent agent;
   private ChainPatchOwnership ownership;
+  private ChainPatchSemanticValidator semanticValidator;
   private ChainPatchWriter writer;
   private ChainPatchStore patchStore;
   private ChainPatchHarnessService service;
@@ -67,6 +71,9 @@ class ChainPatchHarnessServiceTest {
                 true, true, Set.of("script", "http-trigger"), Set.of(),
                 Map.of("script", Set.of("script"), "http-trigger", Set.of())));
 
+    semanticValidator = mock(ChainPatchSemanticValidator.class);
+    when(semanticValidator.introducedProblems(any(), any(), any())).thenReturn(List.of());
+
     service =
         new ChainPatchHarnessService(
             factsService,
@@ -75,6 +82,7 @@ class ChainPatchHarnessServiceTest {
             patchStore,
             ownership,
             new ValidatedGraphPatchApplier(new GraphPatchOwnershipValidator(), new GraphPatchApplier()),
+            semanticValidator,
             writer,
             objectMapper);
   }
@@ -156,6 +164,21 @@ class ChainPatchHarnessServiceTest {
     assertEquals(SkillHarnessStatus.FAILED, response.status());
     assertTrue(!response.scopeViolation());
     assertTrue(response.message().contains("could not be applied"), response.message());
+  }
+
+  @Test
+  void refusesAPatchThatWouldBreakTheChainWithoutWritingAnything() {
+    captures(propertyPatch("element-script", "script", "return 201"));
+    when(semanticValidator.introducedProblems(any(), any(), any()))
+        .thenReturn(List.of("VR-G-004: element 'element-script' is unreachable"));
+
+    ChainPatchHarnessResponse response = service.run(request("fix the script"));
+
+    assertEquals(SkillHarnessStatus.FAILED, response.status());
+    assertEquals(ChainPatchRefusal.SEMANTIC, response.refusal());
+    assertTrue(!response.scopeViolation());
+    assertTrue(response.message().contains("unreachable"), response.message());
+    verify(writer, never()).write(any(), any());
   }
 
   @Test

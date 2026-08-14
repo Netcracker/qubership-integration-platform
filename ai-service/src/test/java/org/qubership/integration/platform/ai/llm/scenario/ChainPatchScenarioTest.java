@@ -23,6 +23,7 @@ import org.mockito.stubbing.Answer;
 import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchCapture;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchOwnership;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchSemanticValidator;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchWriteResult;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchWriter;
@@ -53,6 +54,7 @@ class ChainPatchScenarioTest {
   private ChainCatalogFactsService factsService;
   private ChainPatchAgent agent;
   private ChainPatchOwnership ownership;
+  private ChainPatchSemanticValidator semanticValidator;
   private ChainPatchWriter writer;
   private ChainPatchStore patchStore;
   private ChainPatchScenario scenario;
@@ -77,6 +79,8 @@ class ChainPatchScenarioTest {
                 false, false, Set.of(), Set.of(), Map.of("script", Set.of("script"))));
     when(writer.write(any(), any()))
         .thenReturn(new ChainPatchWriteResult(List.of("element-script"), List.of(), null, null));
+    semanticValidator = mock(ChainPatchSemanticValidator.class);
+    when(semanticValidator.introducedProblems(any(), any(), any())).thenReturn(List.of());
 
     scenario =
         new ChainPatchScenario(
@@ -88,6 +92,7 @@ class ChainPatchScenarioTest {
             ownership,
             new ValidatedGraphPatchApplier(
                 new GraphPatchOwnershipValidator(), new GraphPatchApplier()),
+            semanticValidator,
             writer,
             new CanonicalGraphDigest(objectMapper),
             objectMapper);
@@ -211,6 +216,24 @@ class ChainPatchScenarioTest {
 
     assertTrue(text(events).contains("could not be applied"), text(events));
     assertTrue(!text(events).contains("outside what I may edit"), text(events));
+    verify(writer, never()).write(any(), any());
+    assertTrue(
+        events.stream().noneMatch(ChatEvent.Decision.class::isInstance), "no card should be offered");
+  }
+
+  @Test
+  void refusesAPatchThatWouldBreakTheChainAndOffersNoCard() {
+    captures(propertyPatch("element-script", "script", "return 201"));
+    when(semanticValidator.introducedProblems(any(), any(), any()))
+        .thenReturn(List.of("VR-G-004: element 'element-script' is unreachable"));
+
+    List<ChatEvent> events = run(request("fix the script in Normalize payload"));
+
+    assertTrue(text(events).contains("would leave the chain broken"), text(events));
+    assertTrue(text(events).contains("unreachable"), text(events));
+    // Distinct from both the ownership refusal and the structural one.
+    assertTrue(!text(events).contains("outside what I may edit"), text(events));
+    assertTrue(!text(events).contains("could not be applied"), text(events));
     verify(writer, never()).write(any(), any());
     assertTrue(
         events.stream().noneMatch(ChatEvent.Decision.class::isInstance), "no card should be offered");
