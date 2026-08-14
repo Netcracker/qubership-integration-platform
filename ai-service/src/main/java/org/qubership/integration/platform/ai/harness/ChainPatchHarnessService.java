@@ -120,8 +120,13 @@ public class ChainPatchHarnessService {
         patchApplier.apply(
             ChainPatchPipeline.executionContext(imported, chainId, patch, ownership), patch);
     if (!applied.applied()) {
-      return failed(
-          conversationId, "Outside what this skill may edit: " + applied.validationResult().summary(), true);
+      String summary = applied.validationResult().summary();
+      boolean ownershipViolation = ChainPatchPipeline.isOwnershipViolation(applied);
+      String message =
+          ownershipViolation
+              ? "Outside what this skill may edit: " + summary
+              : "The change could not be applied: " + summary;
+      return failed(conversationId, message, ownershipViolation);
     }
 
     PatchedChain patched = new PatchedChain(applied.graph(), imported.materializationMap());

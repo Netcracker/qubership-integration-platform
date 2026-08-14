@@ -196,6 +196,27 @@ class ChainPatchScenarioTest {
   }
 
   @Test
+  void refusesAStructurallyBrokenPatchWithoutCallingItAnOwnershipProblem() {
+    when(ownership.forChain(any(), any()))
+        .thenReturn(
+            new GraphPatchOwnershipPolicy(
+                true,
+                true,
+                Set.of("script", "http-trigger"),
+                Set.of(),
+                Map.of("script", Set.of("script"), "http-trigger", Set.of())));
+    capturesStructuralEdgeWithoutAnEdgeId();
+
+    List<ChatEvent> events = run(request("add an enrichment step after the trigger"));
+
+    assertTrue(text(events).contains("could not be applied"), text(events));
+    assertTrue(!text(events).contains("outside what I may edit"), text(events));
+    verify(writer, never()).write(any(), any());
+    assertTrue(
+        events.stream().noneMatch(ChatEvent.Decision.class::isInstance), "no card should be offered");
+  }
+
+  @Test
   void listsTheElementsAndConnectionsItWouldAddOnTheCard() {
     when(ownership.forChain(any(), any()))
         .thenReturn(
@@ -296,6 +317,39 @@ class ChainPatchScenarioTest {
               "patch-1", List.of(), List.of(), List.of(propertyPatch), "keeps the customer id"));
       return Multi.createFrom().empty();
     };
+  }
+
+  /** Ownership passes (both node and edge adds are owned); GraphPatchApplier's own edge-id
+   * check is what refuses this one, exercising the non-ownership branch of a failed apply. */
+  private void capturesStructuralEdgeWithoutAnEdgeId() {
+    when(agent.chat(eq(CONVERSATION_ID), any()))
+        .thenAnswer(
+            invocation -> {
+              patchStore.putCapture(
+                  CONVERSATION_ID,
+                  new ChainPatchCapture(
+                      "patch-3",
+                      List.of(
+                          new org.qubership.integration.platform.ai.qipknowledge.patch.NodePatch(
+                              GraphPatchOperation.ADD,
+                              new org.qubership.integration.platform.ai.plan.model.ChainPlanNode(
+                                  "node-new-script",
+                                  "script",
+                                  "Enrich payload",
+                                  null,
+                                  null,
+                                  List.of(new PlanProperty("script", "return 42"))),
+                              null)),
+                      List.of(
+                          new org.qubership.integration.platform.ai.qipknowledge.patch.EdgePatch(
+                              GraphPatchOperation.ADD,
+                              new org.qubership.integration.platform.ai.plan.model.ChainPlanEdge(
+                                  null, "element-trigger", "node-new-script", null),
+                              null)),
+                      List.of(),
+                      "adds an enrichment step"));
+              return Multi.createFrom().empty();
+            });
   }
 
   private void capturesStructural() {

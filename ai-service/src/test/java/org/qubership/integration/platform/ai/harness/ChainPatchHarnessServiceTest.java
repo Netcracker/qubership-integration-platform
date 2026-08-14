@@ -146,6 +146,19 @@ class ChainPatchHarnessServiceTest {
   }
 
   @Test
+  void flagsAStructurallyBrokenPatchAsAnOrdinaryFailureNotAScopeViolation() {
+    // Default ownership from setUp() already allows adding a script node and an edge; the missing
+    // edge id is what GraphPatchApplier itself refuses, after ownership has already passed.
+    capturesStructuralEdgeWithoutAnEdgeId();
+
+    ChainPatchHarnessResponse response = service.run(request("add an enrichment step"));
+
+    assertEquals(SkillHarnessStatus.FAILED, response.status());
+    assertTrue(!response.scopeViolation());
+    assertTrue(response.message().contains("could not be applied"), response.message());
+  }
+
+  @Test
   void reportsAPartialWriteFailureWithoutScopeViolation() {
     captures(propertyPatch("element-script", "script", "return 201"));
     when(writer.write(any(), any()))
@@ -209,6 +222,36 @@ class ChainPatchHarnessServiceTest {
                           new EdgePatch(
                               GraphPatchOperation.ADD,
                               new ChainPlanEdge("edge-new", "element-trigger", "node-new-script", null),
+                              null)),
+                      List.of(),
+                      "adds an enrichment step"));
+              return Multi.createFrom().<String>empty();
+            });
+  }
+
+  private void capturesStructuralEdgeWithoutAnEdgeId() {
+    when(agent.chat(eq(CONVERSATION_ID), any()))
+        .thenAnswer(
+            invocation -> {
+              patchStore.putCapture(
+                  CONVERSATION_ID,
+                  new ChainPatchCapture(
+                      "patch-3",
+                      List.of(
+                          new NodePatch(
+                              GraphPatchOperation.ADD,
+                              new ChainPlanNode(
+                                  "node-new-script",
+                                  "script",
+                                  "Enrich payload",
+                                  null,
+                                  null,
+                                  List.of(new PlanProperty("script", "return 42"))),
+                              null)),
+                      List.of(
+                          new EdgePatch(
+                              GraphPatchOperation.ADD,
+                              new ChainPlanEdge(null, "element-trigger", "node-new-script", null),
                               null)),
                       List.of(),
                       "adds an enrichment step"));

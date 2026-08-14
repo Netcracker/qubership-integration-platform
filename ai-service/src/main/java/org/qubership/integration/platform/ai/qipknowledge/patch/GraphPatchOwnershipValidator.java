@@ -19,6 +19,10 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationS
 @ApplicationScoped
 public class GraphPatchOwnershipValidator {
 
+  /** {@link ValidationIssue#issueId()} this validator raises -- distinct from a structural block a
+   * later stage (e.g. {@link GraphPatchApplier}) may also refuse a patch for. */
+  public static final String OWNERSHIP_VIOLATION_ISSUE_ID = "ownership-violation";
+
   public ValidationResult validate(GraphPatchExecutionContext context, GraphPatch patch) {
     if (context == null) {
       return invalid("Graph patch execution context is required");
@@ -397,7 +401,7 @@ public class GraphPatchOwnershipValidator {
     String summary = Objects.requireNonNullElse(message, "Ownership validation failed");
     ValidationIssue issue =
         new ValidationIssue(
-            "ownership-violation",
+            OWNERSHIP_VIOLATION_ISSUE_ID,
             ValidationSeverity.BLOCKER,
             summary,
             "graph-patch-ownership-validator",

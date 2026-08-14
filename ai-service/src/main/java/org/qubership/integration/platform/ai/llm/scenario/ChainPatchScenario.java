@@ -155,7 +155,11 @@ public class ChainPatchScenario implements ScenarioHandler {
         patchApplier.apply(
             ChainPatchPipeline.executionContext(imported, chainId, patch, ownership), patch);
     if (!applied.applied()) {
-      return message("That change is outside what I may edit here: " + applied.validationResult().summary());
+      String summary = applied.validationResult().summary();
+      return message(
+          ChainPatchPipeline.isOwnershipViolation(applied)
+              ? "That change is outside what I may edit here: " + summary
+              : "The change could not be applied: " + summary);
     }
 
     PatchedChain patched = new PatchedChain(applied.graph(), imported.materializationMap());
