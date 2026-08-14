@@ -37,6 +37,33 @@ class ChainCatalogFactsServiceTest {
   }
 
   @Test
+  void flattenElementsCountsAnElementOnceWhenTheCatalogListsItTwice() {
+    // GET /v1/chains/{id}/elements returns every element at the top level AND repeats the nested
+    // ones inside their container's children array. Counting an element twice puts two nodes with
+    // the same id in the imported graph, and a patch then writes that element twice -- the second
+    // write carrying the stale copy's values, silently undoing the first.
+    CatalogElementResponseDto nested = new CatalogElementResponseDto();
+    nested.id = "el-catch";
+    nested.name = "Catch";
+    nested.type = "catch-2";
+    nested.parentElementId = "el-tcf";
+    nested.properties = Map.of("priority", 1);
+
+    CatalogElementResponseDto container = new CatalogElementResponseDto();
+    container.id = "el-tcf";
+    container.name = "Handle failures";
+    container.type = "try-catch-finally-2";
+    container.children = List.of(nested);
+
+    List<ChainCatalogElement> flat =
+        ChainCatalogFactsService.flattenElements(List.of(container, nested));
+
+    assertEquals(2, flat.size());
+    assertEquals(
+        1, flat.stream().filter(element -> "el-catch".equals(element.elementId())).count());
+  }
+
+  @Test
   void flattenElementsRetainsAllNormalizedProperties() {
     CatalogElementResponseDto root = new CatalogElementResponseDto();
     root.id = "el-http";

@@ -3,9 +3,11 @@ package org.qubership.integration.platform.ai.chain.presentation;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogDependencyDto;
@@ -83,25 +85,37 @@ public class ChainCatalogFactsService {
     return sb.toString();
   }
 
+  /**
+   * Flattens the catalog's element tree, keeping each element once.
+   *
+   * <p>The catalog lists a nested element twice: once among the top-level entries and again inside
+   * its container's {@code children}. Keeping both puts two nodes with the same id in an imported
+   * graph, and a patch then writes that element twice -- the second write carrying the stale
+   * copy's values, silently undoing the first.
+   */
   static List<ChainCatalogElement> flattenElements(List<CatalogElementResponseDto> roots) {
     List<ChainCatalogElement> flat = new ArrayList<>();
     if (roots == null) {
       return flat;
     }
+    Set<String> seenElementIds = new HashSet<>();
     for (CatalogElementResponseDto root : roots) {
-      flattenElement(root, flat);
+      flattenElement(root, flat, seenElementIds);
     }
     return List.copyOf(flat);
   }
 
-  private static void flattenElement(CatalogElementResponseDto element, List<ChainCatalogElement> flat) {
-    if (element == null || element.id == null) {
+  private static void flattenElement(
+      CatalogElementResponseDto element,
+      List<ChainCatalogElement> flat,
+      Set<String> seenElementIds) {
+    if (element == null || element.id == null || !seenElementIds.add(element.id)) {
       return;
     }
     flat.add(toCatalogElement(element));
     if (element.children != null) {
       for (CatalogElementResponseDto child : element.children) {
-        flattenElement(child, flat);
+        flattenElement(child, flat, seenElementIds);
       }
     }
   }
