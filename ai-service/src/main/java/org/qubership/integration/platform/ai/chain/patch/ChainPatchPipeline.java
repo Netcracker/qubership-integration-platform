@@ -37,6 +37,15 @@ public final class ChainPatchPipeline {
 
   public static GraphPatchExecutionContext executionContext(
       ImportedChainPlan imported, String chainId, GraphPatch patch, ChainPatchOwnership ownership) {
+    return executionContext(imported, chainId, patch, ownership, false);
+  }
+
+  public static GraphPatchExecutionContext executionContext(
+      ImportedChainPlan imported,
+      String chainId,
+      GraphPatch patch,
+      ChainPatchOwnership ownership,
+      boolean mayRemove) {
     return new GraphPatchExecutionContext(
         chainId,
         OWNER,
@@ -47,7 +56,7 @@ public final class ChainPatchPipeline {
         null,
         List.of(),
         imported.graph(),
-        ownership.forChain(imported.graph(), patch),
+        ownership.forChain(imported.graph(), patch, mayRemove),
         null);
   }
 

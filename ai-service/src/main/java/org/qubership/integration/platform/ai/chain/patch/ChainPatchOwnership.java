@@ -19,7 +19,8 @@ import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaSe
  * <p>Derived from the chain and the change proposed against it rather than pinned. A property is
  * owned when the element schema accepts it on that element's type — the same source the properties
  * materializer uses to decide what it will write — and an element type is owned when the catalog has
- * a schema for it at all. Elements and connections may be added; removal and renaming are refused by
+ * a schema for it at all. Elements and connections may be added, and removed when the caller asks
+ * for it. Renaming an existing element, and removing a property or a chain field, stay refused by
  * the validator whatever this policy says.
  */
 @ApplicationScoped
@@ -32,7 +33,17 @@ public class ChainPatchOwnership {
     this.schemaService = Objects.requireNonNull(schemaService, "schemaService");
   }
 
+  /** Additive policy: what a patch may add and reconfigure, with removal off. */
   public GraphPatchOwnershipPolicy forChain(ChainPlanGraph graph, GraphPatch patch) {
+    return forChain(graph, patch, false);
+  }
+
+  /**
+   * @param mayRemove whether this caller may delete. Off unless the caller says otherwise: deletion
+   *     is the one thing here nothing downstream can take back.
+   */
+  public GraphPatchOwnershipPolicy forChain(
+      ChainPlanGraph graph, GraphPatch patch, boolean mayRemove) {
     Objects.requireNonNull(graph, "graph");
     Map<String, Set<String>> properties = new LinkedHashMap<>();
     for (ChainPlanNode node : graph.nodes()) {
@@ -49,7 +60,7 @@ public class ChainPatchOwnership {
       }
     }
     return new GraphPatchOwnershipPolicy(
-        true, true, Set.copyOf(properties.keySet()), Set.of(), properties);
+        true, true, mayRemove, mayRemove, Set.copyOf(properties.keySet()), Set.of(), properties);
   }
 
   private void addType(Map<String, Set<String>> properties, String type) {

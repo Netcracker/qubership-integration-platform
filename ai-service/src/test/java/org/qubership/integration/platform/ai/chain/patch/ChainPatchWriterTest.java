@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -18,6 +19,7 @@ import org.qubership.integration.platform.ai.integration.catalog.materialize.Cha
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer.ConnectionsApplyResult;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer.PropertiesApplyResult;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanRemovalsMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanSkeletonMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
@@ -36,6 +38,7 @@ class ChainPatchWriterTest {
   private ChainPlanPropertiesMaterializer propertiesMaterializer;
   private ChainPlanSkeletonMaterializer skeletonMaterializer;
   private ChainPlanConnectionsMaterializer connectionsMaterializer;
+  private ChainPlanRemovalsMaterializer removalsMaterializer;
   private ChainPatchWriter writer;
 
   @BeforeEach
@@ -47,9 +50,18 @@ class ChainPatchWriterTest {
         .thenReturn(new PropertiesApplyResult(1, List.of(), null));
     when(connectionsMaterializer.apply(any(), any()))
         .thenReturn(new ConnectionsApplyResult(1, List.of()));
+    removalsMaterializer = mock(ChainPlanRemovalsMaterializer.class);
+    lenient()
+        .when(removalsMaterializer.apply(any(), any(), any(), any()))
+        .thenReturn(
+            new ChainPlanRemovalsMaterializer.RemovalsApplyResult(
+                List.of(), List.of(), List.of(), List.of(), null));
     writer =
         new ChainPatchWriter(
-            propertiesMaterializer, skeletonMaterializer, connectionsMaterializer);
+            propertiesMaterializer,
+            skeletonMaterializer,
+            connectionsMaterializer,
+            removalsMaterializer);
   }
 
   @Test
@@ -229,6 +241,59 @@ class ChainPatchWriterTest {
     assertTrue(result.succeeded());
   }
 
+  @Test
+  void removesWhatThePatchRemoves() {
+    PatchedChain patched =
+        new PatchedChain(patchedChain().graph(), withoutScript(), patchedChain().materializationMap());
+
+    ChainPatchWriteResult result = writer.write(patched, removeScriptPatch());
+
+    ArgumentCaptor<java.util.Set<String>> nodeIds = ArgumentCaptor.forClass(java.util.Set.class);
+    verify(removalsMaterializer).apply(any(), nodeIds.capture(), any(), any());
+    assertEquals(java.util.Set.of("element-script"), nodeIds.getValue());
+    assertTrue(result.succeeded());
+  }
+
+  @Test
+  void removesOnlyAfterEverythingElseHasBeenWritten() {
+    // Removal is the one step nothing can take back, so it must come after every step that can.
+    // A patch that both reconfigures and removes puts the two in the same write to be ordered.
+    PatchedChain patched =
+        new PatchedChain(patchedChain().graph(), patchedChain().graph(), patchedChain().materializationMap());
+
+    writer.write(patched, removeAndReconfigurePatch());
+
+    org.mockito.InOrder order = org.mockito.Mockito.inOrder(propertiesMaterializer, removalsMaterializer);
+    order.verify(propertiesMaterializer).apply(any(), any());
+    order.verify(removalsMaterializer).apply(any(), any(), any(), any());
+  }
+
+  @Test
+  void doesNotRemoveWhenAnEarlierPhaseFailed() {
+    when(propertiesMaterializer.apply(any(), any()))
+        .thenReturn(new PropertiesApplyResult(0, List.of("element-script"), "schema said no"));
+    PatchedChain patched =
+        new PatchedChain(patchedChain().graph(), patchedChain().graph(), patchedChain().materializationMap());
+
+    writer.write(patched, removeAndReconfigurePatch());
+
+    verify(removalsMaterializer, org.mockito.Mockito.never()).apply(any(), any(), any(), any());
+  }
+
+  @Test
+  void reportsWhatTheRemovalActuallyTook() {
+    when(removalsMaterializer.apply(any(), any(), any(), any()))
+        .thenReturn(
+            new ChainPlanRemovalsMaterializer.RemovalsApplyResult(
+                List.of("element-script", "cascaded-child"), List.of("dep-1"), List.of(), List.of(), null));
+    PatchedChain patched =
+        new PatchedChain(patchedChain().graph(), withoutScript(), patchedChain().materializationMap());
+
+    ChainPatchWriteResult result = writer.write(patched, removeScriptPatch());
+
+    assertEquals(List.of("element-script", "cascaded-child"), result.removedElementIds());
+  }
+
   private ChainPlanGraph capturedGraph() {
     ArgumentCaptor<ChainPlanGraph> graph = ArgumentCaptor.forClass(ChainPlanGraph.class);
     verify(propertiesMaterializer).apply(graph.capture(), any());
@@ -310,6 +375,39 @@ class ChainPatchWriterTest {
         null,
         List.of(),
         "adds an enrichment step");
+  }
+
+  /** The chain after the script element was removed from it. */
+  private static ChainPlanGraph withoutScript() {
+    ChainPlanGraph base = patchedChain().graph();
+    return new ChainPlanGraph(
+        base.schemaVersion(), base.chain(), List.of(base.nodes().get(0)), List.of());
+  }
+
+  private static GraphPatch removeScriptPatch() {
+    return new GraphPatch(
+        "patch-remove",
+        "chain-patch",
+        List.of(new NodePatch(GraphPatchOperation.REMOVE, null, "element-script")),
+        List.of(),
+        List.of(),
+        null,
+        List.of(),
+        "removes the normalize step");
+  }
+
+  private static GraphPatch removeAndReconfigurePatch() {
+    return new GraphPatch(
+        "patch-remove-2",
+        "chain-patch",
+        List.of(new NodePatch(GraphPatchOperation.REMOVE, null, "element-trigger")),
+        List.of(),
+        List.of(
+            new PropertyPatch(
+                GraphPatchOperation.UPDATE, "element-script", new PlanProperty("script", "return 9"))),
+        null,
+        List.of(),
+        "reconfigures one element and removes another");
   }
 
   private static GraphPatch patchOn(String nodeId, String key, String value) {

@@ -13,6 +13,7 @@ import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchCapture;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchOwnership;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchPipeline;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchRemovalClosure;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchSemanticValidator;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchSummary;
@@ -149,15 +150,25 @@ public class ChainPatchScenario implements ScenarioHandler {
               : said);
     }
 
-    GraphPatch patch = ChainPatchPipeline.toGraphPatch(captured.get());
-    List<String> shapeErrors = GraphPatchShapeValidator.validate(patch);
+    GraphPatch proposed = ChainPatchPipeline.toGraphPatch(captured.get());
+    List<String> shapeErrors = GraphPatchShapeValidator.validate(proposed);
     if (!shapeErrors.isEmpty()) {
       return message("The change could not be read: " + GraphPatchShapeValidator.summarize(shapeErrors));
     }
 
+    // Grown to include everything the catalog will cascade, so the card, the write and the digest
+    // all describe the same change.
+    ChainPatchRemovalClosure.Expansion expansion =
+        ChainPatchRemovalClosure.expand(imported.graph(), proposed);
+    if (!expansion.coherent()) {
+      return message(
+          "The change contradicts itself: " + String.join("; ", expansion.conflicts()));
+    }
+    GraphPatch patch = expansion.patch();
+
     GraphPatchApplyResult applied =
         patchApplier.apply(
-            ChainPatchPipeline.executionContext(imported, chainId, patch, ownership), patch);
+            ChainPatchPipeline.executionContext(imported, chainId, patch, ownership, true), patch);
     if (!applied.applied()) {
       String summary = applied.validationResult().summary();
       return message(
@@ -175,7 +186,8 @@ public class ChainPatchScenario implements ScenarioHandler {
           "That change would leave the chain broken: " + String.join("; ", introduced));
     }
 
-    PatchedChain patched = new PatchedChain(applied.graph(), imported.materializationMap());
+    PatchedChain patched =
+        new PatchedChain(imported.graph(), applied.graph(), imported.materializationMap());
     String patchHash = canonicalGraphDigest.sha256(applied.graph());
     String summary = ChainPatchSummary.describe(imported.graph(), patch);
     patchStore.putProposal(

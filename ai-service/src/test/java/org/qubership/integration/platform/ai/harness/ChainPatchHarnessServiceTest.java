@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.harness;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -65,7 +66,7 @@ class ChainPatchHarnessServiceTest {
 
     when(factsService.load(CHAIN_ID)).thenReturn(facts());
     when(agent.chat(eq(CONVERSATION_ID), any())).thenReturn(Multi.createFrom().empty());
-    when(ownership.forChain(any(), any()))
+    when(ownership.forChain(any(), any(), anyBoolean()))
         .thenReturn(
             new GraphPatchOwnershipPolicy(
                 true, true, Set.of("script", "http-trigger"), Set.of(),
@@ -141,7 +142,7 @@ class ChainPatchHarnessServiceTest {
 
   @Test
   void flagsAScopeViolationSeparatelyFromAnOrdinaryFailure() {
-    when(ownership.forChain(any(), any()))
+    when(ownership.forChain(any(), any(), anyBoolean()))
         .thenReturn(
             new GraphPatchOwnershipPolicy(
                 false, false, Set.of(), Set.of(), Map.of("script", Set.of("script"))));

@@ -18,11 +18,22 @@ public record ChainPatchWriteResult(
     List<String> changedElementIds,
     List<String> failedElementIds,
     String error,
-    MaterializationMap materializationMap) {
+    MaterializationMap materializationMap,
+    List<String> removedElementIds) {
+
+  /** For a write that removed nothing. */
+  public ChainPatchWriteResult(
+      List<String> changedElementIds,
+      List<String> failedElementIds,
+      String error,
+      MaterializationMap materializationMap) {
+    this(changedElementIds, failedElementIds, error, materializationMap, List.of());
+  }
 
   public ChainPatchWriteResult {
     changedElementIds = changedElementIds == null ? List.of() : List.copyOf(changedElementIds);
     failedElementIds = failedElementIds == null ? List.of() : List.copyOf(failedElementIds);
+    removedElementIds = removedElementIds == null ? List.of() : List.copyOf(removedElementIds);
   }
 
   public boolean succeeded() {

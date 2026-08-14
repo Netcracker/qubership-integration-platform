@@ -13,6 +13,7 @@ import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer.PropertiesApplyResult;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanRemovalsMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanSkeletonMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
@@ -43,15 +44,18 @@ public class ChainPatchWriter {
   private final ChainPlanPropertiesMaterializer propertiesMaterializer;
   private final ChainPlanSkeletonMaterializer skeletonMaterializer;
   private final ChainPlanConnectionsMaterializer connectionsMaterializer;
+  private final ChainPlanRemovalsMaterializer removalsMaterializer;
 
   @Inject
   public ChainPatchWriter(
       ChainPlanPropertiesMaterializer propertiesMaterializer,
       ChainPlanSkeletonMaterializer skeletonMaterializer,
-      ChainPlanConnectionsMaterializer connectionsMaterializer) {
+      ChainPlanConnectionsMaterializer connectionsMaterializer,
+      ChainPlanRemovalsMaterializer removalsMaterializer) {
     this.propertiesMaterializer = Objects.requireNonNull(propertiesMaterializer);
     this.skeletonMaterializer = Objects.requireNonNull(skeletonMaterializer);
     this.connectionsMaterializer = Objects.requireNonNull(connectionsMaterializer);
+    this.removalsMaterializer = Objects.requireNonNull(removalsMaterializer);
   }
 
   public ChainPatchWriteResult write(PatchedChain patched, GraphPatch patch) {
@@ -61,10 +65,16 @@ public class ChainPatchWriter {
     List<String> addedNodeIds = addedNodeIds(patched.graph(), patch);
     Map<String, Set<String>> changedKeysByNodeId = changedKeysByNodeId(patch);
     List<ChainPlanEdge> addedEdges = addedEdges(patch);
-    // Edges count toward "the patch does something": a patch whose only content is a connection
-    // between two elements the chain already has adds no node and changes no property, and must
-    // still reach the connections materializer rather than being read as an empty change.
-    if (addedNodeIds.isEmpty() && changedKeysByNodeId.isEmpty() && addedEdges.isEmpty()) {
+    // Edges and removals count toward "the patch does something": a patch whose only content is a
+    // connection between two elements the chain already has, or the removal of one, adds no node
+    // and changes no property, and must still reach its materializer rather than being read as an
+    // empty change.
+    boolean removesSomething =
+        !removedNodeIds(patch).isEmpty() || !removedEdges(patch, patched.before()).isEmpty();
+    if (addedNodeIds.isEmpty()
+        && changedKeysByNodeId.isEmpty()
+        && addedEdges.isEmpty()
+        && !removesSomething) {
       return new ChainPatchWriteResult(List.of(), List.of(), null, patched.materializationMap());
     }
 
@@ -122,9 +132,56 @@ public class ChainPatchWriter {
       }
     }
 
+    // Removals come last of all, so that every step that can still be taken back has been taken
+    // first. Past this point the patch is no longer undoable by anything this service can do.
+    List<String> removedElementIds = List.of();
+    if (failed.isEmpty()) {
+      Set<String> removedNodeIds = removedNodeIds(patch);
+      List<ChainPlanEdge> removedEdges = removedEdges(patch, patched.before());
+      if (!removedNodeIds.isEmpty() || !removedEdges.isEmpty()) {
+        var removed =
+            removalsMaterializer.apply(patched.before(), removedNodeIds, removedEdges, map);
+        removedElementIds = removed.removedElementIds();
+        failed.addAll(removed.failedNodeIds().stream().filter(id -> !failed.contains(id)).toList());
+        error = error == null ? removed.error() : error;
+      }
+    }
+
     List<String> changed =
         touched.stream().map(ChainPlanNode::nodeId).filter(id -> !failed.contains(id)).toList();
-    return new ChainPatchWriteResult(changed, List.copyOf(failed), error, map);
+    return new ChainPatchWriteResult(
+        changed, List.copyOf(failed), error, map, List.copyOf(removedElementIds));
+  }
+
+  private static Set<String> removedNodeIds(GraphPatch patch) {
+    Set<String> removed = new LinkedHashSet<>();
+    if (patch.nodePatches() == null) {
+      return removed;
+    }
+    for (NodePatch nodePatch : patch.nodePatches()) {
+      if (nodePatch != null
+          && nodePatch.operation() == GraphPatchOperation.REMOVE
+          && nodePatch.targetNodeId() != null) {
+        removed.add(nodePatch.targetNodeId());
+      }
+    }
+    return removed;
+  }
+
+  /** Resolves each removed edge id back to the edge itself, which the pre-patch graph still has. */
+  private static List<ChainPlanEdge> removedEdges(GraphPatch patch, ChainPlanGraph before) {
+    if (patch.edgePatches() == null || before == null || before.edges() == null) {
+      return List.of();
+    }
+    Set<String> removedEdgeIds = new LinkedHashSet<>();
+    for (EdgePatch edgePatch : patch.edgePatches()) {
+      if (edgePatch != null
+          && edgePatch.operation() == GraphPatchOperation.REMOVE
+          && edgePatch.targetEdgeId() != null) {
+        removedEdgeIds.add(edgePatch.targetEdgeId());
+      }
+    }
+    return before.edges().stream().filter(edge -> removedEdgeIds.contains(edge.edgeId())).toList();
   }
 
   /** Added nodes in graph order, which puts a container before the children it holds. */

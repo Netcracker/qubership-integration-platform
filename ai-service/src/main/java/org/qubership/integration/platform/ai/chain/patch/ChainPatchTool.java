@@ -33,7 +33,9 @@ public class ChainPatchTool {
       shows it to them as a card to answer.
       Reconfigure an element with propertyPatches, naming a node id from the chain graph in the user
       message. Add elements with nodePatches and connect them with edgePatches, giving each new
-      element a node id of your own. Nothing may be removed or renamed. Call this once.
+      element a node id of your own and each new edge an edge id of your own. Remove an element or a
+      connection with a REMOVE operation naming its targetNodeId or targetEdgeId; removal is final,
+      so offer createChainSnapshot first. Nothing may be renamed. Call this once.
       """)
   public String proposeChainPatch(ChainPatchCapture patch) {
     String conversationId = ToolSession.resolveConversationId();

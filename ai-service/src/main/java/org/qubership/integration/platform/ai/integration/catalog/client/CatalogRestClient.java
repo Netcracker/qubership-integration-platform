@@ -87,10 +87,18 @@ public interface CatalogRestClient {
       @PathParam("elementId") String elementId,
       Map<String, Object> body);
 
+  /**
+   * Deletes elements in one catalog transaction, cascading to each one's descendants and to every
+   * dependency attached to them.
+   *
+   * <p>The bulk form, not the per-id one: the catalog applies it atomically, which is what keeps a
+   * multi-element removal from half-landing. Pass only the roots of what is being removed -- the
+   * cascade takes the rest.
+   */
   @DELETE
-  @Path("/v1/chains/{chainId}/elements/{elementId}")
-  void deleteElement(
-      @PathParam("chainId") String chainId, @PathParam("elementId") String elementId);
+  @Path("/v1/chains/{chainId}/elements")
+  ChainDiffDto deleteElements(
+      @PathParam("chainId") String chainId, @QueryParam("elementsIds") List<String> elementsIds);
 
   @GET
   @Path("/v1/chains/{chainId}/elements")
@@ -116,6 +124,13 @@ public interface CatalogRestClient {
   @GET
   @Path("/v1/chains/{chainId}/dependencies")
   List<CatalogDependencyDto> listDependencies(@PathParam("chainId") String chainId);
+
+  /** Deletes connections in one catalog transaction. Bulk form, for the same reason as elements. */
+  @DELETE
+  @Path("/v1/chains/{chainId}/dependencies")
+  ChainDiffDto deleteDependencies(
+      @PathParam("chainId") String chainId,
+      @QueryParam("dependenciesIds") List<String> dependenciesIds);
 
   // ── Systems / specifications / operations ────────────────────────────────
 
@@ -179,11 +194,35 @@ public interface CatalogRestClient {
   @JsonIgnoreProperties(ignoreUnknown = true)
   record DependencySummaryDto(String id, String from, String to) {}
 
+  /**
+   * What a catalog mutation actually changed.
+   *
+   * <p>The removed lists matter for a delete: the catalog cascades, so what went is routinely more
+   * than what was asked for, and reporting the request rather than the response would understate
+   * the damage.
+   */
   @JsonIgnoreProperties(ignoreUnknown = true)
   record ChainDiffDto(
       List<ElementSummaryDto> createdElements,
       List<ElementSummaryDto> updatedElements,
-      List<DependencySummaryDto> createdDependencies) {}
+      List<DependencySummaryDto> createdDependencies,
+      List<ElementSummaryDto> removedElements,
+      List<DependencySummaryDto> removedDependencies) {
+
+    /** Additive-only result, for the create and update paths that can never remove anything. */
+    public ChainDiffDto(
+        List<ElementSummaryDto> createdElements,
+        List<ElementSummaryDto> updatedElements,
+        List<DependencySummaryDto> createdDependencies) {
+      this(createdElements, updatedElements, createdDependencies, List.of(), List.of());
+    }
+
+    public ChainDiffDto {
+      removedElements = removedElements == null ? List.of() : List.copyOf(removedElements);
+      removedDependencies =
+          removedDependencies == null ? List.of() : List.copyOf(removedDependencies);
+    }
+  }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record SnapshotDto(String id, String name) {}

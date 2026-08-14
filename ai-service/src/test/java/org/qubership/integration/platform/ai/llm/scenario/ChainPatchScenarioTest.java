@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.llm.scenario;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -73,7 +74,7 @@ class ChainPatchScenarioTest {
         .thenReturn(Optional.of(CHAIN_ID));
     when(factsService.load(CHAIN_ID)).thenReturn(facts());
     when(agent.chat(eq(CONVERSATION_ID), any())).thenReturn(Multi.createFrom().empty());
-    when(ownership.forChain(any(), any()))
+    when(ownership.forChain(any(), any(), anyBoolean()))
         .thenReturn(
             new GraphPatchOwnershipPolicy(
                 false, false, Set.of(), Set.of(), Map.of("script", Set.of("script"))));
@@ -186,7 +187,7 @@ class ChainPatchScenarioTest {
 
   @Test
   void refusesAPatchThatReachesOutsideWhatTheSkillOwns() {
-    when(ownership.forChain(any(), any()))
+    when(ownership.forChain(any(), any(), anyBoolean()))
         .thenReturn(
             new GraphPatchOwnershipPolicy(
                 false, false, Set.of(), Set.of(), Map.of("script", Set.of("script"))));
@@ -202,7 +203,7 @@ class ChainPatchScenarioTest {
 
   @Test
   void refusesAStructurallyBrokenPatchWithoutCallingItAnOwnershipProblem() {
-    when(ownership.forChain(any(), any()))
+    when(ownership.forChain(any(), any(), anyBoolean()))
         .thenReturn(
             new GraphPatchOwnershipPolicy(
                 true,
@@ -241,7 +242,7 @@ class ChainPatchScenarioTest {
 
   @Test
   void listsTheElementsAndConnectionsItWouldAddOnTheCard() {
-    when(ownership.forChain(any(), any()))
+    when(ownership.forChain(any(), any(), anyBoolean()))
         .thenReturn(
             new GraphPatchOwnershipPolicy(
                 true,

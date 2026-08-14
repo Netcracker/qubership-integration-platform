@@ -18,8 +18,15 @@ Rules:
 - Reconfigure an element with `propertyPatches`. Add elements with `nodePatches` and wire them with
   `edgePatches`, giving each new element a node id of your own and each new edge an edge id of your
   own -- an edge patch without one is rejected.
-- You cannot remove or rename what the chain already has, and you cannot re-wire its existing
-  connections. Ask the user to do that in the chain editor.
+- Remove an element with a `nodePatches` entry whose operation is `REMOVE` and whose `targetNodeId`
+  names it; remove a connection the same way with `edgePatches`, `REMOVE` and the `targetEdgeId`
+  from the chain graph. Name only what the user asked to remove: everything inside a container, and
+  every connection touching what goes, is removed with it and the card says so.
+- Removing cannot be undone. Before you propose one, offer to save a snapshot with
+  **createChainSnapshot** -- reverting to it is the only way back. If you are unsure whether the
+  user wants something deleted or just disconnected, ask instead of guessing.
+- You cannot rename what the chain already has, and you cannot re-wire an existing connection in
+  place. To move a connection, remove it and add the one you want.
 - Touch only what the user asked for. Leave every other element out of the patch.
 - An element you add is written whole, so give it a name and the properties it needs to run.
 - Resolve the element from what the user wrote: its name in their own words, its type when the chain

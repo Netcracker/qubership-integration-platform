@@ -4,6 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
@@ -29,9 +30,15 @@ public final class ChainPatchSummary {
   public static String describe(ChainPlanGraph before, GraphPatch patch) {
     List<NodePatch> addedNodes = added(patch.nodePatches(), NodePatch::operation);
     List<EdgePatch> addedEdges = added(patch.edgePatches(), EdgePatch::operation);
+    List<String> removedNodeIds = removedTargets(patch.nodePatches(), NodePatch::operation, NodePatch::targetNodeId);
+    List<String> removedEdgeIds = removedTargets(patch.edgePatches(), EdgePatch::operation, EdgePatch::targetEdgeId);
     List<PropertyPatch> changedProperties =
         patch.propertyPatches() == null ? List.of() : patch.propertyPatches();
-    if (addedNodes.isEmpty() && addedEdges.isEmpty() && changedProperties.isEmpty()) {
+    if (addedNodes.isEmpty()
+        && addedEdges.isEmpty()
+        && changedProperties.isEmpty()
+        && removedNodeIds.isEmpty()
+        && removedEdgeIds.isEmpty()) {
       return "The change is empty: nothing would be written.";
     }
     Map<String, ChainPlanNode> nodesById = nodesById(before);
@@ -43,6 +50,19 @@ public final class ChainPatchSummary {
     if (patch.rationale() != null && !patch.rationale().isBlank()) {
       text.append(patch.rationale().strip()).append("\n\n");
     }
+
+    // Removals lead: they are the part of a change a reader cannot get back, and burying them
+    // under a list of additions is how a card gets answered without being read.
+    for (String nodeId : removedNodeIds) {
+      text.append("Removes ").append(elementLabel(nodesById.get(nodeId), nodeId)).append("\n\n");
+    }
+    for (String edgeId : removedEdgeIds) {
+      text.append("Disconnects ").append(edgeLabel(before, nodesById, edgeId)).append("\n\n");
+    }
+    if (!removedNodeIds.isEmpty()) {
+      text.append("Removing cannot be undone. To keep a way back, save a snapshot first.\n\n");
+    }
+
     for (NodePatch nodePatch : addedNodes) {
       text.append("Adds ")
           .append(elementLabel(nodePatch.node(), nodePatch.node().nodeId()))
@@ -83,6 +103,33 @@ public final class ChainPatchSummary {
         .filter(patch -> patch != null && operation.apply(patch) == GraphPatchOperation.ADD)
         .filter(ChainPatchSummary::hasBody)
         .toList();
+  }
+
+  private static <T> List<String> removedTargets(
+      List<T> patches, Function<T, GraphPatchOperation> operation, Function<T, String> target) {
+    if (patches == null) {
+      return List.of();
+    }
+    return patches.stream()
+        .filter(patch -> patch != null && operation.apply(patch) == GraphPatchOperation.REMOVE)
+        .map(target)
+        .filter(id -> id != null && !id.isBlank())
+        .toList();
+  }
+
+  /** Names both ends of a connection, so "disconnects" reads as something a person can picture. */
+  private static String edgeLabel(
+      ChainPlanGraph before, Map<String, ChainPlanNode> nodesById, String edgeId) {
+    if (before.edges() != null) {
+      for (ChainPlanEdge edge : before.edges()) {
+        if (edge != null && edgeId.equals(edge.edgeId())) {
+          return elementLabel(nodesById.get(edge.fromNodeId()), edge.fromNodeId())
+              + " from "
+              + elementLabel(nodesById.get(edge.toNodeId()), edge.toNodeId());
+        }
+      }
+    }
+    return "connection " + edgeId;
   }
 
   private static boolean hasBody(Object patch) {

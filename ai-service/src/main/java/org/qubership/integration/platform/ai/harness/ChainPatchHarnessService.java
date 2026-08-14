@@ -13,6 +13,7 @@ import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchCapture;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchOwnership;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchPipeline;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchRemovalClosure;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchSemanticValidator;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchWriteResult;
@@ -75,7 +76,7 @@ public class ChainPatchHarnessService {
     String conversationId = resolveConversationId(request.conversationId());
     String chainId = request.chainId().trim();
     try {
-      return runPipeline(conversationId, chainId, request.prompt().trim());
+      return runPipeline(conversationId, chainId, request.prompt().trim(), request.allowRemoval());
     } catch (RuntimeException e) {
       LOG.errorf(
           e, "Chain patch harness run failed conversationId=%s chainId=%s", conversationId, chainId);
@@ -83,7 +84,8 @@ public class ChainPatchHarnessService {
     }
   }
 
-  private ChainPatchHarnessResponse runPipeline(String conversationId, String chainId, String prompt) {
+  private ChainPatchHarnessResponse runPipeline(
+      String conversationId, String chainId, String prompt, boolean allowRemoval) {
     ImportedChainPlan imported = importer.importChain(factsService.load(chainId));
 
     // Cleared first so a run whose model proposes nothing cannot pick up a stale capture.
@@ -115,8 +117,8 @@ public class ChainPatchHarnessService {
           conversationId, said.isBlank() ? "No patch proposed." : said, ChainPatchRefusal.NONE);
     }
 
-    GraphPatch patch = ChainPatchPipeline.toGraphPatch(captured.get());
-    List<String> shapeErrors = GraphPatchShapeValidator.validate(patch);
+    GraphPatch proposed = ChainPatchPipeline.toGraphPatch(captured.get());
+    List<String> shapeErrors = GraphPatchShapeValidator.validate(proposed);
     if (!shapeErrors.isEmpty()) {
       return failed(
           conversationId,
@@ -124,9 +126,20 @@ public class ChainPatchHarnessService {
           ChainPatchRefusal.STRUCTURAL);
     }
 
+    ChainPatchRemovalClosure.Expansion expansion =
+        ChainPatchRemovalClosure.expand(imported.graph(), proposed);
+    if (!expansion.coherent()) {
+      return failed(
+          conversationId,
+          "The change contradicts itself: " + String.join("; ", expansion.conflicts()),
+          ChainPatchRefusal.STRUCTURAL);
+    }
+    GraphPatch patch = expansion.patch();
+
     GraphPatchApplyResult applied =
         patchApplier.apply(
-            ChainPatchPipeline.executionContext(imported, chainId, patch, ownership), patch);
+            ChainPatchPipeline.executionContext(imported, chainId, patch, ownership, allowRemoval),
+            patch);
     if (!applied.applied()) {
       String summary = applied.validationResult().summary();
       boolean ownershipViolation = ChainPatchPipeline.isOwnershipViolation(applied);
@@ -149,7 +162,8 @@ public class ChainPatchHarnessService {
           ChainPatchRefusal.SEMANTIC);
     }
 
-    PatchedChain patched = new PatchedChain(applied.graph(), imported.materializationMap());
+    PatchedChain patched =
+        new PatchedChain(imported.graph(), applied.graph(), imported.materializationMap());
     ChainPatchWriteResult result = writer.write(patched, patch);
     List<String> changedElementIds = result.changedCatalogElementIds();
     List<String> failedElementIds = result.failedCatalogElementIds();
