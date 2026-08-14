@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.harness;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.smallrye.mutiny.Context;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
@@ -17,6 +18,7 @@ import org.qubership.integration.platform.ai.chain.patch.ChainPatchWriteResult;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchWriter;
 import org.qubership.integration.platform.ai.chain.patch.PatchedChain;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
+import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.llm.agent.ChainPatchAgent;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplyResult;
@@ -83,14 +85,24 @@ public class ChainPatchHarnessService {
     // Cleared first so a run whose model proposes nothing cannot pick up a stale capture.
     patchStore.takeCapture(conversationId);
 
-    List<String> tokens =
-        agent.chat(
-                conversationId,
-                ChainPatchPipeline.buildPatchRequest(objectMapper, imported.graph(), prompt))
-            .collect()
-            .asList()
-            .await()
-            .indefinitely();
+    // ChainPatchTool reads the conversation id from ambient ToolSession state, not a method
+    // parameter -- the interactive path binds it in ChatExecutionService before the agent runs;
+    // this one-shot path has to bind it itself, and propagate it across whatever thread the
+    // reactive tool-call machinery resumes on.
+    List<String> tokens;
+    try (ToolSession.Handle handle = ToolSession.open(conversationId)) {
+      Context toolSessionContext = ToolSession.attachedContext();
+      tokens =
+          ToolSession.propagateBinding(
+                  toolSessionContext,
+                  agent.chat(
+                      conversationId,
+                      ChainPatchPipeline.buildPatchRequest(objectMapper, imported.graph(), prompt)))
+              .collect()
+              .asList()
+              .await()
+              .indefinitely();
+    }
 
     Optional<ChainPatchCapture> captured = patchStore.takeCapture(conversationId);
     if (captured.isEmpty()) {
