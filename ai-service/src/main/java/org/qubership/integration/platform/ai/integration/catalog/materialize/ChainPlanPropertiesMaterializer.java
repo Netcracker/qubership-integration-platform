@@ -150,7 +150,7 @@ public class ChainPlanPropertiesMaterializer {
       for (PlanProperty property : node.properties()) {
         if (isAllowedProperty(property, allowedKeys)) {
           try {
-            properties.put(property.key(), propertyValueAsObject(property.value()));
+            properties.put(property.key(), propertyValueAsObject(node.type(), property));
           } catch (JsonProcessingException e) {
             LOG.warnf(
                 "Skipping property %s on node type=%s: %s",
@@ -174,7 +174,20 @@ public class ChainPlanPropertiesMaterializer {
     return body;
   }
 
-  private Object propertyValueAsObject(String value) throws JsonProcessingException {
+  /**
+   * Renders one property's plan-model string value as the object the catalog PATCH body carries.
+   *
+   * <p>Object/array/boolean shapes are recognized from the string itself -- a script body never
+   * looks like JSON true/false or starts with {@code {}}/{@code []}, so no schema lookup is needed
+   * to tell them apart safely. A number is not safe to guess this way: a string property can
+   * legitimately hold digits only (a version, a zip code), so the value keeps its schema-typed
+   * shape -- integer, number, or otherwise left as a string -- via
+   * {@link DeterministicElementSchemaService#coercePatchPropertyValue}, the same coercion the
+   * CREATE-side compiler validation pipeline already uses.
+   */
+  private Object propertyValueAsObject(String elementType, PlanProperty property)
+      throws JsonProcessingException {
+    String value = property.value();
     if (value == null) {
       return null;
     }
@@ -189,7 +202,7 @@ public class ChainPlanPropertiesMaterializer {
     if ("true".equalsIgnoreCase(trimmed) || "false".equalsIgnoreCase(trimmed)) {
       return Boolean.parseBoolean(trimmed);
     }
-    return value;
+    return schemaService.coercePatchPropertyValue(elementType, property.key(), value);
   }
 
   private static boolean isAllowedProperty(PlanProperty property, Set<String> allowedKeys) {

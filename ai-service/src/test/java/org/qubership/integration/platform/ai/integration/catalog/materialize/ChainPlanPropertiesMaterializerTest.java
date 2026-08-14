@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -42,6 +43,11 @@ class ChainPlanPropertiesMaterializerTest {
   @BeforeEach
   void setUp() {
     materializer = new ChainPlanPropertiesMaterializer(catalogRestClient, schemaService, objectMapper);
+    // Matches the real method's own fallback: an untyped or unknown property keeps its raw string.
+    // lenient(): most cases here have no properties to coerce, so the stub goes unused there.
+    lenient()
+        .when(schemaService.coercePatchPropertyValue(anyString(), anyString(), anyString()))
+        .thenAnswer(invocation -> invocation.getArgument(2));
   }
 
   @Test
@@ -250,6 +256,41 @@ class ChainPlanPropertiesMaterializerTest {
     @SuppressWarnings("unchecked")
     Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
     assertEquals(Boolean.TRUE, props.get("externalRoute"));
+  }
+
+  @Test
+  void coercesANumericPropertyToItsSchemaTypeRatherThanAString() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("service-call")).thenReturn(Set.of("connectTimeout"));
+    when(schemaService.coercePatchPropertyValue("service-call", "connectTimeout", "30000"))
+        .thenReturn(30000L);
+    when(schemaService.validateElementPatch(eq("service-call"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "n1",
+                    "service-call",
+                    "Call",
+                    null,
+                    null,
+                    List.of(new PlanProperty("connectTimeout", "30000")))),
+            List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("n1", "el-1"));
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-1"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals(30000L, props.get("connectTimeout"));
   }
 
   @Test

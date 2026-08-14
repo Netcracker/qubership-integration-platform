@@ -128,11 +128,11 @@ public class ChainPlanGraphImporter {
   /**
    * Renders a catalog property value as the string a {@link PlanProperty} carries.
    *
-   * <p>The properties materializer parses JSON objects, arrays, and booleans back out of these
-   * strings, but not numbers: a numeric property written back through a patch reaches the catalog as
-   * a string. Only patched elements are written, so this shows up only when a patch touches an
-   * element that also carries a numeric property. Fixing it means teaching the materializer to parse
-   * numbers, which changes what generator-produced plans write.
+   * <p>A numeric property survives the round trip: the properties materializer restores its
+   * schema-typed shape on write via {@code DeterministicElementSchemaService.
+   * coercePatchPropertyValue}, the same schema-driven coercion the CREATE-side compiler
+   * validation pipeline already uses -- not a string-shape guess, so a string property that
+   * merely looks numeric (a version, a zip code) is not misread as a number.
    */
   private String toPropertyValue(Object value) {
     return switch (value) {
