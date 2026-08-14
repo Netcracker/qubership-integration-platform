@@ -2,8 +2,10 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -14,8 +16,8 @@ import (
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/services"
 )
 
-// GetEndpointReference names the endpoint a testing context points at.
-func GetEndpointReference(testingContext *model.TestingContext) dao.EndpointReference {
+// getEndpointReference names the endpoint a testing context points at.
+func getEndpointReference(testingContext *model.TestingContext) dao.EndpointReference {
 	return dao.EndpointReference{ChainID: testingContext.ChainID, ElementID: testingContext.ElementID}
 }
 
@@ -39,7 +41,7 @@ func newEndpointMocksController(
 // @Produce  json
 // @Param    offset           query    int         false    "Offset"
 // @Param    limit            query    int         false    "Limit"
-// @Param    sort_by          query    string      false    "Sort field"    enums(id, chain_id, element_id, enabled, status, delay, created_by, created_at, updated_by, updated_at)
+// @Param    sort_by          query    string      false    "Sort field"    enums(id, name, description, chain_id, element_id, enabled, status, delay, created_by, created_at, updated_by, updated_at)
 // @Param    sort_order       query    string      false    "Sort order"    enums(ASC, DESC) default(ASC)
 // @Param    return_ids       query    bool                      false    "Return IDs list"
 // @Param    specification    body     SelectionSpecification    true     "Endpoint mocks specification"
@@ -48,35 +50,8 @@ func newEndpointMocksController(
 // @Failure    500    {object}    ErrorMessage
 // @Router /api/v1/endpoint-mocks [post]
 func (c *endpointMocksController) FindAll(ctx *fiber.Ctx) error {
-	pagination, err := paginationOptions(ctx)
-	if err != nil {
-		return c.malformedPaginationParameters(ctx, err)
-	}
-	sorting, err := sortOptions(ctx)
-	if err != nil {
-		return c.malformedSortingParameters(ctx, err)
-	}
-	var specification model.SelectionSpecification
-	if err := json.Unmarshal(ctx.Body(), &specification); err != nil {
-		return c.malformedRequestBody(ctx, err)
-	}
-	returnIds := ctx.QueryBool("return_ids", false)
-	if returnIds {
-		pagination = nil
-	}
-	userContext := ctx.UserContext()
-	endpointMocks, err := c.endpointMocksService.FindAll(userContext, &specification, *sorting, pagination, !returnIds)
-	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Unable to get endpoint mocks: %v", err.Error())
-	}
-	if returnIds {
-		ids := make([]uuid.UUID, 0, len(*endpointMocks))
-		for _, endpointMock := range *endpointMocks {
-			ids = append(ids, endpointMock.ID)
-		}
-		return respondWithJSON(ctx, fiber.StatusOK, ids)
-	}
-	return respondWithJSON(ctx, fiber.StatusOK, endpointMocks)
+	return findAll(ctx, c.responder, "endpoint mocks", c.endpointMocksService.FindAll,
+		func(endpointMock dao.EndpointMock) uuid.UUID { return endpointMock.ID })
 }
 
 // FindById
@@ -99,12 +74,12 @@ func (c *endpointMocksController) FindById(ctx *fiber.Ctx) error {
 	userContext := ctx.UserContext()
 	endpointMock, err := c.endpointMocksService.FindById(userContext, endpointMockId)
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Unable to get endpoint mock by ID: %v", err.Error())
+		return c.internalError(ctx, "Unable to get endpoint mock by ID", err)
 	}
 	if endpointMock == nil {
 		return c.fail(ctx, fiber.StatusNotFound, "Endpoint mock %v not found.", endpointMockId)
 	}
-	return respondWithJSON(ctx, fiber.StatusOK, endpointMock)
+	return ctx.Status(fiber.StatusOK).JSON(endpointMock)
 }
 
 // Create
@@ -125,9 +100,12 @@ func (c *endpointMocksController) Create(ctx *fiber.Ctx) error {
 	userContext := ctx.UserContext()
 	createdEndpointMock, err := c.endpointMocksService.Create(userContext, &endpointMock)
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Unable to create endpoint mock: %v", err.Error())
+		if errors.Is(err, services.ErrInvalidRequest) {
+			return c.fail(ctx, fiber.StatusBadRequest, "%s", err.Error())
+		}
+		return c.internalError(ctx, "Unable to create endpoint mock", err)
 	}
-	return respondWithJSON(ctx, fiber.StatusCreated, createdEndpointMock)
+	return ctx.Status(fiber.StatusCreated).JSON(createdEndpointMock)
 }
 
 // Update
@@ -139,6 +117,7 @@ func (c *endpointMocksController) Create(ctx *fiber.Ctx) error {
 // @Param    endpointMock  body    EndpointMock  true    "Endpoint mock"
 // @Success    200    {object}    EndpointMock
 // @Failure    400    {object}    ErrorMessage
+// @Failure    404    {object}    ErrorMessage
 // @Failure    500    {object}    ErrorMessage
 // @Router /api/v1/endpoint-mocks/{id} [post]
 func (c *endpointMocksController) Update(ctx *fiber.Ctx) error {
@@ -155,9 +134,17 @@ func (c *endpointMocksController) Update(ctx *fiber.Ctx) error {
 	userContext := ctx.UserContext()
 	updatedEndpointMock, err := c.endpointMocksService.Update(userContext, &endpointMock)
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Unable to update endpoint mock: %v", err.Error())
+		switch {
+		case errors.Is(err, services.ErrInvalidRequest):
+			return c.fail(ctx, fiber.StatusBadRequest, "%s", err.Error())
+		case errors.Is(err, services.ErrNotFound):
+			// The id came off the path and names nothing, which is what the read
+			// endpoint answers 404 to. The wording matches it.
+			return c.fail(ctx, fiber.StatusNotFound, "Endpoint mock %v not found.", endpointMockId)
+		}
+		return c.internalError(ctx, "Unable to update endpoint mock", err)
 	}
-	return respondWithJSON(ctx, fiber.StatusOK, updatedEndpointMock)
+	return ctx.Status(fiber.StatusOK).JSON(updatedEndpointMock)
 }
 
 // Delete
@@ -178,7 +165,7 @@ func (c *endpointMocksController) Delete(ctx *fiber.Ctx) error {
 	}
 	userContext := ctx.UserContext()
 	if err := c.endpointMocksService.Delete(userContext, endpointMockId); err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to delete endpoint mock: %v", err.Error())
+		return c.internalError(ctx, "Failed to delete endpoint mock", err)
 	}
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
@@ -201,7 +188,7 @@ func (c *endpointMocksController) BulkDelete(ctx *fiber.Ctx) error {
 	}
 	userContext := ctx.UserContext()
 	if err := c.endpointMocksService.BulkDelete(userContext, &endpointMockIds); err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to bulk delete endpoint mocks: %v", err.Error())
+		return c.internalError(ctx, "Failed to bulk delete endpoint mocks", err)
 	}
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
@@ -224,9 +211,9 @@ func (c *endpointMocksController) Import(ctx *fiber.Ctx) error {
 	userContext := ctx.UserContext()
 	importResult, err := c.endpointMocksService.Import(userContext, form.File["file"])
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to import endpoint mocks: %v", err.Error())
+		return c.internalError(ctx, "Failed to import endpoint mocks", err)
 	}
-	return respondWithJSON(ctx, fiber.StatusOK, importResult)
+	return ctx.Status(fiber.StatusOK).JSON(importResult)
 }
 
 // Export
@@ -248,7 +235,7 @@ func (c *endpointMocksController) Export(ctx *fiber.Ctx) error {
 	userContext := ctx.UserContext()
 	data, err := c.endpointMocksService.Export(userContext, &endpointMocksIds)
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to export endpoint mocks: %v", err.Error())
+		return c.internalError(ctx, "Failed to export endpoint mocks", err)
 	}
 	return respondWithZip(ctx, fiber.StatusOK, *data)
 }
@@ -277,17 +264,23 @@ func (c *endpointMocksController) Call(ctx *fiber.Ctx) error {
 		return c.fail(ctx, fiber.StatusBadRequest, "Failed to decode testing context: %v", err.Error())
 	}
 
-	endpointReference := GetEndpointReference(testingContext)
+	endpointReference := getEndpointReference(testingContext)
 	requestExchange := buildRequestExchange(ctx)
 	userContext := services.WithRequestStart(ctx.UserContext(), timestamp)
 	exchange, err := c.endpointMocksService.Call(userContext, endpointReference, requestExchange)
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to call endpoint mock: %v", err.Error())
+		return c.internalError(ctx, "Failed to call endpoint mock", err)
 	}
 
 	populateResponseWithExchange(ctx, exchange)
 	return nil
 }
+
+// newLines is what a header value has to lose before it is written out. Add
+// stores name and value verbatim, unlike Set, so a line break in either would
+// end the header line early and let the rest of the value pass for header lines
+// of its own, or for a second response.
+var newLines = strings.NewReplacer("\r", " ", "\n", " ")
 
 func populateResponseWithExchange(ctx *fiber.Ctx, exchange *model.Exchange) {
 	if exchange == nil {
@@ -295,8 +288,15 @@ func populateResponseWithExchange(ctx *fiber.Ctx, exchange *model.Exchange) {
 	}
 	response := ctx.Response()
 	for name, values := range exchange.Headers {
+		// A saved mock cannot carry a line break in a header any more, but a row
+		// saved before that was enforced still can. Its value is repaired the way
+		// Set repairs one; its name is dropped, since a name with a line break in
+		// it names no header a client would read.
+		if strings.ContainsAny(name, "\r\n") {
+			continue
+		}
 		for _, value := range values {
-			response.Header.Add(name, value)
+			response.Header.Add(name, newLines.Replace(value))
 		}
 	}
 	response.SetBodyRaw(exchange.Body)

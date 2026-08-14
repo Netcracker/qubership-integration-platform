@@ -5,16 +5,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"slices"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/uptrace/bun"
 
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
+	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/httpfield"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/matching"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/services/importexport"
@@ -62,15 +64,19 @@ type EndpointMocksService interface {
 }
 
 type endpointMocksService struct {
-	runner          dao.Runner
-	repositories    Repositories
-	matchersService MatchersService
+	logger       *slog.Logger
+	runner       dao.Runner
+	repositories dao.Repositories
 }
 
 // NewEndpointMocksService returns an EndpointMocksService over the given database
 // access.
-func NewEndpointMocksService(runner dao.Runner, repositories Repositories, matchersService MatchersService) EndpointMocksService {
-	return &endpointMocksService{runner: runner, repositories: repositories, matchersService: matchersService}
+func NewEndpointMocksService(
+	logger *slog.Logger,
+	runner dao.Runner,
+	repositories dao.Repositories,
+) EndpointMocksService {
+	return &endpointMocksService{logger: logger, runner: runner, repositories: repositories}
 }
 
 func (s *endpointMocksService) FindAll(
@@ -80,13 +86,13 @@ func (s *endpointMocksService) FindAll(
 	pagination *model.PaginationOptions,
 	withRelations bool,
 ) (*[]dao.EndpointMock, error) {
-	return dao.Run(ctx, s.runner, func(ctx context.Context, _ bun.IDB) (*[]dao.EndpointMock, error) {
+	return dao.Run(ctx, s.runner, func(ctx context.Context) (*[]dao.EndpointMock, error) {
 		return s.repositories.EndpointMocks.FindAll(ctx, specification, sorting, pagination, withRelations)
 	})
 }
 
 func (s *endpointMocksService) FindById(ctx context.Context, id uuid.UUID) (*dao.EndpointMock, error) {
-	return dao.Run(ctx, s.runner, func(ctx context.Context, _ bun.IDB) (*dao.EndpointMock, error) {
+	return dao.Run(ctx, s.runner, func(ctx context.Context) (*dao.EndpointMock, error) {
 		return s.repositories.EndpointMocks.FindById(ctx, id, true)
 	})
 }
@@ -110,12 +116,15 @@ func (s *endpointMocksService) BulkDelete(ctx context.Context, ids *[]uuid.UUID)
 }
 
 func (s *endpointMocksService) Create(ctx context.Context, endpointMock *dao.EndpointMock) (*dao.EndpointMock, error) {
-	return dao.RunInTx(ctx, s.runner, defaultTxOptions(), func(ctx context.Context, _ bun.IDB) (*dao.EndpointMock, error) {
+	return dao.RunInTx(ctx, s.runner, func(ctx context.Context) (*dao.EndpointMock, error) {
 		return s.doCreate(ctx, endpointMock)
 	})
 }
 
 func (s *endpointMocksService) doCreate(ctx context.Context, endpointMock *dao.EndpointMock) (*dao.EndpointMock, error) {
+	if err := validateEndpointMock(endpointMock); err != nil {
+		return nil, err
+	}
 	createdEndpointMock, err := s.repositories.EndpointMocks.Insert(ctx, endpointMock)
 	if err != nil {
 		return nil, err
@@ -142,7 +151,7 @@ func (s *endpointMocksService) doCreate(ctx context.Context, endpointMock *dao.E
 	createdEndpointMock.EndpointReference = createdEndpointReference
 	createdEndpointMock.ResponseSettings = createdResponseSettings
 
-	requestMatchers, err := s.matchersService.Create(ctx, createdEndpointMock.ID, endpointMock.RequestMatchers)
+	requestMatchers, err := createMatchers(ctx, s.repositories, createdEndpointMock.ID, endpointMock.RequestMatchers)
 	if err != nil {
 		return nil, err
 	}
@@ -151,18 +160,21 @@ func (s *endpointMocksService) doCreate(ctx context.Context, endpointMock *dao.E
 }
 
 func (s *endpointMocksService) Update(ctx context.Context, endpointMock *dao.EndpointMock) (*dao.EndpointMock, error) {
-	return dao.RunInTx(ctx, s.runner, defaultTxOptions(), func(ctx context.Context, _ bun.IDB) (*dao.EndpointMock, error) {
+	return dao.RunInTx(ctx, s.runner, func(ctx context.Context) (*dao.EndpointMock, error) {
 		return s.doUpdate(ctx, endpointMock)
 	})
 }
 
 func (s *endpointMocksService) doUpdate(ctx context.Context, endpointMock *dao.EndpointMock) (*dao.EndpointMock, error) {
+	if err := validateEndpointMock(endpointMock); err != nil {
+		return nil, err
+	}
 	existingEndpointMock, err := s.repositories.EndpointMocks.FindById(ctx, endpointMock.ID, true)
 	if err != nil {
 		return nil, err
 	}
 	if existingEndpointMock == nil {
-		return nil, fmt.Errorf("endpoint mock %v not found", endpointMock.ID)
+		return nil, notFound("endpoint mock %v not found", endpointMock.ID)
 	}
 
 	if err = s.repositories.EndpointMocks.Update(ctx, endpointMock); err != nil {
@@ -185,7 +197,7 @@ func (s *endpointMocksService) doUpdate(ctx context.Context, endpointMock *dao.E
 		return nil, err
 	}
 
-	matchers, err := s.matchersService.Create(ctx, endpointMock.ID, endpointMock.RequestMatchers)
+	matchers, err := createMatchers(ctx, s.repositories, endpointMock.ID, endpointMock.RequestMatchers)
 	if err != nil {
 		return nil, err
 	}
@@ -232,9 +244,11 @@ func (s *endpointMocksService) updateResponseSettings(
 	if responseSettings == nil {
 		return nil, nil
 	}
+	// The owner is never read off the request body — the field is json:"-" — so
+	// it has to be stamped whether or not the mock had settings before.
+	responseSettings.EndpointMockID = existingEndpointMock.ID
 	if existingEndpointMock.ResponseSettings != nil {
 		responseSettings.ID = existingEndpointMock.ResponseSettings.ID
-		responseSettings.EndpointMockID = existingEndpointMock.ID
 	}
 	return s.createResponseSettings(ctx, responseSettings)
 }
@@ -268,24 +282,23 @@ func (s *endpointMocksService) Import(ctx context.Context, fileHeaders []*multip
 
 func (s *endpointMocksService) importEndpointMock(ctx context.Context, entity *model.ExportedEntity) model.ImportResult {
 	result := model.ImportResult{EntityID: &entity.ID, EntityName: &entity.Name}
-	if entity.Type != model.EntityTypeEndpointMock {
+	if entity.Type != model.ExportedTypeEndpointMock {
 		result.Result = model.ImportResultError
 		result.Message = fmt.Sprintf("wrong entity type: %v", entity.Type)
 		return result
 	}
-	data, err := importexport.MigrateEntityData(&entity.Data, entity.Version, importexport.GetEndpointMocksDataMigrations())
-	if err != nil {
+	if err := importexport.CheckDataVersion(entity.Version); err != nil {
 		result.Result = model.ImportResultError
 		result.Message = fmt.Sprintf("failed to migrate data: %v", err.Error())
 		return result
 	}
 	var endpointMock dao.EndpointMock
-	if err = json.Unmarshal(*data, &endpointMock); err != nil {
+	if err := json.Unmarshal(entity.Data, &endpointMock); err != nil {
 		result.Result = model.ImportResultError
 		result.Message = err.Error()
 		return result
 	}
-	outcome, err := dao.RunInTx(ctx, s.runner, defaultTxOptions(), func(ctx context.Context, _ bun.IDB) (string, error) {
+	outcome, err := dao.RunInTx(ctx, s.runner, func(ctx context.Context) (string, error) {
 		exists, err := s.repositories.EndpointMocks.Exists(ctx, endpointMock.ID)
 		if err != nil {
 			return "", err
@@ -299,7 +312,17 @@ func (s *endpointMocksService) importEndpointMock(ctx context.Context, entity *m
 	})
 	if err != nil {
 		result.Result = model.ImportResultError
-		result.Message = err.Error()
+		if errors.Is(err, ErrInvalidRequest) {
+			// The refusal is about the imported file itself, so the importer needs
+			// to read it to know what to fix.
+			result.Message = err.Error()
+			return result
+		}
+		// The failure is a bun or PostgreSQL message, which names constraints,
+		// tables and columns. It belongs in the log, not in a body the caller reads.
+		s.logger.ErrorContext(ctx, "Cannot import the endpoint mock",
+			"endpointMockId", endpointMock.ID, "error", err)
+		result.Message = "failed to save the endpoint mock"
 		return result
 	}
 	result.Result = outcome
@@ -313,13 +336,12 @@ func (s *endpointMocksService) Export(ctx context.Context, ids *[]uuid.UUID) (*[
 		return nil, err
 	}
 
-	dataVersion := importexport.GetEndpointMocksActualDataVersion()
 	var buffer bytes.Buffer
 	zipWriter := zip.NewWriter(&buffer)
 	for _, endpointMock := range *endpointMocks {
 		entity := model.ExportedEntity{
-			Version: dataVersion,
-			Type:    model.EntityTypeEndpointMock,
+			Version: importexport.ActualDataVersion,
+			Type:    model.ExportedTypeEndpointMock,
 			ID:      endpointMock.ID,
 			Name:    endpointMock.Name,
 		}
@@ -357,7 +379,14 @@ func (s *endpointMocksService) Call(
 	for _, endpointMock := range *endpointMocks {
 		matches, err := exchangeMatchesAll(exchange, endpointMock.RequestMatchers)
 		if err != nil {
-			return nil, err
+			// A matcher this service cannot build or evaluate does not hold, so the
+			// mock carrying it is passed over. Failing the call instead would take
+			// every other mock on the endpoint down with it, and the engine, which
+			// has no fallback to the real endpoint, would get no answer at all.
+			s.logger.WarnContext(ctx, "Skipping an endpoint mock whose matcher cannot be evaluated",
+				"endpointMockId", endpointMock.ID, "chainId", reference.ChainID,
+				"elementId", reference.ElementID, "error", err)
+			continue
 		}
 		if !matches {
 			continue
@@ -365,19 +394,28 @@ func (s *endpointMocksService) Call(
 		if err = awaitResponseDelay(ctx, endpointMock.ResponseSettings); err != nil {
 			return nil, err
 		}
-		return buildResponseExchange(endpointMock.ResponseSettings), nil
+		return buildResponseExchange(ctx, s.logger, endpointMock.ResponseSettings), nil
 	}
 
 	return &model.Exchange{Status: http.StatusNotFound}, nil
 }
 
+// maxResponseDelay caps how long a mock may hold a connection. The delay itself
+// is not validated on the way in, and the standalone binary hands this path a
+// context that is never canceled, so an unbounded value would pin a connection
+// and a worker for as long as it names.
+const maxResponseDelay = time.Minute
+
 // awaitResponseDelay holds the answer back until the configured delay has passed
-// since the call arrived. It gives up when the caller does.
+// since the call arrived, up to maxResponseDelay. It gives up when the caller
+// does, which is what a library host that cancels its request context gets;
+// under the standalone binary the delay always runs out first.
 func awaitResponseDelay(ctx context.Context, responseSettings *dao.ResponseSettings) error {
 	if responseSettings == nil || responseSettings.Delay <= 0 {
 		return nil
 	}
-	remaining := time.Duration(responseSettings.Delay)*time.Millisecond - time.Since(requestStart(ctx))
+	delay := min(time.Duration(responseSettings.Delay)*time.Millisecond, maxResponseDelay)
+	remaining := delay - time.Since(requestStart(ctx))
 	if remaining <= 0 {
 		return nil
 	}
@@ -456,18 +494,90 @@ func exchangeMatches(exchange model.Exchange, matcher *dao.Matcher) (bool, error
 	return predicate.Test(data) == nil, nil
 }
 
-func buildResponseExchange(responseSettings *dao.ResponseSettings) *model.Exchange {
+// The range a mock response status has to stay inside. Outside it the status
+// line is not one an HTTP client can read: fasthttp formats whatever number it
+// is given.
+const (
+	minResponseStatus = 100
+	maxResponseStatus = 599
+)
+
+// validateEndpointMock refuses a mock the call path could not use: a matcher it
+// cannot build, or a response it cannot answer with. The response checks are
+// about what reaches the wire verbatim — a status outside the range above breaks
+// the status line, a name that is not a field name names no header a client
+// reads, and a control character in a value truncates the header line or splits
+// the response into two.
+//
+// A stored row that predates these checks is degraded rather than refused: an
+// unbuildable matcher is skipped in Call, and the response is repaired in
+// buildResponseExchange and in the controller that writes the headers out.
+func validateEndpointMock(endpointMock *dao.EndpointMock) error {
+	if endpointMock == nil {
+		return nil
+	}
+	if err := validateMatchers("request matcher", endpointMock.RequestMatchers); err != nil {
+		return err
+	}
+	if endpointMock.ResponseSettings == nil {
+		return nil
+	}
+	responseSettings := endpointMock.ResponseSettings
+	// Zero is a mock that never named a status, and it answers 200.
+	if responseSettings.Status != 0 && !answerableStatus(responseSettings.Status) {
+		return invalidRequest("response status %v is not between %v and %v",
+			responseSettings.Status, minResponseStatus, maxResponseStatus)
+	}
+	if responseSettings.Message == nil {
+		return nil
+	}
+	for _, header := range responseSettings.Message.Headers {
+		if header == nil {
+			continue
+		}
+		if !httpfield.IsName(header.Name) {
+			return invalidRequest("response header name %q is not an HTTP field name", header.Name)
+		}
+		if !httpfield.IsValue(header.Value) {
+			return invalidRequest("response header %q carries a control character in its value", header.Name)
+		}
+	}
+	return nil
+}
+
+func answerableStatus(status int) bool {
+	return status >= minResponseStatus && status <= maxResponseStatus
+}
+
+func buildResponseExchange(
+	ctx context.Context,
+	logger *slog.Logger,
+	responseSettings *dao.ResponseSettings,
+) *model.Exchange {
 	status := http.StatusOK
 	headers := map[string][]string{}
 	var body []byte
 	if responseSettings != nil {
-		status = responseSettings.Status
+		// A row saved before the range was enforced keeps the default rather than
+		// reaching the status line as it stands.
+		if answerableStatus(responseSettings.Status) {
+			status = responseSettings.Status
+		}
 		if responseSettings.Message != nil {
 			if responseSettings.Message.Body != nil {
 				body = []byte(*responseSettings.Message.Body)
 			}
 			for _, header := range responseSettings.Message.Headers {
 				if header == nil {
+					continue
+				}
+				// A row saved before the field-name and value checks were enforced is
+				// left out of the answer. Writing it would put a malformed line on the
+				// wire; dropping it costs the caller one header and keeps the rest of
+				// the response readable.
+				if !httpfield.IsName(header.Name) || !httpfield.IsValue(header.Value) {
+					logger.WarnContext(ctx, "Skipping a stored response header that cannot be written out",
+						"headerName", header.Name)
 					continue
 				}
 				name := http.CanonicalHeaderKey(header.Name)

@@ -48,6 +48,8 @@ const docTemplate = `{
                     {
                         "enum": [
                             "id",
+                            "name",
+                            "description",
                             "chain_id",
                             "element_id",
                             "enabled",
@@ -438,6 +440,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/ErrorMessage"
                         }
                     },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorMessage"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -538,6 +546,7 @@ const docTemplate = `{
                         "enum": [
                             "id",
                             "test_case_name",
+                            "chain_id",
                             "start",
                             "finish",
                             "status",
@@ -654,7 +663,7 @@ const docTemplate = `{
                 ],
                 "tags": [
                     "V1",
-                    "Tests Case Runs"
+                    "Test Case Runs"
                 ],
                 "summary": "Export validation errors",
                 "operationId": "exportValidationErrorsV1",
@@ -1003,7 +1012,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/TestCase"
+                                "$ref": "#/definitions/TestCaseView"
                             }
                         }
                     },
@@ -1223,7 +1232,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/TestCase"
+                            "$ref": "#/definitions/TestCaseView"
                         }
                     },
                     "400": {
@@ -1285,6 +1294,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorMessage"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/ErrorMessage"
                         }
@@ -2157,6 +2172,53 @@ const docTemplate = `{
                 },
                 "testsRunId": {
                     "type": "string"
+                }
+            }
+        },
+        "TestCaseView": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdBy": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "enabledRuleCount": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "requestSettings": {
+                    "$ref": "#/definitions/RequestSettings"
+                },
+                "responseValidationRules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Matcher"
+                    }
+                },
+                "triggerReference": {
+                    "$ref": "#/definitions/TriggerReference"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "updatedBy": {
+                    "type": "string"
+                },
+                "validationRuleCount": {
+                    "type": "integer"
                 }
             }
         },

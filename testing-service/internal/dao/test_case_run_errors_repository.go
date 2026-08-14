@@ -64,10 +64,22 @@ func (r *testCaseRunErrorsRepository) FindByTestCaseRunId(ctx context.Context, i
 // lease on the case run. Fencing the errors matters as much as fencing the
 // status: a stalled worker would otherwise write its findings against the
 // attempt another worker now owns.
+//
+// The fence takes a share lock on the case run rather than reading it. Under
+// READ COMMITTED an unlocked subquery answers from the statement's snapshot, so
+// an insert that started before ReclaimExpired committed would still see the old
+// lease_owner and write, while the sweep's delete of the previous attempt's rows
+// would not see the new one. The case would then run again into its own
+// leftover, colliding on unique (test_case_run_id, matcher_id). The lock makes
+// the two statements wait for each other instead.
 const insertOwnedQuery = `
 insert into validation_errors (test_case_run_id, matcher_id, message)
 select ?::uuid, ?::uuid, ?::text
-where exists (select 1 from test_case_runs where id = ?::uuid and lease_owner = ?::uuid)
+where exists (
+	select 1 from test_case_runs
+	where id = ?::uuid and lease_owner = ?::uuid
+	for share
+)
 returning *`
 
 // InsertOwned reports ErrLeaseLost when the fence rejected the write.

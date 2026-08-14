@@ -10,8 +10,9 @@ import (
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
 )
 
-func GetEndpointMocksSortingFields() *[]string {
-	return &[]string{
+// Shared and read-only; see GetTestCaseRunsSortingFields.
+var (
+	endpointMocksSortingFields = []string{
 		"id",
 		"name",
 		"description",
@@ -25,10 +26,8 @@ func GetEndpointMocksSortingFields() *[]string {
 		"updated_by",
 		"updated_at",
 	}
-}
 
-func GetEndpointMocksFilterConfiguration() *model.FilterConfiguration {
-	return &model.FilterConfiguration{
+	endpointMocksFilterConfiguration = model.FilterConfiguration{
 		"id":          GetIdFilterConfiguration("endpoint_mock.id"),
 		"name":        GetStringFilterConfiguration("endpoint_mock.name"),
 		"description": GetStringFilterConfiguration("endpoint_mock.description"),
@@ -42,6 +41,14 @@ func GetEndpointMocksFilterConfiguration() *model.FilterConfiguration {
 		"updated_by":  GetStringFilterConfiguration("endpoint_mock.updated_by"),
 		"updated_at":  GetTimestampFilterConfiguration("endpoint_mock.updated_at"),
 	}
+)
+
+func GetEndpointMocksSortingFields() *[]string {
+	return &endpointMocksSortingFields
+}
+
+func GetEndpointMocksFilterConfiguration() *model.FilterConfiguration {
+	return &endpointMocksFilterConfiguration
 }
 
 type EndpointMocksRepository interface {
@@ -84,49 +91,20 @@ func (r *endpointMocksRepository) FindAll(
 	specification *model.SelectionSpecification,
 	sorting model.SortOptions,
 	pagination *model.PaginationOptions,
-	withRelations bool,
+	_ bool,
 ) (*[]EndpointMock, error) {
-	if err := ValidateSortOptions(sorting, GetEndpointMocksSortingFields()); err != nil {
-		return nil, err
-	}
-
-	filterConfiguration := GetEndpointMocksFilterConfiguration()
-	if specification != nil {
-		if err := ValidateFilters(specification.Filters, filterConfiguration); err != nil {
-			return nil, err
-		}
-	}
-
-	db, err := GetDb(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var result []EndpointMock
-
-	// The relations carry the columns the filters name, so the list query joins
-	// them whatever withRelations says.
-	query := withEndpointMockRelations(db.NewSelect().Model(&result))
-
-	query = query.ApplyQueryBuilder(func(builder bun.QueryBuilder) bun.QueryBuilder {
-		return AddSpecification(builder, specification, filterConfiguration)
-	})
-
-	query = AddSorting(query, sorting)
-	if pagination != nil {
-		query = AddPagination(query, *pagination, r.paginationLimit)
-	}
-
-	if r.logger.Enabled(ctx, slog.LevelDebug) {
-		r.logger.DebugContext(ctx, "Selecting endpoint mocks", "query", query.String())
-	}
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, err
-	}
-	if result == nil {
-		result = []EndpointMock{}
-	}
-	return &result, nil
+	return listing[EndpointMock]{
+		logger:          r.logger,
+		paginationLimit: r.paginationLimit,
+		subject:         "endpoint mocks",
+		sortingFields:   GetEndpointMocksSortingFields(),
+		filters:         GetEndpointMocksFilterConfiguration(),
+		// The relations carry the columns the filters name, so the list query joins
+		// them whatever withRelations says.
+		decorate: func(query *bun.SelectQuery, _ *model.SelectionSpecification) *bun.SelectQuery {
+			return withEndpointMockRelations(query)
+		},
+	}.run(ctx, specification, sorting, pagination)
 }
 
 func (r *endpointMocksRepository) FindById(ctx context.Context, id uuid.UUID, withRelations bool) (*EndpointMock, error) {
@@ -189,11 +167,16 @@ func (r *endpointMocksRepository) Exists(ctx context.Context, id uuid.UUID) (boo
 	return db.NewSelect().Model((*EndpointMock)(nil)).Where("id = ?", id).Exists(ctx)
 }
 
+// Update writes the whole row apart from the creation audit. The model is built
+// from the request body and the audit hook refreshes only the updated_* pair, so
+// a body that omits createdAt would otherwise null the stored value. The Call
+// path orders the candidate mocks by created_at, and a null sorts first, so the
+// updated mock would also jump ahead of older ones.
 func (r *endpointMocksRepository) Update(ctx context.Context, endpointMock *EndpointMock) error {
 	db, err := GetDb(ctx)
 	if err != nil {
 		return err
 	}
-	_, err = db.NewUpdate().Model(endpointMock).WherePK().Exec(ctx)
+	_, err = db.NewUpdate().Model(endpointMock).ExcludeColumn("created_at", "created_by").WherePK().Exec(ctx)
 	return err
 }

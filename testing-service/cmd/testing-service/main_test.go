@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -17,6 +18,8 @@ import (
 	fiberswagger "github.com/gofiber/swagger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/db"
 )
 
 // YAML forbids tabs in indentation, so this literal keeps the spaces that the
@@ -27,6 +30,8 @@ server:
   bind: ":9090"
 postgres:
   dsn: "postgres://user:secret@db:5432/testing?sslmode=disable"
+  user: "from_file_user"
+  password: "from_file_password"
   schema: "from_file"
   maxconnections: 7
 catalog:
@@ -66,6 +71,8 @@ func TestLoadConfigReadsEveryKeyFromTheFile(t *testing.T) {
 
 	assert.Equal(t, ":9090", cfg.Server.Bind)
 	assert.Equal(t, "postgres://user:secret@db:5432/testing?sslmode=disable", cfg.Postgres.DSN)
+	assert.Equal(t, "from_file_user", cfg.Postgres.User)
+	assert.Equal(t, "from_file_password", cfg.Postgres.Password)
 	assert.Equal(t, "from_file", cfg.Postgres.Schema)
 	assert.Equal(t, 7, cfg.Postgres.MaxConnections)
 	assert.Equal(t, "http://catalog-from-file:8080", cfg.Catalog.Address)
@@ -153,7 +160,29 @@ func TestVariablesWithoutThePrefixAreIgnored(t *testing.T) {
 	assert.Empty(t, cfg.Postgres.DSN)
 }
 
+// The chart hands the credentials over on their own rather than splicing them
+// into the DSN, where a `#`, `/` or `?` would cut the URL short.
+func TestTheEnvironmentCarriesCredentialsThatNeedNoEncoding(t *testing.T) {
+	t.Setenv("QIP_TESTING_POSTGRES_DSN", "postgres://db:5432/testing?sslmode=disable")
+	t.Setenv("QIP_TESTING_POSTGRES_USER", "us@r")
+	t.Setenv("QIP_TESTING_POSTGRES_PASSWORD", "pa/s?s#1")
+
+	cfg, err := loadConfig(filepath.Join(t.TempDir(), "absent.yaml"))
+	require.NoError(t, err)
+
+	assert.Equal(t, "us@r", cfg.Postgres.User)
+	assert.Equal(t, "pa/s?s#1", cfg.Postgres.Password)
+	database, err := db.New(db.Options{
+		DSN:      cfg.Postgres.DSN,
+		User:     cfg.Postgres.User,
+		Password: cfg.Postgres.Password,
+	})
+	require.NoError(t, err)
+	assert.NoError(t, database.Close())
+}
+
 func TestEnvKey(t *testing.T) {
+	assert.Equal(t, "postgres.user", envKey("QIP_TESTING_POSTGRES_USER"))
 	assert.Equal(t, "postgres.dsn", envKey("QIP_TESTING_POSTGRES_DSN"))
 	assert.Equal(t, "execution.workers", envKey("QIP_TESTING_EXECUTION_WORKERS"))
 	assert.Equal(t, "production", envKey("QIP_TESTING_PRODUCTION"))
@@ -195,12 +224,24 @@ func TestTheShippedConfigurationIsUsable(t *testing.T) {
 	cfg, err := loadConfig(filepath.Join("..", "..", "application.yaml"))
 	require.NoError(t, err)
 
-	assert.NotEmpty(t, cfg.Postgres.DSN)
 	assert.NotEmpty(t, cfg.Postgres.Schema)
-	assert.Contains(t, cfg.Postgres.DSN, "search_path="+cfg.Postgres.Schema,
-		"the DSN must point search_path at the schema the binary creates")
 	assert.Equal(t, ":8080", cfg.Server.Bind, "the container serves on 8080")
 	assert.False(t, cfg.Pprof.Enabled, "pprof stays off unless it is turned on")
+	// The DSN carries a password, so the image ships none and run refuses to
+	// start until an installation supplies one.
+	assert.Empty(t, cfg.Postgres.DSN)
+}
+
+func TestTheShippedConfigurationTakesTheDsnFromTheEnvironment(t *testing.T) {
+	dsn := "postgres://user:secret@db:5432/testing?sslmode=disable&search_path=testing_service"
+	t.Setenv("QIP_TESTING_POSTGRES_DSN", dsn)
+
+	cfg, err := loadConfig(filepath.Join("..", "..", "application.yaml"))
+	require.NoError(t, err)
+
+	assert.Equal(t, dsn, cfg.Postgres.DSN)
+	assert.Contains(t, cfg.Postgres.DSN, "search_path="+cfg.Postgres.Schema,
+		"the DSN must point search_path at the schema the binary creates")
 }
 
 func healthResponse(t *testing.T, ping func(context.Context) error) (int, map[string]string) {
@@ -302,11 +343,98 @@ func TestSwaggerAsksForTheSpecRelativeToThePage(t *testing.T) {
 	assert.NotContains(t, body, `"url":"/`)
 }
 
+// The redirect names an absolute internal path, and the proxies run with
+// proxy_redirect off, so the trailing-slash form does not survive behind them:
+// the browser follows the Location to a path that matches no testing-service
+// rule. The documented entry point is .../swagger/index.html, which needs no
+// redirect.
 func TestSwaggerRedirectsToTheIndex(t *testing.T) {
 	resp, _ := swaggerRequest(t, "/api/v1/swagger/")
 
 	assert.Equal(t, http.StatusMovedPermanently, resp.StatusCode)
 	assert.Equal(t, "/api/v1/swagger/index.html", resp.Header.Get(fiber.HeaderLocation))
+}
+
+// newServeApp is a listener that answers nothing: the tests below are about the
+// startup and shutdown order, not about the routes.
+func newServeApp() *fiber.App {
+	return fiber.New(fiber.Config{DisableStartupMessage: true})
+}
+
+func serveConfig(pprofEnabled bool) appConfig {
+	cfg := defaultAppConfig()
+	// Port 0 asks the kernel for a free port, so the tests never collide.
+	cfg.Server.Bind = "127.0.0.1:0"
+	cfg.Pprof.Enabled = pprofEnabled
+	cfg.Pprof.Bind = "127.0.0.1:0"
+	return cfg
+}
+
+func discardLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+func TestServeStopsTheListenerAndTheExecutorWhenTheContextIsCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	executorStopped := make(chan struct{})
+	runExecutor := func(ctx context.Context) error {
+		defer close(executorStopped)
+		<-ctx.Done()
+		return nil
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- serve(ctx, discardLogger(), serveConfig(true), newServeApp(), runExecutor) }()
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err, "a canceled context is the ordinary way to shut down")
+	case <-time.After(10 * time.Second):
+		t.Fatal("serve did not return after the context was canceled")
+	}
+	<-executorStopped
+}
+
+// A signal that arrives before Listen has bound used to shut down a server that
+// was not running yet; Listen then bound and never returned, so serve hung.
+func TestServeReturnsWhenTheSignalOutrunsTheListener(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- serve(ctx, discardLogger(), serveConfig(false), newServeApp(),
+			func(ctx context.Context) error { <-ctx.Done(); return nil })
+	}()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("serve hung on a listener that had not bound yet")
+	}
+}
+
+func TestServeReportsAListenerThatCannotBind(t *testing.T) {
+	cfg := serveConfig(false)
+	cfg.Server.Bind = "127.0.0.1:-1"
+
+	err := serve(context.Background(), discardLogger(), cfg, newServeApp(),
+		func(ctx context.Context) error { <-ctx.Done(); return nil })
+
+	require.Error(t, err, "a listener that cannot bind decides the exit status")
+}
+
+func TestServeReportsAFailingExecutor(t *testing.T) {
+	failure := errors.New("the executor gave up")
+
+	err := serve(context.Background(), discardLogger(), serveConfig(false), newServeApp(),
+		func(context.Context) error { return failure })
+
+	require.ErrorIs(t, err, failure)
 }
 
 func TestParseLevel(t *testing.T) {
@@ -318,7 +446,43 @@ func TestParseLevel(t *testing.T) {
 }
 
 func TestNewLoggerPicksTheHandlerFromTheFormat(t *testing.T) {
-	assert.NotNil(t, newLogger("info", "text"))
-	assert.NotNil(t, newLogger("info", "json"))
-	assert.NotNil(t, newLogger("info", ""))
+	tests := []struct {
+		format   string
+		expected string
+	}{
+		{format: "text", expected: `msg=hello`},
+		{format: "TEXT", expected: `msg=hello`},
+		{format: "json", expected: `"msg":"hello"`},
+		{format: "", expected: `"msg":"hello"`},
+		{format: "yaml", expected: `"msg":"hello"`},
+	}
+	for _, test := range tests {
+		t.Run(test.format, func(t *testing.T) {
+			var out bytes.Buffer
+
+			newLogger(&out, "info", test.format).Info("hello")
+
+			assert.Contains(t, out.String(), test.expected)
+		})
+	}
+}
+
+func TestNewLoggerHonoursTheLevel(t *testing.T) {
+	var out bytes.Buffer
+
+	logger := newLogger(&out, "warn", "json")
+	logger.Info("quiet")
+	logger.Warn("loud")
+
+	assert.NotContains(t, out.String(), "quiet")
+	assert.Contains(t, out.String(), "loud")
+}
+
+// The key is what tells two services sharing one database apart, and it has to
+// survive the cast to the bigint pg_advisory_lock takes.
+func TestMigrationLockKeyIsStableAndPerSchema(t *testing.T) {
+	assert.Equal(t, migrationLockKey("catalog"), migrationLockKey("catalog"))
+	assert.NotEqual(t, migrationLockKey("catalog"), migrationLockKey("testing"))
+	assert.GreaterOrEqual(t, migrationLockKey(""), int64(0))
+	assert.GreaterOrEqual(t, migrationLockKey("catalog"), int64(0))
 }

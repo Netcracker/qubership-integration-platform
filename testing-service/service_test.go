@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
 )
 
 var errNoConnection = errors.New("no connection")
@@ -100,15 +102,29 @@ func TestRunExecutorStopsWithTheContext(t *testing.T) {
 	}
 }
 
+// A host that names nobody leaves the name empty here; dao.CurrentUser is the
+// one place the platform default is substituted, and RunExecutor puts the name
+// through it.
 func TestBackgroundUser(t *testing.T) {
 	tests := []struct {
 		name        string
 		currentUser CurrentUserFunc
 		want        string
+		recorded    string
 	}{
-		{name: "no resolver", want: "developer"},
-		{name: "resolver returns a name", currentUser: func(context.Context) string { return "robot" }, want: "robot"},
-		{name: "resolver returns nothing", currentUser: func(context.Context) string { return "" }, want: "developer"},
+		{name: "no resolver", want: "", recorded: dao.DefaultUser},
+		{
+			name:        "resolver returns a name",
+			currentUser: func(context.Context) string { return "robot" },
+			want:        "robot",
+			recorded:    "robot",
+		},
+		{
+			name:        "resolver returns nothing",
+			currentUser: func(context.Context) string { return "" },
+			want:        "",
+			recorded:    dao.DefaultUser,
+		},
 	}
 
 	for _, test := range tests {
@@ -119,7 +135,9 @@ func TestBackgroundUser(t *testing.T) {
 				CurrentUser: test.currentUser,
 			})
 			require.NoError(t, err)
-			assert.Equal(t, test.want, service.backgroundUser(context.Background()))
+			user := service.backgroundUser(context.Background())
+			assert.Equal(t, test.want, user)
+			assert.Equal(t, test.recorded, dao.CurrentUser(dao.WithCurrentUser(context.Background(), user)))
 		})
 	}
 }

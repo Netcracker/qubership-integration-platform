@@ -25,5 +25,5 @@ func newServiceModeController(production bool) *serviceModeController {
 // @Success    200    {object}       ServiceMode
 // @Router /api/v1/mode [get]
 func (c *serviceModeController) GetMode(ctx *fiber.Ctx) error {
-	return respondWithJSON(ctx, fiber.StatusOK, ServiceMode{Production: c.production})
+	return ctx.Status(fiber.StatusOK).JSON(ServiceMode{Production: c.production})
 }

@@ -2,7 +2,6 @@ package dao
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 
@@ -12,47 +11,33 @@ import (
 // dbContextKey addresses the bun handle a repository picks up from the context.
 type dbContextKey struct{}
 
-// Runner acquires a database handle and passes it to a handler. Services take a
-// Runner together with the repository interfaces: faking the runner alone still
-// leaves the repositories issuing real queries.
+// Runner acquires a database handle and passes it to a handler through the
+// context. Services take a Runner together with the repository interfaces:
+// faking the runner alone still leaves the repositories issuing real queries.
 type Runner interface {
-	Run(ctx context.Context, handler func(ctx context.Context, db bun.IDB) (any, error)) (any, error)
-	RunInTx(
-		ctx context.Context,
-		opts *sql.TxOptions,
-		handler func(ctx context.Context, db bun.IDB) (any, error),
-	) (any, error)
+	Run(ctx context.Context, handler func(ctx context.Context) (any, error)) (any, error)
+	RunInTx(ctx context.Context, handler func(ctx context.Context) (any, error)) (any, error)
 }
 
 var _ Runner = (*Dao)(nil)
 
-// Run passes a connection to handler and returns its result. Go forbids type
-// parameters on methods, so the typed entry point is a function over Runner.
-func Run[T any](
-	ctx context.Context,
-	runner Runner,
-	handler func(ctx context.Context, db bun.IDB) (T, error),
-) (T, error) {
+// Run puts a connection into the context and returns the handler's result. Go
+// forbids type parameters on methods, so the typed entry point is a function
+// over Runner.
+func Run[T any](ctx context.Context, runner Runner, handler func(ctx context.Context) (T, error)) (T, error) {
 	result, err := runner.Run(ctx, eraseHandler(handler))
 	return typedResult[T](result, err)
 }
 
 // RunInTx is Run inside a transaction, committed once handler returns no error.
-func RunInTx[T any](
-	ctx context.Context,
-	runner Runner,
-	opts *sql.TxOptions,
-	handler func(ctx context.Context, db bun.IDB) (T, error),
-) (T, error) {
-	result, err := runner.RunInTx(ctx, opts, eraseHandler(handler))
+func RunInTx[T any](ctx context.Context, runner Runner, handler func(ctx context.Context) (T, error)) (T, error) {
+	result, err := runner.RunInTx(ctx, eraseHandler(handler))
 	return typedResult[T](result, err)
 }
 
-func eraseHandler[T any](
-	handler func(ctx context.Context, db bun.IDB) (T, error),
-) func(context.Context, bun.IDB) (any, error) {
-	return func(ctx context.Context, db bun.IDB) (any, error) {
-		return handler(ctx, db)
+func eraseHandler[T any](handler func(ctx context.Context) (T, error)) func(context.Context) (any, error) {
+	return func(ctx context.Context) (any, error) {
+		return handler(ctx)
 	}
 }
 
@@ -70,22 +55,17 @@ func typedResult[T any](result any, err error) (T, error) {
 	return value, nil
 }
 
-func (dao *Dao) Run(
-	ctx context.Context,
-	handler func(ctx context.Context, db bun.IDB) (any, error),
-) (any, error) {
+func (dao *Dao) Run(ctx context.Context, handler func(ctx context.Context) (any, error)) (any, error) {
 	return dao.run(ctx, func(ctx context.Context, conn bun.Conn) (any, error) {
-		return handler(withDb(ctx, conn), conn)
+		return handler(withDb(ctx, conn))
 	})
 }
 
-func (dao *Dao) RunInTx(
-	ctx context.Context,
-	opts *sql.TxOptions,
-	handler func(ctx context.Context, db bun.IDB) (any, error),
-) (any, error) {
+func (dao *Dao) RunInTx(ctx context.Context, handler func(ctx context.Context) (any, error)) (any, error) {
 	return dao.run(ctx, func(ctx context.Context, conn bun.Conn) (any, error) {
-		tx, err := conn.BeginTx(ctx, opts)
+		// The database default isolation level, read-write: the zero TxOptions,
+		// which BeginTx treats exactly as a nil one.
+		tx, err := conn.BeginTx(ctx, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -98,10 +78,7 @@ func (dao *Dao) RunInTx(
 			}
 		}()
 
-		// The transaction, not the connection, goes into the context: the
-		// repositories read the handle from there and would otherwise leave the
-		// transaction the handler was given.
-		result, err := handler(withDb(ctx, tx), tx)
+		result, err := handler(replaceDb(ctx, tx))
 		if err != nil {
 			return nil, err
 		}
@@ -120,11 +97,20 @@ func GetDb(ctx context.Context) (bun.IDB, error) {
 	return db, nil
 }
 
-// withDb carries db in ctx, keeping the handle an outer Run already put there.
+// withDb carries db in ctx, keeping the handle an outer Run already put there so
+// that a read nested in a transaction joins it instead of leaving it.
 func withDb(ctx context.Context, db bun.IDB) context.Context {
 	if ctx.Value(dbContextKey{}) != nil {
 		return ctx
 	}
+	return replaceDb(ctx, db)
+}
+
+// replaceDb carries db in ctx whatever was already there. A transaction takes
+// this route rather than withDb: the repositories read the handle from the
+// context, so keeping an outer one would issue their statements outside the
+// transaction the call is about to commit, and the commit would apply nothing.
+func replaceDb(ctx context.Context, db bun.IDB) context.Context {
 	return context.WithValue(ctx, dbContextKey{}, db)
 }
 

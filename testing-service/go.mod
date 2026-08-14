@@ -14,7 +14,7 @@ require (
 )
 
 require (
-	github.com/gofiber/fiber/v2 v2.52.15 // held back: v3 requires go 1.23
+	github.com/gofiber/fiber/v2 v2.52.15 // held back: v3.0.0 declares go 1.25
 	github.com/uptrace/bun/dialect/pgdialect v1.2.1
 	github.com/uptrace/bun/driver/pgdriver v1.2.1
 )
@@ -24,7 +24,7 @@ require (
 	github.com/knadh/koanf/parsers/yaml v0.1.0
 	github.com/knadh/koanf/providers/env v1.0.0
 	github.com/knadh/koanf/providers/file v1.1.2
-	github.com/knadh/koanf/v2 v2.1.2
+	github.com/knadh/koanf/v2 v2.1.2 // held back: v2.2.2 declares go 1.23
 	github.com/prometheus/client_golang v1.20.5
 	github.com/swaggo/swag v1.16.4 // kept in step with the swag CLI the go:generate directive pins
 )

@@ -12,12 +12,13 @@ import (
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
 )
 
-func GetTestCaseRunsSortingFields() *[]string {
-	return &[]string{"id", "test_case_name", "chain_id", "start", "finish", "status", "errors"}
-}
+// testCaseRunsSortingFields and testCaseRunsFilterConfiguration describe the
+// listing once. Both are shared and read-only: rebuilding the slice and the map
+// of closures on every request bought nothing.
+var (
+	testCaseRunsSortingFields = []string{"id", "test_case_name", "chain_id", "start", "finish", "status", "errors"}
 
-func GetTestCaseRunsFilterConfiguration() *model.FilterConfiguration {
-	return &model.FilterConfiguration{
+	testCaseRunsFilterConfiguration = model.FilterConfiguration{
 		"id":             GetIdFilterConfiguration("test_case_run_view.id"),
 		"test_case_id":   GetIdFilterConfiguration("test_case_run_view.test_case_id"),
 		"test_case_name": GetStringFilterConfiguration("test_case_run_view.test_case_name"),
@@ -25,9 +26,21 @@ func GetTestCaseRunsFilterConfiguration() *model.FilterConfiguration {
 		"chain_id":       GetStringFilterConfiguration("test_case_run_view.chain_id"),
 		"start":          GetTimestampFilterConfiguration("test_case_run_view.start"),
 		"finish":         GetTimestampFilterConfiguration("test_case_run_view.finish"),
-		"status":         GetEnumFilterConfiguration("test_case_run_view.status"),
+		"status":         GetEnumFilterConfiguration("test_case_run_view.status", RunStatuses),
 		"errors":         GetIntegerFilterConfiguration("test_case_run_view.errors"),
 	}
+)
+
+// GetTestCaseRunsSortingFields returns the shared list. Callers must not write
+// through the pointer.
+func GetTestCaseRunsSortingFields() *[]string {
+	return &testCaseRunsSortingFields
+}
+
+// GetTestCaseRunsFilterConfiguration returns the shared configuration. Callers
+// must not write through the pointer.
+func GetTestCaseRunsFilterConfiguration() *model.FilterConfiguration {
+	return &testCaseRunsFilterConfiguration
 }
 
 // ErrLeaseLost reports a worker write that was refused because the case run is
@@ -44,7 +57,7 @@ type TestCaseRunsRepository interface {
 	) (*[]TestCaseRunView, error)
 	FindById(ctx context.Context, id uuid.UUID) (*TestCaseRunView, error)
 	Insert(ctx context.Context, testCaseRuns *[]TestCaseRun) error
-	UpdateOwned(ctx context.Context, testCaseRun *TestCaseRun, owner uuid.UUID, omitZero bool) error
+	UpdateOwned(ctx context.Context, testCaseRun *TestCaseRun, owner uuid.UUID) error
 	UpdateStatus(ctx context.Context, selector func(bun.QueryBuilder) bun.QueryBuilder, status string) error
 	Claim(ctx context.Context, owner uuid.UUID, sessionID string, leaseDuration time.Duration) (*TestCaseRun, error)
 	RenewLease(ctx context.Context, id uuid.UUID, owner uuid.UUID, leaseDuration time.Duration) error
@@ -66,43 +79,13 @@ func (r *testCaseRunsRepository) FindAll(
 	sorting model.SortOptions,
 	pagination *model.PaginationOptions,
 ) (*[]TestCaseRunView, error) {
-	if err := ValidateSortOptions(sorting, GetTestCaseRunsSortingFields()); err != nil {
-		return nil, err
-	}
-
-	filterConfiguration := GetTestCaseRunsFilterConfiguration()
-	if specification != nil {
-		if err := ValidateFilters(specification.Filters, filterConfiguration); err != nil {
-			return nil, err
-		}
-	}
-
-	db, err := GetDb(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var result []TestCaseRunView
-
-	query := db.NewSelect().Model(&result).ApplyQueryBuilder(func(builder bun.QueryBuilder) bun.QueryBuilder {
-		return AddSpecification(builder, specification, filterConfiguration)
-	})
-
-	query = AddSorting(query, sorting)
-	if pagination != nil {
-		query = AddPagination(query, *pagination, r.paginationLimit)
-	}
-
-	if r.logger.Enabled(ctx, slog.LevelDebug) {
-		r.logger.DebugContext(ctx, "Selecting test case runs", "query", query.String())
-	}
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, err
-	}
-	if result == nil {
-		result = []TestCaseRunView{}
-	}
-	return &result, nil
+	return listing[TestCaseRunView]{
+		logger:          r.logger,
+		paginationLimit: r.paginationLimit,
+		subject:         "test case runs",
+		sortingFields:   GetTestCaseRunsSortingFields(),
+		filters:         GetTestCaseRunsFilterConfiguration(),
+	}.run(ctx, specification, sorting, pagination)
 }
 
 func (r *testCaseRunsRepository) FindById(ctx context.Context, id uuid.UUID) (*TestCaseRunView, error) {
@@ -135,21 +118,24 @@ func (r *testCaseRunsRepository) Insert(ctx context.Context, testCaseRuns *[]Tes
 // UpdateOwned applies the update only while owner still holds the lease, and
 // reports ErrLeaseLost when it does not. Every write a worker makes about the
 // case it claimed goes through here.
+//
+// Zero fields are always omitted. A worker reports one part of the row at a
+// time, the status and the finish timestamp, and a full-column update would
+// blank lease_owner, ordinal and session_id along the way.
 func (r *testCaseRunsRepository) UpdateOwned(
 	ctx context.Context,
 	testCaseRun *TestCaseRun,
 	owner uuid.UUID,
-	omitZero bool,
 ) error {
 	db, err := GetDb(ctx)
 	if err != nil {
 		return err
 	}
-	query := db.NewUpdate().Model(testCaseRun)
-	if omitZero {
-		query = query.OmitZero()
-	}
-	result, err := query.WherePK().Where("lease_owner = ?", owner).Exec(ctx)
+	result, err := db.NewUpdate().Model(testCaseRun).
+		OmitZero().
+		WherePK().
+		Where("lease_owner = ?", owner).
+		Exec(ctx)
 	if err != nil {
 		return err
 	}
@@ -176,6 +162,15 @@ func (r *testCaseRunsRepository) UpdateStatus(ctx context.Context, selector func
 // claimTestCaseRunQuery claims the next pending case of one test run and stamps
 // the fencing token. The subselect takes the row lock the update needs and skips
 // a case another transaction holds, a cancellation in flight for example.
+//
+// It repeats the "nothing running yet" guard of claimTestsRunQuery, and that
+// repetition is what upholds the invariant. The run row the caller holds is
+// never updated, so PostgreSQL runs no EvalPlanQual recheck behind the first
+// statement's `for update`: a worker whose snapshot predates another worker's
+// commit passes the guard there and still takes the lock the commit released.
+// This statement is a statement of its own, so under READ COMMITTED it reads a
+// snapshot taken after that lock was granted, and no one else can start a case
+// of this run while the lock is held.
 const claimTestCaseRunQuery = `
 update test_case_runs set
 	status = ?,
@@ -186,16 +181,20 @@ update test_case_runs set
 where id = (
 	select id from test_case_runs
 	where tests_run_id = ? and status = ?
+		and not exists (
+			select 1 from test_case_runs busy
+			where busy.tests_run_id = ? and busy.status = ?
+		)
 	order by ordinal, id
 	for update skip locked
 	limit 1
 )
 returning *`
 
-// claimTestsRunQuery locks one test run that has work and nothing running yet.
-// Locking it is what serializes the workers entering the same run; the guards
-// alone do not, because under READ COMMITTED each worker evaluates them against
-// its own snapshot and neither sees the other's uncommitted row.
+// claimTestsRunQuery picks one test run that has work and nothing running yet,
+// and locks it. Locking it is what serializes the workers entering the same run;
+// the guards alone do not, because under READ COMMITTED each worker evaluates
+// them against its own snapshot and neither sees the other's uncommitted row.
 const claimTestsRunQuery = `
 select r.id from tests_runs r
 where exists (select 1 from test_case_runs c where c.tests_run_id = r.id and c.status = ?)
@@ -230,12 +229,25 @@ func (r *testCaseRunsRepository) Claim(
 			return testCaseRun, nil
 		}
 		// The run had no case left to take: the last pending one was canceled
-		// between the two statements, or another transaction holds it. Move on to
-		// the next run rather than wait out a poll interval. The run row stays
+		// between the two statements, another transaction holds it, or the run
+		// picked up a running case the first statement could not see yet. Move on
+		// to the next run rather than wait out a poll interval. The run row stays
 		// locked until the caller commits, so skip locked will not skip it on the
 		// next pass and it has to be excluded by id.
 		exhausted = append(exhausted, *testsRunID)
 	}
+}
+
+// buildClaimTestsRunQuery completes claimTestsRunQuery for the runs not yet
+// tried in this claim.
+func buildClaimTestsRunQuery(exhausted []uuid.UUID) (string, []any) {
+	query := claimTestsRunQuery
+	args := []any{RunStatusPending, RunStatusRunning}
+	if len(exhausted) > 0 {
+		query += " and r.id not in (?)"
+		args = append(args, bun.In(exhausted))
+	}
+	return query + " order by r.created_at for update skip locked limit 1", args
 }
 
 func (r *testCaseRunsRepository) claimTestsRun(
@@ -243,13 +255,7 @@ func (r *testCaseRunsRepository) claimTestsRun(
 	db bun.IDB,
 	exhausted []uuid.UUID,
 ) (*uuid.UUID, error) {
-	query := claimTestsRunQuery
-	args := []any{RunStatusPending, RunStatusRunning}
-	if len(exhausted) > 0 {
-		query += " and r.id not in (?)"
-		args = append(args, bun.In(exhausted))
-	}
-	query += " order by r.created_at for update skip locked limit 1"
+	query, args := buildClaimTestsRunQuery(exhausted)
 
 	var ids []uuid.UUID
 	if err := db.NewRaw(query, args...).Scan(ctx, &ids); err != nil {
@@ -304,6 +310,14 @@ func (r *testCaseRunsRepository) RenewLease(
 // because validation_errors carries unique (test_case_run_id, matcher_id): with
 // the previous attempt's rows still there, the reclaimed case would fail on its
 // first repeated matcher instead of running again.
+//
+// A running case that holds no lease at all is swept as well. Every claim this
+// module makes stamps a lease in the same statement, so such a row can only come
+// from outside it: a downstream installation that already owns this schema
+// carries cases left running by whatever executed them before migration 101
+// added the column. Left out of the sweep they would be stranded for good, since
+// `lease_until < now()` is null rather than true for them, and the claim guard
+// then keeps their whole test run out of the queue.
 const reclaimExpiredQuery = `
 with reclaimed as (
 	update test_case_runs set
@@ -311,7 +325,7 @@ with reclaimed as (
 		start = null,
 		lease_until = null,
 		lease_owner = null
-	where status = ? and lease_until < now()
+	where status = ? and (lease_until is null or lease_until < now())
 	returning id
 ), discarded as (
 	delete from validation_errors where test_case_run_id in (select id from reclaimed)
@@ -351,6 +365,8 @@ func (r *testCaseRunsRepository) claimTestCaseRun(
 		owner,
 		testsRunID,
 		RunStatusPending,
+		testsRunID,
+		RunStatusRunning,
 	).Scan(ctx, &result)
 	if err != nil {
 		return nil, err

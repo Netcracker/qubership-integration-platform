@@ -5,12 +5,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -327,6 +329,39 @@ func TestFailingServiceReportsInternalError(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, response.StatusCode)
 }
 
+// The failures behind a 500 are bun and PostgreSQL messages and upstream URLs.
+// They belong in the log, not in a body the caller reads.
+func TestAnInternalErrorNamesTheOperationWithoutTheFailure(t *testing.T) {
+	f := newFakes()
+	f.testCases.findByID = func(context.Context, uuid.UUID) (*dao.TestCaseView, error) {
+		return nil, errors.New("pq: relation \"test_cases\" does not exist")
+	}
+	app := mount(t, f, config.Config{}, config.Deps{})
+
+	response := request(t, app, http.MethodGet, "/test-cases/"+knownID, "")
+
+	require.Equal(t, http.StatusInternalServerError, response.StatusCode)
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	var message ErrorMessage
+	require.NoError(t, json.Unmarshal(body, &message))
+	assert.Equal(t, "Unable to get test case by ID", message.ErrorMessage)
+	assert.NotContains(t, string(body), "relation")
+	assert.Equal(t, ServiceName, message.ServiceName)
+}
+
+// A malformed request is the caller's own doing, so the detail stays in the body.
+func TestABadRequestKeepsTheDetailThatHelpsTheCaller(t *testing.T) {
+	app := mount(t, newFakes(), config.Config{}, config.Deps{})
+
+	response := request(t, app, http.MethodGet, "/test-cases/not-a-uuid", "")
+
+	require.Equal(t, http.StatusBadRequest, response.StatusCode)
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "not-a-uuid")
+}
+
 func TestStartNewReportsAnEmptyTestCaseListAsBadRequest(t *testing.T) {
 	f := newFakes()
 	f.testsRuns.startNew = func(context.Context, *[]uuid.UUID, string) (*uuid.UUID, error) {
@@ -342,6 +377,42 @@ func TestStartNewReportsAnEmptyTestCaseListAsBadRequest(t *testing.T) {
 	assert.Equal(t, services.ErrEmptyTestCaseList.Error(), message.ErrorMessage)
 }
 
+// An entity type this endpoint does not resolve, or an id that names nothing,
+// is the caller's own input just as much as an empty list is.
+func TestStartNewReportsRefusedInputAsBadRequest(t *testing.T) {
+	f := newFakes()
+	refusal := fmt.Errorf("%w: %w", services.ErrInvalidRequest, errors.New("unknown entity type: chains"))
+	f.testsRuns.startNew = func(context.Context, *[]uuid.UUID, string) (*uuid.UUID, error) {
+		return nil, refusal
+	}
+	app := mount(t, f, config.Config{}, config.Deps{})
+
+	response := request(t, app, http.MethodPost, "/tests-runs/create?from=chains", "[]")
+
+	require.Equal(t, http.StatusBadRequest, response.StatusCode)
+	var message ErrorMessage
+	require.NoError(t, json.NewDecoder(response.Body).Decode(&message))
+	assert.Contains(t, message.ErrorMessage, "chains", "the caller has to learn what it got wrong")
+	assert.Equal(t, ServiceName, message.ServiceName)
+	assert.Equal(t, "No Stacktrace Available", message.Stacktrace)
+}
+
+// A database failure behind the same call stays a 500 with nothing in the body.
+func TestStartNewStillReportsADatabaseFailureAsAnInternalError(t *testing.T) {
+	f := newFakes()
+	f.testsRuns.startNew = func(context.Context, *[]uuid.UUID, string) (*uuid.UUID, error) {
+		return nil, errors.New(`pq: relation "tests_runs" does not exist`)
+	}
+	app := mount(t, f, config.Config{}, config.Deps{})
+
+	response := request(t, app, http.MethodPost, "/tests-runs/create", "[]")
+
+	require.Equal(t, http.StatusInternalServerError, response.StatusCode)
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	assert.NotContains(t, string(body), "relation")
+}
+
 func TestStartNewPassesTheEntityType(t *testing.T) {
 	f := newFakes()
 	var seen string
@@ -353,10 +424,10 @@ func TestStartNewPassesTheEntityType(t *testing.T) {
 	app := mount(t, f, config.Config{}, config.Deps{})
 
 	request(t, app, http.MethodPost, "/tests-runs/create", "[]")
-	assert.Equal(t, services.EntityTypeTestCases, seen, "the default is test cases")
+	assert.Equal(t, services.RunSourceTestCases, seen, "the default is test cases")
 
 	request(t, app, http.MethodPost, "/tests-runs/create?from=tests_runs", "[]")
-	assert.Equal(t, services.EntityTypeTestsRuns, seen)
+	assert.Equal(t, services.RunSourceTestsRuns, seen)
 }
 
 func TestServiceModeReportsTheConfiguredFlag(t *testing.T) {
@@ -403,6 +474,89 @@ func TestEndpointMockCall(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "ping", string(body))
 	assert.Equal(t, dao.EndpointReference{ChainID: "chain-1", ElementID: "element-1"}, seen)
+}
+
+func TestEndpointMockWritesReportARefusedResponseAsBadRequest(t *testing.T) {
+	refusal := fmt.Errorf("%w: %w", services.ErrInvalidRequest, errors.New("response status 70000 is not between 100 and 599"))
+	targets := map[string]string{"create": "/endpoint-mocks/create", "update": "/endpoint-mocks/" + knownID}
+	for name, target := range targets {
+		t.Run(name, func(t *testing.T) {
+			f := newFakes()
+			f.endpointMocks.create = func(context.Context, *dao.EndpointMock) (*dao.EndpointMock, error) {
+				return nil, refusal
+			}
+			f.endpointMocks.update = func(context.Context, *dao.EndpointMock) (*dao.EndpointMock, error) {
+				return nil, refusal
+			}
+			app := mount(t, f, config.Config{}, config.Deps{})
+
+			response := request(t, app, http.MethodPost, target, `{"name":"mock"}`)
+
+			require.Equal(t, http.StatusBadRequest, response.StatusCode)
+			var message ErrorMessage
+			require.NoError(t, json.NewDecoder(response.Body).Decode(&message))
+			assert.Contains(t, message.ErrorMessage, "70000")
+			assert.Equal(t, ServiceName, message.ServiceName)
+		})
+	}
+}
+
+// A test case is refused for the same kind of mistake a mock is, so both
+// controllers branch on it the same way.
+func TestTestCaseWritesReportARefusedValidationRuleAsBadRequest(t *testing.T) {
+	refusal := fmt.Errorf("%w: %w", services.ErrInvalidRequest,
+		errors.New(`response validation rule "r": unsupported entity type: cookie`))
+	targets := map[string]string{"create": "/test-cases/create", "update": "/test-cases/" + knownID}
+	for name, target := range targets {
+		t.Run(name, func(t *testing.T) {
+			f := newFakes()
+			f.testCases.create = func(context.Context, *dao.TestCase) (*dao.TestCase, error) {
+				return nil, refusal
+			}
+			f.testCases.update = func(context.Context, *dao.TestCase) (*dao.TestCase, error) {
+				return nil, refusal
+			}
+			app := mount(t, f, config.Config{}, config.Deps{})
+
+			response := request(t, app, http.MethodPost, target, `{"name":"case"}`)
+
+			require.Equal(t, http.StatusBadRequest, response.StatusCode)
+			var message ErrorMessage
+			require.NoError(t, json.NewDecoder(response.Body).Decode(&message))
+			assert.Contains(t, message.ErrorMessage, "cookie")
+			assert.Equal(t, ServiceName, message.ServiceName)
+		})
+	}
+}
+
+// A mock stored before the header validation could carry a line break, and
+// fasthttp writes what Add is given. Left alone it would end the header line
+// early and let the rest of the value pass for the start of another response.
+func TestEndpointMockCallCannotSplitTheResponseThroughAStoredHeader(t *testing.T) {
+	encoded := base64.StdEncoding.EncodeToString([]byte(`{"chainId":"chain-1","elementId":"element-1"}`))
+	f := newFakes()
+	f.endpointMocks.call = func(context.Context, dao.EndpointReference, model.Exchange) (*model.Exchange, error) {
+		return &model.Exchange{
+			Status: http.StatusOK,
+			Headers: map[string][]string{
+				"X-Mocked":                  {"yes\r\nX-Injected: from-the-value"},
+				"X-Broken\r\nX-Smuggled: 1": {"whatever"},
+			},
+		}, nil
+	}
+	app := mount(t, f, config.Config{}, config.Deps{})
+
+	req := httptest.NewRequest(http.MethodPost, "/endpoint-mocks/call", nil)
+	req.Header.Set(model.TestingContextHeader, encoded)
+	response, err := app.Test(req, 2000)
+	require.NoError(t, err, "a split response does not parse as one response")
+	defer func() { _ = response.Body.Close() }()
+
+	assert.Equal(t, http.StatusOK, response.StatusCode)
+	assert.Equal(t, "yes  X-Injected: from-the-value", response.Header.Get("X-Mocked"))
+	assert.Empty(t, response.Header.Get("X-Injected"))
+	assert.Empty(t, response.Header.Get("X-Smuggled"))
+	assert.Empty(t, response.Header.Get("X-Broken"), "a header name with a line break is dropped")
 }
 
 func TestEndpointMockCallRejectsABrokenTestingContext(t *testing.T) {
@@ -452,7 +606,7 @@ func TestEndpointMockCallAnswersEveryMethod(t *testing.T) {
 }
 
 func TestGetEndpointReference(t *testing.T) {
-	reference := GetEndpointReference(&model.TestingContext{ChainID: "chain", ElementID: "element", Path: "/pets"})
+	reference := getEndpointReference(&model.TestingContext{ChainID: "chain", ElementID: "element", Path: "/pets"})
 	assert.Equal(t, dao.EndpointReference{ChainID: "chain", ElementID: "element"}, reference)
 }
 
@@ -500,4 +654,120 @@ func TestExportEndpointsSetTheirContentType(t *testing.T) {
 
 	response = request(t, app, http.MethodPost, "/tests-runs/export", "[]")
 	assert.Contains(t, response.Header.Get(fiber.HeaderContentType), MIMETextCSV)
+}
+
+// A filter or sorting value the listing refuses is the caller's mistake. Behind
+// a 500 the client cannot tell it sent a bad request, and monitoring counts the
+// mistake as a failure of this service.
+func TestAListingReportsARefusedFilterAsABadRequest(t *testing.T) {
+	f := newFakes()
+	refusal := fmt.Errorf("%w: %w", dao.ErrInvalidSelection,
+		errors.New(`wrong filter feature "secret", expected one of: id, name`))
+	f.testCases.findAll = func(
+		context.Context, *model.SelectionSpecification, model.SortOptions, *model.PaginationOptions, bool,
+	) (*[]dao.TestCaseView, error) {
+		return nil, refusal
+	}
+	app := mount(t, f, config.Config{}, config.Deps{})
+
+	response := request(t, app, http.MethodPost, "/test-cases",
+		`{"filters":[{"feature":"secret","condition":"is","values":["1"]}]}`)
+
+	require.Equal(t, http.StatusBadRequest, response.StatusCode)
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	var message ErrorMessage
+	require.NoError(t, json.Unmarshal(body, &message))
+	assert.Contains(t, message.ErrorMessage, "secret", "the caller has to learn what it got wrong")
+	assert.Contains(t, message.ErrorMessage, "expected one of: id, name")
+	assert.Equal(t, ServiceName, message.ServiceName)
+	assert.Equal(t, "No Stacktrace Available", message.Stacktrace)
+}
+
+// A database failure behind the same call stays a 500 with nothing in the body.
+func TestAListingStillReportsADatabaseFailureAsAnInternalError(t *testing.T) {
+	f := newFakes()
+	f.testCases.findAll = func(
+		context.Context, *model.SelectionSpecification, model.SortOptions, *model.PaginationOptions, bool,
+	) (*[]dao.TestCaseView, error) {
+		return nil, errors.New(`pq: relation "test_cases" does not exist`)
+	}
+	app := mount(t, f, config.Config{}, config.Deps{})
+
+	response := request(t, app, http.MethodPost, "/test-cases", "{}")
+
+	require.Equal(t, http.StatusInternalServerError, response.StatusCode)
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	assert.NotContains(t, string(body), "relation")
+}
+
+// An update of an id that names nothing is the caller's own input. The read
+// endpoint on the same resource already answers 404 to it, and a 500 would put
+// the caller's stale id in the log at ERROR as a failure of this service.
+func TestAnUpdateReportsAMissingTargetAsNotFound(t *testing.T) {
+	missing := fmt.Errorf("%w: %w", services.ErrNotFound, errors.New("gone before the update"))
+	tests := []struct {
+		name    string
+		target  string
+		arrange func(*fakes)
+		message string
+	}{
+		{
+			name:   "test case",
+			target: "/test-cases/" + knownID,
+			arrange: func(f *fakes) {
+				f.testCases.update = func(context.Context, *dao.TestCase) (*dao.TestCase, error) {
+					return nil, missing
+				}
+			},
+			message: "Test case " + knownID + " not found.",
+		},
+		{
+			name:   "endpoint mock",
+			target: "/endpoint-mocks/" + knownID,
+			arrange: func(f *fakes) {
+				f.endpointMocks.update = func(context.Context, *dao.EndpointMock) (*dao.EndpointMock, error) {
+					return nil, missing
+				}
+			},
+			message: "Endpoint mock " + knownID + " not found.",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			f := newFakes()
+			test.arrange(f)
+			app := mount(t, f, config.Config{}, config.Deps{})
+
+			response := request(t, app, http.MethodPost, test.target, "{}")
+
+			require.Equal(t, http.StatusNotFound, response.StatusCode)
+			var message ErrorMessage
+			require.NoError(t, json.NewDecoder(response.Body).Decode(&message))
+			// The status is the only thing that changes: the body keeps the shape
+			// and the timestamp format every other failure answers with.
+			assert.Equal(t, test.message, message.ErrorMessage)
+			assert.Equal(t, ServiceName, message.ServiceName)
+			assert.Equal(t, "No Stacktrace Available", message.Stacktrace)
+			_, err := time.Parse("2006-01-02 15:04:05.000", message.ErrorDate)
+			assert.NoError(t, err, "the error date keeps its format")
+		})
+	}
+}
+
+// A database failure behind the same call stays a 500 with nothing in the body.
+func TestAnUpdateStillReportsADatabaseFailureAsAnInternalError(t *testing.T) {
+	f := newFakes()
+	f.testCases.update = func(context.Context, *dao.TestCase) (*dao.TestCase, error) {
+		return nil, errors.New(`pq: relation "test_cases" does not exist`)
+	}
+	app := mount(t, f, config.Config{}, config.Deps{})
+
+	response := request(t, app, http.MethodPost, "/test-cases/"+knownID, "{}")
+
+	require.Equal(t, http.StatusInternalServerError, response.StatusCode)
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	assert.NotContains(t, string(body), "relation")
 }

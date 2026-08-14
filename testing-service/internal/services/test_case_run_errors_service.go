@@ -6,7 +6,6 @@ import (
 	"encoding/csv"
 
 	"github.com/google/uuid"
-	"github.com/uptrace/bun"
 
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
 )
@@ -22,18 +21,17 @@ type TestCaseRunErrorsService interface {
 		matcher *dao.Matcher,
 		message string,
 	) (*dao.ValidationError, error)
-	BulkExport(ctx context.Context, ids []uuid.UUID) (string, error)
-	BulkExportToCsv(ctx context.Context, ids []uuid.UUID, writer *csv.Writer) error
+	BulkExport(ctx context.Context, ids *[]uuid.UUID) (string, error)
 }
 
 type testCaseRunErrorsService struct {
 	runner       dao.Runner
-	repositories Repositories
+	repositories dao.Repositories
 }
 
 // NewTestCaseRunErrorsService returns a TestCaseRunErrorsService over the given
 // database access.
-func NewTestCaseRunErrorsService(runner dao.Runner, repositories Repositories) TestCaseRunErrorsService {
+func NewTestCaseRunErrorsService(runner dao.Runner, repositories dao.Repositories) TestCaseRunErrorsService {
 	return &testCaseRunErrorsService{runner: runner, repositories: repositories}
 }
 
@@ -42,7 +40,7 @@ func (s *testCaseRunErrorsService) FindByTestCaseRunId(
 	id uuid.UUID,
 	withMatchers bool,
 ) (*[]dao.ValidationError, error) {
-	return dao.Run(ctx, s.runner, func(ctx context.Context, _ bun.IDB) (*[]dao.ValidationError, error) {
+	return dao.Run(ctx, s.runner, func(ctx context.Context) (*[]dao.ValidationError, error) {
 		return s.repositories.TestCaseRunErrors.FindByTestCaseRunId(ctx, id, withMatchers)
 	})
 }
@@ -57,7 +55,7 @@ func (s *testCaseRunErrorsService) AddError(
 	matcher *dao.Matcher,
 	message string,
 ) (*dao.ValidationError, error) {
-	return dao.RunInTx(ctx, s.runner, defaultTxOptions(), func(ctx context.Context, _ bun.IDB) (*dao.ValidationError, error) {
+	return dao.RunInTx(ctx, s.runner, func(ctx context.Context) (*dao.ValidationError, error) {
 		validationError := dao.ValidationError{TestCaseRunID: &testCaseRunID, Message: message}
 		if matcher != nil {
 			validationError.MatcherID = &matcher.ID
@@ -71,17 +69,23 @@ func (s *testCaseRunErrorsService) AddError(
 	})
 }
 
-func (s *testCaseRunErrorsService) BulkExport(ctx context.Context, ids []uuid.UUID) (string, error) {
+func (s *testCaseRunErrorsService) BulkExport(ctx context.Context, ids *[]uuid.UUID) (string, error) {
+	if ids == nil || len(*ids) == 0 {
+		return "", nil
+	}
 	var buffer bytes.Buffer
 	writer := csv.NewWriter(&buffer)
-	if err := s.BulkExportToCsv(ctx, ids, writer); err != nil {
+	if err := s.bulkExportToCsv(ctx, *ids, writer); err != nil {
 		return "", err
 	}
 	writer.Flush()
 	return buffer.String(), writer.Error()
 }
 
-func (s *testCaseRunErrorsService) BulkExportToCsv(ctx context.Context, ids []uuid.UUID, writer *csv.Writer) error {
+// validationErrorCsvHeader names the columns bulkExportToCsv writes, in order.
+var validationErrorCsvHeader = []string{"Rule", "Message"}
+
+func (s *testCaseRunErrorsService) bulkExportToCsv(ctx context.Context, ids []uuid.UUID, writer *csv.Writer) error {
 	return runQuery(ctx, s.runner, func(ctx context.Context) error {
 		validationErrors, err := s.repositories.TestCaseRunErrors.FindByIds(ctx, ids, true)
 		if err != nil {
@@ -90,11 +94,11 @@ func (s *testCaseRunErrorsService) BulkExportToCsv(ctx context.Context, ids []uu
 		if validationErrors == nil || len(*validationErrors) == 0 {
 			return nil
 		}
-		if err = writer.Write([]string{"Rule", "Message"}); err != nil {
+		if err = writer.Write(validationErrorCsvHeader); err != nil {
 			return err
 		}
 		for _, validationError := range *validationErrors {
-			if err = writer.Write([]string{getRuleName(validationError), validationError.Message}); err != nil {
+			if err = writer.Write(csvFields(getRuleName(validationError), validationError.Message)); err != nil {
 				return err
 			}
 		}

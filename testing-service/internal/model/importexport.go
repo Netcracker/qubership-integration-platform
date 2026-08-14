@@ -13,10 +13,10 @@ const (
 	ImportResultError   = "error"
 )
 
-// Entity kinds an archive may carry.
+// Entity kinds an archive may carry. They are the values of ExportedEntity.Type.
 const (
-	EntityTypeTestCase     = "TestCase"
-	EntityTypeEndpointMock = "EndpointMock"
+	ExportedTypeTestCase     = "TestCase"
+	ExportedTypeEndpointMock = "EndpointMock"
 )
 
 type ImportResult struct {
@@ -35,6 +35,3 @@ type ExportedEntity struct {
 	Name    string          `json:"name"`
 	Data    json.RawMessage `json:"data"`
 }
-
-// ExportedDataMigrationFunction upgrades one exported entity to the next version.
-type ExportedDataMigrationFunction = func(data *json.RawMessage) (*json.RawMessage, error)

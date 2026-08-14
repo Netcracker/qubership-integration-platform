@@ -3,6 +3,7 @@ package triggers
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
-	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/qip"
 )
 
 const (
@@ -25,32 +25,50 @@ const (
 	sessionHeader = "external-session-cip-id"
 )
 
+// defaultTimeout bounds a test case that set none. The client is shared and
+// carries no timeout of its own, so without a ceiling a hung engine would pin
+// the worker and its lease renewal until the process shuts down. It is a
+// variable so a test can shorten it.
+var defaultTimeout = 15 * time.Minute
+
 // pathParameterPattern matches a `{name}` placeholder in a trigger path.
 var pathParameterPattern = regexp.MustCompile(`\{[^}]+}`)
 
 type httpTrigger struct {
-	engine     qip.EngineClient
-	httpClient *http.Client
-	path       string
+	triggersURL string
+	httpClient  *http.Client
+	path        string
 }
 
 // NewHTTPTrigger reads the trigger path out of the chain element properties.
-func NewHTTPTrigger(engine qip.EngineClient, httpClient *http.Client, parameters map[string]any) (Trigger, error) {
+func NewHTTPTrigger(triggersURL string, httpClient *http.Client, parameters map[string]any) (Trigger, error) {
 	path, ok := parameters[httpTriggerPathProperty]
 	if !ok {
 		return nil, fmt.Errorf("missing %s property", httpTriggerPathProperty)
 	}
-	return &httpTrigger{engine: engine, httpClient: httpClient, path: fmt.Sprintf("%v", path)}, nil
+	return &httpTrigger{triggersURL: triggersURL, httpClient: httpClient, path: fmt.Sprintf("%v", path)}, nil
 }
 
-func (t *httpTrigger) Activate(ctx context.Context, requestSettings *dao.RequestSettings) (*model.Exchange, error) {
-	// The client is shared, so the per-case timeout has to ride on the context.
-	if requestSettings.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(requestSettings.Timeout)*time.Millisecond)
-		defer cancel()
+func (t *httpTrigger) Activate(
+	ctx context.Context,
+	sessionID string,
+	requestSettings *dao.RequestSettings,
+) (*model.Exchange, error) {
+	// Request settings are optional on a test case, so an enabled case may reach
+	// the executor without them. There is no request to send then, and this runs
+	// in a worker goroutine where a dereference would take the process down.
+	if requestSettings == nil {
+		return nil, errors.New("the test case has no request settings")
 	}
-	request, err := t.buildRequest(ctx, requestSettings)
+	// The client is shared, so the per-case timeout has to ride on the context.
+	timeout := defaultTimeout
+	if requestSettings.Timeout > 0 {
+		timeout = time.Duration(requestSettings.Timeout) * time.Millisecond
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	request, err := t.buildRequest(ctx, sessionID, requestSettings)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build request: %w", err)
 	}
@@ -66,12 +84,12 @@ func (t *httpTrigger) Activate(ctx context.Context, requestSettings *dao.Request
 	return exchange, nil
 }
 
-func (t *httpTrigger) buildRequest(ctx context.Context, requestSettings *dao.RequestSettings) (*http.Request, error) {
+func (t *httpTrigger) buildRequest(
+	ctx context.Context,
+	sessionID string,
+	requestSettings *dao.RequestSettings,
+) (*http.Request, error) {
 	requestURL, err := t.buildURL(requestSettings)
-	if err != nil {
-		return nil, err
-	}
-	sessionID, err := SessionID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -96,15 +114,11 @@ func (t *httpTrigger) buildRequest(ctx context.Context, requestSettings *dao.Req
 }
 
 func (t *httpTrigger) buildURL(requestSettings *dao.RequestSettings) (string, error) {
-	address, err := t.engine.HTTPTriggersURL()
-	if err != nil {
-		return "", err
-	}
 	path, err := resolvePathParameters(t.path, requestSettings.PathParameters)
 	if err != nil {
 		return "", err
 	}
-	address, err = url.JoinPath(address, path)
+	address, err := url.JoinPath(t.triggersURL, path)
 	if err != nil {
 		return "", err
 	}
@@ -150,5 +164,13 @@ func resolvePathParameters(path string, parameters []*dao.PathParameter) (string
 		cursor = match[1]
 	}
 	result.WriteString(path[cursor:])
-	return result.String(), nil
+	resolved := result.String()
+	// url.JoinPath collapses dot segments, and PathEscape leaves dots alone, so a
+	// value of ".." would walk the request out of the engine's trigger prefix.
+	for _, segment := range strings.Split(resolved, "/") {
+		if segment == "." || segment == ".." {
+			return "", fmt.Errorf("trigger path %q walks out of the engine prefix", resolved)
+		}
+	}
+	return resolved, nil
 }

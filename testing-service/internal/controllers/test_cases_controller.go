@@ -2,13 +2,13 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
-	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/services"
 )
 
@@ -33,40 +33,13 @@ func newTestCasesController(logger *slog.Logger, testCasesService services.TestC
 // @Param    sort_order       query    string                    false    "Sort order"    enums(ASC, DESC) default(ASC)
 // @Param    return_ids       query    bool                      false    "Return IDs list"
 // @Param    specification    body     SelectionSpecification    true     "Test cases specification"
-// @Success    200    array       TestCase
+// @Success    200    array       TestCaseView
 // @Failure    400    {object}    ErrorMessage
 // @Failure    500    {object}    ErrorMessage
 // @Router /api/v1/test-cases [post]
 func (c *testCasesController) FindAll(ctx *fiber.Ctx) error {
-	pagination, err := paginationOptions(ctx)
-	if err != nil {
-		return c.malformedPaginationParameters(ctx, err)
-	}
-	sorting, err := sortOptions(ctx)
-	if err != nil {
-		return c.malformedSortingParameters(ctx, err)
-	}
-	var specification model.SelectionSpecification
-	if err := json.Unmarshal(ctx.Body(), &specification); err != nil {
-		return c.malformedRequestBody(ctx, err)
-	}
-	returnIds := ctx.QueryBool("return_ids", false)
-	if returnIds {
-		pagination = nil
-	}
-	userContext := ctx.UserContext()
-	testCases, err := c.testCasesService.FindAll(userContext, &specification, *sorting, pagination, !returnIds)
-	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Unable to get test cases: %v", err.Error())
-	}
-	if returnIds {
-		ids := make([]uuid.UUID, 0, len(*testCases))
-		for _, testCase := range *testCases {
-			ids = append(ids, testCase.ID)
-		}
-		return respondWithJSON(ctx, fiber.StatusOK, ids)
-	}
-	return respondWithJSON(ctx, fiber.StatusOK, testCases)
+	return findAll(ctx, c.responder, "test cases", c.testCasesService.FindAll,
+		func(testCase dao.TestCaseView) uuid.UUID { return testCase.ID })
 }
 
 // FindById
@@ -75,7 +48,7 @@ func (c *testCasesController) FindAll(ctx *fiber.Ctx) error {
 // @Tags V1, Test Cases
 // @Produce json
 // @Param    id    path    string    true    "Test case UUID"    format(uuid) example(00000000-0000-0000-0000-000000000000)
-// @Success    200    {object}    TestCase
+// @Success    200    {object}    TestCaseView
 // @Failure    400    {object}    ErrorMessage
 // @Failure    404    {object}    ErrorMessage
 // @Failure    500    {object}    ErrorMessage
@@ -89,12 +62,12 @@ func (c *testCasesController) FindById(ctx *fiber.Ctx) error {
 	userContext := ctx.UserContext()
 	testCase, err := c.testCasesService.FindById(userContext, testCaseId)
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Unable to get test case by ID: %v", err.Error())
+		return c.internalError(ctx, "Unable to get test case by ID", err)
 	}
 	if testCase == nil {
 		return c.fail(ctx, fiber.StatusNotFound, "Test case %v not found.", testCaseId)
 	}
-	return respondWithJSON(ctx, fiber.StatusOK, testCase)
+	return ctx.Status(fiber.StatusOK).JSON(testCase)
 }
 
 // Create
@@ -115,9 +88,12 @@ func (c *testCasesController) Create(ctx *fiber.Ctx) error {
 	userContext := ctx.UserContext()
 	createdTestCase, err := c.testCasesService.Create(userContext, &testCase)
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Unable to create test case: %v", err.Error())
+		if errors.Is(err, services.ErrInvalidRequest) {
+			return c.fail(ctx, fiber.StatusBadRequest, "%s", err.Error())
+		}
+		return c.internalError(ctx, "Unable to create test case", err)
 	}
-	return respondWithJSON(ctx, fiber.StatusCreated, createdTestCase)
+	return ctx.Status(fiber.StatusCreated).JSON(createdTestCase)
 }
 
 // Update
@@ -129,6 +105,7 @@ func (c *testCasesController) Create(ctx *fiber.Ctx) error {
 // @Param    testCase  body    TestCase  true    "Test case"
 // @Success    200    {object}    TestCase
 // @Failure    400    {object}    ErrorMessage
+// @Failure    404    {object}    ErrorMessage
 // @Failure    500    {object}    ErrorMessage
 // @Router /api/v1/test-cases/{id} [post]
 func (c *testCasesController) Update(ctx *fiber.Ctx) error {
@@ -145,9 +122,17 @@ func (c *testCasesController) Update(ctx *fiber.Ctx) error {
 	userContext := ctx.UserContext()
 	updatedTestCase, err := c.testCasesService.Update(userContext, &testCase)
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Unable to update test case: %v", err.Error())
+		switch {
+		case errors.Is(err, services.ErrInvalidRequest):
+			return c.fail(ctx, fiber.StatusBadRequest, "%s", err.Error())
+		case errors.Is(err, services.ErrNotFound):
+			// The id came off the path and names nothing, which is what the read
+			// endpoint answers 404 to. The wording matches it.
+			return c.fail(ctx, fiber.StatusNotFound, "Test case %v not found.", testCaseId)
+		}
+		return c.internalError(ctx, "Unable to update test case", err)
 	}
-	return respondWithJSON(ctx, fiber.StatusOK, updatedTestCase)
+	return ctx.Status(fiber.StatusOK).JSON(updatedTestCase)
 }
 
 // Delete
@@ -168,7 +153,7 @@ func (c *testCasesController) Delete(ctx *fiber.Ctx) error {
 	}
 	userContext := ctx.UserContext()
 	if err := c.testCasesService.Delete(userContext, testCaseId); err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to delete test case: %v", err.Error())
+		return c.internalError(ctx, "Failed to delete test case", err)
 	}
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
@@ -191,7 +176,7 @@ func (c *testCasesController) BulkDelete(ctx *fiber.Ctx) error {
 	}
 	userContext := ctx.UserContext()
 	if err := c.testCasesService.BulkDelete(userContext, &testCaseIds); err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to bulk delete test cases: %v", err.Error())
+		return c.internalError(ctx, "Failed to bulk delete test cases", err)
 	}
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
@@ -214,9 +199,9 @@ func (c *testCasesController) Import(ctx *fiber.Ctx) error {
 	userContext := ctx.UserContext()
 	importResult, err := c.testCasesService.Import(userContext, form.File["file"])
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to import test cases: %v", err.Error())
+		return c.internalError(ctx, "Failed to import test cases", err)
 	}
-	return respondWithJSON(ctx, fiber.StatusOK, importResult)
+	return ctx.Status(fiber.StatusOK).JSON(importResult)
 }
 
 // Export
@@ -238,7 +223,7 @@ func (c *testCasesController) Export(ctx *fiber.Ctx) error {
 	userContext := ctx.UserContext()
 	data, err := c.testCasesService.Export(userContext, &testCaseIds)
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to export test cases: %v", err.Error())
+		return c.internalError(ctx, "Failed to export test cases", err)
 	}
 	return respondWithZip(ctx, fiber.StatusOK, *data)
 }

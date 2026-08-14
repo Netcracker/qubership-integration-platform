@@ -15,10 +15,11 @@ func TestGetMatcherPredicateCoversEveryMatcherType(t *testing.T) {
 		"schema":  {`{"type":"object"}`},
 	}
 
-	for _, matcherType := range []string{
-		"empty", "exist", "equal", "contain", "match",
-		"start_with", "end_with", "match_json_schema", "match_json",
-	} {
+	// The list comes off the factory table, so a type added to the factory is a
+	// type this test has to cover.
+	types := matcherTypes()
+	require.Len(t, types, 9, "a new matcher type needs a parameter set here")
+	for _, matcherType := range types {
 		t.Run(matcherType, func(t *testing.T) {
 			predicate, err := GetMatcherPredicate(matcherType, parameters)
 

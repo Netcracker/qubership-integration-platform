@@ -25,10 +25,16 @@ func exportedRows(t *testing.T, exported string) [][]string {
 	return rows
 }
 
-func TestExportToCsvReturnsNothingForAnEmptySelection(t *testing.T) {
-	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: &fakeTestCaseRunsRepository{}})
+// newTestCaseRunsService returns the concrete service, so a test can reach the
+// helpers the interface does not expose.
+func newTestCaseRunsService(cfg config.Config, runner dao.Runner, repositories dao.Repositories) *testCaseRunsService {
+	return NewTestCaseRunsService(cfg, runner, repositories).(*testCaseRunsService)
+}
 
-	exported, err := service.ExportToCsv(context.Background(), nil)
+func TestExportToCsvReturnsNothingForAnEmptySelection(t *testing.T) {
+	service := newTestCaseRunsService(config.Config{}, &fakeRunner{}, dao.Repositories{TestCaseRuns: &fakeTestCaseRunsRepository{}})
+
+	exported, err := service.exportSelectionToCsv(context.Background(), nil)
 
 	require.NoError(t, err)
 	assert.Empty(t, exported)
@@ -36,7 +42,7 @@ func TestExportToCsvReturnsNothingForAnEmptySelection(t *testing.T) {
 
 func TestExportSkipsTheQueryWhenNoIdsWereGiven(t *testing.T) {
 	repository := &fakeTestCaseRunsRepository{views: []dao.TestCaseRunView{{}}}
-	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: repository})
+	service := newTestCaseRunsService(config.Config{}, &fakeRunner{}, dao.Repositories{TestCaseRuns: repository})
 
 	byIds, err := service.Export(context.Background(), &[]uuid.UUID{})
 	require.NoError(t, err)
@@ -62,9 +68,9 @@ func TestExportToCsvWritesOneRowPerRunWithoutErrors(t *testing.T) {
 			Status:     &status,
 		},
 	}}}
-	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: repository})
+	service := newTestCaseRunsService(config.Config{}, &fakeRunner{}, dao.Repositories{TestCaseRuns: repository})
 
-	exported, err := service.ExportToCsv(context.Background(), nil)
+	exported, err := service.exportSelectionToCsv(context.Background(), nil)
 
 	require.NoError(t, err)
 	rows := exportedRows(t, exported)
@@ -74,7 +80,7 @@ func TestExportToCsvWritesOneRowPerRunWithoutErrors(t *testing.T) {
 	assert.Equal(t, runID.String(), rows[1][1], "the run id belongs in its own column")
 	assert.Equal(t, testCaseID.String(), rows[1][3])
 	assert.Equal(t, start.Format(time.RFC3339Nano), rows[1][6])
-	assert.Empty(t, rows[1][7], "an unfinished run has no finish timestamp")
+	assert.Empty(t, rows[1][7], "a run with no finish timestamp leaves the column empty rather than panicking")
 	assert.Equal(t, dao.RunStatusFinished, rows[1][8])
 }
 
@@ -91,12 +97,12 @@ func TestExportToCsvWritesOneRowPerValidationError(t *testing.T) {
 			{Message: "no response"},
 		},
 	}}
-	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{
+	service := newTestCaseRunsService(config.Config{}, &fakeRunner{}, dao.Repositories{
 		TestCaseRuns:      repository,
 		TestCaseRunErrors: errorsRepository,
 	})
 
-	exported, err := service.ExportToCsv(context.Background(), nil)
+	exported, err := service.exportSelectionToCsv(context.Background(), nil)
 
 	require.NoError(t, err)
 	rows := exportedRows(t, exported)
@@ -108,7 +114,7 @@ func TestExportToCsvWritesOneRowPerValidationError(t *testing.T) {
 
 func TestFinishingAndSkippingStampTheExpectedStatusesUnderTheOwnerToken(t *testing.T) {
 	repository := &fakeTestCaseRunsRepository{}
-	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: repository})
+	service := newTestCaseRunsService(config.Config{}, &fakeRunner{}, dao.Repositories{TestCaseRuns: repository})
 	id := uuid.New()
 	owner := uuid.New()
 
@@ -125,7 +131,7 @@ func TestFinishingAndSkippingStampTheExpectedStatusesUnderTheOwnerToken(t *testi
 func TestFinishingAndSkippingAreRefusedOnceAnotherWorkerOwnsTheRun(t *testing.T) {
 	current := uuid.New()
 	repository := &fakeTestCaseRunsRepository{leaseOwner: &current}
-	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: repository})
+	service := newTestCaseRunsService(config.Config{}, &fakeRunner{}, dao.Repositories{TestCaseRuns: repository})
 	id := uuid.New()
 	swept := uuid.New()
 
@@ -139,7 +145,7 @@ func TestClaimNextLeasesTheRunToTheGivenOwner(t *testing.T) {
 	queued := &dao.TestCaseRun{ID: uuid.New()}
 	repository := &fakeTestCaseRunsRepository{claimable: queued}
 	cfg := config.Config{LeaseDuration: 90 * time.Second}
-	service := NewTestCaseRunsService(cfg, &fakeRunner{}, Repositories{TestCaseRuns: repository})
+	service := newTestCaseRunsService(cfg, &fakeRunner{}, dao.Repositories{TestCaseRuns: repository})
 	owner := uuid.New()
 
 	claimed, err := service.ClaimNext(context.Background(), owner, "session-1")
@@ -156,7 +162,7 @@ func TestClaimNextLeasesTheRunToTheGivenOwner(t *testing.T) {
 func TestRenewLeaseExtendsTheClaimForTheConfiguredDuration(t *testing.T) {
 	repository := &fakeTestCaseRunsRepository{}
 	cfg := config.Config{LeaseDuration: 90 * time.Second}
-	service := NewTestCaseRunsService(cfg, &fakeRunner{}, Repositories{TestCaseRuns: repository})
+	service := newTestCaseRunsService(cfg, &fakeRunner{}, dao.Repositories{TestCaseRuns: repository})
 	id := uuid.New()
 	owner := uuid.New()
 
@@ -168,7 +174,7 @@ func TestRenewLeaseExtendsTheClaimForTheConfiguredDuration(t *testing.T) {
 func TestRenewLeaseIsRefusedOnceAnotherWorkerOwnsTheRun(t *testing.T) {
 	current := uuid.New()
 	repository := &fakeTestCaseRunsRepository{leaseOwner: &current}
-	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: repository})
+	service := newTestCaseRunsService(config.Config{}, &fakeRunner{}, dao.Repositories{TestCaseRuns: repository})
 
 	err := service.RenewLease(context.Background(), uuid.New(), uuid.New())
 
@@ -178,7 +184,7 @@ func TestRenewLeaseIsRefusedOnceAnotherWorkerOwnsTheRun(t *testing.T) {
 
 func TestReclaimExpiredReportsHowManyRunsReturnedToTheQueue(t *testing.T) {
 	repository := &fakeTestCaseRunsRepository{reclaimable: 3}
-	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: repository})
+	service := newTestCaseRunsService(config.Config{}, &fakeRunner{}, dao.Repositories{TestCaseRuns: repository})
 
 	reclaimed, err := service.ReclaimExpired(context.Background())
 
@@ -189,7 +195,7 @@ func TestReclaimExpiredReportsHowManyRunsReturnedToTheQueue(t *testing.T) {
 
 func TestReclaimExpiredReportsAFailingSweep(t *testing.T) {
 	repository := &fakeTestCaseRunsRepository{reclaimErr: errors.New("no connection")}
-	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: repository})
+	service := newTestCaseRunsService(config.Config{}, &fakeRunner{}, dao.Repositories{TestCaseRuns: repository})
 
 	reclaimed, err := service.ReclaimExpired(context.Background())
 
@@ -199,7 +205,7 @@ func TestReclaimExpiredReportsAFailingSweep(t *testing.T) {
 
 func TestClaimNextLeasesForTheDefaultDurationWhenNoneIsConfigured(t *testing.T) {
 	repository := &fakeTestCaseRunsRepository{}
-	service := NewTestCaseRunsService(config.Config{}, &fakeRunner{}, Repositories{TestCaseRuns: repository})
+	service := newTestCaseRunsService(config.Config{}.WithDefaults(), &fakeRunner{}, dao.Repositories{TestCaseRuns: repository})
 
 	claimed, err := service.ClaimNext(context.Background(), uuid.New(), "session-1")
 

@@ -7,12 +7,20 @@
   "lockFileMaintenance": {
     "enabled": false
   },
+  "constraints": {
+    "go": "1.22"
+  },
   "packageRules": [
     {
       "description": "Pin GitHub Actions to commit SHAs and keep the pinned digests current",
       "matchManagers": ["github-actions"],
       "matchUpdateTypes": ["pin", "pinDigest", "digest"],
       "enabled": true
+    },
+    {
+      "description": "Keep testing-service buildable on the 1.22 toolchain the downstream build pins: skip releases that declare a newer go directive",
+      "matchManagers": ["gomod"],
+      "constraintsFiltering": "strict"
     }
   ]
 }

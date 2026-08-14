@@ -1,30 +1,32 @@
 package services
 
 import (
+	"cmp"
 	"context"
-	"errors"
-	"fmt"
 	"log/slog"
+	"math"
 	"slices"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/uptrace/bun"
 
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/config"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
 )
 
-// Entity kinds a test run can be started from.
+// What a test run can be started from. These are the values of the "from" query
+// parameter of the create endpoint.
 const (
-	EntityTypeTestCases    = "test_cases"
-	EntityTypeTestsRuns    = "tests_runs"
-	EntityTypeTestCaseRuns = "test_case_runs"
+	RunSourceTestCases    = "test_cases"
+	RunSourceTestsRuns    = "tests_runs"
+	RunSourceTestCaseRuns = "test_case_runs"
 )
 
-// ErrEmptyTestCaseList reports a request to start a run over no test cases.
-var ErrEmptyTestCaseList = errors.New("the list of test case IDs is empty")
+// ErrEmptyTestCaseList reports a request to start a run over no test cases. Like
+// the other refusals of this service it wraps ErrInvalidRequest, so the caller
+// reads a 400 rather than a 500 about its own input.
+var ErrEmptyTestCaseList = invalidRequest("the list of test case IDs is empty")
 
 // TestsRunsService manages test runs: a queue of test case runs plus the
 // aggregate the list API reports.
@@ -36,7 +38,6 @@ type TestsRunsService interface {
 		pagination *model.PaginationOptions,
 	) (*[]dao.TestsRunView, error)
 	FindById(ctx context.Context, id uuid.UUID) (*dao.TestsRunView, error)
-	StartNew(ctx context.Context, testCaseIds *[]uuid.UUID) (*uuid.UUID, error)
 	StartNewFromEntitiesWithType(ctx context.Context, ids *[]uuid.UUID, entityType string) (*uuid.UUID, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	BulkDelete(ctx context.Context, ids *[]uuid.UUID) error
@@ -63,7 +64,7 @@ type WorkNotifier interface {
 type testsRunsService struct {
 	logger              *slog.Logger
 	runner              dao.Runner
-	repositories        Repositories
+	repositories        dao.Repositories
 	testCaseRunsService TestCaseRunsService
 	notifier            WorkNotifier
 	retentionAge        time.Duration
@@ -77,11 +78,10 @@ func NewTestsRunsService(
 	cfg config.Config,
 	logger *slog.Logger,
 	runner dao.Runner,
-	repositories Repositories,
+	repositories dao.Repositories,
 	testCaseRunsService TestCaseRunsService,
 	notifier WorkNotifier,
 ) TestsRunsService {
-	cfg = cfg.WithDefaults()
 	return &testsRunsService{
 		logger:              logger,
 		runner:              runner,
@@ -99,23 +99,23 @@ func (s *testsRunsService) FindAll(
 	sorting model.SortOptions,
 	pagination *model.PaginationOptions,
 ) (*[]dao.TestsRunView, error) {
-	return dao.Run(ctx, s.runner, func(ctx context.Context, _ bun.IDB) (*[]dao.TestsRunView, error) {
+	return dao.Run(ctx, s.runner, func(ctx context.Context) (*[]dao.TestsRunView, error) {
 		return s.repositories.TestsRuns.FindAll(ctx, specification, sorting, pagination)
 	})
 }
 
 func (s *testsRunsService) FindById(ctx context.Context, id uuid.UUID) (*dao.TestsRunView, error) {
-	return dao.Run(ctx, s.runner, func(ctx context.Context, _ bun.IDB) (*dao.TestsRunView, error) {
+	return dao.Run(ctx, s.runner, func(ctx context.Context) (*dao.TestsRunView, error) {
 		return s.repositories.TestsRuns.FindById(ctx, id)
 	})
 }
 
-func (s *testsRunsService) StartNew(ctx context.Context, testCaseIds *[]uuid.UUID) (*uuid.UUID, error) {
-	if testCaseIds == nil || len(*testCaseIds) == 0 {
+func (s *testsRunsService) startNew(ctx context.Context, testCaseIDs *[]uuid.UUID) (*uuid.UUID, error) {
+	if testCaseIDs == nil || len(*testCaseIDs) == 0 {
 		return nil, ErrEmptyTestCaseList
 	}
-	testsRunID, err := dao.RunInTx(ctx, s.runner, defaultTxOptions(), func(ctx context.Context, _ bun.IDB) (*uuid.UUID, error) {
-		if err := s.verifyAllTestCasesExist(ctx, testCaseIds); err != nil {
+	testsRunID, err := dao.RunInTx(ctx, s.runner, func(ctx context.Context) (*uuid.UUID, error) {
+		if err := s.verifyAllTestCasesExist(ctx, testCaseIDs); err != nil {
 			return nil, err
 		}
 
@@ -128,7 +128,7 @@ func (s *testsRunsService) StartNew(ctx context.Context, testCaseIds *[]uuid.UUI
 			return nil, err
 		}
 
-		if err = s.createTestCaseRuns(ctx, testsRunID, testCaseIds); err != nil {
+		if err = s.createTestCaseRuns(ctx, testsRunID, testCaseIDs); err != nil {
 			return nil, err
 		}
 		return &testsRunID, nil
@@ -150,11 +150,11 @@ func (s *testsRunsService) StartNewFromEntitiesWithType(
 	ids *[]uuid.UUID,
 	entityType string,
 ) (*uuid.UUID, error) {
-	testCaseIds, err := s.getTestCasesIds(ctx, ids, entityType)
+	testCaseIDs, err := s.getTestCaseIDs(ctx, ids, entityType)
 	if err != nil {
 		return nil, err
 	}
-	return s.StartNew(ctx, testCaseIds)
+	return s.startNew(ctx, testCaseIDs)
 }
 
 func (s *testsRunsService) Delete(ctx context.Context, id uuid.UUID) error {
@@ -170,8 +170,8 @@ func (s *testsRunsService) BulkDelete(ctx context.Context, ids *[]uuid.UUID) err
 }
 
 func (s *testsRunsService) Cancel(ctx context.Context, id uuid.UUID) error {
-	testsRunIds := []uuid.UUID{id}
-	return s.testCaseRunsService.CancelByTestsRuns(ctx, &testsRunIds)
+	testsRunIDs := []uuid.UUID{id}
+	return s.testCaseRunsService.CancelByTestsRuns(ctx, &testsRunIDs)
 }
 
 func (s *testsRunsService) BulkCancel(ctx context.Context, ids *[]uuid.UUID) error {
@@ -217,7 +217,7 @@ func (s *testsRunsService) RunRetention(ctx context.Context) {
 func (s *testsRunsService) deleteExpired(ctx context.Context) (int, error) {
 	total := 0
 	for ctx.Err() == nil {
-		deleted, err := dao.RunInTx(ctx, s.runner, defaultTxOptions(), func(ctx context.Context, _ bun.IDB) (int, error) {
+		deleted, err := dao.RunInTx(ctx, s.runner, func(ctx context.Context) (int, error) {
 			return s.repositories.TestsRuns.DeleteExpired(ctx, s.retentionAge, retentionBatchSize)
 		})
 		total += deleted
@@ -238,41 +238,49 @@ func (s *testsRunsService) verifyAllTestCasesExist(ctx context.Context, ids *[]u
 			return err
 		}
 		if !exists {
-			return fmt.Errorf("test case does not exist: %v", id)
+			return invalidRequest("test case does not exist: %v", id)
 		}
 	}
 	return nil
 }
 
-func (s *testsRunsService) createTestCaseRuns(ctx context.Context, testsRunID uuid.UUID, testCaseIds *[]uuid.UUID) error {
-	testCaseRuns := make([]dao.TestCaseRun, 0, len(*testCaseIds))
-	for index := range *testCaseIds {
+func (s *testsRunsService) createTestCaseRuns(ctx context.Context, testsRunID uuid.UUID, testCaseIDs *[]uuid.UUID) error {
+	testCaseRuns := make([]dao.TestCaseRun, 0, len(*testCaseIDs))
+	for index := range *testCaseIDs {
 		// The ordinal is the order the cases were selected in, and it is what the
 		// claim runs them by. Leaving it unset would order a run arbitrarily.
 		ordinal := index + 1
 		testCaseRuns = append(testCaseRuns, dao.TestCaseRun{
 			TestsRunID: &testsRunID,
-			TestCaseID: &(*testCaseIds)[index],
+			TestCaseID: &(*testCaseIDs)[index],
 			Ordinal:    &ordinal,
 		})
 	}
 	return s.repositories.TestCaseRuns.Insert(ctx, &testCaseRuns)
 }
 
-// getTestCasesIds resolves the ids the caller passed to the test cases a run
+// getTestCaseIDs resolves the ids the caller passed to the test cases a run
 // should cover. Runs and case runs resolve through the case runs they own.
-func (s *testsRunsService) getTestCasesIds(
+func (s *testsRunsService) getTestCaseIDs(
 	ctx context.Context,
 	ids *[]uuid.UUID,
 	entityType string,
 ) (*[]uuid.UUID, error) {
 	switch entityType {
-	case EntityTypeTestCases:
+	case RunSourceTestCases:
 		return ids, nil
-	case EntityTypeTestCaseRuns:
+	case RunSourceTestCaseRuns:
+		if ids == nil || len(*ids) == 0 {
+			return ids, nil
+		}
 		specification := model.SelectionSpecification{Ids: ids}
-		return s.getTestCasesIdsFromTestCaseRuns(ctx, &specification)
-	case EntityTypeTestsRuns:
+		// Rerunning individual cases repeats the order the caller listed them in.
+		position := positionsOf(ids)
+		return s.getTestCaseIDsFromTestCaseRuns(ctx, &specification,
+			func(a, b dao.TestCaseRunView) int {
+				return cmp.Compare(position.of(a.ID), position.of(b.ID))
+			})
+	case RunSourceTestsRuns:
 		if ids == nil || len(*ids) == 0 {
 			return ids, nil
 		}
@@ -282,32 +290,102 @@ func (s *testsRunsService) getTestCasesIds(
 			Values:    uuid.UUIDs(*ids).Strings(),
 		}}
 		specification := model.SelectionSpecification{Filters: &filters}
-		return s.getTestCasesIdsFromTestCaseRuns(ctx, &specification)
+		// Rerunning whole runs repeats the order the caller listed the runs in,
+		// and within each run the order its own cases ran in.
+		position := positionsOf(ids)
+		return s.getTestCaseIDsFromTestCaseRuns(ctx, &specification,
+			func(a, b dao.TestCaseRunView) int {
+				if result := cmp.Compare(position.of(testsRunIDOf(a)), position.of(testsRunIDOf(b))); result != 0 {
+					return result
+				}
+				return cmp.Compare(ordinalOf(a), ordinalOf(b))
+			})
 	default:
-		return nil, fmt.Errorf("unknown entity type: %v", entityType)
+		return nil, invalidRequest("unknown entity type: %v", entityType)
 	}
 }
 
-func (s *testsRunsService) getTestCasesIdsFromTestCaseRuns(
+// orderIndex holds the place each id had in the request.
+type orderIndex map[uuid.UUID]int
+
+// of reports where id belongs. An id the request did not name sorts last, ahead
+// of nothing the caller can point at.
+func (i orderIndex) of(id uuid.UUID) int {
+	if position, named := i[id]; named {
+		return position
+	}
+	return math.MaxInt
+}
+
+// positionsOf indexes ids by the place the caller gave them. A repeated id keeps
+// its first place, so it does not pull the cases of its second mention forward.
+func positionsOf(ids *[]uuid.UUID) orderIndex {
+	if ids == nil {
+		return orderIndex{}
+	}
+	positions := make(orderIndex, len(*ids))
+	for index, id := range *ids {
+		if _, taken := positions[id]; !taken {
+			positions[id] = index
+		}
+	}
+	return positions
+}
+
+// ordinalOf reports the place a case run had in its own test run. A row from
+// before the ordinal column sorts last, the way the claim orders it.
+func ordinalOf(testCaseRun dao.TestCaseRunView) int {
+	if testCaseRun.Ordinal == nil {
+		return math.MaxInt
+	}
+	return *testCaseRun.Ordinal
+}
+
+func testsRunIDOf(testCaseRun dao.TestCaseRunView) uuid.UUID {
+	if testCaseRun.TestsRunID == nil {
+		return uuid.Nil
+	}
+	return *testCaseRun.TestsRunID
+}
+
+// getTestCaseIDsFromTestCaseRuns resolves case runs to the distinct test cases
+// they cover, in the order compare puts the case runs in.
+//
+// That order is what createTestCaseRuns stamps the ordinals from, and the
+// ordinal is what the claim runs a test run by, so a rerun has to repeat the
+// order of its source rather than reshuffle it. The listing itself returns rows
+// in no particular order: sorting it in the query would mean accepting
+// tests_run_id and ordinal as sorting fields of the public listing, which is a
+// wider change than the rerun needs, and the rows of one rerun are few enough to
+// order here.
+func (s *testsRunsService) getTestCaseIDsFromTestCaseRuns(
 	ctx context.Context,
 	specification *model.SelectionSpecification,
+	compare func(a, b dao.TestCaseRunView) int,
 ) (*[]uuid.UUID, error) {
 	sorting := model.SortOptions{Order: model.OrderAscending}
 	testCaseRuns, err := s.testCaseRunsService.FindAll(ctx, specification, sorting, nil)
 	if err != nil {
 		return nil, err
 	}
-	var testCaseIds []uuid.UUID
-	if testCaseRuns != nil {
-		for _, testCaseRun := range *testCaseRuns {
-			if testCaseRun.TestCaseID != nil {
-				testCaseIds = append(testCaseIds, *testCaseRun.TestCaseID)
-			}
-		}
+	var testCaseIDs []uuid.UUID
+	if testCaseRuns == nil {
+		return &testCaseIDs, nil
 	}
-	slices.SortFunc(testCaseIds, func(a, b uuid.UUID) int {
-		return slices.Compare(a[:], b[:])
-	})
-	testCaseIds = slices.Compact(testCaseIds)
-	return &testCaseIds, nil
+	// A clone, because the sort would otherwise reorder the caller's rows.
+	ordered := slices.Clone(*testCaseRuns)
+	slices.SortStableFunc(ordered, compare)
+
+	seen := make(map[uuid.UUID]struct{}, len(ordered))
+	for _, testCaseRun := range ordered {
+		if testCaseRun.TestCaseID == nil {
+			continue
+		}
+		if _, taken := seen[*testCaseRun.TestCaseID]; taken {
+			continue
+		}
+		seen[*testCaseRun.TestCaseID] = struct{}{}
+		testCaseIDs = append(testCaseIDs, *testCaseRun.TestCaseID)
+	}
+	return &testCaseIDs, nil
 }

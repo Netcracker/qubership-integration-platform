@@ -128,14 +128,15 @@ sequential, orders cases by a new `ordinal`, and returns expired leases to `pend
 
 ```
 testing-service/
-  go.mod  go.sum  .golangci.yml  VERSION  Dockerfile  README.md  CLAUDE.md
+  go.mod  go.sum  .golangci.yml  VERSION  Dockerfile  README.md  AGENTS.md
   service.go          package testingservice — aliases, New, Mount, RunExecutor
   migrations.go       Migrations(), go:embed
   migrations/         00000000000100__init.tx.up.sql, 00000000000101__execution.tx.up.sql
   cmd/testing-service/main.go
   docs/               swaggo-generated
   internal/
-    config/ model/ matching/ dao/ db/ services/ controllers/ triggers/ qip/ testsupport/
+    config/ model/ dao/ matching/ qip/ triggers/ services/ services/importexport/ controllers/ db/
+    httpfield/ testsupport/
 ```
 
 **Port order is dictated by the import graph, not by architectural layers.** In the source, `matching` imports
@@ -203,10 +204,18 @@ update test_case_runs set status = 'running', start = now(),
        session_id = $2, lease_until = now() + $3, lease_owner = $4
 where id = (select id from test_case_runs
             where tests_run_id = $1 and status = 'pending'
-            order by ordinal
+              and not exists (select 1 from test_case_runs busy
+                              where busy.tests_run_id = $1 and busy.status = 'running')
+            order by ordinal, id
             for update skip locked limit 1)
 returning *;
 ```
+
+**Step 2 must repeat step 1's "nothing running yet" guard**, which review found missing. The run row is only locked,
+never updated, so PostgreSQL runs no `EvalPlanQual` recheck behind step 1's `for update`: a worker whose snapshot
+predates another worker's commit passes the guard in step 1 and then takes the lock that commit released. Step 2 is a
+statement of its own, so under READ COMMITTED it reads a snapshot taken after the lock was granted — repeating the guard
+there is what actually upholds "one running case per run".
 
 If step 2 returns nothing — the run's last pending case was canceled between the two steps — release and try the next
 run immediately rather than waiting out a poll interval.
@@ -218,11 +227,15 @@ guarded only by `status = 'running'` would happily overwrite **B's** row. `lease
 Fencing only `Finish` leaves a zombie worker writing errors against someone else's attempt.
 
 The sweep itself is one guarded statement — `update … set status = 'pending', lease_owner = null where status =
-'running' and lease_until < now()` — not a select followed by an update by id. PostgreSQL rechecks the qualifier at
-write time, so a single statement cannot steal a lease that was renewed concurrently, whereas the two-statement form
-can. The sweeper does not need the `tests_runs` row lock: every transition *into* `running` goes through the claim,
-which evaluates its guard in the same statement that locks the run, and the sweep only ever decreases the number of
-running cases.
+'running' and (lease_until is null or lease_until < now())` — not a select followed by an update by id. PostgreSQL
+rechecks the qualifier at write time, so a single statement cannot steal a lease that was renewed concurrently, whereas
+the two-statement form can. The sweeper does not need the `tests_runs` row lock: every transition *into* `running` goes
+through the claim, which evaluates its guard in the same statement that locks the run, and the sweep only ever decreases
+the number of running cases.
+
+The `lease_until is null` branch was added in review and is load-bearing: a `running` row created before migration 101
+holds no lease at all, `lease_until < now()` is null rather than true for it, and without the branch every case a
+downstream installation carries across the upgrade is stranded forever.
 
 **Re-execution must clear the previous attempt's errors.** `validation_errors` carries `unique (test_case_run_id,
 matcher_id)`. The source never re-runs a case, so this never mattered; with leases it becomes routine, and the second
@@ -265,7 +278,7 @@ instead, threaded from `Config` through the repositories.
 
 **Backward compatibility.** The HTTP contract stays as-is; the downstream front end talks to it. Changes are additive
 only. The bug fixes change behavior, not the contract. `cmd` mounts the service under `/api/v1`, which is what the nginx
-rule in Task 17 assumes.
+rule in Task 16 assumes (Task 17 carries the matching Kubernetes route).
 
 ## What Goes Where
 
@@ -286,7 +299,7 @@ rule in Task 17 assumes.
 - [x] declare `Config` (no DSN) and `Deps` in `internal/config`, with `DB` as the single-method `GetBunDb` interface and `CurrentUserFunc` as a named type
 - [x] write `scripts/check-sanitization.sh` reading the token list from a path given by an environment variable, and install it as a pre-commit hook; it must fail closed when the list is missing
 - [x] pin a golangci-lint version, write `.golangci.yml` against that version's schema, and exclude the generated `docs/` package
-- [x] create `VERSION` with `0.1.0` and a `README.md` describing both usage modes
+- [x] create `VERSION` with `0.0.0` — the file holds the last released version, and `scripts/compute-release-version.sh` bumps it before tagging — and a `README.md` describing both usage modes
 - [x] write tests for `Config` defaults and for the sanitization script, driving it with a **synthetic** token list — a fixture containing a real token would itself violate the gate it is testing
 - [x] run `go test ./...` - must pass before next task
 
@@ -355,7 +368,8 @@ the source's two capitalized sentences. They are Go error values first and respo
 them.
 
 [decision] `FindById` and `FindPending` test `len(result) == 0` rather than `result == nil`. The source indexes
-`result[0]` after a nil check, so an empty non-nil slice — what a re-used buffer yields — panics.
+`result[0]` after a nil check, so an empty non-nil slice — what a re-used buffer yields — panics. (`FindPending` is
+gone as of Task 10; the atomic claim replaced it.)
 
 [decision] Every bulk operation now returns early on an empty input set. `BulkDelete` with no ids built
 `... WHERE id IN ()`, which is a syntax error rather than a no-op.
@@ -376,9 +390,10 @@ them.
 - [x] write tests for the generic runner covering success, handler error, and the connection-failure path that panics today, plus a test that the audit hook picks up the user from context
 - [x] run `go test ./internal/dao/...` - must pass before next task
 
-[decision] `Runner` keeps the erased signature (`func(ctx, bun.IDB) (any, error)`) and `*Dao` implements it; the
-generics sit on top as `Run[T]`/`RunInTx[T]`. A generic interface would have forced one `Runner[T]` field per result
-type in every service.
+[decision] `Runner` keeps an erased signature and `*Dao` implements it; the generics sit on top as `Run[T]`/`RunInTx[T]`.
+A generic interface would have forced one `Runner[T]` field per result type in every service. **Overturned in review:**
+the handler no longer takes a `bun.IDB`. The signature is `func(ctx context.Context) (any, error)` and the handle
+travels in the context, which is what lets `RunInTx` replace it so a nested transaction cannot commit nothing.
 
 [decision] The runner machinery — `Runner`, the generic entry points, `GetDb`, the context key and the connection
 handling — moved to `runner.go`; `dao.go` keeps only the `Dao` struct and `NewDao`. The `GetDb` tests moved along with
@@ -426,6 +441,38 @@ used. Each declares `go 1.21` or earlier, as does every module they pull in, so 
 `does not exist` instead of `not exists`, the `match` predicate no longer prints the pattern and the data the wrong way
 round, and `NewMatchJsonPredicate` wraps its unmarshal failure the way its JSON Schema counterpart already did.
 
+[deviation] `GetEntityDataGetter` refuses a header, query-parameter or path-parameter matcher whose entity name no
+request can carry a value under. The source built the getter anyway, and it read nothing out of every exchange, so an
+`empty` matcher over it held for every call — an endpoint mock carrying one answered calls meant for the specific mocks
+it outranked on creation time. The body and the status are the message itself and still take no name. The refusal
+reaches create, update and import through the existing `validateMatchers` path; a row stored before it degrades the way
+a broken matcher already does, skipped in `Call` and recorded as a validation error by the executor.
+
+Each entity type is held to the grammar its name actually travels under, stated as what a name may be rather than as a
+list of banned characters — three review rounds each banned the one character that round had named, and the next round
+found another:
+
+- A header field name is an RFC 9110 token (`internal/httpfield`), the only spelling a header line carries.
+- A query-parameter name is any non-blank string. The query string carries it percent-encoded, so a space, a slash and
+  an ampersand all survive the round trip and no narrower rule is derivable.
+- A path-parameter name is read back out of a literal `{name}` placeholder taking up a whole segment of the operation
+  path. `checkPathParameterName` writes that placeholder and reads it back through the steps the getter takes, so a
+  name returns only if some template can spell it. That one check covers the slash (two segments), the closing brace
+  (the placeholder ends early), `?` and `#` (the path ends there), `%` (the segment is decoded, so the name returns as
+  something else) and control characters (`url.Parse` refuses the path). Invalid UTF-8 is refused alongside it: the
+  operation path arrives as a JSON string, so such a byte reaches the matcher as U+FFFD.
+
+`TestEntityNameValidationAcceptsExactlyTheMatchableNames` holds all three to that property over the byte space and a
+set of multi-byte runes, against an oracle per entity type that builds a real exchange: every accepted name is one some
+request produces a value for, and every refused name is one no request does. Two refusals are deliberate and pinned as
+exceptions — a blank name, and a header name holding a space, which `net/http` keeps verbatim (go.dev/issue/34540)
+while fasthttp folds it into a different key.
+
+[deviation] The path-parameter getter splits the raw path and decodes each segment afterwards, instead of splitting the
+decoded one. A `%2F` inside a value used to become a segment boundary, shifting the template alignment and handing the
+matcher only the tail of the value. This is the other half of the `url.PathEscape` the trigger applies to substituted
+path values.
+
 [decision] `MatchPredicate.Test` calls `MatchString` instead of converting the string back to bytes for `Match`. The
 predicate keeps `regexp.Regexp` by value so the ported test can read `predicate.Pattern.String()`; the type carries no
 lock, so `go vet` is satisfied.
@@ -451,6 +498,10 @@ body including the `do $$ … $$` blocks.
 [decision] `internal/db` takes a DSN rather than the source's five separate connection fields. Task 13 owns the DSN per
 the plan, and a URL keeps `sslmode` and `search_path` in one place. `pgdriver.WithDSN` panics on a malformed URL, so
 `New` recovers and returns the failure as an error — a typo in `application.yaml` must not crash the process.
+**Amended in review:** `New` takes an `Options` struct (`DSN`, `User`, `Password`, `ApplicationName`, `MaxOpenConns`)
+and the credentials deliberately stay out of the URL, applied with `pgdriver.WithUser`/`WithPassword` — see the
+overturned decision under Task 17. Review also added explicit read and write timeouts, applied before the DSN so a
+`read_timeout` in the DSN still wins; pgdriver's 10 s default capped migration 101 on a populated table.
 
 [decision] `New` builds the pool eagerly and `GetBunDb` returns the stored handle, so no mutex is needed. The source
 built a fresh `bun.DB` wrapper on every call and guarded it with an `RWMutex`.
@@ -460,8 +511,9 @@ executor workers into a burst of PostgreSQL backends.
 
 [deviation] `github.com/uptrace/bun/dialect/pgdialect` and `github.com/uptrace/bun/driver/pgdriver`, both v1.2.1, join
 `go.mod` here rather than with the binary in Task 13, because `internal/db` needs them. They pull in
-`golang.org/x/crypto v0.21.0` and `mellium.im/sasl v0.3.1`; every one of the four declares `go 1.21` or earlier, so the
-1.22 ceiling holds. Task 18's dependency allowlist has to admit the `mellium.im/` prefix.
+`golang.org/x/crypto` (v0.21.0 at this point, raised to v0.31.0 by a later task) and `mellium.im/sasl v0.3.1`; every one
+of the four declares `go 1.21` or earlier, so the 1.22 ceiling holds. Task 18's dependency allowlist has to admit the
+`mellium.im/` prefix.
 
 ✅ Verified against PostgreSQL 14 in Docker: migration 100 applies to an empty schema, applies a second time cleanly,
 and applies on top of a schema already carrying the source's migrations 01 and 02. Object counts after the first apply
@@ -497,8 +549,10 @@ chain segment and looks the element up by its own id, but `dao.TriggerReference`
 lost its `context.Context` parameter: the only thing that read it was the M2M token call.
 
 [decision] The session identifier moves through an unexported struct key, matching `dao.WithCurrentUser`. The source's
-untyped string key fails `staticcheck` SA1029. The accessors are `WithSessionID`/`SessionID` and return a `string`
-rather than a `*string`, since the empty case is already the error case.
+untyped string key fails `staticcheck` SA1029. **Overturned in review:** the context key is gone. The session id is an
+explicit parameter the whole way down — `Claim(ctx, owner, sessionID, leaseDuration)`, `ClaimNext(ctx, owner,
+sessionID)`, `Activate(ctx, sessionID, …)` — which is what the value always was, and a parameter cannot go missing
+silently the way a context value can.
 
 [deviation] Substituted path-parameter values are escaped with `url.PathEscape`. A value carrying a `/` or a `?` would
 otherwise reach a different route than the test case names. The source never substituted at all, so nothing depends on
@@ -520,9 +574,10 @@ parameter and header slices are skipped instead of being dereferenced.
 - [x] write tests for mock selection order (most enabled matchers first, then oldest) using fakes
 - [x] run `go test ./...` - must pass before next task
 
-[decision] The repository interfaces reach a service grouped in a `services.Repositories` value rather than one
-constructor parameter each — `testCasesService` alone needs eight. A service stores the runner and that value, so a test
-supplies only the repositories the path under test touches.
+[decision] The repository interfaces reach a service grouped in a `Repositories` value rather than one constructor
+parameter each — `testCasesService` alone needs eight. A service stores the runner and that value, so a test supplies
+only the repositories the path under test touches. **Amended in review:** the type is `dao.Repositories`, declared and
+embedded in `Dao` rather than duplicated in `services`.
 
 [decision] `dao.Run`/`dao.RunInTx` cannot express "no result": `typedResult[any]` asserts an untyped nil and fails. The
 write paths that discard their result go through `runInTx`/`runQuery`, whose result type is the empty struct.
@@ -554,17 +609,26 @@ used to be reported as "not found", hiding the real failure.
 
 [deviation] `MigrateEntityData` rejects a version below one, which used to slice the migration list from -1 and panic on
 a hand-edited archive. Archive entries are also capped at 32 MiB — `gosec` G110 flags the unbounded copy as a
-decompression bomb.
+decompression bomb. **Amended in review:** the migration framework had no migrations to run and was removed, leaving
+`CheckDataVersion(version int) error`, which bounds the version on both sides against `ActualDataVersion`.
 
 [deviation] `importEntityFromFile` checks the error from `zip.File.Open` before deferring `Close`; the source deferred
 first and dereferenced a nil reader whenever an entry could not be opened.
+
+[deviation] The archive is bounded on two more dimensions than the per-entry cap: at most 10,000 entries, and at most
+512 MiB decompressed across them. The per-entry cap alone left both an archive of many tiny entries — each one a
+database transaction, and a few megabytes on the wire bought tens of thousands of them — and an archive of many large
+ones unbounded. The numbers come off what an export weighs: one entry is the JSON of one test case or endpoint mock, a
+deliberately heavy one measures about 175 KiB and a typical one a few KiB, and a whole-installation export runs to a few
+thousand entities. An archive over the entry count is refused whole, before anything is read; the byte budget stops the
+importer mid-archive, and the entries it already covered keep the outcome they got.
 
 ### Task 9: Controllers and the facade
 
 **Files:**
 - Create: `testing-service/internal/controllers/**/*.go`, `testing-service/service.go`
 
-- [x] port the controllers and their pagination, sorting and response helpers, keeping `GetEndpointReference` alongside its only caller
+- [x] port the controllers and their pagination, sorting and response helpers, keeping `getEndpointReference` alongside its only caller
 - [x] register routes in `(*Service).Mount(router fiber.Router)` together with middleware that resolves the current user into the request context
 - [x] read the production-mode flag from `Config` in the mode controller
 - [x] keep every path and payload identical, including `?return_ids=true` on the list endpoints, which the UI relies on
@@ -648,6 +712,12 @@ test case, and a test case that no longer exists. Before the claim, such a case 
 picked it up forever; with leases it would be swept back into the queue forever instead. A failure that may pass on
 retry — the lookup itself failing — still leaves the lease to expire, which is what the sweeper is for.
 
+[deviation, added in review] Migration 101 also carries a cutover statement: it returns every `running` case with a null
+`lease_owner` to `pending` and deletes that attempt's validation errors. Those rows belong to the old unfenced executor,
+which no fence can recognize and no sweeper can date, so leaving them alone strands them. The migration states its
+precondition at the top of the CTE — stop the old executor before applying it — rather than inventing a time-based
+heuristic for whether a row is really abandoned.
+
 ✅ Verified against PostgreSQL 14 in Docker with a throwaway build-tagged suite (removed afterwards; the real
 integration suite is Task 15): migrations 100 and 101 apply in one group to a fresh schema; the backfill numbers
 pre-existing rows by `start nulls last, id` and renumbers nothing on a second apply; two runs claim in parallel while a
@@ -663,7 +733,7 @@ and a run whose next case is locked elsewhere is excluded by id so the claim rea
 - [x] run a configurable pool of workers, each claiming its own case with its own owner token
 - [x] wake workers by signal when a run is created, keeping the ticker as a fallback
 - [x] renew the lease while a case runs, guarded by the owner token
-- [x] add a sweeper that reclaims expired leases in **one** guarded statement (`where status = 'running' and lease_until < now()`), clearing `lease_owner` and deleting the attempt's validation errors; a select-then-update-by-id form can steal a lease renewed between the two statements
+- [x] add a sweeper that reclaims expired leases in **one** guarded statement (`where status = 'running' and (lease_until is null or lease_until < now())`, widened in review to catch the leaseless rows migration 101 inherits), clearing `lease_owner` and deleting the attempt's validation errors; a select-then-update-by-id form can steal a lease renewed between the two statements
 - [x] replace the `quit` channel with a context so shutdown no longer blocks until the queue drains
 - [x] run `go mod tidy`
 - [x] write tests for lease renewal, expiry selection, owner-token rejection, and that a reclaimed case re-executes cleanly rather than colliding with its previous attempt's validation errors
@@ -728,8 +798,9 @@ plan asks a host to tune it.
 [decision] The first sweep waits out an interval rather than running at startup. Retention is not urgent, and a restart
 loop that deletes on every boot is worse than one that waits.
 
-[decision] `NewTestsRunsService` takes `config.Config` and a `*slog.Logger` first, matching `NewTestCaseRunsService` and
-`NewTestExecutionService`. The retention loop is the first thing in this service with something to report.
+[decision] `NewTestsRunsService` takes `config.Config` and a `*slog.Logger` first, matching `NewTestExecutionService`.
+The retention loop is the first thing in this service with something to report. (`NewTestCaseRunsService` takes the
+configuration but no logger, having nothing of its own to log.)
 
 [deviation] `RunExecutor` now runs the executor and retention as two goroutines under a `WaitGroup` instead of calling
 the executor inline. Both stop on the same canceled context, and the function still returns only once both have.
@@ -750,7 +821,7 @@ finds nothing, and a backlog of five aged runs comes out as batches of 2, 2 and 
 - Create: `testing-service/cmd/testing-service/main.go`, `testing-service/application.yaml`
 
 - [x] read configuration with koanf from `application.yaml` plus environment overrides; the DSN lives here, not in `Config`
-- [x] construct `slog`, the bun-backed `DB`, an `http.Client`, and a `CurrentUser` defaulting to `developer`
+- [x] construct `slog`, the bun-backed `DB` and an `http.Client`; leave `CurrentUser` unset, because this binary does not authenticate its callers and `dao.DefaultUser` already names them `developer`
 - [x] create the schema before initializing the migrator: bun creates its bookkeeping table first, and with `search_path` pointing at a schema that does not exist yet the initialization fails
 - [x] mount the service under `/api/v1`, which the nginx rule depends on, and start `RunExecutor`
 - [x] serve `/health` for the compose healthcheck and `/prometheus`; keep pprof behind a flag
@@ -818,7 +889,7 @@ the generated `docs.go` imports does.
 
 [decision] `--parseDependency` is required, not optional: the response models embed `bun.BaseModel`, and without it swag
 fails with `cannot find type definition`. `--parseInternal` is required because every controller and model lives under
-`internal/`. The generated spec has 27 paths and 20 definitions, and none of the dependency types leaked into it.
+`internal/`. The generated spec has 27 paths and 21 definitions, and none of the dependency types leaked into it.
 
 [decision] The spec carries no `@version`. `testing-service/VERSION` is the single source of the version and Task 19
 bumps it; a second copy in an annotation would go stale on the first release. The Swagger 2.0 `info.version` field
@@ -826,11 +897,12 @@ stays empty, which the UI renders without complaint.
 
 [decision] Swagger is served under the API prefix — `/api/v1/swagger/index.html` for the UI, `/api/v1/swagger/doc.json`
 for the spec — because the nginx rule in Task 16 exposes nothing else. `fiberswagger` derives that prefix from the route
-it is registered on and honors `X-Forwarded-Prefix`, so it works behind the proxy as well as directly.
+it is registered on and honors `X-Forwarded-Prefix`, so it works behind the proxy as well as directly. **Overturned in
+Task 20:** it does not. The handler is registered with a relative `doc.json` instead; see the finding recorded there.
 
 [deviation] `github.com/gofiber/swagger v1.1.1` and `github.com/swaggo/swag v1.16.4` join `go.mod`, pulling in
 `swaggo/files/v2`, the `go-openapi` packages and `golang.org/x/tools`; `golang.org/x/crypto` moves from v0.21.0 to
-v0.24.0. Every module in the resulting graph still declares `go 1.22` or earlier — checked with
+v0.24.0, and later to v0.31.0. Every module in the resulting graph still declares `go 1.22` or earlier — checked with
 `go list -m -f '{{.GoVersion}}' all` — and `go build ./...` and `go test ./...` were run under a real go1.22.12
 toolchain, not just under the 1.22 language level.
 
@@ -892,7 +964,8 @@ against fakes in Task 12.
 `go.opentelemetry.io/`.
 
 ✅ Verified against PostgreSQL 14 in Docker: eight integration tests over two packages pass under go1.22.12, and the
-default `go test ./...` still needs no Docker. `golangci-lint run` is clean both with and without the build tag.
+default `go test ./...` still needs no Docker. `golangci-lint run` is clean both with and without the build tag. (Review
+grew the tagged suite to 24 tests over four packages, adding `internal/dao` and `cmd/testing-service`.)
 
 ### Task 16: Container image and the local stack
 
@@ -909,13 +982,14 @@ default `go test ./...` still needs no Docker. `golangci-lint run` is clean both
 
 [decision] The build stage is `golang:1.22-alpine`, which ships go1.22.12, with `GOTOOLCHAIN=local` so a dependency
 asking for a newer toolchain fails the build instead of quietly raising the ceiling the downstream depends on. The
-runtime stage is `alpine:3.21` with curl pinned to `8.14.1-r2` — the same version the three Java images pin, and what
+runtime stage is `alpine:3.21` with curl pinned to `8.14.1-r2` — the same version the four Java images pin, and what
 alpine 3.21 currently carries. Pinning is what `hadolint` DL3018 wants, and super-linter runs it over this file.
 
-[decision] The compose entry spells out the DSN and the catalog and engine addresses as `QIP_TESTING_*` variables even
-though the baked `application.yaml` already defaults to values that work on the compose network. The other services
-carry their configuration in the compose file through `env_file`, so a reader looking there for what this one talks to
-finds it in the same place, and the environment path gets exercised on every start.
+[decision] The compose entry spells out the DSN and the catalog and engine addresses as `QIP_TESTING_*` variables. The
+other services carry their configuration in the compose file through `env_file`, so a reader looking there for what this
+one talks to finds it in the same place, and the environment path gets exercised on every start. Review later emptied
+the DSN in the shipped `application.yaml`, since a default carrying credentials does not belong in the image, so
+`QIP_TESTING_POSTGRES_DSN` is now required rather than merely explicit.
 
 [decision] `ui-proxy` gains a `depends_on` on the new service. nginx resolves a statically named upstream when it loads
 its configuration and refuses to start if the name does not resolve, which is exactly why the three existing services
@@ -942,7 +1016,7 @@ check are all clean.
 - [x] model the chart on `qip-sessions-management`
 - [x] add the route to the UI chart's routing config — it is a second, independent copy of the nginx table, and without it the Kubernetes deployment has no path to the service
 - [x] guard the templates on a values flag so the chart can be left out; note that no existing chart here does this, so there is no in-repo pattern to copy
-- [x] pass catalog and engine addresses, the DSN and worker settings through the config map
+- [x] pass catalog and engine addresses and the schema through the config map; compose the DSN in the deployment, and leave the worker, lease, poll and pagination settings to `Config.WithDefaults` rather than spelling a default out twice
 - [x] verify with `helm lint` and `helm template`, with the flag both on and off
 
 [decision] The flag is `global.qip.testingService.enabled`, not a subchart-local `.Values.enabled`. The nginx route
@@ -950,15 +1024,33 @@ names the service statically, so nginx refuses to start once the chart is gone; 
 the same flag, and only a `global.` value is visible from both subcharts. The spelling follows the camelCase keys
 already under `global.qip` (`variables.defaultSecret`).
 
-[decision] The DSN is composed in the deployment from `$(POSTGRES_USER)`, `$(POSTGRES_PASSWORD)`, `$(POSTGRES_URL)` and
-`$(QIP_TESTING_POSTGRES_SCHEMA)` rather than spelled out in the config map. The credentials live in the shared
-`postgres-auth` secret, and a config map value cannot pull them in; Kubernetes expands `$(VAR)` in a `value:` against
-the variables declared above it, whichever source they came from. The schema is named once, in the config map, and
-reaches both `search_path` and `QIP_TESTING_POSTGRES_SCHEMA` from there.
+[decision] The DSN is composed in the deployment from `$(POSTGRES_URL)` and `$(QIP_TESTING_POSTGRES_SCHEMA)` rather
+than spelled out in the config map. Kubernetes expands `$(VAR)` in a `value:` against the variables declared above it,
+whichever source they came from, and a config map value cannot pull the address in on its own. The schema is named
+once, in the config map, and reaches both `search_path` and `QIP_TESTING_POSTGRES_SCHEMA` from there.
+
+[decision] **Overturned.** The credentials no longer reach the DSN. They travel as `postgres.user` and
+`postgres.password` — `QIP_TESTING_POSTGRES_USER` and `QIP_TESTING_POSTGRES_PASSWORD` in the chart, both from the
+shared `postgres-auth` secret — and `db.New` applies them with `pgdriver.WithUser` and `pgdriver.WithPassword` after
+`WithDSN`. Interpolated into the URL they had to be percent-encoded, and a password holding a `@`, a `/` or a `#`
+either failed to parse or pointed the driver at another host.
 
 [decision] The config map hardcodes the worker, lease, poll, pagination and production settings the way
 `engine-env-configmap.yaml` hardcodes its own, instead of plumbing each through `values.yaml`. These charts are the dev
 stack, and no other setting in them is tunable.
+
+[decision] **Overturned.** The worker, lease, poll and pagination values were dropped from the config map, because
+naming them there repeats a default the service already ships. The deployment no longer references them either: an
+`env` entry with a `configMapKeyRef` is not optional, so a key the config map stopped rendering left the pod in
+`CreateContainerConfigError`. The four settings now come from `Config.WithDefaults` alone, which is the only place they
+are spelled out.
+
+⚠️ `helm lint` does not resolve `configMapKeyRef` and `secretKeyRef` against the manifests the same render produced, so
+it passes a deployment that can never start. Verify the chart by rendering it and then checking that every
+non-optional key reference in the rendered deployments resolves to a key of a rendered ConfigMap or Secret:
+`helm template qip . --set global.qip.testingService.enabled=true`, then walk the stream and match each
+`valueFrom.configMapKeyRef` / `valueFrom.secretKeyRef` against the `data` of the ConfigMap or Secret it names. Run it
+with the flag both on and off whenever a chart template or a config map key changes.
 
 [decision] `QIP_TESTING_RETENTION_AGE` is absent, so retention stays off. Naming an age here would start deleting test
 runs on every installation that adopts the chart.
@@ -993,7 +1085,7 @@ routing configs pass `nginx -t` in a throwaway container with the upstreams stub
 inline YAML. It runs locally in one command, it is covered by `testing-service/dependencies_test.go` the way the
 sanitization script is covered by `sanitization_test.go`, and `main-build.yaml` reuses it without repeating it.
 
-[decision] The allowlist is one GitHub organization per entry — 73 prefixes — not `github.com/` as a whole. The plan's
+[decision] The allowlist is one GitHub organization per entry — 74 prefixes — not `github.com/` as a whole. The plan's
 threat is a vendor module reappearing, and a host-level list would wave through anything published under any GitHub
 account. A new dependency source therefore has to arrive as a visible edit to the list. The entries are exactly what
 go.mod and go.sum name today; `go.uber.org/` turned out not to be among them.
@@ -1141,6 +1233,12 @@ and which is correct under any prefix. `TestSwaggerAsksForTheSpecRelativeToThePa
 service error as an internal failure. The body does name the field and list the accepted ones. This is the ported
 contract and "keep every path and payload identical" from Task 9 covers it, so it was left alone rather than fixed here.
 
+**Overturned by the second review round.** Validation was tightened after this was written — `ValidateSortOptions` now
+requires the order to be `ASC` or `DESC`, where `GetSqlSortingOrder` used to pass anything through — so a client sending
+`sort_order=asc` got a 500 for a request that used to work. Filter and sorting rejections now carry
+`dao.ErrInvalidSelection`, which the listing handler answers with **400** and the validation message; the body keeps the
+`ErrorMessage` shape, and the order is read case-insensitively again.
+
 [decision] The executor checks ran against a second instance of the binary on the host, bound to its own
 `testing_service_acc` schema and pointed at a stub catalog and engine, rather than against the compose container. The
 container's own catalog and engine are the real runtime-catalog (unhealthy since before this branch, unrelated to it)
@@ -1187,7 +1285,7 @@ main checkout's copy and falls through to the front end — and the container wa
 - [x] write `testing-service/AGENTS.md` covering the layout, the public surface, the library-versus-binary split, the migration numbering and transactionality rules, the lease-fencing invariant and the Go tag format — note that `CLAUDE.md` files are **not** in the repository (only `AGENTS.md` is versioned), so anything meant to survive belongs there
 - [x] note in the root `AGENTS.md` that the repository now has a Go module and how it differs from the Maven and npm conventions
 - [x] document the service and its port alongside the other services, in whichever versioned file carries that table
-- [x] move this plan to `docs/plans/completed/`
+- [x] move this plan to `docs/plans/completed/` (the harness does this once the review phases are over, so the plan is still here)
 
 ⚠️ Every `AGENTS.md` in this repository is generated by `apm compile` from the primitives under `.apm/`, and the repo's
 own rules forbid hand-editing one. The plan asks for two things that do not fit that shape.
@@ -1229,7 +1327,8 @@ new hits to a file this branch owns is free to avoid.
 
 **Release:**
 
-- the first Go tag must be `testing-service/v0.1.0`; the repository's usual tag form will not resolve
+- the first Go tag must be `testing-service/v0.1.0`; the repository's usual tag form will not resolve. `VERSION` holds
+  `0.0.0`, the last released version, so cut the first release as a `minor` one to land on `0.1.0`
 - for major version 2 and beyond, the module path itself gains a `/v2` suffix
 
 **Legal:**

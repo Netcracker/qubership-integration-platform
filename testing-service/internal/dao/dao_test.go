@@ -2,8 +2,6 @@ package dao
 
 import (
 	"context"
-	"io"
-	"log/slog"
 	"testing"
 	"time"
 
@@ -18,54 +16,54 @@ type stubDB struct{}
 
 func (stubDB) GetBunDb(context.Context) (*bun.DB, error) { return nil, nil }
 
-func TestNewDaoWiresEveryRepository(t *testing.T) {
-	dao := NewDao(config.Config{}, config.Deps{DB: stubDB{}})
+// normalizedDeps is what NewDao is always handed: the entry point fills the
+// optional infrastructure in once, so nothing below it guards against a nil.
+func normalizedDeps() config.Deps {
+	return config.Deps{DB: stubDB{}}.WithDefaults()
+}
 
-	assert.NotNil(t, dao.TestsRunsRepository)
-	assert.NotNil(t, dao.TestCasesRepository)
-	assert.NotNil(t, dao.TestCaseRunsRepository)
-	assert.NotNil(t, dao.TestCaseRunErrorsRepository)
-	assert.NotNil(t, dao.TriggerReferencesRepository)
-	assert.NotNil(t, dao.RequestSettingsRepository)
-	assert.NotNil(t, dao.MessagesRepository)
-	assert.NotNil(t, dao.HeadersRepository)
-	assert.NotNil(t, dao.QueryParametersRepository)
-	assert.NotNil(t, dao.PathParametersRepository)
-	assert.NotNil(t, dao.MatchersRepository)
-	assert.NotNil(t, dao.MatcherParametersRepository)
-	assert.NotNil(t, dao.EndpointMocksRepository)
-	assert.NotNil(t, dao.EndpointReferencesRepository)
-	assert.NotNil(t, dao.ResponseSettingsRepository)
+func TestNewDaoWiresEveryRepository(t *testing.T) {
+	dao := NewDao(config.Config{}.WithDefaults(), normalizedDeps())
+
+	assert.NotNil(t, dao.TestsRuns)
+	assert.NotNil(t, dao.TestCases)
+	assert.NotNil(t, dao.TestCaseRuns)
+	assert.NotNil(t, dao.TestCaseRunErrors)
+	assert.NotNil(t, dao.TriggerReferences)
+	assert.NotNil(t, dao.RequestSettings)
+	assert.NotNil(t, dao.Messages)
+	assert.NotNil(t, dao.Headers)
+	assert.NotNil(t, dao.QueryParameters)
+	assert.NotNil(t, dao.PathParameters)
+	assert.NotNil(t, dao.Matchers)
+	assert.NotNil(t, dao.MatcherParameters)
+	assert.NotNil(t, dao.EndpointMocks)
+	assert.NotNil(t, dao.EndpointReferences)
+	assert.NotNil(t, dao.ResponseSettings)
 }
 
 func TestNewDaoTakesThePaginationLimitFromTheConfig(t *testing.T) {
-	dao := NewDao(config.Config{PaginationLimit: 250}, config.Deps{DB: stubDB{}})
+	dao := NewDao(config.Config{PaginationLimit: 250}, normalizedDeps())
 
-	assert.Equal(t, 250, dao.TestCasesRepository.(*testCasesRepository).paginationLimit)
-	assert.Equal(t, 250, dao.EndpointMocksRepository.(*endpointMocksRepository).paginationLimit)
-	assert.Equal(t, 250, dao.TestsRunsRepository.(*testsRunsRepository).paginationLimit)
-	assert.Equal(t, 250, dao.TestCaseRunsRepository.(*testCaseRunsRepository).paginationLimit)
+	assert.Equal(t, 250, dao.TestCases.(*testCasesRepository).paginationLimit)
+	assert.Equal(t, 250, dao.EndpointMocks.(*endpointMocksRepository).paginationLimit)
+	assert.Equal(t, 250, dao.TestsRuns.(*testsRunsRepository).paginationLimit)
+	assert.Equal(t, 250, dao.TestCaseRuns.(*testCaseRunsRepository).paginationLimit)
 }
 
-func TestNewDaoFallsBackToTheDefaultPaginationLimit(t *testing.T) {
-	dao := NewDao(config.Config{}, config.Deps{DB: stubDB{}})
+func TestNewDaoPassesTheDefaultPaginationLimitOnToTheRepositories(t *testing.T) {
+	dao := NewDao(config.Config{}.WithDefaults(), normalizedDeps())
 
-	assert.Equal(t, config.DefaultPaginationLimit, dao.TestCasesRepository.(*testCasesRepository).paginationLimit)
+	assert.Equal(t, config.DefaultPaginationLimit, dao.TestCases.(*testCasesRepository).paginationLimit)
 }
 
-func TestNewDaoSubstitutesALoggerWhenTheHostSuppliesNone(t *testing.T) {
-	dao := NewDao(config.Config{}, config.Deps{DB: stubDB{}})
+func TestNewDaoPassesTheLoggerOnToTheRepositories(t *testing.T) {
+	logger := discardLogger()
 
-	require.NotNil(t, dao.logger)
-	assert.NotNil(t, dao.TestCasesRepository.(*testCasesRepository).logger)
-}
-
-func TestNewDaoKeepsTheSuppliedLogger(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
-	dao := NewDao(config.Config{}, config.Deps{DB: stubDB{}, Logger: logger})
+	dao := NewDao(config.Config{}.WithDefaults(), config.Deps{DB: stubDB{}, Logger: logger})
 
 	assert.Same(t, logger, dao.logger)
+	require.Same(t, logger, dao.TestCases.(*testCasesRepository).logger)
 }
 
 func TestBeforeAppendModelStampsTheAuditColumnsOnInsert(t *testing.T) {

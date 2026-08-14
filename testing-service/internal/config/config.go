@@ -47,7 +47,9 @@ type Config struct {
 	RetentionAge time.Duration
 	// RetentionInterval is how long retention waits between sweeps.
 	RetentionInterval time.Duration
-	// Production disables the operations that are unsafe on a live installation.
+	// Production is reported through GET /mode so the front end can hide the
+	// operations that are unsafe on a live installation. Nothing in the module
+	// refuses a request because of it.
 	Production bool
 }
 
@@ -104,4 +106,17 @@ type Deps struct {
 	Logger      *slog.Logger
 	HTTPClient  *http.Client
 	CurrentUser CurrentUserFunc
+}
+
+// WithDefaults returns a copy of d with every optional field filled in, so that
+// nothing below the entry point has to guard against a nil. DB has no default:
+// the entry point refuses a Deps without one.
+func (d Deps) WithDefaults() Deps {
+	if d.Logger == nil {
+		d.Logger = slog.Default()
+	}
+	if d.HTTPClient == nil {
+		d.HTTPClient = http.DefaultClient
+	}
+	return d
 }

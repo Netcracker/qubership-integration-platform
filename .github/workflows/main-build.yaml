@@ -32,6 +32,7 @@ on:
       - 'package-lock.json'
       - 'testing-service/**'
       - 'scripts/check-go-dependencies.sh'
+      - 'scripts/check-sanitization.sh'
   workflow_dispatch: null
 
 concurrency:

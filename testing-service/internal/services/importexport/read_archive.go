@@ -11,10 +11,25 @@ import (
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
 )
 
-// maxEntrySize bounds how much a single archive entry may expand to, so a
-// compression bomb cannot exhaust memory. An exported entity is JSON describing
-// one test case or endpoint mock and stays far below this.
-const maxEntrySize = 32 << 20
+// The three dimensions an uploaded archive is bounded on. The per-entry cap
+// alone leaves two ways through: many tiny entries, each costing a database
+// transaction, and many large ones adding up to far more than any single cap.
+//
+// The bounds come off what an export weighs. One entry is the JSON of one test
+// case or endpoint mock; a deliberately heavy one — an 8 KiB body, twenty
+// headers and twenty JSON-schema validation rules — measures about 175 KiB, and
+// a typical one is a few KiB. A whole-installation export runs to a few thousand
+// entities, so 10,000 entries and 512 MiB across them leave a real export an
+// order of magnitude of room while still bounding the work.
+//
+// The two byte limits are variables so a test can lower them; building half a
+// gigabyte of archive to reach the real ones is not worth the seconds it costs.
+var (
+	maxEntrySize    int64 = 32 << 20
+	maxArchiveBytes int64 = 512 << 20
+)
+
+const maxArchiveEntries = 10_000
 
 // Importer stores one entity read from an archive and reports the outcome.
 type Importer func(entity *model.ExportedEntity) model.ImportResult
@@ -40,39 +55,58 @@ func ImportEntitiesFromReader(archive string, reader io.ReaderAt, size int64, im
 		return []model.ImportResult{{Archive: archive, Result: model.ImportResultError, Message: err.Error()}}
 	}
 
+	// The entry count is known before anything is read, so an archive over that
+	// bound is refused whole rather than half imported.
+	if len(zipReader.File) > maxArchiveEntries {
+		return []model.ImportResult{{
+			Archive: archive,
+			Result:  model.ImportResultError,
+			Message: fmt.Sprintf("the archive holds %d entries, more than the %d allowed",
+				len(zipReader.File), maxArchiveEntries),
+		}}
+	}
+
 	var results []model.ImportResult
+	budget := maxArchiveBytes
 	for _, f := range zipReader.File {
-		result := importEntityFromFile(f, importer)
+		result, read := importEntityFromFile(f, budget, importer)
 		result.Archive = archive
 		results = append(results, result)
+		budget = max(0, budget-read)
 	}
 
 	return results
 }
 
-func importEntityFromFile(file *zip.File, importer Importer) model.ImportResult {
+// importEntityFromFile reads one entry and reports how much of the archive
+// budget it took. An entry is refused when it alone expands past maxEntrySize,
+// and when the entries before it have already used the archive budget up. The
+// entries the budget covered keep the outcome they got: they are imported.
+func importEntityFromFile(file *zip.File, budget int64, importer Importer) (model.ImportResult, int64) {
 	reader, err := file.Open()
 	if err != nil {
-		return model.ImportResult{FileName: file.Name, Result: model.ImportResultError, Message: err.Error()}
+		return model.ImportResult{FileName: file.Name, Result: model.ImportResultError, Message: err.Error()}, 0
 	}
 	defer reader.Close()
 
+	limit := min(maxEntrySize, budget)
 	buf := bytes.NewBuffer(nil)
-	if _, err = io.Copy(buf, io.LimitReader(reader, maxEntrySize+1)); err != nil {
-		return model.ImportResult{FileName: file.Name, Result: model.ImportResultError, Message: err.Error()}
+	read, err := io.Copy(buf, io.LimitReader(reader, limit+1))
+	if err != nil {
+		return model.ImportResult{FileName: file.Name, Result: model.ImportResultError, Message: err.Error()}, read
 	}
-	if buf.Len() > maxEntrySize {
-		return model.ImportResult{
-			FileName: file.Name,
-			Result:   model.ImportResultError,
-			Message:  fmt.Sprintf("entry is larger than %d bytes", maxEntrySize),
+	if read > limit {
+		message := fmt.Sprintf("entry is larger than %d bytes", maxEntrySize)
+		if budget < maxEntrySize {
+			message = fmt.Sprintf("the archive expands to more than %d bytes", maxArchiveBytes)
 		}
+		return model.ImportResult{FileName: file.Name, Result: model.ImportResultError, Message: message}, read
 	}
 	var entity model.ExportedEntity
 	if err = json.Unmarshal(buf.Bytes(), &entity); err != nil {
-		return model.ImportResult{FileName: file.Name, Result: model.ImportResultError, Message: err.Error()}
+		return model.ImportResult{FileName: file.Name, Result: model.ImportResultError, Message: err.Error()}, read
 	}
 	result := importer(&entity)
 	result.FileName = file.Name
-	return result
+	return result, read
 }

@@ -1,8 +1,10 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"testing"
 	"time"
@@ -12,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
+	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/matching"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
 )
 
@@ -68,7 +71,7 @@ func headerMatcher(name, value string) *dao.Matcher {
 		ID:         uuid.New(),
 		Enabled:    true,
 		Type:       "equal",
-		EntityType: dao.EntityTypeHeader,
+		EntityType: matching.EntityTypeHeader,
 		EntityName: &name,
 		Parameters: []*dao.MatcherParameter{{Name: "value", Value: value}},
 	}
@@ -89,8 +92,8 @@ func mockAnswering(body string, createdAt time.Time, matchers ...*dao.Matcher) d
 
 func endpointMocksServiceOver(mocks ...dao.EndpointMock) (EndpointMocksService, *fakeEndpointMocksRepository) {
 	repository := &fakeEndpointMocksRepository{mocks: mocks}
-	repositories := Repositories{EndpointMocks: repository}
-	return NewEndpointMocksService(&fakeRunner{}, repositories, NewMatchersService(repositories)), repository
+	repositories := dao.Repositories{EndpointMocks: repository}
+	return NewEndpointMocksService(discardLogger(), &fakeRunner{}, repositories), repository
 }
 
 func callWithHeaders(t *testing.T, service EndpointMocksService, headers map[string][]string) *model.Exchange {
@@ -179,8 +182,8 @@ func TestCallSelectsMocksOfTheGivenEndpointOnly(t *testing.T) {
 
 func TestCallReportsAFailingLookup(t *testing.T) {
 	failure := errors.New("no connection")
-	repository := &fakeEndpointMocksRepository{findAllErr: failure}
-	service := NewEndpointMocksService(&fakeRunner{}, Repositories{EndpointMocks: repository}, nil)
+	repository := &fakeEndpointMocksRepository{findErr: failure}
+	service := NewEndpointMocksService(discardLogger(), &fakeRunner{}, dao.Repositories{EndpointMocks: repository})
 
 	response, err := service.Call(context.Background(), dao.EndpointReference{}, model.Exchange{})
 
@@ -188,19 +191,92 @@ func TestCallReportsAFailingLookup(t *testing.T) {
 	assert.Nil(t, response)
 }
 
-func TestCallReportsAnUnknownMatcherType(t *testing.T) {
-	matcher := headerMatcher("X-Kind", "order")
-	matcher.Type = "no-such-predicate"
-	service, _ := endpointMocksServiceOver(mockAnswering("never", time.Now(), matcher))
+// A matcher this service cannot build does not hold, so the mock carrying it is
+// passed over. Failing the call instead would answer every intercepted call on
+// the element with a 500 — the mocks of one endpoint are answered from a single
+// sorted list — and the engine has no fallback to the real endpoint.
+func TestCallSkipsAMockWhoseMatcherCannotBeBuilt(t *testing.T) {
+	broken := headerMatcher("X-Kind", "order")
+	broken.Type = "no-such-predicate"
+	timestamp := time.Now()
+	// The broken mock carries the most matchers, so it is the one tried first.
+	service, _ := endpointMocksServiceOver(
+		mockAnswering("broken", timestamp, broken, headerMatcher("X-Kind", "order")),
+		mockAnswering("sound", timestamp, headerMatcher("X-Kind", "order")),
+	)
 
-	response, err := service.Call(context.Background(), dao.EndpointReference{}, model.Exchange{})
+	response := callWithHeaders(t, service, map[string][]string{"X-Kind": {"order"}})
 
-	require.Error(t, err)
-	assert.Nil(t, response)
+	assert.Equal(t, "sound", string(response.Body))
+}
+
+// A row stored before the entity name was required must not answer for the
+// mocks it outranks. Its matcher reads nothing out of every exchange, so an
+// `empty` matcher over it used to hold for every call, and the mock came first
+// on creation time among mocks with one matcher each.
+func TestCallSkipsAStoredMockWhoseMatcherNamesNoEntity(t *testing.T) {
+	nameless := &dao.Matcher{
+		ID: uuid.New(), Enabled: true, Type: "empty", EntityType: matching.EntityTypeHeader,
+	}
+	timestamp := time.Now()
+	service, _ := endpointMocksServiceOver(
+		mockAnswering("nameless", timestamp.AddDate(0, 0, -1), nameless),
+		mockAnswering("specific", timestamp, headerMatcher("X-Kind", "order")),
+	)
+
+	response := callWithHeaders(t, service, map[string][]string{"X-Kind": {"order"}})
+
+	assert.Equal(t, "specific", string(response.Body))
+}
+
+// A row stored before the name was checked against the grammar of its entity
+// type is skipped like a nameless one. No request carries a header called
+// `X Kind`, and no path template segment spells `order/Id`, so an `empty`
+// matcher over either held for every call.
+func TestCallSkipsAStoredMockWhoseMatcherNamesNothingReachable(t *testing.T) {
+	for entityType, entityName := range map[string]string{
+		matching.EntityTypeHeader:        "X Kind",
+		matching.EntityTypePathParameter: "order/Id",
+	} {
+		t.Run(entityType, func(t *testing.T) {
+			unreachable := &dao.Matcher{
+				ID: uuid.New(), Enabled: true, Type: "empty",
+				EntityType: entityType, EntityName: &entityName,
+			}
+			timestamp := time.Now()
+			service, _ := endpointMocksServiceOver(
+				mockAnswering("unreachable", timestamp.AddDate(0, 0, -1), unreachable),
+				mockAnswering("specific", timestamp, headerMatcher("X-Kind", "order")),
+			)
+
+			response := callWithHeaders(t, service, map[string][]string{"X-Kind": {"order"}})
+
+			assert.Equal(t, "specific", string(response.Body))
+		})
+	}
+}
+
+// A skipped mock falls through to the answer an unmatched call gets.
+func TestCallAnswersNotFoundWhenEveryMatchingMockIsBroken(t *testing.T) {
+	broken := headerMatcher("X-Kind", "order")
+	broken.Type = "match"
+	broken.Parameters = []*dao.MatcherParameter{{Name: "pattern", Value: "("}}
+	service, _ := endpointMocksServiceOver(mockAnswering("never", time.Now(), broken))
+
+	response := callWithHeaders(t, service, map[string][]string{"X-Kind": {"order"}})
+
+	assert.Equal(t, http.StatusNotFound, response.Status)
+	assert.Empty(t, response.Body)
+}
+
+// buildResponseExchangeOf is buildResponseExchange with the context and logger
+// the tests do not care about.
+func buildResponseExchangeOf(responseSettings *dao.ResponseSettings) *model.Exchange {
+	return buildResponseExchange(context.Background(), discardLogger(), responseSettings)
 }
 
 func TestBuildResponseExchangeDefaultsToAnEmptyOkResponse(t *testing.T) {
-	exchange := buildResponseExchange(nil)
+	exchange := buildResponseExchangeOf(nil)
 
 	assert.Equal(t, http.StatusOK, exchange.Status)
 	assert.Empty(t, exchange.Body)
@@ -209,7 +285,7 @@ func TestBuildResponseExchangeDefaultsToAnEmptyOkResponse(t *testing.T) {
 
 func TestBuildResponseExchangeGroupsRepeatedHeaders(t *testing.T) {
 	body := "payload"
-	exchange := buildResponseExchange(&dao.ResponseSettings{
+	exchange := buildResponseExchangeOf(&dao.ResponseSettings{
 		Status: http.StatusAccepted,
 		Message: &dao.Message{
 			Body: &body,
@@ -224,6 +300,43 @@ func TestBuildResponseExchangeGroupsRepeatedHeaders(t *testing.T) {
 	assert.Equal(t, http.StatusAccepted, exchange.Status)
 	assert.Equal(t, "payload", string(exchange.Body))
 	assert.Equal(t, []string{"first", "second"}, exchange.Headers["X-Trace"])
+}
+
+// A row stored before the range was enforced still has to answer with a status
+// line a client can read.
+func TestBuildResponseExchangeFallsBackForAStoredStatusOutOfRange(t *testing.T) {
+	for _, status := range []int{0, -1, 99, 600, 70000} {
+		exchange := buildResponseExchangeOf(&dao.ResponseSettings{Status: status})
+		assert.Equalf(t, http.StatusOK, exchange.Status, "stored status %d", status)
+	}
+}
+
+// A row stored before the field-name and value checks is left out of the answer
+// rather than written to the wire, where it would malform the response.
+func TestBuildResponseExchangeSkipsAStoredHeaderItCannotWriteOut(t *testing.T) {
+	unwritable := map[string]*dao.Header{
+		"empty name":           {Name: "", Value: "yes"},
+		"space in the name":    {Name: "X Mocked", Value: "yes"},
+		"colon in the name":    {Name: "X-Mocked: yes", Value: "1"},
+		"null in the name":     {Name: "X-Mocked\x00", Value: "yes"},
+		"newline in the name":  {Name: "X-Mocked\nX-Injected", Value: "1"},
+		"null in the value":    {Name: "X-Mocked", Value: "yes\x00no"},
+		"newline in the value": {Name: "X-Mocked", Value: "yes\r\nX-Injected: 1"},
+	}
+	for name, header := range unwritable {
+		t.Run(name, func(t *testing.T) {
+			logs := &bytes.Buffer{}
+			logger := slog.New(slog.NewTextHandler(logs, nil))
+
+			exchange := buildResponseExchange(context.Background(), logger, &dao.ResponseSettings{
+				Status:  http.StatusOK,
+				Message: &dao.Message{Headers: []*dao.Header{header, {Name: "X-Kept", Value: "yes"}}},
+			})
+
+			assert.Equal(t, map[string][]string{"X-Kept": {"yes"}}, exchange.Headers)
+			assert.Contains(t, logs.String(), "Skipping a stored response header")
+		})
+	}
 }
 
 func TestAwaitResponseDelayReturnsAtOnceWhenTheDelayHasPassed(t *testing.T) {

@@ -46,16 +46,15 @@ func (c *testCaseRunErrorsController) FindByTestCaseRunId(ctx *fiber.Ctx) error 
 	userContext := ctx.UserContext()
 	validationErrors, err := c.testCaseRunErrorsService.FindByTestCaseRunId(userContext, testCaseRunId, withMatchers)
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError,
-			"Unable to get validation errors by test case run ID: %v", err.Error())
+		return c.internalError(ctx, "Unable to get validation errors by test case run ID", err)
 	}
-	return respondWithJSON(ctx, fiber.StatusOK, validationErrors)
+	return ctx.Status(fiber.StatusOK).JSON(validationErrors)
 }
 
 // BulkExport
 // @Summary Export validation errors
 // @ID exportValidationErrorsV1
-// @Tags V1, Tests Case Runs
+// @Tags V1, Test Case Runs
 // @Accept  json
 // @Produce text/csv
 // @Param ids body []string true "Validation errors IDs to export"
@@ -69,9 +68,9 @@ func (c *testCaseRunErrorsController) BulkExport(ctx *fiber.Ctx) error {
 		return c.malformedRequestBody(ctx, err)
 	}
 	userContext := ctx.UserContext()
-	result, err := c.testCaseRunErrorsService.BulkExport(userContext, validationErrorIds)
+	result, err := c.testCaseRunErrorsService.BulkExport(userContext, &validationErrorIds)
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to export validation errors: %v", err.Error())
+		return c.internalError(ctx, "Failed to export validation errors", err)
 	}
 	return respondWithCsv(ctx, fiber.StatusOK, result)
 }

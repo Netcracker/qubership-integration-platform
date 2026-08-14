@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/config"
+	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
 )
 
 type retentionFixture struct {
@@ -20,8 +21,8 @@ type retentionFixture struct {
 
 func newRetentionFixture(cfg config.Config, expired []uuid.UUID) *retentionFixture {
 	testsRuns := &fakeTestsRunsRepository{expired: expired}
-	service := testsRunsServiceWith(cfg, &fakeRunner{}, Repositories{TestsRuns: testsRuns}, nil)
-	return &retentionFixture{service: service.(*testsRunsService), testsRuns: testsRuns}
+	service := testsRunsServiceWith(cfg, &fakeRunner{}, dao.Repositories{TestsRuns: testsRuns}, nil)
+	return &retentionFixture{service: service, testsRuns: testsRuns}
 }
 
 // expiredRuns names count test runs that reached the retention age.
@@ -34,7 +35,7 @@ func expiredRuns(count int) []uuid.UUID {
 }
 
 func TestRetentionKeepsEveryRunWhenNoAgeIsConfigured(t *testing.T) {
-	fixture := newRetentionFixture(config.Config{RetentionInterval: time.Millisecond}, expiredRuns(3))
+	fixture := newRetentionFixture(config.Config{RetentionInterval: time.Millisecond}.WithDefaults(), expiredRuns(3))
 
 	// The context is never canceled on purpose: a disabled retention has to return
 	// on its own, and a test that hangs here is the failure.
@@ -78,7 +79,7 @@ func TestRetentionDeletesTheRunsThatReachedTheAge(t *testing.T) {
 
 func TestRetentionWorksOffABacklogInBatches(t *testing.T) {
 	expired := expiredRuns(retentionBatchSize + 3)
-	fixture := newRetentionFixture(config.Config{RetentionAge: time.Hour}, expired)
+	fixture := newRetentionFixture(config.Config{RetentionAge: time.Hour}.WithDefaults(), expired)
 
 	deleted, err := fixture.service.deleteExpired(context.Background())
 
@@ -89,7 +90,7 @@ func TestRetentionWorksOffABacklogInBatches(t *testing.T) {
 }
 
 func TestRetentionStopsAfterAFailedBatch(t *testing.T) {
-	fixture := newRetentionFixture(config.Config{RetentionAge: time.Hour}, expiredRuns(2))
+	fixture := newRetentionFixture(config.Config{RetentionAge: time.Hour}.WithDefaults(), expiredRuns(2))
 	fixture.testsRuns.deleteExpiredErr = errors.New("no connection")
 
 	deleted, err := fixture.service.deleteExpired(context.Background())
@@ -100,7 +101,7 @@ func TestRetentionStopsAfterAFailedBatch(t *testing.T) {
 }
 
 func TestRetentionStopsWorkingOffTheBacklogOnCancellation(t *testing.T) {
-	fixture := newRetentionFixture(config.Config{RetentionAge: time.Hour}, expiredRuns(retentionBatchSize+3))
+	fixture := newRetentionFixture(config.Config{RetentionAge: time.Hour}.WithDefaults(), expiredRuns(retentionBatchSize+3))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 

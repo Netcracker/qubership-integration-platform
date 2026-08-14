@@ -6,27 +6,43 @@ import (
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/matching/predicates"
 )
 
-func GetMatcherPredicate(matcherType string, parameters map[string][]string) (MatcherPredicate, error) {
-	switch matcherType {
-	case "empty":
+// matcherPredicates is the whole set of matcher types. A table rather than a
+// switch, so matcherTypes names exactly what the factory builds: a type added
+// here is a type the tests iterate.
+var matcherPredicates = map[string]func(map[string][]string) (MatcherPredicate, error){
+	"empty": func(map[string][]string) (MatcherPredicate, error) {
 		return predicates.NewEmptyPredicate()
-	case "exist":
+	},
+	"exist": func(map[string][]string) (MatcherPredicate, error) {
 		return predicates.NewExistPredicate()
-	case "equal":
+	},
+	"equal": func(parameters map[string][]string) (MatcherPredicate, error) {
 		return predicates.NewEqualPredicate(parameters)
-	case "contain":
+	},
+	"contain": func(parameters map[string][]string) (MatcherPredicate, error) {
 		return predicates.NewContainPredicate(parameters)
-	case "match":
+	},
+	"match": func(parameters map[string][]string) (MatcherPredicate, error) {
 		return predicates.NewMatchPredicate(parameters)
-	case "start_with":
+	},
+	"start_with": func(parameters map[string][]string) (MatcherPredicate, error) {
 		return predicates.NewStartWithPredicate(parameters)
-	case "end_with":
+	},
+	"end_with": func(parameters map[string][]string) (MatcherPredicate, error) {
 		return predicates.NewEndWithPredicate(parameters)
-	case "match_json_schema":
+	},
+	"match_json_schema": func(parameters map[string][]string) (MatcherPredicate, error) {
 		return predicates.NewMatchJsonSchemaPredicate(parameters)
-	case "match_json":
+	},
+	"match_json": func(parameters map[string][]string) (MatcherPredicate, error) {
 		return predicates.NewMatchJsonPredicate(parameters)
-	default:
+	},
+}
+
+func GetMatcherPredicate(matcherType string, parameters map[string][]string) (MatcherPredicate, error) {
+	build, ok := matcherPredicates[matcherType]
+	if !ok {
 		return nil, fmt.Errorf("unknown predicate type: %v", matcherType)
 	}
+	return build(parameters)
 }

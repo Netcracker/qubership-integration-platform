@@ -78,6 +78,17 @@ type stubDB struct{}
 
 func (stubDB) GetBunDb(context.Context) (*bun.DB, error) { return nil, nil }
 
+// Everything below testingservice.New takes Deps as WithDefaults left them, so a
+// host that names no logger or no client must not reach a constructor with a nil
+// — the panic would land in a worker goroutine.
+func TestDepsWithDefaultsSubstitutesTheOptionalInfrastructure(t *testing.T) {
+	deps := Deps{DB: stubDB{}}.WithDefaults()
+
+	assert.Same(t, slog.Default(), deps.Logger)
+	assert.Same(t, http.DefaultClient, deps.HTTPClient)
+	assert.Nil(t, deps.CurrentUser, "there is no default caller; dao.CurrentUser names one")
+}
+
 func TestDepsAcceptTheDeclaredImplementations(t *testing.T) {
 	deps := Deps{
 		DB:          stubDB{},

@@ -8,7 +8,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
+
+// defaultTimeout bounds one catalog lookup. It is a variable so a test can
+// shorten it.
+var defaultTimeout = 30 * time.Second
 
 // CatalogClient reads chain elements from the runtime catalog.
 type CatalogClient interface {
@@ -23,15 +28,21 @@ type catalogClient struct {
 }
 
 // NewCatalogClient returns a client for the runtime catalog at the given base
-// address. The client carries the host's authorization as a round tripper.
+// address. The client carries the host's authorization as a round tripper, and
+// testingservice.New has already substituted one for a host that supplied none.
 func NewCatalogClient(address string, httpClient *http.Client) CatalogClient {
-	if httpClient == nil {
-		httpClient = http.DefaultClient
-	}
 	return &catalogClient{address: strings.TrimSuffix(address, "/"), httpClient: httpClient}
 }
 
 func (c *catalogClient) FindChainElement(ctx context.Context, chainID, elementID string) (*ChainElement, error) {
+	// The caller is an executor worker, whose context lives until shutdown, and
+	// the shared client carries no timeout. A catalog that accepts the connection
+	// and never answers would hold the worker — and the lease it keeps renewing —
+	// for as long as the process runs, which is the one stall the sweeper cannot
+	// recover from.
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	defer cancel()
+
 	requestURL := fmt.Sprintf("%s/v1/chains/%s/elements/%s",
 		c.address, url.PathEscape(chainID), url.PathEscape(elementID))
 

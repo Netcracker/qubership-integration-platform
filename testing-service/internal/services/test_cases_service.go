@@ -5,11 +5,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"mime/multipart"
 
 	"github.com/google/uuid"
-	"github.com/uptrace/bun"
 
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
@@ -36,14 +37,14 @@ type TestCasesService interface {
 }
 
 type testCasesService struct {
-	runner          dao.Runner
-	repositories    Repositories
-	matchersService MatchersService
+	logger       *slog.Logger
+	runner       dao.Runner
+	repositories dao.Repositories
 }
 
 // NewTestCasesService returns a TestCasesService over the given database access.
-func NewTestCasesService(runner dao.Runner, repositories Repositories, matchersService MatchersService) TestCasesService {
-	return &testCasesService{runner: runner, repositories: repositories, matchersService: matchersService}
+func NewTestCasesService(logger *slog.Logger, runner dao.Runner, repositories dao.Repositories) TestCasesService {
+	return &testCasesService{logger: logger, runner: runner, repositories: repositories}
 }
 
 func (s *testCasesService) FindAll(
@@ -53,13 +54,13 @@ func (s *testCasesService) FindAll(
 	pagination *model.PaginationOptions,
 	withRelations bool,
 ) (*[]dao.TestCaseView, error) {
-	return dao.Run(ctx, s.runner, func(ctx context.Context, _ bun.IDB) (*[]dao.TestCaseView, error) {
+	return dao.Run(ctx, s.runner, func(ctx context.Context) (*[]dao.TestCaseView, error) {
 		return s.repositories.TestCases.FindAll(ctx, specification, sorting, pagination, withRelations)
 	})
 }
 
 func (s *testCasesService) FindById(ctx context.Context, id uuid.UUID) (*dao.TestCaseView, error) {
-	return dao.Run(ctx, s.runner, func(ctx context.Context, _ bun.IDB) (*dao.TestCaseView, error) {
+	return dao.Run(ctx, s.runner, func(ctx context.Context) (*dao.TestCaseView, error) {
 		return s.repositories.TestCases.FindById(ctx, id, true)
 	})
 }
@@ -82,12 +83,15 @@ func (s *testCasesService) BulkDelete(ctx context.Context, ids *[]uuid.UUID) err
 }
 
 func (s *testCasesService) Create(ctx context.Context, testCase *dao.TestCase) (*dao.TestCase, error) {
-	return dao.RunInTx(ctx, s.runner, defaultTxOptions(), func(ctx context.Context, _ bun.IDB) (*dao.TestCase, error) {
+	return dao.RunInTx(ctx, s.runner, func(ctx context.Context) (*dao.TestCase, error) {
 		return s.doCreate(ctx, testCase)
 	})
 }
 
 func (s *testCasesService) doCreate(ctx context.Context, testCase *dao.TestCase) (*dao.TestCase, error) {
+	if err := validateTestCase(testCase); err != nil {
+		return nil, err
+	}
 	createdTestCase, err := s.repositories.TestCases.Insert(ctx, testCase)
 	if err != nil {
 		return nil, err
@@ -114,7 +118,7 @@ func (s *testCasesService) doCreate(ctx context.Context, testCase *dao.TestCase)
 	createdTestCase.TriggerReference = createdTriggerReference
 	createdTestCase.RequestSettings = createdRequestSettings
 
-	rules, err := s.matchersService.Create(ctx, createdTestCase.ID, testCase.ResponseValidationRules)
+	rules, err := createMatchers(ctx, s.repositories, createdTestCase.ID, testCase.ResponseValidationRules)
 	if err != nil {
 		return nil, err
 	}
@@ -123,18 +127,21 @@ func (s *testCasesService) doCreate(ctx context.Context, testCase *dao.TestCase)
 }
 
 func (s *testCasesService) Update(ctx context.Context, testCase *dao.TestCase) (*dao.TestCase, error) {
-	return dao.RunInTx(ctx, s.runner, defaultTxOptions(), func(ctx context.Context, _ bun.IDB) (*dao.TestCase, error) {
+	return dao.RunInTx(ctx, s.runner, func(ctx context.Context) (*dao.TestCase, error) {
 		return s.doUpdate(ctx, testCase)
 	})
 }
 
 func (s *testCasesService) doUpdate(ctx context.Context, testCase *dao.TestCase) (*dao.TestCase, error) {
+	if err := validateTestCase(testCase); err != nil {
+		return nil, err
+	}
 	existingTestCase, err := s.repositories.TestCases.FindById(ctx, testCase.ID, true)
 	if err != nil {
 		return nil, err
 	}
 	if existingTestCase == nil {
-		return nil, fmt.Errorf("test case %v not found", testCase.ID)
+		return nil, notFound("test case %v not found", testCase.ID)
 	}
 
 	if err = s.repositories.TestCases.Update(ctx, testCase); err != nil {
@@ -157,13 +164,25 @@ func (s *testCasesService) doUpdate(ctx context.Context, testCase *dao.TestCase)
 		return nil, err
 	}
 
-	rules, err := s.matchersService.Create(ctx, testCase.ID, testCase.ResponseValidationRules)
+	rules, err := createMatchers(ctx, s.repositories, testCase.ID, testCase.ResponseValidationRules)
 	if err != nil {
 		return nil, err
 	}
 	testCase.ResponseValidationRules = *rules
 
 	return testCase, nil
+}
+
+// validateTestCase refuses a test case the executor could not evaluate as
+// written. A response validation rule is built exactly like the request matcher
+// of an endpoint mock, so an unbuildable one is a 400 at save time here too.
+// Left to the run, it would be recorded against every attempt as a validation
+// error that says nothing about the case that produced it.
+func validateTestCase(testCase *dao.TestCase) error {
+	if testCase == nil {
+		return nil
+	}
+	return validateMatchers("response validation rule", testCase.ResponseValidationRules)
 }
 
 func (s *testCasesService) updateTriggerReference(
@@ -205,9 +224,11 @@ func (s *testCasesService) updateRequestSettings(
 	if requestSettings == nil {
 		return nil, nil
 	}
+	// The owner is never read off the request body — the field is json:"-" — so
+	// it has to be stamped whether or not the test case had settings before.
+	requestSettings.TestCaseID = existingTestCase.ID
 	if existingTestCase.RequestSettings != nil {
 		requestSettings.ID = existingTestCase.RequestSettings.ID
-		requestSettings.TestCaseID = existingTestCase.ID
 	}
 	return s.createRequestSettings(ctx, requestSettings)
 }
@@ -269,24 +290,23 @@ func (s *testCasesService) Import(ctx context.Context, fileHeaders []*multipart.
 
 func (s *testCasesService) importTestCase(ctx context.Context, entity *model.ExportedEntity) model.ImportResult {
 	result := model.ImportResult{EntityID: &entity.ID, EntityName: &entity.Name}
-	if entity.Type != model.EntityTypeTestCase {
+	if entity.Type != model.ExportedTypeTestCase {
 		result.Result = model.ImportResultError
 		result.Message = fmt.Sprintf("wrong entity type: %v", entity.Type)
 		return result
 	}
-	data, err := importexport.MigrateEntityData(&entity.Data, entity.Version, importexport.GetTestCasesDataMigrations())
-	if err != nil {
+	if err := importexport.CheckDataVersion(entity.Version); err != nil {
 		result.Result = model.ImportResultError
 		result.Message = fmt.Sprintf("failed to migrate data: %v", err.Error())
 		return result
 	}
 	var testCase dao.TestCase
-	if err = json.Unmarshal(*data, &testCase); err != nil {
+	if err := json.Unmarshal(entity.Data, &testCase); err != nil {
 		result.Result = model.ImportResultError
 		result.Message = err.Error()
 		return result
 	}
-	outcome, err := dao.RunInTx(ctx, s.runner, defaultTxOptions(), func(ctx context.Context, _ bun.IDB) (string, error) {
+	outcome, err := dao.RunInTx(ctx, s.runner, func(ctx context.Context) (string, error) {
 		exists, err := s.repositories.TestCases.Exists(ctx, testCase.ID)
 		if err != nil {
 			return "", err
@@ -300,7 +320,16 @@ func (s *testCasesService) importTestCase(ctx context.Context, entity *model.Exp
 	})
 	if err != nil {
 		result.Result = model.ImportResultError
-		result.Message = err.Error()
+		if errors.Is(err, ErrInvalidRequest) {
+			// The refusal is about the imported file itself, so the importer needs
+			// to read it to know what to fix.
+			result.Message = err.Error()
+			return result
+		}
+		// The failure is a bun or PostgreSQL message, which names constraints,
+		// tables and columns. It belongs in the log, not in a body the caller reads.
+		s.logger.ErrorContext(ctx, "Cannot import the test case", "testCaseId", testCase.ID, "error", err)
+		result.Message = "failed to save the test case"
 		return result
 	}
 	result.Result = outcome
@@ -314,13 +343,12 @@ func (s *testCasesService) Export(ctx context.Context, ids *[]uuid.UUID) (*[]byt
 		return nil, err
 	}
 
-	dataVersion := importexport.GetTestCasesActualDataVersion()
 	var buffer bytes.Buffer
 	zipWriter := zip.NewWriter(&buffer)
 	for _, testCase := range *testCases {
 		entity := model.ExportedEntity{
-			Version: dataVersion,
-			Type:    model.EntityTypeTestCase,
+			Version: importexport.ActualDataVersion,
+			Type:    model.ExportedTypeTestCase,
 			ID:      testCase.ID,
 			Name:    testCase.Name,
 		}
@@ -360,7 +388,7 @@ func writeExportedEntity(zipWriter *zip.Writer, entity model.ExportedEntity, pay
 // request and response settings own one.
 func createMessage(
 	ctx context.Context,
-	repositories Repositories,
+	repositories dao.Repositories,
 	message *dao.Message,
 	ownerID uuid.UUID,
 ) (*dao.Message, error) {

@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -8,6 +9,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
+	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/services"
 )
@@ -38,35 +40,19 @@ func newTestsRunsController(logger *slog.Logger, testsRunsService services.Tests
 // @Failure    500    {object}    ErrorMessage
 // @Router /api/v1/tests-runs [post]
 func (c *testsRunsController) FindAll(ctx *fiber.Ctx) error {
-	pagination, err := paginationOptions(ctx)
-	if err != nil {
-		return c.malformedPaginationParameters(ctx, err)
+	// Tests runs carry no relations to leave out, so the withRelations flag the
+	// shared handler passes is dropped here.
+	query := func(
+		ctx context.Context,
+		specification *model.SelectionSpecification,
+		sorting model.SortOptions,
+		pagination *model.PaginationOptions,
+		_ bool,
+	) (*[]dao.TestsRunView, error) {
+		return c.testsRunsService.FindAll(ctx, specification, sorting, pagination)
 	}
-	sorting, err := sortOptions(ctx)
-	if err != nil {
-		return c.malformedSortingParameters(ctx, err)
-	}
-	var specification model.SelectionSpecification
-	if err := json.Unmarshal(ctx.Body(), &specification); err != nil {
-		return c.malformedRequestBody(ctx, err)
-	}
-	returnIds := ctx.QueryBool("return_ids", false)
-	if returnIds {
-		pagination = nil
-	}
-	userContext := ctx.UserContext()
-	testsRuns, err := c.testsRunsService.FindAll(userContext, &specification, *sorting, pagination)
-	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Unable to get tests runs: %v", err.Error())
-	}
-	if returnIds {
-		ids := make([]uuid.UUID, 0, len(*testsRuns))
-		for _, testsRun := range *testsRuns {
-			ids = append(ids, testsRun.ID)
-		}
-		return respondWithJSON(ctx, fiber.StatusOK, ids)
-	}
-	return respondWithJSON(ctx, fiber.StatusOK, testsRuns)
+	return findAll(ctx, c.responder, "tests runs", query,
+		func(testsRun dao.TestsRunView) uuid.UUID { return testsRun.ID })
 }
 
 // FindById
@@ -89,12 +75,12 @@ func (c *testsRunsController) FindById(ctx *fiber.Ctx) error {
 	userContext := ctx.UserContext()
 	testsRun, err := c.testsRunsService.FindById(userContext, testsRunId)
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Unable to get tests run by ID: %v", err.Error())
+		return c.internalError(ctx, "Unable to get tests run by ID", err)
 	}
 	if testsRun == nil {
 		return c.fail(ctx, fiber.StatusNotFound, "Tests run %v not found.", testsRunId)
 	}
-	return respondWithJSON(ctx, fiber.StatusOK, testsRun)
+	return ctx.Status(fiber.StatusOK).JSON(testsRun)
 }
 
 // StartNew
@@ -115,15 +101,17 @@ func (c *testsRunsController) StartNew(ctx *fiber.Ctx) error {
 		return c.malformedRequestBody(ctx, err)
 	}
 	userContext := ctx.UserContext()
-	entityType := ctx.Query("from", services.EntityTypeTestCases)
+	entityType := ctx.Query("from", services.RunSourceTestCases)
 	testRunId, err := c.testsRunsService.StartNewFromEntitiesWithType(userContext, &ids, entityType)
 	switch {
 	case err == nil:
-		return respondWithJSON(ctx, fiber.StatusCreated, testRunId)
-	case errors.Is(err, services.ErrEmptyTestCaseList):
+		return ctx.Status(fiber.StatusCreated).JSON(testRunId)
+	case errors.Is(err, services.ErrInvalidRequest):
+		// An empty list, an entity type this endpoint does not resolve, or an id
+		// that names nothing: all of them are the caller's own input.
 		return c.fail(ctx, fiber.StatusBadRequest, "%s", err.Error())
 	default:
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to start new tests run: %v", err.Error())
+		return c.internalError(ctx, "Failed to start new tests run", err)
 	}
 }
 
@@ -145,7 +133,7 @@ func (c *testsRunsController) Delete(ctx *fiber.Ctx) error {
 	}
 	userContext := ctx.UserContext()
 	if err := c.testsRunsService.Delete(userContext, testsRunId); err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to delete tests run: %v", err.Error())
+		return c.internalError(ctx, "Failed to delete tests run", err)
 	}
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
@@ -168,7 +156,7 @@ func (c *testsRunsController) BulkDelete(ctx *fiber.Ctx) error {
 	}
 	userContext := ctx.UserContext()
 	if err := c.testsRunsService.BulkDelete(userContext, &testsRunsIds); err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to bulk delete tests runs: %v", err.Error())
+		return c.internalError(ctx, "Failed to bulk delete tests runs", err)
 	}
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
@@ -190,7 +178,7 @@ func (c *testsRunsController) Cancel(ctx *fiber.Ctx) error {
 	}
 	userContext := ctx.UserContext()
 	if err := c.testsRunsService.Cancel(userContext, testsRunId); err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to cancel tests run: %v", err.Error())
+		return c.internalError(ctx, "Failed to cancel tests run", err)
 	}
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
@@ -212,7 +200,7 @@ func (c *testsRunsController) BulkCancel(ctx *fiber.Ctx) error {
 	}
 	userContext := ctx.UserContext()
 	if err := c.testsRunsService.BulkCancel(userContext, &testsRunsIds); err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to bulk cancel tests runs: %v", err.Error())
+		return c.internalError(ctx, "Failed to bulk cancel tests runs", err)
 	}
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
@@ -238,7 +226,7 @@ func (c *testsRunsController) Export(ctx *fiber.Ctx) error {
 	testsRunsIds := []uuid.UUID{testsRunId}
 	result, err := c.testsRunsService.Export(userContext, &testsRunsIds)
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to export tests run result: %v", err.Error())
+		return c.internalError(ctx, "Failed to export tests run result", err)
 	}
 	return respondWithCsv(ctx, fiber.StatusOK, result)
 }
@@ -262,7 +250,7 @@ func (c *testsRunsController) BulkExport(ctx *fiber.Ctx) error {
 	userContext := ctx.UserContext()
 	result, err := c.testsRunsService.Export(userContext, &testsRunsIds)
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to export tests runs result: %v", err.Error())
+		return c.internalError(ctx, "Failed to export tests runs result", err)
 	}
 	return respondWithCsv(ctx, fiber.StatusOK, result)
 }

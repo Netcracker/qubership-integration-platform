@@ -257,6 +257,11 @@ create or replace view tests_runs_view as
     ) error on true -- count failed test case runs, not validation errors
     group by tests_run.id;
 
+-- create or replace view can neither drop nor retype a column, and migration 101
+-- adds three in the middle of this expansion. The statement survives being run
+-- again on top of it because the column list is not spelled out: PostgreSQL
+-- expands test_case_run.* against the table as it stands when the statement
+-- runs, which by then already carries those columns in the same positions.
 create or replace view test_case_runs_view as
     select
         test_case_run.*,

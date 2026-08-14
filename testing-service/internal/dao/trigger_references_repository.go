@@ -19,31 +19,13 @@ func NewTriggerReferencesRepository() TriggerReferencesRepository {
 }
 
 func (r *triggerReferencesRepository) Insert(ctx context.Context, triggerReference *TriggerReference) (*TriggerReference, error) {
-	db, err := GetDb(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var result TriggerReference
-	if _, err := db.NewInsert().Model(triggerReference).Returning("*").Exec(ctx, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
+	return insertRow(ctx, triggerReference)
 }
 
 func (r *triggerReferencesRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	db, err := GetDb(ctx)
-	if err != nil {
-		return err
-	}
-	_, err = db.NewDelete().Model((*TriggerReference)(nil)).Where("id = ?", id).Exec(ctx)
-	return err
+	return deleteRow[TriggerReference](ctx, id)
 }
 
 func (r *triggerReferencesRepository) Update(ctx context.Context, triggerReference *TriggerReference) error {
-	db, err := GetDb(ctx)
-	if err != nil {
-		return err
-	}
-	_, err = db.NewUpdate().Model(triggerReference).WherePK().Exec(ctx)
-	return err
+	return updateRow(ctx, triggerReference)
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,22 +39,21 @@ type TestCaseRunsService interface {
 
 	Export(ctx context.Context, ids *[]uuid.UUID) (string, error)
 	ExportByTestsRunIds(ctx context.Context, ids *[]uuid.UUID) (string, error)
-	ExportToCsv(ctx context.Context, specification *model.SelectionSpecification) (string, error)
 }
 
 type testCaseRunsService struct {
 	runner        dao.Runner
-	repositories  Repositories
+	repositories  dao.Repositories
 	leaseDuration time.Duration
 }
 
 // NewTestCaseRunsService returns a TestCaseRunsService over the given database
 // access, leasing claimed runs for the duration cfg carries.
-func NewTestCaseRunsService(cfg config.Config, runner dao.Runner, repositories Repositories) TestCaseRunsService {
+func NewTestCaseRunsService(cfg config.Config, runner dao.Runner, repositories dao.Repositories) TestCaseRunsService {
 	return &testCaseRunsService{
 		runner:        runner,
 		repositories:  repositories,
-		leaseDuration: cfg.WithDefaults().LeaseDuration,
+		leaseDuration: cfg.LeaseDuration,
 	}
 }
 
@@ -63,13 +63,13 @@ func (s *testCaseRunsService) FindAll(
 	sorting model.SortOptions,
 	pagination *model.PaginationOptions,
 ) (*[]dao.TestCaseRunView, error) {
-	return dao.Run(ctx, s.runner, func(ctx context.Context, _ bun.IDB) (*[]dao.TestCaseRunView, error) {
+	return dao.Run(ctx, s.runner, func(ctx context.Context) (*[]dao.TestCaseRunView, error) {
 		return s.repositories.TestCaseRuns.FindAll(ctx, specification, sorting, pagination)
 	})
 }
 
 func (s *testCaseRunsService) FindById(ctx context.Context, id uuid.UUID) (*dao.TestCaseRunView, error) {
-	return dao.Run(ctx, s.runner, func(ctx context.Context, _ bun.IDB) (*dao.TestCaseRunView, error) {
+	return dao.Run(ctx, s.runner, func(ctx context.Context) (*dao.TestCaseRunView, error) {
 		return s.repositories.TestCaseRuns.FindById(ctx, id)
 	})
 }
@@ -117,7 +117,7 @@ func (s *testCaseRunsService) cancelTestCaseRuns(ctx context.Context, selector f
 // running and leased to owner. The claim is what starts the run, so no separate
 // start call follows it.
 func (s *testCaseRunsService) ClaimNext(ctx context.Context, owner uuid.UUID, sessionID string) (*dao.TestCaseRun, error) {
-	return dao.RunInTx(ctx, s.runner, defaultTxOptions(), func(ctx context.Context, _ bun.IDB) (*dao.TestCaseRun, error) {
+	return dao.RunInTx(ctx, s.runner, func(ctx context.Context) (*dao.TestCaseRun, error) {
 		return s.repositories.TestCaseRuns.Claim(ctx, owner, sessionID, s.leaseDuration)
 	})
 }
@@ -127,7 +127,7 @@ func (s *testCaseRunsService) Finish(ctx context.Context, id uuid.UUID, owner uu
 		timestamp := time.Now()
 		status := dao.RunStatusFinished
 		testCaseRun := &dao.TestCaseRun{ID: id, Status: &status, Finish: &timestamp}
-		return s.repositories.TestCaseRuns.UpdateOwned(ctx, testCaseRun, owner, true)
+		return s.repositories.TestCaseRuns.UpdateOwned(ctx, testCaseRun, owner)
 	})
 }
 
@@ -136,7 +136,7 @@ func (s *testCaseRunsService) Skip(ctx context.Context, id uuid.UUID, owner uuid
 		timestamp := time.Now()
 		status := dao.RunStatusSkipped
 		testCaseRun := &dao.TestCaseRun{ID: id, Status: &status, Finish: &timestamp}
-		return s.repositories.TestCaseRuns.UpdateOwned(ctx, testCaseRun, owner, true)
+		return s.repositories.TestCaseRuns.UpdateOwned(ctx, testCaseRun, owner)
 	})
 }
 
@@ -151,7 +151,7 @@ func (s *testCaseRunsService) RenewLease(ctx context.Context, id uuid.UUID, owne
 // ReclaimExpired returns the cases whose lease ran out to the queue and reports
 // how many it took back.
 func (s *testCaseRunsService) ReclaimExpired(ctx context.Context) (int, error) {
-	return dao.RunInTx(ctx, s.runner, defaultTxOptions(), func(ctx context.Context, _ bun.IDB) (int, error) {
+	return dao.RunInTx(ctx, s.runner, func(ctx context.Context) (int, error) {
 		return s.repositories.TestCaseRuns.ReclaimExpired(ctx)
 	})
 }
@@ -161,7 +161,7 @@ func (s *testCaseRunsService) Export(ctx context.Context, ids *[]uuid.UUID) (str
 		return "", nil
 	}
 	specification := model.SelectionSpecification{Ids: ids}
-	return s.ExportToCsv(ctx, &specification)
+	return s.exportSelectionToCsv(ctx, &specification)
 }
 
 func (s *testCaseRunsService) ExportByTestsRunIds(ctx context.Context, ids *[]uuid.UUID) (string, error) {
@@ -174,10 +174,10 @@ func (s *testCaseRunsService) ExportByTestsRunIds(ctx context.Context, ids *[]uu
 		Values:    uuid.UUIDs(*ids).Strings(),
 	}}
 	specification := model.SelectionSpecification{Filters: &filters}
-	return s.ExportToCsv(ctx, &specification)
+	return s.exportSelectionToCsv(ctx, &specification)
 }
 
-func (s *testCaseRunsService) ExportToCsv(ctx context.Context, specification *model.SelectionSpecification) (string, error) {
+func (s *testCaseRunsService) exportSelectionToCsv(ctx context.Context, specification *model.SelectionSpecification) (string, error) {
 	var buffer bytes.Buffer
 	writer := csv.NewWriter(&buffer)
 	err := runQuery(ctx, s.runner, func(ctx context.Context) error {
@@ -227,7 +227,7 @@ func (s *testCaseRunsService) exportToCsv(
 	}
 
 	for _, testCaseRun := range *testCaseRuns {
-		fields := []string{
+		fields := csvFields(
 			optionalUUID(testCaseRun.TestsRunID),
 			testCaseRun.ID.String(),
 			optionalString(testCaseRun.ChainID),
@@ -239,7 +239,7 @@ func (s *testCaseRunsService) exportToCsv(
 			optionalString(testCaseRun.Status),
 			optionalString(testCaseRun.SessionID),
 			strconv.Itoa(testCaseRun.Errors),
-		}
+		)
 		if testCaseRun.Errors == 0 {
 			if err = writer.Write(append(fields, "", "", "", "")); err != nil {
 				return err
@@ -261,8 +261,8 @@ func (s *testCaseRunsService) exportToCsv(
 			}
 			// Clone the row: appending in place would overwrite the columns
 			// written for the previous validation error.
-			row := append(slices.Clone(fields),
-				optionalUUID(validationError.MatcherID), name, description, validationError.Message)
+			row := append(slices.Clone(fields), csvFields(
+				optionalUUID(validationError.MatcherID), name, description, validationError.Message)...)
 			if err = writer.Write(row); err != nil {
 				return err
 			}
@@ -276,6 +276,28 @@ func optionalString(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+// csvFormulaLeaders are the characters a spreadsheet reads as the start of a
+// formula. A test case name or a validation message is user text, so a value
+// that begins with one has to be neutralized before it is exported.
+const csvFormulaLeaders = "=+-@\t\r"
+
+// csvField makes value safe to open in a spreadsheet.
+func csvField(value string) string {
+	if value == "" || !strings.ContainsRune(csvFormulaLeaders, rune(value[0])) {
+		return value
+	}
+	return "'" + value
+}
+
+// csvFields is csvField over a whole row.
+func csvFields(values ...string) []string {
+	escaped := make([]string, len(values))
+	for i, value := range values {
+		escaped[i] = csvField(value)
+	}
+	return escaped
 }
 
 func optionalUUID(id *uuid.UUID) string {

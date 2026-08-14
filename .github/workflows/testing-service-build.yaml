@@ -15,6 +15,7 @@ on:
     paths:
       - 'testing-service/**'
       - 'scripts/check-go-dependencies.sh'
+      - 'scripts/check-sanitization.sh'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

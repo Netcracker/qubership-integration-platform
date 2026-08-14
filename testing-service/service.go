@@ -52,14 +52,20 @@ type Service struct {
 }
 
 // New wires the repositories, services and controllers over the given settings
-// and infrastructure. Unset settings fall back to the defaults in Config.
+// and infrastructure. Unset settings fall back to the defaults in Config, and
+// this is the one place that fills them in: everything below takes cfg and deps
+// already normalized.
 func New(cfg Config, deps Deps) (*Service, error) {
 	if deps.DB == nil {
 		return nil, ErrNoDatabase
 	}
 	cfg = cfg.WithDefaults()
+	deps = deps.WithDefaults()
 	d := dao.NewDao(cfg, deps)
-	svcs := services.NewServices(cfg, deps, d)
+	svcs, err := services.NewServices(cfg, deps, d)
+	if err != nil {
+		return nil, err
+	}
 	return &Service{
 		deps:        deps,
 		services:    svcs,
@@ -97,14 +103,11 @@ func (s *Service) RunExecutor(ctx context.Context) error {
 }
 
 // backgroundUser names the writer of the rows the executor produces. There is no
-// request behind them, so a host that supplied no CurrentUser gets the platform
-// default.
+// request behind them, so a host that supplied no CurrentUser leaves the name
+// empty and dao.CurrentUser substitutes the platform default.
 func (s *Service) backgroundUser(ctx context.Context) string {
 	if s.deps.CurrentUser == nil {
-		return dao.DefaultUser
+		return ""
 	}
-	if user := s.deps.CurrentUser(ctx); user != "" {
-		return user
-	}
-	return dao.DefaultUser
+	return s.deps.CurrentUser(ctx)
 }

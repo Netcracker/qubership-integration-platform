@@ -173,7 +173,9 @@ data:
       {{- if .Values.global.qip.testingService.enabled }}
 
       # Endpoint mocks are called by the engine from inside the cluster only.
-      location ~ "^/api/(v\d+)/.*/testing-service/endpoint-mocks/call" {
+      # The guard matches case-insensitively on purpose: the service itself routes
+      # case-sensitively, so this stays correct even if that ever changes.
+      location ~* "^/api/(v\d+)/.*/testing-service/endpoint-mocks/call(/|$)" {
         return 404;
       }
 

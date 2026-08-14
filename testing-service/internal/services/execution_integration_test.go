@@ -4,11 +4,11 @@ package services_test
 
 import (
 	"context"
-	"database/sql"
 	"io"
 	"log/slog"
 	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,7 +31,7 @@ func TestMain(m *testing.M) {
 type stack struct {
 	database     *testsupport.Database
 	dao          *dao.Dao
-	repositories services.Repositories
+	repositories dao.Repositories
 	testsRuns    services.TestsRunsService
 	testCaseRuns services.TestCaseRunsService
 	runErrors    services.TestCaseRunErrorsService
@@ -40,15 +40,18 @@ type stack struct {
 func newStack(t *testing.T) *stack {
 	t.Helper()
 	database := testsupport.NewMigrated(t)
-	deps := config.Deps{DB: database.DB, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
-	d := dao.NewDao(config.Config{}, deps)
-	repositories := services.RepositoriesOf(d)
-	testCaseRuns := services.NewTestCaseRunsService(config.Config{}, d, repositories)
+	// testingservice.New is what normalizes these in production; the stack below
+	// wires the same services by hand, so it has to do the same.
+	cfg := config.Config{}.WithDefaults()
+	deps := config.Deps{DB: database.DB, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}.WithDefaults()
+	d := dao.NewDao(cfg, deps)
+	repositories := d.Repositories
+	testCaseRuns := services.NewTestCaseRunsService(cfg, d, repositories)
 	return &stack{
 		database:     database,
 		dao:          d,
 		repositories: repositories,
-		testsRuns:    services.NewTestsRunsService(config.Config{}, deps.Logger, d, repositories, testCaseRuns, nil),
+		testsRuns:    services.NewTestsRunsService(cfg, deps.Logger, d, repositories, testCaseRuns, nil),
 		testCaseRuns: testCaseRuns,
 		runErrors:    services.NewTestCaseRunErrorsService(d, repositories),
 	}
@@ -81,7 +84,7 @@ func (s *stack) seedMatcher(t *testing.T, ownerID uuid.UUID) uuid.UUID {
 
 func (s *stack) startRun(t *testing.T, testCaseIds []uuid.UUID) uuid.UUID {
 	t.Helper()
-	id, err := s.testsRuns.StartNew(context.Background(), &testCaseIds)
+	id, err := s.testsRuns.StartNewFromEntitiesWithType(context.Background(), &testCaseIds, services.RunSourceTestCases)
 	require.NoError(t, err)
 	require.NotNil(t, id)
 	return *id
@@ -105,7 +108,11 @@ func TestClaimNeverHandsTheSameCaseToTwoWorkers(t *testing.T) {
 	var mutex sync.Mutex
 	claims := map[uuid.UUID]int{}
 	var failures []error
+	var timedOut atomic.Bool
 
+	// A wall-clock bound so a stuck claim fails the test instead of hanging it.
+	// A worker that runs it out reports so, or the failure below reads as a
+	// claim that went missing.
 	deadline := time.Now().Add(time.Minute)
 	var running sync.WaitGroup
 	for i := 0; i < workers; i++ {
@@ -113,7 +120,11 @@ func TestClaimNeverHandsTheSameCaseToTwoWorkers(t *testing.T) {
 		go func() {
 			defer running.Done()
 			owner := uuid.New()
-			for time.Now().Before(deadline) {
+			for {
+				if !time.Now().Before(deadline) {
+					timedOut.Store(true)
+					return
+				}
 				mutex.Lock()
 				done := len(claims) >= runs*casesPerRun
 				mutex.Unlock()
@@ -151,6 +162,7 @@ func TestClaimNeverHandsTheSameCaseToTwoWorkers(t *testing.T) {
 	running.Wait()
 
 	require.Empty(t, failures)
+	require.False(t, timedOut.Load(), "the workers ran out of time before every case was claimed")
 	require.Len(t, claims, runs*casesPerRun, "every queued case has to be claimed exactly once")
 	for id, count := range claims {
 		assert.Equalf(t, 1, count, "test case run %s was claimed more than once", id)
@@ -257,6 +269,57 @@ func TestAnExpiredLeaseReturnsTheCaseAndClearsItsErrors(t *testing.T) {
 	require.NoError(t, s.testCaseRuns.Finish(ctx, retried.ID, owner))
 }
 
+// An installation that already owns this schema may carry cases left running by
+// whatever executed them before migration 101 added the lease. Such a case holds
+// no lease, so `lease_until < now()` is null rather than true for it. A sweeper
+// that overlooked it would strand it for good: the claim guard keeps its whole
+// test run out of the queue, and retention refuses to delete a run with a case
+// still in flight.
+func TestARunningCaseWithNoLeaseIsSweptRatherThanStranded(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	testCaseIds := s.seedTestCases(t, 2)
+	matcherID := s.seedMatcher(t, testCaseIds[0])
+	testsRunID := s.startRun(t, testCaseIds)
+
+	// What the case of an interrupted predecessor looks like, down to the errors
+	// its attempt recorded.
+	s.exec(t, `update test_case_runs set status = ?, start = now(), lease_until = null, lease_owner = null
+		where tests_run_id = ? and ordinal = 1`, dao.RunStatusRunning, testsRunID)
+	var caseIds []uuid.UUID
+	require.NoError(t, s.database.Bun.NewRaw(
+		"select id from test_case_runs where tests_run_id = ? and ordinal = 1", testsRunID).Scan(ctx, &caseIds))
+	require.Len(t, caseIds, 1)
+	s.exec(t, "insert into validation_errors (test_case_run_id, matcher_id, message) values (?, ?, ?)",
+		caseIds[0], matcherID, "the interrupted attempt failed")
+
+	blocked, err := s.testCaseRuns.ClaimNext(ctx, uuid.New(), "blocked")
+	require.NoError(t, err)
+	require.Nil(t, blocked, "the claim guard keeps the run out of the queue while that case sits there")
+
+	count, err := s.testCaseRuns.ReclaimExpired(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+
+	swept := s.rowOf(t, caseIds[0])
+	assert.Equal(t, dao.RunStatusPending, *swept.Status)
+	assert.Nil(t, swept.Start)
+	errorsOfAttempt, err := s.runErrors.FindByTestCaseRunId(ctx, caseIds[0], false)
+	require.NoError(t, err)
+	assert.Empty(t, *errorsOfAttempt)
+
+	// The run is back in the queue, and its cases still run in order.
+	owner := uuid.New()
+	claimed, err := s.testCaseRuns.ClaimNext(ctx, owner, "session")
+	require.NoError(t, err)
+	require.NotNil(t, claimed)
+	assert.Equal(t, caseIds[0], claimed.ID)
+	assert.Equal(t, 1, *claimed.Ordinal)
+	_, err = s.runErrors.AddError(ctx, claimed.ID, owner, &dao.Matcher{ID: matcherID}, "the second attempt failed")
+	require.NoError(t, err)
+	require.NoError(t, s.testCaseRuns.Finish(ctx, claimed.ID, owner))
+}
+
 func TestRetentionLeavesTheRunsThatStillHaveWorkAlone(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -278,7 +341,7 @@ func TestRetentionLeavesTheRunsThatStillHaveWorkAlone(t *testing.T) {
 	require.NotEmpty(t, caseIds)
 	s.exec(t, "insert into validation_errors (test_case_run_id, message) values (?, ?)", caseIds[0], "failed")
 
-	deleted, err := dao.RunInTx(ctx, s.dao, &sql.TxOptions{}, func(ctx context.Context, _ bun.IDB) (int, error) {
+	deleted, err := dao.RunInTx(ctx, s.dao, func(ctx context.Context) (int, error) {
 		return s.repositories.TestsRuns.DeleteExpired(ctx, 24*time.Hour, 500)
 	})
 	require.NoError(t, err)

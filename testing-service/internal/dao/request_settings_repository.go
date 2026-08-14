@@ -18,22 +18,9 @@ func NewRequestSettingsRepository() RequestSettingsRepository {
 }
 
 func (r *requestSettingsRepository) Insert(ctx context.Context, requestSettings *RequestSettings) (*RequestSettings, error) {
-	db, err := GetDb(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var result RequestSettings
-	if _, err := db.NewInsert().Model(requestSettings).Returning("*").Exec(ctx, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
+	return insertRow(ctx, requestSettings)
 }
 
 func (r *requestSettingsRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	db, err := GetDb(ctx)
-	if err != nil {
-		return err
-	}
-	_, err = db.NewDelete().Model((*RequestSettings)(nil)).Where("id = ?", id).Exec(ctx)
-	return err
+	return deleteRow[RequestSettings](ctx, id)
 }

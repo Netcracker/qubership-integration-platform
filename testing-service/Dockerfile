@@ -9,7 +9,9 @@ RUN go mod download
 
 COPY . ./
 # The integration suite sits behind the `integration` build tag and needs a
-# Docker daemon, so the image build runs the default suite only.
+# Docker daemon, so the image build runs the default suite only. The dependency
+# and sanitization suites skip here as well, since they resolve ../scripts/,
+# which sits outside the build context. CI runs all three.
 RUN go test ./... \
     && go build -trimpath -o /out/testing-service ./cmd/testing-service
 

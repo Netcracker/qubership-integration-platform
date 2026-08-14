@@ -10,8 +10,9 @@ import (
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
 )
 
-func GetTestCasesSortingFields() *[]string {
-	return &[]string{
+// Shared and read-only; see GetTestCaseRunsSortingFields.
+var (
+	testCasesSortingFields = []string{
 		"id",
 		"name",
 		"description",
@@ -25,10 +26,8 @@ func GetTestCasesSortingFields() *[]string {
 		"validation_rule_count",
 		"enabled_rule_count",
 	}
-}
 
-func GetTestCasesFilterConfiguration() *model.FilterConfiguration {
-	return &model.FilterConfiguration{
+	testCasesFilterConfiguration = model.FilterConfiguration{
 		"id":                    GetIdFilterConfiguration("test_case_view.id"),
 		"name":                  GetStringFilterConfiguration("test_case_view.name"),
 		"description":           GetStringFilterConfiguration("test_case_view.description"),
@@ -42,6 +41,14 @@ func GetTestCasesFilterConfiguration() *model.FilterConfiguration {
 		"validation_rule_count": GetIntegerFilterConfiguration("test_case_view.validation_rule_count"),
 		"enabled_rule_count":    GetIntegerFilterConfiguration("test_case_view.enabled_rule_count"),
 	}
+)
+
+func GetTestCasesSortingFields() *[]string {
+	return &testCasesSortingFields
+}
+
+func GetTestCasesFilterConfiguration() *model.FilterConfiguration {
+	return &testCasesFilterConfiguration
 }
 
 type TestCasesRepository interface {
@@ -88,47 +95,19 @@ func (r *testCasesRepository) FindAll(
 	pagination *model.PaginationOptions,
 	withRelations bool,
 ) (*[]TestCaseView, error) {
-	if err := ValidateSortOptions(sorting, GetTestCasesSortingFields()); err != nil {
-		return nil, err
-	}
-
-	filterConfiguration := GetTestCasesFilterConfiguration()
-	if specification != nil {
-		if err := ValidateFilters(specification.Filters, filterConfiguration); err != nil {
-			return nil, err
-		}
-	}
-
-	db, err := GetDb(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var result []TestCaseView
-
-	query := db.NewSelect().Model(&result)
-	if withRelations {
-		query = withTestCaseRelations(query)
-	}
-	query = query.ApplyQueryBuilder(func(builder bun.QueryBuilder) bun.QueryBuilder {
-		return AddSpecification(builder, specification, filterConfiguration)
-	})
-
-	query = AddSorting(query, sorting)
-	if pagination != nil {
-		query = AddPagination(query, *pagination, r.paginationLimit)
-	}
-
-	if r.logger.Enabled(ctx, slog.LevelDebug) {
-		r.logger.DebugContext(ctx, "Selecting test cases", "query", query.String())
-	}
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, err
-	}
-	if result == nil {
-		result = []TestCaseView{}
-	}
-	return &result, nil
+	return listing[TestCaseView]{
+		logger:          r.logger,
+		paginationLimit: r.paginationLimit,
+		subject:         "test cases",
+		sortingFields:   GetTestCasesSortingFields(),
+		filters:         GetTestCasesFilterConfiguration(),
+		decorate: func(query *bun.SelectQuery, _ *model.SelectionSpecification) *bun.SelectQuery {
+			if !withRelations {
+				return query
+			}
+			return withTestCaseRelations(query)
+		},
+	}.run(ctx, specification, sorting, pagination)
 }
 
 func (r *testCasesRepository) FindById(ctx context.Context, id uuid.UUID, withRelations bool) (*TestCaseView, error) {
@@ -191,11 +170,14 @@ func (r *testCasesRepository) Insert(ctx context.Context, testCase *TestCase) (*
 	return &result, nil
 }
 
+// Update writes the whole row apart from the creation audit. The model is built
+// from the request body and the audit hook refreshes only the updated_* pair, so
+// a body that omits createdAt would otherwise null the stored value.
 func (r *testCasesRepository) Update(ctx context.Context, testCase *TestCase) error {
 	db, err := GetDb(ctx)
 	if err != nil {
 		return err
 	}
-	_, err = db.NewUpdate().Model(testCase).WherePK().Exec(ctx)
+	_, err = db.NewUpdate().Model(testCase).ExcludeColumn("created_at", "created_by").WherePK().Exec(ctx)
 	return err
 }

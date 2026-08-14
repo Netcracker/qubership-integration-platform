@@ -39,6 +39,8 @@
                     {
                         "enum": [
                             "id",
+                            "name",
+                            "description",
                             "chain_id",
                             "element_id",
                             "enabled",
@@ -429,6 +431,12 @@
                             "$ref": "#/definitions/ErrorMessage"
                         }
                     },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorMessage"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -529,6 +537,7 @@
                         "enum": [
                             "id",
                             "test_case_name",
+                            "chain_id",
                             "start",
                             "finish",
                             "status",
@@ -645,7 +654,7 @@
                 ],
                 "tags": [
                     "V1",
-                    "Tests Case Runs"
+                    "Test Case Runs"
                 ],
                 "summary": "Export validation errors",
                 "operationId": "exportValidationErrorsV1",
@@ -994,7 +1003,7 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/TestCase"
+                                "$ref": "#/definitions/TestCaseView"
                             }
                         }
                     },
@@ -1214,7 +1223,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/TestCase"
+                            "$ref": "#/definitions/TestCaseView"
                         }
                     },
                     "400": {
@@ -1276,6 +1285,12 @@
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/ErrorMessage"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/ErrorMessage"
                         }
@@ -2148,6 +2163,53 @@
                 },
                 "testsRunId": {
                     "type": "string"
+                }
+            }
+        },
+        "TestCaseView": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "createdBy": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "enabledRuleCount": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "requestSettings": {
+                    "$ref": "#/definitions/RequestSettings"
+                },
+                "responseValidationRules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Matcher"
+                    }
+                },
+                "triggerReference": {
+                    "$ref": "#/definitions/TriggerReference"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "updatedBy": {
+                    "type": "string"
+                },
+                "validationRuleCount": {
+                    "type": "integer"
                 }
             }
         },

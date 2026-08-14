@@ -3,8 +3,6 @@
 package controllers
 
 import (
-	"log/slog"
-
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/config"
@@ -25,9 +23,6 @@ type Controllers struct {
 // New wires the handlers over the given services.
 func New(cfg config.Config, deps config.Deps, svcs *services.Services) *Controllers {
 	logger := deps.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
 	return &Controllers{
 		currentUser:       deps.CurrentUser,
 		testCases:         newTestCasesController(logger, svcs.TestCasesService),

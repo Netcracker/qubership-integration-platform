@@ -75,33 +75,33 @@ func TestInitMigrationLeavesTheSchemaToTheHost(t *testing.T) {
 
 	// Platform conventions: text over varchar, timestamptz over timestamp.
 	assert.NotContains(t, sql, "varchar")
-	assert.NotContains(t, sql, "timestamp with time zone")
-	assert.NotContains(t, sql, "timestamp without time zone")
+	for _, declaration := range timestampTypeRE.FindAllString(sql, -1) {
+		// A bare timestamp column stores a wall time with no zone, and the lease
+		// deadlines are compared against the database clock.
+		assert.Equal(t, "timestamptz", declaration, "every timestamp column is timestamptz")
+	}
 }
+
+// timestampTypeRE matches every spelling of the timestamp type, so that the one
+// the file is allowed to use can be told apart from the ones it is not.
+var timestampTypeRE = regexp.MustCompile(`timestamp(?:tz|\s+with(?:out)?\s+time\s+zone)?`)
 
 func TestInitMigrationCreatesEveryObjectIdempotently(t *testing.T) {
 	body, err := fs.ReadFile(migrationFiles, "migrations/00000000000100__init.tx.up.sql")
 	require.NoError(t, err)
 	sql := strings.ToLower(string(body))
 
-	counts := map[string]int{
-		"create table if not exists":      15,
-		"create index if not exists":      8,
-		"exception when duplicate_object": 4,
-		"create or replace view":          3,
-		"create or replace function":      2,
-		"drop trigger if exists":          4,
-		"create trigger":                  4,
-	}
-	for fragment, want := range counts {
-		assert.Equal(t, want, strings.Count(sql, fragment), "occurrences of %q", fragment)
-	}
-
-	// A bare create would abort the whole transactional migration downstream.
+	// A bare create would abort the whole transactional migration downstream. How
+	// many objects the file creates is the integration suite's business, since it
+	// applies the file twice against real PostgreSQL.
 	assert.Equal(t, strings.Count(sql, "create table"), strings.Count(sql, "create table if not exists"))
 	assert.Equal(t, strings.Count(sql, "create index"), strings.Count(sql, "create index if not exists"))
-	assert.Equal(t, strings.Count(sql, "create view"), 0)
 	assert.Equal(t, strings.Count(sql, "create type"), strings.Count(sql, "exception when duplicate_object"))
+	assert.Equal(t, strings.Count(sql, "create trigger"), strings.Count(sql, "drop trigger if exists"))
+	assert.Zero(t, strings.Count(sql, "create view"), "a view is created with create or replace")
+	assert.Zero(t, strings.Count(sql, "create function"), "a function is created with create or replace")
+	assert.NotZero(t, strings.Count(sql, "create or replace view"))
+	assert.NotZero(t, strings.Count(sql, "create or replace function"))
 }
 
 func executionMigration(t *testing.T) string {
@@ -136,6 +136,19 @@ func TestExecutionMigrationBackfillsTheOrdinalOfExistingRows(t *testing.T) {
 	assert.Contains(t, sql, "row_number() over (partition by tests_run_id order by start nulls last, id)")
 	// Re-applying the migration must not renumber rows that already have one.
 	assert.Contains(t, sql, "ordinal is null")
+}
+
+func TestExecutionMigrationReturnsTheRunningCasesOfTheSourceToTheQueue(t *testing.T) {
+	sql := executionMigration(t)
+
+	// A case the source left running holds no lease, and nothing reports on it.
+	// The guard on lease_owner is what keeps a re-apply off the cases the workers
+	// of this module hold once the column is theirs.
+	assert.Contains(t, sql, "where status = 'running' and lease_owner is null")
+	// validation_errors carries unique (test_case_run_id, matcher_id), so the rows
+	// of the interrupted attempt would fail the next one on its first repeated
+	// matcher.
+	assert.Contains(t, sql, "delete from validation_errors")
 }
 
 func TestExecutionMigrationRecreatesTheTestCaseRunsView(t *testing.T) {

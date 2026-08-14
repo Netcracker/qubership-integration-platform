@@ -1,40 +1,23 @@
-// Package importexport reads and upgrades the entities carried by an exported
-// archive.
+// Package importexport reads the entities carried by an exported archive.
 package importexport
 
-import (
-	"encoding/json"
-	"fmt"
+import "fmt"
 
-	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
-)
+// ActualDataVersion is the version exported entities are written at, and the
+// only one an import accepts. The archive carries it because the format is
+// published: a build that ever changes the exported shape raises this and reads
+// the older versions by upgrading them here.
+const ActualDataVersion = 1
 
-// MigrateEntityData upgrades exported data from the version it was written at to
-// the version this build understands, by running the migrations in between.
-func MigrateEntityData(
-	data *json.RawMessage,
-	version int,
-	migrations []model.ExportedDataMigrationFunction,
-) (*json.RawMessage, error) {
-	actualVersion := GetActualDataVersion(migrations)
+// CheckDataVersion reports whether this build understands data written at the
+// given version.
+func CheckDataVersion(version int) error {
 	if version < 1 {
-		return nil, fmt.Errorf("data version to import (%v) is below the first version (1)", version)
+		return fmt.Errorf("data version to import (%v) is below the first version (1)", version)
 	}
-	if version > actualVersion {
-		return nil, fmt.Errorf("data version to import (%v) is higher than actual version (%v)", version, actualVersion)
+	if version > ActualDataVersion {
+		return fmt.Errorf("data version to import (%v) is higher than actual version (%v)",
+			version, ActualDataVersion)
 	}
-	result := data
-	var err error
-	for _, migration := range migrations[version-1:] {
-		result, err = migration(result)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return result, nil
-}
-
-// GetActualDataVersion returns the version the given migration chain produces.
-func GetActualDataVersion(migrations []model.ExportedDataMigrationFunction) int {
-	return len(migrations) + 1
+	return nil
 }

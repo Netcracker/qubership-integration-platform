@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,11 +26,26 @@ func TestFindChainElementRequestsTheChainAndElement(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "/v1/chains/c-1/elements/e-1", requestPath)
-	assert.Equal(t, "e-1", element.ID)
 	assert.Equal(t, "http-trigger", element.Type)
-	assert.Equal(t, "c-1", element.ChainID)
 	assert.Equal(t, map[string]any{"contextPath": "/orders"}, element.Properties)
-	assert.Equal(t, "developer", element.CreatedBy.Name)
+}
+
+// The catalog answers with a good deal more than the trigger resolver reads, and
+// the decoder has to walk past all of it.
+func TestFindChainElementIgnoresTheFieldsItDoesNotRead(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"id":"e-1","type":"http-trigger","chainId":"c-1",` +
+			`"createdBy":{"id":"0","username":"developer"},` +
+			`"children":[{"id":"e-2","type":"sender"}],"swimlaneId":"s-1"}`))
+	}))
+	defer server.Close()
+
+	element, err := NewCatalogClient(server.URL, server.Client()).
+		FindChainElement(context.Background(), "c-1", "e-1")
+
+	require.NoError(t, err)
+	assert.Equal(t, "http-trigger", element.Type)
+	assert.Nil(t, element.Properties)
 }
 
 func TestFindChainElementTrimsTheTrailingSlashOfTheAddress(t *testing.T) {
@@ -109,3 +125,29 @@ func TestFindChainElementReportsAnUnreachableCatalog(t *testing.T) {
 type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// The caller is an executor worker, whose context lives until shutdown, and the
+// shared client carries no timeout. A catalog that accepts the connection and
+// never answers would hold the worker, and the lease it keeps renewing, for as
+// long as the process runs.
+func TestFindChainElementGivesUpOnACatalogThatNeverAnswers(t *testing.T) {
+	previous := defaultTimeout
+	defaultTimeout = 50 * time.Millisecond
+	defer func() { defaultTimeout = previous }()
+
+	answered := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+		close(answered)
+	}))
+	defer server.Close()
+
+	start := time.Now()
+	_, err := NewCatalogClient(server.URL, server.Client()).
+		FindChainElement(context.Background(), "c-1", "e-1")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, time.Since(start), 5*time.Second)
+	<-answered
+}

@@ -1,12 +1,14 @@
 package controllers
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
+	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/services"
 )
@@ -31,7 +33,7 @@ func newTestCaseRunsController(
 // @Produce  json
 // @Param    offset           query    int         false    "Offset"
 // @Param    limit            query    int         false    "Limit"
-// @Param    sort_by          query    string      false    "Sort field"    enums(id, test_case_name, start, finish, status, errors)
+// @Param    sort_by          query    string      false    "Sort field"    enums(id, test_case_name, chain_id, start, finish, status, errors)
 // @Param    sort_order       query    string      false    "Sort order"    enums(ASC, DESC) default(ASC)
 // @Param    return_ids       query    bool                      false    "Return IDs list"
 // @Param    specification    body     SelectionSpecification    true     "Test case runs specification"
@@ -40,35 +42,19 @@ func newTestCaseRunsController(
 // @Failure    500    {object}    ErrorMessage
 // @Router /api/v1/test-case-runs [post]
 func (c *testCaseRunsController) FindAll(ctx *fiber.Ctx) error {
-	pagination, err := paginationOptions(ctx)
-	if err != nil {
-		return c.malformedPaginationParameters(ctx, err)
+	// Test case runs carry no relations to leave out, so the withRelations flag
+	// the shared handler passes is dropped here.
+	query := func(
+		ctx context.Context,
+		specification *model.SelectionSpecification,
+		sorting model.SortOptions,
+		pagination *model.PaginationOptions,
+		_ bool,
+	) (*[]dao.TestCaseRunView, error) {
+		return c.testCaseRunsService.FindAll(ctx, specification, sorting, pagination)
 	}
-	sorting, err := sortOptions(ctx)
-	if err != nil {
-		return c.malformedSortingParameters(ctx, err)
-	}
-	var specification model.SelectionSpecification
-	if err := json.Unmarshal(ctx.Body(), &specification); err != nil {
-		return c.malformedRequestBody(ctx, err)
-	}
-	returnIds := ctx.QueryBool("return_ids", false)
-	if returnIds {
-		pagination = nil
-	}
-	userContext := ctx.UserContext()
-	testCaseRuns, err := c.testCaseRunsService.FindAll(userContext, &specification, *sorting, pagination)
-	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Unable to get test cases runs: %v", err.Error())
-	}
-	if returnIds {
-		ids := make([]uuid.UUID, 0, len(*testCaseRuns))
-		for _, testCaseRun := range *testCaseRuns {
-			ids = append(ids, testCaseRun.ID)
-		}
-		return respondWithJSON(ctx, fiber.StatusOK, ids)
-	}
-	return respondWithJSON(ctx, fiber.StatusOK, testCaseRuns)
+	return findAll(ctx, c.responder, "test case runs", query,
+		func(testCaseRun dao.TestCaseRunView) uuid.UUID { return testCaseRun.ID })
 }
 
 // FindById
@@ -91,12 +77,12 @@ func (c *testCaseRunsController) FindById(ctx *fiber.Ctx) error {
 	userContext := ctx.UserContext()
 	testCaseRun, err := c.testCaseRunsService.FindById(userContext, testCaseRunId)
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Unable to get test case run by ID: %v", err.Error())
+		return c.internalError(ctx, "Unable to get test case run by ID", err)
 	}
 	if testCaseRun == nil {
 		return c.fail(ctx, fiber.StatusNotFound, "Test case run %v not found.", testCaseRunId)
 	}
-	return respondWithJSON(ctx, fiber.StatusOK, testCaseRun)
+	return ctx.Status(fiber.StatusOK).JSON(testCaseRun)
 }
 
 // Cancel
@@ -116,7 +102,7 @@ func (c *testCaseRunsController) Cancel(ctx *fiber.Ctx) error {
 	}
 	userContext := ctx.UserContext()
 	if err := c.testCaseRunsService.Cancel(userContext, testCaseRunId); err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to cancel test case run: %v", err.Error())
+		return c.internalError(ctx, "Failed to cancel test case run", err)
 	}
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
@@ -138,7 +124,7 @@ func (c *testCaseRunsController) BulkCancel(ctx *fiber.Ctx) error {
 	}
 	userContext := ctx.UserContext()
 	if err := c.testCaseRunsService.BulkCancel(userContext, &testCaseRunsIds); err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to bulk cancel test cases runs: %v", err.Error())
+		return c.internalError(ctx, "Failed to bulk cancel test case runs", err)
 	}
 	return ctx.SendStatus(fiber.StatusNoContent)
 }
@@ -164,7 +150,7 @@ func (c *testCaseRunsController) Export(ctx *fiber.Ctx) error {
 	testCaseRunsIds := []uuid.UUID{testCaseRunId}
 	result, err := c.testCaseRunsService.Export(userContext, &testCaseRunsIds)
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to export test case run result: %v", err.Error())
+		return c.internalError(ctx, "Failed to export test case run result", err)
 	}
 	return respondWithCsv(ctx, fiber.StatusOK, result)
 }
@@ -188,7 +174,7 @@ func (c *testCaseRunsController) BulkExport(ctx *fiber.Ctx) error {
 	userContext := ctx.UserContext()
 	result, err := c.testCaseRunsService.Export(userContext, &testCaseRunsIds)
 	if err != nil {
-		return c.fail(ctx, fiber.StatusInternalServerError, "Failed to export test case runs result: %v", err.Error())
+		return c.internalError(ctx, "Failed to export test case runs result", err)
 	}
 	return respondWithCsv(ctx, fiber.StatusOK, result)
 }

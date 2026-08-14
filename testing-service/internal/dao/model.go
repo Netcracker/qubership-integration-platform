@@ -16,24 +16,20 @@ const (
 	RunStatusSkipped  = "skipped"
 )
 
-// Values of the entity_type enum: what part of a message a matcher inspects.
-const (
-	EntityTypeBody           = "body"
-	EntityTypeHeader         = "header"
-	EntityTypeStatus         = "status"
-	EntityTypePathParameter  = "path_parameter"
-	EntityTypeQueryParameter = "query_parameter"
-)
+// RunStatuses is the run_status enum as the filtering layer sees it. A status
+// filter is held to this set, so a value the type does not have is refused as a
+// bad request instead of reaching PostgreSQL as an enum literal.
+var RunStatuses = []string{
+	RunStatusPending,
+	RunStatusRunning,
+	RunStatusCanceled,
+	RunStatusFinished,
+	RunStatusSkipped,
+}
 
-// Values of the http_method enum.
-const (
-	HttpMethodGet    = "GET"
-	HttpMethodPost   = "POST"
-	HttpMethodPut    = "PUT"
-	HttpMethodDelete = "DELETE"
-	HttpMethodPatch  = "PATCH"
-	HttpMethodHead   = "HEAD"
-)
+// The values of the entity_type enum are the keys of the data getter table in
+// internal/matching, which is where they are declared. The http_method enum
+// takes the method names net/http already declares.
 
 // Metadata carries the audit columns. Embedding it also installs the
 // BeforeAppendModel hook that fills them in.
@@ -244,4 +240,4 @@ type TestCaseView struct {
 	ElementID           string `bun:"element_id" json:"-"`
 	ValidationRuleCount int    `bun:"validation_rule_count,type:integer" json:"validationRuleCount"`
 	EnabledRuleCount    int    `bun:"enabled_rule_count,type:integer" json:"enabledRuleCount"`
-}
+} // @name TestCaseView

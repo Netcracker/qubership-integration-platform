@@ -8,6 +8,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"hash/fnv"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -47,13 +49,19 @@ const (
 	// swaggerDocURL is resolved by the browser against the UI page, so the spec
 	// is found under whatever public prefix the request arrived on.
 	swaggerDocURL = "doc.json"
-	// defaultUser is recorded on every audited write. This binary does not
-	// authenticate its callers; a host that does supplies its own CurrentUser.
-	defaultUser = "developer"
 	// envPrefix selects the environment variables that override the file.
 	envPrefix       = "QIP_TESTING_"
 	healthTimeout   = 3 * time.Second
 	shutdownTimeout = 10 * time.Second
+	// migrationLockTimeout bounds the wait for another instance to finish its
+	// migrations, and the retry interval paces the attempts in between.
+	migrationLockTimeout       = 2 * time.Minute
+	migrationLockRetryInterval = time.Second
+	migrationUnlockTimeout     = 5 * time.Second
+	// defaultBodyLimit caps a request body. The zip imports are the large ones,
+	// and fiber's own 4 MiB default is well under what the proxies in front of
+	// this service allow through.
+	defaultBodyLimit = 64 << 20
 )
 
 // appConfig is the settings of the process. Most of it is handed to the library
@@ -62,9 +70,17 @@ const (
 type appConfig struct {
 	Server struct {
 		Bind string `koanf:"bind"`
+		// BodyLimit caps a request body in bytes; the zip imports are what needs
+		// room.
+		BodyLimit int `koanf:"bodylimit"`
 	} `koanf:"server"`
 	Postgres struct {
 		DSN string `koanf:"dsn"`
+		// User and Password override the credentials of the DSN. A deployment that
+		// keeps them in a secret sets them here rather than splicing them into the
+		// DSN, where a `#`, `/` or `?` in a password would truncate the URL.
+		User     string `koanf:"user"`
+		Password string `koanf:"password"`
 		// Schema is created on startup and must match the search_path of the DSN.
 		// Empty leaves schema creation to whoever provisioned the database.
 		Schema         string `koanf:"schema"`
@@ -105,6 +121,7 @@ type appConfig struct {
 func defaultAppConfig() appConfig {
 	var cfg appConfig
 	cfg.Server.Bind = ":8080"
+	cfg.Server.BodyLimit = defaultBodyLimit
 	cfg.Postgres.Schema = "testing_service"
 	cfg.Postgres.MaxConnections = db.DefaultMaxOpenConns
 	cfg.Log.Level = "info"
@@ -155,12 +172,13 @@ func envKey(name string) string {
 	return strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(name, envPrefix)), "_", ".")
 }
 
-func newLogger(level, format string) *slog.Logger {
+// newLogger writes to out; anything but "text" is JSON.
+func newLogger(out io.Writer, level, format string) *slog.Logger {
 	opts := &slog.HandlerOptions{Level: parseLevel(level)}
 	if strings.EqualFold(format, "text") {
-		return slog.New(slog.NewTextHandler(os.Stdout, opts))
+		return slog.New(slog.NewTextHandler(out, opts))
 	}
-	return slog.New(slog.NewJSONHandler(os.Stdout, opts))
+	return slog.New(slog.NewJSONHandler(out, opts))
 }
 
 func parseLevel(name string) slog.Level {
@@ -186,18 +204,97 @@ func newHealthHandler(ping func(context.Context) error) fiber.Handler {
 	}
 }
 
+// migrationLockKey identifies the advisory lock the migrations are applied
+// under. It is derived from the schema, so two services sharing one database do
+// not wait on each other.
+func migrationLockKey(schema string) int64 {
+	hash := fnv.New64a()
+	// Hash writes never fail.
+	_, _ = hash.Write([]byte(serviceName + " migrations " + schema))
+	// Seven bytes of the digest, so the key is a positive bigint without a
+	// conversion that could wrap into a negative one.
+	var key int64
+	for _, b := range hash.Sum(nil)[:7] {
+		key = key<<8 | int64(b)
+	}
+	return key
+}
+
+// lockMigrations serializes the migrations across replicas and returns the
+// release. A rolling update starts the next replica before this one is done, and
+// two instances applying the same migration at once would race on the view it
+// recreates.
+//
+// The lock is a PostgreSQL advisory lock on a connection of its own rather than
+// bun's migration lock table: the database drops it when the session ends, so a
+// replica that is killed mid-migration leaves nothing behind for the next start
+// to clear by hand. Waiting is bounded, since a lock nobody releases is a fault
+// to report rather than to hang on.
+func lockMigrations(ctx context.Context, bunDB *bun.DB, schema string, logger *slog.Logger) (func(), error) {
+	key := migrationLockKey(schema)
+	conn, err := bunDB.Conn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("open a connection for the migration lock: %w", err)
+	}
+	release := func() {
+		// The caller's context may already be canceled by a shutdown signal, and
+		// the lock still has to go back.
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), migrationUnlockTimeout)
+		defer cancel()
+		if _, err := conn.ExecContext(ctx, "select pg_advisory_unlock(?)", key); err != nil {
+			logger.Error("Cannot release the migration lock", "error", err)
+		}
+		if err := conn.Close(); err != nil {
+			logger.Error("Cannot close the migration lock connection", "error", err)
+		}
+	}
+
+	waitCtx, cancel := context.WithTimeout(ctx, migrationLockTimeout)
+	defer cancel()
+	for attempt := 0; ; attempt++ {
+		var locked bool
+		if err := conn.QueryRowContext(waitCtx, "select pg_try_advisory_lock(?)", key).Scan(&locked); err != nil {
+			_ = conn.Close()
+			return nil, fmt.Errorf("lock the migrations: %w", err)
+		}
+		if locked {
+			return release, nil
+		}
+		if attempt == 0 {
+			logger.Info("Waiting for another instance to finish the migrations")
+		}
+		select {
+		case <-waitCtx.Done():
+			_ = conn.Close()
+			return nil, fmt.Errorf("lock the migrations: %w", waitCtx.Err())
+		case <-time.After(migrationLockRetryInterval):
+		}
+	}
+}
+
 // prepareDatabase creates the schema and then applies the migrations. The order
 // matters: the migrator writes its bookkeeping table before anything else, and
 // that write fails while search_path names a schema that does not exist yet.
+//
+// Everything here runs under the migration lock, including the schema and the
+// bookkeeping table: "create if not exists" is not atomic against a second
+// instance running it at the same moment, and both raise a duplicate key on the
+// PostgreSQL catalog rather than one of them yielding.
 func prepareDatabase(ctx context.Context, bunDB *bun.DB, schema string, logger *slog.Logger) error {
+	migrations, err := testingservice.Migrations()
+	if err != nil {
+		return err
+	}
+	unlock, err := lockMigrations(ctx, bunDB, schema, logger)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
 	if schema != "" {
 		if _, err := bunDB.ExecContext(ctx, "create schema if not exists ?", bun.Ident(schema)); err != nil {
 			return fmt.Errorf("create schema %s: %w", schema, err)
 		}
-	}
-	migrations, err := testingservice.Migrations()
-	if err != nil {
-		return err
 	}
 	migrator := migrate.NewMigrator(bunDB, migrations)
 	if err := migrator.Init(ctx); err != nil {
@@ -230,7 +327,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	logger := newLogger(cfg.Log.Level, cfg.Log.Format)
+	logger := newLogger(os.Stdout, cfg.Log.Level, cfg.Log.Format)
 	slog.SetDefault(logger)
 
 	if cfg.Postgres.DSN == "" {
@@ -238,6 +335,8 @@ func run() error {
 	}
 	database, err := db.New(db.Options{
 		DSN:             cfg.Postgres.DSN,
+		User:            cfg.Postgres.User,
+		Password:        cfg.Postgres.Password,
 		ApplicationName: serviceName,
 		MaxOpenConns:    cfg.Postgres.MaxConnections,
 	})
@@ -263,17 +362,27 @@ func run() error {
 		return err
 	}
 
+	// No CurrentUser: this binary does not authenticate its callers, so every
+	// audited write is recorded under dao.DefaultUser. A host that authenticates
+	// supplies its own.
 	svc, err := testingservice.New(cfg.serviceSettings(), testingservice.Deps{
-		DB:          database,
-		Logger:      logger,
-		HTTPClient:  &http.Client{},
-		CurrentUser: func(context.Context) string { return defaultUser },
+		DB:         database,
+		Logger:     logger,
+		HTTPClient: &http.Client{},
 	})
 	if err != nil {
 		return err
 	}
 
-	app := fiber.New(fiber.Config{Network: fiber.NetworkTCP, DisableStartupMessage: true})
+	// CaseSensitive matches what the routing rules in front of this service
+	// assume: their guards are regular expressions over the path, so a router
+	// that answered /Endpoint-Mocks/call as well would slip past them.
+	app := fiber.New(fiber.Config{
+		Network:               fiber.NetworkTCP,
+		DisableStartupMessage: true,
+		CaseSensitive:         true,
+		BodyLimit:             cfg.Server.BodyLimit,
+	})
 	app.Use(fiberrecover.New())
 	app.Get("/health", newHealthHandler(bunDB.PingContext))
 	app.Get("/prometheus", adaptor.HTTPHandler(promhttp.Handler()))
@@ -284,13 +393,19 @@ func run() error {
 	// path, so an absolute URL built from the internal route misses the spec.
 	app.Get(swaggerPath, fiberswagger.New(fiberswagger.Config{URL: swaggerDocURL}))
 
-	return serve(ctx, logger, cfg, app, svc)
+	return serve(ctx, logger, cfg, app, svc.RunExecutor)
 }
 
 // serve runs the API, the executor and the optional pprof listener until ctx is
 // canceled or one of them fails, then shuts the listeners down and reports the
 // first failure.
-func serve(ctx context.Context, logger *slog.Logger, cfg appConfig, app *fiber.App, svc *testingservice.Service) error {
+func serve(
+	ctx context.Context,
+	logger *slog.Logger,
+	cfg appConfig,
+	app *fiber.App,
+	runExecutor func(context.Context) error,
+) error {
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -310,38 +425,81 @@ func serve(ctx context.Context, logger *slog.Logger, cfg appConfig, app *fiber.A
 	}
 
 	running.Add(2)
+	apiListener := listen(&running, logger, app, "the API", cfg.Server.Bind, report,
+		"prefix", apiPrefix)
 	go func() {
 		defer running.Done()
-		logger.Info("Serving the API", "bind", cfg.Server.Bind, "prefix", apiPrefix)
-		report(app.Listen(cfg.Server.Bind))
-	}()
-	go func() {
-		defer running.Done()
-		report(svc.RunExecutor(runCtx))
+		report(runExecutor(runCtx))
 	}()
 
-	var pprofApp *fiber.App
+	var pprofListener *listener
 	if cfg.Pprof.Enabled {
-		pprofApp = fiber.New(fiber.Config{DisableStartupMessage: true})
+		pprofApp := fiber.New(fiber.Config{DisableStartupMessage: true})
 		pprofApp.Use(fiberpprof.New())
 		running.Add(1)
-		go func() {
-			defer running.Done()
-			logger.Info("Serving pprof", "bind", cfg.Pprof.Bind)
-			report(pprofApp.Listen(cfg.Pprof.Bind))
-		}()
+		pprofListener = listen(&running, logger, pprofApp, "pprof", cfg.Pprof.Bind, report)
 	}
 
 	<-runCtx.Done()
 	logger.Info("Shutting down")
-	if err := app.ShutdownWithTimeout(shutdownTimeout); err != nil {
-		logger.Error("Cannot shut the API down", "error", err)
-	}
-	if pprofApp != nil {
-		if err := pprofApp.ShutdownWithTimeout(shutdownTimeout); err != nil {
-			logger.Error("Cannot shut pprof down", "error", err)
-		}
-	}
+	apiListener.shutdown(logger)
+	pprofListener.shutdown(logger)
 	running.Wait()
 	return failure
+}
+
+// listener is one running fiber app together with the two signals shutdown needs
+// to tell "not serving yet" from "gave up already".
+type listener struct {
+	name    string
+	app     *fiber.App
+	serving chan struct{}
+	stopped chan struct{}
+}
+
+// listen starts app on bind in a goroutine of its own and returns the handle
+// shutdown works from.
+func listen(
+	running *sync.WaitGroup,
+	logger *slog.Logger,
+	app *fiber.App,
+	name string,
+	bind string,
+	report func(error),
+	attributes ...any,
+) *listener {
+	l := &listener{
+		name:    name,
+		app:     app,
+		serving: make(chan struct{}),
+		stopped: make(chan struct{}),
+	}
+	app.Hooks().OnListen(func(fiber.ListenData) error {
+		close(l.serving)
+		return nil
+	})
+	go func() {
+		defer running.Done()
+		defer close(l.stopped)
+		logger.Info("Serving", append([]any{"listener", name, "bind", bind}, attributes...)...)
+		report(app.Listen(bind))
+	}()
+	return l
+}
+
+// shutdown waits until the listener is serving before shutting it down, and
+// returns at once when it gave up instead. Shutting down a server that has not
+// bound yet does nothing, after which Listen binds and never returns.
+func (l *listener) shutdown(logger *slog.Logger) {
+	if l == nil {
+		return
+	}
+	select {
+	case <-l.serving:
+	case <-l.stopped:
+		return
+	}
+	if err := l.app.ShutdownWithTimeout(shutdownTimeout); err != nil {
+		logger.Error("Cannot shut the listener down", "listener", l.name, "error", err)
+	}
 }

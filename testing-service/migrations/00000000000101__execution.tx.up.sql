@@ -24,6 +24,30 @@ from (
 ) numbered
 where test_case_runs.id = numbered.id and test_case_runs.ordinal is null;
 
+-- REQUIRED BEFORE THIS MIGRATION RUNS: stop the executor that ran the cases
+-- until now. The cutover needs a single writer, and a rolling upgrade does not
+-- give one. The statement below rewrites the very rows that executor owns.
+--
+-- Cases left running by it hold no lease, and a case with no lease is a case no
+-- worker reports on. They are returned to the queue here, together with what
+-- their interrupted attempt recorded: validation_errors carries unique
+-- (test_case_run_id, matcher_id), so the rows of that attempt would fail the next
+-- one on its first repeated matcher.
+--
+-- The guard on lease_owner proves no worker of this module owns such a case, and
+-- it is what keeps a re-apply off the cases the workers hold once lease_owner is
+-- in use. It says nothing about the previous executor, which is the only thing
+-- that produces these rows. With that executor still serving, an attempt in
+-- flight loses its recorded validation errors, its case runs a second time
+-- against the live chain, and the old worker, which carries no fencing token,
+-- later writes its own terminal status over the new attempt.
+with returned as (
+    update test_case_runs set status = 'pending', start = null
+    where status = 'running' and lease_owner is null
+    returning id
+)
+delete from validation_errors where test_case_run_id in (select id from returned);
+
 -- What the claim filters and orders on. The only index the table had is on
 -- test_case_id, and a plain index on a five-value enum would not help.
 create index if not exists idx_test_case_runs_tests_run_id_status_ordinal

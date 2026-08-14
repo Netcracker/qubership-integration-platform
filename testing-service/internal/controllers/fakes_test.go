@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"encoding/csv"
 	"mime/multipart"
 
 	"github.com/google/uuid"
@@ -183,21 +182,17 @@ func (s *fakeTestCaseRunErrorsService) AddError(
 	return nil, nil
 }
 
-func (s *fakeTestCaseRunErrorsService) BulkExport(context.Context, []uuid.UUID) (string, error) {
+func (s *fakeTestCaseRunErrorsService) BulkExport(context.Context, *[]uuid.UUID) (string, error) {
 	return "", nil
-}
-
-func (s *fakeTestCaseRunErrorsService) BulkExportToCsv(
-	context.Context,
-	[]uuid.UUID,
-	*csv.Writer,
-) error {
-	return nil
 }
 
 type fakeEndpointMocksService struct {
 	findAll func(context.Context, *model.SelectionSpecification, model.SortOptions, *model.PaginationOptions, bool) (*[]dao.EndpointMock, error)
 	call    func(context.Context, dao.EndpointReference, model.Exchange) (*model.Exchange, error)
+	// create and update stand in only where a test sets them; unset, the mock
+	// comes back as it went in.
+	create func(context.Context, *dao.EndpointMock) (*dao.EndpointMock, error)
+	update func(context.Context, *dao.EndpointMock) (*dao.EndpointMock, error)
 }
 
 func (s *fakeEndpointMocksService) FindAll(
@@ -215,17 +210,23 @@ func (s *fakeEndpointMocksService) FindById(context.Context, uuid.UUID) (*dao.En
 }
 
 func (s *fakeEndpointMocksService) Create(
-	_ context.Context,
+	ctx context.Context,
 	endpointMock *dao.EndpointMock,
 ) (*dao.EndpointMock, error) {
-	return endpointMock, nil
+	if s.create == nil {
+		return endpointMock, nil
+	}
+	return s.create(ctx, endpointMock)
 }
 
 func (s *fakeEndpointMocksService) Update(
-	_ context.Context,
+	ctx context.Context,
 	endpointMock *dao.EndpointMock,
 ) (*dao.EndpointMock, error) {
-	return endpointMock, nil
+	if s.update == nil {
+		return endpointMock, nil
+	}
+	return s.update(ctx, endpointMock)
 }
 
 func (s *fakeEndpointMocksService) Delete(context.Context, uuid.UUID) error        { return nil }

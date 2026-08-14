@@ -2,14 +2,16 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"slices"
 	"sync"
 	"sync/atomic"
+	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
@@ -22,18 +24,14 @@ type fakeRunner struct {
 	txCalls    int
 }
 
-func (r *fakeRunner) Run(ctx context.Context, handler func(ctx context.Context, db bun.IDB) (any, error)) (any, error) {
+func (r *fakeRunner) Run(ctx context.Context, handler func(ctx context.Context) (any, error)) (any, error) {
 	if r.acquireErr != nil {
 		return nil, r.acquireErr
 	}
-	return handler(ctx, nil)
+	return handler(ctx)
 }
 
-func (r *fakeRunner) RunInTx(
-	ctx context.Context,
-	_ *sql.TxOptions,
-	handler func(ctx context.Context, db bun.IDB) (any, error),
-) (any, error) {
+func (r *fakeRunner) RunInTx(ctx context.Context, handler func(ctx context.Context) (any, error)) (any, error) {
 	r.txCalls++
 	return r.Run(ctx, handler)
 }
@@ -45,49 +43,6 @@ type fakeWorkNotifier struct {
 
 func (n *fakeWorkNotifier) NotifyWork() { n.signals.Add(1) }
 
-type fakeEndpointMocksRepository struct {
-	dao.EndpointMocksRepository
-
-	mocks       []dao.EndpointMock
-	findAllErr  error
-	lastFilters []model.Filter
-}
-
-func (r *fakeEndpointMocksRepository) FindAll(
-	_ context.Context,
-	specification *model.SelectionSpecification,
-	_ model.SortOptions,
-	_ *model.PaginationOptions,
-	_ bool,
-) (*[]dao.EndpointMock, error) {
-	if r.findAllErr != nil {
-		return nil, r.findAllErr
-	}
-	if specification != nil && specification.Filters != nil {
-		r.lastFilters = *specification.Filters
-	}
-	mocks := make([]dao.EndpointMock, len(r.mocks))
-	copy(mocks, r.mocks)
-	return &mocks, nil
-}
-
-type fakeMatchersRepository struct {
-	dao.MatchersRepository
-
-	inserted  []*dao.Matcher
-	insertErr error
-}
-
-func (r *fakeMatchersRepository) Insert(_ context.Context, matcher *dao.Matcher) (*dao.Matcher, error) {
-	if r.insertErr != nil {
-		return nil, r.insertErr
-	}
-	stored := *matcher
-	stored.ID = uuid.New()
-	r.inserted = append(r.inserted, &stored)
-	return &stored, nil
-}
-
 type fakeMatcherParametersRepository struct {
 	dao.MatcherParametersRepository
 
@@ -97,20 +52,6 @@ type fakeMatcherParametersRepository struct {
 func (r *fakeMatcherParametersRepository) BulkInsert(_ context.Context, params *[]dao.MatcherParameter) error {
 	r.batches = append(r.batches, *params)
 	return nil
-}
-
-type fakeTestCasesRepository struct {
-	dao.TestCasesRepository
-
-	existing  map[uuid.UUID]bool
-	existsErr error
-}
-
-func (r *fakeTestCasesRepository) Exists(_ context.Context, id uuid.UUID) (bool, error) {
-	if r.existsErr != nil {
-		return false, r.existsErr
-	}
-	return r.existing[id], nil
 }
 
 // deleteExpiredCall records the age and the batch size a retention sweep asked
@@ -184,21 +125,22 @@ type renewCall struct {
 type fakeTestCaseRunsRepository struct {
 	dao.TestCaseRunsRepository
 
-	views          []dao.TestCaseRunView
-	claimable      *dao.TestCaseRun
-	claimErr       error
-	claims         []claimCall
-	inserted       []dao.TestCaseRun
-	statusUpdates  []string
-	updated        []dao.TestCaseRun
-	updateOwners   []uuid.UUID
-	renewals       []renewCall
-	reclaimable    int
-	reclaimErr     error
-	reclaims       int
-	leaseOwner     *uuid.UUID
-	findAllErr     error
-	lastSpecFilter []model.Filter
+	views           []dao.TestCaseRunView
+	claimable       *dao.TestCaseRun
+	claimErr        error
+	claims          []claimCall
+	inserted        []dao.TestCaseRun
+	statusUpdates   []string
+	statusSelectors []string
+	updated         []dao.TestCaseRun
+	updateOwners    []uuid.UUID
+	renewals        []renewCall
+	reclaimable     int
+	reclaimErr      error
+	reclaims        int
+	leaseOwner      *uuid.UUID
+	findAllErr      error
+	lastSpecFilter  []model.Filter
 }
 
 func (r *fakeTestCaseRunsRepository) FindAll(
@@ -228,7 +170,6 @@ func (r *fakeTestCaseRunsRepository) UpdateOwned(
 	_ context.Context,
 	testCaseRun *dao.TestCaseRun,
 	owner uuid.UUID,
-	_ bool,
 ) error {
 	if r.leaseOwner != nil && *r.leaseOwner != owner {
 		return dao.ErrLeaseLost
@@ -238,13 +179,32 @@ func (r *fakeTestCaseRunsRepository) UpdateOwned(
 	return nil
 }
 
+// UpdateStatus runs the selector against a real bun update query and keeps the
+// SQL it produced. Throwing the selector away would leave the pending-only guard
+// and the id predicate untested, and a cancel that also killed the running cases
+// would still pass.
 func (r *fakeTestCaseRunsRepository) UpdateStatus(
 	_ context.Context,
-	_ func(bun.QueryBuilder) bun.QueryBuilder,
+	selector func(bun.QueryBuilder) bun.QueryBuilder,
 	status string,
 ) error {
 	r.statusUpdates = append(r.statusUpdates, status)
+	db := bun.NewDB(nil, pgdialect.New())
+	testCaseRun := dao.TestCaseRun{Status: &status}
+	query := db.NewUpdate().Model(&testCaseRun).Column("status").ApplyQueryBuilder(selector)
+	sql, err := query.AppendQuery(db.Formatter(), nil)
+	if err != nil {
+		return err
+	}
+	r.statusSelectors = append(r.statusSelectors, string(sql))
 	return nil
+}
+
+// lastStatusSelector returns the SQL of the most recent status update.
+func (r *fakeTestCaseRunsRepository) lastStatusSelector(t *testing.T) string {
+	t.Helper()
+	require.NotEmpty(t, r.statusSelectors, "no status update reached the repository")
+	return r.statusSelectors[len(r.statusSelectors)-1]
 }
 
 func (r *fakeTestCaseRunsRepository) Claim(
@@ -297,6 +257,7 @@ type fakeTestCaseRunErrorsRepository struct {
 	inserted      []dao.ValidationError
 	insertOwners  []uuid.UUID
 	leaseOwner    *uuid.UUID
+	findErr       error
 }
 
 func (r *fakeTestCaseRunErrorsRepository) FindByTestCaseRunId(
@@ -313,6 +274,9 @@ func (r *fakeTestCaseRunErrorsRepository) FindByIds(
 	ids []uuid.UUID,
 	_ bool,
 ) (*[]dao.ValidationError, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
 	var validationErrors []dao.ValidationError
 	for _, id := range ids {
 		validationErrors = append(validationErrors, r.byTestCaseRun[id]...)

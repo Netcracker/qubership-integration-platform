@@ -94,7 +94,10 @@ record_staged() {
     while IFS= read -r -d '' path; do
         blob_count=$((blob_count + 1))
         blob="$workdir/blob.$blob_count"
-        git show ":$path" > "$blob" 2> /dev/null || continue
+        # Skipping an unreadable blob would drop it from the scan silently, so
+        # a staged path this cannot read fails the check instead.
+        git show ":$path" > "$blob" ||
+            bail "Cannot read the staged content of '$path'. Re-stage the file; the check does not pass on content it could not scan."
         record "$path" "$blob"
     done < <(git diff --cached --name-only --diff-filter=ACMR -z)
 }

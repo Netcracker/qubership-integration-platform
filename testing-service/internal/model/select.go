@@ -55,6 +55,11 @@ type FeatureFilterConfiguration struct {
 	// RequiresConversionToText casts the column to text before comparing.
 	RequiresConversionToText bool
 	Converter                func(s string) (any, error)
+	// AllowedValues, when set, is the closed set the feature accepts. It is what
+	// an enum-backed column needs: PostgreSQL rejects a literal outside the type,
+	// and the failure arrives as a database error the listing cannot tell from a
+	// broken query. An empty slice leaves the values unchecked.
+	AllowedValues []string
 }
 
 type FilterConfiguration map[string]FeatureFilterConfiguration

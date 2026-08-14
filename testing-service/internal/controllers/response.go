@@ -1,11 +1,18 @@
 package controllers
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+
+	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
+	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
 )
 
 // ServiceName is reported in the serviceName field of every error body.
@@ -54,14 +61,78 @@ func (r responder) malformedPaginationParameters(ctx *fiber.Ctx, err error) erro
 	return r.fail(ctx, fiber.StatusBadRequest, "Malformed pagination query parameters: %v", err.Error())
 }
 
+// malformedSelection answers a filter or sorting value the listing refused. The
+// detail names the value and what the listing accepts instead, and it is the
+// caller's own input, so it belongs in the body.
+func (r responder) malformedSelection(ctx *fiber.Ctx, err error) error {
+	return r.fail(ctx, fiber.StatusBadRequest, "Malformed selection parameters: %v", err.Error())
+}
+
 func (r responder) fail(ctx *fiber.Ctx, code int, messageTemplate string, args ...any) error {
 	message := fmt.Sprintf(messageTemplate, args...)
 	r.logger.ErrorContext(ctx.UserContext(), message, "status", code, "path", ctx.Path())
-	return respondWithJSON(ctx, code, buildErrorMessage(message))
+	return ctx.Status(code).JSON(buildErrorMessage(message))
 }
 
-func respondWithJSON(ctx *fiber.Ctx, code int, payload any) error {
-	return ctx.Status(code).JSON(payload)
+// internalError names the operation that failed and keeps the failure itself in
+// the log. The failures behind a 500 are bun and PostgreSQL messages and
+// upstream URLs, none of which the caller has any use for.
+func (r responder) internalError(ctx *fiber.Ctx, message string, err error) error {
+	r.logger.ErrorContext(ctx.UserContext(), message,
+		"status", fiber.StatusInternalServerError, "path", ctx.Path(), "error", err)
+	return ctx.Status(fiber.StatusInternalServerError).JSON(buildErrorMessage(message))
+}
+
+// findAll answers a list request. Every collection reads the same pagination,
+// sorting and specification off the request and answers either the rows or, when
+// return_ids is set, the unpaginated list of their ids; query and id are all that
+// differ between them.
+func findAll[T any](
+	ctx *fiber.Ctx,
+	r responder,
+	subject string,
+	query func(
+		ctx context.Context,
+		specification *model.SelectionSpecification,
+		sorting model.SortOptions,
+		pagination *model.PaginationOptions,
+		withRelations bool,
+	) (*[]T, error),
+	id func(T) uuid.UUID,
+) error {
+	pagination, err := paginationOptions(ctx)
+	if err != nil {
+		return r.malformedPaginationParameters(ctx, err)
+	}
+	sorting, err := sortOptions(ctx)
+	if err != nil {
+		return r.malformedSortingParameters(ctx, err)
+	}
+	var specification model.SelectionSpecification
+	if err := json.Unmarshal(ctx.Body(), &specification); err != nil {
+		return r.malformedRequestBody(ctx, err)
+	}
+	returnIds := ctx.QueryBool("return_ids", false)
+	if returnIds {
+		pagination = nil
+	}
+	rows, err := query(ctx.UserContext(), &specification, *sorting, pagination, !returnIds)
+	if err != nil {
+		// A filter or sorting value the listing does not accept is a bad request,
+		// not a failure of this service.
+		if errors.Is(err, dao.ErrInvalidSelection) {
+			return r.malformedSelection(ctx, err)
+		}
+		return r.internalError(ctx, "Unable to get "+subject, err)
+	}
+	if !returnIds {
+		return ctx.Status(fiber.StatusOK).JSON(rows)
+	}
+	ids := make([]uuid.UUID, 0, len(*rows))
+	for _, row := range *rows {
+		ids = append(ids, id(row))
+	}
+	return ctx.Status(fiber.StatusOK).JSON(ids)
 }
 
 func respondWithZip(ctx *fiber.Ctx, code int, payload []byte) error {

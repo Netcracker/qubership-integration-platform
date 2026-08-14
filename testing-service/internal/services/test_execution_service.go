@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/dao"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/matching"
 	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/model"
-	"github.com/Netcracker/qubership-integration-platform/testing-service/internal/triggers"
 )
 
 // TestExecutionService runs the queued test case runs.
@@ -51,7 +51,6 @@ func NewTestExecutionService(
 	testCaseRunErrorsService TestCaseRunErrorsService,
 	triggerResolverService TriggerResolverService,
 ) TestExecutionService {
-	cfg = cfg.WithDefaults()
 	return &testExecutionService{
 		logger:       logger,
 		workerCount:  cfg.WorkerCount,
@@ -146,8 +145,31 @@ func (s *testExecutionService) claimAndRun(ctx context.Context) {
 		// Another run may have a case of its own waiting, and this worker is
 		// busy for as long as the one it just took.
 		s.NotifyWork()
-		s.runTestCase(ctx, testCaseRun)
+		s.runTestCaseGuarded(ctx, testCaseRun)
 	}
+}
+
+// runTestCaseGuarded runs one case and turns a panic into a recorded fault. The
+// workers run outside any request, so nothing else would recover: a defect
+// reached from one row would take the process down, and the sweeper would hand
+// the same row to the next start until someone found it. Recording the fault and
+// finishing the run ends that loop.
+func (s *testExecutionService) runTestCaseGuarded(ctx context.Context, testCaseRun *dao.TestCaseRun) {
+	defer func() {
+		recovered := recover()
+		if recovered == nil {
+			return
+		}
+		s.logger.ErrorContext(ctx, "Recovered from a panic while running a test case",
+			"testCaseRunId", testCaseRun.ID, "panic", fmt.Sprint(recovered), "stack", string(debug.Stack()))
+		if testCaseRun.LeaseOwner == nil {
+			return
+		}
+		owner := *testCaseRun.LeaseOwner
+		s.recordError(ctx, testCaseRun.ID, owner, nil, fmt.Sprintf("The test case run failed: %v", recovered))
+		s.finish(ctx, testCaseRun.ID, owner)
+	}()
+	s.runTestCase(ctx, testCaseRun)
 }
 
 // sweepExpiredLeases returns the cases of workers that stopped reporting to the
@@ -192,7 +214,16 @@ func (s *testExecutionService) renewLease(ctx context.Context, testCaseRunID uui
 			}
 			if err := s.testCaseRunsService.RenewLease(ctx, testCaseRunID, owner); err != nil {
 				s.logWriteFailure(ctx, "Cannot renew the lease of the test case run", testCaseRunID, err)
-				return
+				// A lost lease is final: the case belongs to another worker, and
+				// asking again under a token the queue no longer honors buys
+				// nothing. Any other failure is a blip, such as a reset connection
+				// or a failover, and the cadence renews three times per lease so
+				// that the next tick still keeps the claim. Giving up on the first
+				// one spends that redundancy for nothing and lets the lease expire
+				// under a worker that is still running the case.
+				if errors.Is(err, dao.ErrLeaseLost) {
+					return
+				}
 			}
 		}
 	}()
@@ -294,7 +325,7 @@ func (s *testExecutionService) activateAndValidate(
 		return
 	}
 
-	response, err := trigger.Activate(triggers.WithSessionID(ctx, sessionID), testCase.RequestSettings)
+	response, err := trigger.Activate(ctx, sessionID, testCase.RequestSettings)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Cannot activate the trigger", "testCaseRunId", testCaseRunID, "error", err)
 		s.recordError(ctx, testCaseRunID, owner, nil, fmt.Sprintf("Failed to activate trigger: %v", err))
