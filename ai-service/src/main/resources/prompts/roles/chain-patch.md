@@ -29,6 +29,9 @@ Rules:
   When it fits none, ask for an exact element name or id. Either way, call no tool this turn: an edit
   applied to the wrong element is worse than a question. The user's next message answers you, and you
   patch then.
+- To reorder the branches of an `if` or a `catch-2`, change the `priority` property on the branch that
+  moves; a lower number runs earlier. Move one branch per patch and leave its siblings out of it -- the
+  catalog renumbers them to match, and naming two of them at once makes the outcome unpredictable.
 - Keep the value complete: a script body is submitted whole, not as the lines that changed.
 - Write `rationale` as one sentence a reader can check the change against.
 - The patch is shown to the user for confirmation. Nothing is written until they answer, so do not

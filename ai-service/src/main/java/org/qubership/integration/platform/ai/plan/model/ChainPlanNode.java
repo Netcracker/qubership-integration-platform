@@ -13,7 +13,10 @@ import java.util.List;
  * try-catch-finally or condition/if/else.
  *
  * <p>{@code order} is used for ordered containers: priority on {@code catch-2} blocks,
- * position within a split or condition branch.
+ * position within a split or condition branch. It never reaches the catalog: no materializer reads
+ * it, and the chain-patch path nulls it outright. Branch priority travels to the catalog as the
+ * ordinary {@code priority} property, which is what {@code OrderedElementService} renumbers
+ * siblings from.
  *
  * <p>{@code properties} are populated by generator {@code captureGraphPatch} merges during planning,
  * not by skeleton {@code captureChainPlan}. The implement pipeline materializes them to the catalog.

@@ -294,6 +294,51 @@ class ChainPlanPropertiesMaterializerTest {
   }
 
   @Test
+  void sendsBranchPriorityAsAnIntegerBesideTheLiveParentElementId() throws Exception {
+    // Reordering a catch-2 branch is an ordinary priority property patch. Two things make the
+    // catalog renumber the sibling branches rather than silently leaving two branches on the same
+    // priority: the value must arrive as a number, and the body must carry the element's current
+    // parentElementId -- runtime-catalog only runs updateRelativeProperties when the body's parent
+    // matches the live one. Verified live: dropping parentElementId leaves both branches at the
+    // same priority.
+    when(schemaService.allowedPatchPropertyKeys("catch-2")).thenReturn(Set.of("exception", "priority"));
+    when(schemaService.coercePatchPropertyValue("catch-2", "priority", "0")).thenReturn(0L);
+    when(schemaService.validateElementPatch(eq("catch-2"), anyString())).thenReturn("{\"valid\":true}");
+    CatalogElementResponseDto current = new CatalogElementResponseDto();
+    current.name = "Catch";
+    current.parentElementId = "el-try-catch";
+    current.properties = Map.of("exception", "java.lang.Exception", "priority", 1);
+    when(catalogRestClient.getElement("chain-1", "el-catch")).thenReturn(current);
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "catch-node",
+                    "catch-2",
+                    null,
+                    "tcf-node",
+                    null,
+                    List.of(new PlanProperty("priority", "0")))),
+            List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("catch-node", "el-catch"));
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-catch"), patchCaptor.capture());
+    assertEquals("el-try-catch", patchCaptor.getValue().get("parentElementId"));
+    @SuppressWarnings("unchecked")
+    Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals(0L, props.get("priority"));
+  }
+
+  @Test
   void doesNotPatchWhenValidationReturnsInvalid() throws Exception {
     when(schemaService.allowedPatchPropertyKeys("script")).thenReturn(Set.of("script"));
     when(schemaService.validateElementPatch(eq("script"), anyString()))

@@ -8,6 +8,9 @@ import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.qipknowledge.patch.EdgePatch;
+import org.qubership.integration.platform.ai.qipknowledge.patch.NodePatch;
+import org.qubership.integration.platform.ai.qipknowledge.patch.PropertyPatch;
 
 /** Captures the property change a model proposes for an existing catalog chain. */
 @ApplicationScoped
@@ -35,18 +38,63 @@ public class ChainPatchTool {
   public String proposeChainPatch(ChainPatchCapture patch) {
     String conversationId = ToolSession.resolveConversationId();
     long startMs = System.currentTimeMillis();
-    ToolTraceLog.logToolInvoke(
-        LOG,
-        TOOL,
-        conversationId,
-        "patchId="
-            + (patch != null ? patch.patchId() : "null")
-            + " rationale="
-            + AiTraceLog.preview(patch != null ? patch.rationale() : null, 120));
+    ToolTraceLog.logToolInvoke(LOG, TOOL, conversationId, describe(patch));
 
     String result = capture(conversationId, patch);
     ToolTraceLog.logToolComplete(LOG, TOOL, conversationId, System.currentTimeMillis() - startMs, result);
     return result;
+  }
+
+  /**
+   * Renders what the model actually submitted: which operation targets which node, and for property
+   * patches which key. A patch that misses its target, repeats a node, or names a key the schema
+   * does not own is only diagnosable from the trace, and the id/rationale the model fills in are
+   * frequently null.
+   */
+  private static String describe(ChainPatchCapture patch) {
+    if (patch == null) {
+      return "patch=null";
+    }
+    StringBuilder text = new StringBuilder();
+    if (patch.nodePatches() != null) {
+      for (NodePatch nodePatch : patch.nodePatches()) {
+        if (nodePatch == null) {
+          continue;
+        }
+        String nodeId =
+            nodePatch.node() != null ? nodePatch.node().nodeId() : nodePatch.targetNodeId();
+        text.append(" node[").append(nodePatch.operation()).append(' ').append(nodeId).append(']');
+      }
+    }
+    if (patch.edgePatches() != null) {
+      for (EdgePatch edgePatch : patch.edgePatches()) {
+        if (edgePatch == null) {
+          continue;
+        }
+        String edgeId =
+            edgePatch.edge() != null ? edgePatch.edge().edgeId() : edgePatch.targetEdgeId();
+        text.append(" edge[").append(edgePatch.operation()).append(' ').append(edgeId).append(']');
+      }
+    }
+    if (patch.propertyPatches() != null) {
+      for (PropertyPatch propertyPatch : patch.propertyPatches()) {
+        if (propertyPatch == null) {
+          continue;
+        }
+        text.append(" property[")
+            .append(propertyPatch.operation())
+            .append(' ')
+            .append(propertyPatch.targetNodeId())
+            .append('.')
+            .append(propertyPatch.property() == null ? "?" : propertyPatch.property().key())
+            .append(']');
+      }
+    }
+    return "patchId="
+        + patch.patchId()
+        + (text.isEmpty() ? " (no operations)" : text)
+        + " rationale="
+        + AiTraceLog.preview(patch.rationale(), 120);
   }
 
   private String capture(String conversationId, ChainPatchCapture patch) {
