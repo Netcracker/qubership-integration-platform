@@ -61,7 +61,10 @@ public class ChainPatchWriter {
     List<String> addedNodeIds = addedNodeIds(patched.graph(), patch);
     Map<String, Set<String>> changedKeysByNodeId = changedKeysByNodeId(patch);
     List<ChainPlanEdge> addedEdges = addedEdges(patch);
-    if (addedNodeIds.isEmpty() && changedKeysByNodeId.isEmpty()) {
+    // Edges count toward "the patch does something": a patch whose only content is a connection
+    // between two elements the chain already has adds no node and changes no property, and must
+    // still reach the connections materializer rather than being read as an empty change.
+    if (addedNodeIds.isEmpty() && changedKeysByNodeId.isEmpty() && addedEdges.isEmpty()) {
       return new ChainPatchWriteResult(List.of(), List.of(), null, patched.materializationMap());
     }
 

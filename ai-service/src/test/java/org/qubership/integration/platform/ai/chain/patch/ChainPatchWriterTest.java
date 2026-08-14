@@ -193,6 +193,42 @@ class ChainPatchWriterTest {
     assertTrue(result.succeeded());
   }
 
+  @Test
+  void connectsTwoElementsThatAlreadyExist() {
+    // Nothing is added and no property changes -- the whole patch is one new connection between
+    // elements the chain already has. The empty-patch guard must not swallow it.
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("Order sync", "Syncs orders"),
+            patchedChain().graph().nodes(),
+            List.of(new ChainPlanEdge("edge-new", "element-trigger", "element-script", null)));
+    PatchedChain patched = new PatchedChain(graph, patchedChain().materializationMap());
+
+    ChainPatchWriteResult result =
+        writer.write(
+            patched,
+            new GraphPatch(
+                "patch-edge-only",
+                "chain-patch",
+                null,
+                List.of(
+                    new EdgePatch(
+                        GraphPatchOperation.ADD,
+                        new ChainPlanEdge("edge-new", "element-trigger", "element-script", null),
+                        null)),
+                List.of(),
+                null,
+                List.of(),
+                "connects the trigger to the script"));
+
+    ArgumentCaptor<ChainPlanGraph> connected = ArgumentCaptor.forClass(ChainPlanGraph.class);
+    verify(connectionsMaterializer).apply(connected.capture(), any());
+    assertEquals(1, connected.getValue().edges().size());
+    assertEquals("edge-new", connected.getValue().edges().get(0).edgeId());
+    assertTrue(result.succeeded());
+  }
+
   private ChainPlanGraph capturedGraph() {
     ArgumentCaptor<ChainPlanGraph> graph = ArgumentCaptor.forClass(ChainPlanGraph.class);
     verify(propertiesMaterializer).apply(graph.capture(), any());
