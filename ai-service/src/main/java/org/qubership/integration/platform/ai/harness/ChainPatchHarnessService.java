@@ -192,7 +192,8 @@ public class ChainPatchHarnessService {
         ChainPatchRefusal.WRITE,
         changedElementIds,
         failedElementIds,
-        removedElementIds);
+        removedElementIds,
+        result.rollback());
   }
 
   private static ChainPatchHarnessResponse failed(

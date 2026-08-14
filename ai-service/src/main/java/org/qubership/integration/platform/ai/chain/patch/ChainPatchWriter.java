@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
+import java.util.stream.Collectors;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanPropertiesMaterializer;
@@ -118,7 +120,8 @@ public class ChainPatchWriter {
 
     // Connections come last and only on a clean creation: an edge to an element that was not
     // created would be recorded as a failure the reader can do nothing with.
-    if (!addedEdges.isEmpty() && failed.isEmpty()) {
+    List<ChainPlanEdge> createdEdges = List.of();
+    if (!addedEdges.isEmpty() && failed.isEmpty() && error == null) {
       var connected =
           connectionsMaterializer.apply(
               new ChainPlanGraph(
@@ -127,21 +130,34 @@ public class ChainPatchWriter {
                   patched.graph().nodes(),
                   List.copyOf(addedEdges)),
               map);
-      if (!connected.failedEdgeIds().isEmpty() && error == null) {
+      if (connected.failedEdgeIds().isEmpty()) {
+        createdEdges = addedEdges;
+      } else {
         error = "connections not created: " + String.join(", ", connected.failedEdgeIds());
+        // Whatever the materializer did get through still has to be taken back.
+        createdEdges =
+            addedEdges.stream()
+                .filter(edge -> !connected.failedEdgeIds().contains(edge.edgeId()))
+                .toList();
       }
     }
 
     // Removals come last of all, so that every step that can still be taken back has been taken
-    // first. Past this point the patch is no longer undoable by anything this service can do.
+    // first -- and only on a clean write, because past this point the patch is no longer undoable
+    // by anything this service can do.
     List<String> removedElementIds = List.of();
-    if (failed.isEmpty()) {
+    List<ChainPlanEdge> recreatableEdges = List.of();
+    if (failed.isEmpty() && error == null) {
       Set<String> removedNodeIds = removedNodeIds(patch);
       List<ChainPlanEdge> removedEdges = removedEdges(patch, patched.before());
       if (!removedNodeIds.isEmpty() || !removedEdges.isEmpty()) {
         var removed =
             removalsMaterializer.apply(patched.before(), removedNodeIds, removedEdges, map);
         removedElementIds = removed.removedElementIds();
+        recreatableEdges =
+            removed.removedDependencyIds().isEmpty()
+                ? List.<ChainPlanEdge>of()
+                : List.copyOf(removedEdges);
         failed.addAll(removed.failedNodeIds().stream().filter(id -> !failed.contains(id)).toList());
         error = error == null ? removed.error() : error;
       }
@@ -149,8 +165,150 @@ public class ChainPatchWriter {
 
     List<String> changed =
         touched.stream().map(ChainPlanNode::nodeId).filter(id -> !failed.contains(id)).toList();
+
+    ChainPatchWriteResult.RollbackOutcome rollback =
+        failed.isEmpty() && error == null
+            ? ChainPatchWriteResult.RollbackOutcome.NOT_ATTEMPTED
+            : unwind(
+                patched,
+                map,
+                written,
+                changedKeysByNodeId,
+                createdEdges,
+                recreatableEdges,
+                removedElementIds);
+
     return new ChainPatchWriteResult(
-        changed, List.copyOf(failed), error, map, List.copyOf(removedElementIds));
+        changed, List.copyOf(failed), error, map, List.copyOf(removedElementIds), rollback);
+  }
+
+  /**
+   * Takes back what a failed write already wrote, newest step first.
+   *
+   * <p>Every catalog call goes through a materializer, so the writer stays the one place that knows
+   * which phase failed without becoming a second REST client. The one thing it will not do is
+   * improvise around a deleted element: the id is gone, and a stand-in under the same name would
+   * read as the chain being whole when it is not.
+   */
+  private ChainPatchWriteResult.RollbackOutcome unwind(
+      PatchedChain patched,
+      MaterializationMap map,
+      List<String> createdNodeIds,
+      Map<String, Set<String>> changedKeysByNodeId,
+      List<ChainPlanEdge> createdEdges,
+      List<ChainPlanEdge> deletedEdges,
+      List<String> removedElementIds) {
+    if (!removedElementIds.isEmpty()) {
+      LOG.errorf(
+          "Chain %s: patch failed after deleting %s; refusing to roll back",
+          map.chainId(), String.join(", ", removedElementIds));
+      return ChainPatchWriteResult.RollbackOutcome.REFUSED;
+    }
+
+    // Prior values for every key the patch changed on an element the chain already had. A key the
+    // patch introduced has no prior value and the merge never deletes, so it stays behind.
+    List<ChainPlanNode> priorValues =
+        touchedNodes(patched.before(), List.of(), changedKeysByNodeId).stream()
+            .filter(node -> !node.properties().isEmpty())
+            .toList();
+    boolean introducedKeyStays =
+        introducedKeyStays(patched.before(), changedKeysByNodeId, createdNodeIds);
+
+    if (createdNodeIds.isEmpty()
+        && createdEdges.isEmpty()
+        && deletedEdges.isEmpty()
+        && priorValues.isEmpty()) {
+      return introducedKeyStays
+          ? ChainPatchWriteResult.RollbackOutcome.PARTIAL
+          : ChainPatchWriteResult.RollbackOutcome.NOT_ATTEMPTED;
+    }
+
+    boolean complete = !introducedKeyStays;
+    if (!deletedEdges.isEmpty()) {
+      complete &=
+          step(
+              () ->
+                  connectionsMaterializer
+                      .apply(edgesOnly(patched.before(), deletedEdges), map)
+                      .failedEdgeIds()
+                      .isEmpty());
+    }
+    if (!createdEdges.isEmpty()) {
+      complete &=
+          step(
+              () ->
+                  removalsMaterializer
+                      .apply(patched.graph(), Set.of(), createdEdges, map)
+                      .succeeded());
+    }
+    if (!priorValues.isEmpty()) {
+      complete &=
+          step(
+              () ->
+                  propertiesMaterializer
+                      .apply(nodesOnly(patched.before(), priorValues), map)
+                      .failedNodeIds()
+                      .isEmpty());
+    }
+    if (!createdNodeIds.isEmpty()) {
+      complete &=
+          step(
+              () ->
+                  removalsMaterializer
+                      .apply(patched.graph(), new LinkedHashSet<>(createdNodeIds), List.of(), map)
+                      .succeeded());
+    }
+
+    return complete
+        ? ChainPatchWriteResult.RollbackOutcome.COMPLETED
+        : ChainPatchWriteResult.RollbackOutcome.PARTIAL;
+  }
+
+  /** Whether the patch wrote a property key onto an element that is staying and had no such key. */
+  private static boolean introducedKeyStays(
+      ChainPlanGraph before, Map<String, Set<String>> changedKeysByNodeId, List<String> createdNodeIds) {
+    for (Map.Entry<String, Set<String>> entry : changedKeysByNodeId.entrySet()) {
+      if (createdNodeIds.contains(entry.getKey())) {
+        continue;
+      }
+      ChainPlanNode node =
+          before.nodes() == null
+              ? null
+              : before.nodes().stream()
+                  .filter(candidate -> entry.getKey().equals(candidate.nodeId()))
+                  .findFirst()
+                  .orElse(null);
+      if (node == null) {
+        continue;
+      }
+      Set<String> had =
+          node.properties() == null
+              ? Set.of()
+              : node.properties().stream().map(PlanProperty::key).collect(Collectors.toSet());
+      if (!had.containsAll(entry.getValue())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** A compensating call that throws has failed like any other; it must not mask the first error. */
+  private boolean step(BooleanSupplier compensation) {
+    try {
+      return compensation.getAsBoolean();
+    } catch (RuntimeException e) {
+      LOG.error("Rollback step failed", e);
+      return false;
+    }
+  }
+
+  private static ChainPlanGraph edgesOnly(ChainPlanGraph graph, List<ChainPlanEdge> edges) {
+    return new ChainPlanGraph(
+        graph.schemaVersion(), graph.chain(), graph.nodes(), List.copyOf(edges));
+  }
+
+  private static ChainPlanGraph nodesOnly(ChainPlanGraph graph, List<ChainPlanNode> nodes) {
+    return new ChainPlanGraph(graph.schemaVersion(), graph.chain(), List.copyOf(nodes), List.of());
   }
 
   private static Set<String> removedNodeIds(GraphPatch patch) {

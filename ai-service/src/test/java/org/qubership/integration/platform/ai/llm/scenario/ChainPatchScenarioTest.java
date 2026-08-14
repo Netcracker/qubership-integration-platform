@@ -284,6 +284,46 @@ class ChainPatchScenarioTest {
   }
 
   @Test
+  void saysTheChainWasPutBackWhenTheWriteFailedAndWasUnwound() {
+    when(writer.write(any(), any()))
+        .thenReturn(
+            new ChainPatchWriteResult(
+                List.of(),
+                List.of("element-script"),
+                "schema said no",
+                null,
+                List.of(),
+                ChainPatchWriteResult.RollbackOutcome.COMPLETED));
+    captures(propertyPatch("element-script", "script", "return 201"));
+    ChatEvent.Decision card = decision(run(request("fix the script in Normalize payload")));
+
+    List<ChatEvent> events = run(answer(card.artifactHash()));
+
+    assertTrue(text(events).contains("put the chain back as it was"), text(events));
+  }
+
+  /** The one case the reader has to be told plainly, because nothing here can fix it for them. */
+  @Test
+  void namesWhatIsGoneWhenTheChainCannotBePutBack() {
+    when(writer.write(any(), any()))
+        .thenReturn(
+            new ChainPatchWriteResult(
+                List.of(),
+                List.of("element-trigger"),
+                "catalog down",
+                null,
+                List.of("element-script"),
+                ChainPatchWriteResult.RollbackOutcome.REFUSED));
+    captures(propertyPatch("element-script", "script", "return 201"));
+    ChatEvent.Decision card = decision(run(request("fix the script in Normalize payload")));
+
+    List<ChatEvent> events = run(answer(card.artifactHash()));
+
+    assertTrue(text(events).contains("could not put the chain back"), text(events));
+    assertTrue(text(events).contains("Normalize payload"), text(events));
+  }
+
+  @Test
   void saysSoWhenTheModelProposedNothing() {
     List<ChatEvent> events = run(request("do something vague"));
 

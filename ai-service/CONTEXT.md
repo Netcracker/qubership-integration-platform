@@ -126,3 +126,19 @@ both (a) the patched element(s) against golden and (b) every untouched element r
 as seeded. The second check is what actually proves the patch didn't touch anything outside its
 scope; a violation reports as `SCOPE_VIOLATION`, distinct from an ordinary `FAIL`. Case files and
 the case-shape README section live under `integration-platform-skills/regression/`.
+
+A case that deletes something sets `allowRemoval: true` (off by default: this path applies with no
+card and nobody watching) and lists what should be gone in `expectedRemovals`, which asserts the
+catalog no longer has those elements and excludes them from the untouched-stays-untouched check.
+`patch-remove-trailing-step` is the worked example.
+
+**Failed write** (decided, ADR 0002):
+A patch that fails partway is unwound in reverse through the same materializers that wrote it, and
+`ChainPatchWriteResult.rollback` reports what became of it. Only two steps cannot be compensated: a
+property key the patch introduced stays, because the properties merge never deletes a key
+(`PARTIAL`), and a deleted element does not come back (`REFUSED`, naming what is gone). Deleting
+elements is therefore the last step and one atomic bulk call. Snapshots were rejected as an
+automatic mechanism -- the catalog refuses one on a chain that fails property verification, which is
+exactly the mid-edit state the semantic validator tolerates, and building one overwrites
+`currentSnapshot`.
+_Avoid_: taking a snapshot around every patch, recreating a deleted element under its old name

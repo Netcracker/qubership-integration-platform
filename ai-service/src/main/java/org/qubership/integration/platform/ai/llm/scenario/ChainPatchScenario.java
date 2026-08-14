@@ -262,7 +262,25 @@ public class ChainPatchScenario implements ScenarioHandler {
     if (result.error() != null) {
       text.append(" ").append(result.error());
     }
+    String rollback = describeRollback(result, removed);
+    if (rollback != null) {
+      text.append(" ").append(rollback);
+    }
     return text.toString();
+  }
+
+  /** What became of the part that did land, which is the only thing the reader can act on. */
+  private static String describeRollback(ChainPatchWriteResult result, List<String> removed) {
+    return switch (result.rollback()) {
+      case COMPLETED -> "I put the chain back as it was.";
+      case PARTIAL ->
+          "I put back what I could, but not all of it — read the chain before changing it again.";
+      case REFUSED ->
+          "I could not put the chain back: "
+              + String.join(", ", removed)
+              + " had already been removed, and removing cannot be undone.";
+      case NOT_ATTEMPTED -> null;
+    };
   }
 
   private static String elementName(ChainPlanGraph graph, String nodeId) {

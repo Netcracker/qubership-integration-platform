@@ -294,6 +294,110 @@ class ChainPatchWriterTest {
     assertEquals(List.of("element-script", "cascaded-child"), result.removedElementIds());
   }
 
+  @Test
+  void deletesTheElementItCreatedWhenTheWriteFailsAfterwards() {
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+        .thenReturn("catalog-new-script");
+    when(propertiesMaterializer.apply(any(), any()))
+        .thenReturn(new PropertiesApplyResult(0, List.of("node-new-script"), "schema said no"));
+
+    ChainPatchWriteResult result = writer.write(chainWithAddedScript(), addScriptPatch());
+
+    ArgumentCaptor<java.util.Set<String>> nodeIds = ArgumentCaptor.forClass(java.util.Set.class);
+    verify(removalsMaterializer).apply(any(), nodeIds.capture(), any(), any());
+    assertEquals(java.util.Set.of("node-new-script"), nodeIds.getValue());
+    assertEquals(ChainPatchWriteResult.RollbackOutcome.COMPLETED, result.rollback());
+  }
+
+  @Test
+  void putsBackThePropertyValueTheChainHeldBefore() {
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+        .thenThrow(new IllegalStateException("catalog said no"));
+
+    ChainPatchWriteResult result =
+        writer.write(chainWithAddedScript(), addScriptAndReconfigurePatch());
+
+    ArgumentCaptor<ChainPlanGraph> written = ArgumentCaptor.forClass(ChainPlanGraph.class);
+    verify(propertiesMaterializer, org.mockito.Mockito.times(2)).apply(written.capture(), any());
+    ChainPlanGraph restored = written.getAllValues().get(1);
+    assertEquals("element-script", restored.nodes().get(0).nodeId());
+    assertEquals("return 201", restored.nodes().get(0).properties().get(0).value());
+    assertEquals(ChainPatchWriteResult.RollbackOutcome.COMPLETED, result.rollback());
+  }
+
+  /** The merge never deletes a key, so a key the patch introduced cannot be taken back off. */
+  @Test
+  void reportsAPartialRollbackWhenThePatchIntroducedThePropertyKey() {
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+        .thenThrow(new IllegalStateException("catalog said no"));
+
+    ChainPatchWriteResult result =
+        writer.write(chainWithAddedScript(), addScriptAndSetNewKeyPatch());
+
+    assertEquals(ChainPatchWriteResult.RollbackOutcome.PARTIAL, result.rollback());
+  }
+
+  @Test
+  void removesNothingWhenAConnectionCouldNotBeCreated() {
+    // A patch that both connects and removes: a connection that did not land must stop the
+    // removal, because a removal is the step no later failure can take back.
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+        .thenReturn("catalog-new-script");
+    when(connectionsMaterializer.apply(any(), any()))
+        .thenReturn(new ConnectionsApplyResult(0, List.of("edge-new")));
+
+    ChainPatchWriteResult result = writer.write(chainWithAddedScript(), addScriptAndRemovePatch());
+
+    verify(removalsMaterializer, org.mockito.Mockito.never())
+        .apply(any(), eq(java.util.Set.of("element-script")), any(), any());
+    assertTrue(!result.succeeded());
+  }
+
+  @Test
+  void drawsBackTheConnectionsItCutWhenTheElementDeleteFails() {
+    when(removalsMaterializer.apply(any(), any(), any(), any()))
+        .thenReturn(
+            new ChainPlanRemovalsMaterializer.RemovalsApplyResult(
+                List.of(), List.of("dep-1"), List.of("element-script"), List.of(), "catalog down"));
+
+    ChainPatchWriteResult result = writer.write(connectedChain(), removeScriptAndItsEdgePatch());
+
+    ArgumentCaptor<ChainPlanGraph> redrawn = ArgumentCaptor.forClass(ChainPlanGraph.class);
+    verify(connectionsMaterializer).apply(redrawn.capture(), any());
+    assertEquals(1, redrawn.getValue().edges().size());
+    assertEquals("edge-trigger-script", redrawn.getValue().edges().get(0).edgeId());
+    assertEquals(ChainPatchWriteResult.RollbackOutcome.COMPLETED, result.rollback());
+  }
+
+  @Test
+  void refusesToRollBackOnceAnElementIsGone() {
+    when(removalsMaterializer.apply(any(), any(), any(), any()))
+        .thenReturn(
+            new ChainPlanRemovalsMaterializer.RemovalsApplyResult(
+                List.of("element-script"),
+                List.of("dep-1"),
+                List.of("element-trigger"),
+                List.of(),
+                "catalog down"));
+
+    ChainPatchWriteResult result = writer.write(connectedChain(), removeScriptAndItsEdgePatch());
+
+    assertEquals(ChainPatchWriteResult.RollbackOutcome.REFUSED, result.rollback());
+    verify(connectionsMaterializer, org.mockito.Mockito.never()).apply(any(), any());
+  }
+
+  @Test
+  void leavesACleanWriteAlone() {
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+        .thenReturn("catalog-new-script");
+
+    ChainPatchWriteResult result = writer.write(chainWithAddedScript(), addScriptPatch());
+
+    assertTrue(result.succeeded());
+    assertEquals(ChainPatchWriteResult.RollbackOutcome.NOT_ATTEMPTED, result.rollback());
+    verify(removalsMaterializer, org.mockito.Mockito.never()).apply(any(), any(), any(), any());
+  }
+
   private ChainPlanGraph capturedGraph() {
     ArgumentCaptor<ChainPlanGraph> graph = ArgumentCaptor.forClass(ChainPlanGraph.class);
     verify(propertiesMaterializer).apply(graph.capture(), any());
@@ -375,6 +479,78 @@ class ChainPatchWriterTest {
         null,
         List.of(),
         "adds an enrichment step");
+  }
+
+  /** Adds one script and rewrites a property the chain already had, so a rollback has both to do. */
+  private static GraphPatch addScriptAndReconfigurePatch() {
+    GraphPatch base = addScriptPatch();
+    return new GraphPatch(
+        base.patchId(),
+        base.ownerCapabilityId(),
+        base.nodePatches(),
+        base.edgePatches(),
+        List.of(
+            new PropertyPatch(
+                GraphPatchOperation.UPDATE, "element-script", new PlanProperty("script", "return 9"))),
+        null,
+        List.of(),
+        base.rationale());
+  }
+
+  /** Same, but the property key is one the element did not have before. */
+  private static GraphPatch addScriptAndSetNewKeyPatch() {
+    GraphPatch base = addScriptPatch();
+    return new GraphPatch(
+        base.patchId(),
+        base.ownerCapabilityId(),
+        base.nodePatches(),
+        base.edgePatches(),
+        List.of(
+            new PropertyPatch(
+                GraphPatchOperation.UPDATE, "element-script", new PlanProperty("language", "groovy"))),
+        null,
+        List.of(),
+        base.rationale());
+  }
+
+  /** Adds one script, connects it, and removes another element in the same patch. */
+  private static GraphPatch addScriptAndRemovePatch() {
+    GraphPatch base = addScriptPatch();
+    return new GraphPatch(
+        base.patchId(),
+        base.ownerCapabilityId(),
+        List.of(
+            base.nodePatches().get(0),
+            new NodePatch(GraphPatchOperation.REMOVE, null, "element-script")),
+        base.edgePatches(),
+        List.of(),
+        null,
+        List.of(),
+        base.rationale());
+  }
+
+  /** A chain whose trigger and script are wired together, so an edge exists to be cut. */
+  private static PatchedChain connectedChain() {
+    ChainPlanGraph base = patchedChain().graph();
+    ChainPlanGraph before =
+        new ChainPlanGraph(
+            base.schemaVersion(),
+            base.chain(),
+            base.nodes(),
+            List.of(new ChainPlanEdge("edge-trigger-script", "element-trigger", "element-script", null)));
+    return new PatchedChain(before, withoutScript(), patchedChain().materializationMap());
+  }
+
+  private static GraphPatch removeScriptAndItsEdgePatch() {
+    return new GraphPatch(
+        "patch-remove-3",
+        "chain-patch",
+        List.of(new NodePatch(GraphPatchOperation.REMOVE, null, "element-script")),
+        List.of(new EdgePatch(GraphPatchOperation.REMOVE, null, "edge-trigger-script")),
+        List.of(),
+        null,
+        List.of(),
+        "removes the normalize step and the connection into it");
   }
 
   /** The chain after the script element was removed from it. */
