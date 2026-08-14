@@ -25,11 +25,12 @@ public class ChainPatchTool {
 
   @Tool(
       """
-      Propose the change the user asked for on the open chain.
+      Propose the change the user asked for on the open chain. Call this to present the change --
+      do not describe it in prose and ask the user to confirm first; calling this tool is what
+      shows it to them as a card to answer.
       Reconfigure an element with propertyPatches, naming a node id from the chain graph in the user
       message. Add elements with nodePatches and connect them with edgePatches, giving each new
       element a node id of your own. Nothing may be removed or renamed. Call this once.
-      The change is shown to the user for confirmation; it is not written yet.
       """)
   public String proposeChainPatch(ChainPatchCapture patch) {
     String conversationId = ToolSession.resolveConversationId();
