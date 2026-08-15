@@ -42,15 +42,19 @@ public final class PhaseRoutingPolicy {
       return Optional.of(ScenarioType.GATHER_REQUIREMENTS);
     }
 
-    if (phase == ConversationPhase.DISCOVERY) {
+    // The blanket phase routes below send a turn to CREATE without reading it. That is right while
+    // a chain is being drafted and wrong once one exists: with a chain open, "delete the audit
+    // step" is a change to that chain, and only the classifier can tell it from a new integration
+    // being described. Phase alone must not keep the conversation in creation.
+    if (phase == ConversationPhase.DISCOVERY && !hasChainContext) {
       return Optional.of(ScenarioType.GATHER_REQUIREMENTS);
     }
 
-    if (phase == ConversationPhase.DESIGN_REVIEW) {
+    if (phase == ConversationPhase.DESIGN_REVIEW && !hasChainContext) {
       return Optional.of(ScenarioType.CREATE_CHAIN_PLAN);
     }
 
-    if (phase == ConversationPhase.PLAN_DRAFT) {
+    if (phase == ConversationPhase.PLAN_DRAFT && !hasChainContext) {
       return Optional.of(ScenarioType.CREATE_CHAIN_PLAN);
     }
 
@@ -62,7 +66,7 @@ public final class PhaseRoutingPolicy {
           hasCurrentBundle ? ScenarioType.IMPLEMENT_CHAIN : ScenarioType.CREATE_CHAIN_PLAN);
     }
 
-    if (phase == ConversationPhase.PLAN_CANDIDATE) {
+    if (phase == ConversationPhase.PLAN_CANDIDATE && !hasChainContext) {
       // Compact non-implement stays on product CREATE planning. Rich briefs fall through.
       if (!UserIntentPatterns.isCompactIntentMessage(msg)) {
         return Optional.empty();

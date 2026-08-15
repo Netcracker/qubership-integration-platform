@@ -8,12 +8,12 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
-import org.qubership.integration.platform.ai.skill.workspace.InMemorySkillWorkspaceStore;
-import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
-import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
-import org.qubership.integration.platform.ai.skill.workspace.SkillWorkspace;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
+import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationResult;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 
-/** Resolves chainId from chat attachment, regex fallback, or implement pipeline state. */
+/** Resolves chainId from chat attachment, regex fallback, or the chain a CREATE run built. */
 @ApplicationScoped
 public class ChainContextExtractor {
 
@@ -21,13 +21,17 @@ public class ChainContextExtractor {
       Pattern.compile("(?m)\\(ID:\\s*([a-fA-F0-9-]{8,})\\)");
 
   private final ObjectMapper objectMapper;
-  private final InMemorySkillWorkspaceStore workspaceStore;
+  private final ProductPipelineRunStore runStore;
+  private final ProductPipelineArtifactStore artifactStore;
 
   @Inject
   public ChainContextExtractor(
-      ObjectMapper objectMapper, InMemorySkillWorkspaceStore workspaceStore) {
+      ObjectMapper objectMapper,
+      ProductPipelineRunStore runStore,
+      ProductPipelineArtifactStore artifactStore) {
     this.objectMapper = objectMapper;
-    this.workspaceStore = workspaceStore;
+    this.runStore = runStore;
+    this.artifactStore = artifactStore;
   }
 
   public boolean hasChainContext(ChatRequest request, String conversationId) {
@@ -82,7 +86,28 @@ public class ChainContextExtractor {
     return Optional.empty();
   }
 
+  /**
+   * The chain this conversation's CREATE run wrote to the catalog, if it wrote one.
+   *
+   * <p>Without this, a conversation that just built a chain has no chain in context until the UI
+   * sends one, so "now drop the audit step" reads as the start of another integration rather than a
+   * change to the one on screen. A materialized run has a chain id; a run still drafting does not,
+   * and answers empty.
+   */
   private Optional<String> resolveFromPipelineState(String conversationId) {
-    return Optional.empty();
+    if (runStore == null || artifactStore == null || conversationId == null) {
+      return Optional.empty();
+    }
+    try {
+      return runStore
+          .loadByConversation(conversationId)
+          .flatMap(document -> artifactStore.latest(document.run().runId(), Kind.MATERIALIZATION_RESULT))
+          .map(revision -> artifactStore.payload(revision, MaterializationResult.class))
+          .map(MaterializationResult::chainId)
+          .filter(chainId -> chainId != null && !chainId.isBlank());
+    } catch (RuntimeException e) {
+      // Chain context is best-effort: a store that cannot answer must not fail the turn.
+      return Optional.empty();
+    }
   }
 }

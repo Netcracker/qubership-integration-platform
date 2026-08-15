@@ -371,4 +371,56 @@ class PhaseRoutingPolicyTest {
     assertTrue(result.isPresent());
     assertEquals(ScenarioType.ASK_CHAIN, result.get());
   }
+
+  /**
+   * With a chain open, phase alone must not answer for the reader. These four phases used to send
+   * every turn to CREATE without reading it, which is how a request to change an existing chain
+   * became the start of another integration.
+   */
+  @Test
+  void discoveryFallsThroughToLlmWhenAChainIsOpen() {
+    var result =
+        PhaseRoutingPolicy.tryResolve(
+            ConversationPhase.DISCOVERY, "delete the audit step", false, false, true);
+
+    assertTrue(result.isEmpty());
+  }
+
+  @Test
+  void designReviewFallsThroughToLlmWhenAChainIsOpen() {
+    var result =
+        PhaseRoutingPolicy.tryResolve(
+            ConversationPhase.DESIGN_REVIEW, "delete the audit step", false, false, true);
+
+    assertTrue(result.isEmpty());
+  }
+
+  @Test
+  void planDraftFallsThroughToLlmWhenAChainIsOpen() {
+    var result =
+        PhaseRoutingPolicy.tryResolve(
+            ConversationPhase.PLAN_DRAFT, "delete the audit step", false, false, true);
+
+    assertTrue(result.isEmpty());
+  }
+
+  @Test
+  void planCandidateCompactFallsThroughToLlmWhenAChainIsOpen() {
+    var result =
+        PhaseRoutingPolicy.tryResolve(
+            ConversationPhase.PLAN_CANDIDATE, "drop that step", false, false, true);
+
+    assertTrue(result.isEmpty());
+  }
+
+  /** An explicit implement intent still means implement, chain open or not. */
+  @Test
+  void implementIntentStillRoutesToImplementWhenAChainIsOpen() {
+    var result =
+        PhaseRoutingPolicy.tryResolve(
+            ConversationPhase.PLAN_CANDIDATE, "implement the chain", false, true, true);
+
+    assertTrue(result.isPresent());
+    assertEquals(ScenarioType.IMPLEMENT_CHAIN, result.get());
+  }
 }

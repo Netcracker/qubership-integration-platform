@@ -29,9 +29,10 @@ function resolveScenarioHint(request: ChatRequest): string | undefined {
   if (request.scenarioHint?.trim()) {
     return request.scenarioHint.trim();
   }
-  if (request.context?.type === "chain") {
-    return "IMPLEMENT_CHAIN";
-  }
+  // An open chain is not an instruction. This used to send IMPLEMENT_CHAIN, which the server obeys
+  // ahead of its own classifier, so "delete the audit step" typed on a chain screen started a new
+  // CREATE run instead of changing the chain. The open chain goes in the attachment; what to do
+  // with it is the classifier's to decide.
   return undefined;
 }
 
@@ -82,7 +83,9 @@ export class HttpAiModelProvider implements AiModelProvider {
         message: this.extractLastUserMessage(request.messages),
         conversationId: request.conversationId,
         attachment: this.buildAttachment(request) || undefined,
-        attachmentObjectKeys: this.mergeObjectKeys(request.attachmentObjectKeys),
+        attachmentObjectKeys: this.mergeObjectKeys(
+          request.attachmentObjectKeys,
+        ),
         scenarioHint: hint ?? null,
         decision: request.decision,
       };
@@ -195,7 +198,9 @@ export class HttpAiModelProvider implements AiModelProvider {
         message: this.extractLastUserMessage(request.messages),
         conversationId: request.conversationId,
         attachment: this.buildAttachment(request) || undefined,
-        attachmentObjectKeys: this.mergeObjectKeys(request.attachmentObjectKeys),
+        attachmentObjectKeys: this.mergeObjectKeys(
+          request.attachmentObjectKeys,
+        ),
         scenarioHint: hint ?? null,
         decision: request.decision,
       };
@@ -283,8 +288,16 @@ export class HttpAiModelProvider implements AiModelProvider {
   private buildAttachment(request: ChatRequest): string {
     const parts: string[] = [];
 
-    // TODO(fix-chain): Re-enable compactSchema serialization for chain repair scenarios.
-    // CREATE discovery should not receive open-canvas JSON in effectiveUserText.
+    // One line naming the open chain, and no more. The full compactSchema stays out for the reason
+    // it was taken out: open-canvas JSON in effectiveUserText buries CREATE discovery in element
+    // dumps. A name and an id are all the server needs to know which chain the reader is looking
+    // at, and without them it cannot tell a change request from a new integration being described.
+    const chainId =
+      request.context?.chainId ?? request.context?.compactSchema?.chainId;
+    if (request.context?.type === "chain" && chainId) {
+      const chainName = request.context.compactSchema?.chainName ?? "chain";
+      parts.push(`## Current Chain: ${chainName} (ID: ${chainId})`);
+    }
 
     if (request.attachmentUrls?.length) {
       parts.push(request.attachmentUrls.map((u) => `- ${u}`).join("\n"));
@@ -306,9 +319,12 @@ export class HttpAiModelProvider implements AiModelProvider {
       if (status === 429) {
         return new Error("Service is busy. Please try again in a moment.");
       }
-      if (status === 503) return new Error(message || "AI service is not available.");
+      if (status === 503)
+        return new Error(message || "AI service is not available.");
       if (status >= 500) {
-        return new Error(message || "AI service error. Please try again later.");
+        return new Error(
+          message || "AI service error. Please try again later.",
+        );
       }
       return new Error(message || `API error: ${status}`);
     }

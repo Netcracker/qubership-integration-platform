@@ -113,7 +113,18 @@ public class ScenarioRouter {
   }
 
   public Multi<ChatEvent> route(ChatRequest request, String conversationId) {
-    if (createRunSelectionService != null && productPipelineChatAdapter != null) {
+    // Resolved before the CREATE run is offered the turn, because a turn about a chain that already
+    // exists is not the run's to take -- not even mid-run, when the chain in question is the one
+    // the run has just built and the reader has moved on to changing it.
+    RoutingOutcome aboutOpenChain = null;
+    if (chainContextExtractor.hasChainContext(request, conversationId)) {
+      aboutOpenChain = resolveRouting(request, conversationId);
+      if (!isOpenChainScenario(aboutOpenChain.scenarioType())) {
+        aboutOpenChain = null;
+      }
+    }
+
+    if (aboutOpenChain == null && createRunSelectionService != null && productPipelineChatAdapter != null) {
       try {
         if (createRunSelectionService.existing(conversationId).isPresent()
             && !createRunFinished(conversationId)) {
@@ -128,7 +139,8 @@ public class ScenarioRouter {
       }
     }
 
-    RoutingOutcome outcome = resolveRouting(request, conversationId);
+    RoutingOutcome outcome =
+        aboutOpenChain != null ? aboutOpenChain : resolveRouting(request, conversationId);
     if (outcome.errorMessage() != null) {
       LOG.warnf(
           "Routing error response conversationId=%s message=%s",
@@ -217,15 +229,26 @@ public class ScenarioRouter {
       return applyPostRoutingEffects(managedImport.get(), conversationId);
     }
 
+    boolean hasChainContext = chainContextExtractor.hasChainContext(request, conversationId);
+    ScenarioType hint = request.getScenarioHint();
+    // The UI hints the page it is on, not what the reader asked for: the chain screen sends
+    // IMPLEMENT_CHAIN with every message. Obeying that with a chain open turns every change request
+    // into a new CREATE run, so a CREATE-owned hint yields to the classifier once a chain is in
+    // context. Hints outside CREATE still decide -- they name a scenario, not a screen.
+    boolean hintDecides = hint != null && !(hasChainContext && isCreateOwnedScenario(hint));
+
     ScenarioType resolved;
-    boolean explicitScenarioHint = request.getScenarioHint() != null;
-    if (explicitScenarioHint) {
-      LOG.infof(
-          "Routing uses explicit scenarioHint=%s (classifier skipped)", request.getScenarioHint());
-      resolved = request.getScenarioHint();
+    if (hintDecides) {
+      LOG.infof("Routing uses explicit scenarioHint=%s (classifier skipped)", hint);
+      resolved = hint;
     } else {
+      if (hint != null) {
+        LOG.infof(
+            "Routing ignores CREATE-owned scenarioHint=%s: a chain is in context, classifying instead",
+            hint);
+      }
       try {
-        resolved = classify(request, conversationId, phase);
+        resolved = classify(request, conversationId, phase, hasChainContext);
       } catch (Exception e) {
         if (phase == ConversationPhase.COLD || phase == ConversationPhase.DISCOVERY) {
           LOG.warnf(
@@ -279,9 +302,11 @@ public class ScenarioRouter {
   }
 
   private ScenarioType classify(
-      ChatRequest request, String conversationId, ConversationPhase phase) {
+      ChatRequest request,
+      String conversationId,
+      ConversationPhase phase,
+      boolean hasChainContext) {
     String userMessage = request.getEffectiveUserText();
-    boolean hasChainContext = chainContextExtractor.hasChainContext(request, conversationId);
 
     Optional<ScenarioType> phaseRoute =
         PhaseRoutingPolicy.tryResolve(
@@ -339,6 +364,16 @@ public class ScenarioRouter {
       return ScenarioType.CREATE_CHAIN_PLAN;
     }
     return type;
+  }
+
+  /**
+   * Scenarios that speak about a chain the catalog already holds.
+   *
+   * <p>These are the turns a bound CREATE run must let go of: the reader has stopped describing
+   * what to build and started working on what is built.
+   */
+  private static boolean isOpenChainScenario(ScenarioType type) {
+    return type == ScenarioType.COMPARE_AND_PATCH || type == ScenarioType.ASK_CHAIN;
   }
 
   private static boolean isCreateOwnedScenario(ScenarioType type) {

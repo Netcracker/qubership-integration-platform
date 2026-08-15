@@ -223,6 +223,105 @@ class ScenarioRouterTest {
         facade);
   }
 
+  /**
+   * The chain screen sends IMPLEMENT_CHAIN with every message, whatever the reader typed. Obeying
+   * that hint is what turned "delete the audit step" into a fresh CREATE run.
+   */
+  @Test
+  void createOwnedHintYieldsToTheClassifierWhenAChainIsOpen() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
+    when(routerAgent.classify(any(), anyString(), any())).thenReturn(ScenarioType.COMPARE_AND_PATCH);
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.IMPLEMENT_CHAIN);
+    request.setResolvedEffectiveUserText("delete the audit step");
+
+    ScenarioRouter.RoutingOutcome outcome = router.resolveRouting(request, CONVERSATION_ID);
+
+    assertEquals(ScenarioType.COMPARE_AND_PATCH, outcome.scenarioType());
+  }
+
+  /** A hint outside CREATE names a scenario rather than a screen, so it still decides. */
+  @Test
+  void nonCreateHintStillDecidesWhenAChainIsOpen() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.ASK_CHAIN);
+    request.setResolvedEffectiveUserText("what does this chain do");
+
+    ScenarioRouter.RoutingOutcome outcome = router.resolveRouting(request, CONVERSATION_ID);
+
+    assertEquals(ScenarioType.ASK_CHAIN, outcome.scenarioType());
+  }
+
+  /** Without a chain in context there is nothing to patch, so the hint is honored as before. */
+  @Test
+  void createOwnedHintStillDecidesWithoutAChainInContext() {
+    requirementDraftStore.put(CONVERSATION_ID, new RequirementDraft(true, "vision"));
+    ChatRequest request = new ChatRequest();
+    request.setScenarioHint(ScenarioType.CREATE_CHAIN_PLAN);
+    request.setResolvedEffectiveUserText("delete the audit step");
+
+    ScenarioRouter.RoutingOutcome outcome = router.resolveRouting(request, CONVERSATION_ID);
+
+    assertEquals(ScenarioType.CREATE_CHAIN_PLAN, outcome.scenarioType());
+  }
+
+  /**
+   * The chain the run just built is the chain the reader now wants changed. An unfinished run that
+   * kept this turn would answer a change request with the next step of its own plan.
+   */
+  @Test
+  void unfinishedCreateRunLetsGoOfATurnAboutTheChainItBuilt() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
+    when(routerAgent.classify(any(), anyString(), any())).thenReturn(ScenarioType.COMPARE_AND_PATCH);
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioHandler handler = mock(ScenarioHandler.class);
+    when(handler.handle(any(), anyString(), any()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("patch")));
+    when(handlers.get()).thenReturn(handler);
+    ScenarioRouter productRouter =
+        boundRouter(adapter, snapshotWith(CreateChainExecutionStatus.WORKING));
+
+    var events =
+        productRouter
+            .route(patchRequest(), CONVERSATION_ID)
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    assertEquals(
+        "patch",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    org.mockito.Mockito.verify(adapter, org.mockito.Mockito.never()).handle(any(), anyString());
+  }
+
+  /** A turn that is not about the open chain still belongs to the run that is mid-flight. */
+  @Test
+  void unfinishedCreateRunKeepsATurnThatIsNotAboutTheOpenChain() {
+    when(chainContextExtractor.hasChainContext(any(), anyString())).thenReturn(true);
+    when(routerAgent.classify(any(), anyString(), any()))
+        .thenReturn(ScenarioType.GATHER_REQUIREMENTS);
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    when(adapter.handle(any(), anyString()))
+        .thenReturn(
+            io.smallrye.mutiny.Multi.createFrom()
+                .item(org.qubership.integration.platform.ai.chat.ChatEvent.token("product")));
+    ScenarioRouter productRouter =
+        boundRouter(adapter, snapshotWith(CreateChainExecutionStatus.WORKING));
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("I also need a second integration for invoices");
+
+    var events =
+        productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(
+        "product",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+  }
+
   @Test
   void nonCreateHintDoesNotSelectProductRun() {
     CreateRunSelectionService selection = mock(CreateRunSelectionService.class);

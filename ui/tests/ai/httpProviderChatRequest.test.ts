@@ -81,6 +81,88 @@ describe("HttpAiModelProvider chat() request body", () => {
   });
 });
 
+describe("HttpAiModelProvider chat() chain context", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("should name the open chain in the attachment when a chain is in context", async () => {
+    mockPost.mockResolvedValue({ data: { messages: [] } });
+    const provider = new HttpAiModelProvider("https://ai.example.com");
+
+    await provider.chat({
+      messages: buildMessages(),
+      context: {
+        type: "chain",
+        chainId: "chain-42",
+        compactSchema: {
+          chainId: "chain-42",
+          chainName: "Order sync",
+          elements: [],
+          connections: [],
+        },
+      },
+    });
+
+    const [, body] = mockPost.mock.calls[0] as [string, Record<string, unknown>];
+    expect(body.attachment).toContain(
+      "## Current Chain: Order sync (ID: chain-42)",
+    );
+  });
+
+  it("should keep the element dump out of the attachment when a chain is in context", async () => {
+    mockPost.mockResolvedValue({ data: { messages: [] } });
+    const provider = new HttpAiModelProvider("https://ai.example.com");
+
+    await provider.chat({
+      messages: buildMessages(),
+      context: {
+        type: "chain",
+        chainId: "chain-42",
+        compactSchema: {
+          chainId: "chain-42",
+          chainName: "Order sync",
+          elements: [
+            { id: "element-script", type: "script", name: "Normalize payload" },
+          ],
+          connections: [],
+        },
+      },
+    });
+
+    const [, body] = mockPost.mock.calls[0] as [string, Record<string, unknown>];
+    expect(body.attachment).not.toContain("Normalize payload");
+  });
+
+  it("should send no scenario hint when a chain is open", async () => {
+    mockPost.mockResolvedValue({ data: { messages: [] } });
+    const provider = new HttpAiModelProvider("https://ai.example.com");
+
+    await provider.chat({
+      messages: buildMessages(),
+      context: { type: "chain", chainId: "chain-42" },
+    });
+
+    const [, body] = mockPost.mock.calls[0] as [string, Record<string, unknown>];
+    // An open chain is a place, not an instruction: the server classifies what was asked.
+    expect(body.scenarioHint).toBeNull();
+  });
+
+  it("should still send an explicit scenario hint when the caller sets one", async () => {
+    mockPost.mockResolvedValue({ data: { messages: [] } });
+    const provider = new HttpAiModelProvider("https://ai.example.com");
+
+    await provider.chat({
+      messages: buildMessages(),
+      scenarioHint: "COMPARE_AND_PATCH",
+      context: { type: "chain", chainId: "chain-42" },
+    });
+
+    const [, body] = mockPost.mock.calls[0] as [string, Record<string, unknown>];
+    expect(body.scenarioHint).toBe("COMPARE_AND_PATCH");
+  });
+});
+
 describe("HttpAiModelProvider streamChat() request body", () => {
   const originalFetch = global.fetch;
 
