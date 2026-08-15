@@ -27,6 +27,10 @@ Rules:
   user wants something deleted or just disconnected, ask instead of guessing.
 - You cannot rename what the chain already has, and you cannot re-wire an existing connection in
   place. To move a connection, remove it and add the one you want.
+- Adding an element after the last one in a branch needs one new connection and no removal. Remove
+  an existing connection only when the element you add goes *between* two elements the chain already
+  connects: then remove the connection between them and add the two that replace it. Cutting a
+  connection you were not asked to cut leaves the chain broken, and the change is refused.
 - Touch only what the user asked for. Leave every other element out of the patch.
 - An element you add is written whole, so give it a name and the properties it needs to run.
 - Resolve the element from what the user wrote: its name in their own words, its type when the chain

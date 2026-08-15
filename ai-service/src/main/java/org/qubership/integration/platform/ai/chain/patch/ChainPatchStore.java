@@ -18,10 +18,18 @@ public class ChainPatchStore {
   private final ConcurrentHashMap<String, ChainPatchCapture> captures = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, ProposedChainPatch> proposals = new ConcurrentHashMap<>();
 
+  /**
+   * Adds what the model just submitted to whatever it already submitted this turn.
+   *
+   * <p>Not a replace: a model that splits one edit across two tool calls would otherwise have all
+   * but its last call discarded without a word, and the fragment that survived would be applied as
+   * if it were the whole change. The turn's first act is {@link #takeCapture}, so nothing carries
+   * over from the turn before.
+   */
   public void putCapture(String conversationId, ChainPatchCapture capture) {
     Objects.requireNonNull(conversationId, "conversationId");
     Objects.requireNonNull(capture, "capture");
-    captures.put(conversationId, capture);
+    captures.merge(conversationId, capture, ChainPatchCapture::mergedWith);
   }
 
   /** Reads the capture and clears it, so a turn that captures nothing cannot reuse an old one. */
