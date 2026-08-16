@@ -258,13 +258,19 @@ query parameter beside `offset`. Both are supersets of what this plan uses; the 
 
 **Files:**
 - Create: `ui/src/hooks/useTestingServiceAvailability.ts`
-- Create: `ui/tests/hooks/useTestingServiceAvailability.test.ts`
+- Create: `ui/tests/hooks/useTestingServiceAvailability.test.tsx`
 
-- [ ] resolve availability from `isVsCode`, a successful mode response, and `production === false`
-- [ ] use TanStack Query with retries disabled and a long stale time — an absent service must not produce a retry storm
-- [ ] treat any network or non-200 result as unavailable rather than an error surfaced to the user
-- [ ] write tests for all four outcomes, wrapping the hook in a `QueryClientProvider`
-- [ ] run `npm -w @netcracker/qip-ui test` - must pass before next task
+- [x] resolve availability from `isVsCode`, a successful mode response, and `production === false`
+- [x] use TanStack Query with retries disabled and a long stale time — an absent service must not produce a retry storm
+- [x] treat any network or non-200 result as unavailable rather than an error surfaced to the user
+- [x] write tests for all four outcomes, wrapping the hook in a `QueryClientProvider`
+- [x] run `npm -w @netcracker/qip-ui test` - must pass before next task
+
+➕ The test file is `.tsx`, not the `.ts` the plan named: the `QueryClientProvider` wrapper is JSX, as in
+`tests/hooks/useActionLog.test.tsx`.
+
+➕ The query is disabled outright under `isVsCode` rather than only having its result ignored, so the offline editor
+issues no request at all. `isLoading` is likewise reported false there, since nothing is pending.
 
 ### Task 3: Filter mapping and the shared list hook
 
