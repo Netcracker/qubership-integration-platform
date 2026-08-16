@@ -98,6 +98,20 @@ import {
   type MCPSystemCreateRequest,
   type MCPSystemUpdateRequest,
   ChainSnapshot,
+  TestingServiceMode,
+  TestingSelectionSpecification,
+  TestingListOptions,
+  TestingSortOrder,
+  TestCase,
+  TestCaseView,
+  TestCaseRequest,
+  TestingImportResult,
+  EndpointMock,
+  EndpointMockRequest,
+  TestsRunView,
+  TestsRunSource,
+  TestCaseRunView,
+  TestingValidationError,
 } from "../apiTypes.ts";
 import { Api } from "../api.ts";
 import { getFileFromResponse } from "../../misc/download-utils.ts";
@@ -2399,6 +2413,290 @@ export class RestApi implements Api {
           accept: "*/*",
         },
       },
+    );
+    return response.data;
+  };
+
+  private readonly testing = (): string => `${this.v1()}/testing-service`;
+
+  private readonly testingListParams = (
+    options?: TestingListOptions,
+  ): Record<string, string> => {
+    const params: Record<string, string> = {};
+    if (options?.offset) {
+      params.offset = options.offset.toString(10);
+    }
+    if (options?.sortBy) {
+      params.sort_by = options.sortBy;
+      params.sort_order = options.sortOrder ?? TestingSortOrder.ASC;
+    }
+    return params;
+  };
+
+  private readonly listTestingEntities = async <T>(
+    resource: string,
+    specification: TestingSelectionSpecification,
+    options?: TestingListOptions,
+  ): Promise<T[]> => {
+    const response = await this.instance.post<T[]>(
+      `${this.testing()}/${resource}`,
+      specification,
+      { params: this.testingListParams(options) },
+    );
+    return response.data;
+  };
+
+  // Ids of everything the specification selects, unpaginated: what a selection
+  // reaching beyond the loaded page acts on.
+  private readonly listTestingEntityIds = async (
+    resource: string,
+    specification: TestingSelectionSpecification,
+  ): Promise<string[]> => {
+    const response = await this.instance.post<string[]>(
+      `${this.testing()}/${resource}`,
+      specification,
+      { params: { return_ids: true } },
+    );
+    return response.data;
+  };
+
+  private readonly getTestingEntity = async <T>(
+    resource: string,
+    id: string,
+  ): Promise<T> => {
+    const response = await this.instance.get<T>(
+      `${this.testing()}/${resource}/${id}`,
+    );
+    return response.data;
+  };
+
+  // The bulk endpoints take the ids in the request body, which axios sends for a
+  // DELETE only through the data option.
+  private readonly deleteTestingEntities = async (
+    resource: string,
+    ids: string[],
+  ): Promise<void> => {
+    await this.instance.delete(`${this.testing()}/${resource}`, { data: ids });
+  };
+
+  private readonly importTestingEntities = async (
+    resource: string,
+    files: File[],
+  ): Promise<TestingImportResult[]> => {
+    const formData: FormData = new FormData();
+    files.forEach((file) => formData.append("file", file, file.name));
+    const headers = new AxiosHeaders();
+    headers.set("Content-Type", "multipart/form-data");
+    headers.set("accept", "*/*");
+    const response = await this.instance.post<TestingImportResult[]>(
+      `${this.testing()}/${resource}/import`,
+      formData,
+      { headers },
+    );
+    return response.data;
+  };
+
+  private readonly exportTestingEntities = async (
+    path: string,
+    ids: string[],
+  ): Promise<File> => {
+    const response = await this.instance.post<Blob>(
+      `${this.testing()}/${path}`,
+      ids,
+      { responseType: "blob" },
+    );
+    return getFileFromResponse(response);
+  };
+
+  getTestingServiceMode = async (): Promise<TestingServiceMode> => {
+    const response = await this.instance.get<TestingServiceMode>(
+      `${this.testing()}/mode`,
+    );
+    return response.data;
+  };
+
+  getTestCases = async (
+    specification: TestingSelectionSpecification,
+    options?: TestingListOptions,
+  ): Promise<TestCaseView[]> =>
+    this.listTestingEntities<TestCaseView>(
+      "test-cases",
+      specification,
+      options,
+    );
+
+  getTestCaseIds = async (
+    specification: TestingSelectionSpecification,
+  ): Promise<string[]> =>
+    this.listTestingEntityIds("test-cases", specification);
+
+  getTestCase = async (id: string): Promise<TestCase> =>
+    this.getTestingEntity<TestCase>("test-cases", id);
+
+  createTestCase = async (testCase: TestCaseRequest): Promise<TestCase> => {
+    const response = await this.instance.post<TestCase>(
+      `${this.testing()}/test-cases/create`,
+      testCase,
+    );
+    return response.data;
+  };
+
+  updateTestCase = async (
+    id: string,
+    testCase: TestCaseRequest,
+  ): Promise<TestCase> => {
+    const response = await this.instance.post<TestCase>(
+      `${this.testing()}/test-cases/${id}`,
+      testCase,
+    );
+    return response.data;
+  };
+
+  deleteTestCases = async (ids: string[]): Promise<void> =>
+    this.deleteTestingEntities("test-cases", ids);
+
+  importTestCases = async (files: File[]): Promise<TestingImportResult[]> =>
+    this.importTestingEntities("test-cases", files);
+
+  exportTestCases = async (ids: string[]): Promise<File> =>
+    this.exportTestingEntities("test-cases/export", ids);
+
+  getEndpointMocks = async (
+    specification: TestingSelectionSpecification,
+    options?: TestingListOptions,
+  ): Promise<EndpointMock[]> =>
+    this.listTestingEntities<EndpointMock>(
+      "endpoint-mocks",
+      specification,
+      options,
+    );
+
+  getEndpointMockIds = async (
+    specification: TestingSelectionSpecification,
+  ): Promise<string[]> =>
+    this.listTestingEntityIds("endpoint-mocks", specification);
+
+  getEndpointMock = async (id: string): Promise<EndpointMock> =>
+    this.getTestingEntity<EndpointMock>("endpoint-mocks", id);
+
+  createEndpointMock = async (
+    endpointMock: EndpointMockRequest,
+  ): Promise<EndpointMock> => {
+    const response = await this.instance.post<EndpointMock>(
+      `${this.testing()}/endpoint-mocks/create`,
+      endpointMock,
+    );
+    return response.data;
+  };
+
+  updateEndpointMock = async (
+    id: string,
+    endpointMock: EndpointMockRequest,
+  ): Promise<EndpointMock> => {
+    const response = await this.instance.post<EndpointMock>(
+      `${this.testing()}/endpoint-mocks/${id}`,
+      endpointMock,
+    );
+    return response.data;
+  };
+
+  deleteEndpointMocks = async (ids: string[]): Promise<void> =>
+    this.deleteTestingEntities("endpoint-mocks", ids);
+
+  importEndpointMocks = async (files: File[]): Promise<TestingImportResult[]> =>
+    this.importTestingEntities("endpoint-mocks", files);
+
+  exportEndpointMocks = async (ids: string[]): Promise<File> =>
+    this.exportTestingEntities("endpoint-mocks/export", ids);
+
+  getTestsRuns = async (
+    specification: TestingSelectionSpecification,
+    options?: TestingListOptions,
+  ): Promise<TestsRunView[]> =>
+    this.listTestingEntities<TestsRunView>(
+      "tests-runs",
+      specification,
+      options,
+    );
+
+  getTestsRunIds = async (
+    specification: TestingSelectionSpecification,
+  ): Promise<string[]> =>
+    this.listTestingEntityIds("tests-runs", specification);
+
+  getTestsRun = async (id: string): Promise<TestsRunView> =>
+    this.getTestingEntity<TestsRunView>("tests-runs", id);
+
+  deleteTestsRuns = async (ids: string[]): Promise<void> =>
+    this.deleteTestingEntities("tests-runs", ids);
+
+  cancelTestsRuns = async (ids: string[]): Promise<void> => {
+    await this.instance.post(`${this.testing()}/tests-runs/cancel`, ids);
+  };
+
+  exportTestsRuns = async (ids: string[]): Promise<File> =>
+    this.exportTestingEntities("tests-runs/export", ids);
+
+  // Restarting names the entity kind the ids belong to; starting from test cases
+  // is the default the service assumes when the parameter is left out.
+  startTestsRun = async (
+    ids: string[],
+    from?: TestsRunSource,
+  ): Promise<string> => {
+    const response = await this.instance.post<string>(
+      `${this.testing()}/tests-runs/create`,
+      ids,
+      from ? { params: { from } } : undefined,
+    );
+    return response.data;
+  };
+
+  getTestCaseRuns = async (
+    specification: TestingSelectionSpecification,
+    options?: TestingListOptions,
+  ): Promise<TestCaseRunView[]> =>
+    this.listTestingEntities<TestCaseRunView>(
+      "test-case-runs",
+      specification,
+      options,
+    );
+
+  getTestCaseRunIds = async (
+    specification: TestingSelectionSpecification,
+  ): Promise<string[]> =>
+    this.listTestingEntityIds("test-case-runs", specification);
+
+  getTestCaseRun = async (id: string): Promise<TestCaseRunView> =>
+    this.getTestingEntity<TestCaseRunView>("test-case-runs", id);
+
+  cancelTestCaseRuns = async (ids: string[]): Promise<void> => {
+    await this.instance.post(`${this.testing()}/test-case-runs/cancel`, ids);
+  };
+
+  exportTestCaseRuns = async (ids: string[]): Promise<File> =>
+    this.exportTestingEntities("test-case-runs/export", ids);
+
+  // The matchers are what makes an error readable, so the errors page always asks
+  // for them.
+  getTestCaseRunErrors = async (
+    testCaseRunId: string,
+  ): Promise<TestingValidationError[]> => {
+    const response = await this.instance.get<TestingValidationError[]>(
+      `${this.testing()}/test-case-runs/${testCaseRunId}/errors`,
+      { params: { withMatchers: true } },
+    );
+    return response.data;
+  };
+
+  exportTestCaseRunErrors = async (ids: string[]): Promise<File> =>
+    this.exportTestingEntities("test-case-runs/errors/export", ids);
+
+  // A case run records the id the chain was started with, not the session id.
+  getSessionByExternalId = async (
+    externalSessionId: string,
+  ): Promise<Session> => {
+    const response = await this.instance.get<Session>(
+      `${this.v1()}/sessions-management/sessions/external-id/${externalSessionId}`,
     );
     return response.data;
   };

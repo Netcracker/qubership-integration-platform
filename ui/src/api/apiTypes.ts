@@ -1514,3 +1514,234 @@ export interface DiscoveryResponse {
 export interface ChainElementCodeResponse {
   code: string;
 }
+
+// Testing service payloads. Field names mirror the service responses exactly.
+
+export type TestingServiceMode = {
+  production: boolean;
+};
+
+export enum MatcherType {
+  EMPTY = "empty",
+  EXIST = "exist",
+  EQUAL = "equal",
+  CONTAIN = "contain",
+  MATCH = "match",
+  START_WITH = "start_with",
+  END_WITH = "end_with",
+  MATCH_JSON_SCHEMA = "match_json_schema",
+  MATCH_JSON = "match_json",
+}
+
+export enum MatcherEntityType {
+  BODY = "body",
+  HEADER = "header",
+  STATUS = "status",
+  QUERY_PARAMETER = "query_parameter",
+  PATH_PARAMETER = "path_parameter",
+}
+
+export enum TestRunStatus {
+  PENDING = "pending",
+  RUNNING = "running",
+  CANCELED = "canceled",
+  FINISHED = "finished",
+  SKIPPED = "skipped",
+}
+
+export type TestingAuditFields = {
+  createdBy: string | null;
+  createdAt: string | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
+};
+
+export type TestingHeader = {
+  name: string;
+  value: string;
+};
+
+export type TestingMessage = {
+  body: string | null;
+  headers: TestingHeader[] | null;
+};
+
+export type TestingNamedParameter = {
+  name: string;
+  value: string;
+};
+
+export type TestingRequestSettings = {
+  queryParameters: TestingNamedParameter[] | null;
+  pathParameters: TestingNamedParameter[] | null;
+  message: TestingMessage | null;
+  method: string;
+  timeout: number;
+};
+
+export type TestingResponseSettings = {
+  message: TestingMessage | null;
+  status: number;
+  delay: number;
+};
+
+export type TriggerReference = {
+  chainId: string;
+  elementId: string;
+};
+
+export type EndpointReference = {
+  chainId: string;
+  elementId: string;
+};
+
+export type TestingMatcherParameter = {
+  name: string;
+  value: string;
+};
+
+// The service assigns an id on save, so matchers built in the editor have none yet.
+export type TestingMatcher = {
+  id?: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  type: MatcherType;
+  entityType: MatcherEntityType;
+  entityName: string | null;
+  parameters: TestingMatcherParameter[] | null;
+};
+
+export type TestCase = TestingAuditFields & {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  triggerReference: TriggerReference | null;
+  requestSettings: TestingRequestSettings | null;
+  responseValidationRules: TestingMatcher[] | null;
+};
+
+// The chain and element of a list row come from triggerReference: the view's own
+// chain_id and element_id are filter and sort columns, and stay out of the payload.
+export type TestCaseView = TestCase & {
+  validationRuleCount: number;
+  enabledRuleCount: number;
+};
+
+export type EndpointMock = TestingAuditFields & {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  endpointReference: EndpointReference | null;
+  responseSettings: TestingResponseSettings | null;
+  requestMatchers: TestingMatcher[] | null;
+};
+
+// Create and update take the whole entity; the service owns the id and the audit fields.
+export type TestCaseRequest = Omit<TestCase, "id" | keyof TestingAuditFields>;
+
+export type EndpointMockRequest = Omit<
+  EndpointMock,
+  "id" | keyof TestingAuditFields
+>;
+
+export type TestsRunView = TestingAuditFields & {
+  id: string;
+  start: string | null;
+  finish: string | null;
+  status: TestRunStatus | null;
+  errors: number;
+  testCases: number;
+};
+
+export type TestCaseRunView = {
+  id: string;
+  testsRunId: string | null;
+  testCaseId: string | null;
+  testCaseName: string | null;
+  testCaseDescription: string | null;
+  chainId: string | null;
+  start: string | null;
+  finish: string | null;
+  status: TestRunStatus | null;
+  sessionId: string | null;
+  ordinal: number | null;
+  errors: number;
+};
+
+export type TestingValidationError = {
+  id: string;
+  testCaseRunId: string | null;
+  matcherId: string | null;
+  matcher: TestingMatcher | null;
+  message: string;
+};
+
+export enum TestingImportStatus {
+  CREATED = "created",
+  UPDATED = "updated",
+  ERROR = "error",
+}
+
+export type TestingImportResult = {
+  archive: string;
+  fileName: string;
+  entityId: string | null;
+  entityName: string | null;
+  result: TestingImportStatus;
+  message: string;
+};
+
+// Wire tokens of the selection conditions. The service validates them on every
+// list call and answers an unknown one with 400.
+export enum TestingFilterCondition {
+  IS = "is",
+  IS_NOT = "is_not",
+  CONTAINS = "contains",
+  DOES_NOT_CONTAIN = "does_not_contain",
+  STARTS_WITH = "starts_with",
+  ENDS_WITH = "ends_with",
+  IN = "in",
+  NOT_IN = "not_in",
+  EMPTY = "empty",
+  NOT_EMPTY = "not_empty",
+  IS_AFTER = "is_after",
+  IS_BEFORE = "is_before",
+  IS_WITHIN = "is_within",
+  LESS_THAN = "less_than",
+  GREATER_THAN = "greater_than",
+}
+
+export type TestingFilter = {
+  feature: string;
+  condition: TestingFilterCondition;
+  values: string[];
+};
+
+export type TestingSelectionSpecification = {
+  ids?: string[];
+  searchText?: string;
+  filters?: TestingFilter[];
+};
+
+export enum TestingSortOrder {
+  ASC = "ASC",
+  DESC = "DESC",
+}
+
+// The page size is server-controlled, so a list request sends the offset alone.
+export type TestingListOptions = {
+  offset?: number;
+  sortBy?: string;
+  sortOrder?: TestingSortOrder;
+};
+
+// Entity kind the ids of a run request name. Starting from test cases is the
+// default, and restarting names the runs to take the cases from.
+export enum TestsRunSource {
+  TEST_CASES = "test_cases",
+  TESTS_RUNS = "tests_runs",
+  TEST_CASE_RUNS = "test_case_runs",
+}

@@ -11,6 +11,14 @@ import type {
   MCPSystemUpdateRequest,
   SecretWithVariables,
   Variable,
+  TestingServiceMode,
+  TestCase,
+  TestCaseView,
+  TestingImportResult,
+  EndpointMock,
+  TestsRunView,
+  TestCaseRunView,
+  TestingValidationError,
 } from "../apiTypes.ts";
 import {
   AccessControlResponse,
@@ -1187,7 +1195,9 @@ export class VSCodeExtensionApi implements Api {
   getImportInstructions(): Promise<GeneralImportInstructions> {
     throw new Error("Method getImportInstructions not implemented.");
   }
-  filterImportInstructions(_filters: EntityFilterModel[]): Promise<GeneralImportInstructions> {
+  filterImportInstructions(
+    _filters: EntityFilterModel[],
+  ): Promise<GeneralImportInstructions> {
     throw new Error("Method filterImportInstructions not implemented.");
   }
   addImportInstruction(
@@ -1272,6 +1282,136 @@ export class VSCodeExtensionApi implements Api {
 
   extractChain(): Promise<Chain> {
     throw new Error("Method extractChain not implemented.");
+  }
+
+  // The testing service is a backend the offline editor never reaches.
+
+  getTestingServiceMode(): Promise<TestingServiceMode> {
+    throw new Error("Method getTestingServiceMode not implemented.");
+  }
+
+  getTestCases(): Promise<TestCaseView[]> {
+    throw new Error("Method getTestCases not implemented.");
+  }
+
+  getTestCaseIds(): Promise<string[]> {
+    throw new Error("Method getTestCaseIds not implemented.");
+  }
+
+  getTestCase(): Promise<TestCase> {
+    throw new Error("Method getTestCase not implemented.");
+  }
+
+  createTestCase(): Promise<TestCase> {
+    throw new Error("Method createTestCase not implemented.");
+  }
+
+  updateTestCase(): Promise<TestCase> {
+    throw new Error("Method updateTestCase not implemented.");
+  }
+
+  deleteTestCases(): Promise<void> {
+    throw new Error("Method deleteTestCases not implemented.");
+  }
+
+  importTestCases(): Promise<TestingImportResult[]> {
+    throw new Error("Method importTestCases not implemented.");
+  }
+
+  exportTestCases(): Promise<File> {
+    throw new Error("Method exportTestCases not implemented.");
+  }
+
+  getEndpointMocks(): Promise<EndpointMock[]> {
+    throw new Error("Method getEndpointMocks not implemented.");
+  }
+
+  getEndpointMockIds(): Promise<string[]> {
+    throw new Error("Method getEndpointMockIds not implemented.");
+  }
+
+  getEndpointMock(): Promise<EndpointMock> {
+    throw new Error("Method getEndpointMock not implemented.");
+  }
+
+  createEndpointMock(): Promise<EndpointMock> {
+    throw new Error("Method createEndpointMock not implemented.");
+  }
+
+  updateEndpointMock(): Promise<EndpointMock> {
+    throw new Error("Method updateEndpointMock not implemented.");
+  }
+
+  deleteEndpointMocks(): Promise<void> {
+    throw new Error("Method deleteEndpointMocks not implemented.");
+  }
+
+  importEndpointMocks(): Promise<TestingImportResult[]> {
+    throw new Error("Method importEndpointMocks not implemented.");
+  }
+
+  exportEndpointMocks(): Promise<File> {
+    throw new Error("Method exportEndpointMocks not implemented.");
+  }
+
+  getTestsRuns(): Promise<TestsRunView[]> {
+    throw new Error("Method getTestsRuns not implemented.");
+  }
+
+  getTestsRunIds(): Promise<string[]> {
+    throw new Error("Method getTestsRunIds not implemented.");
+  }
+
+  getTestsRun(): Promise<TestsRunView> {
+    throw new Error("Method getTestsRun not implemented.");
+  }
+
+  deleteTestsRuns(): Promise<void> {
+    throw new Error("Method deleteTestsRuns not implemented.");
+  }
+
+  cancelTestsRuns(): Promise<void> {
+    throw new Error("Method cancelTestsRuns not implemented.");
+  }
+
+  exportTestsRuns(): Promise<File> {
+    throw new Error("Method exportTestsRuns not implemented.");
+  }
+
+  startTestsRun(): Promise<string> {
+    throw new Error("Method startTestsRun not implemented.");
+  }
+
+  getTestCaseRuns(): Promise<TestCaseRunView[]> {
+    throw new Error("Method getTestCaseRuns not implemented.");
+  }
+
+  getTestCaseRunIds(): Promise<string[]> {
+    throw new Error("Method getTestCaseRunIds not implemented.");
+  }
+
+  getTestCaseRun(): Promise<TestCaseRunView> {
+    throw new Error("Method getTestCaseRun not implemented.");
+  }
+
+  cancelTestCaseRuns(): Promise<void> {
+    throw new Error("Method cancelTestCaseRuns not implemented.");
+  }
+
+  exportTestCaseRuns(): Promise<File> {
+    throw new Error("Method exportTestCaseRuns not implemented.");
+  }
+
+  getTestCaseRunErrors(): Promise<TestingValidationError[]> {
+    throw new Error("Method getTestCaseRunErrors not implemented.");
+  }
+
+  exportTestCaseRunErrors(): Promise<File> {
+    throw new Error("Method exportTestCaseRunErrors not implemented.");
+  }
+
+  getSessionByExternalId(): Promise<Session> {
+    throw new Error("Method getSessionByExternalId not implemented.");
   }
 }
 

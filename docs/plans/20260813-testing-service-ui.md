@@ -241,12 +241,18 @@ here would be the largest invisible cost in the plan.
 - Modify: `ui/src/api/apiTypes.ts`, `ui/src/api/api.ts`, `ui/src/api/rest/restApi.ts`, `ui/src/api/rest/vscodeExtensionApi.ts`
 - Create: `ui/tests/api/rest/restApi.testing.test.ts`
 
-- [ ] add DTOs to `apiTypes.ts` mirroring the REST payloads exactly, including run views and the import result
-- [ ] declare the **complete** endpoint set from Technical Details on `Api` — list with `return_ids`, get one, create, update, delete-with-body, cancel, multipart import, all four exports, run/restart with the `from` query parameter, run errors, errors export, mode, plus the sessions-management lookup by external session id
-- [ ] implement them in `RestApi` using `${this.v1()}/testing-service` and `getFileFromResponse` for exports
-- [ ] add offline stubs in `VSCodeExtensionApi` following the existing "not implemented" pattern
-- [ ] write tests for request shaping (filters, pagination with `offset` only, sorting, `return_ids`), the delete body, the multipart import, restart variants including the omitted `from`, and export handling
-- [ ] run `npm -w @netcracker/qip-ui test` - must pass before next task
+- [x] add DTOs to `apiTypes.ts` mirroring the REST payloads exactly, including run views and the import result
+- [x] declare the **complete** endpoint set from Technical Details on `Api` — list with `return_ids`, get one, create, update, delete-with-body, cancel, multipart import, all four exports, run/restart with the `from` query parameter, run errors, errors export, mode, plus the sessions-management lookup by external session id
+- [x] implement them in `RestApi` using `${this.v1()}/testing-service` and `getFileFromResponse` for exports
+- [x] add offline stubs in `VSCodeExtensionApi` following the existing "not implemented" pattern
+- [x] write tests for request shaping (filters, pagination with `offset` only, sorting, `return_ids`), the delete body, the multipart import, restart variants including the omitted `from`, and export handling
+- [x] run `npm -w @netcracker/qip-ui test` - must pass before next task
+
+➕ `TestCaseView` does not serialize its `chain_id` / `element_id` columns (`json:"-"`): they are filter and sort
+features only. List rows read the chain and the element off `triggerReference`, which Task 6 has to follow.
+
+➕ The service accepts `empty` and `not_empty` conditions beyond the table in Technical Details, and an optional `limit`
+query parameter beside `offset`. Both are supersets of what this plan uses; the client keeps sending `offset` alone.
 
 ### Task 2: Availability hook
 
