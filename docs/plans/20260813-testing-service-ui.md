@@ -451,15 +451,39 @@ that the request tab of task 8 needs as well.
 - Create: `ui/src/components/testing/testCase/*.tsx`
 - Create: `ui/tests/pages/testing/TestCasePage.test.tsx`
 
-- [ ] build three routed sub-tabs — general, request, response-validation — with the index redirect to general
-- [ ] request tab: trigger picker filtered to `http-trigger`, method list from `httpMethodRestrict`, timeout, path and query parameters, headers, body
-- [ ] response-validation tab: the matchers table in response mode
-- [ ] gate save on name, chain, element, method and matcher validity, returning to the list afterwards
-- [ ] guard navigation away from unsaved changes
-- [ ] support the read-only variant reached from the admin list
-- [ ] use `Script.tsx` for the body editor and `tests/helpers/fakeMonaco.ts` in tests
-- [ ] write tests for sub-tab routing, dirty-state guarding, validation gating, read-only mode and the save payload
-- [ ] run `npm -w @netcracker/qip-ui test` - must pass before next task
+- [x] build three routed sub-tabs — general, request, response-validation — with the index redirect to general
+- [x] request tab: trigger picker filtered to `http-trigger`, method list from `httpMethodRestrict`, timeout, path and query parameters, headers, body
+- [x] response-validation tab: the matchers table in response mode
+- [x] gate save on name, chain, element, method and matcher validity, returning to the list afterwards
+- [x] guard navigation away from unsaved changes
+- [x] support the read-only variant reached from the admin list
+- [x] use `Script.tsx` for the body editor and `tests/helpers/fakeMonaco.ts` in tests
+- [x] write tests for sub-tab routing, dirty-state guarding, validation gating, read-only mode and the save payload
+- [x] run `npm -w @netcracker/qip-ui test` - must pass before next task
+
+➕ The page owns the draft and hands it to the routed sub-tabs through the router outlet context
+(`useTestCaseEditor`), so a tab switch is a navigation rather than a remount of the editor. Save sends the whole
+entity, which is what `POST /test-cases/{id}` takes: the service replaces the trigger reference, the request settings
+and every matcher from the body (`internal/services/test_cases_service.go`), so client-side matcher ids are dropped
+and reassigned. The request-settings shape re-read off `internal/dao/model.go` agrees with the plan and with
+`apiTypes.ts` field for field.
+
+➕ The unsaved-changes guard is written inline rather than through
+`components/services/useUnsavedChangesWithModal.tsx`: that hook reads a state flag, and a save that clears the flag
+and navigates in the same tick would still be blocked by its own navigation. The blocker here reads a ref, which the
+save clears before leaving.
+
+➕ Name and value pairs — path parameters, query parameters and headers — share
+`ui/src/components/testing/NameValueTable.tsx` rather than living under `testCase/`, since the mock editor of task 10
+needs the same control for its response headers.
+
+➕ `Script` is stubbed in the page test instead of `tests/helpers/fakeMonaco.ts`: the helper fakes the Monaco module
+for `Script`'s own test, while this suite exercises the editor around the body field. The body editor uses the `json`
+mode, the only alternative to `groovy` that `Script` offers.
+
+➕ A jsdom test cannot navigate a react-router data router — `useBlocker` needs one — because jsdom ships no fetch
+API and every navigation builds a `Request`. `ui/tests/helpers/dataRouterGlobals.ts` installs a minimal one for the
+suites that render `createMemoryRouter`.
 
 ### Task 9: Endpoint mocks list and modals
 

@@ -71,6 +71,10 @@ import { BrowserTabTitle } from "./components/BrowserTabTitle.tsx";
 import { TestingGuard, TestingLayout } from "./pages/testing/TestingLayout.tsx";
 import { TestingPlaceholder } from "./pages/testing/TestingPlaceholder.tsx";
 import { TestCases } from "./pages/testing/TestCases.tsx";
+import { TestCasePage } from "./pages/testing/TestCasePage.tsx";
+import { TestCaseGeneralTab } from "./components/testing/testCase/TestCaseGeneralTab.tsx";
+import { TestCaseRequestTab } from "./components/testing/testCase/TestCaseRequestTab.tsx";
+import { TestCaseResponseValidationTab } from "./components/testing/testCase/TestCaseResponseValidationTab.tsx";
 
 const { Header, Content } = Layout;
 
@@ -159,24 +163,13 @@ const router = createBrowserRouter(
               path="test-cases"
               element={<TestCases variant="admin-page" />}
             />
-            <Route
-              path="test-cases/:testCaseId"
-              element={<TestingPlaceholder name="Test case" />}
-            >
+            <Route path="test-cases/:testCaseId" element={<TestCasePage />}>
               <Route index element={<Navigate to="general" replace />} />
-              <Route
-                path="general"
-                element={<TestingPlaceholder name="Test case general" />}
-              />
-              <Route
-                path="request"
-                element={<TestingPlaceholder name="Test case request" />}
-              />
+              <Route path="general" element={<TestCaseGeneralTab />} />
+              <Route path="request" element={<TestCaseRequestTab />} />
               <Route
                 path="response-validation"
-                element={
-                  <TestingPlaceholder name="Test case response validation" />
-                }
+                element={<TestCaseResponseValidationTab />}
               />
             </Route>
             <Route
@@ -255,24 +248,13 @@ const router = createBrowserRouter(
             <Route element={<TestingLayout />}>
               <Route index element={<Navigate to="test-cases" replace />} />
               <Route path="test-cases" element={<TestCases />} />
-              <Route
-                path="test-cases/:testCaseId"
-                element={<TestingPlaceholder name="Test case" />}
-              >
+              <Route path="test-cases/:testCaseId" element={<TestCasePage />}>
                 <Route index element={<Navigate to="general" replace />} />
-                <Route
-                  path="general"
-                  element={<TestingPlaceholder name="Test case general" />}
-                />
-                <Route
-                  path="request"
-                  element={<TestingPlaceholder name="Test case request" />}
-                />
+                <Route path="general" element={<TestCaseGeneralTab />} />
+                <Route path="request" element={<TestCaseRequestTab />} />
                 <Route
                   path="response-validation"
-                  element={
-                    <TestingPlaceholder name="Test case response validation" />
-                  }
+                  element={<TestCaseResponseValidationTab />}
                 />
               </Route>
               <Route
