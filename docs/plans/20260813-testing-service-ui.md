@@ -279,13 +279,26 @@ issues no request at all. `isLoading` is likewise reported false there, since no
 - Create: `ui/src/hooks/testing/useTestingEntityList.ts`
 - Create: `ui/tests/hooks/filter/useTestingFilter.test.ts`, `ui/tests/hooks/testing/useTestingEntityList.test.ts`
 
-- [ ] implement the condition table from Technical Details in one module, including `not_in`, the `IS_WITHIN` degradation and the 24-hour timestamp format — both differ from what the Angular client sends, and both of its versions are broken against this backend
-- [ ] define the filter features per entity, and resolve chain and element filters into id sets client-side
-- [ ] build the shared list hook: selection specification assembly, offset pagination, sort mapping, select-all through `return_ids`, export to file, refresh, and the chain-versus-global variance
-- [ ] resolve chain and element names from a single chains fetch, falling back to raw ids — no per-chain fan-out
-- [ ] short-circuit an empty chain or element name resolution to an empty result instead of sending an `in` with no values, which the backend rejects
-- [ ] write tests for every condition mapping, the timestamp format, select-all target resolution, the empty-resolution case, and the chain/global variance
-- [ ] run `npm -w @netcracker/qip-ui test` - must pass before next task
+- [x] implement the condition table from Technical Details in one module, including `not_in`, the `IS_WITHIN` degradation and the 24-hour timestamp format — both differ from what the Angular client sends, and both of its versions are broken against this backend
+- [x] define the filter features per entity, and resolve chain and element filters into id sets client-side
+- [x] build the shared list hook: selection specification assembly, offset pagination, sort mapping, select-all through `return_ids`, export to file, refresh, and the chain-versus-global variance
+- [x] resolve chain and element names from a single chains fetch, falling back to raw ids — no per-chain fan-out
+- [x] short-circuit an empty chain or element name resolution to an empty result instead of sending an `in` with no values, which the backend rejects
+- [x] write tests for every condition mapping, the timestamp format, select-all target resolution, the empty-resolution case, and the chain/global variance
+- [x] run `npm -w @netcracker/qip-ui test` - must pass before next task
+
+➕ No feature of any entity declares `empty` or `not_empty`, so neither condition is offered on a column: the
+description filter uses the plain string conditions rather than `DescriptionFilterConditions`. Feature and sort-field
+sets come from `internal/dao/*_repository.go`, which is also where the sortable sets differ from the filterable ones —
+runs filter by chain but do not sort by it.
+
+➕ A negated name filter (`is not`, `does not contain`) resolves the matching names and sends `not_in`, and an empty
+resolution drops it instead of emptying the list; the plan settles only the positive case, where an empty resolution
+still short-circuits.
+
+➕ `/v1/catalog/chains` answers without elements, so element names resolve only inside a chain, from one
+`getElements(chainId)` call. Global lists keep the raw element id, and the element filter column appears only in the
+chain-scoped variant. Filter column ids are the wire feature names themselves, except the two name-resolved ones.
 
 ### Task 4: Routing, guard and section shells
 
