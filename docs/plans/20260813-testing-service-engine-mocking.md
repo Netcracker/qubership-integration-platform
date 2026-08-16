@@ -182,11 +182,19 @@ catalog writing a property an older engine cannot bind fails at route-build time
 - Create: `engine/src/main/java/org/qubership/integration/platform/engine/service/testing/TestingContext.java`
 - Create: `engine/src/test/java/org/qubership/integration/platform/engine/service/testing/TestingContextTest.java`
 
-- [ ] cross-check field names and casing against the Go struct in `testing-service/internal/model` before writing the class
-- [ ] add `TestingContext` carrying `chainId`, `elementId`, `operationPath`, `path`, serialized as UTF-8 JSON and encoded with `Base64.getEncoder()` — standard alphabet, padded, no line breaks
-- [ ] write tests for encoding, including null and empty fields, characters requiring escaping, and a `path` containing a query string
-- [ ] pin one golden base64 literal for a fixed input, choosing a fixture whose encoding contains `+` or `/` and padding — otherwise the standard and URL-safe alphabets coincide and the literal proves nothing. The same literal is asserted in micro-engine and decoded in plan 1's Go test, which is what pins all three implementations
-- [ ] run `mvn -pl engine -am test -Dgpg.skip=true` - must pass before next task
+- [x] cross-check field names and casing against the Go struct in `testing-service/internal/model` before writing the class
+- [x] add `TestingContext` carrying `chainId`, `elementId`, `operationPath`, `path`, serialized as UTF-8 JSON and encoded with `Base64.getEncoder()` — standard alphabet, padded, no line breaks
+- [x] write tests for encoding, including null and empty fields, characters requiring escaping, and a `path` containing a query string
+- [x] pin one golden base64 literal for a fixed input, choosing a fixture whose encoding contains `+` or `/` and padding — otherwise the standard and URL-safe alphabets coincide and the literal proves nothing. The same literal is asserted in micro-engine and decoded in plan 1's Go test, which is what pins all three implementations
+- [x] run `mvn -pl engine -am test -Dgpg.skip=true` - must pass before next task
+
+➕ Two golden literals, not one: plan 1's `goldenTestingContextHeader` encodes identically under the standard and the
+URL-safe alphabets, so it cannot catch `Base64.getUrlEncoder()`. A second literal — path `/orders/7?status=NEW&filter=price>100`,
+whose encoding carries `+`, `/` and padding — was added to the engine test and to plan 1's Go test, which decodes it.
+Only decoding is pinned on the Go side: `json.Marshal` escapes `>` for HTML safety and the engine does not, so the two
+encoders disagree byte for byte on that fixture. Task 4 asserts both literals in `micro-engine`.
+
+⚠️ Checkstyle rejects Cyrillic characters in sources (`cyrillicChars` rule), so the non-ASCII test uses accented Latin.
 
 ### Task 2: `TestingService` implementation in `engine`
 

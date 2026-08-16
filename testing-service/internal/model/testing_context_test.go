@@ -21,6 +21,23 @@ var goldenTestingContext = TestingContext{
 
 const goldenTestingContextHeader = "eyJjaGFpbklkIjoiY2hhaW4tMSIsImVsZW1lbnRJZCI6ImVsZW1lbnQtMSIsIm9wZXJhdGlvblBhdGgiOiIvb3JkZXJzL3tvcmRlcklkfSIsInBhdGgiOiIvb3JkZXJzLzQyIn0="
 
+// alphabetTestingContextHeader is a second literal pinned by the engine tests. Unlike the golden header above, its
+// encoding contains + and /, which the URL-safe alphabet spells differently. Only decoding is asserted, because
+// json.Marshal escapes the > in the path for HTML safety and the engine does not.
+const alphabetTestingContextHeader = "eyJjaGFpbklkIjoiY2hhaW4tMSIsImVsZW1lbnRJZCI6ImVsZW1lbnQtMSIsIm9wZXJhdGlvblBhdGgiOiIvb3JkZXJzL3tvcmRlcklkfSIsInBhdGgiOiIvb3JkZXJzLzc/c3RhdHVzPU5FVyZmaWx0ZXI9cHJpY2U+MTAwIn0="
+
+func TestDecodeTestingContextReadsTheAlphabetHeader(t *testing.T) {
+	got, err := DecodeTestingContext(alphabetTestingContextHeader)
+
+	require.NoError(t, err)
+	assert.Equal(t, &TestingContext{
+		ChainID:       "chain-1",
+		ElementID:     "element-1",
+		OperationPath: "/orders/{orderId}",
+		Path:          "/orders/7?status=NEW&filter=price>100",
+	}, got)
+}
+
 func TestDecodeTestingContextReadsTheGoldenHeader(t *testing.T) {
 	got, err := DecodeTestingContext(goldenTestingContextHeader)
 
