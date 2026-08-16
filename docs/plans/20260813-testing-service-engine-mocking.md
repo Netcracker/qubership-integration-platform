@@ -250,15 +250,24 @@ itself comes from `spring-boot-test`.
 - Modify: `micro-engine/src/main/resources/application.yml`
 - Create: `micro-engine/src/test/java/org/qubership/integration/platform/engine/service/testing/EndpointMockTestingServiceTest.java`
 
-- [ ] port the context encoding and assert the same golden base64 literal as Task 1 — the two modules cannot see each other, so a shared literal is the only practical drift check
-- [ ] map the fields explicitly: `operationPath` comes from `endpointInfo.getPath()`, which despite its name carries the operation template; `path` comes from the live request inside the interceptor
-- [ ] implement the three methods against `EndpointInfo`, which is not extended
-- [ ] annotate the bean with both `@LookupIfProperty` and `@Unremovable` — without the latter ArC removes it, the lookup returns empty, and mocking silently never happens
-- [ ] add the two properties to this module's `application.yml`, which currently has no `qip.testing` entry
-- [ ] pass `operationPath` through unchanged when it arrives as the literal string `null` for `http-sender` elements — there is nothing to handle on the Java side, the degradation happens in the Go matcher and is expected
-- [ ] do not attempt an automated registration test: `@QuarkusComponentTest` runs neither the build step that generates `@LookupIfProperty` suppression nor bean removal, so it would pass regardless of the property. Cover behavior with unit tests and verify the on/off switch manually in Task 6
-- [ ] write the same behavioral test set as Task 2
-- [ ] run `mvn -pl micro-engine -am test -Dgpg.skip=true` - must pass before next task
+- [x] port the context encoding and assert the same golden base64 literal as Task 1 — the two modules cannot see each other, so a shared literal is the only practical drift check
+- [x] map the fields explicitly: `operationPath` comes from `endpointInfo.getPath()`, which despite its name carries the operation template; `path` comes from the live request inside the interceptor
+- [x] implement the three methods against `EndpointInfo`, which is not extended
+- [x] annotate the bean with both `@LookupIfProperty` and `@Unremovable` — without the latter ArC removes it, the lookup returns empty, and mocking silently never happens
+- [x] add the two properties to this module's `application.yml`, which currently has no `qip.testing` entry
+- [x] pass `operationPath` through unchanged when it arrives as the literal string `null` for `http-sender` elements — there is nothing to handle on the Java side, the degradation happens in the Go matcher and is expected
+- [x] do not attempt an automated registration test: `@QuarkusComponentTest` runs neither the build step that generates `@LookupIfProperty` suppression nor bean removal, so it would pass regardless of the property. Cover behavior with unit tests and verify the on/off switch manually in Task 6
+- [x] write the same behavioral test set as Task 2
+- [x] run `mvn -pl micro-engine -am test -Dgpg.skip=true` - must pass before next task
+
+➕ Both golden literals from Task 1 are asserted, not one, for the reason recorded there. They live in a dedicated
+`micro-engine/.../TestingContextTest.java` — one file beyond the list above — mirroring the engine module rather than
+folding encoding assertions into the service test.
+
+➕ The address is read with `@ConfigProperty` on a constructor parameter, as `CamelServletMetricsTagsContributor` does,
+which keeps the class constructible from a plain unit test. `qip.testing.enabled` is read by `@LookupIfProperty` alone.
+The snapshot-versus-design-time id trap does not exist here: `EndpointInfo.elementId` already carries the design-time
+id, so Task 2's dedicated test has no counterpart.
 
 ### Task 5: Local stack wiring
 
