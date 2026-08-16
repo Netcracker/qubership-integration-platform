@@ -18,12 +18,15 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.PropertyPatch;
 public record ChainPatchCapture(
     @Description("Short id for this patch") String patchId,
     @Description(
-            "Element changes: ADD with a new node id of your choosing, or REMOVE naming an existing"
-                + " targetNodeId")
+            "Element changes, one entry per element. To add: operation ADD and the whole element in"
+                + " node, with an id you invent in node.nodeId. To delete: operation REMOVE and the"
+                + " existing element's id in targetNodeId. Never split one element across two"
+                + " entries")
         List<NodePatch> nodePatches,
     @Description(
-            "Connection changes: ADD with a new edge id of your choosing, or REMOVE naming an"
-                + " existing targetEdgeId")
+            "Connection changes, one entry per connection. To add: operation ADD and the whole"
+                + " connection in edge, with an id you invent in edge.edgeId. To delete: operation"
+                + " REMOVE and the existing connection's id in targetEdgeId")
         List<EdgePatch> edgePatches,
     @Description("Property changes, each naming the node id it applies to")
         List<PropertyPatch> propertyPatches,

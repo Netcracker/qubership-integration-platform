@@ -45,6 +45,7 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwners
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipValidator;
 import org.qubership.integration.platform.ai.qipknowledge.patch.PropertyPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPatchApplier;
+import org.qubership.integration.platform.ai.schema.ChainElementCatalog;
 
 class ChainPatchScenarioTest {
 
@@ -96,6 +97,7 @@ class ChainPatchScenarioTest {
             semanticValidator,
             writer,
             new CanonicalGraphDigest(objectMapper),
+            new ChainElementCatalog(objectMapper),
             objectMapper);
   }
 

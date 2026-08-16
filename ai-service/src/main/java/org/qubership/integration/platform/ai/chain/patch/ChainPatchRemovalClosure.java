@@ -59,10 +59,9 @@ public final class ChainPatchRemovalClosure {
     if (!conflicts.isEmpty()) {
       return new Expansion(patch, conflicts);
     }
-    if (removedNodeIds.isEmpty()) {
-      return new Expansion(patch, List.of());
-    }
 
+    // Always a LinkedHashSet, empty or not: an edge with no scope asks it about a null, which the
+    // immutable empty set answers with an exception rather than false.
     Set<String> closure = withDescendants(base, removedNodeIds);
     List<NodePatch> expandedNodes = new ArrayList<>(nodePatches);
     for (String nodeId : closure) {
@@ -71,12 +70,21 @@ public final class ChainPatchRemovalClosure {
       }
     }
 
-    Set<String> alreadyRemovedEdgeIds = removedEdgeIds(edgePatches);
+    Set<String> alreadyRemovedEdgeIds = new LinkedHashSet<>(removedEdgeIds(edgePatches));
     List<EdgePatch> expandedEdges = new ArrayList<>(edgePatches);
     for (ChainPlanEdge edge : incidentEdges(base, closure)) {
-      if (!alreadyRemovedEdgeIds.contains(edge.edgeId())) {
+      if (alreadyRemovedEdgeIds.add(edge.edgeId())) {
         expandedEdges.add(new EdgePatch(GraphPatchOperation.REMOVE, null, edge.edgeId()));
       }
+    }
+    for (ChainPlanEdge edge : replacedEdges(base, nodePatches, edgePatches)) {
+      if (alreadyRemovedEdgeIds.add(edge.edgeId())) {
+        expandedEdges.add(new EdgePatch(GraphPatchOperation.REMOVE, null, edge.edgeId()));
+      }
+    }
+
+    if (expandedNodes.size() == nodePatches.size() && expandedEdges.size() == edgePatches.size()) {
+      return new Expansion(patch, List.of());
     }
 
     return new Expansion(
@@ -114,6 +122,75 @@ public final class ChainPatchRemovalClosure {
       }
     }
     return closure;
+  }
+
+  /**
+   * The connections an inserted element takes the place of.
+   *
+   * <p>Putting an element between two that are already joined means the join it replaces has to go,
+   * and a model that forgets that leaves a fork: the chain runs both the old way round and the new
+   * one. Nobody asked for a fork, so the patch is grown to what "between" actually means instead of
+   * relying on the model to remember -- cutting a connection can be undone by drawing it again,
+   * which is what makes deriving this safe where deriving an element removal would not be.
+   *
+   * <p>It fires only on the exact shape it can be sure of: the patch adds {@code N}, joins
+   * {@code A -> N} and {@code N -> B}, and the chain already joins {@code A -> B}. Appending to the
+   * end of a branch has no such {@code A -> B} and is left alone.
+   */
+  private static List<ChainPlanEdge> replacedEdges(
+      ChainPlanGraph base, List<NodePatch> nodePatches, List<EdgePatch> edgePatches) {
+    Set<String> addedNodeIds = addedNodeIds(nodePatches);
+    if (addedNodeIds.isEmpty() || base.edges() == null) {
+      return List.of();
+    }
+    List<ChainPlanEdge> addedEdges = addedEdges(edgePatches);
+    List<ChainPlanEdge> replaced = new ArrayList<>();
+    for (String addedNodeId : addedNodeIds) {
+      for (ChainPlanEdge into : addedEdges) {
+        if (!addedNodeId.equals(into.toNodeId())) {
+          continue;
+        }
+        for (ChainPlanEdge outOf : addedEdges) {
+          if (!addedNodeId.equals(outOf.fromNodeId())) {
+            continue;
+          }
+          for (ChainPlanEdge existing : base.edges()) {
+            if (existing != null
+                && existing.edgeId() != null
+                && java.util.Objects.equals(existing.fromNodeId(), into.fromNodeId())
+                && java.util.Objects.equals(existing.toNodeId(), outOf.toNodeId())) {
+              replaced.add(existing);
+            }
+          }
+        }
+      }
+    }
+    return replaced;
+  }
+
+  private static Set<String> addedNodeIds(List<NodePatch> nodePatches) {
+    Set<String> added = new LinkedHashSet<>();
+    for (NodePatch nodePatch : nodePatches) {
+      if (nodePatch != null
+          && nodePatch.operation() == GraphPatchOperation.ADD
+          && nodePatch.node() != null
+          && nodePatch.node().nodeId() != null) {
+        added.add(nodePatch.node().nodeId());
+      }
+    }
+    return added;
+  }
+
+  private static List<ChainPlanEdge> addedEdges(List<EdgePatch> edgePatches) {
+    List<ChainPlanEdge> added = new ArrayList<>();
+    for (EdgePatch edgePatch : edgePatches) {
+      if (edgePatch != null
+          && edgePatch.operation() == GraphPatchOperation.ADD
+          && edgePatch.edge() != null) {
+        added.add(edgePatch.edge());
+      }
+    }
+    return added;
   }
 
   private static List<ChainPlanEdge> incidentEdges(ChainPlanGraph base, Set<String> nodeIds) {

@@ -26,6 +26,7 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplyResult;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchShapeValidator;
 import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPatchApplier;
+import org.qubership.integration.platform.ai.schema.ChainElementCatalog;
 
 /**
  * Drives the COMPARE_AND_PATCH pipeline against an existing catalog chain for a regression run,
@@ -48,6 +49,7 @@ public class ChainPatchHarnessService {
   private final ValidatedGraphPatchApplier patchApplier;
   private final ChainPatchSemanticValidator semanticValidator;
   private final ChainPatchWriter writer;
+  private final ChainElementCatalog elementCatalog;
   private final ObjectMapper objectMapper;
 
   @Inject
@@ -60,6 +62,7 @@ public class ChainPatchHarnessService {
       ValidatedGraphPatchApplier patchApplier,
       ChainPatchSemanticValidator semanticValidator,
       ChainPatchWriter writer,
+      ChainElementCatalog elementCatalog,
       ObjectMapper objectMapper) {
     this.factsService = factsService;
     this.importer = importer;
@@ -69,6 +72,7 @@ public class ChainPatchHarnessService {
     this.patchApplier = patchApplier;
     this.semanticValidator = semanticValidator;
     this.writer = writer;
+    this.elementCatalog = elementCatalog;
     this.objectMapper = objectMapper;
   }
 
@@ -103,7 +107,8 @@ public class ChainPatchHarnessService {
                   toolSessionContext,
                   agent.chat(
                       conversationId,
-                      ChainPatchPipeline.buildPatchRequest(objectMapper, imported.graph(), prompt)))
+                      ChainPatchPipeline.buildPatchRequest(
+                          objectMapper, imported.graph(), prompt, elementCatalog)))
               .collect()
               .asList()
               .await()

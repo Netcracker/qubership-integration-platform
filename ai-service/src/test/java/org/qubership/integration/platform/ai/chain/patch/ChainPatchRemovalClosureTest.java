@@ -113,6 +113,82 @@ class ChainPatchRemovalClosureTest {
     assertEquals(0, ChainPatchRemovalClosure.cascadeCount(chain(), removeNode("tail")));
   }
 
+  /**
+   * Inserting between two joined elements replaces the join. A patch that only adds the two new
+   * connections leaves the old one in place, and the chain runs both ways round -- a fork nobody
+   * asked for, which no validator refuses because a fork is legal.
+   */
+  @Test
+  void cutsTheConnectionAnInsertedElementReplaces() {
+    ChainPatchRemovalClosure.Expansion expansion =
+        ChainPatchRemovalClosure.expand(pipeline(), insertBetween("a", "b"));
+
+    assertTrue(expansion.coherent());
+    assertEquals(Set.of("a->b"), removedEdgeIds(expansion.patch()));
+  }
+
+  @Test
+  void leavesTheChainAloneWhenTheNewElementGoesOnTheEnd() {
+    // b is last: there is no a->b style connection the new element stands in for.
+    ChainPatchRemovalClosure.Expansion expansion =
+        ChainPatchRemovalClosure.expand(pipeline(), insertBetween("b", "new-tail"));
+
+    assertTrue(expansion.coherent());
+    assertTrue(removedEdgeIds(expansion.patch()).isEmpty());
+  }
+
+  /** Only the join being stood in for goes; the rest of the chain is not the patch's business. */
+  @Test
+  void leavesTheConnectionsOnEitherSideOfTheInsertUntouched() {
+    ChainPatchRemovalClosure.Expansion expansion =
+        ChainPatchRemovalClosure.expand(pipeline(), insertBetween("a", "b"));
+
+    Set<String> survivors =
+        expansion.patch().edgePatches().stream()
+            .filter(edgePatch -> edgePatch.operation() == GraphPatchOperation.REMOVE)
+            .map(EdgePatch::targetEdgeId)
+            .collect(Collectors.toSet());
+    assertTrue(!survivors.contains("trigger->a"));
+    assertTrue(!survivors.contains("b->c"));
+  }
+
+  /** trigger -> a -> b -> c, a flat run with something on either side of every join. */
+  private static ChainPlanGraph pipeline() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("Order sync", null),
+        List.of(
+            new ChainPlanNode("trigger", "http-trigger", "Receive", null, null, List.of()),
+            new ChainPlanNode("a", "script", "A", null, null, List.of()),
+            new ChainPlanNode("b", "script", "B", null, null, List.of()),
+            new ChainPlanNode("c", "service-call", "C", null, null, List.of())),
+        List.of(
+            new ChainPlanEdge("trigger->a", "trigger", "a", null),
+            new ChainPlanEdge("a->b", "a", "b", null),
+            new ChainPlanEdge("b->c", "b", "c", null)));
+  }
+
+  /** Adds "mapper" and joins {@code from -> mapper -> to}, naming no removal of its own. */
+  private static GraphPatch insertBetween(String from, String to) {
+    return new GraphPatch(
+        "p",
+        "chain-patch",
+        List.of(
+            new NodePatch(
+                GraphPatchOperation.ADD,
+                new ChainPlanNode("mapper", "mapper-2", "Mapper", null, null, List.of()),
+                null)),
+        List.of(
+            new EdgePatch(
+                GraphPatchOperation.ADD, new ChainPlanEdge("new-in", from, "mapper", null), null),
+            new EdgePatch(
+                GraphPatchOperation.ADD, new ChainPlanEdge("new-out", "mapper", to, null), null)),
+        List.of(),
+        null,
+        List.of(),
+        "");
+  }
+
   private static Set<String> removedNodeIds(GraphPatch patch) {
     return patch.nodePatches().stream()
         .filter(nodePatch -> nodePatch.operation() == GraphPatchOperation.REMOVE)

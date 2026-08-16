@@ -52,6 +52,25 @@ public class ChainElementCatalog {
     return elementsByType.keySet();
   }
 
+  /**
+   * Every type a patch may add, newest form only.
+   *
+   * <p>What a model is told it can build from. Without it the only types it ever sees are the ones
+   * the open chain already holds, so adding anything else is a guess at the catalog's spelling --
+   * {@code mapper} for {@code mapper-2}, refused by the ownership policy as an unknown type.
+   * Deprecated types are left out: offering them invites new chains built on the old form.
+   *
+   * <p>Bare type names, no titles. The titles read as prose and, set out one per line, turned a
+   * reference list into the longest passage in the request -- enough to pull a small model's
+   * attention off the change it was asked to make. The names carry the meaning on their own.
+   */
+  public List<String> availableTypeLines() {
+    return elementsByType.values().stream()
+        .filter(entry -> !entry.deprecated())
+        .map(ElementEntry::type)
+        .toList();
+  }
+
   public Set<String> deprecatedTypes() {
     return elementsByType.entrySet().stream()
         .filter(entry -> entry.getValue().deprecated())

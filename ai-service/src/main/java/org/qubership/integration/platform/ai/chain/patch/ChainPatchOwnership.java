@@ -39,8 +39,12 @@ public class ChainPatchOwnership {
   }
 
   /**
-   * @param mayRemove whether this caller may delete. Off unless the caller says otherwise: deletion
-   *     is the one thing here nothing downstream can take back.
+   * @param mayRemove whether this caller may delete <em>elements</em>. Off unless the caller says
+   *     otherwise: a deleted element is the one thing here nothing downstream can take back.
+   *     Connections are not gated by it. A connection carries no id or property of its own, so
+   *     cutting one is undone by drawing it again, and the pipeline has to be free to cut one on its
+   *     own account -- inserting an element between two that are joined means the join it replaces
+   *     goes with it.
    */
   public GraphPatchOwnershipPolicy forChain(
       ChainPlanGraph graph, GraphPatch patch, boolean mayRemove) {
@@ -60,7 +64,7 @@ public class ChainPatchOwnership {
       }
     }
     return new GraphPatchOwnershipPolicy(
-        true, true, mayRemove, mayRemove, Set.copyOf(properties.keySet()), Set.of(), properties);
+        true, true, mayRemove, true, Set.copyOf(properties.keySet()), Set.of(), properties);
   }
 
   private void addType(Map<String, Set<String>> properties, String type) {

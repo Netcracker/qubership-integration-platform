@@ -35,6 +35,7 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplyResult;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchShapeValidator;
 import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPatchApplier;
+import org.qubership.integration.platform.ai.schema.ChainElementCatalog;
 
 /**
  * Changes part of a chain the user already has in the catalog.
@@ -60,6 +61,7 @@ public class ChainPatchScenario implements ScenarioHandler {
   private final ChainPatchSemanticValidator semanticValidator;
   private final ChainPatchWriter writer;
   private final CanonicalGraphDigest canonicalGraphDigest;
+  private final ChainElementCatalog elementCatalog;
   private final ObjectMapper objectMapper;
 
   @Inject
@@ -74,6 +76,7 @@ public class ChainPatchScenario implements ScenarioHandler {
       ChainPatchSemanticValidator semanticValidator,
       ChainPatchWriter writer,
       CanonicalGraphDigest canonicalGraphDigest,
+      ChainElementCatalog elementCatalog,
       ObjectMapper objectMapper) {
     this.chainContextExtractor = Objects.requireNonNull(chainContextExtractor);
     this.factsService = Objects.requireNonNull(factsService);
@@ -85,6 +88,7 @@ public class ChainPatchScenario implements ScenarioHandler {
     this.semanticValidator = Objects.requireNonNull(semanticValidator);
     this.writer = Objects.requireNonNull(writer);
     this.canonicalGraphDigest = Objects.requireNonNull(canonicalGraphDigest);
+    this.elementCatalog = elementCatalog;
     this.objectMapper = Objects.requireNonNull(objectMapper);
   }
 
@@ -123,7 +127,8 @@ public class ChainPatchScenario implements ScenarioHandler {
     return agent
         .chat(
             conversationId,
-            ChainPatchPipeline.buildPatchRequest(objectMapper, imported.graph(), userMessage))
+            ChainPatchPipeline.buildPatchRequest(
+                objectMapper, imported.graph(), userMessage, elementCatalog))
         .collect()
         .asList()
         .onItem()

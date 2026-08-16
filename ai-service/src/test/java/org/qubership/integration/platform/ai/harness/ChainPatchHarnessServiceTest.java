@@ -41,6 +41,7 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwners
 import org.qubership.integration.platform.ai.qipknowledge.patch.NodePatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.PropertyPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPatchApplier;
+import org.qubership.integration.platform.ai.schema.ChainElementCatalog;
 
 class ChainPatchHarnessServiceTest {
 
@@ -85,6 +86,7 @@ class ChainPatchHarnessServiceTest {
             new ValidatedGraphPatchApplier(new GraphPatchOwnershipValidator(), new GraphPatchApplier()),
             semanticValidator,
             writer,
+            new ChainElementCatalog(objectMapper),
             objectMapper);
   }
 

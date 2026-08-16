@@ -11,6 +11,7 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplyR
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
+import org.qubership.integration.platform.ai.schema.ChainElementCatalog;
 
 /**
  * Assembles a chain patch attempt from a model capture, shared by every caller that drives the
@@ -74,24 +75,35 @@ public final class ChainPatchPipeline {
   }
 
   public static String buildPatchRequest(
-      ObjectMapper objectMapper, ChainPlanGraph graph, String userMessage) {
+      ObjectMapper objectMapper,
+      ChainPlanGraph graph,
+      String userMessage,
+      ChainElementCatalog elementCatalog) {
     String graphJson;
     try {
       graphJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(graph);
     } catch (JsonProcessingException e) {
       throw new IllegalStateException("Cannot render the chain graph for the model", e);
     }
+    // The graph only shows the types the chain already holds, so on its own it leaves the model
+    // guessing the catalog's spelling for anything new -- and a guessed type is refused as unowned.
+    String elementTypes =
+        elementCatalog == null ? "" : String.join(", ", elementCatalog.availableTypeLines());
     String body =
         """
         Change this chain as the user asks.
 
-        User request:
+        Reference -- element types that exist, for adding an element of a type the chain does not
+        have yet. Use one exactly as written here; no other type exists:
         %s
 
         Chain graph (the current state of the chain; node ids are catalog element ids):
         %s
+
+        User request:
+        %s
         """
-            .formatted(userMessage, graphJson);
+            .formatted(elementTypes, graphJson, userMessage);
     return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body);
   }
 }
