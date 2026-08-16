@@ -58,10 +58,11 @@ implementations are duplicated rather than shared. The field mapping follows fro
 | `path` | the live request target, read inside the interceptor, query included |
 
 `EndpointInfo.path` carries the **operation template**, not a request path. The builder's `operationPath(String)` setter
-writes the field and runtime-catalog's `HttpSenderBeansBinder` fills it: `integrationOperationPath` for a
-`service-call`, `contextPath ?? integrationOperationPath ?? "null"` for an `http-sender` — which has neither, so the
-literal string `null` arrives. It is passed through unchanged; path-parameter matching then degrades to a no-op in the
-Go matcher, which is expected.
+writes the field, and runtime-catalog's `HttpSenderBeansBinder` fills it with a single expression,
+`contextPath ?? integrationOperationPath ?? "null"`, for every element type it handles: `http-sender`, `graphql-sender`
+and a `service-call` over `http` or `graphql`. A `service-call` with a `contextPath` therefore sends that value, and an
+`http-sender` has neither property, so the literal string `null` arrives. The value is passed through unchanged;
+path-parameter matching then degrades to a no-op in the Go matcher, which is expected.
 
 Do not extend `EndpointInfo` to carry more. The builder has no data of its own, so a new field means a matching change
 in runtime-catalog, and Camel binds those properties by setter name: a catalog writing a property an older engine cannot

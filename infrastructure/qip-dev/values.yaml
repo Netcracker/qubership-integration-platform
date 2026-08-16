@@ -19,7 +19,8 @@ global:
       # Endpoint mocking in the engine. With it on, an outbound HTTP call with no
       # matching mock gets a 404 instead of reaching the real endpoint, so turn it
       # on only while someone is testing. The engine picks the change up on a
-      # restart; no chain needs a redeploy.
+      # restart; no chain needs a redeploy. It needs enabled: true above, and the
+      # configmap renders it off while the testing service is off.
       engineMockingEnabled: false
     deploy:
       classic:

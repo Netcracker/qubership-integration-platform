@@ -4,9 +4,11 @@ data:
   KUBE_DEV_MODE: "false"
   POSTGRES_URL: {{ .Release.Name }}-postgres:5432
   RUNTIME_CATALOG_SERVICE_URL: http://{{ .Release.Name }}-runtime-catalog:8080
-  # Rendered whatever the flag says: the deployment reads this key, and a missing
-  # one pins the pod in CreateContainerConfigError.
-  TESTING_SERVICE_ENABLED: {{ .Values.global.qip.testingService.engineMockingEnabled | default false | quote }}
+  # Mocking needs the testing service, so both flags have to be on: with the service
+  # off the engine would point at a Service that is never created. Rendered whatever
+  # the flags say, because the deployment reads this key and a missing one pins the
+  # pod in CreateContainerConfigError.
+  TESTING_SERVICE_ENABLED: "{{ if and .Values.global.qip.testingService.enabled .Values.global.qip.testingService.engineMockingEnabled }}true{{ else }}false{{ end }}"
   TESTING_SERVICE_ADDRESS: http://{{ .Release.Name }}-testing-service:8080
 kind: ConfigMap
 metadata:

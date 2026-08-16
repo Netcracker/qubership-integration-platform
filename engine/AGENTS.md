@@ -36,9 +36,11 @@ An accidentally enabled environment is visible in the log: the bean logs one `IN
 address, each mocked call adds a `DEBUG` line, and an element skipped for a missing design-time id gets a `WARN`.
 
 On Kubernetes the switch is `global.qip.testingService.engineMockingEnabled` in `infrastructure/qip-dev/values.yaml`,
-which the engine config map renders into `TESTING_SERVICE_ENABLED`. It renders whatever the flag says, because the
-deployment reads the key unconditionally and a missing one pins the pod in `CreateContainerConfigError`. In compose the
-switch is `TESTING_SERVICE_ENABLED` in `infrastructure/engine-dev.env`.
+which the engine config map renders into `TESTING_SERVICE_ENABLED` — but only together with the sibling
+`global.qip.testingService.enabled`, which gates the testing service chart itself. Mocking with that chart off would
+point the engine at a `Service` that is never created, so the config map ANDs the two. The key itself renders
+unconditionally, because the deployment reads it and a missing one pins the pod in `CreateContainerConfigError`. In
+compose the switch is `TESTING_SERVICE_ENABLED` in `infrastructure/engine-dev.env`.
 
 **A toggle takes effect on an engine restart, and no chain needs a redeploy.** On startup the engine re-processes every
 deployment as an `UPDATE` with its snapshot id unchanged, which rebuilds the HTTP client, so the first call after the
@@ -78,8 +80,8 @@ follow-up request of a redirect is a different object and gets rewritten in its 
 **Do not turn that guard back into a `request.containsHeader(TestingContext.HEADER_NAME)` check.** The header travels on
 the wire, so a caller of the chain can send it: the interceptor would return early on the first pass, leave scheme and
 authority pointing at the live endpoint, and the call would go through for real with mocking on.
-`ignoresAContextHeaderTheCallerSupplied` and `ignoresAContextHeaderTheCallerSuppliedOnTheSecondPass` pin that in both
-engines.
+`ignoresAContextHeaderTheCallerSupplied` and `ignoresAContextHeaderTheCallerSuppliedOnTheSecondPass` pin that here;
+`micro-engine` carries the same pair under its `should…` naming.
 
 An `http-sender` has no operation template, so this engine sends the element's `uri` and path-parameter matching
 degrades to a no-op. A `graphql-sender` appends `?operationName=<name>` to that `uri`; when the `uri` already carries a

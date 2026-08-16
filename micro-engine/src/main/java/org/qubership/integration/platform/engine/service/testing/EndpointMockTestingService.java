@@ -46,7 +46,9 @@ public class EndpointMockTestingService implements TestingService {
     public boolean canBeMocked(EndpointInfo endpointInfo) {
         String elementId = endpointInfo == null ? null : endpointInfo.getElementId();
         if (elementId == null || elementId.isBlank()) {
-            log.warn("An element carries no design-time id, so its calls are not mocked and reach the real endpoint");
+            log.warn("An element with operation path {} carries no design-time id, so its calls are not mocked "
+                            + "and reach the real endpoint",
+                    endpointInfo == null ? null : endpointInfo.getPath());
             return false;
         }
         return true;

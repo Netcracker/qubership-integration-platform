@@ -29,10 +29,12 @@ format is defined by the Go model ported in its Task 2.
   `properties.get(ChainProperties.ELEMENT_ID)`, which `CommonPropertiesBuilder` fills from `element.getOriginalId()`.
   Mocks are bound to the design-time id, and `micro-engine` already sends `getOriginalId()`.
 - **There is no `path` property.** `ChainProperties.PATH` is declared in both engines and written by nothing.
-- `operationPath` differs per engine and per element type: for a `service-call` both send `integrationOperationPath`;
-  for an `http-sender` `engine` sends the element's `uri`, while `micro-engine` sends
-  `contextPath ?? integrationOperationPath ?? "null"` — and an `http-sender` has neither, so the literal string `null`
-  arrives.
+- `operationPath` reaches the two engines by different routes. `engine` reads it from `ElementProperties`, which
+  `HttpProducerPropertiesBuilder` fills with `integrationOperationPath` for a `service-call` and with the element's
+  `uri` for an `http-sender` or a `graphql-sender`. `micro-engine` reads `EndpointInfo.path`, which
+  `HttpSenderBeansBinder` fills with a single expression for all three element types:
+  `contextPath ?? integrationOperationPath ?? "null"` — and an `http-sender` has neither property, so the literal
+  string `null` arrives.
 - The reverse direction is already wired: the testing service stamps `external-session-cip-id` on the trigger request,
   and `SessionsService` in both engines reads it, which is how a run is linked to a session.
 - Mock semantics match the source implementation: when no enabled mock matches, the testing service answers `404`.
@@ -289,10 +291,13 @@ turn it on, since a `helm upgrade` reverts a patched ConfigMap.
 
 ➕ The two configmap keys render unconditionally, independently of `global.qip.testingService.enabled`. Gating them on
 that flag would leave the deployment's `configMapKeyRef` pointing at absent keys whenever the testing service is turned
-off, which pins the pod in `CreateContainerConfigError`. Both settings were verified with `helm template`, walking every
-rendered `configMapKeyRef` and `secretKeyRef` against the rendered ConfigMaps and Secrets: 44 references with the
-testing service on, 38 with it off, all resolved. `docker compose config` confirms the two variables reach `qip-engine`
-and that its `depends_on` still names only postgres and opensearch.
+off, which pins the pod in `CreateContainerConfigError`. The *value* of `TESTING_SERVICE_ENABLED` does depend on it:
+the key renders `true` only when both flags are on, since `enabled: false` with `engineMockingEnabled: true` would point
+the engine at a `Service` that is never created and every outbound HTTP call would fail to connect. All four flag
+combinations, plus both flags absent, were verified with `helm template`, walking every rendered `configMapKeyRef` and
+`secretKeyRef` against the rendered ConfigMaps and Secrets: 44 references with the testing service on, 38 with it off,
+all resolved, and the key itself renders the literal `"true"` or `"false"` in each case. `docker compose config`
+confirms the two variables reach `qip-engine` and that its `depends_on` still names only postgres and opensearch.
 
 ➕ Nothing to do for `micro-engine` on Kubernetes: no chart deploys it. The runtime catalog creates micro-engine domains
 at runtime from `MICRO_DOMAIN_CONTAINER_IMAGE`, so its mocking configuration is not a chart concern.

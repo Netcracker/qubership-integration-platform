@@ -12,7 +12,9 @@ import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.message.BasicHttpRequest;
 import org.apache.hc.core5.http.protocol.BasicHttpContext;
 import org.apache.hc.core5.http.protocol.HttpContext;
+import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
@@ -30,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class EndpointMockTestingServiceTest {
 
     private static final String ADDRESS = "http://testing-service:8080";
@@ -38,55 +41,55 @@ class EndpointMockTestingServiceTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Test
-    void canBeMockedWhenTheElementIdIsPresent() {
+    void shouldMockWhenTheElementIdIsPresent() {
         assertTrue(service().canBeMocked(endpointInfo(OPERATION_PATH)));
     }
 
     @Test
-    void cannotBeMockedWhenTheElementIdIsMissing() {
+    void shouldNotMockWhenTheElementIdIsMissing() {
         assertFalse(service().canBeMocked(EndpointInfo.builder().path(OPERATION_PATH).build()));
     }
 
     @Test
-    void cannotBeMockedWhenTheElementIdIsBlank() {
+    void shouldNotMockWhenTheElementIdIsBlank() {
         assertFalse(service().canBeMocked(EndpointInfo.builder().elementId("  ").path(OPERATION_PATH).build()));
     }
 
     @Test
-    void cannotBeMockedWhenThereIsNoEndpointInfoAtAll() {
+    void shouldNotMockWhenThereIsNoEndpointInfoAtAll() {
         assertFalse(service().canBeMocked(null));
     }
 
     @Test
-    void sendsTheElementId() {
+    void shouldSendTheElementId() {
         HttpRequest request = intercept(request("http://orders:8080/orders/42"));
 
         assertEquals(ELEMENT_ID, contextField(request, "elementId"));
     }
 
     @Test
-    void sendsTheChainId() {
+    void shouldSendTheChainId() {
         HttpRequest request = intercept(request("http://orders:8080/orders/42"));
 
         assertEquals("chain-1", contextField(request, "chainId"));
     }
 
     @Test
-    void sendsTheEndpointInfoPathAsTheOperationPathTemplate() {
+    void shouldSendTheEndpointInfoPathAsTheOperationPathTemplate() {
         HttpRequest request = intercept(request("http://orders:8080/orders/42"));
 
         assertEquals(OPERATION_PATH, contextField(request, "operationPath"));
     }
 
     @Test
-    void sendsTheRequestTargetWithItsQueryString() {
+    void shouldSendTheRequestTargetWithItsQueryString() {
         HttpRequest request = intercept(request("http://orders:8080/orders/42?status=NEW&limit=10"));
 
         assertEquals("/orders/42?status=NEW&limit=10", contextField(request, "path"));
     }
 
     @Test
-    void passesTheLiteralNullOperationPathThrough() {
+    void shouldPassTheLiteralNullOperationPathThrough() {
         // An http-sender has neither a context path nor an operation path, so the builder sends the string "null".
         HttpRequest request = intercept(request("http://orders:8080/orders/42"), endpointInfo("null"));
 
@@ -95,14 +98,14 @@ class EndpointMockTestingServiceTest {
     }
 
     @Test
-    void sendsAnAbsentOperationPathAsNull() {
+    void shouldSendAnAbsentOperationPathAsNull() {
         HttpRequest request = intercept(request("http://orders:8080/orders/42"), endpointInfo(null));
 
         assertTrue(context(request).get("operationPath").isNull());
     }
 
     @Test
-    void rewritesTheRequestTargetToTheMockEndpoint() {
+    void shouldRewriteTheRequestTargetToTheMockEndpoint() {
         HttpRequest request = intercept(request("http://orders:8080/orders/42?status=NEW"));
 
         assertEquals("/api/v1/endpoint-mocks/call?status=NEW", request.getPath());
@@ -112,14 +115,14 @@ class EndpointMockTestingServiceTest {
     }
 
     @Test
-    void rewritesTheRequestTargetWhenThereIsNoQueryString() {
+    void shouldRewriteTheRequestTargetWhenThereIsNoQueryString() {
         HttpRequest request = intercept(request("http://orders:8080/orders/42"));
 
         assertEquals("/api/v1/endpoint-mocks/call", request.getPath());
     }
 
     @Test
-    void rebuildsTheContextOnEveryRequest() {
+    void shouldRebuildTheContextOnEveryRequest() {
         HttpRequestInterceptor interceptor =
                 service().buildEndpointMockInterceptor("chain-1", endpointInfo(OPERATION_PATH));
         HttpRequest first = request("http://orders:8080/orders/42");
@@ -133,7 +136,7 @@ class EndpointMockTestingServiceTest {
     }
 
     @Test
-    void keepsTheLiveTargetWhenTheSameRequestPassesThroughTwice() {
+    void shouldKeepTheLiveTargetWhenTheSameRequestPassesThroughTwice() {
         // On an authentication challenge hc5 restores the headers of the original request and runs the processor
         // over the same request again, leaving the path rewritten.
         HttpRequestInterceptor interceptor =
@@ -150,7 +153,7 @@ class EndpointMockTestingServiceTest {
     }
 
     @Test
-    void ignoresAContextHeaderTheCallerSupplied() {
+    void shouldIgnoreAContextHeaderTheCallerSupplied() {
         // Camel copies the headers of an inbound request onto the outbound one, so the header reaches the
         // interceptor from outside the engine.
         HttpRequest request = request("http://orders:8080/orders/42");
@@ -166,7 +169,7 @@ class EndpointMockTestingServiceTest {
     }
 
     @Test
-    void ignoresAContextHeaderTheCallerSuppliedOnTheSecondPass() {
+    void shouldIgnoreAContextHeaderTheCallerSuppliedOnTheSecondPass() {
         HttpRequestInterceptor interceptor =
                 service().buildEndpointMockInterceptor("chain-1", endpointInfo(OPERATION_PATH));
         HttpRequest request = request("http://orders:8080/orders/42");
@@ -180,7 +183,7 @@ class EndpointMockTestingServiceTest {
     }
 
     @Test
-    void rewritesTheFollowUpRequestOfARedirect() {
+    void shouldRewriteTheFollowUpRequestOfARedirect() {
         // hc5 builds a new request for a redirect and keeps it on the context of the same exchange.
         HttpRequestInterceptor interceptor =
                 service().buildEndpointMockInterceptor("chain-1", endpointInfo(OPERATION_PATH));
@@ -196,7 +199,7 @@ class EndpointMockTestingServiceTest {
     }
 
     @Test
-    void treatsAnEmptyRequestTargetAsTheRoot() {
+    void shouldTreatAnEmptyRequestTargetAsTheRoot() {
         // The constructor normalizes a blank target, setPath writes it through.
         BasicHttpRequest request = new BasicHttpRequest("GET", "/orders/42");
         request.setPath("");
@@ -208,7 +211,7 @@ class EndpointMockTestingServiceTest {
     }
 
     @Test
-    void treatsAnAbsentRequestTargetAsTheRoot() {
+    void shouldTreatAnAbsentRequestTargetAsTheRoot() {
         BasicHttpRequest request = new BasicHttpRequest("GET", "/orders/42");
         request.setPath(null);
 
@@ -219,7 +222,7 @@ class EndpointMockTestingServiceTest {
     }
 
     @Test
-    void keepsTheBasePathOfTheConfiguredAddress() {
+    void shouldKeepTheBasePathOfTheConfiguredAddress() {
         EndpointMockTestingService service = new EndpointMockTestingService("http://gateway:8080/mocks/");
         HttpRequest request = request("http://orders:8080/orders/42?status=NEW");
 
@@ -231,7 +234,7 @@ class EndpointMockTestingServiceTest {
     }
 
     @Test
-    void keepsThePercentEscapesOfTheConfiguredBasePath() {
+    void shouldKeepThePercentEscapesOfTheConfiguredBasePath() {
         EndpointMockTestingService service = new EndpointMockTestingService("http://gateway:8080/mock%20base");
         HttpRequest request = request("http://orders:8080/orders/42");
 
@@ -241,7 +244,7 @@ class EndpointMockTestingServiceTest {
     }
 
     @Test
-    void acceptsAnAddressWithSurroundingWhitespace() {
+    void shouldAcceptAnAddressWithSurroundingWhitespace() {
         HttpRoute route = route(new EndpointMockTestingService("  http://testing-service:8080  "));
 
         assertEquals("testing-service", route.getTargetHost().getHostName());
@@ -251,7 +254,7 @@ class EndpointMockTestingServiceTest {
     // The bean is looked up programmatically: without both annotations the lookup returns empty and mocking
     // never happens, which no behavioral test can catch.
     @Test
-    void carriesTheAnnotationsTheProgrammaticLookupNeeds() {
+    void shouldCarryTheAnnotationsTheProgrammaticLookupNeeds() {
         assertNotNull(EndpointMockTestingService.class.getAnnotation(Unremovable.class),
                 "ArC removes a bean nothing injects, so @Unremovable is required");
 
@@ -264,7 +267,7 @@ class EndpointMockTestingServiceTest {
 
     // The keys the annotation and the @ConfigProperty read have to be the keys the shipped application.yml writes.
     @Test
-    void theShippedConfigurationKeepsMockingOff() throws IOException {
+    void shouldKeepMockingOffInTheShippedConfiguration() throws IOException {
         Map<String, Object> testing = shippedTestingConfiguration();
 
         assertEquals("${TESTING_SERVICE_ENABLED:false}", testing.get("enabled"));
@@ -272,7 +275,7 @@ class EndpointMockTestingServiceTest {
     }
 
     @Test
-    void routesToTheConfiguredHost() {
+    void shouldRouteToTheConfiguredHost() {
         HttpRoute route = route(service());
 
         assertEquals("testing-service", route.getTargetHost().getHostName());
@@ -282,7 +285,7 @@ class EndpointMockTestingServiceTest {
     }
 
     @Test
-    void routesSecurelyOverHttps() {
+    void shouldRouteSecurelyOverHttps() {
         HttpRoute route = route(new EndpointMockTestingService("https://testing-service"));
 
         assertEquals(443, route.getTargetHost().getPort());
@@ -290,14 +293,14 @@ class EndpointMockTestingServiceTest {
     }
 
     @Test
-    void fallsBackToTheDefaultHttpPort() {
+    void shouldFallBackToTheDefaultHttpPort() {
         HttpRoute route = route(new EndpointMockTestingService("http://testing-service"));
 
         assertEquals(80, route.getTargetHost().getPort());
     }
 
     @Test
-    void rejectsAnAddressWithoutAHost() {
+    void shouldRejectAnAddressWithoutAHost() {
         assertThrows(IllegalArgumentException.class, () -> new EndpointMockTestingService("/endpoint-mocks"));
     }
 

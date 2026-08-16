@@ -2,7 +2,9 @@ package org.qubership.integration.platform.engine.service.testing;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -10,6 +12,7 @@ import java.util.Base64;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class TestingContextTest {
 
     // Same literals as the engine test of the same name and as the Go test in
@@ -32,17 +35,17 @@ class TestingContextTest {
     // Pinned as a literal, as TestTestingContextHeaderNameIsFixed pins it on the Go side: a rename here would
     // leave every suite green while the testing service answers 404 for every call.
     @Test
-    void namesTheHeaderTheTestingServiceReads() {
+    void shouldNameTheHeaderTheTestingServiceReads() {
         assertEquals("Testing-Service-Context", TestingContext.HEADER_NAME);
     }
 
     @Test
-    void encodesTheGoldenHeader() {
+    void shouldEncodeTheGoldenHeader() {
         assertEquals(GOLDEN_HEADER, GOLDEN_CONTEXT.encode());
     }
 
     @Test
-    void encodesWithTheStandardPaddedAlphabet() {
+    void shouldEncodeWithTheStandardPaddedAlphabet() {
         String encoded = ALPHABET_CONTEXT.encode();
 
         assertEquals(ALPHABET_HEADER, encoded);
@@ -53,7 +56,7 @@ class TestingContextTest {
     }
 
     @Test
-    void writesTheFieldsInTheOrderTheGoSideDeclaresThem() {
+    void shouldWriteTheFieldsInTheOrderTheGoSideDeclaresThem() {
         assertEquals(
                 "{\"chainId\":\"chain-1\",\"elementId\":\"element-1\","
                         + "\"operationPath\":\"/orders/{orderId}\",\"path\":\"/orders/42\"}",
@@ -61,14 +64,14 @@ class TestingContextTest {
     }
 
     @Test
-    void keepsTheQueryStringInThePathField() {
+    void shouldKeepTheQueryStringInThePathField() {
         String path = "/orders/42?status=NEW&limit=10";
 
         assertEquals(path, field(new TestingContext("chain-1", "element-1", "/orders/{orderId}", path), "path"));
     }
 
     @Test
-    void keepsTheTemplateInTheOperationPathField() {
+    void shouldKeepTheTemplateInTheOperationPathField() {
         String operationPath = "/orders/{orderId}/items/{itemId}";
 
         assertEquals(operationPath,
@@ -76,19 +79,19 @@ class TestingContextTest {
     }
 
     @Test
-    void writesNullFieldsAsJsonNull() {
+    void shouldWriteNullFieldsAsJsonNull() {
         assertEquals("{\"chainId\":null,\"elementId\":null,\"operationPath\":null,\"path\":null}",
                 decode(new TestingContext(null, null, null, null).encode()));
     }
 
     @Test
-    void writesEmptyFieldsAsEmptyStrings() {
+    void shouldWriteEmptyFieldsAsEmptyStrings() {
         assertEquals("{\"chainId\":\"\",\"elementId\":\"\",\"operationPath\":\"\",\"path\":\"\"}",
                 decode(new TestingContext("", "", "", "").encode()));
     }
 
     @Test
-    void escapesCharactersThatJsonCannotCarryVerbatim() {
+    void shouldEscapeCharactersThatJsonCannotCarryVerbatim() {
         TestingContext context = new TestingContext(
                 "chain \"one\"", "element\\1", "/orders/{order\tId}", "/orders/42?q=a\nb");
 
@@ -99,7 +102,7 @@ class TestingContextTest {
     }
 
     @Test
-    void encodesNonAsciiAsUtf8() {
+    void shouldEncodeNonAsciiAsUtf8() {
         String path = "/commandes/42?q=café";
 
         assertEquals(path, field(new TestingContext("chain-1", "element-1", "/commandes/{orderId}", path), "path"));
