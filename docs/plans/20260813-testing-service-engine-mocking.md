@@ -294,20 +294,42 @@ at runtime from `MICRO_DOMAIN_CONTAINER_IMAGE`, so its mocking configuration is 
 
 ### Task 6: Verify acceptance criteria
 
-- [ ] verify all requirements from Overview are implemented
-- [ ] run `mvn -pl engine -am test -Dgpg.skip=true` and `mvn -pl micro-engine -am test -Dgpg.skip=true`
-- [ ] bring up the stack — this exercises the Spring engine only, since `micro-engine` is not in compose — create a chain with an HTTP trigger and an outbound HTTP call, and deploy it
-- [ ] with mocking off, call the chain and confirm the outbound request reaches the real endpoint
-- [ ] turn mocking on and restart the engine — on restart it re-processes every deployment (the exclude list is built from in-memory state, which is empty), so the HTTP client is rebuilt and the toggle takes effect without a chain redeploy; confirm this holds, since the caveat goes into two CLAUDE.md files in Task 7
-- [ ] with no mock defined, confirm the call is answered `404` by the testing service and the chain reports the failure
-- [ ] define a matching endpoint mock and confirm the chain receives the mocked status, body, headers and configured delay
-- [ ] define a mock whose request matcher keys on a **query parameter** and confirm it matches — this proves the context's `path` field carried the query string, which is what the matching engine reads
-- [ ] on a `service-call` element, define a mock keyed on a **path parameter** and confirm it matches — this proves `operationPath` carried the template
-- [ ] define two matching mocks with different matcher counts and confirm the more specific one wins
-- [ ] redeploy the chain, creating a new snapshot, and confirm the same mock still matches — this proves the design-time element id is being sent
-- [ ] repeat the basic mock check on a `graphql-sender` element, which also reaches this hook and behaves like `http-sender`
-- [ ] run a test case against the chain and confirm the run links to a session visible in the sessions UI
-- [ ] check engine logs for interceptor errors, and confirm per-endpoint HTTP metrics keep their element-derived labels rather than collapsing
+- [x] verify all requirements from Overview are implemented
+- [x] run `mvn -pl engine -am test -Dgpg.skip=true` and `mvn -pl micro-engine -am test -Dgpg.skip=true` (both exit 0)
+- [x] bring up the stack — this exercises the Spring engine only, since `micro-engine` is not in compose — create a chain with an HTTP trigger and an outbound HTTP call, and deploy it (three chains imported through `/v3/import`: `http-sender`, `service-call`, `graphql-sender`, each behind its own HTTP trigger)
+- [x] with mocking off, call the chain and confirm the outbound request reaches the real endpoint (the `http-sender` chain returned the real body of `http://runtime-catalog:8080/actuator/health`)
+- [x] turn mocking on and restart the engine — on restart it re-processes every deployment (the exclude list is built from in-memory state, which is empty), so the HTTP client is rebuilt and the toggle takes effect without a chain redeploy; confirm this holds, since the caveat goes into two CLAUDE.md files in Task 7 (**holds, in both directions**: the log shows `Start processing deployment … operation: UPDATE` for all four deployments with their snapshot ids unchanged, and the first call after the restart was already mocked; switching the flag back off and restarting restored the real endpoint, again with no redeploy)
+- [x] with no mock defined, confirm the call is answered `404` by the testing service and the chain reports the failure (`QIP-0104`, `responseCode=404`; the `service-call` chain is the sharper proof — with mocking off it failed with a connection error to an unreachable egress gateway, and with mocking on it got a clean `404`)
+- [x] define a matching endpoint mock and confirm the chain receives the mocked status, body, headers and configured delay (`201`, the mock body, `X-Mock-Source: basic`, and a 1.52 s round trip against a 1500 ms delay)
+- [x] define a mock whose request matcher keys on a **query parameter** and confirm it matches — this proves the context's `path` field carried the query string, which is what the matching engine reads (matcher `region == eu` won; changing it to `us` fell back to the matcher-free mock, so the value is genuinely read from the request rather than assumed)
+- [x] on a `service-call` element, define a mock keyed on a **path parameter** and confirm it matches — this proves `operationPath` carried the template (`operationPath` was `/datasets/{datasetId}` and the live path `/system/<elementId>/<hash>/datasets/ds-42?status=NEW`; matcher `datasetId == ds-42` won, and `ds-99` fell back)
+- [x] define two matching mocks with different matcher counts and confirm the more specific one wins (both fallback pairs above: the one-matcher mock outranked the matcher-free one on the same endpoint)
+- [x] redeploy the chain, creating a new snapshot, and confirm the same mock still matches — this proves the design-time element id is being sent (three snapshots carried three different element ids against one unchanged `original_id`, and the mock kept matching)
+- [x] repeat the basic mock check on a `graphql-sender` element, which also reaches this hook and behaves like `http-sender` (mocked `200` and body returned)
+- [x] run a test case against the chain and confirm the run links to a session visible in the sessions UI (test run finished with 0 errors and its `sessionId` reached sessions-management)
+- [x] check engine logs for interceptor errors, and confirm per-endpoint HTTP metrics keep their element-derived labels rather than collapsing (no interceptor errors in the engine, and no decode failures in the testing service; the metric's endpoint label is unchanged)
+
+➕ Two things a Task 7 reader needs and this plan did not say.
+
+**The session link runs through `externalSessionCipId`, not the session id.** The testing service generates the id, sends
+it as `external-session-cip-id`, and stores it as the run's `sessionId`; `SessionsService` writes it to `Session.externalId`
+while the session keeps an id of its own. So `GET /v1/sessions/{runSessionId}` answers `404` — the run is found by
+matching `externalSessionCipId`. And the session exists at all only when the chain's `sessionsLoggingLevel` is above
+`OFF`, which is not the default: with logging off the run still records a `sessionId` that resolves to nothing.
+
+**Metrics: the endpoint label holds, the target labels do not.** With `MONITORING_ENABLED=true`,
+`httpcomponents_httpclient_request_seconds` kept `chain_id`, `chain_name`, `element_id`, `element_name` and the
+element-derived `uri` (`/datasets/{datasetId}` for the `service-call`, the element's `uri` for the two senders) — no
+collapsing onto `/api/v1/endpoint-mocks/call`. But `target_host`, `target_port` and `target_scheme` do follow the route
+and read `testing-service:8080`, since the interceptor rewrites scheme and authority before the metrics interceptor runs.
+The plan's claim covered the endpoint label only, and that part holds.
+
+➕ A `graphql-sender` appends `?operationName=<name>` to the element's `uri`. When that `uri` already carries a query
+string, the appended part is percent-encoded into the last parameter's value, so a query-parameter matcher over such an
+element sees `NEW?operationName=listDatasets` rather than `NEW`. This is chain-configuration behavior that predates this
+feature, not a mocking defect, but it is worth knowing before writing a query matcher against a `graphql-sender`.
+
+⚠️ No defect was found in the Task 1-5 code. Every context field arrived as designed, and no fix was needed.
 
 ### Task 7: [Final] Update documentation
 
