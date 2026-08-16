@@ -68,6 +68,8 @@ import {
 } from "./pages/ChainFullscreenContext.tsx";
 import { McpServiceParametersPage } from "./components/services/mcp/McpServiceParametersPage.tsx";
 import { BrowserTabTitle } from "./components/BrowserTabTitle.tsx";
+import { TestingGuard, TestingLayout } from "./pages/testing/TestingLayout.tsx";
+import { TestingPlaceholder } from "./pages/testing/TestingPlaceholder.tsx";
 
 const { Header, Content } = Layout;
 
@@ -150,6 +152,69 @@ const router = createBrowserRouter(
             path="detailed-design/templates"
             element={<DesignTemplates />}
           />
+          <Route path="testing" element={<TestingGuard />}>
+            <Route index element={<Navigate to="test-cases" replace />} />
+            <Route
+              path="test-cases"
+              element={<TestingPlaceholder name="Test cases" />}
+            />
+            <Route
+              path="test-cases/:testCaseId"
+              element={<TestingPlaceholder name="Test case" />}
+            >
+              <Route index element={<Navigate to="general" replace />} />
+              <Route
+                path="general"
+                element={<TestingPlaceholder name="Test case general" />}
+              />
+              <Route
+                path="request"
+                element={<TestingPlaceholder name="Test case request" />}
+              />
+              <Route
+                path="response-validation"
+                element={
+                  <TestingPlaceholder name="Test case response validation" />
+                }
+              />
+            </Route>
+            <Route
+              path="endpoint-mocks"
+              element={<TestingPlaceholder name="Endpoint mocks" />}
+            />
+            <Route
+              path="endpoint-mocks/:mockId"
+              element={<TestingPlaceholder name="Endpoint mock" />}
+            >
+              <Route index element={<Navigate to="general" replace />} />
+              <Route
+                path="general"
+                element={<TestingPlaceholder name="Endpoint mock general" />}
+              />
+              <Route
+                path="response"
+                element={<TestingPlaceholder name="Endpoint mock response" />}
+              />
+              <Route
+                path="request-matchers"
+                element={
+                  <TestingPlaceholder name="Endpoint mock request matchers" />
+                }
+              />
+            </Route>
+            <Route
+              path="test-runs"
+              element={<TestingPlaceholder name="Test runs" />}
+            />
+            <Route
+              path="test-runs/:runId"
+              element={<TestingPlaceholder name="Test run case runs" />}
+            />
+            <Route
+              path="test-runs/:runId/:caseRunId"
+              element={<TestingPlaceholder name="Test case run errors" />}
+            />
+          </Route>
         </Route>
         <Route index path="/" element={<Navigate to="/chains" />} />
         <Route
@@ -185,6 +250,67 @@ const router = createBrowserRouter(
           <Route path="logging-settings" element={<LoggingSettings />} />
           <Route path="masking" element={<Masking />} />
           <Route path="properties" element={<ChainProperties />} />
+          <Route path="testing" element={<TestingGuard />}>
+            <Route element={<TestingLayout />}>
+              <Route index element={<Navigate to="test-cases" replace />} />
+              <Route
+                path="test-cases"
+                element={<TestingPlaceholder name="Test cases" />}
+              />
+              <Route
+                path="test-cases/:testCaseId"
+                element={<TestingPlaceholder name="Test case" />}
+              >
+                <Route index element={<Navigate to="general" replace />} />
+                <Route
+                  path="general"
+                  element={<TestingPlaceholder name="Test case general" />}
+                />
+                <Route
+                  path="request"
+                  element={<TestingPlaceholder name="Test case request" />}
+                />
+                <Route
+                  path="response-validation"
+                  element={
+                    <TestingPlaceholder name="Test case response validation" />
+                  }
+                />
+              </Route>
+              <Route
+                path="endpoint-mocks"
+                element={<TestingPlaceholder name="Endpoint mocks" />}
+              />
+              <Route
+                path="endpoint-mocks/:mockId"
+                element={<TestingPlaceholder name="Endpoint mock" />}
+              >
+                <Route index element={<Navigate to="general" replace />} />
+                <Route
+                  path="general"
+                  element={<TestingPlaceholder name="Endpoint mock general" />}
+                />
+                <Route
+                  path="response"
+                  element={<TestingPlaceholder name="Endpoint mock response" />}
+                />
+                <Route
+                  path="request-matchers"
+                  element={
+                    <TestingPlaceholder name="Endpoint mock request matchers" />
+                  }
+                />
+              </Route>
+              <Route
+                path="test-case-runs"
+                element={<TestingPlaceholder name="Test case runs" />}
+              />
+              <Route
+                path="test-case-runs/:caseRunId"
+                element={<TestingPlaceholder name="Test case run errors" />}
+              />
+            </Route>
+          </Route>
         </Route>
         <Route
           path="/services"

@@ -1,8 +1,17 @@
+import { ReactNode, useMemo } from "react";
 import { Menu } from "antd";
 import { useLocation, useNavigate } from "react-router-dom";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { useTestingServiceAvailability } from "../../hooks/useTestingServiceAvailability.ts";
 
-const menuItems = [
+type SidebarMenuItem = {
+  key: string;
+  icon: ReactNode;
+  label: ReactNode;
+  children?: SidebarMenuItem[];
+};
+
+const menuItems: SidebarMenuItem[] = [
   {
     key: "/admintools/domains",
     icon: <OverridableIcon name="domains" />,
@@ -63,12 +72,50 @@ const menuItems = [
   },
 ];
 
+const testingMenuItem: SidebarMenuItem = {
+  key: "testing",
+  icon: <OverridableIcon name="testing" />,
+  label: "Testing",
+  children: [
+    {
+      key: "/admintools/testing/test-cases",
+      icon: <OverridableIcon name="checkSquare" />,
+      label: "Test Cases",
+    },
+    {
+      key: "/admintools/testing/endpoint-mocks",
+      icon: <OverridableIcon name="api" />,
+      label: "Endpoint Mocks",
+    },
+    {
+      key: "/admintools/testing/test-runs",
+      icon: <OverridableIcon name="carryOut" />,
+      label: "Test Runs",
+    },
+  ],
+};
+
+/** Submenus holding the entry the current route belongs to. */
+function getOpenKeys(items: SidebarMenuItem[], pathname: string): string[] {
+  return items
+    .filter((item) =>
+      item.children?.some((child) => pathname.startsWith(child.key)),
+    )
+    .map((item) => item.key);
+}
+
 export const AdminToolsSidebar = ({ collapsed }: { collapsed: boolean }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { isAvailable: isTestingAvailable } = useTestingServiceAvailability();
+
+  const items = useMemo(
+    () => (isTestingAvailable ? [...menuItems, testingMenuItem] : menuItems),
+    [isTestingAvailable],
+  );
 
   const selectedKeys = [location.pathname];
-  const openKeys = location.pathname.includes("variables") ? ["variables"] : [];
+  const openKeys = getOpenKeys(items, location.pathname);
 
   const handleClick = ({ key }: { key: string }) => {
     if (key.startsWith("/admintools")) {
@@ -83,7 +130,7 @@ export const AdminToolsSidebar = ({ collapsed }: { collapsed: boolean }) => {
       selectedKeys={selectedKeys}
       defaultOpenKeys={collapsed ? [] : openKeys}
       onClick={handleClick}
-      items={menuItems}
+      items={items}
       inlineCollapsed={collapsed}
     />
   );

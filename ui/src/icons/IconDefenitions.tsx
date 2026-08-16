@@ -132,6 +132,7 @@ import {
   ColumnWidthOutlined,
   CaretUpOutlined,
   CaretDownOutlined,
+  ExperimentOutlined,
 } from "@ant-design/icons";
 
 /**
@@ -285,6 +286,7 @@ export const commonIcons = {
   diagram: ColumnWidthOutlined,
   previousChange: CaretUpOutlined,
   nextChange: CaretDownOutlined,
+  testing: ExperimentOutlined,
 };
 
 export const elementIcons = {

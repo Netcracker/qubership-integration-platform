@@ -307,13 +307,29 @@ chain-scoped variant. Filter column ids are the wire feature names themselves, e
 - Create: `ui/src/pages/testing/TestingLayout.tsx`
 - Create: `ui/tests/pages/testing/TestingLayout.test.tsx`
 
-- [ ] add the `Testing` tab to the chain page, rendered only when the service is available
-- [ ] build the layout on `PageWithSidebar` with a vertical menu and an `Outlet`
-- [ ] register every route from Solution Overview — sub-tabs, index redirects, the run drill-down — wiring placeholder elements for screens later tasks create
-- [ ] guard the whole subtree on the availability hook, redirecting when unavailable, as the source's `canActivate` does
-- [ ] add the `Testing` group to the admin sidebar with a registered `OverridableIcon` name, and generalize the hardcoded `openKeys` logic, which currently recognizes only the Variables submenu
-- [ ] write tests for menu rendering, active entry by route, the redirect when unavailable, and the submenu open state
-- [ ] run `npm -w @netcracker/qip-ui test` - must pass before next task
+- [x] add the `Testing` tab to the chain page, rendered only when the service is available
+- [x] build the layout on `PageWithSidebar` with a vertical menu and an `Outlet`
+- [x] register every route from Solution Overview — sub-tabs, index redirects, the run drill-down — wiring placeholder elements for screens later tasks create
+- [x] guard the whole subtree on the availability hook, redirecting when unavailable, as the source's `canActivate` does
+- [x] add the `Testing` group to the admin sidebar with a registered `OverridableIcon` name, and generalize the hardcoded `openKeys` logic, which currently recognizes only the Variables submenu
+- [x] write tests for menu rendering, active entry by route, the redirect when unavailable, and the submenu open state
+- [x] run `npm -w @netcracker/qip-ui test` - must pass before next task
+
+➕ Icon names are registered in `ui/src/icons/IconDefenitions.tsx`, not in `IconProvider.tsx` as the file list said;
+`testing` is added there. The admin group reuses the already registered `checkSquare`, `api` and `carryOut` for its
+three entries.
+
+➕ The vertical menu belongs to the chain scope alone. In the admin scope the admin sidebar already carries the group,
+so its routes render without a second `PageWithSidebar`.
+
+➕ Placeholders live in `ui/src/pages/testing/TestingPlaceholder.tsx`, which renders `NotImplemented` plus an `Outlet`
+so the editor sub-tab routes resolve before their screens exist.
+
+➕ The guard redirects to `/not-found`, which the existing catch-all route renders; while availability is still
+resolving it renders nothing, so no screen flashes before the redirect.
+
+➕ `ui/tests/components/admin_tools/AdminToolsSidebar.test.tsx` (new) covers the group and the generalized open keys,
+and `ui/tests/pages/ChainPage.test.tsx` gains the tab visibility cases.
 
 ### Task 5: Matchers table
 
