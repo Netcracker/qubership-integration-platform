@@ -7,11 +7,20 @@ import "@testing-library/jest-dom";
 import {
   MatcherEntityType,
   MatcherType,
+  TestCase,
   TestCaseView,
   TestingFilterCondition,
   TestingSortOrder,
 } from "../../../src/api/apiTypes.ts";
 import { api } from "../../../src/api/api.ts";
+import {
+  CreateTestCaseModal,
+  type CreateTestCaseModalProps,
+} from "../../../src/components/modal/testing/CreateTestCaseModal.tsx";
+import {
+  ImportTestCasesModal,
+  type ImportTestCasesModalProps,
+} from "../../../src/components/modal/testing/ImportTestCasesModal.tsx";
 import { UserPermissionsContext } from "../../../src/permissions/UserPermissionsContext.tsx";
 import type { UserPermissions } from "../../../src/permissions/types.ts";
 import { useTestingFilter } from "../../../src/hooks/filter/useTestingFilter.ts";
@@ -34,6 +43,8 @@ jest.mock("../../../src/api/api.ts", () => ({
     startTestsRun: jest.fn(),
     getChains: jest.fn(),
     getElements: jest.fn(),
+    createTestCase: jest.fn(),
+    importTestCases: jest.fn(),
   },
 }));
 
@@ -200,6 +211,7 @@ async function renderWithCases(
 
 beforeEach(() => {
   capturedConfirm = undefined;
+  mockShowModal.mockClear();
   mockUseParams.mockReturnValue({ chainId: "chain-1" });
   mockGetChains.mockResolvedValue([]);
   mockGetElements.mockResolvedValue([]);
@@ -515,5 +527,43 @@ describe("TestCases permission gating", () => {
 
     expect(screen.queryByTestId("test-cases-refresh")).not.toBeInTheDocument();
     expect(screen.queryByTestId("test-cases-import")).not.toBeInTheDocument();
+  });
+});
+
+describe("TestCases create and import", () => {
+  function shownModal<P>(): React.ReactElement<P> {
+    expect(mockShowModal).toHaveBeenCalledTimes(1);
+    const { component } = mockShowModal.mock.calls[0][0] as {
+      component: React.ReactElement<P>;
+    };
+    return component;
+  }
+
+  it("should open the create modal for the chain and follow the new case", async () => {
+    await renderWithCases([testCase()]);
+
+    fireEvent.click(screen.getByTestId("test-cases-create"));
+
+    const modal = shownModal<CreateTestCaseModalProps>();
+    expect(modal.type).toBe(CreateTestCaseModal);
+    expect(modal.props.chainId).toBe("chain-1");
+
+    modal.props.onCreated({ id: "case-9" } as TestCase);
+    expect(mockNavigate).toHaveBeenCalledWith(
+      "/chains/chain-1/testing/test-cases/case-9",
+    );
+  });
+
+  it("should open the import modal and reload the list once it imported", async () => {
+    await renderWithCases([testCase()], { global: true });
+    mockGetTestCases.mockClear();
+
+    fireEvent.click(screen.getByTestId("test-cases-import"));
+
+    const modal = shownModal<ImportTestCasesModalProps>();
+    expect(modal.type).toBe(ImportTestCasesModal);
+
+    modal.props.onImported();
+    await waitFor(() => expect(mockGetTestCases).toHaveBeenCalled());
   });
 });

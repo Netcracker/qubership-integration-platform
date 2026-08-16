@@ -7,6 +7,8 @@ import { api } from "../../api/api.ts";
 import { TestCaseView, TestingSortOrder } from "../../api/apiTypes.ts";
 import { AdminToolsHeader } from "../../components/admin_tools/AdminToolsHeader.tsx";
 import commonStyles from "../../components/admin_tools/CommonStyle.module.css";
+import { CreateTestCaseModal } from "../../components/modal/testing/CreateTestCaseModal.tsx";
+import { ImportTestCasesModal } from "../../components/modal/testing/ImportTestCasesModal.tsx";
 import { TablePageLayout } from "../../components/TablePageLayout.tsx";
 import { nameLinkStyle } from "../../components/table/nameLinkStyle.ts";
 import { tableEmpty } from "../../components/table/tableEmpty.tsx";
@@ -34,6 +36,7 @@ import { useTableInfiniteScroll } from "../../hooks/useTableInfiniteScroll.ts";
 import { confirmAndRun } from "../../misc/confirm-utils.ts";
 import { formatOptional, formatTimestamp } from "../../misc/format-utils.ts";
 import { toStringIds } from "../../misc/selection-utils.ts";
+import { useModalsContext } from "../../Modals.tsx";
 import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
 import { useRegisterChainHeaderActions } from "../ChainHeaderActionsContext.tsx";
 
@@ -67,6 +70,7 @@ export const TestCases: React.FC<TestCasesProps> = ({
   const { chainId } = useParams<{ chainId: string }>();
   const navigate = useNavigate();
   const notificationService = useNotificationService();
+  const { showModal } = useModalsContext();
   const [searchString, setSearchString] = useState("");
   const [sortBy, setSortBy] = useState<string>();
   const [sortOrder, setSortOrder] = useState<TestingSortOrder>();
@@ -182,10 +186,27 @@ export const TestCases: React.FC<TestCasesProps> = ({
     });
   }, [selectedRowKeys, selectAllMatching, deleteSelected]);
 
-  // The create and import dialogs land with the next task; the buttons hold
-  // their place so the chain-versus-global asymmetry is settled in one file.
-  const handleCreate = useCallback(() => {}, []);
-  const handleImport = useCallback(() => {}, []);
+  const handleCreate = useCallback(() => {
+    if (!chainId) {
+      return;
+    }
+    showModal({
+      component: (
+        <CreateTestCaseModal
+          chainId={chainId}
+          onCreated={(testCase) =>
+            void navigate(`${sectionPath}/test-cases/${testCase.id}`)
+          }
+        />
+      ),
+    });
+  }, [chainId, navigate, sectionPath, showModal]);
+
+  const handleImport = useCallback(() => {
+    showModal({
+      component: <ImportTestCasesModal onImported={handleRefresh} />,
+    });
+  }, [handleRefresh, showModal]);
 
   const renderChainCell = useCallback(
     (testCase: TestCaseView) => {

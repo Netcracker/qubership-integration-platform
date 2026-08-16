@@ -410,20 +410,39 @@ unloaded. `tests/__mocks__/LightweightTable.tsx` renders custom selections so it
 ➕ `useNotificationService.info` and `.warning` now take a `ReactNode` description, which the started-run
 notification needs for its link; `NotificationItem` already allowed one.
 
-⚠️ The Create and Import buttons are in place but inert until task 7 builds their modals.
+⚠️ The Create and Import buttons are in place but inert until task 7 builds their modals. *(Resolved in task 7.)*
 
 ### Task 7: Create and import modals
 
 **Files:**
 - Create: `ui/src/components/modal/testing/CreateTestCaseModal.tsx`
-- Create: `ui/src/components/modal/testing/ImportTestCasesModal.tsx`
+- Create: `ui/src/components/modal/testing/ImportTestCasesModal.tsx`, `ui/src/components/modal/testing/TestingImportModal.tsx`
+- Create: `ui/src/components/testing/testingElements.ts`
+- Modify: `ui/src/pages/testing/TestCases.tsx`, `ui/src/components/testing/TestingTags.tsx`
 - Create: `ui/tests/components/modal/testing/CreateTestCaseModal.test.tsx`, `ui/tests/components/modal/testing/ImportTestCasesModal.test.tsx`
+- Modify: `ui/tests/pages/testing/TestCases.test.tsx`
 
-- [ ] build the create modal with the test-case defaults from Technical Details, navigating into the new entity's editor on success
-- [ ] build the import modal in two phases: multi-file upload, then a searchable result table with archive, file name, id, name, result and error columns
-- [ ] refresh the list only when some result is created or updated
-- [ ] write tests for the defaults, the two-phase flow, and the conditional refresh
-- [ ] run `npm -w @netcracker/qip-ui test` - must pass before next task
+- [x] build the create modal with the test-case defaults from Technical Details, navigating into the new entity's editor on success
+- [x] build the import modal in two phases: multi-file upload, then a searchable result table with archive, file name, id, name, result and error columns
+- [x] refresh the list only when some result is created or updated
+- [x] write tests for the defaults, the two-phase flow, and the conditional refresh
+- [x] run `npm -w @netcracker/qip-ui test` - must pass before next task
+
+➕ The import result shape was re-read off the Go service and agrees with the plan: `archive`, `fileName`, `entityId`,
+`entityName`, `result`, `message`, with `created`, `updated` and `error` as the per-file statuses
+(`internal/model/importexport.go`). A failure to read the archive itself comes back as one `error` row rather than as
+an error response, so the two-phase flow always has a table to show.
+
+➕ The result table, the search and the two phases live in `TestingImportModal.tsx`, which
+`ImportTestCasesModal.tsx` fills in with a title and the API call. Task 9's mock import is the second caller.
+
+➕ `Upload.Dragger` off the root `antd` import, not `antd/es/upload/Dragger` as `ImportSessions.tsx` uses: the `es`
+path is untranspiled ESM and breaks the jest run.
+
+➕ A case created with no trigger picked still carries `triggerReference` with the chain and an empty element id.
+The reference is what scopes a case to its chain, so dropping it would hide the new case from the list it was created
+in. `ui/src/components/testing/testingElements.ts` holds the trigger predicate and the `httpMethodRestrict` parsing
+that the request tab of task 8 needs as well.
 
 ### Task 8: Test case editor
 
