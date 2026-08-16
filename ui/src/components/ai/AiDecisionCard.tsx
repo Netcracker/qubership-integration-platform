@@ -10,6 +10,7 @@ import type { ChatDecision } from "../../ai/modelProviders/types.ts";
 const ACTION_LABELS: Record<string, string> = {
   approve: "Approve",
   "approve-and-create": "Approve and create chain",
+  "apply-chain-patch": "Apply",
   "create-chain": "Create chain",
   "import-specification": "Import specification",
   "request-changes": "Request changes",
@@ -34,6 +35,7 @@ const COMMAND_ACTIONS = new Set([
 const PRIMARY_ACTIONS = new Set([
   "approve",
   "approve-and-create",
+  "apply-chain-patch",
   "create-chain",
   "import-specification",
   "yes",
