@@ -67,9 +67,19 @@ aligns them to extract the `{name}` placeholders. Drop the query, or put a reque
 matchers stop matching with no error anywhere. The query is kept on the wire too, but only so the logs read well.
 
 The context is built inside `process(...)`, on every request. The builder method itself runs once per Camel HTTP client
-build, so anything request-scoped computed there would be frozen at deployment time. The interceptor returns early when
-the request already carries the header: hc5 runs the processor again over the same request on an authentication
-challenge, and a second rewrite would report the mock endpoint as the live target.
+build, so anything request-scoped computed there would be frozen at deployment time.
+
+A second pass over the same request is guarded by an attribute on the `HttpContext`, never by the header. On an
+authentication challenge hc5 restores the headers of the original request and runs the processor over it again; the
+path it would read the second time is the mock endpoint, so the interceptor puts back the context recorded on the first
+pass instead of encoding a new one. The attribute holds the request instance and is matched by identity, so the
+follow-up request of a redirect is a different object and gets rewritten in its turn.
+
+**Do not turn that guard back into a `request.containsHeader(TestingContext.HEADER_NAME)` check.** The header travels on
+the wire, so a caller of the chain can send it: the interceptor would return early on the first pass, leave scheme and
+authority pointing at the live endpoint, and the call would go through for real with mocking on.
+`ignoresAContextHeaderTheCallerSupplied` and `ignoresAContextHeaderTheCallerSuppliedOnTheSecondPass` pin that in both
+engines.
 
 An `http-sender` has no operation template, so this engine sends the element's `uri` and path-parameter matching
 degrades to a no-op. A `graphql-sender` appends `?operationName=<name>` to that `uri`; when the `uri` already carries a

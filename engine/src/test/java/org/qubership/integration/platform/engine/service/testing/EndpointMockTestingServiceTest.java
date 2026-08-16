@@ -8,6 +8,8 @@ import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.message.BasicHttpRequest;
+import org.apache.hc.core5.http.protocol.BasicHttpContext;
+import org.apache.hc.core5.http.protocol.HttpContext;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
@@ -136,21 +138,85 @@ class EndpointMockTestingServiceTest {
 
     @Test
     void keepsTheLiveTargetWhenTheSameRequestPassesThroughTwice() {
-        // hc5 runs the processor again over the same request on an authentication challenge.
+        // On an authentication challenge hc5 restores the headers of the original request and runs the processor
+        // over the same request again, leaving the path rewritten.
         HttpRequestInterceptor interceptor =
                 service().buildEndpointMockInterceptor("chain-1", elementProperties());
         HttpRequest request = request("http://orders:8080/orders/42?status=NEW");
+        HttpContext context = new BasicHttpContext();
 
-        process(interceptor, request);
-        process(interceptor, request);
+        process(interceptor, request, context);
+        request.removeHeaders(TestingContext.HEADER_NAME);
+        process(interceptor, request, context);
 
         assertEquals("/orders/42?status=NEW", contextField(request, "path"));
         assertEquals("/api/v1/endpoint-mocks/call?status=NEW", request.getPath());
     }
 
     @Test
+    void ignoresAContextHeaderTheCallerSupplied() {
+        // Camel copies the headers of an inbound request onto the outbound one, so the header reaches the
+        // interceptor from outside the engine.
+        HttpRequest request = request("http://orders:8080/orders/42");
+        request.setHeader(TestingContext.HEADER_NAME, "c3Bvb2ZlZA==");
+
+        intercept(request);
+
+        assertEquals("/api/v1/endpoint-mocks/call", request.getPath());
+        assertEquals("testing-service", request.getAuthority().getHostName());
+        assertEquals(1, request.getHeaders(TestingContext.HEADER_NAME).length);
+        assertEquals("/orders/42", contextField(request, "path"));
+        assertEquals("chain-1", contextField(request, "chainId"));
+    }
+
+    @Test
+    void ignoresAContextHeaderTheCallerSuppliedOnTheSecondPass() {
+        HttpRequestInterceptor interceptor =
+                service().buildEndpointMockInterceptor("chain-1", elementProperties());
+        HttpRequest request = request("http://orders:8080/orders/42");
+        HttpContext context = new BasicHttpContext();
+
+        process(interceptor, request, context);
+        request.setHeader(TestingContext.HEADER_NAME, "c3Bvb2ZlZA==");
+        process(interceptor, request, context);
+
+        assertEquals("/orders/42", contextField(request, "path"));
+    }
+
+    @Test
+    void rewritesTheFollowUpRequestOfARedirect() {
+        // hc5 builds a new request for a redirect and keeps it on the context of the same exchange.
+        HttpRequestInterceptor interceptor =
+                service().buildEndpointMockInterceptor("chain-1", elementProperties());
+        HttpContext context = new BasicHttpContext();
+        HttpRequest first = request("http://orders:8080/orders/42");
+        HttpRequest redirect = request("http://orders:8080/orders/43");
+
+        process(interceptor, first, context);
+        process(interceptor, redirect, context);
+
+        assertEquals("/orders/43", contextField(redirect, "path"));
+        assertEquals("/api/v1/endpoint-mocks/call", redirect.getPath());
+    }
+
+    @Test
     void treatsAnEmptyRequestTargetAsTheRoot() {
-        HttpRequest request = intercept(new BasicHttpRequest("GET", ""));
+        // The constructor normalizes a blank target, setPath writes it through.
+        BasicHttpRequest request = new BasicHttpRequest("GET", "/orders/42");
+        request.setPath("");
+
+        intercept(request);
+
+        assertEquals("/", contextField(request, "path"));
+        assertEquals("/api/v1/endpoint-mocks/call", request.getPath());
+    }
+
+    @Test
+    void treatsAnAbsentRequestTargetAsTheRoot() {
+        BasicHttpRequest request = new BasicHttpRequest("GET", "/orders/42");
+        request.setPath(null);
+
+        intercept(request);
 
         assertEquals("/", contextField(request, "path"));
         assertEquals("/api/v1/endpoint-mocks/call", request.getPath());
@@ -166,6 +232,16 @@ class EndpointMockTestingServiceTest {
         assertEquals("/mocks/api/v1/endpoint-mocks/call?status=NEW", request.getPath());
         assertEquals("/orders/42?status=NEW", contextField(request, "path"));
         assertEquals("gateway", route(service).getTargetHost().getHostName());
+    }
+
+    @Test
+    void keepsThePercentEscapesOfTheConfiguredBasePath() {
+        EndpointMockTestingService service = new EndpointMockTestingService("http://gateway:8080/mock%20base");
+        HttpRequest request = request("http://orders:8080/orders/42");
+
+        process(service.buildEndpointMockInterceptor("chain-1", elementProperties()), request);
+
+        assertEquals("/mock%20base/api/v1/endpoint-mocks/call", request.getPath());
     }
 
     @Test
@@ -231,8 +307,12 @@ class EndpointMockTestingServiceTest {
     }
 
     private static void process(HttpRequestInterceptor interceptor, HttpRequest request) {
+        process(interceptor, request, new BasicHttpContext());
+    }
+
+    private static void process(HttpRequestInterceptor interceptor, HttpRequest request, HttpContext context) {
         try {
-            interceptor.process(request, null, null);
+            interceptor.process(request, null, context);
         } catch (Exception exception) {
             throw new IllegalStateException(exception);
         }

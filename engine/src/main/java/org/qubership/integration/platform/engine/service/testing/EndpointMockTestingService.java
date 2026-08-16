@@ -4,7 +4,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.hc.client5.http.HttpRoute;
 import org.apache.hc.client5.http.routing.HttpRoutePlanner;
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
+import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.net.URIAuthority;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
 import org.qubership.integration.platform.engine.model.deployment.update.ElementProperties;
@@ -21,6 +23,7 @@ import java.util.Map;
 public class EndpointMockTestingService implements TestingService {
 
     private static final String MOCK_CALL_PATH = "/api/v1/endpoint-mocks/call";
+    private static final String REWRITE_ATTRIBUTE = EndpointMockTestingService.class.getName() + ".rewrite";
     private static final String HTTP_SCHEME = "http";
     private static final String HTTPS_SCHEME = "https";
     private static final int HTTP_PORT = 80;
@@ -54,20 +57,26 @@ public class EndpointMockTestingService implements TestingService {
         String elementId = property(elementProperties, ChainProperties.ELEMENT_ID);
         String operationPath = property(elementProperties, ChainProperties.OPERATION_PATH);
         return (request, entity, context) -> {
-            // hc5 runs the processor again over the same request on an authentication challenge, and a second
-            // rewrite would report the mock endpoint as the live target.
-            if (request.containsHeader(TestingContext.HEADER_NAME)) {
+            // On an authentication challenge hc5 restores the headers of the untouched original request and runs
+            // the processor over the same request again. Replay the first pass: the path it would read back is
+            // the mock endpoint, not the live target.
+            String replayed = replayedContext(request, context);
+            if (replayed != null) {
+                request.setHeader(TestingContext.HEADER_NAME, replayed);
                 return;
             }
             String requestTarget = request.getPath() == null || request.getPath().isEmpty()
                     ? "/" : request.getPath();
-            TestingContext testingContext =
-                    new TestingContext(chainId, elementId, operationPath, requestTarget);
-            request.setHeader(TestingContext.HEADER_NAME, testingContext.encode());
+            String encodedContext =
+                    new TestingContext(chainId, elementId, operationPath, requestTarget).encode();
+            request.setHeader(TestingContext.HEADER_NAME, encodedContext);
             request.setScheme(testingServiceHost.getSchemeName());
             request.setAuthority(
                     new URIAuthority(testingServiceHost.getHostName(), testingServiceHost.getPort()));
             request.setPath(mockCallTarget(requestTarget));
+            if (context != null) {
+                context.setAttribute(REWRITE_ATTRIBUTE, new Rewrite(request, encodedContext));
+            }
             log.debug("Mocking {} of element {} in chain {}", requestTarget, elementId, chainId);
         };
     }
@@ -76,6 +85,17 @@ public class EndpointMockTestingService implements TestingService {
     public HttpRoutePlanner buildRoutePlanner(String chainId, ElementProperties elementProperties) {
         boolean secure = HTTPS_SCHEME.equals(testingServiceHost.getSchemeName());
         return (target, context) -> new HttpRoute(testingServiceHost, null, secure);
+    }
+
+    private static String replayedContext(HttpRequest request, HttpContext context) {
+        Object attribute = context == null ? null : context.getAttribute(REWRITE_ATTRIBUTE);
+        return attribute instanceof Rewrite rewrite && rewrite.request() == request
+                ? rewrite.encodedContext() : null;
+    }
+
+    // Kept on the exchange rather than on a header, which a caller of the chain could set. Keyed by request
+    // identity: a redirect is a new request and has to be rewritten in its turn.
+    private record Rewrite(HttpRequest request, String encodedContext) {
     }
 
     // The query is kept on the wire for readable logs only; the testing service reads it from the context header.
@@ -106,9 +126,10 @@ public class EndpointMockTestingService implements TestingService {
         return new HttpHost(scheme, uri.getHost(), port);
     }
 
-    // An ingress-style address carries a base path, and the mock endpoint hangs off it.
+    // An ingress-style address carries a base path, and the mock endpoint hangs off it. The raw form goes back
+    // on the wire as it was written, so a percent-escaped base path keeps its escapes.
     private static String basePath(URI uri) {
-        String path = uri.getPath();
+        String path = uri.getRawPath();
         if (path == null || path.isBlank() || "/".equals(path)) {
             return "";
         }
