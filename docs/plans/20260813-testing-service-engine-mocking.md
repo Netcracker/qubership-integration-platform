@@ -351,8 +351,9 @@ feature, not a mocking defect, but it is worth knowing before writing a query ma
 ➕ The notes went into `engine/AGENTS.md` and `micro-engine/AGENTS.md`, not into `CLAUDE.md` files: this repository holds
 no `CLAUDE.md` at all, only `AGENTS.md` is versioned, and both new files follow the `testing-service/AGENTS.md`
 precedent — no APM primitive targets `engine/**` or `micro-engine/**`, so `apm compile` never writes them and they are
-maintained by hand. The APM primitive that calls `testing-service/AGENTS.md` "the one exception" was left alone: editing
-it requires an `apm compile` to regenerate the root `AGENTS.md`, and the APM CLI is not installed here.
+maintained by hand. The APM primitive that called `testing-service/AGENTS.md` "the one exception" now names all three
+hand-maintained files, and the generated root `AGENTS.md` carries the same edit byte for byte, so `apm compile` is a
+no-op for that sentence whenever the CLI is next run.
 
 ➕ The two environment variables were also added to each module's `README.md` configuration table, which is where an
 operator looks for them. Everything else — the header contract, the id trap, the metrics and session behavior — is
