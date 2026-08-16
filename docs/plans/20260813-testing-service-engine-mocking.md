@@ -275,12 +275,22 @@ id, so Task 2's dedicated test has no counterpart.
 - Modify: `infrastructure/engine-dev.env`
 - Modify: `infrastructure/qip-dev/charts/qip-engine/templates/*.yaml`
 
-- [ ] add both variables to `engine-dev.env` with mocking **off** — the compose service has no `environment:` block and is fed by env files only
-- [ ] do not enable mocking by default: with it on, every outbound HTTP call from every local chain without a matching mock returns `404`, which would silently break the shared local stack for everyone not working on this feature
-- [ ] document how to turn it on for a session, and use that path in Task 6
-- [ ] keep the engine free of a compose dependency on the testing service — the testing service calls the engine, and a dependency would create a cycle
-- [ ] surface both properties in the engine helm chart with mocking off by default, and set the address to the release-scoped service name in the engine configmap, following the existing runtime-catalog URL entry — the compose default hostname does not resolve on Kubernetes
-- [ ] no automated tests here; verified by stack startup and by Task 6
+- [x] add both variables to `engine-dev.env` with mocking **off** — the compose service has no `environment:` block and is fed by env files only
+- [x] do not enable mocking by default: with it on, every outbound HTTP call from every local chain without a matching mock returns `404`, which would silently break the shared local stack for everyone not working on this feature
+- [x] document how to turn it on for a session, and use that path in Task 6
+- [x] keep the engine free of a compose dependency on the testing service — the testing service calls the engine, and a dependency would create a cycle
+- [x] surface both properties in the engine helm chart with mocking off by default, and set the address to the release-scoped service name in the engine configmap, following the existing runtime-catalog URL entry — the compose default hostname does not resolve on Kubernetes
+- [x] no automated tests here; verified by stack startup and by Task 6
+
+➕ The two configmap keys render unconditionally, independently of `global.qip.testingService.enabled`. Gating them on
+that flag would leave the deployment's `configMapKeyRef` pointing at absent keys whenever the testing service is turned
+off, which pins the pod in `CreateContainerConfigError`. Both settings were verified with `helm template`, walking every
+rendered `configMapKeyRef` and `secretKeyRef` against the rendered ConfigMaps and Secrets: 44 references with the
+testing service on, 38 with it off, all resolved. `docker compose config` confirms the two variables reach `qip-engine`
+and that its `depends_on` still names only postgres and opensearch.
+
+➕ Nothing to do for `micro-engine` on Kubernetes: no chart deploys it. The runtime catalog creates micro-engine domains
+at runtime from `MICRO_DOMAIN_CONTAINER_IMAGE`, so its mocking configuration is not a chart concern.
 
 ### Task 6: Verify acceptance criteria
 
