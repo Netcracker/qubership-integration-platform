@@ -70,6 +70,7 @@ import { McpServiceParametersPage } from "./components/services/mcp/McpServicePa
 import { BrowserTabTitle } from "./components/BrowserTabTitle.tsx";
 import { TestingGuard, TestingLayout } from "./pages/testing/TestingLayout.tsx";
 import { TestingPlaceholder } from "./pages/testing/TestingPlaceholder.tsx";
+import { TestCases } from "./pages/testing/TestCases.tsx";
 
 const { Header, Content } = Layout;
 
@@ -156,7 +157,7 @@ const router = createBrowserRouter(
             <Route index element={<Navigate to="test-cases" replace />} />
             <Route
               path="test-cases"
-              element={<TestingPlaceholder name="Test cases" />}
+              element={<TestCases variant="admin-page" />}
             />
             <Route
               path="test-cases/:testCaseId"
@@ -253,10 +254,7 @@ const router = createBrowserRouter(
           <Route path="testing" element={<TestingGuard />}>
             <Route element={<TestingLayout />}>
               <Route index element={<Navigate to="test-cases" replace />} />
-              <Route
-                path="test-cases"
-                element={<TestingPlaceholder name="Test cases" />}
-              />
+              <Route path="test-cases" element={<TestCases />} />
               <Route
                 path="test-cases/:testCaseId"
                 element={<TestingPlaceholder name="Test case" />}

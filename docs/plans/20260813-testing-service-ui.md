@@ -375,17 +375,42 @@ with `FormEventHandler` forced a cast on every caller. One such cast in `CustomA
 **Files:**
 - Create: `ui/src/pages/testing/TestCases.tsx`
 - Create: `ui/src/components/testing/TestCaseDetailsDrawer.tsx`
+- Create: `ui/src/components/testing/testCases.ts`, `ui/src/components/testing/TestingTags.tsx`,
+  `ui/src/components/testing/testingPermissions.ts`, `ui/src/hooks/useTableInfiniteScroll.ts`
+- Modify: `ui/src/App.tsx`, `ui/src/icons/IconDefenitions.tsx`, `ui/src/hooks/useNotificationService.tsx`,
+  `ui/tests/__mocks__/LightweightTable.tsx`
 - Create: `ui/tests/pages/testing/TestCases.test.tsx`
 
-- [ ] build the list on the shared hook with server-side filters, sorting, pagination, row selection and column settings
-- [ ] show name, description, chain (global variant only) and element (both variants), each as a link, plus enabled, readiness, rule counts and audit fields
-- [ ] respect the source's toolbar asymmetry: the chain variant has Create but no Import; the global variant has Import but no Create, because the create dialog requires a chain
-- [ ] add delete, run and export; gate write actions per the permission table and route deletions through `confirmAndRun`
-- [ ] notify on a started run with a link to it
-- [ ] add the details drawer, following the `ChainDetailsDrawer` precedent
-- [ ] decide deliberately whether to port the readiness filter, which in the source maps to `enabled_rule_count` and carries a FIXME saying it disagrees with the readiness column
-- [ ] write tests for both variants, filter-to-request mapping, select-all bulk actions, and permission gating
-- [ ] run `npm -w @netcracker/qip-ui test` - must pass before next task
+- [x] build the list on the shared hook with server-side filters, sorting, pagination, row selection and column settings
+- [x] show name, description, chain (global variant only) and element (both variants), each as a link, plus enabled, readiness, rule counts and audit fields
+- [x] respect the source's toolbar asymmetry: the chain variant has Create but no Import; the global variant has Import but no Create, because the create dialog requires a chain
+- [x] add delete, run and export; gate write actions per the permission table and route deletions through `confirmAndRun`
+- [x] notify on a started run with a link to it
+- [x] add the details drawer, following the `ChainDetailsDrawer` precedent
+- [x] decide deliberately whether to port the readiness filter, which in the source maps to `enabled_rule_count` and carries a FIXME saying it disagrees with the readiness column
+- [x] write tests for both variants, filter-to-request mapping, select-all bulk actions, and permission gating
+- [x] run `npm -w @netcracker/qip-ui test` - must pass before next task
+
+➕ The readiness filter is **not** ported. Its `enabled_rule_count` mapping disagrees with the readiness column,
+which also requires a trigger reference and request settings, and no feature covers either — so a correct server-side
+readiness filter cannot be built. Readiness stays a display-only column, and the honest `enabled_rule_count` filter
+("Enabled Rules") already covers what the service can answer.
+
+➕ Permissions live in `ui/src/components/testing/testingPermissions.ts`, keyed by scope, so the ten buttons of this
+and later screens share one table. The chain variant registers its toolbar through `useRegisterChainHeaderActions`, as
+`Sessions` does; the registration deps are the state the toolbar reads, not the toolbar node, which is a fresh element
+on every render and would loop through the header's own re-render.
+
+➕ The infinite-scroll sentinel is extracted into `ui/src/hooks/useTableInfiniteScroll.ts`, ready for the four
+testing lists still to come. `Sessions` keeps its inline copy: rewriting it is out of this task's scope.
+
+➕ Select-all beyond the loaded page is an antd `rowSelection.selections` entry, offered only while rows remain
+unloaded. `tests/__mocks__/LightweightTable.tsx` renders custom selections so it can be exercised.
+
+➕ `useNotificationService.info` and `.warning` now take a `ReactNode` description, which the started-run
+notification needs for its link; `NotificationItem` already allowed one.
+
+⚠️ The Create and Import buttons are in place but inert until task 7 builds their modals.
 
 ### Task 7: Create and import modals
 
