@@ -29,6 +29,13 @@ class TestingContextTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    // Pinned as a literal, as TestTestingContextHeaderNameIsFixed pins it on the Go side: a rename here would
+    // leave every suite green while the testing service answers 404 for every call.
+    @Test
+    void namesTheHeaderTheTestingServiceReads() {
+        assertEquals("Testing-Service-Context", TestingContext.HEADER_NAME);
+    }
+
     @Test
     void encodesTheGoldenHeader() {
         assertEquals(GOLDEN_HEADER, GOLDEN_CONTEXT.encode());

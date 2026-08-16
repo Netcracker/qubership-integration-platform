@@ -16,6 +16,11 @@ global:
     # it cannot resolve.
     testingService:
       enabled: true
+      # Endpoint mocking in the engine. With it on, an outbound HTTP call with no
+      # matching mock gets a 404 instead of reaching the real endpoint, so turn it
+      # on only while someone is testing. The engine picks the change up on a
+      # restart; no chain needs a redeploy.
+      engineMockingEnabled: false
     deploy:
       classic:
         enabled: true

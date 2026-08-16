@@ -2,6 +2,8 @@ package org.qubership.integration.platform.engine.service.testing;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.quarkus.arc.Unremovable;
+import io.quarkus.arc.lookup.LookupIfProperty;
 import org.apache.hc.client5.http.HttpRoute;
 import org.apache.hc.client5.http.routing.HttpRoutePlanner;
 import org.apache.hc.core5.http.HttpHost;
@@ -9,13 +11,20 @@ import org.apache.hc.core5.http.HttpRequest;
 import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.message.BasicHttpRequest;
 import org.junit.jupiter.api.Test;
+import org.yaml.snakeyaml.Yaml;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Enumeration;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -79,6 +88,7 @@ class EndpointMockTestingServiceTest {
         // An http-sender has neither a context path nor an operation path, so the builder sends the string "null".
         HttpRequest request = intercept(request("http://orders:8080/orders/42"), endpointInfo("null"));
 
+        assertTrue(context(request).get("operationPath").isTextual(), "expected the string null, not a JSON null");
         assertEquals("null", contextField(request, "operationPath"));
     }
 
@@ -121,6 +131,71 @@ class EndpointMockTestingServiceTest {
     }
 
     @Test
+    void keepsTheLiveTargetWhenTheSameRequestPassesThroughTwice() {
+        // hc5 runs the processor again over the same request on an authentication challenge.
+        HttpRequestInterceptor interceptor =
+                service().buildEndpointMockInterceptor("chain-1", endpointInfo(OPERATION_PATH));
+        HttpRequest request = request("http://orders:8080/orders/42?status=NEW");
+
+        process(interceptor, request);
+        process(interceptor, request);
+
+        assertEquals("/orders/42?status=NEW", contextField(request, "path"));
+        assertEquals("/api/v1/endpoint-mocks/call?status=NEW", request.getPath());
+    }
+
+    @Test
+    void treatsAnEmptyRequestTargetAsTheRoot() {
+        HttpRequest request = intercept(new BasicHttpRequest("GET", ""));
+
+        assertEquals("/", contextField(request, "path"));
+        assertEquals("/api/v1/endpoint-mocks/call", request.getPath());
+    }
+
+    @Test
+    void keepsTheBasePathOfTheConfiguredAddress() {
+        EndpointMockTestingService service = new EndpointMockTestingService("http://gateway:8080/mocks/");
+        HttpRequest request = request("http://orders:8080/orders/42?status=NEW");
+
+        process(service.buildEndpointMockInterceptor("chain-1", endpointInfo(OPERATION_PATH)), request);
+
+        assertEquals("/mocks/api/v1/endpoint-mocks/call?status=NEW", request.getPath());
+        assertEquals("/orders/42?status=NEW", contextField(request, "path"));
+        assertEquals("gateway", route(service).getTargetHost().getHostName());
+    }
+
+    @Test
+    void acceptsAnAddressWithSurroundingWhitespace() {
+        HttpRoute route = route(new EndpointMockTestingService("  http://testing-service:8080  "));
+
+        assertEquals("testing-service", route.getTargetHost().getHostName());
+        assertEquals(8080, route.getTargetHost().getPort());
+    }
+
+    // The bean is looked up programmatically: without both annotations the lookup returns empty and mocking
+    // never happens, which no behavioral test can catch.
+    @Test
+    void carriesTheAnnotationsTheProgrammaticLookupNeeds() {
+        assertNotNull(EndpointMockTestingService.class.getAnnotation(Unremovable.class),
+                "ArC removes a bean nothing injects, so @Unremovable is required");
+
+        LookupIfProperty lookup = EndpointMockTestingService.class.getAnnotation(LookupIfProperty.class);
+
+        assertNotNull(lookup, "@LookupIfProperty is what gates the lookup on the property");
+        assertEquals("qip.testing.enabled", lookup.name());
+        assertEquals("true", lookup.stringValue());
+    }
+
+    // The keys the annotation and the @ConfigProperty read have to be the keys the shipped application.yml writes.
+    @Test
+    void theShippedConfigurationKeepsMockingOff() throws IOException {
+        Map<String, Object> testing = shippedTestingConfiguration();
+
+        assertEquals("${TESTING_SERVICE_ENABLED:false}", testing.get("enabled"));
+        assertEquals("${TESTING_SERVICE_ADDRESS:http://testing-service:8080}", testing.get("address"));
+    }
+
+    @Test
     void routesToTheConfiguredHost() {
         HttpRoute route = route(service());
 
@@ -152,6 +227,25 @@ class EndpointMockTestingServiceTest {
 
     private static EndpointMockTestingService service() {
         return new EndpointMockTestingService(ADDRESS);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> shippedTestingConfiguration() throws IOException {
+        // The test classpath carries an application.yml of its own, so look for the one the module ships.
+        Enumeration<URL> resources =
+                EndpointMockTestingServiceTest.class.getClassLoader().getResources("application.yml");
+        while (resources.hasMoreElements()) {
+            try (InputStream stream = resources.nextElement().openStream()) {
+                Map<String, Object> root = new Yaml().load(stream);
+                if (root != null && root.get("qip") instanceof Map) {
+                    Map<String, Object> testing =
+                            (Map<String, Object>) ((Map<String, Object>) root.get("qip")).get("testing");
+                    assertNotNull(testing, "application.yml does not declare qip.testing");
+                    return testing;
+                }
+            }
+        }
+        throw new AssertionError("no application.yml on the classpath declares qip");
     }
 
     private static EndpointInfo endpointInfo(String operationPath) {

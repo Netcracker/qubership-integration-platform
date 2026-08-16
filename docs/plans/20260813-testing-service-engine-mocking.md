@@ -72,8 +72,9 @@ it is already public platform code.
   route planner target, `canBeMocked`, context encoding against a golden base64 literal shared with plan 1
 - **Spring conditional-bean test**: `ApplicationContextRunner` over the single component class — the engine's only
   `@SpringBootTest` needs a Consul stub, Flyway disabled and a custom initializer, far too much machinery for this
-- **Quarkus registration test**: `@QuarkusComponentTest` with `@TestConfigProperty`, modeled on the existing producer
-  test in that module
+- **Quarkus registration**: no `@QuarkusComponentTest` — it runs neither the `@LookupIfProperty` build step nor bean
+  removal, so it would pass whatever the property says (Task 4). A reflection test asserts instead that the class
+  carries `@Unremovable` and a `@LookupIfProperty` naming `qip.testing.enabled`; the switch itself is verified by hand
 - **manual verification**: the local compose stack, which contains the Spring engine only (Task 6)
 
 ## Progress Tracking
@@ -281,6 +282,10 @@ id, so Task 2's dedicated test has no counterpart.
 - [x] keep the engine free of a compose dependency on the testing service — the testing service calls the engine, and a dependency would create a cycle
 - [x] surface both properties in the engine helm chart with mocking off by default, and set the address to the release-scoped service name in the engine configmap, following the existing runtime-catalog URL entry — the compose default hostname does not resolve on Kubernetes
 - [x] no automated tests here; verified by stack startup and by Task 6
+
+➕ Mocking is switched on through `global.qip.testingService.engineMockingEnabled`, which defaults to `false`; the
+configmap renders `TESTING_SERVICE_ENABLED` from it. A hardcoded `"false"` shipped the plumbing with no supported way to
+turn it on, since a `helm upgrade` reverts a patched ConfigMap.
 
 ➕ The two configmap keys render unconditionally, independently of `global.qip.testingService.enabled`. Gating them on
 that flag would leave the deployment's `configMapKeyRef` pointing at absent keys whenever the testing service is turned

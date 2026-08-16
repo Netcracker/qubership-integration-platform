@@ -4,10 +4,9 @@ data:
   KUBE_DEV_MODE: "false"
   POSTGRES_URL: {{ .Release.Name }}-postgres:5432
   RUNTIME_CATALOG_SERVICE_URL: http://{{ .Release.Name }}-runtime-catalog:8080
-  # Endpoint mocking stays off: with it on, every outbound HTTP call with no
-  # matching mock gets a 404. Turn it on only while someone is testing, and only
-  # where the testing service is deployed.
-  TESTING_SERVICE_ENABLED: "false"
+  # Rendered whatever the flag says: the deployment reads this key, and a missing
+  # one pins the pod in CreateContainerConfigError.
+  TESTING_SERVICE_ENABLED: {{ .Values.global.qip.testingService.engineMockingEnabled | default false | quote }}
   TESTING_SERVICE_ADDRESS: http://{{ .Release.Name }}-testing-service:8080
 kind: ConfigMap
 metadata:

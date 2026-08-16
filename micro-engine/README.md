@@ -59,8 +59,8 @@ Application parameters can be set by environment variables.
 | OPENSEARCH_INDEX_SHARDS             | 3                                                    | OpenSearch index shards count                                                                                                |
 | OPENSEARCH_ROLLOVER_MIN_INDEX_SIZE  |                                                      | Minimal index size to rollover. Uneset by default.                                                                           |
 | MONITORING_ENABLED                  | false                                                |                                                                                                                              |
-| TESTING_SERVICE_ENABLED             | false                                                | Enables endpoint mocking. Turn it on only where the Testing Service is deployed: with it on, an outbound HTTP call with no matching mock gets a 404 instead of reaching the real endpoint. Changing the value requires an engine restart; chains need no redeploy. |
-| TESTING_SERVICE_ADDRESS             | `http://testing-service:8080`                        | Testing Service address, used when endpoint mocking is enabled.                                                              |
+| TESTING_SERVICE_ENABLED             | false                                                | Enables endpoint mocking. Enable it only where the testing service is deployed: an unmatched call gets a 404.                |
+| TESTING_SERVICE_ADDRESS             | `http://testing-service:8080`                        | Testing service address, used when endpoint mocking is enabled.                                                              |
 
 
 Configuration can be overridden with values stored in Consul.

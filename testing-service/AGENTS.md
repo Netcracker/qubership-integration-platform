@@ -4,8 +4,9 @@ The one Go module in the repository. `README.md` next to this file covers runnin
 covers the constraints that are easy to break while changing it.
 
 Keep durable notes here. `CLAUDE.md` files are not versioned in this repository, only `AGENTS.md` is, so anything a
-future reader needs has to live in this file rather than in a local scratch file. Unlike the other `AGENTS.md` files in
-the repository, this one is written by hand: `apm compile` does not generate it, so edit it directly.
+future reader needs has to live in this file rather than in a local scratch file. This file is written by hand, as
+`engine/AGENTS.md` and `micro-engine/AGENTS.md` are: `apm compile` generates none of the three, so edit them directly.
+Every other `AGENTS.md` in the repository is generated.
 
 ## Layout
 
@@ -37,6 +38,11 @@ without importing them. `New` is the one place that normalizes its inputs: it ca
 `Deps.WithDefaults()`, and everything under it takes `cfg` and `deps` already normalized, so no constructor below
 repeats a default or guards against a nil logger. The repositories go one step further and take the pagination limit as
 a plain `int`, so no repository reads configuration at all.
+
+`TestingContext`, its header name and the standard padded base64 alphabet are a contract with two Java copies, in
+`engine/src/main/java/.../service/testing/TestingContext.java` and the same path under `micro-engine/`. Golden literals
+in `internal/model/testing_context_test.go` and in both Java `TestingContextTest` classes are what hold the three in
+step, so a change here lands in all three.
 
 ## Public surface
 

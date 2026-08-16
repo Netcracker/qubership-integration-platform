@@ -14,20 +14,23 @@ planner and a request interceptor while it configures the HTTP client of a chain
 and authority at the testing service, rewrites the request target to `/api/v1/endpoint-mocks/call`, and attaches a
 `Testing-Service-Context` header.
 
-The header contract, the base64 encoding and the behavior of the mocks are one thing across both engines and are written
-up in `engine/AGENTS.md`. Read that first; this section covers what differs here.
+The header contract, the base64 encoding and the behavior of the mocks are the same in both engines and are written up
+in `engine/AGENTS.md`, including the warning that the testing service receives whatever credentials the element was
+sending. Read that first; this section covers what differs here.
 
 | Property | Environment variable | Default | Meaning |
 | --- | --- | --- | --- |
 | `qip.testing.enabled` | `TESTING_SERVICE_ENABLED` | `false` | makes the bean lookup resolve, through `@LookupIfProperty` |
-| `qip.testing.address` | `TESTING_SERVICE_ADDRESS` | `http://testing-service:8080` | base address of the testing service |
+| `qip.testing.address` | `TESTING_SERVICE_ADDRESS` | `http://testing-service:8080` | base address of the testing service; a base path in it is kept, so an ingress-style address works |
 
 **Enable it only where the testing service is deployed, and only while someone is testing.** With mocking on and the
 service absent, every outbound HTTP call from every chain fails to connect; with the service present, a call with no
-matching mock is answered `404` instead of reaching the real endpoint. A toggle takes effect on an engine restart, which
-re-processes every deployment and rebuilds the HTTP client, so no chain needs a redeploy. That was verified on the Spring
-engine: `micro-engine` is in neither the local compose stack nor a Helm chart, so its configuration is set wherever its
-domain container is.
+matching mock is answered `404` instead of reaching the real endpoint.
+
+A toggle takes effect on an engine restart, which re-processes every deployment and rebuilds the HTTP client, so no
+chain needs a redeploy. That was verified on the Spring engine only, since `micro-engine` is in neither the local
+compose stack nor a Helm chart. Its environment comes from the runtime catalog, which creates micro-engine domains at
+runtime: set the two variables in `MICRO_DOMAIN_ENVIRONMENT` there, next to `MICRO_DOMAIN_CONTAINER_IMAGE`.
 
 ### Registration takes two annotations
 
@@ -38,8 +41,9 @@ unremovable; drop `@Unremovable` and the lookup returns empty, so mocking never 
 neighboring `MetricTagsHelper`, resolved the same way two lines above, carries `@Unremovable` for the same reason.
 
 A `@QuarkusComponentTest` cannot cover the switch. Component tests run neither the build step that generates the
-`@LookupIfProperty` suppression nor bean removal, so such a test passes whatever the property says. Verify the on/off
-switch by hand.
+`@LookupIfProperty` suppression nor bean removal, so such a test passes whatever the property says. What is covered is
+the annotations themselves: `EndpointMockTestingServiceTest` reflects over the class and asserts that both are present
+and that `@LookupIfProperty` names `qip.testing.enabled`. Verify the on/off switch itself by hand.
 
 ### `EndpointInfo.path` is not a request path
 

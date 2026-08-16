@@ -59,6 +59,11 @@ class EndpointMockTestingServiceTest {
     }
 
     @Test
+    void cannotBeMockedWhenThereIsNoElementPropertiesAtAll() {
+        assertFalse(service().canBeMocked(null));
+    }
+
+    @Test
     void sendsTheDesignTimeElementIdRatherThanTheSnapshotOne() {
         HttpRequest request = intercept(request("http://orders:8080/orders/42"));
 
@@ -127,6 +132,48 @@ class EndpointMockTestingServiceTest {
 
         assertEquals("/orders/42", contextField(first, "path"));
         assertEquals("/orders/7?status=NEW", contextField(second, "path"));
+    }
+
+    @Test
+    void keepsTheLiveTargetWhenTheSameRequestPassesThroughTwice() {
+        // hc5 runs the processor again over the same request on an authentication challenge.
+        HttpRequestInterceptor interceptor =
+                service().buildEndpointMockInterceptor("chain-1", elementProperties());
+        HttpRequest request = request("http://orders:8080/orders/42?status=NEW");
+
+        process(interceptor, request);
+        process(interceptor, request);
+
+        assertEquals("/orders/42?status=NEW", contextField(request, "path"));
+        assertEquals("/api/v1/endpoint-mocks/call?status=NEW", request.getPath());
+    }
+
+    @Test
+    void treatsAnEmptyRequestTargetAsTheRoot() {
+        HttpRequest request = intercept(new BasicHttpRequest("GET", ""));
+
+        assertEquals("/", contextField(request, "path"));
+        assertEquals("/api/v1/endpoint-mocks/call", request.getPath());
+    }
+
+    @Test
+    void keepsTheBasePathOfTheConfiguredAddress() {
+        EndpointMockTestingService service = new EndpointMockTestingService("http://gateway:8080/mocks/");
+        HttpRequest request = request("http://orders:8080/orders/42?status=NEW");
+
+        process(service.buildEndpointMockInterceptor("chain-1", elementProperties()), request);
+
+        assertEquals("/mocks/api/v1/endpoint-mocks/call?status=NEW", request.getPath());
+        assertEquals("/orders/42?status=NEW", contextField(request, "path"));
+        assertEquals("gateway", route(service).getTargetHost().getHostName());
+    }
+
+    @Test
+    void acceptsAnAddressWithSurroundingWhitespace() {
+        HttpRoute route = route(new EndpointMockTestingService("  http://testing-service:8080  "));
+
+        assertEquals("testing-service", route.getTargetHost().getHostName());
+        assertEquals(8080, route.getTargetHost().getPort());
     }
 
     @Test
