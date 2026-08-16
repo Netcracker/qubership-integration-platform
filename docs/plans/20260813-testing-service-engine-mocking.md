@@ -202,17 +202,26 @@ encoders disagree byte for byte on that fixture. Task 4 asserts both literals in
 - Create: `engine/src/main/java/org/qubership/integration/platform/engine/service/testing/EndpointMockTestingService.java`
 - Create: `engine/src/test/java/org/qubership/integration/platform/engine/service/testing/EndpointMockTestingServiceTest.java`
 
-- [ ] implement `canBeMocked(ElementProperties)` — the caller already restricts this to non-trigger HTTP elements, so this only confirms the design-time element id is present
-- [ ] read the element id from `properties.get(ChainProperties.ELEMENT_ID)`, never from `ElementProperties.getElementId()`: the latter is the snapshot id and changes with every snapshot, so mocks would match nothing and silently break on redeploy
-- [ ] read `operationPath` from `properties.get(ChainProperties.OPERATION_PATH)`
-- [ ] implement `buildEndpointMockInterceptor(chainId, elementProperties)`, building and encoding the context **inside `process(...)` on every invocation** — the builder method itself runs once per Camel HTTP client build, not per request
-- [ ] put the live request target, query string included, into the context's `path` field; rewrite the target to `/api/v1/endpoint-mocks/call`, keeping the query on the wire for readable logs; set scheme and authority to the testing service; add the `Testing-Service-Context` header
-- [ ] implement `buildRoutePlanner(chainId, elementProperties)` returning a route to the configured host, honoring scheme and port
-- [ ] register the component under `@ConditionalOnProperty` for `qip.testing.enabled`, reading both values with `@Value`
-- [ ] write a test that fails if the snapshot element id is used instead of the design-time one
-- [ ] write tests asserting `path` carries the query string and `operationPath` carries the template, since both feed matchers
-- [ ] write tests for the rewritten target, the decodable header, the route planner (host, port, https) and `canBeMocked` returning false when the id is missing
-- [ ] run `mvn -pl engine -am test -Dgpg.skip=true` - must pass before next task
+- [x] implement `canBeMocked(ElementProperties)` — the caller already restricts this to non-trigger HTTP elements, so this only confirms the design-time element id is present
+- [x] read the element id from `properties.get(ChainProperties.ELEMENT_ID)`, never from `ElementProperties.getElementId()`: the latter is the snapshot id and changes with every snapshot, so mocks would match nothing and silently break on redeploy
+- [x] read `operationPath` from `properties.get(ChainProperties.OPERATION_PATH)`
+- [x] implement `buildEndpointMockInterceptor(chainId, elementProperties)`, building and encoding the context **inside `process(...)` on every invocation** — the builder method itself runs once per Camel HTTP client build, not per request
+- [x] put the live request target, query string included, into the context's `path` field; rewrite the target to `/api/v1/endpoint-mocks/call`, keeping the query on the wire for readable logs; set scheme and authority to the testing service; add the `Testing-Service-Context` header
+- [x] implement `buildRoutePlanner(chainId, elementProperties)` returning a route to the configured host, honoring scheme and port
+- [x] register the component under `@ConditionalOnProperty` for `qip.testing.enabled`, reading both values with `@Value`
+- [x] write a test that fails if the snapshot element id is used instead of the design-time one
+- [x] write tests asserting `path` carries the query string and `operationPath` carries the template, since both feed matchers
+- [x] write tests for the rewritten target, the decodable header, the route planner (host, port, https) and `canBeMocked` returning false when the id is missing
+- [x] run `mvn -pl engine -am test -Dgpg.skip=true` - must pass before next task
+
+➕ `qip.testing.enabled` is read by `@ConditionalOnProperty` alone, so only `qip.testing.address` carries a `@Value`;
+a second `@Value` for the flag would be dead. The `@Value` has no inline default, matching the module's other
+`@Value("${qip.…}")` sites, which rely on `application.yml` — Task 3 adds the entry, and Task 3's context test must set
+both properties.
+
+➕ The address is parsed once in the constructor; an address with no host fails fast with `IllegalArgumentException`
+rather than producing a route to a null host at request time. A missing port falls back to 80 or 443 by scheme, so the
+route the planner returns is fully resolved.
 
 ### Task 3: Wire configuration into `engine`
 
