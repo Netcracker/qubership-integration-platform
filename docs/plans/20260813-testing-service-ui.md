@@ -494,13 +494,32 @@ suites that render `createMemoryRouter`.
 - Create: `ui/src/components/modal/testing/ImportEndpointMocksModal.tsx`
 - Create: `ui/tests/pages/testing/EndpointMocks.test.tsx`, `ui/tests/components/modal/testing/CreateEndpointMockModal.test.tsx`
 
-- [ ] build the list on the shared hook, mirroring test cases including the Create/Import asymmetry
-- [ ] add the mock-specific columns: response status code and response delay
-- [ ] filter the endpoint picker to `http-sender` and HTTP `service-call` elements
-- [ ] use the mock creation defaults — enabled **true**, status 200, delay 0 — which are the opposite of the test-case ones
-- [ ] add delete, export, import and the details drawer with the same gating and confirmation rules
-- [ ] write tests for the mock-specific columns, the picker filtering and the creation defaults
-- [ ] run `npm -w @netcracker/qip-ui test` - must pass before next task
+- [x] build the list on the shared hook, mirroring test cases including the Create/Import asymmetry
+- [x] add the mock-specific columns: response status code and response delay
+- [x] filter the endpoint picker to `http-sender` and HTTP `service-call` elements
+- [x] use the mock creation defaults — enabled **true**, status 200, delay 0 — which are the opposite of the test-case ones
+- [x] add delete, export, import and the details drawer with the same gating and confirmation rules
+- [x] write tests for the mock-specific columns, the picker filtering and the creation defaults
+- [x] run `npm -w @netcracker/qip-ui test` - must pass before next task
+
+➕ The mock payload, its filterable features and its sortable fields were re-read off the Go service
+(`internal/dao/model.go`, `internal/dao/endpoint_mocks_repository.go`) and agree with the plan and with `apiTypes.ts`
+field for field. The list returns the whole entity — there is no view type with rule counts, unlike test cases — so the
+drawer counts `requestMatchers` itself and the list carries no rule columns.
+
+➕ `formatOptional` hides a zero, and zero is the delay a mock is created with. `components/testing/endpointMocks.ts`
+holds `formatMockNumber`, which renders the status and the delay and keeps `0` visible.
+
+➕ The picker takes `service-call` only at protocol `http`, matching the source. The project's `isHttpProtocol` also
+accepts `soap`, which would offer SOAP calls the mock has no response shape for, so the check is written against
+`normalizeProtocol` directly.
+
+➕ The picker flattens the chain elements before filtering: a sender or a service call can sit inside a container, and
+`getElements` answers a tree. `flattenElements` moved to `components/testing/testingElements.ts`, where the trigger
+picker of task 7 now reads it as well, and `useTestingEntityList` reuses it for its name cache.
+
+➕ Mocks have no run action — a mock is exercised by the case that hits it — so the toolbar is refresh, export,
+import or create, and delete.
 
 ### Task 10: Endpoint mock editor
 

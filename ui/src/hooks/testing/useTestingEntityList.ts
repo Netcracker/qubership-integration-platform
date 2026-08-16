@@ -13,6 +13,7 @@ import {
   TestsRunView,
 } from "../../api/apiTypes";
 import { EntityFilterModel } from "../../components/table/filter/filterTypes";
+import { flattenElements } from "../../components/testing/testingElements";
 import {
   buildTestingFilters,
   ENDPOINT_MOCKS_SORT_FIELDS,
@@ -109,11 +110,11 @@ export type TestingEntityList<T> = {
 
 const NO_NAMES: NamedEntity[] = [];
 
-function flattenElements(elements: Element[]): NamedEntity[] {
-  return elements.flatMap((element) => [
-    { id: element.id, name: element.name },
-    ...flattenElements(element.children ?? []),
-  ]);
+function toNamedElements(elements: Element[]): NamedEntity[] {
+  return flattenElements(elements).map((element) => ({
+    id: element.id,
+    name: element.name,
+  }));
 }
 
 function toNameMap(entities: NamedEntity[]): Map<string, string> {
@@ -157,7 +158,7 @@ export function useTestingEntityList<T extends { id: string }>({
         if (chainId) {
           const chainElements = await api.getElements(chainId);
           if (!canceled) {
-            setElements(flattenElements(chainElements));
+            setElements(toNamedElements(chainElements));
           }
         } else {
           const allChains = await api.getChains();

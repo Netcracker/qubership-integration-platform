@@ -71,6 +71,7 @@ import { BrowserTabTitle } from "./components/BrowserTabTitle.tsx";
 import { TestingGuard, TestingLayout } from "./pages/testing/TestingLayout.tsx";
 import { TestingPlaceholder } from "./pages/testing/TestingPlaceholder.tsx";
 import { TestCases } from "./pages/testing/TestCases.tsx";
+import { EndpointMocks } from "./pages/testing/EndpointMocks.tsx";
 import { TestCasePage } from "./pages/testing/TestCasePage.tsx";
 import { TestCaseGeneralTab } from "./components/testing/testCase/TestCaseGeneralTab.tsx";
 import { TestCaseRequestTab } from "./components/testing/testCase/TestCaseRequestTab.tsx";
@@ -174,7 +175,7 @@ const router = createBrowserRouter(
             </Route>
             <Route
               path="endpoint-mocks"
-              element={<TestingPlaceholder name="Endpoint mocks" />}
+              element={<EndpointMocks variant="admin-page" />}
             />
             <Route
               path="endpoint-mocks/:mockId"
@@ -257,10 +258,7 @@ const router = createBrowserRouter(
                   element={<TestCaseResponseValidationTab />}
                 />
               </Route>
-              <Route
-                path="endpoint-mocks"
-                element={<TestingPlaceholder name="Endpoint mocks" />}
-              />
+              <Route path="endpoint-mocks" element={<EndpointMocks />} />
               <Route
                 path="endpoint-mocks/:mockId"
                 element={<TestingPlaceholder name="Endpoint mock" />}
