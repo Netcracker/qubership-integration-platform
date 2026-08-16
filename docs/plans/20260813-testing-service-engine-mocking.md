@@ -229,10 +229,18 @@ route the planner returns is fully resolved.
 - Modify: `engine/src/main/resources/application.yml`
 - Create: `engine/src/test/java/org/qubership/integration/platform/engine/service/testing/TestingServiceConditionTest.java`
 
-- [ ] add both properties following the file's existing `${ENV_VAR:default}` style, with `qip.testing.enabled` defaulting to `false`
-- [ ] confirm `HttpSenderDependencyBinder` needs no change — it already takes `Optional<TestingService>`
-- [ ] write an `ApplicationContextRunner` test asserting the bean is absent by default and present once the property is set
-- [ ] run `mvn -pl engine -am test -Dgpg.skip=true` - must pass before next task
+- [x] add both properties following the file's existing `${ENV_VAR:default}` style, with `qip.testing.enabled` defaulting to `false`
+- [x] confirm `HttpSenderDependencyBinder` needs no change — it already takes `Optional<TestingService>`
+- [x] write an `ApplicationContextRunner` test asserting the bean is absent by default and present once the property is set
+- [x] run `mvn -pl engine -am test -Dgpg.skip=true` - must pass before next task
+
+➕ Env variable names are `TESTING_SERVICE_ENABLED` and `TESTING_SERVICE_ADDRESS`, placed next to `qip.internal-services`,
+which holds the other service address. Task 5 must use the same names in `engine-dev.env` and in the helm chart.
+
+➕ The test needs no new dependency: `spring-boot-test` and `assertj-core` already reach the engine test classpath
+transitively at compile scope. Declaring them test-scoped would narrow the scope of a dependency the runtime jar
+currently ships, so the classpath was left alone. The assertions use plain JUnit, so only `ApplicationContextRunner`
+itself comes from `spring-boot-test`.
 
 ### Task 4: `TestingService` implementation in `micro-engine`
 
