@@ -333,10 +333,21 @@ feature, not a mocking defect, but it is worth knowing before writing a query ma
 
 ### Task 7: [Final] Update documentation
 
-- [ ] document both properties, the enable-only-where-deployed rule, and what a toggle requires — record whatever Task 6 established, not an assumption
-- [ ] document the context field semantics — that `path` must carry the query string and `operationPath` the template — so a future change does not quietly break matchers
-- [ ] note the interface difference between the two engines, the element-id trap, and the misnamed `EndpointInfo.path`
-- [ ] move this plan to `docs/plans/completed/`
+- [x] document both properties, the enable-only-where-deployed rule, and what a toggle requires — record whatever Task 6 established, not an assumption
+- [x] document the context field semantics — that `path` must carry the query string and `operationPath` the template — so a future change does not quietly break matchers
+- [x] note the interface difference between the two engines, the element-id trap, and the misnamed `EndpointInfo.path`
+- [x] move this plan to `docs/plans/completed/`
+
+➕ The notes went into `engine/AGENTS.md` and `micro-engine/AGENTS.md`, not into `CLAUDE.md` files: this repository holds
+no `CLAUDE.md` at all, only `AGENTS.md` is versioned, and both new files follow the `testing-service/AGENTS.md`
+precedent — no APM primitive targets `engine/**` or `micro-engine/**`, so `apm compile` never writes them and they are
+maintained by hand. The APM primitive that calls `testing-service/AGENTS.md` "the one exception" was left alone: editing
+it requires an `apm compile` to regenerate the root `AGENTS.md`, and the APM CLI is not installed here.
+
+➕ The two environment variables were also added to each module's `README.md` configuration table, which is where an
+operator looks for them. Everything else — the header contract, the id trap, the metrics and session behavior — is
+agent-facing and lives in `AGENTS.md` only. `micro-engine/AGENTS.md` keeps the shared contract by reference rather than
+duplicating it, and states outright that the restart behavior was verified on the Spring engine.
 
 ## Post-Completion
 
