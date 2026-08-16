@@ -339,15 +339,36 @@ and `ui/tests/pages/ChainPage.test.tsx` gains the tab visibility cases.
 - Create: `ui/src/components/modal/testing/JsonMatcherParametersModal.tsx`
 - Create: `ui/tests/components/testing/MatchersTable.test.tsx`
 
-- [ ] render the columns and toolbar from Technical Details, including the parameters column, bulk enable/disable and local search
-- [ ] scope entity types by owner kind
-- [ ] implement the three parameter editors, with the JSON one as a modal opened through `useModalsContext().showModal` and closed with `useModalContext().closeContainingModal`
-- [ ] use the correct parameter name per matcher type (`value`, `pattern`, or none) — the server rejects unknown names
-- [ ] clear parameters when the matcher type changes and the entity name when it stops being required
-- [ ] implement the validity rules and expose validity to the owning editor
-- [ ] support `readonly`, hiding selection and the toolbar
-- [ ] write tests for editor selection, the parameter-name map, entity-type scoping, validity, clearing behavior, bulk enable/disable and read-only mode
-- [ ] run `npm -w @netcracker/qip-ui test` - must pass before next task
+- [x] render the columns and toolbar from Technical Details, including the parameters column, bulk enable/disable and local search
+- [x] scope entity types by owner kind
+- [x] implement the three parameter editors, with the JSON one as a modal opened through `useModalsContext().showModal` and closed with `useModalContext().closeContainingModal`
+- [x] use the correct parameter name per matcher type (`value`, `pattern`, or none) — the server rejects unknown names
+- [x] clear parameters when the matcher type changes and the entity name when it stops being required
+- [x] implement the validity rules and expose validity to the owning editor
+- [x] support `readonly`, hiding selection and the toolbar
+- [x] write tests for editor selection, the parameter-name map, entity-type scoping, validity, clearing behavior, bulk enable/disable and read-only mode
+- [x] run `npm -w @netcracker/qip-ui test` - must pass before next task
+
+➕ The parameter names were re-read off the Go service and match the plan exactly: `value` for `equal`, `contain`,
+`start_with` and `end_with`, `pattern` for `match`, `path` + `schema` for `match_json_schema`, `path` + `sample` for
+`match_json`, none for `empty` and `exist` (`internal/matching/predicates/*.go`). Entity types likewise —
+`internal/matching/data_getter_factory.go`. One disagreement: the service reads `path` as **optional**
+(`getJsonPath` returns nothing when absent), while the plan and the client validity map require it. The client stays
+stricter, so nothing it saves is rejected.
+
+➕ The pure model — labels, the parameter-name map, entity-type scoping, validity and the clearing rules — lives in
+`ui/src/components/testing/matchers.ts` so both editors and their tests share one source. The cell that picks the
+editor is `matcherEditors/MatcherParametersCell.tsx`; the three editors and the shared read-only view sit beside it.
+
+➕ Column settings, per-column filters, sorting **and** column resize stay unported: the table is a form control over
+unsaved state, not a server list. Its buttons are plain antd buttons rather than `ProtectedButton`, because they
+mutate local state only — the owning editor's Save is what the permission table gates.
+
+➕ `crypto.randomUUID` keys new rows, as the source does. jsdom ships `crypto` without it, so
+`ui/tests/setup/crypto-random-uuid.ts` fills it in from Node for the whole suite.
+
+➕ `ScriptProps` now omits `onChange` from the DOM attributes it spreads: the editor reports a string, and the union
+with `FormEventHandler` forced a cast on every caller. One such cast in `CustomArrayField.tsx` is dropped with it.
 
 ### Task 6: Test cases list
 
