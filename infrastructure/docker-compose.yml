@@ -155,6 +155,8 @@ services:
       QIP_TESTING_POSTGRES_DSN: "postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable&search_path=testing_service"
       QIP_TESTING_CATALOG_ADDRESS: "http://runtime-catalog:8080"
       QIP_TESTING_ENGINE_ADDRESS: "http://engine:8080"
+      # The service defaults to production, which hides the Testing section in the UI.
+      QIP_TESTING_PRODUCTION: "false"
     healthcheck:
       test: ["CMD-SHELL", "curl --silent --fail localhost:8080/health || exit 1"]
       interval: 10s
