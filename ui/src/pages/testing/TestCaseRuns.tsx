@@ -189,6 +189,20 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
     setSelectAllMatching(false);
   }, []);
 
+  // Rows picked under one selection are not the rows the next one holds, so the
+  // choice does not survive a change to the filters, the search or the sort.
+  useEffect(() => {
+    clearSelection();
+  }, [filters, searchString, sortBy, sortOrder, clearSelection]);
+
+  // A selection reaching past the loaded page covers the rows a later page
+  // brings in, so their checkboxes follow it.
+  useEffect(() => {
+    if (selectAllMatching) {
+      setSelectedRowKeys(items.map((item) => item.id));
+    }
+  }, [items, selectAllMatching]);
+
   const collectTargetIds = useCallback(
     () => resolveTargetIds(toStringIds(selectedRowKeys), selectAllMatching),
     [resolveTargetIds, selectedRowKeys, selectAllMatching],
@@ -203,11 +217,18 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
     if (selectedRowKeys.length === 0) {
       return;
     }
-    const ids = await collectTargetIds();
-    if (ids.length > 0) {
-      await exportEntities(ids);
+    try {
+      const ids = await collectTargetIds();
+      if (ids.length > 0) {
+        await exportEntities(ids);
+      }
+    } catch (error) {
+      notificationService.requestFailed(
+        "Failed to export test case runs",
+        error,
+      );
     }
-  }, [selectedRowKeys, collectTargetIds, exportEntities]);
+  }, [selectedRowKeys, collectTargetIds, exportEntities, notificationService]);
 
   const handleRestart = useCallback(async () => {
     if (selectedRowKeys.length === 0) {
@@ -222,20 +243,33 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
         ids,
         TestsRunSource.TEST_CASE_RUNS,
       );
+      // The run lives under Admin Tools, which chain rights alone do not open, so
+      // the chain scope names the run rather than linking into a section the
+      // reader may not reach.
       notificationService.info(
         "Test run started",
-        <a
-          onClick={() =>
-            void navigate(`/admintools/testing/test-runs/${newRunId}`)
-          }
-        >
-          {newRunId}
-        </a>,
+        chainId ? (
+          newRunId
+        ) : (
+          <a
+            onClick={() =>
+              void navigate(`/admintools/testing/test-runs/${newRunId}`)
+            }
+          >
+            {newRunId}
+          </a>
+        ),
       );
     } catch (error) {
       notificationService.requestFailed("Failed to start a test run", error);
     }
-  }, [selectedRowKeys, collectTargetIds, navigate, notificationService]);
+  }, [
+    chainId,
+    selectedRowKeys,
+    collectTargetIds,
+    navigate,
+    notificationService,
+  ]);
 
   const cancelSelected = useCallback(async () => {
     try {
@@ -407,6 +441,21 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
         dataIndex: "errors",
         key: "errors",
         sorter: true,
+        // A count of zero stays plain: the errors page would open empty, and the
+        // Id cell already leads there for a run worth inspecting.
+        render: (_, run) =>
+          run.errors > 0 ? (
+            <a
+              onClick={(event) => {
+                event.stopPropagation();
+                void navigate(errorsPath(run));
+              }}
+            >
+              {run.errors}
+            </a>
+          ) : (
+            run.errors
+          ),
       },
       {
         title: "Session",
@@ -465,7 +514,6 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
             key: SELECT_ALL_MATCHING_KEY,
             text: "Select all that match the filters",
             onSelect: () => {
-              setSelectedRowKeys(items.map((run) => run.id));
               setSelectAllMatching(true);
             },
           },
@@ -540,6 +588,8 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
   useRegisterChainHeaderActions(variant === "chain-tab" ? toolbar : undefined, [
     variant,
     searchString,
+    sortBy,
+    sortOrder,
     selectedRowKeys,
     selectAllMatching,
     allLoaded,

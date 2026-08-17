@@ -125,6 +125,10 @@ export const AdminToolsSidebar = ({ collapsed }: { collapsed: boolean }) => {
 
   return (
     <Menu
+      // defaultOpenKeys is read once at mount, and the Testing group joins the
+      // menu only after its availability resolves. Keying on the group set
+      // remounts the menu then, so a deep link opens the group it landed in.
+      key={items.map((item) => item.key).join("|")}
       style={{ border: "none" }}
       mode="inline"
       selectedKeys={selectedKeys}

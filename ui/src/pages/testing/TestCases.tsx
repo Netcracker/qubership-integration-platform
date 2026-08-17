@@ -1,4 +1,10 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Flex, Table } from "antd";
 import type { TableProps } from "antd/lib/table";
 import type { TableRowSelection } from "antd/lib/table/interface";
@@ -8,7 +14,7 @@ import { TestCaseView, TestingSortOrder } from "../../api/apiTypes.ts";
 import { AdminToolsHeader } from "../../components/admin_tools/AdminToolsHeader.tsx";
 import commonStyles from "../../components/admin_tools/CommonStyle.module.css";
 import { CreateTestCaseModal } from "../../components/modal/testing/CreateTestCaseModal.tsx";
-import { ImportTestCasesModal } from "../../components/modal/testing/ImportTestCasesModal.tsx";
+import { TestingImportModal } from "../../components/modal/testing/TestingImportModal.tsx";
 import { TablePageLayout } from "../../components/TablePageLayout.tsx";
 import { nameLinkStyle } from "../../components/table/nameLinkStyle.ts";
 import { tableEmpty } from "../../components/table/tableEmpty.tsx";
@@ -113,6 +119,20 @@ export const TestCases: React.FC<TestCasesProps> = ({
     setSelectAllMatching(false);
   }, []);
 
+  // Rows picked under one selection are not the rows the next one holds, so the
+  // choice does not survive a change to the filters, the search or the sort.
+  useEffect(() => {
+    clearSelection();
+  }, [filters, searchString, sortBy, sortOrder, clearSelection]);
+
+  // A selection reaching past the loaded page covers the rows a later page
+  // brings in, so their checkboxes follow it.
+  useEffect(() => {
+    if (selectAllMatching) {
+      setSelectedRowKeys(items.map((item) => item.id));
+    }
+  }, [items, selectAllMatching]);
+
   const collectTargetIds = useCallback(
     () => resolveTargetIds(toStringIds(selectedRowKeys), selectAllMatching),
     [resolveTargetIds, selectedRowKeys, selectAllMatching],
@@ -127,11 +147,15 @@ export const TestCases: React.FC<TestCasesProps> = ({
     if (selectedRowKeys.length === 0) {
       return;
     }
-    const ids = await collectTargetIds();
-    if (ids.length > 0) {
-      await exportEntities(ids);
+    try {
+      const ids = await collectTargetIds();
+      if (ids.length > 0) {
+        await exportEntities(ids);
+      }
+    } catch (error) {
+      notificationService.requestFailed("Failed to export test cases", error);
     }
-  }, [selectedRowKeys, collectTargetIds, exportEntities]);
+  }, [selectedRowKeys, collectTargetIds, exportEntities, notificationService]);
 
   const handleRun = useCallback(async () => {
     if (selectedRowKeys.length === 0) {
@@ -143,20 +167,33 @@ export const TestCases: React.FC<TestCasesProps> = ({
         return;
       }
       const runId = await api.startTestsRun(ids);
+      // The run lives under Admin Tools, which chain rights alone do not open, so
+      // the chain scope names the run rather than linking into a section the
+      // reader may not reach.
       notificationService.info(
         "Test run started",
-        <a
-          onClick={() =>
-            void navigate(`/admintools/testing/test-runs/${runId}`)
-          }
-        >
-          {runId}
-        </a>,
+        chainId ? (
+          runId
+        ) : (
+          <a
+            onClick={() =>
+              void navigate(`/admintools/testing/test-runs/${runId}`)
+            }
+          >
+            {runId}
+          </a>
+        ),
       );
     } catch (error) {
       notificationService.requestFailed("Failed to start a test run", error);
     }
-  }, [selectedRowKeys, collectTargetIds, navigate, notificationService]);
+  }, [
+    chainId,
+    selectedRowKeys,
+    collectTargetIds,
+    navigate,
+    notificationService,
+  ]);
 
   const deleteSelected = useCallback(async () => {
     try {
@@ -204,7 +241,14 @@ export const TestCases: React.FC<TestCasesProps> = ({
 
   const handleImport = useCallback(() => {
     showModal({
-      component: <ImportTestCasesModal onImported={handleRefresh} />,
+      component: (
+        <TestingImportModal
+          title="Import Test Cases"
+          failureMessage="Failed to import test cases"
+          importFiles={(files) => api.importTestCases(files)}
+          onImported={handleRefresh}
+        />
+      ),
     });
   }, [handleRefresh, showModal]);
 
@@ -393,7 +437,6 @@ export const TestCases: React.FC<TestCasesProps> = ({
             key: SELECT_ALL_MATCHING_KEY,
             text: "Select all that match the filters",
             onSelect: () => {
-              setSelectedRowKeys(items.map((testCase) => testCase.id));
               setSelectAllMatching(true);
             },
           },
@@ -501,6 +544,8 @@ export const TestCases: React.FC<TestCasesProps> = ({
   useRegisterChainHeaderActions(variant === "chain-tab" ? toolbar : undefined, [
     variant,
     searchString,
+    sortBy,
+    sortOrder,
     selectedRowKeys,
     selectAllMatching,
     allLoaded,

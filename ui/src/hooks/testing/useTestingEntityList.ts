@@ -37,10 +37,8 @@ export type TestingListSource<T> = {
     options?: TestingListOptions,
   ): Promise<T[]>;
   listIds(specification: TestingSelectionSpecification): Promise<string[]>;
-  exportEntities?(ids: string[]): Promise<File>;
+  exportEntities(ids: string[]): Promise<File>;
   sortFields: readonly string[];
-  /** Feature scoping the list to one chain. */
-  chainFeature?: string;
   /** Whether any column or filter of this list names an element. */
   usesElementNames?: boolean;
 };
@@ -51,7 +49,6 @@ export const testCasesListSource: TestingListSource<TestCaseView> = {
   listIds: (specification) => api.getTestCaseIds(specification),
   exportEntities: (ids) => api.exportTestCases(ids),
   sortFields: TEST_CASES_SORT_FIELDS,
-  chainFeature: TESTING_CHAIN_FEATURE,
   usesElementNames: true,
 };
 
@@ -62,7 +59,6 @@ export const endpointMocksListSource: TestingListSource<EndpointMock> = {
   listIds: (specification) => api.getEndpointMockIds(specification),
   exportEntities: (ids) => api.exportEndpointMocks(ids),
   sortFields: ENDPOINT_MOCKS_SORT_FIELDS,
-  chainFeature: TESTING_CHAIN_FEATURE,
   usesElementNames: true,
 };
 
@@ -72,7 +68,6 @@ export const testsRunsListSource: TestingListSource<TestsRunView> = {
   listIds: (specification) => api.getTestsRunIds(specification),
   exportEntities: (ids) => api.exportTestsRuns(ids),
   sortFields: TESTS_RUNS_SORT_FIELDS,
-  chainFeature: TESTING_CHAIN_FEATURE,
 };
 
 export const testCaseRunsListSource: TestingListSource<TestCaseRunView> = {
@@ -81,7 +76,6 @@ export const testCaseRunsListSource: TestingListSource<TestCaseRunView> = {
   listIds: (specification) => api.getTestCaseRunIds(specification),
   exportEntities: (ids) => api.exportTestCaseRuns(ids),
   sortFields: TEST_CASE_RUNS_SORT_FIELDS,
-  chainFeature: TESTING_CHAIN_FEATURE,
 };
 
 export type UseTestingEntityListOptions<T> = {
@@ -101,8 +95,6 @@ export type TestingEntityList<T> = {
   allLoaded: boolean;
   loadMore: () => void;
   refresh: () => void;
-  chains: NamedEntity[];
-  elements: NamedEntity[];
   getChainName: (chainId: string | null | undefined) => string;
   getElementName: (elementId: string | null | undefined) => string;
   resolveTargetIds: (
@@ -219,9 +211,9 @@ export function useTestingEntityList<T extends { id: string }>({
       return undefined;
     }
     const allFilters: TestingFilter[] = [...(scopeFilters ?? [])];
-    if (chainId && source.chainFeature) {
+    if (chainId) {
       allFilters.push({
-        feature: source.chainFeature,
+        feature: TESTING_CHAIN_FEATURE,
         condition: TestingFilterCondition.IS,
         values: [chainId],
       });
@@ -231,7 +223,7 @@ export function useTestingEntityList<T extends { id: string }>({
       ...(searchString ? { searchText: searchString } : {}),
       ...(allFilters.length > 0 ? { filters: allFilters } : {}),
     };
-  }, [selection, scopeFilters, chainId, source.chainFeature, searchString]);
+  }, [selection, scopeFilters, chainId, searchString]);
 
   const listOptions = useMemo<Omit<TestingListOptions, "offset">>(
     () =>
@@ -241,8 +233,21 @@ export function useTestingEntityList<T extends { id: string }>({
     [sortBy, sortOrder, source.sortFields],
   );
 
+  // Search is not debounced, so several pages can be in flight at once. Only the
+  // newest request may write, which also keeps a resolved request from writing
+  // after the screen is gone.
+  const requestGenerationRef = useRef(0);
+  useEffect(
+    () => () => {
+      requestGenerationRef.current += 1;
+    },
+    [],
+  );
+
   const fetchPage = useCallback(
     async (offset: number, replace: boolean) => {
+      const generation = ++requestGenerationRef.current;
+      const isCurrent = () => generation === requestGenerationRef.current;
       if (!specification) {
         setItems([]);
         setAllLoaded(true);
@@ -255,16 +260,24 @@ export function useTestingEntityList<T extends { id: string }>({
           offset,
           ...listOptions,
         });
+        if (!isCurrent()) {
+          return;
+        }
         setItems((previous) => (replace ? page : [...previous, ...page]));
         setAllLoaded(page.length === 0);
       } catch (error) {
+        if (!isCurrent()) {
+          return;
+        }
         notificationService.requestFailed(
           `Failed to load ${source.entityName}`,
           error,
         );
         setAllLoaded(true);
       } finally {
-        setIsLoading(false);
+        if (isCurrent()) {
+          setIsLoading(false);
+        }
       }
     },
     [specification, listOptions, source, notificationService],
@@ -299,9 +312,6 @@ export function useTestingEntityList<T extends { id: string }>({
 
   const exportEntities = useCallback(
     async (ids: string[]) => {
-      if (!source.exportEntities) {
-        return;
-      }
       try {
         downloadFile(await source.exportEntities(ids));
       } catch (error) {
@@ -333,8 +343,6 @@ export function useTestingEntityList<T extends { id: string }>({
     allLoaded,
     loadMore,
     refresh,
-    chains,
-    elements,
     getChainName,
     getElementName,
     resolveTargetIds,

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Button, Switch, Table, Tooltip, Typography } from "antd";
 import type { TableProps } from "antd/lib/table";
 import type { TableRowSelection } from "antd/lib/table/interface";
@@ -6,7 +6,7 @@ import {
   MatcherEntityType,
   MatcherType,
   TestingMatcher,
-  TestingMatcherParameter,
+  TestingNamedParameter,
 } from "../../api/apiTypes.ts";
 import { InlineEdit } from "../InlineEdit.tsx";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
@@ -19,7 +19,6 @@ import { MatcherParametersCell } from "./matcherEditors/MatcherParametersCell.ts
 import {
   createMatcher,
   getEntityTypesForOwnerKind,
-  isMatcherValid,
   MATCHER_ENTITY_TYPE_LABELS,
   MATCHER_TYPE_LABELS,
   matcherMatchesSearch,
@@ -45,7 +44,6 @@ export type MatchersTableProps = {
   matchers: TestingMatcher[] | null;
   onChange: (matchers: TestingMatcher[]) => void;
   readonly?: boolean;
-  onValidityChange?: (valid: boolean) => void;
 };
 
 export const MatchersTable: React.FC<MatchersTableProps> = ({
@@ -53,7 +51,6 @@ export const MatchersTable: React.FC<MatchersTableProps> = ({
   matchers,
   onChange,
   readonly = false,
-  onValidityChange,
 }) => {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [expandedDescriptions, setExpandedDescriptions] = useState<string[]>(
@@ -76,10 +73,6 @@ export const MatchersTable: React.FC<MatchersTableProps> = ({
       })),
     [kind],
   );
-
-  useEffect(() => {
-    onValidityChange?.(rows.every(isMatcherValid));
-  }, [rows, onValidityChange]);
 
   const rowKeyOf = (matcher: TestingMatcher) => matcher.id ?? matcher.name;
 
@@ -314,7 +307,7 @@ export const MatchersTable: React.FC<MatchersTableProps> = ({
         <MatcherParametersCell
           matcher={matcher}
           readonly={readonly}
-          onChange={(parameters: TestingMatcherParameter[]) =>
+          onChange={(parameters: TestingNamedParameter[]) =>
             updateMatcher(matcher, (current) => ({ ...current, parameters }))
           }
         />
@@ -355,7 +348,12 @@ export const MatchersTable: React.FC<MatchersTableProps> = ({
         data-testid="matchers-toolbar"
         search={{
           value: searchTerm,
-          onChange: setSearchTerm,
+          // The bulk actions act on the selection, which the search would
+          // otherwise carry over rows the table no longer shows.
+          onChange: (term: string) => {
+            setSearchTerm(term);
+            setSelectedRowKeys([]);
+          },
           placeholder: "Search matchers...",
           allowClear: true,
           style: { minWidth: 160, maxWidth: 320, flex: "0 1 auto" },

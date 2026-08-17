@@ -1,4 +1,10 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Flex, Table } from "antd";
 import type { TableProps } from "antd/lib/table";
 import type { TableRowSelection } from "antd/lib/table/interface";
@@ -97,6 +103,20 @@ export const TestRuns: React.FC = () => {
     setSelectAllMatching(false);
   }, []);
 
+  // Rows picked under one selection are not the rows the next one holds, so the
+  // choice does not survive a change to the filters, the search or the sort.
+  useEffect(() => {
+    clearSelection();
+  }, [filters, searchString, sortBy, sortOrder, clearSelection]);
+
+  // A selection reaching past the loaded page covers the rows a later page
+  // brings in, so their checkboxes follow it.
+  useEffect(() => {
+    if (selectAllMatching) {
+      setSelectedRowKeys(items.map((item) => item.id));
+    }
+  }, [items, selectAllMatching]);
+
   const collectTargetIds = useCallback(
     () => resolveTargetIds(toStringIds(selectedRowKeys), selectAllMatching),
     [resolveTargetIds, selectedRowKeys, selectAllMatching],
@@ -111,11 +131,15 @@ export const TestRuns: React.FC = () => {
     if (selectedRowKeys.length === 0) {
       return;
     }
-    const ids = await collectTargetIds();
-    if (ids.length > 0) {
-      await exportEntities(ids);
+    try {
+      const ids = await collectTargetIds();
+      if (ids.length > 0) {
+        await exportEntities(ids);
+      }
+    } catch (error) {
+      notificationService.requestFailed("Failed to export test runs", error);
     }
-  }, [selectedRowKeys, collectTargetIds, exportEntities]);
+  }, [selectedRowKeys, collectTargetIds, exportEntities, notificationService]);
 
   // A restart lands in this very list, so the rows are reloaded once it starts.
   const handleRestart = useCallback(async () => {
@@ -331,7 +355,6 @@ export const TestRuns: React.FC = () => {
             key: SELECT_ALL_MATCHING_KEY,
             text: "Select all that match the filters",
             onSelect: () => {
-              setSelectedRowKeys(items.map((run) => run.id));
               setSelectAllMatching(true);
             },
           },

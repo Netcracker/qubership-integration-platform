@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Form, Input, Select, Switch } from "antd";
+import { useNavigate } from "react-router";
 import { api } from "../../../api/api.ts";
 import { Element } from "../../../api/apiTypes.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
@@ -8,6 +9,7 @@ import { flattenElements, isHttpEndpoint } from "../testingElements.ts";
 
 export const EndpointMockGeneralTab: React.FC = () => {
   const { endpointMock, chainId, readonly, onChange } = useEndpointMockEditor();
+  const navigate = useNavigate();
   const notificationService = useNotificationService();
   const [endpoints, setEndpoints] = useState<Element[]>([]);
   const [endpointsLoading, setEndpointsLoading] = useState(false);
@@ -109,7 +111,7 @@ export const EndpointMockGeneralTab: React.FC = () => {
       {chainId ? null : (
         <Form.Item label="Chain" required>
           {referenceChainId ? (
-            <a href={`/chains/${referenceChainId}`}>
+            <a onClick={() => void navigate(`/chains/${referenceChainId}`)}>
               {chainName ?? referenceChainId}
             </a>
           ) : (

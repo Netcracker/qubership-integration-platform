@@ -153,9 +153,20 @@ export const TEST_CASE_RUNS_SORT_FIELDS = [
   "errors",
 ] as const;
 
-const RUN_STATUS_OPTIONS: ListValue[] = Object.values(TestRunStatus).map(
-  (value) => ({ value, label: formatSnakeCased(value) }),
-);
+function toStatusOptions(statuses: TestRunStatus[]): ListValue[] {
+  return statuses.map((value) => ({ value, label: formatSnakeCased(value) }));
+}
+
+/** A case run carries the status of one attempt, so every value can occur. */
+const CASE_RUN_STATUS_OPTIONS = toStatusOptions(Object.values(TestRunStatus));
+
+// The run aggregate maps pending to running and skipped to finished before it is
+// stored, so filtering runs by either would always come back empty.
+const RUN_STATUS_OPTIONS = toStatusOptions([
+  TestRunStatus.RUNNING,
+  TestRunStatus.FINISHED,
+  TestRunStatus.CANCELED,
+]);
 
 const NAME_COLUMN: FilterColumn = {
   id: "name",
@@ -187,11 +198,18 @@ const ELEMENT_COLUMN: FilterColumn = {
   conditions: ExtendedStringFilterConditions,
 };
 
-const STATUS_COLUMN: FilterColumn = {
+const RUN_STATUS_COLUMN: FilterColumn = {
   id: "status",
   name: "Status",
   conditions: ListFilterConditions,
   allowedValues: RUN_STATUS_OPTIONS,
+};
+
+const CASE_RUN_STATUS_COLUMN: FilterColumn = {
+  id: "status",
+  name: "Status",
+  conditions: ListFilterConditions,
+  allowedValues: CASE_RUN_STATUS_OPTIONS,
 };
 
 const AUDIT_COLUMNS: FilterColumn[] = [
@@ -264,7 +282,7 @@ export function getTestingFilterColumns(
         ...chainColumn,
         { id: "start", name: "Start", conditions: DateFilterConditions },
         { id: "finish", name: "Finish", conditions: DateFilterConditions },
-        STATUS_COLUMN,
+        RUN_STATUS_COLUMN,
         // The aggregate counts the cases that failed, not the errors they recorded.
         {
           id: "errors",
@@ -288,7 +306,7 @@ export function getTestingFilterColumns(
         ...chainColumn,
         { id: "start", name: "Start", conditions: DateFilterConditions },
         { id: "finish", name: "Finish", conditions: DateFilterConditions },
-        STATUS_COLUMN,
+        CASE_RUN_STATUS_COLUMN,
         { id: "errors", name: "Errors", conditions: NumberFilterConditions },
       ];
   }
@@ -361,17 +379,17 @@ function toWireFilter(filter: EntityFilterModel): TestingFilter | undefined {
   if (DATE_CONDITIONS.has(filter.condition)) {
     return toTimestampFilter(filter.column, filter.condition, filter.value);
   }
-  const values = splitValue(filter.value)
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
+  // Only `in` and `not_in` read a comma as a separator. Every other condition
+  // takes the value whole, so a name carrying a comma is not cut short.
+  const values = MULTI_VALUE_CONDITIONS.has(filter.condition)
+    ? splitValue(filter.value)
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0)
+    : [(filter.value ?? "").trim()].filter((value) => value.length > 0);
   if (values.length === 0) {
     return undefined;
   }
-  return {
-    feature: filter.column,
-    condition: token,
-    values: MULTI_VALUE_CONDITIONS.has(filter.condition) ? values : [values[0]],
-  };
+  return { feature: filter.column, condition: token, values };
 }
 
 function matchNames(
@@ -434,19 +452,15 @@ export function buildTestingFilters(
   return { filters: result, isEmpty: false };
 }
 
+/** The filter dialog of one testing list, over the columns that list declares. */
 export const useTestingFilter = (
   kind: TestingEntityKind,
   chainId?: string,
-): {
-  filters: EntityFilterModel[];
-  filterButton: ReactNode;
-  resetFilters: () => void;
-} => {
+): { filters: EntityFilterModel[]; filterButton: ReactNode } => {
   const filterColumns = useMemo(
     () => getTestingFilterColumns(kind, chainId),
     [kind, chainId],
   );
-
-  const { filters, filterButton, resetFilters } = useFilter(filterColumns);
-  return { filters, filterButton, resetFilters };
+  const { filters, filterButton } = useFilter(filterColumns);
+  return { filters, filterButton };
 };
