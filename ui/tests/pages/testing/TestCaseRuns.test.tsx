@@ -2,7 +2,13 @@
  * @jest-environment jsdom
  */
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {
   Session,
@@ -28,6 +34,7 @@ import {
 } from "../../__mocks__/LightweightTable.tsx";
 import { TestCaseRuns } from "../../../src/pages/testing/TestCaseRuns.tsx";
 import { ChainHeaderTestRoot } from "../../helpers/renderWithChainHeader.tsx";
+import { triggerIntersection } from "../../setup/intersection-observer.ts";
 
 let capturedConfirm:
   | { title: React.ReactNode; content?: React.ReactNode; onOk: () => unknown }
@@ -656,6 +663,106 @@ describe("TestCaseRuns actions", () => {
     expect(
       screen.queryByTestId("test-case-runs-delete"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("TestCaseRuns selection lifetime", () => {
+  /** Checked state of the row boxes, the header box aside. */
+  function rowCheckedState(): boolean[] {
+    return screen
+      .getAllByRole("checkbox")
+      .slice(1)
+      .map((checkbox) => (checkbox as HTMLInputElement).checked);
+  }
+
+  const twoRuns = [
+    testCaseRun(),
+    testCaseRun({ id: "run-2", testCaseName: "Second case" }),
+  ];
+
+  /** A fresh element per call: React skips a rerender of the very same one. */
+  function chainTab() {
+    return (
+      <UserPermissionsContext.Provider value={ALL_PERMISSIONS}>
+        <ChainHeaderTestRoot>
+          <TestCaseRuns variant="chain-tab" />
+        </ChainHeaderTestRoot>
+      </UserPermissionsContext.Provider>
+    );
+  }
+
+  it("should drop the selection when the search or the sort changes", async () => {
+    mockGetTestCaseRuns.mockResolvedValue(twoRuns);
+    renderTestCaseRuns();
+    await screen.findByText("run-2");
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    expect(rowCheckedState()).toEqual([true, false]);
+
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "second" },
+    });
+    await waitFor(() => expect(rowCheckedState()).toEqual([false, false]));
+
+    // Rows the search has hidden are rows a cancel must not reach.
+    fireEvent.click(screen.getByTestId("test-case-runs-cancel"));
+    expect(capturedConfirm).toBeUndefined();
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    expect(rowCheckedState()).toEqual([true, false]);
+
+    getLastTableOnChange()?.(
+      {},
+      {},
+      { columnKey: sortKeyOfColumn("Test Case"), order: "ascend" },
+    );
+    await waitFor(() => expect(rowCheckedState()).toEqual([false, false]));
+  });
+
+  it("should drop the selection when the filters change", async () => {
+    mockUseTestingFilter.mockReturnValue({ filters: [], filterButton: null });
+    mockGetTestCaseRuns.mockResolvedValue(twoRuns);
+    const { rerender } = render(chainTab());
+    await screen.findByText("run-2");
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    expect(rowCheckedState()).toEqual([true, false]);
+
+    mockUseTestingFilter.mockReturnValue({
+      filters: [
+        {
+          column: "errors",
+          condition: FilterCondition.GREATER_THAN.id,
+          value: "0",
+        },
+      ],
+      filterButton: null,
+    });
+    rerender(chainTab());
+
+    await waitFor(() => expect(rowCheckedState()).toEqual([false, false]));
+  });
+
+  it("should extend a select-all-matching selection over the next page", async () => {
+    mockGetTestCaseRuns
+      .mockResolvedValueOnce([testCaseRun()])
+      .mockResolvedValueOnce([
+        testCaseRun({ id: "run-2", testCaseName: "Second case" }),
+      ])
+      .mockResolvedValue([]);
+    renderTestCaseRuns();
+    await screen.findByText("run-1");
+    await waitFor(() =>
+      expect(screen.queryByTestId("table-loading")).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("table-selection-all-matching"));
+    await waitFor(() => expect(rowCheckedState()).toEqual([true]));
+
+    act(() => triggerIntersection());
+    await screen.findByText("run-2");
+
+    expect(rowCheckedState()).toEqual([true, true]);
   });
 });
 

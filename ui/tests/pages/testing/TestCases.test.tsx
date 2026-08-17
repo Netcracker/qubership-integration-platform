@@ -2,7 +2,13 @@
  * @jest-environment jsdom
  */
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {
   MatcherEntityType,
@@ -36,6 +42,7 @@ import {
 } from "../../__mocks__/LightweightTable.tsx";
 import { TestCases } from "../../../src/pages/testing/TestCases.tsx";
 import { ChainHeaderTestRoot } from "../../helpers/renderWithChainHeader.tsx";
+import { triggerIntersection } from "../../setup/intersection-observer.ts";
 
 let capturedConfirm:
   | { title: React.ReactNode; content?: React.ReactNode; onOk: () => unknown }
@@ -613,6 +620,104 @@ describe("TestCases bulk actions", () => {
         expect.anything(),
       ),
     );
+  });
+});
+
+describe("TestCases selection lifetime", () => {
+  /** Checked state of the row boxes, the header box aside. */
+  function rowCheckedState(): boolean[] {
+    return screen
+      .getAllByRole("checkbox")
+      .slice(1)
+      .map((checkbox) => (checkbox as HTMLInputElement).checked);
+  }
+
+  const twoCases = [
+    testCase(),
+    testCase({ id: "case-2", name: "Second case" }),
+  ];
+
+  /** A fresh element per call: React skips a rerender of the very same one. */
+  function chainTab() {
+    return (
+      <UserPermissionsContext.Provider value={ALL_PERMISSIONS}>
+        <ChainHeaderTestRoot>
+          <TestCases variant="chain-tab" />
+        </ChainHeaderTestRoot>
+      </UserPermissionsContext.Provider>
+    );
+  }
+
+  it("should drop the selection when the search or the sort changes", async () => {
+    mockGetTestCases.mockResolvedValue(twoCases);
+    renderTestCases();
+    await screen.findByText("Second case");
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    expect(rowCheckedState()).toEqual([true, false]);
+
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "second" },
+    });
+    await waitFor(() => expect(rowCheckedState()).toEqual([false, false]));
+
+    // Rows the search has hidden are rows a delete must not reach.
+    fireEvent.click(screen.getByTestId("test-cases-delete"));
+    expect(capturedConfirm).toBeUndefined();
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    expect(rowCheckedState()).toEqual([true, false]);
+
+    getLastTableOnChange()?.(
+      {},
+      {},
+      { columnKey: sortKeyOfColumn("Name"), order: "descend" },
+    );
+    await waitFor(() => expect(rowCheckedState()).toEqual([false, false]));
+  });
+
+  it("should drop the selection when the filters change", async () => {
+    mockUseTestingFilter.mockReturnValue({ filters: [], filterButton: null });
+    mockGetTestCases.mockResolvedValue(twoCases);
+    const { rerender } = render(chainTab());
+    await screen.findByText("Second case");
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    expect(rowCheckedState()).toEqual([true, false]);
+
+    mockUseTestingFilter.mockReturnValue({
+      filters: [
+        {
+          column: "name",
+          condition: FilterCondition.CONTAINS.id,
+          value: "pay",
+        },
+      ],
+      filterButton: null,
+    });
+    rerender(chainTab());
+
+    await waitFor(() => expect(rowCheckedState()).toEqual([false, false]));
+  });
+
+  it("should extend a select-all-matching selection over the next page", async () => {
+    mockGetTestCases
+      .mockResolvedValueOnce([testCase()])
+      .mockResolvedValueOnce([testCase({ id: "case-2", name: "Second case" })])
+      .mockResolvedValue([]);
+    renderTestCases();
+    await screen.findByText("First case");
+    await waitFor(() =>
+      expect(screen.queryByTestId("table-loading")).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("table-selection-all-matching"));
+    await waitFor(() => expect(rowCheckedState()).toEqual([true]));
+
+    act(() => triggerIntersection());
+    await screen.findByText("Second case");
+
+    expect(rowCheckedState()).toEqual([true, true]);
   });
 });
 

@@ -178,7 +178,10 @@ async function renderWithErrors(
 }
 
 beforeEach(() => {
-  mockUseParams.mockReturnValue({ chainId: "chain-1", caseRunId: "case-run-1" });
+  mockUseParams.mockReturnValue({
+    chainId: "chain-1",
+    caseRunId: "case-run-1",
+  });
   mockGetTestCaseRunErrors.mockResolvedValue([]);
   mockGetTestCaseRun.mockResolvedValue(testCaseRun());
 });
@@ -197,7 +200,9 @@ describe("TestCaseRunErrors loading", () => {
     await renderWithErrors([validationError()]);
 
     expect(screen.getByText("Status is 200")).toBeInTheDocument();
-    expect(screen.getByText("The trigger answers with 200")).toBeInTheDocument();
+    expect(
+      screen.getByText("The trigger answers with 200"),
+    ).toBeInTheDocument();
     expect(screen.getByText("expected 200, got 500")).toBeInTheDocument();
   });
 
@@ -300,6 +305,32 @@ describe("TestCaseRunErrors search", () => {
       screen.getByText("body does not contain the order id"),
     ).toBeInTheDocument();
     expect(screen.queryByText("expected 200, got 500")).not.toBeInTheDocument();
+  });
+
+  it("should drop the selection when the search changes", async () => {
+    await renderWithErrors([
+      validationError(),
+      validationError({
+        id: "error-2",
+        matcherId: "matcher-2",
+        matcher: null,
+        message: "body does not contain the order id",
+      }),
+    ]);
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "order id" },
+    });
+
+    await waitFor(() =>
+      expect(
+        (screen.getAllByRole("checkbox")[1] as HTMLInputElement).checked,
+      ).toBe(false),
+    );
+    // The export must not carry a row the search has hidden.
+    fireEvent.click(screen.getByTestId("test-case-run-errors-export"));
+    expect(mockExportTestCaseRunErrors).not.toHaveBeenCalled();
   });
 });
 

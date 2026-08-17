@@ -134,6 +134,12 @@ export const TestCaseRunErrors: React.FC = () => {
     [errors, searchString],
   );
 
+  // Rows the search has hidden are not rows the export may carry, so the choice
+  // does not survive a change to it.
+  useEffect(() => {
+    setSelectedRowKeys([]);
+  }, [searchString]);
+
   const handleRefresh = useCallback(() => {
     setSelectedRowKeys([]);
     setReloadToken((token) => token + 1);

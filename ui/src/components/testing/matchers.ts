@@ -58,6 +58,10 @@ export function getEntityTypesForOwnerKind(
  * Parameter names the matching engine reads, per matcher type. Nothing on the
  * server checks these: a matcher stored under any other name is accepted and
  * then never fires, so this map is the only guard.
+ *
+ * The JSON matchers name `path` although the service reads it as optional and
+ * falls back to the whole document. Requiring it here keeps every editor writing
+ * one, which the service never refuses.
  */
 export const MATCHER_PARAMETER_NAMES: Record<MatcherType, string[]> = {
   [MatcherType.EMPTY]: [],
@@ -70,6 +74,13 @@ export const MATCHER_PARAMETER_NAMES: Record<MatcherType, string[]> = {
   [MatcherType.MATCH_JSON_SCHEMA]: ["path", "schema"],
   [MatcherType.MATCH_JSON]: ["path", "sample"],
 };
+
+/** The wire is not held to the enum, so a type the UI does not know has no entry. */
+function matcherParameterNames(type: MatcherType): string[] | undefined {
+  return (MATCHER_PARAMETER_NAMES as Partial<Record<MatcherType, string[]>>)[
+    type
+  ];
+}
 
 const ENTITY_TYPES_REQUIRING_NAME: MatcherEntityType[] = [
   MatcherEntityType.HEADER,
@@ -88,10 +99,11 @@ export function validateMatcherParameters(
   type: MatcherType | null | undefined,
   parameters: TestingNamedParameter[] | null | undefined,
 ): string[] {
-  if (!type) {
+  const names = type ? matcherParameterNames(type) : undefined;
+  if (!names) {
     return ["Unknown matcher type"];
   }
-  const expected = new Set(MATCHER_PARAMETER_NAMES[type]);
+  const expected = new Set(names);
   const given = new Set((parameters ?? []).map((parameter) => parameter.name));
 
   const messages: string[] = [];
@@ -212,7 +224,8 @@ export function getMatcherParameterEditor(
   type: MatcherType | null | undefined,
   entityType: MatcherEntityType | null | undefined,
 ): MatcherParameterEditor {
-  if (!type || MATCHER_PARAMETER_NAMES[type].length === 0) {
+  const names = type ? matcherParameterNames(type) : undefined;
+  if (!names || names.length === 0) {
     return { kind: "none" };
   }
   if (type === MatcherType.MATCH_JSON_SCHEMA) {
@@ -224,7 +237,7 @@ export function getMatcherParameterEditor(
   if (type === MatcherType.EQUAL && entityType === MatcherEntityType.STATUS) {
     return { kind: "status" };
   }
-  return { kind: "single", parameterName: MATCHER_PARAMETER_NAMES[type][0] };
+  return { kind: "single", parameterName: names[0] };
 }
 
 /** Parameters of the previous type never fit the new one, so they are dropped. */

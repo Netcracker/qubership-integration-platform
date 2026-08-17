@@ -84,6 +84,44 @@ function renderList(
   );
 }
 
+/** Renders the list under a search term the test can change to start a request. */
+function renderSearchingList(search: string) {
+  return renderHook(
+    ({ searchString }: { searchString: string }) =>
+      useTestingEntityList<TestCaseView>({
+        source: testCasesListSource,
+        filters: noFilters,
+        searchString,
+      }),
+    { initialProps: { searchString: search } },
+  );
+}
+
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (error: unknown) => void;
+};
+
+/** A request the test decides the outcome of, so two can be in flight at once. */
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((resolveIt, rejectIt) => {
+    resolve = resolveIt;
+    reject = rejectIt;
+  });
+  return { promise, resolve, reject };
+}
+
+/** Settles a deferred request inside `act`, swallowing the rejection it may carry. */
+async function settle<T>(request: Deferred<T>, settleIt: () => void) {
+  await act(async () => {
+    settleIt();
+    await request.promise.catch(() => undefined);
+  });
+}
+
 describe("useTestingEntityList", () => {
   beforeEach(() => {
     mockApi.getChains.mockResolvedValue([
@@ -285,6 +323,72 @@ describe("useTestingEntityList", () => {
       expect.any(Error),
     );
     expect(result.current.items).toEqual([]);
+  });
+
+  it("should let only the newest request write the list", async () => {
+    const stale = deferred<TestCaseView[]>();
+    mockApi.getTestCases.mockReturnValueOnce(stale.promise);
+    const { result, rerender } = renderSearchingList("first");
+    await waitFor(() => expect(mockApi.getTestCases).toHaveBeenCalledTimes(1));
+
+    mockApi.getTestCases.mockResolvedValue([testCase("case-newest")]);
+    rerender({ searchString: "second" });
+    await waitFor(() =>
+      expect(result.current.items).toEqual([testCase("case-newest")]),
+    );
+
+    await settle(stale, () => stale.resolve([testCase("case-stale")]));
+
+    expect(result.current.items).toEqual([testCase("case-newest")]);
+  });
+
+  it("should stay loading when an older request resolves first", async () => {
+    const stale = deferred<TestCaseView[]>();
+    const newest = deferred<TestCaseView[]>();
+    mockApi.getTestCases
+      .mockReturnValueOnce(stale.promise)
+      .mockReturnValueOnce(newest.promise);
+    const { result, rerender } = renderSearchingList("first");
+    await waitFor(() => expect(mockApi.getTestCases).toHaveBeenCalledTimes(1));
+
+    rerender({ searchString: "second" });
+    await waitFor(() => expect(mockApi.getTestCases).toHaveBeenCalledTimes(2));
+
+    await settle(stale, () => stale.resolve([testCase("case-stale")]));
+    expect(result.current.isLoading).toBe(true);
+
+    await settle(newest, () => newest.resolve([testCase("case-newest")]));
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it("should not report a request that failed after a newer one replaced it", async () => {
+    const stale = deferred<TestCaseView[]>();
+    mockApi.getTestCases.mockReturnValueOnce(stale.promise);
+    const { result, rerender } = renderSearchingList("first");
+    await waitFor(() => expect(mockApi.getTestCases).toHaveBeenCalledTimes(1));
+
+    mockApi.getTestCases.mockResolvedValue([testCase("case-newest")]);
+    rerender({ searchString: "second" });
+    await waitFor(() =>
+      expect(result.current.items).toEqual([testCase("case-newest")]),
+    );
+
+    await settle(stale, () => stale.reject(new Error("service is down")));
+
+    expect(mockRequestFailed).not.toHaveBeenCalled();
+    expect(result.current.allLoaded).toBe(false);
+  });
+
+  it("should not report a request that failed after the screen was gone", async () => {
+    const pending = deferred<TestCaseView[]>();
+    mockApi.getTestCases.mockReturnValueOnce(pending.promise);
+    const { unmount } = renderSearchingList("first");
+    await waitFor(() => expect(mockApi.getTestCases).toHaveBeenCalledTimes(1));
+
+    unmount();
+    await settle(pending, () => pending.reject(new Error("service is down")));
+
+    expect(mockRequestFailed).not.toHaveBeenCalled();
   });
 
   it("should report a failed export", async () => {

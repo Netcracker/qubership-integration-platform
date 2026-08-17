@@ -2,7 +2,13 @@
  * @jest-environment jsdom
  */
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {
   TestingFilterCondition,
@@ -26,6 +32,7 @@ import {
   LightweightTable as mockLightweightTable,
 } from "../../__mocks__/LightweightTable.tsx";
 import { TestRuns } from "../../../src/pages/testing/TestRuns.tsx";
+import { triggerIntersection } from "../../setup/intersection-observer.ts";
 
 let capturedConfirm:
   | { title: React.ReactNode; content?: React.ReactNode; onOk: () => unknown }
@@ -501,6 +508,102 @@ describe("TestRuns actions", () => {
     expect(capturedConfirm).toBeUndefined();
     expect(mockStartTestsRun).not.toHaveBeenCalled();
     expect(mockExportTestsRuns).not.toHaveBeenCalled();
+  });
+});
+
+describe("TestRuns selection lifetime", () => {
+  /** Checked state of the row boxes, the header box aside. */
+  function rowCheckedState(): boolean[] {
+    return screen
+      .getAllByRole("checkbox")
+      .slice(1)
+      .map((checkbox) => (checkbox as HTMLInputElement).checked);
+  }
+
+  const twoRuns = [testsRun(), testsRun({ id: "tests-run-2" })];
+
+  /** A fresh element per call: React skips a rerender of the very same one. */
+  function adminPage() {
+    return (
+      <UserPermissionsContext.Provider value={ALL_PERMISSIONS}>
+        <TestRuns />
+      </UserPermissionsContext.Provider>
+    );
+  }
+
+  it("should drop the selection when the search or the sort changes", async () => {
+    mockGetTestsRuns.mockResolvedValue(twoRuns);
+    renderTestRuns();
+    await screen.findByText("tests-run-2");
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    expect(rowCheckedState()).toEqual([true, false]);
+
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "second" },
+    });
+    await waitFor(() => expect(rowCheckedState()).toEqual([false, false]));
+
+    // Rows the search has hidden are rows a delete must not reach.
+    fireEvent.click(screen.getByTestId("test-runs-delete"));
+    expect(capturedConfirm).toBeUndefined();
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    expect(rowCheckedState()).toEqual([true, false]);
+
+    getLastTableOnChange()?.(
+      {},
+      {},
+      {
+        columnKey: sortKeyOfColumn("Test Cases With Errors"),
+        order: "descend",
+      },
+    );
+    await waitFor(() => expect(rowCheckedState()).toEqual([false, false]));
+  });
+
+  it("should drop the selection when the filters change", async () => {
+    mockUseTestingFilter.mockReturnValue({ filters: [], filterButton: null });
+    mockGetTestsRuns.mockResolvedValue(twoRuns);
+    const { rerender } = render(adminPage());
+    await screen.findByText("tests-run-2");
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    expect(rowCheckedState()).toEqual([true, false]);
+
+    mockUseTestingFilter.mockReturnValue({
+      filters: [
+        {
+          column: "test_cases",
+          condition: FilterCondition.GREATER_THAN.id,
+          value: "1",
+        },
+      ],
+      filterButton: null,
+    });
+    rerender(adminPage());
+
+    await waitFor(() => expect(rowCheckedState()).toEqual([false, false]));
+  });
+
+  it("should extend a select-all-matching selection over the next page", async () => {
+    mockGetTestsRuns
+      .mockResolvedValueOnce([testsRun()])
+      .mockResolvedValueOnce([testsRun({ id: "tests-run-2" })])
+      .mockResolvedValue([]);
+    renderTestRuns();
+    await screen.findByText("tests-run-1");
+    await waitFor(() =>
+      expect(screen.queryByTestId("table-loading")).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("table-selection-all-matching"));
+    await waitFor(() => expect(rowCheckedState()).toEqual([true]));
+
+    act(() => triggerIntersection());
+    await screen.findByText("tests-run-2");
+
+    expect(rowCheckedState()).toEqual([true, true]);
   });
 });
 

@@ -226,6 +226,23 @@ describe("parameter validity", () => {
       "Unknown matcher type",
     ]);
   });
+
+  // A type the service adds before this client knows it renders as an invalid
+  // row rather than throwing out of the table and the editor.
+  test("should reject a matcher type the client does not enumerate", () => {
+    const future = "match_xml" as MatcherType;
+
+    expect(validateMatcherParameters(future, [])).toEqual([
+      "Unknown matcher type",
+    ]);
+    expect(getMatcherParameterEditor(future, MatcherEntityType.BODY)).toEqual({
+      kind: "none",
+    });
+    expect(isMatcherValid(matcher({ type: future }))).toBe(false);
+    expect(() =>
+      matcherMatchesSearch(matcher({ type: future }), "rule"),
+    ).not.toThrow();
+  });
 });
 
 describe("matcher validity", () => {
