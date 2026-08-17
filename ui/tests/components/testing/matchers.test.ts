@@ -13,7 +13,8 @@ import {
   matcherMatchesSearch,
   matcherParametersAreValid,
   matcherRequiresEntityName,
-  matchersAreValid,
+  matchersViolations,
+  matcherViolations,
   validateMatcherParameters,
   withEntityType,
   withMatcherType,
@@ -338,12 +339,28 @@ describe("matcher validity", () => {
     expect(isMatcherValid(matcher({ parameters: [] }))).toBe(false);
   });
 
-  test("should hold for every matcher in the set", () => {
-    expect(matchersAreValid([matcher(), matcher({ id: "m2" })])).toBe(true);
-    expect(matchersAreValid([matcher(), matcher({ id: "m2", name: "" })])).toBe(
-      false,
-    );
-    expect(matchersAreValid(null)).toBe(true);
+  test("should report what every matcher in the set carries", () => {
+    expect(matchersViolations([matcher(), matcher({ id: "m2" })])).toEqual([]);
+    expect(
+      matchersViolations([matcher(), matcher({ id: "m2", name: "" })]),
+    ).toEqual(["matcher without a name"]);
+    expect(matchersViolations(null)).toEqual([]);
+  });
+
+  // The key names the offending value, not the matcher carrying it: an editor
+  // compares the keys of its draft with the ones the stored entity produced.
+  test("should key a violation by the value the rules refuse", () => {
+    expect(
+      matcherViolations(
+        matcher({
+          entityType: MatcherEntityType.HEADER,
+          entityName: "Bad Name",
+        }),
+      ),
+    ).toEqual(['matcher entity header "Bad Name"']);
+    expect(matcherViolations(matcher({ parameters: [] }))).toEqual([
+      "matcher predicate equal ",
+    ]);
   });
 });
 

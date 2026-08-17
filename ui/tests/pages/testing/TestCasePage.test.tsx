@@ -306,7 +306,19 @@ describe("TestCasePage save gating", () => {
     expect(screen.getByTestId("test-case-save")).toBeDisabled();
   });
 
-  it("should disable Save when a matcher is incomplete", async () => {
+  it("should disable Save when a rule added here is incomplete", async () => {
+    await renderChainEditor();
+
+    fireEvent.click(screen.getByText("Response Validation"));
+    fireEvent.click(await screen.findByLabelText("Add matcher"));
+
+    expect(screen.getByTestId("test-case-save")).toBeDisabled();
+  });
+
+  // The service lets an update keep a value the stored case already carries, so a
+  // case written before the rules existed stays editable rather than being locked
+  // out of its own editor.
+  it("should enable Save when a rule the case was read with is incomplete", async () => {
     mockGetTestCase.mockResolvedValue(
       testCase({
         responseValidationRules: [
@@ -329,7 +341,7 @@ describe("TestCasePage save gating", () => {
       target: { value: "Renamed" },
     });
 
-    expect(screen.getByTestId("test-case-save")).toBeDisabled();
+    expect(screen.getByTestId("test-case-save")).not.toBeDisabled();
   });
 });
 

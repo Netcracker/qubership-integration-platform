@@ -19,13 +19,12 @@ import { api } from "../../api/api.ts";
 import { EndpointMock, EndpointMockRequest } from "../../api/apiTypes.ts";
 import { UnsavedChangesModal } from "../../components/modal/UnsavedChangesModal.tsx";
 import { TableToolbar } from "../../components/table/TableToolbar.tsx";
-import { matchersAreValid } from "../../components/testing/matchers.ts";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
-import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import {
-  isHttpFieldName,
-  isHttpFieldValue,
-} from "../../misc/http-field-utils.ts";
+  endpointMockViolations,
+  introducesViolation,
+} from "../../components/testing/violations.ts";
+import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { useModalsContext } from "../../Modals.tsx";
 import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
 
@@ -79,6 +78,8 @@ export const EndpointMockPage: React.FC = () => {
   const permissions = useMemo(() => getTestingPermissions(chainId), [chainId]);
 
   const [endpointMock, setEndpointMock] = useState<EndpointMock | null>(null);
+  // Values the mock carried when it was read; the service lets an update keep them.
+  const [storedViolations, setStoredViolations] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -100,6 +101,7 @@ export const EndpointMockPage: React.FC = () => {
     // before the next one is read, so a read that fails cannot leave the mock
     // before it on screen, or save it under the id now in the address.
     setEndpointMock(null);
+    setStoredViolations([]);
     hasChangesRef.current = false;
     setHasChanges(false);
     setLoading(true);
@@ -108,6 +110,7 @@ export const EndpointMockPage: React.FC = () => {
         const loaded = await api.getEndpointMock(endpointMockId);
         if (!cancelled) {
           setEndpointMock(loaded);
+          setStoredViolations(endpointMockViolations(loaded));
         }
       } catch (error) {
         if (!cancelled) {
@@ -136,19 +139,20 @@ export const EndpointMockPage: React.FC = () => {
   }, []);
 
   // No method here: a mock answers whatever the endpoint is called with. The
-  // headers are checked because the service refuses a response it cannot write.
+  // headers and the matchers are checked against the mock as it was read, so a
+  // value the service already tolerates keeps the save open and a value broken
+  // here shuts it.
   const isValid = useMemo(
     () =>
       !!endpointMock &&
       endpointMock.name.trim().length > 0 &&
       !!endpointMock.endpointReference?.chainId &&
       !!endpointMock.endpointReference?.elementId &&
-      (endpointMock.responseSettings?.message?.headers ?? []).every(
-        (header) =>
-          isHttpFieldName(header.name) && isHttpFieldValue(header.value),
-      ) &&
-      matchersAreValid(endpointMock.requestMatchers),
-    [endpointMock],
+      !introducesViolation(
+        endpointMockViolations(endpointMock),
+        storedViolations,
+      ),
+    [endpointMock, storedViolations],
   );
 
   const save = useCallback(async () => {
@@ -162,6 +166,7 @@ export const EndpointMockPage: React.FC = () => {
         toRequest(endpointMock),
       );
       setEndpointMock(saved);
+      setStoredViolations(endpointMockViolations(saved));
       hasChangesRef.current = false;
       setHasChanges(false);
     } catch (error) {

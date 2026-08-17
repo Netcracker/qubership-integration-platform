@@ -19,8 +19,11 @@ import { api } from "../../api/api.ts";
 import { TestCase, TestCaseRequest } from "../../api/apiTypes.ts";
 import { UnsavedChangesModal } from "../../components/modal/UnsavedChangesModal.tsx";
 import { TableToolbar } from "../../components/table/TableToolbar.tsx";
-import { matchersAreValid } from "../../components/testing/matchers.ts";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
+import {
+  introducesViolation,
+  testCaseViolations,
+} from "../../components/testing/violations.ts";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { useModalsContext } from "../../Modals.tsx";
 import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
@@ -75,6 +78,8 @@ export const TestCasePage: React.FC = () => {
   const permissions = useMemo(() => getTestingPermissions(chainId), [chainId]);
 
   const [testCase, setTestCase] = useState<TestCase | null>(null);
+  // Values the case carried when it was read; the service lets an update keep them.
+  const [storedViolations, setStoredViolations] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -96,6 +101,7 @@ export const TestCasePage: React.FC = () => {
     // before the next one is read, so a read that fails cannot leave the case
     // before it on screen, or save it under the id now in the address.
     setTestCase(null);
+    setStoredViolations([]);
     hasChangesRef.current = false;
     setHasChanges(false);
     setLoading(true);
@@ -104,6 +110,7 @@ export const TestCasePage: React.FC = () => {
         const loaded = await api.getTestCase(testCaseId);
         if (!cancelled) {
           setTestCase(loaded);
+          setStoredViolations(testCaseViolations(loaded));
         }
       } catch (error) {
         if (!cancelled) {
@@ -129,6 +136,9 @@ export const TestCasePage: React.FC = () => {
     setHasChanges(true);
   }, []);
 
+  // The validation rules are checked against the case as it was read, so a rule
+  // the service already tolerates keeps the save open and a rule broken here
+  // shuts it.
   const isValid = useMemo(
     () =>
       !!testCase &&
@@ -136,8 +146,8 @@ export const TestCasePage: React.FC = () => {
       !!testCase.triggerReference?.chainId &&
       !!testCase.triggerReference?.elementId &&
       !!testCase.requestSettings?.method &&
-      matchersAreValid(testCase.responseValidationRules),
-    [testCase],
+      !introducesViolation(testCaseViolations(testCase), storedViolations),
+    [testCase, storedViolations],
   );
 
   const save = useCallback(async () => {
@@ -148,6 +158,7 @@ export const TestCasePage: React.FC = () => {
     try {
       const saved = await api.updateTestCase(testCaseId, toRequest(testCase));
       setTestCase(saved);
+      setStoredViolations(testCaseViolations(saved));
       hasChangesRef.current = false;
       setHasChanges(false);
     } catch (error) {

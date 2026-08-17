@@ -195,21 +195,58 @@ function matcherDocumentIsValid(matcher: TestingMatcher): boolean {
   return isJsonDocumentValid(document?.value ?? "");
 }
 
-export function isMatcherValid(matcher: TestingMatcher): boolean {
-  return (
-    !!matcher.name &&
-    !!matcher.type &&
-    !!matcher.entityType &&
-    isEntityNameAddressable(matcher.entityType, matcher.entityName) &&
-    matcherParametersAreValid(matcher.type, matcher.parameters) &&
-    matcherDocumentIsValid(matcher)
-  );
+/** Renders the parameters in a stable order, so the same set yields one key. */
+function parametersKey(
+  parameters: TestingNamedParameter[] | null | undefined,
+): string {
+  return (parameters ?? [])
+    .map(
+      (parameter) =>
+        `${JSON.stringify(parameter.name)}=${JSON.stringify(parameter.value)}`,
+    )
+    .sort()
+    .join(",");
 }
 
-export function matchersAreValid(
+/**
+ * What a matcher carries that the save would refuse, one key per offending
+ * value. The keys let an editor tell a value the user has just broken from one
+ * the stored entity already carried, which the service lets an update keep; they
+ * are read nowhere else and never go on the wire.
+ */
+export function matcherViolations(matcher: TestingMatcher): string[] {
+  const violations: string[] = [];
+  if (!matcher.name) {
+    violations.push("matcher without a name");
+  }
+  if (!matcher.entityType) {
+    violations.push("matcher without an entity type");
+  } else if (!isEntityNameAddressable(matcher.entityType, matcher.entityName)) {
+    violations.push(
+      `matcher entity ${matcher.entityType} ${JSON.stringify(matcher.entityName ?? "")}`,
+    );
+  }
+  if (!matcher.type) {
+    violations.push("matcher without a type");
+  } else if (
+    !matcherParametersAreValid(matcher.type, matcher.parameters) ||
+    !matcherDocumentIsValid(matcher)
+  ) {
+    violations.push(
+      `matcher predicate ${matcher.type} ${parametersKey(matcher.parameters)}`,
+    );
+  }
+  return violations;
+}
+
+export function matchersViolations(
   matchers: TestingMatcher[] | null | undefined,
-): boolean {
-  return (matchers ?? []).every(isMatcherValid);
+): string[] {
+  return (matchers ?? []).flatMap(matcherViolations);
+}
+
+export function isMatcherValid(matcher: TestingMatcher): boolean {
+  return matcherViolations(matcher).length === 0;
 }
 
 export type MatcherParameterEditor =

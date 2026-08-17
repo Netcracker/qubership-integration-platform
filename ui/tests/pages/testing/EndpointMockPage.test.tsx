@@ -360,7 +360,19 @@ describe("EndpointMockPage save gating", () => {
     expect(screen.getByTestId("endpoint-mock-save")).not.toBeDisabled();
   });
 
-  it("should disable Save when a matcher is incomplete", async () => {
+  it("should disable Save when a matcher added here is incomplete", async () => {
+    await renderChainEditor();
+
+    fireEvent.click(screen.getByText("Request Matchers"));
+    fireEvent.click(await screen.findByLabelText("Add matcher"));
+
+    expect(screen.getByTestId("endpoint-mock-save")).toBeDisabled();
+  });
+
+  // The service lets an update keep a value the stored mock already carries, so a
+  // mock written before the rules existed stays editable rather than being locked
+  // out of its own editor.
+  it("should enable Save when a matcher the mock was read with is incomplete", async () => {
     mockGetEndpointMock.mockResolvedValue(
       endpointMock({
         requestMatchers: [
@@ -381,6 +393,54 @@ describe("EndpointMockPage save gating", () => {
 
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "Renamed" },
+    });
+
+    expect(screen.getByTestId("endpoint-mock-save")).not.toBeDisabled();
+  });
+
+  it("should enable Save when a response header the mock was read with is not an HTTP field name", async () => {
+    mockGetEndpointMock.mockResolvedValue(
+      endpointMock({
+        responseSettings: {
+          message: {
+            body: "{}",
+            headers: [{ name: "Content Type", value: "text/csv" }],
+          },
+          status: 200,
+          delay: 0,
+        },
+      }),
+    );
+    await renderChainEditor();
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Renamed" },
+    });
+
+    expect(screen.getByTestId("endpoint-mock-save")).not.toBeDisabled();
+  });
+
+  // Leniency covers the value that is already stored, not the field carrying it:
+  // the service reads a replacement as a violation the caller introduced.
+  it("should disable Save when a stored bad header name is replaced with another", async () => {
+    mockGetEndpointMock.mockResolvedValue(
+      endpointMock({
+        responseSettings: {
+          message: {
+            body: "{}",
+            headers: [{ name: "Content Type", value: "text/csv" }],
+          },
+          status: 200,
+          delay: 0,
+        },
+      }),
+    );
+    await renderChainEditor();
+
+    fireEvent.click(screen.getByText("Response"));
+    const section = await screen.findByTestId("response-headers");
+    fireEvent.change(within(section).getAllByLabelText("Name")[0], {
+      target: { value: "Content Length" },
     });
 
     expect(screen.getByTestId("endpoint-mock-save")).toBeDisabled();
