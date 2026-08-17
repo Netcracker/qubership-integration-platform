@@ -398,6 +398,60 @@ class ChainPatchWriterTest {
     verify(removalsMaterializer, org.mockito.Mockito.never()).apply(any(), any(), any(), any());
   }
 
+  /**
+   * A model that adds a branch and its contents does not reliably name the branch first, and the
+   * catalog cannot attach a child to a parent that does not exist yet.
+   */
+  @Test
+  void createsAContainerBeforeTheChildItHolds() {
+    when(skeletonMaterializer.materializeElement(any(), any(), eq("chain-1"), any()))
+        .thenReturn("catalog-id");
+
+    writer.write(chainWithBranchListedAfterItsChild(), addBranchAndChildPatch());
+
+    ArgumentCaptor<ChainPlanNode> created = ArgumentCaptor.forClass(ChainPlanNode.class);
+    verify(skeletonMaterializer, org.mockito.Mockito.times(2))
+        .materializeElement(any(), created.capture(), eq("chain-1"), any());
+    assertEquals(
+        List.of("node-branch", "node-child"),
+        created.getAllValues().stream().map(ChainPlanNode::nodeId).toList());
+  }
+
+  /** The graph lists the child first, exactly as the patch named them. */
+  private static PatchedChain chainWithBranchListedAfterItsChild() {
+    PatchedChain base = patchedChain();
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            base.graph().schemaVersion(),
+            base.graph().chain(),
+            List.of(
+                base.graph().nodes().get(0),
+                new ChainPlanNode("node-child", "script", "Tag", "node-branch", null, List.of()),
+                new ChainPlanNode("node-branch", "if", "Bulk", null, null, List.of())),
+            List.of());
+    return new PatchedChain(graph, base.materializationMap());
+  }
+
+  private static GraphPatch addBranchAndChildPatch() {
+    return new GraphPatch(
+        "patch-nested",
+        "chain-patch",
+        List.of(
+            new NodePatch(
+                GraphPatchOperation.ADD,
+                new ChainPlanNode("node-child", "script", "Tag", "node-branch", null, List.of()),
+                null),
+            new NodePatch(
+                GraphPatchOperation.ADD,
+                new ChainPlanNode("node-branch", "if", "Bulk", null, null, List.of()),
+                null)),
+        List.of(),
+        List.of(),
+        null,
+        List.of(),
+        "adds a branch and what it holds");
+  }
+
   private ChainPlanGraph capturedGraph() {
     ArgumentCaptor<ChainPlanGraph> graph = ArgumentCaptor.forClass(ChainPlanGraph.class);
     verify(propertiesMaterializer).apply(graph.capture(), any());

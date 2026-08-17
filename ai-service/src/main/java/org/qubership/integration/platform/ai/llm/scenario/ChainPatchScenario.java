@@ -155,7 +155,7 @@ public class ChainPatchScenario implements ScenarioHandler {
               : said);
     }
 
-    GraphPatch proposed = ChainPatchPipeline.toGraphPatch(captured.get());
+    GraphPatch proposed = ChainPatchPipeline.toGraphPatch(captured.get(), imported.graph());
     List<String> shapeErrors = GraphPatchShapeValidator.validate(proposed);
     if (!shapeErrors.isEmpty()) {
       return message("The change could not be read: " + GraphPatchShapeValidator.summarize(shapeErrors));

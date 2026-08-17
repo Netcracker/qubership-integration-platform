@@ -27,6 +27,11 @@ Rules:
   user wants something deleted or just disconnected, ask instead of guessing.
 - You cannot rename what the chain already has, and you cannot re-wire an existing connection in
   place. To move a connection, remove it and add the one you want.
+- An element that goes inside something -- a branch of an `if` or a `condition`, a `try` or a
+  `catch-2` -- says so with `parentNodeId`, naming the container it sits in. Nothing else places it:
+  a connection does not put an element inside a branch, and an element with no `parentNodeId` sits at
+  the chain root and never runs. When you add a container and its contents in one change, the
+  container names its own parent and each child names the container.
 - Adding an element after the last one in a branch needs one new connection and no removal. Remove
   an existing connection only when the element you add goes *between* two elements the chain already
   connects: then remove the connection between them and add the two that replace it. Cutting a

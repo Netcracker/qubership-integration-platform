@@ -122,7 +122,7 @@ public class ChainPatchHarnessService {
           conversationId, said.isBlank() ? "No patch proposed." : said, ChainPatchRefusal.NONE);
     }
 
-    GraphPatch proposed = ChainPatchPipeline.toGraphPatch(captured.get());
+    GraphPatch proposed = ChainPatchPipeline.toGraphPatch(captured.get(), imported.graph());
     List<String> shapeErrors = GraphPatchShapeValidator.validate(proposed);
     if (!shapeErrors.isEmpty()) {
       return failed(

@@ -342,7 +342,14 @@ public class ChainPatchWriter {
     return before.edges().stream().filter(edge -> removedEdgeIds.contains(edge.edgeId())).toList();
   }
 
-  /** Added nodes in graph order, which puts a container before the children it holds. */
+  /**
+   * Added nodes, every container ahead of the children it holds.
+   *
+   * <p>Graph order alone is not enough. The patched graph lists nodes in the order the patch named
+   * them, and a model that adds a branch and its contents does not reliably name the branch first --
+   * observed naming the two children in one tool call and the branch that holds them in the next.
+   * Creating the child first fails: the catalog has no parent to attach it to.
+   */
   private static List<String> addedNodeIds(ChainPlanGraph graph, GraphPatch patch) {
     Set<String> added = new LinkedHashSet<>();
     if (patch.nodePatches() != null) {
@@ -358,7 +365,47 @@ public class ChainPatchWriter {
     if (added.isEmpty()) {
       return List.of();
     }
-    return graph.nodes().stream().map(ChainPlanNode::nodeId).filter(added::contains).toList();
+    List<String> inGraphOrder =
+        graph.nodes().stream().map(ChainPlanNode::nodeId).filter(added::contains).toList();
+    return parentsFirst(graph, inGraphOrder);
+  }
+
+  /**
+   * Stable reorder: a node whose parent this same patch adds waits for that parent. Nodes whose
+   * parent already exists in the chain keep the order they came in.
+   */
+  private static List<String> parentsFirst(ChainPlanGraph graph, List<String> addedNodeIds) {
+    Map<String, String> parentById = new LinkedHashMap<>();
+    for (ChainPlanNode node : graph.nodes()) {
+      if (node != null && node.nodeId() != null) {
+        parentById.put(node.nodeId(), node.parentNodeId());
+      }
+    }
+    List<String> ordered = new ArrayList<>(addedNodeIds.size());
+    Set<String> placed = new LinkedHashSet<>();
+    // At most one pass per node: each round places every node whose added parent is already placed,
+    // and a cycle -- which the applier's own parent checks rule out -- would stall it, so whatever
+    // is left over is appended rather than dropped.
+    for (int round = 0; round < addedNodeIds.size() && placed.size() < addedNodeIds.size(); round++) {
+      for (String nodeId : addedNodeIds) {
+        if (placed.contains(nodeId)) {
+          continue;
+        }
+        String parentId = parentById.get(nodeId);
+        boolean waitsForParent =
+            parentId != null && addedNodeIds.contains(parentId) && !placed.contains(parentId);
+        if (!waitsForParent) {
+          ordered.add(nodeId);
+          placed.add(nodeId);
+        }
+      }
+    }
+    for (String nodeId : addedNodeIds) {
+      if (placed.add(nodeId)) {
+        ordered.add(nodeId);
+      }
+    }
+    return List.copyOf(ordered);
   }
 
   private static List<ChainPlanEdge> addedEdges(GraphPatch patch) {
