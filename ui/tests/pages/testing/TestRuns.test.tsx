@@ -6,6 +6,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {
   TestingFilterCondition,
+  TestingSelectionSpecification,
   TestingSortOrder,
   TestRunStatus,
   TestsRunSource,
@@ -14,15 +15,34 @@ import {
 import { api } from "../../../src/api/api.ts";
 import { UserPermissionsContext } from "../../../src/permissions/UserPermissionsContext.tsx";
 import type { UserPermissions } from "../../../src/permissions/types.ts";
-import { useTestingFilter } from "../../../src/hooks/filter/useTestingFilter.ts";
+import {
+  TESTS_RUNS_SORT_FIELDS,
+  useTestingFilter,
+} from "../../../src/hooks/filter/useTestingFilter.ts";
 import type { EntityFilterModel } from "../../../src/components/table/filter/filterTypes.ts";
 import { FilterCondition } from "../../../src/components/table/filter/filterTypes.ts";
-import { getLastTableOnChange } from "../../__mocks__/LightweightTable.tsx";
+import {
+  getLastTableOnChange,
+  LightweightTable as mockLightweightTable,
+} from "../../__mocks__/LightweightTable.tsx";
 import { TestRuns } from "../../../src/pages/testing/TestRuns.tsx";
 
 let capturedConfirm:
   | { title: React.ReactNode; content?: React.ReactNode; onOk: () => unknown }
   | undefined;
+
+/** A column as the page hands it to the table, before the table reads it. */
+type RenderedColumn = {
+  key?: React.Key;
+  title?: React.ReactNode;
+  sorter?: unknown;
+};
+
+let mockRenderedColumns: RenderedColumn[] = [];
+
+function mockRecordColumns(columns: unknown): void {
+  mockRenderedColumns = (columns ?? []) as RenderedColumn[];
+}
 
 jest.mock("../../../src/api/api.ts", () => ({
   api: {
@@ -53,10 +73,18 @@ jest.mock("react-router", () => ({
 }));
 
 jest.mock("antd", () => {
+  const react = jest.requireActual<typeof import("react")>("react");
   const { createChainPageAntdMock } = jest.requireActual<{
-    createChainPageAntdMock: () => Record<string, unknown>;
+    createChainPageAntdMock: (
+      extraOverrides?: Record<string, unknown>,
+    ) => Record<string, unknown>;
   }>("tests/helpers/chainPageAntdJestMock");
-  return createChainPageAntdMock();
+  return createChainPageAntdMock({
+    Table: (props: Parameters<typeof mockLightweightTable>[0]) => {
+      mockRecordColumns(props.columns);
+      return react.createElement(mockLightweightTable, props);
+    },
+  });
 });
 
 jest.mock("antd/lib/table", () => ({}));
@@ -160,8 +188,29 @@ async function renderWithRuns(
   return result;
 }
 
+/** Selection of the newest list request, which the id resolver has to repeat. */
+function lastListSpecification(): TestingSelectionSpecification {
+  const calls = mockGetTestsRuns.mock.calls;
+  expect(calls.length).toBeGreaterThan(0);
+  return calls[calls.length - 1][0];
+}
+
+function sortableColumnKeys(): string[] {
+  return mockRenderedColumns
+    .filter((column) => column.sorter)
+    .map((column) => String(column.key));
+}
+
+/** Sort key the named column carries, so no test types a key of its own. */
+function sortKeyOfColumn(title: string): string {
+  const column = mockRenderedColumns.find((entry) => entry.title === title);
+  expect(column?.sorter).toBe(true);
+  return String(column?.key);
+}
+
 beforeEach(() => {
   capturedConfirm = undefined;
+  mockRenderedColumns = [];
   mockGetChains.mockResolvedValue([]);
   mockGetElements.mockResolvedValue([]);
   mockGetTestsRuns.mockResolvedValue([]);
@@ -285,16 +334,27 @@ describe("TestRuns filters and sorting", () => {
     );
   });
 
+  it("should key every sortable column on a field the service takes", async () => {
+    await renderWithRuns([testsRun()]);
+
+    const keys = sortableColumnKeys();
+    expect(keys.length).toBeGreaterThan(0);
+    for (const key of keys) {
+      expect(TESTS_RUNS_SORT_FIELDS).toContain(key);
+    }
+  });
+
   it("should send the sort field the column carries", async () => {
     await renderWithRuns([testsRun()]);
+    const columnKey = sortKeyOfColumn("Test Cases With Errors");
     mockGetTestsRuns.mockClear();
 
-    getLastTableOnChange()?.({}, {}, { columnKey: "errors", order: "ascend" });
+    getLastTableOnChange()?.({}, {}, { columnKey, order: "ascend" });
 
     await waitFor(() =>
       expect(mockGetTestsRuns).toHaveBeenCalledWith(expect.anything(), {
         offset: 0,
-        sortBy: "errors",
+        sortBy: columnKey,
         sortOrder: TestingSortOrder.ASC,
       }),
     );
@@ -391,11 +451,43 @@ describe("TestRuns actions", () => {
       "Delete all test runs that match the filters with their case runs? This cannot be undone.",
     );
     await capturedConfirm?.onOk();
+    // The resolver has to repeat the selection of the list, or the delete would
+    // reach past the rows the reader is looking at.
+    expect(mockGetTestsRunIds).toHaveBeenCalledWith(lastListSpecification());
     expect(mockDeleteTestsRuns).toHaveBeenCalledWith([
       "tests-run-1",
       "tests-run-2",
       "tests-run-99",
     ]);
+  });
+
+  it("should resolve targets under the filter when everything matching is selected", async () => {
+    const filters: EntityFilterModel[] = [
+      {
+        column: "test_cases",
+        condition: FilterCondition.GREATER_THAN.id,
+        value: "1",
+      },
+    ];
+    mockUseTestingFilter.mockReturnValue({ filters, filterButton: null });
+    mockGetTestsRunIds.mockResolvedValue(["tests-run-1"]);
+    await renderWithRuns([testsRun()]);
+
+    fireEvent.click(screen.getByTestId("table-selection-all-matching"));
+    fireEvent.click(screen.getByTestId("test-runs-delete"));
+    await capturedConfirm?.onOk();
+
+    expect(mockGetTestsRunIds).toHaveBeenCalledWith(lastListSpecification());
+    expect(mockGetTestsRunIds).toHaveBeenCalledWith({
+      filters: [
+        {
+          feature: "test_cases",
+          condition: TestingFilterCondition.GREATER_THAN,
+          values: ["1"],
+        },
+      ],
+    });
+    expect(mockDeleteTestsRuns).toHaveBeenCalledWith(["tests-run-1"]);
   });
 
   it("should do nothing when no row is selected", async () => {
@@ -429,5 +521,33 @@ describe("TestRuns permission gating", () => {
     });
 
     expect(screen.queryByTestId("test-runs-refresh")).not.toBeInTheDocument();
+  });
+
+  it("should offer Restart and Cancel when the execute right is the only one granted", async () => {
+    await renderWithRuns([testsRun()], { adminTools: ["execute"] });
+
+    expect(screen.getByTestId("test-runs-restart")).toBeInTheDocument();
+    expect(screen.getByTestId("test-runs-cancel")).toBeInTheDocument();
+    expect(screen.queryByTestId("test-runs-refresh")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("test-runs-export")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("test-runs-delete")).not.toBeInTheDocument();
+  });
+
+  it("should offer Export alone when the export right is the only one granted", async () => {
+    await renderWithRuns([testsRun()], { adminTools: ["export"] });
+
+    expect(screen.getByTestId("test-runs-export")).toBeInTheDocument();
+    expect(screen.queryByTestId("test-runs-refresh")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("test-runs-restart")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("test-runs-delete")).not.toBeInTheDocument();
+  });
+
+  it("should offer Delete alone when the update right is the only one granted", async () => {
+    await renderWithRuns([testsRun()], { adminTools: ["update"] });
+
+    expect(screen.getByTestId("test-runs-delete")).toBeInTheDocument();
+    expect(screen.queryByTestId("test-runs-refresh")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("test-runs-restart")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("test-runs-export")).not.toBeInTheDocument();
   });
 });

@@ -10,6 +10,7 @@ import {
   TestCase,
   TestCaseView,
   TestingFilterCondition,
+  TestingSelectionSpecification,
   TestingSortOrder,
 } from "../../../src/api/apiTypes.ts";
 import { api } from "../../../src/api/api.ts";
@@ -23,16 +24,35 @@ import {
 } from "../../../src/components/modal/testing/TestingImportModal.tsx";
 import { UserPermissionsContext } from "../../../src/permissions/UserPermissionsContext.tsx";
 import type { UserPermissions } from "../../../src/permissions/types.ts";
-import { useTestingFilter } from "../../../src/hooks/filter/useTestingFilter.ts";
+import {
+  TEST_CASES_SORT_FIELDS,
+  useTestingFilter,
+} from "../../../src/hooks/filter/useTestingFilter.ts";
 import type { EntityFilterModel } from "../../../src/components/table/filter/filterTypes.ts";
 import { FilterCondition } from "../../../src/components/table/filter/filterTypes.ts";
-import { getLastTableOnChange } from "../../__mocks__/LightweightTable.tsx";
+import {
+  getLastTableOnChange,
+  LightweightTable as mockLightweightTable,
+} from "../../__mocks__/LightweightTable.tsx";
 import { TestCases } from "../../../src/pages/testing/TestCases.tsx";
 import { ChainHeaderTestRoot } from "../../helpers/renderWithChainHeader.tsx";
 
 let capturedConfirm:
   | { title: React.ReactNode; content?: React.ReactNode; onOk: () => unknown }
   | undefined;
+
+/** A column as the page hands it to the table, before the table reads it. */
+type RenderedColumn = {
+  key?: React.Key;
+  title?: React.ReactNode;
+  sorter?: unknown;
+};
+
+let mockRenderedColumns: RenderedColumn[] = [];
+
+function mockRecordColumns(columns: unknown): void {
+  mockRenderedColumns = (columns ?? []) as RenderedColumn[];
+}
 
 jest.mock("../../../src/api/api.ts", () => ({
   api: {
@@ -68,10 +88,18 @@ jest.mock("react-router", () => ({
 }));
 
 jest.mock("antd", () => {
+  const react = jest.requireActual<typeof import("react")>("react");
   const { createChainPageAntdMock } = jest.requireActual<{
-    createChainPageAntdMock: () => Record<string, unknown>;
+    createChainPageAntdMock: (
+      extraOverrides?: Record<string, unknown>,
+    ) => Record<string, unknown>;
   }>("tests/helpers/chainPageAntdJestMock");
-  return createChainPageAntdMock();
+  return createChainPageAntdMock({
+    Table: (props: Parameters<typeof mockLightweightTable>[0]) => {
+      mockRecordColumns(props.columns);
+      return react.createElement(mockLightweightTable, props);
+    },
+  });
 });
 
 jest.mock("antd/lib/table", () => ({}));
@@ -210,8 +238,29 @@ async function renderWithCases(
   return result;
 }
 
+/** Selection of the newest list request, which the id resolver has to repeat. */
+function lastListSpecification(): TestingSelectionSpecification {
+  const calls = mockGetTestCases.mock.calls;
+  expect(calls.length).toBeGreaterThan(0);
+  return calls[calls.length - 1][0];
+}
+
+function sortableColumnKeys(): string[] {
+  return mockRenderedColumns
+    .filter((column) => column.sorter)
+    .map((column) => String(column.key));
+}
+
+/** Sort key the named column carries, so no test types a key of its own. */
+function sortKeyOfColumn(title: string): string {
+  const column = mockRenderedColumns.find((entry) => entry.title === title);
+  expect(column?.sorter).toBe(true);
+  return String(column?.key);
+}
+
 beforeEach(() => {
   capturedConfirm = undefined;
+  mockRenderedColumns = [];
   mockShowModal.mockClear();
   mockUseParams.mockReturnValue({ chainId: "chain-1" });
   mockGetChains.mockResolvedValue([]);
@@ -265,13 +314,16 @@ describe("TestCases list variants", () => {
     expect(screen.queryByTestId("test-cases-create")).not.toBeInTheDocument();
   });
 
-  it("should show the chain column only outside a chain", async () => {
-    const { unmount } = await renderWithCases([testCase()]);
+  it("should hide the chain column when opened from a chain", async () => {
+    await renderWithCases([testCase()]);
+
     expect(screen.queryByText("Chain")).not.toBeInTheDocument();
     expect(screen.getByText("Element")).toBeInTheDocument();
-    unmount();
+  });
 
+  it("should show the chain column when opened outside a chain", async () => {
     await renderWithCases([testCase()], { global: true });
+
     expect(screen.getByText("Chain")).toBeInTheDocument();
     expect(screen.getByText("Element")).toBeInTheDocument();
   });
@@ -365,23 +417,37 @@ describe("TestCases filters and sorting", () => {
     );
   });
 
+  it("should key every sortable column on a field the service takes when opened from a chain", async () => {
+    await renderWithCases([testCase()]);
+
+    const keys = sortableColumnKeys();
+    expect(keys.length).toBeGreaterThan(0);
+    for (const key of keys) {
+      expect(TEST_CASES_SORT_FIELDS).toContain(key);
+    }
+  });
+
+  it("should key every sortable column on a field the service takes when opened outside a chain", async () => {
+    await renderWithCases([testCase()], { global: true });
+
+    const keys = sortableColumnKeys();
+    expect(keys).toContain("chain_id");
+    for (const key of keys) {
+      expect(TEST_CASES_SORT_FIELDS).toContain(key);
+    }
+  });
+
   it("should send the sort field the column carries", async () => {
     await renderWithCases([testCase()]);
+    const columnKey = sortKeyOfColumn("Active Rules");
     mockGetTestCases.mockClear();
 
-    getLastTableOnChange()?.(
-      {},
-      {},
-      {
-        columnKey: "enabled_rule_count",
-        order: "descend",
-      },
-    );
+    getLastTableOnChange()?.({}, {}, { columnKey, order: "descend" });
 
     await waitFor(() =>
       expect(mockGetTestCases).toHaveBeenCalledWith(expect.anything(), {
         offset: 0,
-        sortBy: "enabled_rule_count",
+        sortBy: columnKey,
         sortOrder: TestingSortOrder.DESC,
       }),
     );
@@ -389,18 +455,19 @@ describe("TestCases filters and sorting", () => {
 
   it("should drop the sort when the column is reset", async () => {
     await renderWithCases([testCase()]);
+    const columnKey = sortKeyOfColumn("Name");
 
-    getLastTableOnChange()?.({}, {}, { columnKey: "name", order: "ascend" });
+    getLastTableOnChange()?.({}, {}, { columnKey, order: "ascend" });
     await waitFor(() =>
       expect(mockGetTestCases).toHaveBeenCalledWith(expect.anything(), {
         offset: 0,
-        sortBy: "name",
+        sortBy: columnKey,
         sortOrder: TestingSortOrder.ASC,
       }),
     );
     mockGetTestCases.mockClear();
 
-    getLastTableOnChange()?.({}, {}, { columnKey: "name", order: undefined });
+    getLastTableOnChange()?.({}, {}, { columnKey, order: undefined });
 
     await waitFor(() =>
       expect(mockGetTestCases).toHaveBeenCalledWith(expect.anything(), {
@@ -446,12 +513,53 @@ describe("TestCases bulk actions", () => {
       "Delete all test cases that match the filters? This cannot be undone.",
     );
     await capturedConfirm?.onOk();
-    expect(mockGetTestCaseIds).toHaveBeenCalled();
+    // The resolver has to repeat the selection of the list, or the delete would
+    // reach past the chain the list is scoped to.
+    expect(mockGetTestCaseIds).toHaveBeenCalledWith(lastListSpecification());
+    expect(mockGetTestCaseIds).toHaveBeenCalledWith({
+      filters: [
+        {
+          feature: "chain_id",
+          condition: TestingFilterCondition.IS,
+          values: ["chain-1"],
+        },
+      ],
+    });
     expect(mockDeleteTestCases).toHaveBeenCalledWith([
       "case-1",
       "case-2",
       "case-99",
     ]);
+  });
+
+  it("should resolve targets under the filter when everything matching is selected", async () => {
+    const filters: EntityFilterModel[] = [
+      { column: "name", condition: FilterCondition.CONTAINS.id, value: "pay" },
+    ];
+    mockUseTestingFilter.mockReturnValue({ filters, filterButton: null });
+    mockGetTestCaseIds.mockResolvedValue(["case-1"]);
+    await renderWithCases([testCase()]);
+
+    await selectAllMatching();
+    fireEvent.click(screen.getByTestId("test-cases-delete"));
+    await capturedConfirm?.onOk();
+
+    expect(mockGetTestCaseIds).toHaveBeenCalledWith(lastListSpecification());
+    expect(mockGetTestCaseIds).toHaveBeenCalledWith({
+      filters: [
+        {
+          feature: "chain_id",
+          condition: TestingFilterCondition.IS,
+          values: ["chain-1"],
+        },
+        {
+          feature: "name",
+          condition: TestingFilterCondition.CONTAINS,
+          values: ["pay"],
+        },
+      ],
+    });
+    expect(mockDeleteTestCases).toHaveBeenCalledWith(["case-1"]);
   });
 
   it("should export the selected rows", async () => {
@@ -527,6 +635,54 @@ describe("TestCases permission gating", () => {
 
     expect(screen.queryByTestId("test-cases-refresh")).not.toBeInTheDocument();
     expect(screen.queryByTestId("test-cases-import")).not.toBeInTheDocument();
+  });
+
+  it("should offer Run alone when the execute right is the only one granted", async () => {
+    await renderWithCases([testCase()], {
+      permissions: { chain: ["execute"] },
+    });
+
+    expect(screen.getByTestId("test-cases-run")).toBeInTheDocument();
+    expect(screen.queryByTestId("test-cases-refresh")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("test-cases-export")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("test-cases-delete")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("test-cases-create")).not.toBeInTheDocument();
+  });
+
+  it("should offer Export alone when the export right is the only one granted", async () => {
+    await renderWithCases([testCase()], {
+      permissions: { chain: ["export"] },
+    });
+
+    expect(screen.getByTestId("test-cases-export")).toBeInTheDocument();
+    expect(screen.queryByTestId("test-cases-refresh")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("test-cases-run")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("test-cases-delete")).not.toBeInTheDocument();
+  });
+
+  it("should offer Create and Delete when the update right is the only one granted", async () => {
+    await renderWithCases([testCase()], {
+      permissions: { chain: ["update"] },
+    });
+
+    expect(screen.getByTestId("test-cases-create")).toBeInTheDocument();
+    expect(screen.getByTestId("test-cases-delete")).toBeInTheDocument();
+    expect(screen.queryByTestId("test-cases-refresh")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("test-cases-run")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("test-cases-export")).not.toBeInTheDocument();
+  });
+
+  it("should offer Import alone when the admin import right is the only one granted", async () => {
+    await renderWithCases([testCase()], {
+      global: true,
+      permissions: { adminTools: ["import"] },
+    });
+
+    expect(screen.getByTestId("test-cases-import")).toBeInTheDocument();
+    expect(screen.queryByTestId("test-cases-refresh")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("test-cases-run")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("test-cases-export")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("test-cases-delete")).not.toBeInTheDocument();
   });
 });
 

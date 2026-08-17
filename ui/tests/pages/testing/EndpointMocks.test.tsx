@@ -7,6 +7,7 @@ import "@testing-library/jest-dom";
 import {
   EndpointMock,
   TestingFilterCondition,
+  TestingSelectionSpecification,
   TestingSortOrder,
 } from "../../../src/api/apiTypes.ts";
 import { api } from "../../../src/api/api.ts";
@@ -20,16 +21,35 @@ import {
 } from "../../../src/components/modal/testing/TestingImportModal.tsx";
 import { UserPermissionsContext } from "../../../src/permissions/UserPermissionsContext.tsx";
 import type { UserPermissions } from "../../../src/permissions/types.ts";
-import { useTestingFilter } from "../../../src/hooks/filter/useTestingFilter.ts";
+import {
+  ENDPOINT_MOCKS_SORT_FIELDS,
+  useTestingFilter,
+} from "../../../src/hooks/filter/useTestingFilter.ts";
 import type { EntityFilterModel } from "../../../src/components/table/filter/filterTypes.ts";
 import { FilterCondition } from "../../../src/components/table/filter/filterTypes.ts";
-import { getLastTableOnChange } from "../../__mocks__/LightweightTable.tsx";
+import {
+  getLastTableOnChange,
+  LightweightTable as mockLightweightTable,
+} from "../../__mocks__/LightweightTable.tsx";
 import { EndpointMocks } from "../../../src/pages/testing/EndpointMocks.tsx";
 import { ChainHeaderTestRoot } from "../../helpers/renderWithChainHeader.tsx";
 
 let capturedConfirm:
   | { title: React.ReactNode; content?: React.ReactNode; onOk: () => unknown }
   | undefined;
+
+/** A column as the page hands it to the table, before the table reads it. */
+type RenderedColumn = {
+  key?: React.Key;
+  title?: React.ReactNode;
+  sorter?: unknown;
+};
+
+let mockRenderedColumns: RenderedColumn[] = [];
+
+function mockRecordColumns(columns: unknown): void {
+  mockRenderedColumns = (columns ?? []) as RenderedColumn[];
+}
 
 jest.mock("../../../src/api/api.ts", () => ({
   api: {
@@ -63,10 +83,18 @@ jest.mock("react-router", () => ({
 }));
 
 jest.mock("antd", () => {
+  const react = jest.requireActual<typeof import("react")>("react");
   const { createChainPageAntdMock } = jest.requireActual<{
-    createChainPageAntdMock: () => Record<string, unknown>;
+    createChainPageAntdMock: (
+      extraOverrides?: Record<string, unknown>,
+    ) => Record<string, unknown>;
   }>("tests/helpers/chainPageAntdJestMock");
-  return createChainPageAntdMock();
+  return createChainPageAntdMock({
+    Table: (props: Parameters<typeof mockLightweightTable>[0]) => {
+      mockRecordColumns(props.columns);
+      return react.createElement(mockLightweightTable, props);
+    },
+  });
 });
 
 jest.mock("antd/lib/table", () => ({}));
@@ -189,8 +217,29 @@ async function renderWithMocks(
   return result;
 }
 
+/** Selection of the newest list request, which the id resolver has to repeat. */
+function lastListSpecification(): TestingSelectionSpecification {
+  const calls = mockGetEndpointMocks.mock.calls;
+  expect(calls.length).toBeGreaterThan(0);
+  return calls[calls.length - 1][0];
+}
+
+function sortableColumnKeys(): string[] {
+  return mockRenderedColumns
+    .filter((column) => column.sorter)
+    .map((column) => String(column.key));
+}
+
+/** Sort key the named column carries, so no test types a key of its own. */
+function sortKeyOfColumn(title: string): string {
+  const column = mockRenderedColumns.find((entry) => entry.title === title);
+  expect(column?.sorter).toBe(true);
+  return String(column?.key);
+}
+
 beforeEach(() => {
   capturedConfirm = undefined;
+  mockRenderedColumns = [];
   mockShowModal.mockClear();
   mockUseParams.mockReturnValue({ chainId: "chain-1" });
   mockGetChains.mockResolvedValue([]);
@@ -248,13 +297,16 @@ describe("EndpointMocks list variants", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("should show the chain column only outside a chain", async () => {
-    const { unmount } = await renderWithMocks([endpointMock()]);
+  it("should hide the chain column when opened from a chain", async () => {
+    await renderWithMocks([endpointMock()]);
+
     expect(screen.queryByText("Chain")).not.toBeInTheDocument();
     expect(screen.getByText("Element")).toBeInTheDocument();
-    unmount();
+  });
 
+  it("should show the chain column when opened outside a chain", async () => {
     await renderWithMocks([endpointMock()], { global: true });
+
     expect(screen.getByText("Chain")).toBeInTheDocument();
     expect(screen.getByText("Element")).toBeInTheDocument();
   });
@@ -354,16 +406,37 @@ describe("EndpointMocks filters and sorting", () => {
     );
   });
 
+  it("should key every sortable column on a field the service takes when opened from a chain", async () => {
+    await renderWithMocks([endpointMock()]);
+
+    const keys = sortableColumnKeys();
+    expect(keys.length).toBeGreaterThan(0);
+    for (const key of keys) {
+      expect(ENDPOINT_MOCKS_SORT_FIELDS).toContain(key);
+    }
+  });
+
+  it("should key every sortable column on a field the service takes when opened outside a chain", async () => {
+    await renderWithMocks([endpointMock()], { global: true });
+
+    const keys = sortableColumnKeys();
+    expect(keys).toContain("chain_id");
+    for (const key of keys) {
+      expect(ENDPOINT_MOCKS_SORT_FIELDS).toContain(key);
+    }
+  });
+
   it("should send the sort field the column carries", async () => {
     await renderWithMocks([endpointMock()]);
+    const columnKey = sortKeyOfColumn("Response Delay");
     mockGetEndpointMocks.mockClear();
 
-    getLastTableOnChange()?.({}, {}, { columnKey: "delay", order: "descend" });
+    getLastTableOnChange()?.({}, {}, { columnKey, order: "descend" });
 
     await waitFor(() =>
       expect(mockGetEndpointMocks).toHaveBeenCalledWith(expect.anything(), {
         offset: 0,
-        sortBy: "delay",
+        sortBy: columnKey,
         sortOrder: TestingSortOrder.DESC,
       }),
     );
@@ -402,12 +475,61 @@ describe("EndpointMocks bulk actions", () => {
       "Delete all endpoint mocks that match the filters? This cannot be undone.",
     );
     await capturedConfirm?.onOk();
-    expect(mockGetEndpointMockIds).toHaveBeenCalled();
+    // The resolver has to repeat the selection of the list, or the delete would
+    // reach past the chain the list is scoped to.
+    expect(mockGetEndpointMockIds).toHaveBeenCalledWith(
+      lastListSpecification(),
+    );
+    expect(mockGetEndpointMockIds).toHaveBeenCalledWith({
+      filters: [
+        {
+          feature: "chain_id",
+          condition: TestingFilterCondition.IS,
+          values: ["chain-1"],
+        },
+      ],
+    });
     expect(mockDeleteEndpointMocks).toHaveBeenCalledWith([
       "mock-1",
       "mock-2",
       "mock-99",
     ]);
+  });
+
+  it("should resolve targets under the filter when everything matching is selected", async () => {
+    const filters: EntityFilterModel[] = [
+      {
+        column: "delay",
+        condition: FilterCondition.GREATER_THAN.id,
+        value: "100",
+      },
+    ];
+    mockUseTestingFilter.mockReturnValue({ filters, filterButton: null });
+    mockGetEndpointMockIds.mockResolvedValue(["mock-1"]);
+    await renderWithMocks([endpointMock()]);
+
+    fireEvent.click(screen.getByTestId("table-selection-all-matching"));
+    fireEvent.click(screen.getByTestId("endpoint-mocks-delete"));
+    await capturedConfirm?.onOk();
+
+    expect(mockGetEndpointMockIds).toHaveBeenCalledWith(
+      lastListSpecification(),
+    );
+    expect(mockGetEndpointMockIds).toHaveBeenCalledWith({
+      filters: [
+        {
+          feature: "chain_id",
+          condition: TestingFilterCondition.IS,
+          values: ["chain-1"],
+        },
+        {
+          feature: "delay",
+          condition: TestingFilterCondition.GREATER_THAN,
+          values: ["100"],
+        },
+      ],
+    });
+    expect(mockDeleteEndpointMocks).toHaveBeenCalledWith(["mock-1"]);
   });
 
   it("should export the selected rows", async () => {
@@ -468,6 +590,56 @@ describe("EndpointMocks permission gating", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("endpoint-mocks-import"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should offer Export alone when the export right is the only one granted", async () => {
+    await renderWithMocks([endpointMock()], {
+      permissions: { chain: ["export"] },
+    });
+
+    expect(screen.getByTestId("endpoint-mocks-export")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("endpoint-mocks-refresh"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("endpoint-mocks-delete"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("endpoint-mocks-create"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should offer Create and Delete when the update right is the only one granted", async () => {
+    await renderWithMocks([endpointMock()], {
+      permissions: { chain: ["update"] },
+    });
+
+    expect(screen.getByTestId("endpoint-mocks-create")).toBeInTheDocument();
+    expect(screen.getByTestId("endpoint-mocks-delete")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("endpoint-mocks-refresh"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("endpoint-mocks-export"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("should offer Import alone when the admin import right is the only one granted", async () => {
+    await renderWithMocks([endpointMock()], {
+      global: true,
+      permissions: { adminTools: ["import"] },
+    });
+
+    expect(screen.getByTestId("endpoint-mocks-import")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("endpoint-mocks-refresh"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("endpoint-mocks-export"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("endpoint-mocks-delete"),
     ).not.toBeInTheDocument();
   });
 });
