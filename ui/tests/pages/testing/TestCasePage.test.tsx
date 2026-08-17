@@ -476,6 +476,33 @@ describe("TestCasePage read-only mode", () => {
     expect(screen.getByLabelText("Description")).toBeDisabled();
   });
 
+  // The whole Request tab hangs off one `disabled={readonly}` on its form, so it
+  // is opened rather than assumed to follow the General tab.
+  it("should disable the request fields outside a chain", async () => {
+    renderEditor(ADMIN_EDITOR_PATH);
+    await screen.findByLabelText("Name");
+
+    fireEvent.click(screen.getByText("Request"));
+
+    expect(await screen.findByLabelText("Trigger")).toBeDisabled();
+    expect(screen.getByLabelText("Method")).toBeDisabled();
+    expect(screen.getByLabelText("Timeout, ms")).toBeDisabled();
+  });
+
+  it("should render the request parameter tables read-only outside a chain", async () => {
+    renderEditor(ADMIN_EDITOR_PATH);
+    await screen.findByLabelText("Name");
+
+    fireEvent.click(screen.getByText("Request"));
+
+    const headers = await screen.findByTestId("headers");
+    expect(within(headers).queryByLabelText("Name")).not.toBeInTheDocument();
+    expect(within(headers).queryByLabelText("Delete")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Add" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("should render the matchers table read-only outside a chain", async () => {
     renderEditor(ADMIN_EDITOR_PATH);
     await screen.findByLabelText("Name");

@@ -2,6 +2,7 @@ import {
   MatcherEntityType,
   MatcherType,
   TestingMatcher,
+  TestRunStatus,
 } from "../../../src/api/apiTypes.ts";
 import {
   createMatcher,
@@ -31,6 +32,45 @@ function matcher(overrides: Partial<TestingMatcher> = {}): TestingMatcher {
     ...overrides,
   };
 }
+
+// Written out rather than read off the enums: the enums are what produce these
+// tokens, so asserting against them would pin nothing. The service stores the
+// type and the entity type as PostgreSQL enum values and rejects anything else.
+describe("matcher wire tokens", () => {
+  test("should spell every matcher type the way the service names it", () => {
+    expect({ ...MatcherType }).toEqual({
+      EMPTY: "empty",
+      EXIST: "exist",
+      EQUAL: "equal",
+      CONTAIN: "contain",
+      MATCH: "match",
+      START_WITH: "start_with",
+      END_WITH: "end_with",
+      MATCH_JSON_SCHEMA: "match_json_schema",
+      MATCH_JSON: "match_json",
+    });
+  });
+
+  test("should spell every entity type the way the service names it", () => {
+    expect({ ...MatcherEntityType }).toEqual({
+      BODY: "body",
+      HEADER: "header",
+      STATUS: "status",
+      QUERY_PARAMETER: "query_parameter",
+      PATH_PARAMETER: "path_parameter",
+    });
+  });
+
+  test("should spell every run status the way the service names it", () => {
+    expect({ ...TestRunStatus }).toEqual({
+      PENDING: "pending",
+      RUNNING: "running",
+      CANCELED: "canceled",
+      FINISHED: "finished",
+      SKIPPED: "skipped",
+    });
+  });
+});
 
 describe("matcher parameter names", () => {
   test.each([
@@ -211,6 +251,70 @@ describe("matcher validity", () => {
         }),
       ),
     ).toBe(true);
+  });
+
+  // The service builds the data getter at save time, so a name it cannot address
+  // comes back as a 400 rather than as a rule that never holds.
+  test("should reject a header name that is not an HTTP field name", () => {
+    expect(
+      isMatcherValid(
+        matcher({
+          entityType: MatcherEntityType.HEADER,
+          entityName: "X Trace",
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  test.each(["a/b", "a}b", "a?b", "a#b", "a%b"])(
+    "should reject the path parameter name %j",
+    (entityName) => {
+      expect(
+        isMatcherValid(
+          matcher({ entityType: MatcherEntityType.PATH_PARAMETER, entityName }),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  test("should accept a path parameter name a template segment can spell", () => {
+    expect(
+      isMatcherValid(
+        matcher({
+          entityType: MatcherEntityType.PATH_PARAMETER,
+          entityName: "orderId",
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  // A query parameter reaches the service percent-encoded, so only blank is refused.
+  test("should hold a query parameter name to the blank rule alone", () => {
+    expect(
+      isMatcherValid(
+        matcher({
+          entityType: MatcherEntityType.QUERY_PARAMETER,
+          entityName: "order id",
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  test.each([
+    [MatcherType.MATCH_JSON, "sample"],
+    [MatcherType.MATCH_JSON_SCHEMA, "schema"],
+  ])("should reject %s carrying an unparseable %s", (type, documentName) => {
+    const withDocument = (value: string) =>
+      matcher({
+        type,
+        parameters: [
+          { name: "path", value: "$" },
+          { name: documentName, value },
+        ],
+      });
+    expect(isMatcherValid(withDocument(""))).toBe(false);
+    expect(isMatcherValid(withDocument("{not json"))).toBe(false);
+    expect(isMatcherValid(withDocument('{"a": 1}'))).toBe(true);
   });
 
   test("should reject a matcher whose parameters do not fit its type", () => {

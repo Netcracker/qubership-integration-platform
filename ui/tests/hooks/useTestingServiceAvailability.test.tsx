@@ -22,18 +22,18 @@ jest.mock("../../src/api/rest/vscodeExtensionApi", () => ({
 
 import { useTestingServiceAvailability } from "../../src/hooks/useTestingServiceAvailability";
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+// The client keeps the library's own retry policy on purpose. Turning retries
+// off here would satisfy the no-retry-storm test through the harness rather than
+// through the hook, which is what it is meant to guard.
+function createWrapper(queryClient = new QueryClient()) {
   return ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
 }
 
-function renderAvailability() {
+function renderAvailability(queryClient?: QueryClient) {
   return renderHook(() => useTestingServiceAvailability(), {
-    wrapper: createWrapper(),
+    wrapper: createWrapper(queryClient),
   });
 }
 
@@ -70,12 +70,32 @@ describe("useTestingServiceAvailability", () => {
     expect(result.current.isAvailable).toBe(false);
   });
 
-  it("should not retry a failing mode request", async () => {
+  // An absent testing service is a normal deployment, so it must not produce a
+  // retry storm. The client above retries by the library default, so this holds
+  // only because the hook itself refuses to.
+  it("should ask once when the mode request fails", async () => {
     mockGetTestingServiceMode.mockRejectedValue(new Error("Network Error"));
 
     const { result } = renderAvailability();
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(mockGetTestingServiceMode).toHaveBeenCalledTimes(1);
+
+    // Long enough for the library's first backoff to have fired.
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    expect(mockGetTestingServiceMode).toHaveBeenCalledTimes(1);
+  });
+
+  it("should ask once when a second component mounts the hook", async () => {
+    mockGetTestingServiceMode.mockResolvedValue({ production: false });
+    const queryClient = new QueryClient();
+
+    const first = renderAvailability(queryClient);
+    await waitFor(() => expect(first.result.current.isAvailable).toBe(true));
+
+    const second = renderAvailability(queryClient);
+    await waitFor(() => expect(second.result.current.isAvailable).toBe(true));
+
     expect(mockGetTestingServiceMode).toHaveBeenCalledTimes(1);
   });
 

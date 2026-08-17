@@ -274,6 +274,44 @@ describe("EndpointMockPage response tab", () => {
       within(section).getByDisplayValue("application/json"),
     ).toBeInTheDocument();
   });
+
+  // The service refuses a status it cannot answer with, so the field is bounded.
+  it("should bound the status field to the range the service answers with", async () => {
+    await renderChainEditor();
+    fireEvent.click(screen.getByText("Response"));
+
+    const status = await screen.findByLabelText("Status Code");
+    expect(status).toHaveAttribute("aria-valuemin", "100");
+    expect(status).toHaveAttribute("aria-valuemax", "599");
+  });
+
+  // A stored zero reads as "unset" and the mock then answers 200, so clearing the
+  // field must not quietly turn a 404 mock into a 200 one.
+  it("should keep the previous status when the field is cleared", async () => {
+    await renderChainEditor();
+    fireEvent.click(screen.getByText("Response"));
+
+    const status = await screen.findByLabelText("Status Code");
+    fireEvent.change(status, { target: { value: "" } });
+    fireEvent.blur(status);
+
+    expect(screen.getByLabelText("Status Code")).not.toHaveValue("0");
+  });
+
+  it("should disable Save when a response header name is not an HTTP field name", async () => {
+    await renderChainEditor();
+    fireEvent.click(screen.getByText("Response"));
+
+    const section = await screen.findByTestId("response-headers");
+    fireEvent.change(within(section).getAllByLabelText("Name")[0], {
+      target: { value: "Content Type" },
+    });
+
+    expect(screen.getByTestId("endpoint-mock-save")).toBeDisabled();
+    expect(
+      within(section).getByText(/A header name may carry/),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("EndpointMockPage save gating", () => {
@@ -448,7 +486,9 @@ describe("EndpointMockPage unsaved changes", () => {
     fireEvent.click(screen.getByText("Response"));
 
     await screen.findByLabelText("Status Code");
-    expect(router.state.location.pathname).toBe(`${CHAIN_EDITOR_PATH}/response`);
+    expect(router.state.location.pathname).toBe(
+      `${CHAIN_EDITOR_PATH}/response`,
+    );
     expect(mockShowModal).not.toHaveBeenCalled();
   });
 

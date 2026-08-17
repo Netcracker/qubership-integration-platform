@@ -31,8 +31,11 @@ jest.mock("../../../src/Modals", () => ({
 
 import {
   buildTestingFilters,
+  ENDPOINT_MOCKS_SORT_FIELDS,
   formatTestingTimestamp,
   getTestingFilterColumns,
+  TEST_CASES_SORT_FIELDS,
+  TEST_CASE_RUNS_SORT_FIELDS,
   TESTS_RUNS_SORT_FIELDS,
   useTestingFilter,
 } from "../../../src/hooks/filter/useTestingFilter";
@@ -67,64 +70,89 @@ function epochMillis(
   return new Date(year, month, day, hours, minutes, seconds, millis).getTime();
 }
 
-describe("buildTestingFilters", () => {
+// The tokens below are written out rather than read off TestingFilterCondition:
+// the enum is what produces them, so asserting against it would pin nothing. The
+// service answers an unknown token with 400, and a hyphen for an underscore is
+// exactly the defect this branch set out to avoid.
+describe("condition wire tokens", () => {
   it.each([
-    [FilterCondition.CONTAINS.id, TestingFilterCondition.CONTAINS],
-    [
-      FilterCondition.DOES_NOT_CONTAIN.id,
-      TestingFilterCondition.DOES_NOT_CONTAIN,
-    ],
-    [FilterCondition.STARTS_WITH.id, TestingFilterCondition.STARTS_WITH],
-    [FilterCondition.ENDS_WITH.id, TestingFilterCondition.ENDS_WITH],
-    [FilterCondition.IS.id, TestingFilterCondition.IS],
-    [FilterCondition.IS_NOT.id, TestingFilterCondition.IS_NOT],
-  ])(
-    "should send %s as %s when the column is a plain feature",
-    (conditionId, token) => {
-      const { filters } = buildTestingFilters([
-        filter("name", conditionId, "order"),
-      ]);
-      expect(filters).toEqual([
-        { feature: "name", condition: token, values: ["order"] },
-      ]);
-    },
-  );
-
-  it("should send in and not_in with underscores when the values are a list", () => {
+    [FilterCondition.CONTAINS.id, "contains"],
+    [FilterCondition.DOES_NOT_CONTAIN.id, "does_not_contain"],
+    [FilterCondition.STARTS_WITH.id, "starts_with"],
+    [FilterCondition.ENDS_WITH.id, "ends_with"],
+    [FilterCondition.IS.id, "is"],
+    [FilterCondition.IS_NOT.id, "is_not"],
+    [FilterCondition.LESS_THAN.id, "less_than"],
+    [FilterCondition.GREATER_THAN.id, "greater_than"],
+  ])("should send %s on the wire as %s", (conditionId, token) => {
     const { filters } = buildTestingFilters([
-      filter("status", FilterCondition.IN.id, "pending,running"),
-      filter("status", FilterCondition.NOT_IN.id, "skipped"),
+      filter("name", conditionId, "order"),
     ]);
     expect(filters).toEqual([
-      {
-        feature: "status",
-        condition: TestingFilterCondition.IN,
-        values: ["pending", "running"],
-      },
-      {
-        feature: "status",
-        condition: TestingFilterCondition.NOT_IN,
-        values: ["skipped"],
-      },
+      { feature: "name", condition: token, values: ["order"] },
     ]);
   });
 
+  it.each([
+    [FilterCondition.IN.id, "in"],
+    [FilterCondition.NOT_IN.id, "not_in"],
+  ])("should send %s on the wire as %s", (conditionId, token) => {
+    const { filters } = buildTestingFilters([
+      filter("status", conditionId, "pending,running"),
+    ]);
+    expect(filters).toEqual([
+      { feature: "status", condition: token, values: ["pending", "running"] },
+    ]);
+  });
+
+  it.each([
+    [FilterCondition.IS_AFTER.id, "is_after"],
+    [FilterCondition.IS_BEFORE.id, "is_before"],
+  ])("should send %s on the wire as %s", (conditionId, token) => {
+    const { filters } = buildTestingFilters([
+      filter("created_at", conditionId, String(epochMillis(2026, 0, 15, 9, 0))),
+    ]);
+    expect(filters[0].condition).toBe(token);
+  });
+
+  it("should send is_within on the wire with an underscore", () => {
+    const from = epochMillis(2026, 0, 15, 0, 0);
+    const to = epochMillis(2026, 0, 16, 0, 0);
+    const { filters } = buildTestingFilters([
+      filter("start", FilterCondition.IS_WITHIN.id, `${from},${to}`),
+    ]);
+    expect(filters[0].condition).toBe("is_within");
+  });
+
+  it("should resolve a name filter to in and not_in with underscores", () => {
+    const included = buildTestingFilters(
+      [filter("chain_name", FilterCondition.CONTAINS.id, "order")],
+      { chains },
+    );
+    const excluded = buildTestingFilters(
+      [filter("chain_name", FilterCondition.DOES_NOT_CONTAIN.id, "order")],
+      { chains },
+    );
+    expect(included.filters[0].condition).toBe("in");
+    expect(excluded.filters[0].condition).toBe("not_in");
+  });
+
+  it("should spell every condition the enum declares with underscores only", () => {
+    for (const token of Object.values(TestingFilterCondition)) {
+      expect(token).toMatch(/^[a-z]+(_[a-z]+)*$/);
+    }
+  });
+});
+
+describe("buildTestingFilters", () => {
   it("should map the numeric conditions when the column is a count", () => {
     const { filters } = buildTestingFilters([
       filter("errors", FilterCondition.LESS_THAN.id, "5"),
       filter("test_cases", FilterCondition.GREATER_THAN.id, "2"),
     ]);
     expect(filters).toEqual([
-      {
-        feature: "errors",
-        condition: TestingFilterCondition.LESS_THAN,
-        values: ["5"],
-      },
-      {
-        feature: "test_cases",
-        condition: TestingFilterCondition.GREATER_THAN,
-        values: ["2"],
-      },
+      { feature: "errors", condition: "less_than", values: ["5"] },
+      { feature: "test_cases", condition: "greater_than", values: ["2"] },
     ]);
   });
 
@@ -182,6 +210,26 @@ describe("buildTestingFilters", () => {
         condition: TestingFilterCondition.IS_BEFORE,
         values: [formatTestingTimestamp(to)],
       },
+    ]);
+  });
+
+  it("should send no values for a condition that takes none", () => {
+    const { filters } = buildTestingFilters([
+      filter("description", FilterCondition.EMPTY.id),
+      filter("description", FilterCondition.NOT_EMPTY.id),
+    ]);
+    expect(filters).toEqual([
+      { feature: "description", condition: "empty", values: [] },
+      { feature: "description", condition: "not_empty", values: [] },
+    ]);
+  });
+
+  it("should keep a comma inside the value when the condition takes one value", () => {
+    const { filters } = buildTestingFilters([
+      filter("name", FilterCondition.IS.id, "Orders, EU"),
+    ]);
+    expect(filters).toEqual([
+      { feature: "name", condition: "is", values: ["Orders, EU"] },
     ]);
   });
 
@@ -312,6 +360,69 @@ describe("getTestingFilterColumns", () => {
   it("should leave the updated fields out of the run sort fields", () => {
     expect(TESTS_RUNS_SORT_FIELDS).not.toContain("updated_at");
     expect(TESTS_RUNS_SORT_FIELDS).not.toContain("updated_by");
+  });
+});
+
+// The service validates sort_by per entity and answers anything it does not
+// declare with 400, so each set is pinned whole rather than sampled.
+describe("sort fields", () => {
+  it("should accept exactly the fields test cases sort by", () => {
+    expect([...TEST_CASES_SORT_FIELDS]).toEqual([
+      "id",
+      "name",
+      "description",
+      "enabled",
+      "chain_id",
+      "element_id",
+      "created_by",
+      "created_at",
+      "updated_by",
+      "updated_at",
+      "validation_rule_count",
+      "enabled_rule_count",
+    ]);
+  });
+
+  it("should accept exactly the fields endpoint mocks sort by", () => {
+    expect([...ENDPOINT_MOCKS_SORT_FIELDS]).toEqual([
+      "id",
+      "name",
+      "description",
+      "chain_id",
+      "element_id",
+      "enabled",
+      "status",
+      "delay",
+      "created_by",
+      "created_at",
+      "updated_by",
+      "updated_at",
+    ]);
+  });
+
+  it("should accept exactly the fields test runs sort by", () => {
+    expect([...TESTS_RUNS_SORT_FIELDS]).toEqual([
+      "id",
+      "start",
+      "finish",
+      "status",
+      "errors",
+      "test_cases",
+      "created_by",
+      "created_at",
+    ]);
+  });
+
+  it("should accept exactly the fields test case runs sort by", () => {
+    expect([...TEST_CASE_RUNS_SORT_FIELDS]).toEqual([
+      "id",
+      "test_case_name",
+      "chain_id",
+      "start",
+      "finish",
+      "status",
+      "errors",
+    ]);
   });
 });
 
