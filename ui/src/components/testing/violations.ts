@@ -3,6 +3,7 @@ import {
   isHttpFieldName,
   isHttpFieldValue,
 } from "../../misc/http-field-utils.ts";
+import { isAnswerableResponseStatus } from "./endpointMocks.ts";
 import { matchersViolations } from "./matchers.ts";
 
 /**
@@ -16,6 +17,11 @@ import { matchersViolations } from "./matchers.ts";
  * a legacy value and shut for a value the user has just broken. Replacing a bad
  * value with a different bad value counts as introducing one, in the editors as
  * in the service.
+ *
+ * Two matcher refusals are left to the service, since reproducing them here
+ * would cost more than the 400 they save: a `match` pattern RE2 cannot compile,
+ * and a JSON Schema that parses but does not compile. A draft carrying either
+ * reaches the service, which names it.
  */
 export function endpointMockViolations(
   endpointMock: EndpointMock | null,
@@ -24,6 +30,10 @@ export function endpointMockViolations(
     return [];
   }
   const violations = matchersViolations(endpointMock.requestMatchers);
+  const status = endpointMock.responseSettings?.status;
+  if (typeof status === "number" && !isAnswerableResponseStatus(status)) {
+    violations.push(`response status ${status}`);
+  }
   for (const header of endpointMock.responseSettings?.message?.headers ?? []) {
     if (!isHttpFieldName(header.name)) {
       violations.push(`response header name ${JSON.stringify(header.name)}`);

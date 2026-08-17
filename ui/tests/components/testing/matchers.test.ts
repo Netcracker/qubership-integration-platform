@@ -222,6 +222,17 @@ describe("parameter validity", () => {
     ).toEqual(["Unknown parameter: value"]);
   });
 
+  // The service reads a parameter as a single value and refuses two, so the
+  // second one never quietly wins.
+  test("should report a repeated parameter name", () => {
+    expect(
+      validateMatcherParameters(MatcherType.EQUAL, [
+        { name: "value", value: "1" },
+        { name: "value", value: "2" },
+      ]),
+    ).toEqual(["Repeated parameter: value"]);
+  });
+
   test("should reject an unknown matcher type", () => {
     expect(validateMatcherParameters(null, [])).toEqual([
       "Unknown matcher type",
@@ -316,6 +327,17 @@ describe("matcher validity", () => {
         }),
       ),
     ).toBe(true);
+  });
+
+  // An entity type this client does not know is one the service builds no data
+  // getter for either, so the row reads as invalid rather than as addressable.
+  test("should reject an entity type the client does not enumerate", () => {
+    const future = "trailer" as MatcherEntityType;
+
+    expect(isMatcherValid(matcher({ entityType: future }))).toBe(false);
+    expect(matcherViolations(matcher({ entityType: future }))).toEqual([
+      'matcher entity trailer ""',
+    ]);
   });
 
   test.each([

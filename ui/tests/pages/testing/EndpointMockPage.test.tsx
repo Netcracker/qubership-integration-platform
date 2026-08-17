@@ -275,14 +275,38 @@ describe("EndpointMockPage response tab", () => {
     ).toBeInTheDocument();
   });
 
-  // The service refuses a status it cannot answer with, so the field is bounded.
-  it("should bound the status field to the range the service answers with", async () => {
+  // The service refuses a status it cannot answer with, and the message says so
+  // where the value is typed rather than only through the disabled Save button.
+  it("should report a status the service cannot answer with", async () => {
     await renderChainEditor();
     fireEvent.click(screen.getByText("Response"));
 
     const status = await screen.findByLabelText("Status Code");
-    expect(status).toHaveAttribute("aria-valuemin", "100");
-    expect(status).toHaveAttribute("aria-valuemax", "599");
+    fireEvent.change(status, { target: { value: "42" } });
+    fireEvent.blur(status);
+
+    expect(status).toHaveValue("42");
+    expect(
+      screen.getByText(/A response status is a whole number/),
+    ).toBeInTheDocument();
+  });
+
+  // A bounded field clamps on blur, which would rewrite a status stored before
+  // the range was enforced into one the mock never named.
+  it("should keep a stored status outside that range as it stands", async () => {
+    mockGetEndpointMock.mockResolvedValue(
+      endpointMock({
+        responseSettings: { message: null, status: 42, delay: 0 },
+      }),
+    );
+    await renderChainEditor();
+    fireEvent.click(screen.getByText("Response"));
+
+    const status = await screen.findByLabelText("Status Code");
+    fireEvent.focus(status);
+    fireEvent.blur(status);
+
+    expect(screen.getByLabelText("Status Code")).toHaveValue("42");
   });
 
   // A stored zero reads as "unset" and the mock then answers 200, so clearing the
@@ -420,8 +444,50 @@ describe("EndpointMockPage save gating", () => {
     expect(screen.getByTestId("endpoint-mock-save")).not.toBeDisabled();
   });
 
+  it("should disable Save when the status is set outside the range the service answers with", async () => {
+    await renderChainEditor();
+
+    fireEvent.click(screen.getByText("Response"));
+    const status = await screen.findByLabelText("Status Code");
+    fireEvent.change(status, { target: { value: "42" } });
+    fireEvent.blur(status);
+
+    expect(screen.getByTestId("endpoint-mock-save")).toBeDisabled();
+  });
+
+  it("should enable Save when the mock was read with a status outside that range", async () => {
+    mockGetEndpointMock.mockResolvedValue(
+      endpointMock({
+        responseSettings: { message: null, status: 42, delay: 0 },
+      }),
+    );
+    await renderChainEditor();
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: { value: "Renamed" },
+    });
+
+    expect(screen.getByTestId("endpoint-mock-save")).not.toBeDisabled();
+  });
+
   // Leniency covers the value that is already stored, not the field carrying it:
   // the service reads a replacement as a violation the caller introduced.
+  it("should disable Save when a stored bad status is replaced with another", async () => {
+    mockGetEndpointMock.mockResolvedValue(
+      endpointMock({
+        responseSettings: { message: null, status: 42, delay: 0 },
+      }),
+    );
+    await renderChainEditor();
+
+    fireEvent.click(screen.getByText("Response"));
+    const status = await screen.findByLabelText("Status Code");
+    fireEvent.change(status, { target: { value: "99" } });
+    fireEvent.blur(status);
+
+    expect(screen.getByTestId("endpoint-mock-save")).toBeDisabled();
+  });
+
   it("should disable Save when a stored bad header name is replaced with another", async () => {
     mockGetEndpointMock.mockResolvedValue(
       endpointMock({

@@ -96,7 +96,11 @@ export function matcherRequiresEntityName(
   return !!entityType && ENTITY_TYPES_REQUIRING_NAME.includes(entityType);
 }
 
-/** Returns one message per missing or unknown parameter; an empty array means valid. */
+/**
+ * Returns one message per missing, unknown or repeated parameter; an empty array
+ * means valid. A repeated name is refused because the service reads a parameter
+ * as a single value and gets two.
+ */
 export function validateMatcherParameters(
   type: MatcherType | null | undefined,
   parameters: TestingNamedParameter[] | null | undefined,
@@ -106,7 +110,14 @@ export function validateMatcherParameters(
     return ["Unknown matcher type"];
   }
   const expected = new Set(names);
-  const given = new Set((parameters ?? []).map((parameter) => parameter.name));
+  const given = new Set<string>();
+  const repeated = new Set<string>();
+  for (const parameter of parameters ?? []) {
+    if (given.has(parameter.name)) {
+      repeated.add(parameter.name);
+    }
+    given.add(parameter.name);
+  }
 
   const messages: string[] = [];
   for (const name of expected) {
@@ -118,6 +129,9 @@ export function validateMatcherParameters(
     if (!expected.has(name)) {
       messages.push(`Unknown parameter: ${name}`);
     }
+  }
+  for (const name of repeated) {
+    messages.push(`Repeated parameter: ${name}`);
   }
   return messages;
 }
@@ -208,6 +222,13 @@ function parametersKey(
     .join(",");
 }
 
+const KNOWN_ENTITY_TYPES = new Set<string>(Object.values(MatcherEntityType));
+
+/** The wire is not held to the enum, and the service reads nothing off a type it has no getter for. */
+function isKnownEntityType(entityType: MatcherEntityType): boolean {
+  return KNOWN_ENTITY_TYPES.has(entityType);
+}
+
 /**
  * What a matcher carries that the save would refuse, one key per offending
  * value. The keys let an editor tell a value the user has just broken from one
@@ -221,7 +242,10 @@ export function matcherViolations(matcher: TestingMatcher): string[] {
   }
   if (!matcher.entityType) {
     violations.push("matcher without an entity type");
-  } else if (!isEntityNameAddressable(matcher.entityType, matcher.entityName)) {
+  } else if (
+    !isKnownEntityType(matcher.entityType) ||
+    !isEntityNameAddressable(matcher.entityType, matcher.entityName)
+  ) {
     violations.push(
       `matcher entity ${matcher.entityType} ${JSON.stringify(matcher.entityName ?? "")}`,
     );

@@ -11,11 +11,8 @@ import {
   getHttpFieldNameError,
   getHttpFieldValueError,
 } from "../../../misc/http-field-utils.ts";
+import { getResponseStatusError } from "../endpointMocks.ts";
 import { NameValueTable } from "../NameValueTable.tsx";
-
-/** Bounds the service accepts for an answerable response status. */
-const MIN_STATUS = 100;
-const MAX_STATUS = 599;
 
 /** Settings a mock saved before it named a response has none of yet. */
 const EMPTY_RESPONSE_SETTINGS: TestingResponseSettings = {
@@ -38,14 +35,23 @@ export const EndpointMockResponseTab: React.FC = () => {
   const updateMessage = (changes: Partial<TestingMessage>) =>
     updateSettings({ message: { ...message, ...changes } });
 
+  // Bounding the field instead would rewrite a status stored before the range
+  // was enforced: antd clamps an out-of-range value as soon as the field is
+  // left. The status the mock carries is shown as it stands, and the editor
+  // shuts Save over a status broken here.
+  const statusError = getResponseStatusError(settings.status);
+
   return (
     <Flex vertical gap={16} style={{ flex: 1, minWidth: 0 }}>
       <Form layout="vertical" disabled={readonly} style={{ maxWidth: 720 }}>
-        <Form.Item label="Status Code" required>
+        <Form.Item
+          label="Status Code"
+          required
+          validateStatus={statusError ? "error" : undefined}
+          help={statusError}
+        >
           <InputNumber
             aria-label="Status Code"
-            min={MIN_STATUS}
-            max={MAX_STATUS}
             style={{ width: "100%" }}
             value={settings.status}
             // Clearing the field reports null. Mapping that to zero would store
