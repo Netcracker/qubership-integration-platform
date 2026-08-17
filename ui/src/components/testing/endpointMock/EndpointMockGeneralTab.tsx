@@ -1,87 +1,28 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React from "react";
 import { Form, Input, Select, Switch } from "antd";
 import { useNavigate } from "react-router";
-import { api } from "../../../api/api.ts";
-import { Element } from "../../../api/apiTypes.ts";
-import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
+import { useChainElements } from "../../../hooks/testing/useChainElements.ts";
+import { useChainName } from "../../../hooks/testing/useChainName.ts";
+import { PLACEHOLDER } from "../../../misc/format-utils.ts";
 import { useEndpointMockEditor } from "../../../pages/testing/EndpointMockPage.tsx";
-import { flattenElements, isHttpEndpoint } from "../testingElements.ts";
+import { isHttpEndpoint } from "../testingElements.ts";
 
+/**
+ * The endpoint picker sits here rather than on a Request tab, and the test case
+ * editor puts its trigger picker on Request instead. The two tab layouts are what
+ * the source ports to, so they stay as they are.
+ */
 export const EndpointMockGeneralTab: React.FC = () => {
   const { endpointMock, chainId, readonly, onChange } = useEndpointMockEditor();
   const navigate = useNavigate();
-  const notificationService = useNotificationService();
-  const [endpoints, setEndpoints] = useState<Element[]>([]);
-  const [endpointsLoading, setEndpointsLoading] = useState(false);
-  const [chainName, setChainName] = useState<string>();
 
   const reference = endpointMock.endpointReference;
   const referenceChainId = reference?.chainId;
 
-  useEffect(() => {
-    if (!referenceChainId) {
-      setEndpoints([]);
-      return;
-    }
-    let cancelled = false;
-    setEndpointsLoading(true);
-    void (async () => {
-      try {
-        const elements = await api.getElements(referenceChainId);
-        if (!cancelled) {
-          setEndpoints(flattenElements(elements).filter(isHttpEndpoint));
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setEndpoints([]);
-          notificationService.requestFailed(
-            "Failed to load chain elements",
-            error,
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setEndpointsLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [referenceChainId, notificationService]);
-
+  const { isLoading: endpointsLoading, options: endpointOptions } =
+    useChainElements(referenceChainId, isHttpEndpoint);
   // The admin scope has no chain in the route, so the name comes off the mock itself.
-  useEffect(() => {
-    if (chainId || !referenceChainId) {
-      setChainName(undefined);
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      try {
-        const chain = await api.getChain(referenceChainId);
-        if (!cancelled) {
-          setChainName(chain.name);
-        }
-      } catch {
-        if (!cancelled) {
-          setChainName(undefined);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [chainId, referenceChainId]);
-
-  const endpointOptions = useMemo(
-    () =>
-      endpoints.map((endpoint) => ({
-        value: endpoint.id,
-        label: endpoint.name,
-      })),
-    [endpoints],
-  );
+  const chainName = useChainName(chainId ? undefined : referenceChainId);
 
   return (
     <Form layout="vertical" disabled={readonly} style={{ maxWidth: 720 }}>
@@ -115,7 +56,7 @@ export const EndpointMockGeneralTab: React.FC = () => {
               {chainName ?? referenceChainId}
             </a>
           ) : (
-            "-"
+            PLACEHOLDER
           )}
         </Form.Item>
       )}

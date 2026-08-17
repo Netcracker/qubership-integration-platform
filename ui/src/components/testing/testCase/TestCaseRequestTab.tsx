@@ -1,22 +1,18 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { Flex, Form, InputNumber, Select } from "antd";
 import { useNavigate } from "react-router";
-import { api } from "../../../api/api.ts";
 import {
-  Element,
   TestingMessage,
   TestingNamedParameter,
   TestingRequestSettings,
 } from "../../../api/apiTypes.ts";
 import { Script } from "../../Script.tsx";
-import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
+import { useChainElements } from "../../../hooks/testing/useChainElements.ts";
+import { useChainName } from "../../../hooks/testing/useChainName.ts";
+import { PLACEHOLDER } from "../../../misc/format-utils.ts";
 import { useTestCaseEditor } from "../../../pages/testing/TestCasePage.tsx";
 import { NameValueTable } from "../NameValueTable.tsx";
-import {
-  flattenElements,
-  getHttpMethods,
-  isHttpTrigger,
-} from "../testingElements.ts";
+import { getHttpMethods, isHttpTrigger } from "../testingElements.ts";
 
 /** Settings a case saved before it named a trigger has none of yet. */
 const EMPTY_REQUEST_SETTINGS: TestingRequestSettings = {
@@ -29,80 +25,27 @@ const EMPTY_REQUEST_SETTINGS: TestingRequestSettings = {
 
 const EMPTY_MESSAGE: TestingMessage = { body: null, headers: [] };
 
+/**
+ * The trigger picker sits here rather than on General, and the mock editor puts
+ * its endpoint picker on General instead. The two tab layouts are what the source
+ * ports to, so they stay as they are.
+ */
 export const TestCaseRequestTab: React.FC = () => {
   const { testCase, chainId, readonly, onChange } = useTestCaseEditor();
   const navigate = useNavigate();
-  const notificationService = useNotificationService();
-  const [triggers, setTriggers] = useState<Element[]>([]);
-  const [triggersLoading, setTriggersLoading] = useState(false);
-  const [chainName, setChainName] = useState<string>();
 
   const reference = testCase.triggerReference;
   const referenceChainId = reference?.chainId;
   const settings = testCase.requestSettings ?? EMPTY_REQUEST_SETTINGS;
   const message = settings.message ?? EMPTY_MESSAGE;
 
-  useEffect(() => {
-    if (!referenceChainId) {
-      setTriggers([]);
-      return;
-    }
-    let cancelled = false;
-    setTriggersLoading(true);
-    void (async () => {
-      try {
-        const elements = await api.getElements(referenceChainId);
-        if (!cancelled) {
-          setTriggers(flattenElements(elements).filter(isHttpTrigger));
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setTriggers([]);
-          notificationService.requestFailed(
-            "Failed to load chain elements",
-            error,
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setTriggersLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [referenceChainId, notificationService]);
-
+  const {
+    elements: triggers,
+    isLoading: triggersLoading,
+    options: triggerOptions,
+  } = useChainElements(referenceChainId, isHttpTrigger);
   // The admin scope has no chain in the route, so the name comes off the case itself.
-  useEffect(() => {
-    if (chainId || !referenceChainId) {
-      setChainName(undefined);
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      try {
-        const chain = await api.getChain(referenceChainId);
-        if (!cancelled) {
-          setChainName(chain.name);
-        }
-      } catch {
-        if (!cancelled) {
-          setChainName(undefined);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [chainId, referenceChainId]);
-
-  const triggerOptions = useMemo(
-    () =>
-      triggers.map((trigger) => ({ value: trigger.id, label: trigger.name })),
-    [triggers],
-  );
+  const chainName = useChainName(chainId ? undefined : referenceChainId);
 
   const selectedTrigger = triggers.find(
     (trigger) => trigger.id === reference?.elementId,
@@ -134,7 +77,7 @@ export const TestCaseRequestTab: React.FC = () => {
                 {chainName ?? referenceChainId}
               </a>
             ) : (
-              "-"
+              PLACEHOLDER
             )}
           </Form.Item>
         )}

@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button, Form, Input, Modal, Select } from "antd";
 import { api } from "../../../api/api.ts";
-import { Element, TestCase, TestCaseRequest } from "../../../api/apiTypes.ts";
+import { TestCase, TestCaseRequest } from "../../../api/apiTypes.ts";
+import { useChainElements } from "../../../hooks/testing/useChainElements.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { useModalContext } from "../../../ModalContextProvider.tsx";
 import {
-  flattenElements,
   getHttpMethods,
   isHttpTrigger,
 } from "../../testing/testingElements.ts";
@@ -34,45 +34,21 @@ export const CreateTestCaseModal: React.FC<CreateTestCaseModalProps> = ({
   const [form] = Form.useForm<FormData>();
   const { closeContainingModal } = useModalContext();
   const notificationService = useNotificationService();
-  const [triggers, setTriggers] = useState<Element[]>([]);
-  const [triggersLoading, setTriggersLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    setTriggersLoading(true);
-    void (async () => {
-      try {
-        const elements = await api.getElements(chainId);
-        if (cancelled) {
-          return;
-        }
-        const httpTriggers = flattenElements(elements).filter(isHttpTrigger);
-        setTriggers(httpTriggers);
-        form.setFieldValue("elementId", httpTriggers[0]?.id);
-      } catch (error) {
-        if (!cancelled) {
-          notificationService.requestFailed(
-            "Failed to load chain elements",
-            error,
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setTriggersLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [chainId, form, notificationService]);
+  const {
+    elements: triggers,
+    isLoading: triggersLoading,
+    options: triggerOptions,
+  } = useChainElements(chainId, isHttpTrigger);
 
-  const triggerOptions = useMemo(
-    () =>
-      triggers.map((trigger) => ({ value: trigger.id, label: trigger.name })),
-    [triggers],
-  );
+  // The first trigger is preselected, which is what the case is created against
+  // unless the user picks another.
+  useEffect(() => {
+    if (triggers.length > 0) {
+      form.setFieldValue("elementId", triggers[0].id);
+    }
+  }, [triggers, form]);
 
   const submit = async (values: FormData) => {
     setSaving(true);

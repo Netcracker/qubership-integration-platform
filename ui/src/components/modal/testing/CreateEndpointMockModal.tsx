@@ -1,17 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Button, Form, Input, Modal, Select } from "antd";
 import { api } from "../../../api/api.ts";
-import {
-  Element,
-  EndpointMock,
-  EndpointMockRequest,
-} from "../../../api/apiTypes.ts";
+import { EndpointMock, EndpointMockRequest } from "../../../api/apiTypes.ts";
+import { useChainElements } from "../../../hooks/testing/useChainElements.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { useModalContext } from "../../../ModalContextProvider.tsx";
-import {
-  flattenElements,
-  isHttpEndpoint,
-} from "../../testing/testingElements.ts";
+import { isHttpEndpoint } from "../../testing/testingElements.ts";
 
 const FORM_ID = "createEndpointMockForm";
 
@@ -37,48 +31,21 @@ export const CreateEndpointMockModal: React.FC<
   const [form] = Form.useForm<FormData>();
   const { closeContainingModal } = useModalContext();
   const notificationService = useNotificationService();
-  const [endpoints, setEndpoints] = useState<Element[]>([]);
-  const [endpointsLoading, setEndpointsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    setEndpointsLoading(true);
-    void (async () => {
-      try {
-        const elements = await api.getElements(chainId);
-        if (cancelled) {
-          return;
-        }
-        const httpEndpoints = flattenElements(elements).filter(isHttpEndpoint);
-        setEndpoints(httpEndpoints);
-        form.setFieldValue("elementId", httpEndpoints[0]?.id);
-      } catch (error) {
-        if (!cancelled) {
-          notificationService.requestFailed(
-            "Failed to load chain elements",
-            error,
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setEndpointsLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [chainId, form, notificationService]);
+  const {
+    elements: endpoints,
+    isLoading: endpointsLoading,
+    options: endpointOptions,
+  } = useChainElements(chainId, isHttpEndpoint);
 
-  const endpointOptions = useMemo(
-    () =>
-      endpoints.map((endpoint) => ({
-        value: endpoint.id,
-        label: endpoint.name,
-      })),
-    [endpoints],
-  );
+  // The first endpoint is preselected, which is what the mock answers for unless
+  // the user picks another.
+  useEffect(() => {
+    if (endpoints.length > 0) {
+      form.setFieldValue("elementId", endpoints[0].id);
+    }
+  }, [endpoints, form]);
 
   const submit = async (values: FormData) => {
     setSaving(true);
