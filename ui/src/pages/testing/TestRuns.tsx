@@ -281,7 +281,7 @@ export const TestRuns: React.FC = () => {
           tooltipProps={{ title: "Restart selected test runs" }}
           buttonProps={{
             "data-testid": "test-runs-restart",
-            iconName: "redo",
+            iconName: "play",
             loading: isStarting,
             disabled: isStarting,
             onClick: () => void startRun(),

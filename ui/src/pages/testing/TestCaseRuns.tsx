@@ -437,7 +437,7 @@ export const TestCaseRuns: React.FC<TestCaseRunsProps> = ({
           tooltipProps={{ title: "Restart selected test case runs" }}
           buttonProps={{
             "data-testid": "test-case-runs-restart",
-            iconName: "redo",
+            iconName: "play",
             loading: isStarting,
             disabled: isStarting,
             onClick: () => void startRun(),
