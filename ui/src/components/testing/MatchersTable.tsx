@@ -14,7 +14,7 @@ import { formatOptional } from "../../misc/format-utils.ts";
 import { SelectEdit } from "../table/SelectEdit.tsx";
 import { TableToolbar } from "../table/TableToolbar.tsx";
 import { TextValueEdit } from "../table/TextValueEdit.tsx";
-import { tableEmpty } from "../table/tableEmpty.tsx";
+import { inlineTableEmpty } from "../table/tableEmpty.tsx";
 import { tableScroll } from "../table/tableScroll.ts";
 import { MatcherParametersCell } from "./matcherEditors/MatcherParametersCell.tsx";
 import {
@@ -407,7 +407,7 @@ export const MatchersTable: React.FC<MatchersTableProps> = ({
         rowKey={rowKeyOf}
         className="flex-table"
         style={{ flex: 1, minHeight: 0 }}
-        locale={{ emptyText: tableEmpty("No matchers") }}
+        locale={{ emptyText: inlineTableEmpty("No matchers") }}
         scroll={tableScroll(TABLE_SCROLL_X, visibleRows.length)}
       />
     </>

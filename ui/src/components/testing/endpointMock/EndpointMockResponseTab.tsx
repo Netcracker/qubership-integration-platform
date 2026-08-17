@@ -74,6 +74,7 @@ export const EndpointMockResponseTab: React.FC = () => {
       <NameValueTable
         data-testid="response-headers"
         title="Headers"
+        rowNoun="header"
         values={message.headers}
         readonly={readonly}
         validateName={getHttpFieldNameError}

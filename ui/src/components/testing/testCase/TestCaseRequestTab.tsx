@@ -131,6 +131,7 @@ export const TestCaseRequestTab: React.FC = () => {
       <NameValueTable
         data-testid="path-parameters"
         title="Path Parameters"
+        rowNoun="parameter"
         values={settings.pathParameters}
         readonly={readonly}
         onChange={(pathParameters: TestingNamedParameter[]) =>
@@ -140,6 +141,7 @@ export const TestCaseRequestTab: React.FC = () => {
       <NameValueTable
         data-testid="query-parameters"
         title="Query Parameters"
+        rowNoun="parameter"
         values={settings.queryParameters}
         readonly={readonly}
         onChange={(queryParameters: TestingNamedParameter[]) =>
@@ -149,6 +151,7 @@ export const TestCaseRequestTab: React.FC = () => {
       <NameValueTable
         data-testid="headers"
         title="Headers"
+        rowNoun="header"
         values={message.headers}
         readonly={readonly}
         onChange={(headers: TestingNamedParameter[]) =>

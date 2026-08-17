@@ -5,7 +5,7 @@ import { TestingNamedParameter } from "../../api/apiTypes.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { formatOptional } from "../../misc/format-utils.ts";
 import { createActionsColumnBase } from "../table/actionsColumn.ts";
-import { tableEmpty } from "../table/tableEmpty.tsx";
+import { inlineTableEmpty } from "../table/tableEmpty.tsx";
 
 type KeyedParameter = TestingNamedParameter & { key: number };
 
@@ -14,6 +14,8 @@ export type ValueValidator = (text: string) => string | undefined;
 
 export type NameValueTableProps = {
   title: string;
+  /** Names one row, as the add button says it: "Add header", "Add parameter". */
+  rowNoun: string;
   values: TestingNamedParameter[] | null;
   onChange: (values: TestingNamedParameter[]) => void;
   readonly?: boolean;
@@ -25,6 +27,7 @@ export type NameValueTableProps = {
 /** Name and value pairs of a request: path parameters, query parameters or headers. */
 export const NameValueTable: React.FC<NameValueTableProps> = ({
   title,
+  rowNoun,
   values,
   onChange,
   readonly = false,
@@ -116,27 +119,27 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
   ];
 
   return (
-    <div data-testid={dataTestId}>
-      <Flex align="center" justify="space-between" gap={8}>
-        <Typography.Text strong>{title}</Typography.Text>
-        {readonly ? null : (
+    <Flex vertical gap={8} data-testid={dataTestId}>
+      <Typography.Text strong>{title}</Typography.Text>
+      {readonly ? null : (
+        <Flex>
           <Button
             size="small"
-            icon={<OverridableIcon name="plus" />}
+            icon={<OverridableIcon name="plusCircle" />}
             onClick={() => onChange([...rows, { name: "", value: "" }])}
           >
-            Add
+            Add {rowNoun}
           </Button>
-        )}
-      </Flex>
+        </Flex>
+      )}
       <Table<KeyedParameter>
         size="small"
         columns={columns}
         dataSource={keyedRows}
         pagination={false}
         rowKey="key"
-        locale={{ emptyText: tableEmpty(`No ${title.toLowerCase()}`) }}
+        locale={{ emptyText: inlineTableEmpty(`No ${title.toLowerCase()}`) }}
       />
-    </div>
+    </Flex>
   );
 };
