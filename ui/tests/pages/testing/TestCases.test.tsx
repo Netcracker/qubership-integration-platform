@@ -584,7 +584,8 @@ describe("TestCases bulk actions", () => {
   });
 
   // A second click before the service answers would start a second run over the
-  // same cases, which nothing undoes.
+  // same cases, which nothing undoes. The disabled action is what this pins; the
+  // guard behind it is pinned in tests/hooks/testing/useTestsRunStarter.test.tsx.
   it("should start one run when the action is clicked twice", async () => {
     let finishRun: (runId: string) => void = () => undefined;
     mockStartTestsRun.mockReturnValue(
