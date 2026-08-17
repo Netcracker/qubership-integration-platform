@@ -21,6 +21,9 @@ Test cases and endpoint mocks are handled by a separate testing service, which r
 Open a chain and click the **Testing** tab. A vertical menu on the left switches between **Test Cases**, **Endpoint Mocks** and **Test Case Runs**. Everything shown here is limited to the current chain. The same entities across all chains, together with the test runs that group them, are available under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md).
 
 ### Test Cases Table View
+
+![Test cases of a chain](img/test-cases.png)
+
 The table lists the test cases of the chain. The following columns are available:
 
 - **Name** - test case name, a clickable reference to the test case editor.
@@ -83,6 +86,9 @@ Defines the request sent to the trigger:
 Holds the rules the response is checked against - see [Validation Rules and Request Matchers](#validation-rules-and-request-matchers). A response rule can inspect the response **Body**, the **HTTP response status code** or a **Header**.
 
 ### Endpoint Mocks Table View
+
+![Endpoint mocks of a chain](img/endpoint-mocks.png)
+
 The table lists the endpoint mocks of the chain. **Name**, **Description**, **Enabled** and the audit fields repeat the test case ones. Three more columns:
 
 - **Element** - the element whose outgoing call the mock answers, a clickable reference to the chain [graph](../1__Graph/graph.md). The test case table carries this column too, where it points at the trigger instead.
@@ -121,6 +127,9 @@ Three tabs, the same **Cancel** / **Save** toolbar, and the same unsaved-changes
 Holds the rules that decide whether the mock answers a given call - see [Validation Rules and Request Matchers](#validation-rules-and-request-matchers). A request matcher can inspect the request **Body**, a **Header**, a **Path parameter** or a **Query parameter**.
 
 ### Validation Rules and Request Matchers
+
+![Response validation rules of a test case](img/validation-rules.png)
+
 Both editors use the same table. A row is one rule, and it has the following columns:
 
 - **Name** - mandatory rule name, edited in place.
@@ -168,6 +177,9 @@ While the run proceeds:
 Separate test runs execute **in parallel**, so several runs can progress at the same time. Test runs themselves are managed under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md).
 
 ### Test Case Runs Table View
+
+![Test case runs of a chain](img/test-case-runs.png)
+
 The table lists the case runs of the chain, sorted by start time descending. The following columns are available:
 
 - **Id** - identifier of the case run, a clickable reference to its validation errors.
@@ -200,6 +212,9 @@ Case runs cannot be deleted on their own; they are removed with the test run tha
 Clicking a row opens the **Test Case Run Details** side panel.
 
 ### Validation Errors
+
+![Validation errors of a case run](img/validation-errors.png)
+
 Click the **Id** of a case run, or an **Errors** count above zero, to open the validation errors of that case run. The table lists one row per rule that did not hold:
 
 - **Rule** - name of the rule, a clickable reference to the test case it belongs to. When the rule has since been deleted, its identifier is shown instead.

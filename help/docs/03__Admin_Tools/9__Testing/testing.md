@@ -50,6 +50,9 @@ Click **Import test cases** or **Import endpoint mocks**. The dialog works in tw
 An archive that cannot be read at all is reported as a single **_Error_** row rather than as a failed request. The list behind the dialog is refreshed only when something was actually created or updated.
 
 ### Test Runs Table View
+
+![Test runs under Admin Tools](img/test-runs.png)
+
 The table lists the runs. The following columns are available:
 
 - **Id** - identifier of the run, a clickable reference to its test case runs.
