@@ -73,6 +73,7 @@ import { TestingPlaceholder } from "./pages/testing/TestingPlaceholder.tsx";
 import { TestCases } from "./pages/testing/TestCases.tsx";
 import { EndpointMocks } from "./pages/testing/EndpointMocks.tsx";
 import { TestCaseRuns } from "./pages/testing/TestCaseRuns.tsx";
+import { TestCaseRunErrors } from "./pages/testing/TestCaseRunErrors.tsx";
 import { TestCasePage } from "./pages/testing/TestCasePage.tsx";
 import { TestCaseGeneralTab } from "./components/testing/testCase/TestCaseGeneralTab.tsx";
 import { TestCaseRequestTab } from "./components/testing/testCase/TestCaseRequestTab.tsx";
@@ -201,7 +202,7 @@ const router = createBrowserRouter(
             />
             <Route
               path="test-runs/:runId/:caseRunId"
-              element={<TestingPlaceholder name="Test case run errors" />}
+              element={<TestCaseRunErrors />}
             />
           </Route>
         </Route>
@@ -268,7 +269,7 @@ const router = createBrowserRouter(
               <Route path="test-case-runs" element={<TestCaseRuns />} />
               <Route
                 path="test-case-runs/:caseRunId"
-                element={<TestingPlaceholder name="Test case run errors" />}
+                element={<TestCaseRunErrors />}
               />
             </Route>
           </Route>

@@ -597,11 +597,28 @@ nothing at all instead of pulling the chain's whole element tree for a cache no 
 - Create: `ui/src/pages/testing/TestCaseRunErrors.tsx`
 - Create: `ui/tests/pages/testing/TestCaseRunErrors.test.tsx`
 
-- [ ] render the failing matcher and message for a case run, reached from both the chain route and the admin drill-down
-- [ ] request errors with `withMatchers=true`, which is constant rather than a control
-- [ ] add the errors export
-- [ ] write tests for rendering from both routes and for the export call
-- [ ] run `npm -w @netcracker/qip-ui test` - must pass before next task
+- [x] render the failing matcher and message for a case run, reached from both the chain route and the admin drill-down
+- [x] request errors with `withMatchers=true`, which is constant rather than a control
+- [x] add the errors export
+- [x] write tests for rendering from both routes and for the export call
+- [x] run `npm -w @netcracker/qip-ui test` - must pass before next task
+
+➕ The errors export takes **validation error** ids, not case-run ids (`BulkExport` in
+`internal/controllers/test_case_run_errors_controller.go`), so the page exports the rows the user checked. The Angular
+source names its action "export selected" and then sends every loaded row; this port exports the selection, as every
+other testing list does.
+
+➕ The payload re-read off the Go service is `id`, `testCaseRunId`, `matcherId`, `matcher`, `message`
+(`ValidationError` in `internal/dao/model.go`), and `matcher` is filled in only under `withMatchers=true`. The Rule cell
+therefore falls back to `matcherId` whenever the matcher is absent — an error outlives the rule it was recorded for.
+
+➕ The page reads the case run beside the errors: it is the only source of `testCaseId`, which the rule link and the
+breadcrumb need, and it carries the status and the timings the toolbar shows. Scope comes from the `chainId` route
+parameter rather than a variant prop, since only the chain route has one.
+
+➕ The source's per-column filters, its sorting and its localStorage view state stay unported, as they do in the
+matchers table of task 5. Local search, column visibility and column order remain, the last two through
+`useColumnSettingsButton`.
 
 ### Task 13: Test runs
 
