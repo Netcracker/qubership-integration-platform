@@ -360,10 +360,12 @@ export function useTestingEntityList<T extends { id: string }>({
   }, []);
 
   // Rows picked under one selection are not the rows the next one holds, so the
-  // choice does not survive a change to the filters, the search or the sort.
+  // choice does not survive a change to the sort or to the selection itself. The
+  // specification carries the chain, the scope the route fixes, the filters and
+  // the search, which is every way a screen has of pointing at other rows.
   useEffect(() => {
     clearSelection();
-  }, [filters, searchString, sortBy, sortOrder, clearSelection]);
+  }, [specification, sortBy, sortOrder, clearSelection]);
 
   // A selection reaching past the loaded page covers the rows a later page
   // brings in, so their checkboxes follow it.

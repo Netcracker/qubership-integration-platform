@@ -8,8 +8,10 @@ import {
   TestingFilterCondition,
   TestingSortOrder,
 } from "../../../src/api/apiTypes";
+import type { Key } from "react";
 import type {
   TestCaseView,
+  TestingFilter,
   TestingListOptions,
   TestingSelectionSpecification,
 } from "../../../src/api/apiTypes";
@@ -52,7 +54,10 @@ jest.mock("../../../src/misc/download-utils", () => ({
   downloadFile: (file: File) => mockDownloadFile(file),
 }));
 
-import type { UseTestingEntityListOptions } from "../../../src/hooks/testing/useTestingEntityList";
+import type {
+  TestingEntityList,
+  UseTestingEntityListOptions,
+} from "../../../src/hooks/testing/useTestingEntityList";
 import {
   testCasesListSource,
   useTestingEntityList,
@@ -82,6 +87,38 @@ function renderList(
       ...options,
     }),
   );
+}
+
+type ScopeProps = { chainId?: string; scopeFilters?: TestingFilter[] };
+
+/** Renders the list under a scope the test can move to another chain or run. */
+function renderScopedList(initialProps: ScopeProps) {
+  return renderHook(
+    ({ chainId, scopeFilters }: ScopeProps) =>
+      useTestingEntityList<TestCaseView>({
+        source: testCasesListSource,
+        filters: noFilters,
+        chainId,
+        scopeFilters,
+      }),
+    { initialProps },
+  );
+}
+
+/** Picks rows the way the checkbox column of the table does. */
+function select(list: TestingEntityList<TestCaseView>, keys: Key[]): void {
+  list.rowSelection.onChange?.(keys, [], { type: "multiple" });
+}
+
+/** The scope a run drill-down fixes, memoized on the run in the route. */
+function runScope(runId: string): TestingFilter[] {
+  return [
+    {
+      feature: "tests_run_id",
+      condition: TestingFilterCondition.IS,
+      values: [runId],
+    },
+  ];
 }
 
 /** Renders the list under a search term the test can change to start a request. */
@@ -389,6 +426,33 @@ describe("useTestingEntityList", () => {
     await settle(pending, () => pending.reject(new Error("service is down")));
 
     expect(mockRequestFailed).not.toHaveBeenCalled();
+  });
+
+  // A selection that outlives its scope would hand rows of the chain or the run
+  // left behind to a delete, a cancel or an export made in the one now on screen.
+  it("should drop the selection when the chain in context changes", async () => {
+    const { result, rerender } = renderScopedList({ chainId: "chain-1" });
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    act(() => select(result.current, ["case-1"]));
+    expect(result.current.selectedRowKeys).toEqual(["case-1"]);
+
+    rerender({ chainId: "chain-2" });
+
+    await waitFor(() => expect(result.current.selectedRowKeys).toEqual([]));
+  });
+
+  it("should drop the selection when the run the route fixes changes", async () => {
+    const { result, rerender } = renderScopedList({
+      scopeFilters: runScope("run-1"),
+    });
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    act(() => select(result.current, ["case-1"]));
+    expect(result.current.selectedRowKeys).toEqual(["case-1"]);
+
+    rerender({ scopeFilters: runScope("run-2") });
+
+    await waitFor(() => expect(result.current.selectedRowKeys).toEqual([]));
+    expect(result.current.selectAllMatching).toBe(false);
   });
 
   it("should report a failed export", async () => {
