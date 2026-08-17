@@ -562,14 +562,34 @@ prompt on the editor's own post-save navigation.
 - Create: `ui/src/components/testing/TestCaseRunDrawer.tsx`
 - Create: `ui/tests/pages/testing/TestCaseRuns.test.tsx`
 
-- [ ] build the list in the two variants that are actually routed — scoped to a chain and scoped to a run — swapping the Tests Run column for the Chain column as the source does; there is no unscoped route, so do not build a third variant nothing renders
-- [ ] show status, timings, error count and the originating test case, defaulting the sort to `start` descending
-- [ ] resolve the run's **external** session id through the sessions-management lookup before linking to the session page, falling back to no link when it is not found
-- [ ] link the case-run cell to the errors page and the test-case name to its editor, as the source does
-- [ ] add refresh, export, cancel and restart; there is no delete for case runs
-- [ ] add the run drawer
-- [ ] write tests for both variants, status rendering, the session lookup including the not-found fallback, cancel and restart
-- [ ] run `npm -w @netcracker/qip-ui test` - must pass before next task
+- [x] build the list in the two variants that are actually routed — scoped to a chain and scoped to a run — swapping the Tests Run column for the Chain column as the source does; there is no unscoped route, so do not build a third variant nothing renders
+- [x] show status, timings, error count and the originating test case, defaulting the sort to `start` descending
+- [x] resolve the run's **external** session id through the sessions-management lookup before linking to the session page, falling back to no link when it is not found
+- [x] link the case-run cell to the errors page and the test-case name to its editor, as the source does
+- [x] add refresh, export, cancel and restart; there is no delete for case runs
+- [x] add the run drawer
+- [x] write tests for both variants, status rendering, the session lookup including the not-found fallback, cancel and restart
+- [x] run `npm -w @netcracker/qip-ui test` - must pass before next task
+
+➕ The view was re-read off the Go service (`internal/dao/model.go`): a case run carries `testsRunId`, `testCaseId`,
+`testCaseName`, `testCaseDescription`, `chainId`, `start`, `finish`, `status`, `sessionId`, `ordinal` and `errors`, and
+**no audit fields** — it embeds `TestCaseRun`, not `Metadata` — so the list has no created/updated columns. Its sortable
+set (`id`, `test_case_name`, `chain_id`, `start`, `finish`, `status`, `errors`) matches the plan;
+`tests_run_id` filters but does not sort, so the Test Run column carries no sorter.
+
+⚠️ One disagreement with the plan. Cancel reaches only the cases that have **not** started: `cancelTestCaseRuns`
+selects `status = pending` and leaves a running case alone (`internal/services/test_case_runs_service.go`). The
+confirmation says as much rather than promising to stop a case in flight. Restart agrees with the plan — it posts to
+`tests-runs/create` with `from=test_case_runs`, which resolves the cases behind the ids.
+
+➕ The cell that links to the errors page is the **Id** column, the only cell that names the case run itself; the test
+case name links to its editor beside it. The session cell renders the external id as plain text until the lookup
+resolves it, and keeps it plain when nothing was found.
+
+➕ `RunStatusTag` joins `TestingTags.tsx`, ready for the aggregate status of task 13.
+
+➕ `TestingListSource` gains `usesElementNames`. The run lists name no element, so inside a chain they now fetch
+nothing at all instead of pulling the chain's whole element tree for a cache no column reads.
 
 ### Task 12: Run errors page
 

@@ -41,6 +41,8 @@ export type TestingListSource<T> = {
   sortFields: readonly string[];
   /** Feature scoping the list to one chain. */
   chainFeature?: string;
+  /** Whether any column or filter of this list names an element. */
+  usesElementNames?: boolean;
 };
 
 export const testCasesListSource: TestingListSource<TestCaseView> = {
@@ -50,6 +52,7 @@ export const testCasesListSource: TestingListSource<TestCaseView> = {
   exportEntities: (ids) => api.exportTestCases(ids),
   sortFields: TEST_CASES_SORT_FIELDS,
   chainFeature: TESTING_CHAIN_FEATURE,
+  usesElementNames: true,
 };
 
 export const endpointMocksListSource: TestingListSource<EndpointMock> = {
@@ -60,6 +63,7 @@ export const endpointMocksListSource: TestingListSource<EndpointMock> = {
   exportEntities: (ids) => api.exportEndpointMocks(ids),
   sortFields: ENDPOINT_MOCKS_SORT_FIELDS,
   chainFeature: TESTING_CHAIN_FEATURE,
+  usesElementNames: true,
 };
 
 export const testsRunsListSource: TestingListSource<TestsRunView> = {
@@ -156,6 +160,9 @@ export function useTestingEntityList<T extends { id: string }>({
     const loadNames = async () => {
       try {
         if (chainId) {
+          if (!source.usesElementNames) {
+            return;
+          }
           const chainElements = await api.getElements(chainId);
           if (!canceled) {
             setElements(toNamedElements(chainElements));
@@ -176,7 +183,7 @@ export function useTestingEntityList<T extends { id: string }>({
     return () => {
       canceled = true;
     };
-  }, [chainId, notificationService]);
+  }, [chainId, source.usesElementNames, notificationService]);
 
   // Names reach the selection only through a filter written against them, so a
   // list without one is not refetched when the name caches arrive.
