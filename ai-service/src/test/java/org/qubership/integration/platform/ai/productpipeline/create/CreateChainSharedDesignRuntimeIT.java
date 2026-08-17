@@ -101,7 +101,8 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInput
 import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ImplementCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRuntime;
+import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -209,7 +210,7 @@ class CreateChainSharedDesignRuntimeIT {
 
   @Test
   void provideBypassesRequirementStagesPlansAndExecutesAfterApproval() {
-    ProductPipelineRuntime runtime = runtimeWithRealDesignStack(catalogHitStubs());
+    CreateChainTestOrchestrator runtime = runtimeWithRealDesignStack(catalogHitStubs());
     startV2(runtime);
 
     List<PipelineSignal> afterIds =
@@ -250,7 +251,7 @@ class CreateChainSharedDesignRuntimeIT {
 
   @Test
   void generateRequiresBriefAndIdsApprovalBeforeExecution() {
-    ProductPipelineRuntime runtime = runtimeWithRealDesignStack(catalogHitStubs());
+    CreateChainTestOrchestrator runtime = runtimeWithRealDesignStack(catalogHitStubs());
     startV2(runtime);
 
     runtime
@@ -324,7 +325,7 @@ class CreateChainSharedDesignRuntimeIT {
 
   @Test
   void deriveProducesIdsWithoutIdsApprovalWaitThenExecutes() {
-    ProductPipelineRuntime runtime = runtimeWithRealDesignStack(deriveCatalogHitStubs());
+    CreateChainTestOrchestrator runtime = runtimeWithRealDesignStack(deriveCatalogHitStubs());
     startV2(runtime);
 
     runtime
@@ -382,7 +383,7 @@ class CreateChainSharedDesignRuntimeIT {
 
   @Test
   void v2DiscoveryAdvancesWithoutDraftApprovalWhileAnalysisStillRequiresBrief() {
-    ProductPipelineRuntime runtime = runtimeWithRealDesignStack(catalogHitStubs());
+    CreateChainTestOrchestrator runtime = runtimeWithRealDesignStack(catalogHitStubs());
     startV2(runtime);
     runtime
         .acceptInput(new AcceptInputCommand(RUN_ID, "Create a pets HTTP integration"))
@@ -401,7 +402,7 @@ class CreateChainSharedDesignRuntimeIT {
 
   @Test
   void catalogHitCallOrderSkipsApiHubAndImport() {
-    ProductPipelineRuntime runtime = runtimeWithRealDesignStack(catalogHitStubs());
+    CreateChainTestOrchestrator runtime = runtimeWithRealDesignStack(catalogHitStubs());
     seedApprovedImplementationWaiting(runtime);
 
     implementApprovedPlan(runtime);
@@ -437,7 +438,7 @@ class CreateChainSharedDesignRuntimeIT {
     when(approvedCompilerExecutionRunner.execute(any(), any(), anyList(), any(), any(), any()))
         .thenReturn(successfulEngineResult());
 
-    ProductPipelineRuntime runtime = runtimeWithRealDesignStack(null);
+    CreateChainTestOrchestrator runtime = runtimeWithRealDesignStack(null);
     seedApprovedImplementationWaiting(runtime);
     implementApprovedPlan(runtime);
 
@@ -473,7 +474,7 @@ class CreateChainSharedDesignRuntimeIT {
                 new CatalogRestClient.OperationDto("op-a", "findPetsA", "GET", "/pets", "spec-1"),
                 new CatalogRestClient.OperationDto("op-b", "findPetsB", "GET", "/pets", "spec-1")));
 
-    ProductPipelineRuntime runtime = runtimeWithRealDesignStack(null);
+    CreateChainTestOrchestrator runtime = runtimeWithRealDesignStack(null);
     seedApprovedImplementationWaiting(runtime);
     implementApprovedPlan(runtime);
 
@@ -492,8 +493,8 @@ class CreateChainSharedDesignRuntimeIT {
         analysisStub(briefMissingMappings());
     DesignPlanningCapability planning = designPlanningCapability();
 
-    ProductPipelineRuntime runtime =
-        new ProductPipelineRuntime(
+    CreateChainTestOrchestrator runtime =
+        new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
             runStore,
             artifactStore,
             new StageCapabilityRegistry(
@@ -506,7 +507,7 @@ class CreateChainSharedDesignRuntimeIT {
                     materializationCapability)),
             new ProductPipelineProfileCatalog(List.of(v2Profile)),
             stubPinResolver(),
-            clock);
+            clock), runStore);
 
     startV2(runtime);
     runtime
@@ -529,7 +530,7 @@ class CreateChainSharedDesignRuntimeIT {
 
   @Test
   void refinementOfApprovedCandidateInvalidatesExecution() {
-    ProductPipelineRuntime runtime = runtimeWithRealDesignStack(catalogHitStubs());
+    CreateChainTestOrchestrator runtime = runtimeWithRealDesignStack(catalogHitStubs());
     seedApprovedImplementationWaiting(runtime);
     long revision = loadRun().run().runRevision();
 
@@ -550,14 +551,14 @@ class CreateChainSharedDesignRuntimeIT {
 
   @Test
   void restartResumesFromImplementationApprovalWithoutReplanning() {
-    ProductPipelineRuntime first = runtimeWithRealDesignStack(catalogHitStubs());
+    CreateChainTestOrchestrator first = runtimeWithRealDesignStack(catalogHitStubs());
     seedApprovedImplementationWaiting(first);
     assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status());
     long revision = loadRun().run().runRevision();
     plannerCalls.set(0);
 
-    ProductPipelineRuntime restarted =
-        new ProductPipelineRuntime(
+    CreateChainTestOrchestrator restarted =
+        new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
             runStore,
             artifactStore,
             new StageCapabilityRegistry(
@@ -570,7 +571,7 @@ class CreateChainSharedDesignRuntimeIT {
                     materializationCapability)),
             new ProductPipelineProfileCatalog(List.of(v2Profile)),
             stubPinResolver(),
-            clock);
+            clock), runStore);
     restarted
         .startOrResume(
             new StartOrResumeCommand(CONVERSATION_ID, RUN_ID, v2Profile, runManifestV2()))
@@ -586,7 +587,7 @@ class CreateChainSharedDesignRuntimeIT {
 
   @Test
   void restartResumesFromIdsApprovalWithoutReplanning() {
-    ProductPipelineRuntime first = runtimeWithRealDesignStack(catalogHitStubs());
+    CreateChainTestOrchestrator first = runtimeWithRealDesignStack(catalogHitStubs());
     startV2(first);
     first
         .acceptInput(new AcceptInputCommand(RUN_ID, "Create a pets HTTP integration"))
@@ -608,7 +609,7 @@ class CreateChainSharedDesignRuntimeIT {
     long revision = loadRun().run().runRevision();
     plannerCalls.set(0);
 
-    ProductPipelineRuntime restarted = runtimeWithRealDesignStack(null);
+    CreateChainTestOrchestrator restarted = runtimeWithRealDesignStack(null);
     restarted
         .startOrResume(
             new StartOrResumeCommand(CONVERSATION_ID, RUN_ID, v2Profile, runManifestV2()))
@@ -670,7 +671,7 @@ class CreateChainSharedDesignRuntimeIT {
           }
         };
 
-    ProductPipelineRuntime first = runtimeWithRealDesignStack(catalogHitStubs());
+    CreateChainTestOrchestrator first = runtimeWithRealDesignStack(catalogHitStubs());
     seedApprovedImplementationWaiting(first);
     implementApprovedPlan(first);
 
@@ -682,7 +683,7 @@ class CreateChainSharedDesignRuntimeIT {
         .execute(any(), any(), anyList(), any(), any(), any());
     assertEquals(1, materializationCalls.get());
 
-    ProductPipelineRuntime restarted = runtimeWithRealDesignStack(null);
+    CreateChainTestOrchestrator restarted = runtimeWithRealDesignStack(null);
     restarted
         .startOrResume(
             new StartOrResumeCommand(CONVERSATION_ID, RUN_ID, v2Profile, runManifestV2()))
@@ -729,7 +730,7 @@ class CreateChainSharedDesignRuntimeIT {
                 null,
                 null));
 
-    ProductPipelineRuntime runtime = runtimeWithRealDesignStack(null);
+    CreateChainTestOrchestrator runtime = runtimeWithRealDesignStack(null);
     seedApprovedImplementationWaiting(runtime);
     implementApprovedPlan(runtime);
 
@@ -769,7 +770,7 @@ class CreateChainSharedDesignRuntimeIT {
           }
         };
     materializationCapability = failingMaterialization;
-    ProductPipelineRuntime runtime = runtimeWithRealDesignStack(catalogHitStubs());
+    CreateChainTestOrchestrator runtime = runtimeWithRealDesignStack(catalogHitStubs());
     seedApprovedImplementationWaiting(runtime);
     implementApprovedPlan(runtime);
 
@@ -846,11 +847,11 @@ class CreateChainSharedDesignRuntimeIT {
     };
   }
 
-  private ProductPipelineRuntime runtimeWithRealDesignStack(Runnable stubs) {
+  private CreateChainTestOrchestrator runtimeWithRealDesignStack(Runnable stubs) {
     if (stubs != null) {
       stubs.run();
     }
-    return new ProductPipelineRuntime(
+    return new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
         runStore,
         artifactStore,
         new StageCapabilityRegistry(
@@ -863,7 +864,7 @@ class CreateChainSharedDesignRuntimeIT {
                 materializationCapability)),
         new ProductPipelineProfileCatalog(List.of(v2Profile)),
         stubPinResolver(),
-        clock);
+        clock), runStore);
   }
 
   private static CompilerRunPinResolver stubPinResolver() {
@@ -962,7 +963,7 @@ class CreateChainSharedDesignRuntimeIT {
     };
   }
 
-  private void startV2(ProductPipelineRuntime runtime) {
+  private void startV2(CreateChainTestOrchestrator runtime) {
     runtime
         .startOrResume(
             new StartOrResumeCommand(CONVERSATION_ID, RUN_ID, v2Profile, runManifestV2()))
@@ -972,7 +973,7 @@ class CreateChainSharedDesignRuntimeIT {
         .indefinitely();
   }
 
-  private void seedApprovedImplementationWaiting(ProductPipelineRuntime runtime) {
+  private void seedApprovedImplementationWaiting(CreateChainTestOrchestrator runtime) {
     startV2(runtime);
     runtime
         .acceptInput(new AcceptInputCommand(RUN_ID, VALID_IDS))
@@ -984,11 +985,11 @@ class CreateChainSharedDesignRuntimeIT {
     assertEquals(RunStatus.WAITING_FOR_IMPLEMENT, loadRun().run().status());
   }
 
-  private void approveLatestWaiting(ProductPipelineRuntime runtime) {
+  private void approveLatestWaiting(CreateChainTestOrchestrator runtime) {
     approveLatestWaitingReturning(runtime);
   }
 
-  private List<PipelineSignal> approveLatestWaitingReturning(ProductPipelineRuntime runtime) {
+  private List<PipelineSignal> approveLatestWaitingReturning(CreateChainTestOrchestrator runtime) {
     Reference candidate =
         loadRun().run().stages().stream()
             .filter(s -> s.approvableReference() != null)
@@ -1003,7 +1004,7 @@ class CreateChainSharedDesignRuntimeIT {
         .indefinitely();
   }
 
-  private List<PipelineSignal> implementApprovedPlan(ProductPipelineRuntime runtime) {
+  private List<PipelineSignal> implementApprovedPlan(CreateChainTestOrchestrator runtime) {
     ApprovalRecordV2 approval =
         artifactStore.payload(
             artifactStore.history(RUN_ID, Kind.APPROVAL_RECORD).stream()

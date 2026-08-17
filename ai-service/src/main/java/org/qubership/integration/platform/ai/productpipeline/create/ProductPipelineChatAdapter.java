@@ -10,11 +10,10 @@ import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 /**
  * Thin browser chat translator for product-owned CREATE conversations.
  *
- * <p>Lifecycle authority lives in {@code ProductPipelineRuntime}. Transport-neutral commands for
- * A2A and shared application use go through {@link
+ * <p>Lifecycle commands go through {@link
  * org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade}.
  * This adapter keeps browser {@code ChatRequest}/{@code ChatEvent} convenience behavior, including
- * text-based Agree approval.
+ * free-form approval intent.
  */
 @ApplicationScoped
 public class ProductPipelineChatAdapter {

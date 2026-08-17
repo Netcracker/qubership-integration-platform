@@ -47,7 +47,9 @@ class SharedApplicationFacadeAdaptersTest {
         .thenReturn(
             Multi.createFrom()
                 .items(
-                    new CreateChainEvent.Progress("Working"),
+                    new CreateChainEvent.SkillProgress("cip-requirement-analyzer", "running"),
+                    new CreateChainEvent.SkillProgress("cip-requirement-analyzer", "completed"),
+                    new CreateChainEvent.Progress("Analyzing requirements"),
                     new CreateChainEvent.Waiting(
                         new CreateChainPendingAction.Clarify("Need detail", List.of()))));
     when(facade.snapshot("shared-1"))
@@ -60,9 +62,19 @@ class SharedApplicationFacadeAdaptersTest {
                     1L,
                     new CreateChainPendingAction.Clarify("Need detail", List.of()),
                     "")));
+    when(facade.pendingCreationHash("shared-1")).thenReturn(Optional.empty());
 
-    List<ChatEvent> browserEvents = collect(browserStart(facade, "shared-1", "Build a chain"));
-    assertTrue(browserEvents.stream().anyMatch(e -> e instanceof ChatEvent.Token));
+    List<ChatEvent> browserEvents =
+        collect(productionBrowserStart(facade, "shared-1", "Build a chain"));
+    assertTrue(browserEvents.stream().anyMatch(e -> e instanceof ChatEvent.Step));
+    assertTrue(
+        browserEvents.stream()
+            .anyMatch(
+                e ->
+                    e instanceof ChatEvent.Step step
+                        && "skill".equals(step.kind())
+                        && "cip-requirement-analyzer".equals(step.label())),
+        () -> "expected a kind=skill step for the invoked skill, got: " + browserEvents);
     assertTrue(browserEvents.stream().anyMatch(e -> e instanceof ChatEvent.Decision));
     assertTrue(browserEvents.stream().noneMatch(e -> e instanceof ChatEvent.Meta));
 
@@ -119,29 +131,31 @@ class SharedApplicationFacadeAdaptersTest {
     verify(facade, times(2)).start(any(StartCreateChainCommand.class));
     verify(emitter).requiresInput(any(), org.mockito.ArgumentMatchers.eq(true));
     assertEquals(A2aTaskState.INPUT_REQUIRED, projectedStateFromLastPersist(persister));
-    assertInstanceOf(ChatEvent.Token.class, browserEvents.get(0));
+    assertTrue(
+        browserEvents.stream().anyMatch(ChatEvent.Step.class::isInstance)
+            || browserEvents.stream().anyMatch(ChatEvent.Token.class::isInstance));
+    assertInstanceOf(
+        ChatEvent.Decision.class,
+        browserEvents.stream()
+            .filter(ChatEvent.Decision.class::isInstance)
+            .findFirst()
+            .orElseThrow());
   }
 
-  /**
-   * Browser-side adapter double: maps facade events to ChatEvent frames without A2A Task DTOs.
-   */
-  static Multi<ChatEvent> browserStart(
+  /** Production browser coordinator, not a transport-mapping double. */
+  static Multi<ChatEvent> productionBrowserStart(
       CreateChainApplicationFacade facade, String conversationId, String text) {
-    return facade
-        .start(new StartCreateChainCommand(conversationId, text))
-        .map(
-            event ->
-                switch (event) {
-                  case CreateChainEvent.Progress progress -> ChatEvent.token(progress.label());
-                  case CreateChainEvent.Message message -> ChatEvent.token(message.text());
-                  case CreateChainEvent.Waiting waiting ->
-                      ChatEvent.decision(waiting.pendingAction(), 0L, "");
-                  case CreateChainEvent.ArtifactReady artifact ->
-                      ChatEvent.token(artifact.artifactType());
-                  case CreateChainEvent.Completed completed ->
-                      ChatEvent.token("completed:" + completed.snapshot().taskId());
-                  case CreateChainEvent.Failed failed -> ChatEvent.error(failed.message());
-                });
+    org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore runStore =
+        mock(
+            org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore
+                .class);
+    when(runStore.loadByConversation(conversationId)).thenReturn(Optional.empty());
+    CreateProductPipelineCoordinator coordinator =
+        new CreateProductPipelineCoordinator(facade, runStore, new ApprovalPrompts(), null);
+    org.qubership.integration.platform.ai.chat.model.ChatRequest request =
+        new org.qubership.integration.platform.ai.chat.model.ChatRequest();
+    request.setResolvedEffectiveUserText(text);
+    return coordinator.handle(request, conversationId);
   }
 
   private static List<ChatEvent> collect(Multi<ChatEvent> events) {

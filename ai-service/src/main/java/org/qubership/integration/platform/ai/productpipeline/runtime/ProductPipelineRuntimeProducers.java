@@ -2,10 +2,10 @@ package org.qubership.integration.platform.ai.productpipeline.runtime;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.serverlessworkflow.impl.WorkflowApplication;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.Produces;
-import jakarta.enterprise.inject.Typed;
 import jakarta.inject.Inject;
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,7 +22,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocumentService;
 import org.qubership.integration.platform.ai.compiler.artifact.ArtifactBlobStore;
@@ -160,8 +159,7 @@ public class ProductPipelineRuntimeProducers {
 
   @Produces
   @ApplicationScoped
-  @Typed(ProductPipelineRuntime.class)
-  ProductPipelineRuntime runtime(
+  ProductPipelineRunSupport runSupport(
       ProductPipelineRunStore runs,
       ProductPipelineArtifactStore artifacts,
       StageCapabilityRegistry capabilities,
@@ -170,7 +168,7 @@ public class ProductPipelineRuntimeProducers {
       DesignInputPromptAgent designInputPromptAgent,
       ApprovalPromptAgent approvalPromptAgent,
       S3Service s3Service) {
-    return new ProductPipelineRuntime(
+    return new ProductPipelineRunSupport(
         runs,
         artifacts,
         capabilities,
@@ -185,15 +183,12 @@ public class ProductPipelineRuntimeProducers {
   @Produces
   @ApplicationScoped
   CreateChainOrchestrator createChainOrchestrator(
-      ProductPipelineRuntime runtime,
+      ProductPipelineRunSupport runSupport,
       ProductPipelineRunStore runs,
       ProvidedIdsFlow flow,
       ProvidedIdsFlowTasks flowTasks,
-      @ConfigProperty(name = "qip.ai.create.flow.enabled", defaultValue = "false")
-          boolean flowEnabled) {
-    return flowEnabled
-        ? new ProvidedIdsFlowOrchestrator(runtime, runs, flow, flowTasks)
-        : runtime;
+      WorkflowApplication application) {
+    return new ProvidedIdsFlowOrchestrator(runSupport, runs, flow, flowTasks, application);
   }
 
   private static ArtifactSchemaRegistry loadArtifactSchemas() {

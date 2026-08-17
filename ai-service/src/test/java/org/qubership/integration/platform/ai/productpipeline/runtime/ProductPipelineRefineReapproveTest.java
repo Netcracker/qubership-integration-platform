@@ -63,7 +63,7 @@ class ProductPipelineRefineReapproveTest {
 
   private ProductPipelineRunStore runStore;
   private ProductPipelineArtifactStore artifactStore;
-  private ProductPipelineRuntime runtime;
+  private CreateChainTestOrchestrator runtime;
   private ProductPipelineProfile profile;
 
   private final AtomicInteger discoveryCalls = new AtomicInteger();
@@ -83,12 +83,12 @@ class ProductPipelineRefineReapproveTest {
     artifactStore = new ProductPipelineArtifactStore(artifacts);
     profile = createProfile();
     runtime =
-        new ProductPipelineRuntime(
+        new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
             runStore,
             artifactStore,
             new StageCapabilityRegistry(
                 List.of(discovery(), importStage(), analysis(), planning())),
-            Clock.fixed(FIXED, ZoneOffset.UTC));
+            Clock.fixed(FIXED, ZoneOffset.UTC)), runStore);
   }
 
   @Test

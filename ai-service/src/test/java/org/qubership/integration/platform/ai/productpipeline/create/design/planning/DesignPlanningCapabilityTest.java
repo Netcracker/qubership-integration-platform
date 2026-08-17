@@ -14,12 +14,16 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
@@ -55,7 +59,8 @@ import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPol
 import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRuntime;
+import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot;
@@ -70,7 +75,7 @@ class DesignPlanningCapabilityTest {
 
   private ProductPipelineRunStore runStore;
   private ProductPipelineArtifactStore artifactStore;
-  private ProductPipelineRuntime runtime;
+  private CreateChainTestOrchestrator runtime;
   private ProductPipelineProfile profile;
 
   @BeforeEach
@@ -83,14 +88,59 @@ class DesignPlanningCapabilityTest {
     artifactStore = new ProductPipelineArtifactStore(artifacts);
     profile = designPlanningProfile();
     runtime =
-        new ProductPipelineRuntime(
+        new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
             runStore,
             artifactStore,
             new StageCapabilityRegistry(
                 List.of(new SeedDesignInputsCapability(), designPlanningCapability())),
             null,
             stubPinResolver(),
-            Clock.fixed(FIXED, ZoneOffset.UTC));
+            Clock.fixed(FIXED, ZoneOffset.UTC)), runStore);
+  }
+
+  @AfterEach
+  void tearDown() {
+    ToolInvocationSink.unbind();
+  }
+
+  @Test
+  void workerThreadToolsReachTheTurnSink() {
+    List<ChatEvent> out = new ArrayList<>();
+    ToolInvocationSink.bind(out::add, null, "conv-1");
+    CipDesignPlannerAdapter planner =
+        new CipDesignPlannerAdapter(
+            (conversationId, skillId, input, formatFailure, pinnedSkillHash) -> {
+              ToolInvocationSink.onInvoke("runOnce");
+              ToolInvocationSink.onComplete("runOnce");
+              return validReport();
+            },
+            new CipDesignPlannerReportParser());
+    DesignPlanningCapability capability =
+        new DesignPlanningCapability(
+            planner, new DesignPlanProjector(), new DesignImplementationPlanRenderer());
+    try {
+      capability.execute(sampleContext()).collect().asList().await().indefinitely();
+    } finally {
+      ToolInvocationSink.unbind();
+    }
+
+    assertTrue(
+        out.stream()
+            .anyMatch(
+                event ->
+                    event instanceof ChatEvent.Step step
+                        && "skill".equals(step.kind())
+                        && CipDesignPlannerAdapter.SKILL_ID.equals(step.label())
+                        && "running".equals(step.status())),
+        () -> "expected cip-design-planner running on the turn sink, got: " + out);
+    assertTrue(
+        out.stream()
+            .anyMatch(
+                event ->
+                    event instanceof ChatEvent.Step step
+                        && "tool".equals(step.kind())
+                        && "runOnce".equals(step.label())),
+        () -> "expected worker tool steps on the turn sink, got: " + out);
   }
 
   @Test

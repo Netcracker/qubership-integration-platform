@@ -54,7 +54,8 @@ import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPol
 import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRuntime;
+import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
@@ -73,7 +74,7 @@ class CreateProductPipelineRefineBeforeAgreeIT {
   private static final String CONVERSATION_ID = "conv-refine-before-agree-e2e";
 
   private ProductPipelineRunStore runStore;
-  private ProductPipelineRuntime runtime;
+  private CreateChainTestOrchestrator runtime;
   private ProductPipelineProfile profile;
   private CaptureSession captureSession;
   private final AtomicInteger discoveryCalls = new AtomicInteger();
@@ -93,7 +94,7 @@ class CreateProductPipelineRefineBeforeAgreeIT {
     CaptureAttemptFeedbackStore feedbackStore = new CaptureAttemptFeedbackStore();
     profile = createProfile();
     runtime =
-        new ProductPipelineRuntime(
+        new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
             runStore,
             artifactStore,
             new StageCapabilityRegistry(
@@ -102,7 +103,7 @@ class CreateProductPipelineRefineBeforeAgreeIT {
                     importStage(),
                     realAnalysis(captureSession, feedbackStore),
                     planning())),
-            clock);
+            clock), runStore);
   }
 
   @Test

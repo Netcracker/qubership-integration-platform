@@ -49,6 +49,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
 import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
@@ -67,7 +68,7 @@ class ProductPipelineApprovalTest {
 
   private ProductPipelineRunStore runStore;
   private ProductPipelineArtifactStore artifactStore;
-  private ProductPipelineRuntime runtime;
+  private CreateChainTestOrchestrator runtime;
   private ProductPipelineProfile profile;
 
   @BeforeEach
@@ -478,6 +479,40 @@ class ProductPipelineApprovalTest {
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, runStore.load(RUN_ID).orElseThrow().run().status());
   }
 
+  @Test
+  void approveAfterProcessRestartReloadsProfilePinsFromDurableManifest() {
+    WaitingForApprovalResult waiting =
+        runToCandidate(validCreateChainCandidate(), multiItemPolicy(), multiItemProduces());
+    ProductPipelineProfileCatalog catalog = mock(ProductPipelineProfileCatalog.class);
+    when(catalog.require(profile.profileId(), profile.profileVersion())).thenReturn(profile);
+    CreateChainTestOrchestrator restarted =
+        new CreateChainTestOrchestrator(
+            new ProductPipelineRunSupport(
+                runStore,
+                artifactStore,
+                new StageCapabilityRegistry(List.of(new ScriptedCapability(validCreateChainCandidate()))),
+                catalog,
+                null,
+                Clock.fixed(FIXED, ZoneOffset.UTC),
+                null,
+                null,
+                null),
+            runStore);
+
+    restarted
+        .approve(
+            new ApproveCommand(
+                RUN_ID,
+                waiting.waiting().candidate(),
+                runStore.load(RUN_ID).orElseThrow().run().runRevision()))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals(StageStatus.SUCCEEDED, currentStage().status());
+  }
+
   private WaitingForApprovalResult runToCandidate(
       StageOutcome outcome, ApprovalPolicy approvalPolicy, List<ArtifactTypeRef> produces) {
     configureRuntime(profile(approvalPolicy, produces), new ScriptedCapability(outcome));
@@ -508,7 +543,7 @@ class ProductPipelineApprovalTest {
   private void configureRuntime(
       ProductPipelineProfile profile, StageCapability capability, S3Service s3Service) {
     runtime =
-        new ProductPipelineRuntime(
+        new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
             runStore,
             artifactStore,
             new StageCapabilityRegistry(List.of(capability)),
@@ -517,7 +552,7 @@ class ProductPipelineApprovalTest {
             Clock.fixed(FIXED, ZoneOffset.UTC),
             null,
             null,
-            s3Service);
+            s3Service), runStore);
     this.profile = profile;
   }
 

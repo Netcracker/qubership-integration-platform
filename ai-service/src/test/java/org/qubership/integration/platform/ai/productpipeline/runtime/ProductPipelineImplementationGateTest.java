@@ -52,6 +52,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.create.CreateProductPipelineCoordinator;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBindingStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementAnalysisCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
@@ -100,7 +101,7 @@ class ProductPipelineImplementationGateTest {
   private ProductPipelineRunStore runStore;
   private ProductPipelineArtifactStore artifactStore;
   private StageCapability materializationCapability;
-  private ProductPipelineRuntime runtime;
+  private CreateChainTestOrchestrator runtime;
   private ProductPipelineProfile createChainProfile;
 
   @BeforeEach
@@ -132,13 +133,13 @@ class ProductPipelineImplementationGateTest {
                             null))));
     createChainProfile = loadCreateChainProfileOrFallback();
     runtime =
-        new ProductPipelineRuntime(
+        new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
             runStore,
             artifactStore,
             new StageCapabilityRegistry(
                 List.of(discovery(), importStage(), analysis(), planning(), materializationCapability)),
             new ProductPipelineProfileCatalog(List.of(createChainProfile)),
-            clock);
+            clock), runStore);
   }
 
   @Test
@@ -345,16 +346,13 @@ class ProductPipelineImplementationGateTest {
             java.time.Clock.systemUTC(),
             "1");
     selection.selectOrCreate(CONVERSATION_ID);
-    return new CreateProductPipelineCoordinator(
-        selection,
-        bindingStore,
-        runtime,
-        runStore,
-        new ProductPipelineProfileCatalog(List.of(createChainProfile)));
+    CreateChainApplicationFacade facade =
+        new CreateChainApplicationFacade(selection, bindingStore, runtime, runStore, catalogForSelection);
+    return new CreateProductPipelineCoordinator(facade, runStore);
   }
 
   private CreateProductPipelineCoordinator coordinatorWithRunAtWaitingForImplement(
-      ProductPipelineRuntime mockedRuntime, String planHash) {
+      CreateChainTestOrchestrator mockedRuntime, String planHash) {
     CreateRunBindingStore bindingStore = new CreateRunBindingStore(blobStore, mapper);
     ProductPipelineProfileCatalog catalog =
         new ProductPipelineProfileCatalog(List.of(createChainProfile));
@@ -384,7 +382,8 @@ class ProductPipelineImplementationGateTest {
                     null)),
             null));
     return new CreateProductPipelineCoordinator(
-        selection, bindingStore, mockedRuntime, runStore, catalog);
+        new CreateChainApplicationFacade(selection, bindingStore, mockedRuntime, runStore, catalog),
+        runStore);
   }
 
   private static ChatRequest implementChat(String text) {

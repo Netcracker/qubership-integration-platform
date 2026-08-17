@@ -29,7 +29,7 @@ class ProductPipelineDerivedRunTest {
 
   private static final Instant FIXED = Instant.parse("2026-07-22T12:30:00Z");
 
-  private ProductPipelineRuntime runtime;
+  private CreateChainTestOrchestrator runtime;
   private ProductPipelineArtifactStore artifactStore;
   private ProductPipelineProfile profile;
 
@@ -40,13 +40,17 @@ class ProductPipelineDerivedRunTest {
     CompilationArtifacts artifacts =
         new CompilationArtifacts(blobStore, mapper, Clock.fixed(FIXED, ZoneOffset.UTC));
     artifactStore = new ProductPipelineArtifactStore(artifacts);
+    ProductPipelineRunStore runStore =
+        new ProductPipelineRunStore(blobStore, mapper, Clock.fixed(FIXED, ZoneOffset.UTC));
     runtime =
-        new ProductPipelineRuntime(
-            new ProductPipelineRunStore(blobStore, mapper, Clock.fixed(FIXED, ZoneOffset.UTC)),
-            artifactStore,
-            new StageCapabilityRegistry(
-                List.of(FakeStageCapabilities.collector(), FakeStageCapabilities.finisher())),
-            Clock.fixed(FIXED, ZoneOffset.UTC));
+        new CreateChainTestOrchestrator(
+            new ProductPipelineRunSupport(
+                runStore,
+                artifactStore,
+                new StageCapabilityRegistry(
+                    List.of(FakeStageCapabilities.collector(), FakeStageCapabilities.finisher())),
+                Clock.fixed(FIXED, ZoneOffset.UTC)),
+            runStore);
     try (InputStream in =
         getClass().getResourceAsStream("/product-pipelines/two-stage-approval-v1.yaml")) {
       profile = ProductPipelineProfileParser.parse(in);
@@ -70,15 +74,26 @@ class ProductPipelineDerivedRunTest {
             .orElseThrow()
             .reference();
 
+    RunManifest childManifest =
+        new RunManifest(
+            "child-run",
+            "parent-run",
+            List.of(source),
+            parentManifest.runtimeSelection(),
+            parentManifest.profileId(),
+            parentManifest.profileVersion(),
+            parentManifest.profileDigest(),
+            parentManifest.referenceBaselineId(),
+            parentManifest.referenceBaselineDigest(),
+            parentManifest.dependencyClosure(),
+            parentManifest.dependencyClosureDigest(),
+            parentManifest.knowledgePackage(),
+            parentManifest.languageVersion(),
+            parentManifest.artifactSchemaVersions(),
+            parentManifest.compilerRunPin());
     runtime
-        .derive(
-            new DeriveRunCommand(
-                "parent-run",
-                "child-run",
-                "conv-child",
-                profile,
-                sampleManifest("child-run"),
-                List.of(source)))
+        .startOrResume(
+            new StartOrResumeCommand("conv-child", "child-run", profile, childManifest))
         .collect()
         .asList()
         .await()

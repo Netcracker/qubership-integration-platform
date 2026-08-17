@@ -231,6 +231,7 @@ send_turn() {
   local label="$1"
   local text="$2"
   local structured="${3:-}"
+  local decision="${4:-}"
   if [[ "${TRANSPORT}" == "a2a" ]]; then
     local out_json="${sse_dir}/${label}.json"
     conversation_id="$(
@@ -241,7 +242,8 @@ send_turn() {
   else
     local out_sse="${sse_dir}/${label}.sse"
     conversation_id="$(
-      bash "${SCRIPTS_DIR}/chat-turn.sh" "${BASE_URL}" "${conversation_id}" "${text}" "${out_sse}"
+      bash "${SCRIPTS_DIR}/chat-turn.sh" \
+        "${BASE_URL}" "${conversation_id}" "${text}" "${out_sse}" "" "${decision}"
     )"
   fi
   [[ -n "${conversation_id}" && "${conversation_id}" != "-" ]] \
@@ -364,7 +366,14 @@ while (( SECONDS < deadline )); do
       ' <<<"${evidence}")"
       [[ -n "${approved_hash}" && "${approved_hash}" != "null" ]] \
         || { echo "FAIL: WAITING_FOR_IMPLEMENT missing approved plan hash" >&2; break; }
-      send_turn "implement-$(date +%s)" "Implement ${approved_hash}"
+      [[ -n "${run_revision}" && "${run_revision}" != "null" ]] \
+        || { echo "FAIL: WAITING_FOR_IMPLEMENT missing runRevision" >&2; break; }
+      # Free-form "Implement" is not a creation command. Name the approved plan on the card.
+      implement_decision="$(jq -nc \
+        --arg hash "${approved_hash}" \
+        --argjson revision "${run_revision}" \
+        '{action:"create-chain",artifactType:"implementation-plan",artifactHash:$hash,revision:$revision}')"
+      send_turn "implement-$(date +%s)" "Implement ${approved_hash}" "" "${implement_decision}"
       implement_sent=1
     fi
   elif [[ "${current_state}" == "WAITING_FOR_INPUT" && "${expected_state}" != "WAITING_FOR_INPUT" ]]; then

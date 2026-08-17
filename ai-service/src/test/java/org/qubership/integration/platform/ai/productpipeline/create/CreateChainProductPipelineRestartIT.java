@@ -75,7 +75,8 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInput
 import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ImplementCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRuntime;
+import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -126,7 +127,7 @@ class CreateChainProductPipelineRestartIT {
   @Test
   void completeRunRequiresSuccessfulReadBack() {
     stubCatalogHappyPath();
-    ProductPipelineRuntime runtime = runtimeWith(materializationCapability());
+    CreateChainTestOrchestrator runtime = runtimeWith(materializationCapability());
     String planHash = runToWaitingForImplement(runtime);
 
     runtime
@@ -267,16 +268,16 @@ class CreateChainProductPipelineRestartIT {
         artifactStore, materializer, factsService, new ChainReconcileService());
   }
 
-  private ProductPipelineRuntime runtimeWith(StageCapability materialization) {
-    return new ProductPipelineRuntime(
+  private CreateChainTestOrchestrator runtimeWith(StageCapability materialization) {
+    return new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
         runStore,
         artifactStore,
         new StageCapabilityRegistry(List.of(discovery(), importStage(), analysis(), planning(), materialization)),
         new ProductPipelineProfileCatalog(List.of(createChainProfile)),
-        clock);
+        clock), runStore);
   }
 
-  private String runToWaitingForImplement(ProductPipelineRuntime runtime) {
+  private String runToWaitingForImplement(CreateChainTestOrchestrator runtime) {
     runtime
         .startOrResume(
             new StartOrResumeCommand(

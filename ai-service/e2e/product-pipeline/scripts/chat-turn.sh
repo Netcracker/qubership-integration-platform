@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # POST one chat turn and capture the SSE stream.
-# Usage: chat-turn.sh <base_url> <conversation_id|-> <message> <out_sse> [scenario_hint]
+# Usage: chat-turn.sh <base_url> <conversation_id|-> <message> <out_sse> [scenario_hint] [decision_json]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,22 +12,25 @@ CONV_ID="${2:?conversation id or -}"
 MESSAGE="${3:?message}"
 OUT_SSE="${4:?output sse file}"
 SCENARIO_HINT="${5:-}"
+DECISION_JSON="${6:-}"
 
 e2e_require_cmds curl python3
 
 payload_file="$(mktemp)"
 trap 'rm -f "$payload_file"' EXIT
 
-python3 - "$CONV_ID" "$MESSAGE" "$SCENARIO_HINT" >"$payload_file" <<'PY'
+python3 - "$CONV_ID" "$MESSAGE" "$SCENARIO_HINT" "$DECISION_JSON" >"$payload_file" <<'PY'
 import json
 import sys
 
-conv_id, message, hint = sys.argv[1:4]
+conv_id, message, hint, decision_raw = sys.argv[1:5]
 body = {"message": message}
 if conv_id and conv_id != "-":
     body["conversationId"] = conv_id
 if hint:
     body["scenarioHint"] = hint
+if decision_raw:
+    body["decision"] = json.loads(decision_raw)
 print(json.dumps(body))
 PY
 

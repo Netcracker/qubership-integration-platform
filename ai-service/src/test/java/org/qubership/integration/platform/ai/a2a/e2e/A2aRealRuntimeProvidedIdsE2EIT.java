@@ -18,12 +18,12 @@ import org.qubership.integration.platform.ai.a2a.persistence.A2aTaskRepository;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aTaskState;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPublicArtifactTypes;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRuntime;
+import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 
 /**
  * Package 05: provided-IDS-style happy path against a real {@link CreateChainApplicationFacade} and
- * {@link ProductPipelineRuntime} (deterministic capability adapters; no Mockito facade mock).
+ * {@link CreateChainTestOrchestrator} (deterministic capability adapters; no Mockito facade mock).
  */
 @QuarkusTest
 class A2aRealRuntimeProvidedIdsE2EIT {

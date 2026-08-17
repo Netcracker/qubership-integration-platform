@@ -82,6 +82,26 @@ class ProductPipelineRunStoreTest {
   }
 
   @Test
+  void createAndCommitPreserveFlowInstanceId() {
+    RunSnapshot created =
+        new RunSnapshot(
+            "run-flow-1",
+            CONVERSATION_ID,
+            1L,
+            RunStatus.RUNNING,
+            "collect",
+            List.of(new StageSnapshot("collect", StageStatus.RUNNING, List.of(), null)),
+            null,
+            "flow-instance-1");
+    ProductPipelineRunDocument stored = runStore.create(created);
+    assertEquals("flow-instance-1", stored.run().flowInstanceId());
+
+    ProductPipelineRunDocument afterCommit = runStore.commit(1L, sampleCommit(stored, "a1", RunStatus.WAITING_FOR_INPUT, StageStatus.WAITING_FOR_INPUT));
+    assertEquals("flow-instance-1", afterCommit.run().flowInstanceId());
+    assertEquals("flow-instance-1", runStore.load("run-flow-1").orElseThrow().run().flowInstanceId());
+  }
+
+  @Test
   void commitAddsOutputsAttemptTransitionAndRevisionTogether() {
     ProductPipelineRunDocument created = runStore.create(sampleSnapshot(1L, RunStatus.RUNNING));
     advanceToRevision(created, 3L);

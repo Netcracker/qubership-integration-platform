@@ -198,7 +198,7 @@ class PlanningCapabilityTest {
 
   @Test
   void createChainProfileWithoutIdsBypassAttributeUsesProfileIdNotCreatePlanLegacy() {
-    // Live ProductPipelineRuntime hydrates requirementBrief but not idsBypass. Hardcoding
+    // Live CreateChainTestOrchestrator hydrates requirementBrief but not idsBypass. Hardcoding
     // create-plan profile removed; product create-chain owns planning.
     CompilerPlanningRunner legacyRunner = mock(CompilerPlanningRunner.class);
     CompilerDerivedPlanningRunner derivedRunner = mock(CompilerDerivedPlanningRunner.class);

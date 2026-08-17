@@ -40,6 +40,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunBindingStore;
 import org.qubership.integration.platform.ai.productpipeline.create.CreateRunSelectionService;
@@ -55,7 +56,8 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ImplementCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRuntime;
+import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
@@ -104,6 +106,37 @@ class CreateChainApplicationFacadeTest {
     assertEquals(
         1,
         fixture.runStore().loadByConversation(taskId).stream().count());
+  }
+
+  @Test
+  void startForwardsSkillProgressForTheInvokedDiscoverySkill() {
+    CreateChainApplicationFacade facade = fixture.facade();
+
+    List<CreateChainEvent> events =
+        facade
+            .start(new StartCreateChainCommand("task-skill-1", "create greetings API"))
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    List<CreateChainEvent.SkillProgress> skills =
+        events.stream()
+            .filter(CreateChainEvent.SkillProgress.class::isInstance)
+            .map(CreateChainEvent.SkillProgress.class::cast)
+            .toList();
+    assertTrue(
+        skills.stream()
+            .anyMatch(
+                skill ->
+                    "brainstorming".equals(skill.skillId()) && "running".equals(skill.status())),
+        () -> "expected brainstorming running, got: " + events);
+    assertTrue(
+        skills.stream()
+            .anyMatch(
+                skill ->
+                    "brainstorming".equals(skill.skillId()) && "completed".equals(skill.status())),
+        () -> "expected brainstorming completed, got: " + events);
   }
 
   @Test
@@ -336,7 +369,7 @@ class CreateChainApplicationFacadeTest {
   @Test
   void missingApprovedPlanHashReturnsTypedBlockedOrNonRecoverable() {
     Fixture base = Fixture.createWithMaterialization();
-    ProductPipelineRuntime realRuntime = base.runtime();
+    CreateChainTestOrchestrator realRuntime = base.runtime();
     CreateChainOrchestrator mocked = mock(CreateChainOrchestrator.class);
     when(mocked.approvedPlanContentHash(any())).thenReturn(Optional.empty());
     when(mocked.approve(any())).thenAnswer(inv -> realRuntime.approve(inv.getArgument(0)));
@@ -647,7 +680,7 @@ class CreateChainApplicationFacadeTest {
     private CreateRunSelectionService selectionService;
     private CreateRunBindingStore bindingStore;
     private ProductPipelineRunStore runStore;
-    private ProductPipelineRuntime runtime;
+    private CreateChainTestOrchestrator runtime;
     private CreateChainApplicationFacade facade;
 
     private Fixture(
@@ -768,7 +801,7 @@ class CreateChainApplicationFacadeTest {
       return catalog;
     }
 
-    ProductPipelineRuntime runtime() {
+    CreateChainTestOrchestrator runtime() {
       ensureBuilt();
       return runtime;
     }
@@ -797,8 +830,8 @@ class CreateChainApplicationFacadeTest {
                   planning(),
                   materialization()));
       runtime =
-          new ProductPipelineRuntime(
-              runStore, storeFacade, capabilities, catalog, stubPinResolver(), clock);
+          new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
+              runStore, storeFacade, capabilities, catalog, stubPinResolver(), clock), runStore);
       facade =
           draftStore == null
               ? new CreateChainApplicationFacade(
@@ -834,7 +867,9 @@ class CreateChainApplicationFacadeTest {
           }
           RequirementDraft draft = RequirementFactFixtures.greetingsApprovedDraft();
           return Multi.createFrom()
-              .item(
+              .items(
+                  SkillActivitySupport.running("brainstorming"),
+                  SkillActivitySupport.completed("brainstorming"),
                   new CapabilitySignal.Completed(
                       new StageOutcome(
                           StageOutcomeClass.CANDIDATE,

@@ -36,7 +36,8 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowl
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRuntime;
+import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -366,18 +367,14 @@ public class CreateProductPipelineCoordinatorTest {
           new StageCapabilityRegistry(
               List.of(discovery(), importStage(), analysis(), planning(),
                   materialization(materializationCalls)));
-      ProductPipelineRuntime runtime =
-          new ProductPipelineRuntime(
-              runStore, storeFacade, capabilities, catalog, stubPinResolver(), clock);
+      CreateChainTestOrchestrator runtime =
+          new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
+              runStore, storeFacade, capabilities, catalog, stubPinResolver(), clock), runStore);
+      CreateChainApplicationFacade facade =
+          new CreateChainApplicationFacade(selection, bindingStore, runtime, runStore, catalog);
       CreateProductPipelineCoordinator coordinator =
           new CreateProductPipelineCoordinator(
-              selection, bindingStore, runtime, runStore, catalog, new ApprovalPrompts(),
-              gateReplyAgent);
-      // Same collaborators CDI injects in production: an approval is validated against the open
-      // gate, and the authored question outlives the wait that carried it.
-      coordinator.facade =
-          new CreateChainApplicationFacade(selection, bindingStore, runtime, runStore, catalog);
-      coordinator.approvalQuestions = new ApprovalQuestionStore(store);
+              facade, runStore, new ApprovalPrompts(), gateReplyAgent, new ApprovalQuestionStore(store));
       return coordinator;
     }
 

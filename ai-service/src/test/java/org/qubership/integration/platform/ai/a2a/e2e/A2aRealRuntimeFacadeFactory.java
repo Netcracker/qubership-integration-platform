@@ -44,13 +44,14 @@ import org.qubership.integration.platform.ai.productpipeline.materialization.Mat
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
-import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRuntime;
+import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 
 /**
- * Builds a real {@link CreateChainApplicationFacade} + {@link ProductPipelineRuntime} with
+ * Builds a real {@link CreateChainApplicationFacade} + {@link CreateChainTestOrchestrator} with
  * deterministic stage adapters at capability boundaries (no Mockito facade/runtime mocks).
  */
 final class A2aRealRuntimeFacadeFactory {
@@ -101,9 +102,9 @@ final class A2aRealRuntimeFacadeFactory {
                   analysis(),
                   planning(mapper),
                   materialization(materialize)));
-      ProductPipelineRuntime runtime =
-          new ProductPipelineRuntime(
-              runStore, artifactStore, capabilities, catalog, stubPinResolver(), clock);
+      CreateChainTestOrchestrator runtime =
+          new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
+              runStore, artifactStore, capabilities, catalog, stubPinResolver(), clock), runStore);
       CreateChainApplicationFacade facade =
           new CreateChainApplicationFacade(
               selectionService, bindingStore, runtime, runStore, catalog, artifactStore);
@@ -115,7 +116,7 @@ final class A2aRealRuntimeFacadeFactory {
 
   record Harness(
       CreateChainApplicationFacade facade,
-      ProductPipelineRuntime runtime,
+      CreateChainTestOrchestrator runtime,
       ProductPipelineRunStore runStore,
       CreateRunBindingStore bindingStore) {}
 

@@ -122,6 +122,18 @@ public interface AppConfig {
     @WithName("language-version")
     @WithDefault("2026.1")
     String languageVersion();
+
+    /**
+     * Create-chain Flow rollout flag. Default false. When true, the provided-IDS route uses Quarkus
+     * Flow through design planning.
+     */
+    @WithName("flow")
+    FlowConfig flow();
+
+    interface FlowConfig {
+      @WithDefault("false")
+      boolean enabled();
+    }
   }
 
   interface QipKnowledgeConfig {

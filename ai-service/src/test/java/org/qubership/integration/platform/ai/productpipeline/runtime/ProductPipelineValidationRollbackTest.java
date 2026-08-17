@@ -38,6 +38,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
 import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
+import org.qubership.integration.platform.ai.productpipeline.stage.ProductPipelineStageExecutor;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
@@ -49,7 +50,7 @@ class ProductPipelineValidationRollbackTest {
 
   private ProductPipelineRunStore runStore;
   private ProductPipelineArtifactStore artifactStore;
-  private ProductPipelineRuntime runtime;
+  private CreateChainTestOrchestrator runtime;
   private ProductPipelineProfile profile;
 
   @BeforeEach
@@ -65,7 +66,7 @@ class ProductPipelineValidationRollbackTest {
   @Test
   void previousApprovalStageIdPicksLastApprovalBeforeFailedStage() {
     Optional<String> reopen =
-        ProductPipelineRuntime.previousApprovalStageId(twoStageProfile(), "planning");
+        ProductPipelineStageExecutor.previousApprovalStageId(twoStageProfile(), "planning");
     assertEquals(Optional.of("requirement-analysis"), reopen);
   }
 
@@ -99,11 +100,11 @@ class ProductPipelineValidationRollbackTest {
 
     profile = twoStageProfile();
     runtime =
-        new ProductPipelineRuntime(
+        new CreateChainTestOrchestrator(new ProductPipelineRunSupport(
             runStore,
             artifactStore,
             new StageCapabilityRegistry(List.of(analysis, planning)),
-            Clock.fixed(FIXED, ZoneOffset.UTC));
+            Clock.fixed(FIXED, ZoneOffset.UTC)), runStore);
 
     runtime
         .startOrResume(

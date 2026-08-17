@@ -136,7 +136,8 @@ public final class ProductPipelineRunStore {
             mutation.nextStatus(),
             mutation.currentStageId(),
             mutation.stages(),
-            current.run().runManifestRef());
+            current.run().runManifestRef(),
+            current.run().flowInstanceId());
     List<StageAttempt> attempts = new ArrayList<>(current.attempts());
     attempts.add(mutation.attempt());
     List<RunTransition> transitions = new ArrayList<>(current.transitions());
