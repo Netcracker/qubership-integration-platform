@@ -84,7 +84,7 @@ Apply the `ui-core-development`, `ui-component-patterns` and `ui-api-and-utiliti
 
 **Routing** mirrors the source, including its sub-tab segments and index redirects:
 
-```
+```text
 /chains/:chainId/testing                      → redirect to test-cases
   ├─ test-cases            → test-cases/:id       → redirect to general
   │                          {general, request, response-validation}
@@ -680,13 +680,31 @@ very list.
 
 ### Task 15: [Final] Update documentation
 
-- [ ] add `help/docs/01__Chains/8__Testing/testing.md` covering the chain tab, test cases, mocks and runs
-- [ ] add `help/docs/03__Admin_Tools/9__Testing/testing.md` covering the cross-chain lists and run sets
-- [ ] update the section table in `help/README.md`
-- [ ] document the mock interception flow from plan 2, including that an element with no matching mock receives `404`
-- [ ] document that the section only appears where the testing service is deployed and that it is not for production
-- [ ] note that cases inside one run execute sequentially while separate runs execute in parallel
-- [ ] move this plan to `docs/plans/completed/`
+- [x] add `help/docs/01__Chains/8__Testing/testing.md` covering the chain tab, test cases, mocks and runs
+- [x] add `help/docs/03__Admin_Tools/9__Testing/testing.md` covering the cross-chain lists and run sets
+- [x] update the section table in `help/README.md`
+- [x] document the mock interception flow from plan 2, including that an element with no matching mock receives `404`
+- [x] document that the section only appears where the testing service is deployed and that it is not for production
+- [x] note that cases inside one run execute sequentially while separate runs execute in parallel
+- [x] move this plan to `docs/plans/completed/`
+
+➕ `help/docs/03__Admin_Tools/admin_tools.md` gains a **Testing** entry too: that page is the section's landing list, and
+a new folder that no landing page names is reachable only through the sidebar.
+
+➕ The chain page carries the matchers table, the run flow and the mocking chapter in full, and the admin page links to
+them rather than repeating them. The admin page owns what only it has: the cross-chain lists, the import dialog, the run
+sets and the execution-order chapter.
+
+➕ Two facts the docs state that the plan does not. A **disabled** test case is still queued and its case run finishes
+**Skipped** rather than being dropped (`test_execution_service.go`). And a `graphql-sender`, plus a `service-call` over
+GraphQL, is intercepted by the engine (`HttpSenderDependencyBinder.isHttpChainElement`) while the UI mock picker offers
+neither, so its calls are answered `404` with no way to configure a mock — documented as a note, since a reader would
+otherwise read it as a defect.
+
+➕ Numbering follows the plan (`8__Testing`, `9__Testing`) rather than the tab order, where Testing sits between Logging
+and Masking. Renumbering four existing folders to match would churn every link into them for no reader benefit.
+
+➕ No images: screenshots are Post-Completion work, and a page referencing files that do not exist renders broken.
 
 ## Post-Completion
 
