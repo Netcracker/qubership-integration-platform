@@ -14,12 +14,16 @@ import org.qubership.integration.platform.engine.model.deployment.update.Deploym
 import org.qubership.integration.platform.engine.model.deployment.update.RouteType;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPBackendRef;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPPathMatch;
+import org.qubership.integration.platform.engine.model.gatewayapi.HTTPPathModifier;
+import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteFilter;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteMatch;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteRule;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteSpec;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteTimeouts;
+import org.qubership.integration.platform.engine.model.gatewayapi.HTTPUrlRewriteFilter;
 import org.qubership.integration.platform.engine.model.gatewayapi.ParentReference;
 import org.qubership.integration.platform.engine.util.GatewayDuration;
+import org.qubership.integration.platform.engine.util.paths.EgressTarget;
 import org.qubership.integration.platform.engine.util.paths.GatewayPathMatch;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,6 +31,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -40,7 +45,13 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
     private static final String HTTP_ROUTES_PLURAL = "httproutes";
     private static final String PUBLIC_GATEWAY_NAME = "public-gateway";
     private static final String PRIVATE_GATEWAY_NAME = "private-gateway";
+    private static final String EGRESS_GATEWAY_NAME = "egress-gateway";
     private static final int BACKEND_PORT = 8080;
+
+    private static final String NETWORKING_ISTIO_API_GROUP = "networking.istio.io";
+    private static final String NETWORKING_ISTIO_API_VERSION = "v1";
+    private static final String SERVICE_ENTRIES_PLURAL = "serviceentries";
+    private static final String DESTINATION_RULES_PLURAL = "destinationrules";
 
     private final KubeOperator kubeOperator;
     private final ObjectMapper objectMapper;
@@ -63,13 +74,15 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
     @Override
     public synchronized void postPublicEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint)
             throws ControlPlaneException {
-        mergeTierRoutes(tierRequest(endpoint, "public"), deploymentRoutes, PUBLIC_GATEWAY_NAME, endpoint, true);
+        mergeTierRoutes(tierRequest(endpoint, "public"), deploymentRoutes, PUBLIC_GATEWAY_NAME,
+                this::triggerPathMatch, route -> buildTriggerRule(route, endpoint));
     }
 
     @Override
     public synchronized void postPrivateEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint)
             throws ControlPlaneException {
-        mergeTierRoutes(tierRequest(endpoint, "private"), deploymentRoutes, PRIVATE_GATEWAY_NAME, endpoint, true);
+        mergeTierRoutes(tierRequest(endpoint, "private"), deploymentRoutes, PRIVATE_GATEWAY_NAME,
+                this::triggerPathMatch, route -> buildTriggerRule(route, endpoint));
     }
 
     @Override
@@ -79,22 +92,30 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
                 .filter(route -> RouteType.isPublicTriggerRoute(route.getType()))
                 .toList();
         if (!publicRoutes.isEmpty()) {
-            mergeTierRoutes(tierRequest(deploymentName, "public"), publicRoutes, PUBLIC_GATEWAY_NAME, deploymentName, false);
+            mergeTierRoutes(tierRequest(deploymentName, "public"), publicRoutes, PUBLIC_GATEWAY_NAME,
+                    this::triggerPathMatch, null);
         }
 
         List<DeploymentRouteUpdate> privateRoutes = deploymentRoutes.stream()
                 .filter(route -> RouteType.isPrivateTriggerRoute(route.getType()))
                 .toList();
         if (!privateRoutes.isEmpty()) {
-            mergeTierRoutes(tierRequest(deploymentName, "private"), privateRoutes, PRIVATE_GATEWAY_NAME, deploymentName, false);
+            mergeTierRoutes(tierRequest(deploymentName, "private"), privateRoutes, PRIVATE_GATEWAY_NAME,
+                    this::triggerPathMatch, null);
         }
     }
 
     @Override
-    public void postEgressGatewayRoutes(List<DeploymentRouteUpdate> routes, String endpoint) {
-        throw new UnsupportedOperationException(
-                "Egress gateway route registration is not implemented for Istio Ambient Mesh yet; "
-                        + "see docs/superpowers/specs/2026-07-31-istio-routes-registration-service-design.md");
+    public synchronized void postEgressGatewayRoutes(List<DeploymentRouteUpdate> routes, String endpoint)
+            throws ControlPlaneException {
+        routes.stream()
+                .map(route -> EgressTarget.parse(route.getPath()))
+                .collect(Collectors.toMap(EgressTarget::host, Function.identity(), (first, second) -> first))
+                .values()
+                .forEach(this::upsertHostResources);
+
+        mergeTierRoutes(egressTierRequest(endpoint), routes, EGRESS_GATEWAY_NAME,
+                this::egressPathMatch, this::buildEgressRule);
     }
 
     private static final int MAX_MERGE_ATTEMPTS = 3;
@@ -103,8 +124,8 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
             KubeCustomObjectRequest tierRequest,
             List<DeploymentRouteUpdate> givenRoutes,
             String gatewayName,
-            String backendName,
-            boolean buildRules
+            Function<DeploymentRouteUpdate, GatewayPathMatch> pathMatchExtractor,
+            Function<DeploymentRouteUpdate, HTTPRouteRule> ruleBuilder
     ) {
         if (givenRoutes.isEmpty()) {
             return;
@@ -112,7 +133,7 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
         try {
             for (int attempt = 1; attempt <= MAX_MERGE_ATTEMPTS; attempt++) {
                 try {
-                    attemptMergeTierRoutes(tierRequest, givenRoutes, gatewayName, backendName, buildRules);
+                    attemptMergeTierRoutes(tierRequest, givenRoutes, gatewayName, pathMatchExtractor, ruleBuilder);
                     return;
                 } catch (KubeApiConflictException e) {
                     if (attempt == MAX_MERGE_ATTEMPTS) {
@@ -134,8 +155,8 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
             KubeCustomObjectRequest tierRequest,
             List<DeploymentRouteUpdate> givenRoutes,
             String gatewayName,
-            String backendName,
-            boolean buildRules
+            Function<DeploymentRouteUpdate, GatewayPathMatch> pathMatchExtractor,
+            Function<DeploymentRouteUpdate, HTTPRouteRule> ruleBuilder
     ) {
         Optional<KubeCustomObject> current = kubeOperator.getCustomObject(tierRequest);
         List<HTTPRouteRule> existingRules = current
@@ -145,16 +166,16 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
                 .orElse(List.of());
 
         Set<GatewayPathMatch> touchedPaths = givenRoutes.stream()
-                .map(route -> GatewayPathMatch.forPath(baseRoutePrefix + route.getPath()))
+                .map(pathMatchExtractor)
                 .collect(Collectors.toSet());
 
         List<HTTPRouteRule> preservedRules = existingRules.stream()
                 .filter(rule -> !touchedPaths.contains(ruleMatch(rule)))
                 .toList();
 
-        List<HTTPRouteRule> newRules = buildRules
-                ? givenRoutes.stream().map(route -> buildRule(route, backendName)).toList()
-                : List.of();
+        List<HTTPRouteRule> newRules = ruleBuilder == null
+                ? List.of()
+                : givenRoutes.stream().map(ruleBuilder).toList();
 
         List<HTTPRouteRule> mergedRules = new ArrayList<>(preservedRules);
         mergedRules.addAll(newRules);
@@ -192,8 +213,16 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
         return GatewayPathMatch.of(path.getType(), path.getValue());
     }
 
-    private HTTPRouteRule buildRule(DeploymentRouteUpdate route, String backendName) {
-        GatewayPathMatch pathMatch = GatewayPathMatch.forPath(baseRoutePrefix + route.getPath());
+    private GatewayPathMatch triggerPathMatch(DeploymentRouteUpdate route) {
+        return GatewayPathMatch.forPath(baseRoutePrefix + route.getPath());
+    }
+
+    private GatewayPathMatch egressPathMatch(DeploymentRouteUpdate route) {
+        return GatewayPathMatch.forPath(route.getGatewayPrefix());
+    }
+
+    private HTTPRouteRule buildTriggerRule(DeploymentRouteUpdate route, String backendName) {
+        GatewayPathMatch pathMatch = triggerPathMatch(route);
 
         HTTPRouteTimeouts timeouts = null;
         if (route.getConnectTimeout() != null && route.getConnectTimeout() > 0) {
@@ -218,6 +247,116 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
                 .build();
     }
 
+    private HTTPRouteRule buildEgressRule(DeploymentRouteUpdate route) {
+        EgressTarget target = EgressTarget.parse(route.getPath());
+        GatewayPathMatch pathMatch = egressPathMatch(route);
+
+        HTTPRouteTimeouts timeouts = null;
+        if (route.getConnectTimeout() != null && route.getConnectTimeout() > 0) {
+            timeouts = HTTPRouteTimeouts.builder()
+                    .request(GatewayDuration.formatMillis(route.getConnectTimeout()))
+                    .build();
+        }
+
+        return HTTPRouteRule.builder()
+                .matches(List.of(HTTPRouteMatch.builder()
+                        .path(HTTPPathMatch.builder().type(pathMatch.getType()).value(pathMatch.getValue()).build())
+                        .build()))
+                .filters(List.of(HTTPRouteFilter.builder()
+                        .type("URLRewrite")
+                        .urlRewrite(HTTPUrlRewriteFilter.builder()
+                                .hostname(target.host())
+                                .path(HTTPPathModifier.builder()
+                                        .type("ReplacePrefixMatch")
+                                        .replacePrefixMatch(target.path())
+                                        .build())
+                                .build())
+                        .build()))
+                .backendRefs(List.of(HTTPBackendRef.builder()
+                        .group(NETWORKING_ISTIO_API_GROUP)
+                        .kind("Hostname")
+                        .name(target.host())
+                        .port(target.port())
+                        .weight(1)
+                        .build()))
+                .timeouts(timeouts)
+                .build();
+    }
+
+    /**
+     * Creates or updates the {@code ServiceEntry} (and, for an https target, the
+     * {@code DestinationRule}) that registers {@code target}'s host with the mesh. Both are named
+     * deterministically from the host alone ({@link EgressTarget#hostResourceName()}), so every
+     * route that targets the same external host -- across every chain this namespace hosts --
+     * converges on the same pair of objects, and their content is fully determined by the
+     * host/port/scheme: any deployer can safely overwrite it wholesale. Never deleted; see the
+     * design spec's cleanup non-goal.
+     */
+    private void upsertHostResources(EgressTarget target) {
+        String name = target.hostResourceName();
+        upsertServiceEntry(name, target);
+        if (target.isHttps()) {
+            upsertDestinationRule(name, target);
+        }
+    }
+
+    private void upsertServiceEntry(String name, EgressTarget target) {
+        Map<String, Object> spec = Map.of(
+                "hosts", List.of(target.host()),
+                "location", "MESH_EXTERNAL",
+                "resolution", "DNS",
+                "ports", List.of(Map.of(
+                        "number", target.port(),
+                        "name", target.isHttps() ? "https" : "http",
+                        "protocol", target.isHttps() ? "HTTPS" : "HTTP")));
+        upsertHostResource(NETWORKING_ISTIO_API_GROUP, NETWORKING_ISTIO_API_VERSION, SERVICE_ENTRIES_PLURAL,
+                "ServiceEntry", name, spec);
+    }
+
+    private void upsertDestinationRule(String name, EgressTarget target) {
+        Map<String, Object> spec = Map.of(
+                "host", target.host(),
+                "trafficPolicy", Map.of(
+                        "portLevelSettings", List.of(Map.of(
+                                "port", Map.of("number", target.port()),
+                                "tls", Map.of("mode", "SIMPLE", "sni", target.host())))));
+        upsertHostResource(NETWORKING_ISTIO_API_GROUP, NETWORKING_ISTIO_API_VERSION, DESTINATION_RULES_PLURAL,
+                "DestinationRule", name, spec);
+    }
+
+    private void upsertHostResource(
+            String group, String version, String plural, String kind, String name, Map<String, Object> spec
+    ) {
+        V1ObjectMeta metadata = new V1ObjectMeta();
+        metadata.setName(name);
+        metadata.setNamespace(namespace);
+
+        KubeCustomObjectRequest request = KubeCustomObjectRequest.builder()
+                .group(group)
+                .version(version)
+                .resourceNamePlural(plural)
+                .body(KubeCustomObject.builder()
+                        .apiVersion(group + "/" + version)
+                        .kind(kind)
+                        .metadata(metadata)
+                        .spec(spec)
+                        .build())
+                .build();
+
+        Optional<KubeCustomObject> existing = kubeOperator.getCustomObject(request);
+        request.getBody().getMetadata().setResourceVersion(
+                existing.map(obj -> obj.getMetadata().getResourceVersion()).orElse(null));
+
+        try {
+            kubeOperator.createOrReplaceCustomObject(request);
+        } catch (KubeApiConflictException e) {
+            // Another pod created or updated the same host-keyed object concurrently. Its content
+            // is fully determined by the host, so whichever write won is equivalent -- nothing to
+            // reconcile.
+            log.debug("Concurrent update of {} '{}', skipping (content is host-derived and equivalent)", kind, name);
+        }
+    }
+
     private List<ParentReference> parentRefs(String gatewayName) {
         return List.of(ParentReference.builder()
                 .group(GATEWAY_API_GROUP)
@@ -229,6 +368,23 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
     private KubeCustomObjectRequest tierRequest(String cloudServiceName, String tier) {
         V1ObjectMeta metadata = new V1ObjectMeta();
         metadata.setName(cloudServiceName + "-chain-" + tier + "-routes");
+        metadata.setNamespace(namespace);
+
+        return KubeCustomObjectRequest.builder()
+                .group(GATEWAY_API_GROUP)
+                .version(GATEWAY_API_VERSION)
+                .resourceNamePlural(HTTP_ROUTES_PLURAL)
+                .body(KubeCustomObject.builder()
+                        .apiVersion(GATEWAY_API_GROUP + "/" + GATEWAY_API_VERSION)
+                        .kind("HTTPRoute")
+                        .metadata(metadata)
+                        .build())
+                .build();
+    }
+
+    private KubeCustomObjectRequest egressTierRequest(String cloudServiceName) {
+        V1ObjectMeta metadata = new V1ObjectMeta();
+        metadata.setName(cloudServiceName + "-egress-routes");
         metadata.setNamespace(namespace);
 
         return KubeCustomObjectRequest.builder()

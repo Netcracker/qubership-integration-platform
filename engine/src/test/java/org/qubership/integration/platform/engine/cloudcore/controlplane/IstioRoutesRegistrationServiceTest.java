@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.engine.cloudcore.controlplane;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +18,7 @@ import org.qubership.integration.platform.engine.model.gatewayapi.HTTPPathMatch;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteMatch;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteRule;
 import org.qubership.integration.platform.engine.model.gatewayapi.HTTPRouteSpec;
+import org.qubership.integration.platform.engine.model.gatewayapi.ParentReference;
 
 import java.util.List;
 import java.util.Map;
@@ -24,6 +26,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 class IstioRoutesRegistrationServiceTest {
@@ -247,10 +250,130 @@ class IstioRoutesRegistrationServiceTest {
     }
 
     @Test
-    void postEgressGatewayRoutesThrowsUnsupportedOperationException() {
-        DeploymentRouteUpdate route = route("http://external/api", RouteType.EXTERNAL_SERVICE, null);
+    void postEgressGatewayRoutesCreatesHttpRouteServiceEntryAndDestinationRuleForHttpsTarget() {
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
+        DeploymentRouteUpdate route =
+                egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE);
 
-        assertThrows(UnsupportedOperationException.class, () -> service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME));
+        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator, times(3)).createOrReplaceCustomObject(captor.capture());
+        List<KubeCustomObjectRequest> requests = captor.getAllValues();
+
+        KubeCustomObjectRequest serviceEntryRequest = requests.stream()
+                .filter(r -> "serviceentries".equals(r.getResourceNamePlural())).findFirst().orElseThrow();
+        KubeCustomObjectRequest destinationRuleRequest = requests.stream()
+                .filter(r -> "destinationrules".equals(r.getResourceNamePlural())).findFirst().orElseThrow();
+        KubeCustomObjectRequest httpRouteRequest = requests.stream()
+                .filter(r -> "httproutes".equals(r.getResourceNamePlural())).findFirst().orElseThrow();
+
+        assertEquals("networking.istio.io", serviceEntryRequest.getGroup());
+        assertEquals(List.of("api.example.com"), serviceEntryRequest.getBody().getSpec().get("hosts"));
+        assertEquals("MESH_EXTERNAL", serviceEntryRequest.getBody().getSpec().get("location"));
+
+        assertEquals("networking.istio.io", destinationRuleRequest.getGroup());
+        assertEquals("api.example.com", destinationRuleRequest.getBody().getSpec().get("host"));
+
+        assertEquals(CLOUD_SERVICE_NAME + "-egress-routes", httpRouteRequest.getBody().getMetadata().getName());
+        HTTPRouteSpec spec = new ObjectMapper().convertValue(httpRouteRequest.getBody().getSpec(), HTTPRouteSpec.class);
+        assertEquals("egress-gateway", spec.getParentRefs().get(0).getName());
+        assertEquals("PathPrefix", spec.getRules().get(0).getMatches().get(0).getPath().getType());
+        assertEquals("/system/service-a", spec.getRules().get(0).getMatches().get(0).getPath().getValue());
+        assertEquals("networking.istio.io", spec.getRules().get(0).getBackendRefs().get(0).getGroup());
+        assertEquals("Hostname", spec.getRules().get(0).getBackendRefs().get(0).getKind());
+        assertEquals("api.example.com", spec.getRules().get(0).getBackendRefs().get(0).getName());
+        assertEquals(443, spec.getRules().get(0).getBackendRefs().get(0).getPort());
+        assertEquals("api.example.com", spec.getRules().get(0).getFilters().get(0).getUrlRewrite().getHostname());
+        assertEquals("/v2", spec.getRules().get(0).getFilters().get(0).getUrlRewrite().getPath().getReplacePrefixMatch());
+        assertEquals("ReplacePrefixMatch", spec.getRules().get(0).getFilters().get(0).getUrlRewrite().getPath().getType());
+    }
+
+    @Test
+    void postEgressGatewayRoutesSkipsDestinationRuleForHttpTarget() {
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
+        DeploymentRouteUpdate route =
+                egressRoute("http://backend:9090", "/http-sender/elem-1/abc", RouteType.EXTERNAL_SENDER);
+
+        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator, times(2)).createOrReplaceCustomObject(captor.capture());
+        assertTrue(captor.getAllValues().stream().noneMatch(r -> "destinationrules".equals(r.getResourceNamePlural())));
+    }
+
+    @Test
+    void postEgressGatewayRoutesConvergesTwoRoutesSharingAHostOnOneServiceEntry() {
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
+        DeploymentRouteUpdate routeA =
+                egressRoute("https://api.example.com/a", "/system/elem-a", RouteType.EXTERNAL_SERVICE);
+        DeploymentRouteUpdate routeB =
+                egressRoute("https://api.example.com/b", "/system/elem-b", RouteType.EXTERNAL_SERVICE);
+
+        service.postEgressGatewayRoutes(List.of(routeA, routeB), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        // 1 ServiceEntry + 1 DestinationRule (one unique host) + 1 HTTPRoute (two rules) = 3 calls
+        verify(kubeOperator, times(3)).createOrReplaceCustomObject(captor.capture());
+        long serviceEntryCalls = captor.getAllValues().stream()
+                .filter(r -> "serviceentries".equals(r.getResourceNamePlural())).count();
+        assertEquals(1, serviceEntryCalls);
+    }
+
+    @Test
+    void postEgressGatewayRoutesPreservesOtherChainsRulesInTheSharedEgressCr() {
+        HTTPRouteRule existingRule = HTTPRouteRule.builder()
+                .matches(List.of(HTTPRouteMatch.builder()
+                        .path(HTTPPathMatch.builder().type("PathPrefix").value("/system/other-elem").build())
+                        .build()))
+                .backendRefs(List.of(HTTPBackendRef.builder()
+                        .group("networking.istio.io").kind("Hostname").name("other.example.com").port(443).weight(1)
+                        .build()))
+                .build();
+        HTTPRouteSpec existingSpec = HTTPRouteSpec.builder()
+                .parentRefs(List.of(ParentReference.builder()
+                        .group("gateway.networking.k8s.io").kind("Gateway").name("egress-gateway").build()))
+                .rules(List.of(existingRule))
+                .build();
+        KubeCustomObject existing = KubeCustomObject.builder()
+                .metadata(metadataWithVersion(CLOUD_SERVICE_NAME + "-egress-routes", "5"))
+                .spec(new ObjectMapper().convertValue(existingSpec, new TypeReference<Map<String, Object>>() {}))
+                .build();
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existing));
+
+        DeploymentRouteUpdate route =
+                egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE);
+        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator, times(3)).createOrReplaceCustomObject(captor.capture());
+        KubeCustomObjectRequest httpRouteRequest = captor.getAllValues().stream()
+                .filter(r -> "httproutes".equals(r.getResourceNamePlural())).findFirst().orElseThrow();
+        HTTPRouteSpec spec = new ObjectMapper().convertValue(httpRouteRequest.getBody().getSpec(), HTTPRouteSpec.class);
+        assertEquals(2, spec.getRules().size());
+        assertTrue(spec.getRules().stream()
+                .anyMatch(r -> "/system/other-elem".equals(r.getMatches().get(0).getPath().getValue())));
+        assertTrue(spec.getRules().stream()
+                .anyMatch(r -> "/system/service-a".equals(r.getMatches().get(0).getPath().getValue())));
+    }
+
+    @Test
+    void upsertHostResourceIgnoresAConcurrentConflictOnHostKeyedObjects() {
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
+        doThrow(new KubeApiConflictException("conflict"))
+                .when(kubeOperator)
+                .createOrReplaceCustomObject(argThat(r -> "serviceentries".equals(r.getResourceNamePlural())));
+        DeploymentRouteUpdate route =
+                egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE);
+
+        assertDoesNotThrow(() -> service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME));
+    }
+
+    private V1ObjectMeta metadataWithVersion(String name, String resourceVersion) {
+        V1ObjectMeta metadata = new V1ObjectMeta();
+        metadata.setName(name);
+        metadata.setResourceVersion(resourceVersion);
+        return metadata;
     }
 
     @Test
@@ -328,6 +451,14 @@ class IstioRoutesRegistrationServiceTest {
             builder.connectTimeout(connectTimeout);
         }
         return builder.build();
+    }
+
+    private DeploymentRouteUpdate egressRoute(String targetUrl, String gatewayPrefix, RouteType type) {
+        return DeploymentRouteUpdate.builder()
+                .path(targetUrl)
+                .gatewayPrefix(gatewayPrefix)
+                .type(type)
+                .build();
     }
 
     private HTTPRouteRule rule(String path, String backendName) {

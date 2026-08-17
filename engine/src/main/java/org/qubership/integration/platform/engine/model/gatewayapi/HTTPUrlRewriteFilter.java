@@ -9,5 +9,6 @@ import lombok.*;
 @NoArgsConstructor
 @ToString
 public class HTTPUrlRewriteFilter {
+    private String hostname;
     private HTTPPathModifier path;
 }
