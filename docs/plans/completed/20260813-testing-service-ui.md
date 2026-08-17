@@ -720,8 +720,9 @@ and Masking. Renumbering four existing folders to match would churn every link i
 
 - the same test case placed in two different run sets can execute concurrently; runs are isolated from each other, cases
   are not
-- `test_cases_view` squares the two rule counts, so the **Rules** and **Active Rules** columns and the test case details
-  panel overcount; carried into `testing-service/AGENTS.md` as a known defect, with the fix it needs
+- ~~`test_cases_view` squares the two rule counts, so the **Rules** and **Active Rules** columns and the test case
+  details panel overcount~~ — **fixed after the run**: the view counts one join with `filter (where matcher.enabled)`,
+  pinned by `TestTheRuleCountsCountEachRuleOnce`, and the help-page limitation note is gone
 - the shared `InlineEdit` commits on **Enter** only, product-wide; carried into the `ui-component-patterns` skill source
   under `.apm/skills/`
 - the run aggregate status is a lexicographic minimum over the case-run statuses, so one canceled case run reads as a

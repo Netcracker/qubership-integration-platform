@@ -276,18 +276,20 @@ create or replace view test_case_runs_view as
     left join validation_errors validation_error on test_case_run.id = validation_error.test_case_run_id
     group by test_case_run.id, test_case.name, test_case.description, trigger_reference.chain_id;
 
+-- Both counts read one join. Joining matchers a second time for the enabled ones
+-- multiplies the rows instead of narrowing them, so each count returns the
+-- product of the two and a case with three rules, all enabled, reports nine.
 create or replace view test_cases_view as
     select
         test_case.*,
         trigger_reference.chain_id as chain_id,
         trigger_reference.element_id as element_id,
         count(matcher.id) as validation_rule_count,
-        count(enabled_matchers.id) as enabled_rule_count
+        count(matcher.id) filter (where matcher.enabled) as enabled_rule_count
     from
         test_cases test_case
     left join trigger_references trigger_reference on test_case.id = trigger_reference.test_case_id
     left join matchers matcher on matcher.owner_id = test_case.id
-    left join matchers enabled_matchers on enabled_matchers.owner_id = test_case.id and enabled_matchers.enabled
     group by test_case.id, trigger_reference.chain_id, trigger_reference.element_id;
 
 -- The delete targets are unqualified on purpose: the trigger resolves them

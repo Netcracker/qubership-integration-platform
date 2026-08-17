@@ -32,8 +32,6 @@ The table lists the test cases of the chain. The following columns are available
 - **Active Rules** - the number of those rules that are enabled. A disabled rule is not evaluated.
 - **Created At**, **Created By**, **Updated At**, **Updated By** - audit fields, hidden by default and enabled through the column settings.
 
-> ℹ️ **Note:** The testing service overcounts both rule columns: a test case with three rules, all of them enabled, is listed as nine **Rules** and nine **Active Rules**. The **Test Case Details** side panel repeats the same two numbers. The **Response Validation** tab of the test case editor lists the rules themselves and is the count to trust until the service is fixed.
-
 **Control panel**
 
 - **Search field** - narrows the list to the rows whose text matches. Like **Filter**, the search is applied by the service, so it also covers rows that are not loaded yet.
@@ -91,7 +89,7 @@ The table lists the endpoint mocks of the chain. **Name**, **Description**, **En
 - **Response Status** - the HTTP status code the mock returns.
 - **Response Delay** - how long, in milliseconds, the mock holds the answer back.
 
-**Readiness**, **Rules** and **Active Rules** have no place here: a mock has no readiness, and the counts of its request matchers are shown in the **Endpoint Mock Details** side panel, which computes them from the mock itself and therefore reports them exactly. Every column of this table can be sorted on.
+**Readiness**, **Rules** and **Active Rules** have no place here: a mock has no readiness, and the counts of its request matchers are shown in the **Endpoint Mock Details** side panel instead. Every column of this table can be sorted on.
 
 The control panel offers **Search**, **Filter**, **Column settings**, **Refresh**, **Export selected endpoint mocks**, **Delete selected endpoint mocks** and **Create an endpoint mock**. There is no run action: a mock is exercised by the test case whose chain reaches it. Clicking a row opens the **Endpoint Mock Details** side panel.
 
@@ -268,5 +266,4 @@ A change takes effect when the engine restarts. No chain has to be redeployed.
 - Only an **HTTP Trigger** can be activated by a test case. A trigger of any other type cannot be tested this way.
 - Test cases and endpoint mocks are not part of the chain export. They are exported and imported from their own tables.
 - Mocking is off by default, and it is environment-wide. With mocking on and the testing service absent, every outbound HTTP call of every chain fails to connect; with the service present, every call without a matching mock is answered `404`. Switch it on only on an installation someone is testing on.
-- The **Rules** and **Active Rules** columns, and the two counts in the **Test Case Details** side panel, are overcounted by the testing service. Read the rule count off the **Response Validation** tab of the editor.
 - An in-place edited cell commits on **Enter** only; clicking away discards the edit.

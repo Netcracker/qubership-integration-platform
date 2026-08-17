@@ -29,7 +29,7 @@ The same table as on the chain tab, with one column added and two toolbar differ
 - **Import test cases** - available only here.
 - **Create a test case** - **not** available here. Creating a test case needs a chain to pick a trigger from, so it is done from the chain tab.
 
-The remaining columns - **Name**, **Description**, **Element**, **Enabled**, **Readiness**, **Rules**, **Active Rules** and the audit fields - and the remaining toolbar actions - **Refresh**, **Run selected test cases**, **Export selected test cases** and **Delete selected test cases** - are described in [Testing](../../01__Chains/8__Testing/testing.md), including the overcounted rule columns and the unsortable **Readiness**.
+The remaining columns - **Name**, **Description**, **Element**, **Enabled**, **Readiness**, **Rules**, **Active Rules** and the audit fields - and the remaining toolbar actions - **Refresh**, **Run selected test cases**, **Export selected test cases** and **Delete selected test cases** - are described in [Testing](../../01__Chains/8__Testing/testing.md), including the unsortable **Readiness**.
 
 > ℹ️ **Note:** A test case opened from this list is **read-only**. Its tabs, its fields and its validation rules table are all disabled, and there is no save toolbar. To change a test case, open it from the **Testing** tab of its chain.
 

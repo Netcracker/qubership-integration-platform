@@ -147,22 +147,27 @@ struct fields, and a bulk method takes the same pointer-to-slice its siblings ta
   by the old worker's terminal status. The requirement is stated at the top of the statement in the migration file,
   because that is where an operator meets it.
 
-## Known defect: `test_cases_view` squares the rule counts
+## The rule counts read one join
 
-`test_cases_view` in `migrations/00000000000100__init.tx.up.sql` joins `matchers` **twice** — once for every rule and
-once for the enabled ones — and then counts over the product of the two joins. A test case with three rules, all of
-them enabled, comes back with `validation_rule_count` 9 and `enabled_rule_count` 9. The numbers are exact only for a
-case with no rules, or with none enabled.
+`test_cases_view` counts `matchers` over a single join and narrows the enabled ones with a filtered aggregate:
 
-The UI renders what the view returns, so the **Rules** and **Active Rules** columns of the test case lists and the two
-counts in the test case details panel are wrong wherever this is. `help/docs/01__Chains/8__Testing/testing.md` records
-that as a limitation and points the reader at the editor's Response Validation tab; remove the note there when this is
-fixed.
+```sql
+count(matcher.id) as validation_rule_count,
+count(matcher.id) filter (where matcher.enabled) as enabled_rule_count
+```
 
-The fix belongs to the view. Count over a single join with `filter (where matcher.enabled)`, or read both counts from
-one correlated subquery, so that neither join multiplies the other. Both keep the column list and the column types of
-the view, so `create or replace view` is enough — but it goes in a **new** migration, because 100 has shipped and an
-installation that already ran it never runs it again.
+Joining `matchers` a second time for the enabled rules multiplies the rows instead of narrowing them: every row of the
+first join meets every row of the second, and both counts then answer with the product. A case with three rules, all
+enabled, reports nine of each; with two of three enabled, six of each. Only a case with no rules, or with none enabled,
+comes out right, which is why the shape read as plausible until someone counted the rules on screen.
+
+`TestTheRuleCountsCountEachRuleOnce` in `internal/dao/test_cases_view_integration_test.go` pins every combination and
+fails on the second join.
+
+Migration 100 carries the corrected view rather than a follow-up migration: the service is unreleased, and the bun
+migrator records applied names, not checksums, so editing the file is invisible to a database that already ran it.
+The consequence is operational — an existing installation keeps the old view until its schema is recreated, or until
+someone runs the `create or replace view` statement against it by hand.
 
 ## The lease-fencing invariant
 
