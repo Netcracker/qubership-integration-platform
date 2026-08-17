@@ -60,6 +60,7 @@ public class DesignExecutionCapability implements StageCapability {
     Objects.requireNonNull(context, "context");
     // Catalog RestClient + compiler DAG await block; must not run on the Vert.x event loop.
     // Stream SkillProgress (executor + DAG generators/validators) like brainstorming / planning.
+    var turnEmit = SkillActivitySupport.captureTurnEmit(context.conversationId());
     return Multi.createFrom()
         .emitter(
             emitter ->
@@ -68,7 +69,7 @@ public class DesignExecutionCapability implements StageCapability {
                         () -> {
                           String skillId = CipDesignExecutorJavaAdapter.SKILL_ID;
                           emitter.emit(SkillActivitySupport.running(skillId));
-                          SkillActivitySupport.bindParents(skillId);
+                          SkillActivitySupport.bindWorker(skillId, turnEmit);
                           BiConsumer<String, String> dagProgress =
                               (id, status) ->
                                   emitter.emit(new CapabilitySignal.SkillProgress(id, status));
@@ -78,7 +79,7 @@ public class DesignExecutionCapability implements StageCapability {
                             return SkillActivitySupport.wrapTerminal(
                                 skillId, List.of(completed));
                           } finally {
-                            SkillActivitySupport.clearParents();
+                            SkillActivitySupport.unbindWorker(turnEmit);
                           }
                         })
                     .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
@@ -104,7 +105,7 @@ public class DesignExecutionCapability implements StageCapability {
           adapter.executeAfterApproval(resolved.inputs(), context.attemptId(), skillProgress);
       // Adapter uses CANDIDATE to mean Phase 5 checkpoint (WAITING_FOR_MATERIALIZATION). The
       // create-chain@2 design-execution stage has no approval gate, so map that to SUCCEEDED so
-      // ProductPipelineRuntime advances into materialization with the Phase 5 candidates.
+      // Flow continues into materialization with the Phase 5 candidates.
       if (result.outcomeClass() == StageOutcomeClass.CANDIDATE
           || result.outcomeClass() == StageOutcomeClass.SUCCEEDED) {
         return completedSignal(

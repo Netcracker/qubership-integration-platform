@@ -64,6 +64,7 @@ public class DesignPlanningCapability implements StageCapability {
   public Multi<CapabilitySignal> execute(StageExecutionContext context) {
     Objects.requireNonNull(context, "context");
     // Planner agent blocks; must not run on the Vert.x event loop.
+    var turnEmit = SkillActivitySupport.captureTurnEmit(context.conversationId());
     return Multi.createBy()
         .concatenating()
         .streams(
@@ -71,12 +72,13 @@ public class DesignPlanningCapability implements StageCapability {
             Uni.createFrom()
                 .item(
                     () -> {
-                      SkillActivitySupport.bindParents(CipDesignPlannerAdapter.SKILL_ID);
+                      SkillActivitySupport.bindWorker(
+                          CipDesignPlannerAdapter.SKILL_ID, turnEmit);
                       try {
                         return SkillActivitySupport.wrapTerminal(
                             CipDesignPlannerAdapter.SKILL_ID, List.of(executeBlocking(context)));
                       } finally {
-                        SkillActivitySupport.clearParents();
+                        SkillActivitySupport.unbindWorker(turnEmit);
                       }
                     })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())

@@ -136,17 +136,24 @@ public class ChatExecutionService {
     String finalConversationId = conversationId;
     AtomicReference<Cancellable> routedCancellation = new AtomicReference<>();
 
-    Multi<ChatEvent> routed =
+    // Approve / create-chain commands skip the router, but planning and materialization still
+    // invoke tools. Bind the turn sink on both paths so event: step (kind=tool / kind=skill)
+    // reaches the client the same way requirement-analysis already does.
+    Multi<ChatEvent> routedWork =
         runsAsCommand(request)
             ? decisionService.apply(conversationId, request.getDecision())
-            : bindBackoffSinkForTurn(
-                    router.route(request, conversationId),
-                    routedCancellation,
-                    appConfig.llm().rateLimit().maxTurnBackoffs())
+            : router
+                .route(request, conversationId)
                 // A routed turn can end at a gate without knowing it did, so the turn closes by
                 // reporting whatever the run waits for now.
                 .onCompletion()
                 .switchTo(() -> openGate(conversationId));
+    Multi<ChatEvent> routed =
+        bindBackoffSinkForTurn(
+            routedWork,
+            routedCancellation,
+            appConfig.llm().rateLimit().maxTurnBackoffs(),
+            conversationId);
 
     return Multi.createBy()
         .concatenating()
@@ -221,18 +228,26 @@ public class ChatExecutionService {
    */
   static Multi<ChatEvent> bindBackoffSinkForTurn(
       Multi<ChatEvent> routed, AtomicReference<Cancellable> routedCancellation) {
-    return bindBackoffSinkForTurn(routed, routedCancellation, Integer.MAX_VALUE);
+    return bindBackoffSinkForTurn(routed, routedCancellation, Integer.MAX_VALUE, null);
   }
 
   static Multi<ChatEvent> bindBackoffSinkForTurn(
       Multi<ChatEvent> routed,
       AtomicReference<Cancellable> routedCancellation,
       int maxTurnBackoffs) {
+    return bindBackoffSinkForTurn(routed, routedCancellation, maxTurnBackoffs, null);
+  }
+
+  static Multi<ChatEvent> bindBackoffSinkForTurn(
+      Multi<ChatEvent> routed,
+      AtomicReference<Cancellable> routedCancellation,
+      int maxTurnBackoffs,
+      String conversationId) {
     return Multi.createFrom()
         .emitter(
             emitter -> {
               LlmRateLimitBackoffSink.bind(emitter::emit, null, maxTurnBackoffs);
-              ToolInvocationSink.bind(emitter::emit, null);
+              ToolInvocationSink.bind(emitter::emit, null, conversationId);
               emitter.onTermination(
                   () -> {
                     LlmRateLimitBackoffSink.unbind();

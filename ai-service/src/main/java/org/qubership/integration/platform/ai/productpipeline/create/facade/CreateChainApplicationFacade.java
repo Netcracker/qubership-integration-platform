@@ -847,8 +847,15 @@ public class CreateChainApplicationFacade {
                 }
                 return Multi.createFrom().item(new CreateChainEvent.Progress("Working"));
               }
-              if (signal instanceof PipelineSignal.SkillProgress) {
-                return Multi.createFrom().empty();
+              if (signal instanceof PipelineSignal.SkillProgress skillProgress) {
+                String skillId =
+                    skillProgress.skillId() == null ? "" : skillProgress.skillId().strip();
+                String status =
+                    skillProgress.status() == null ? "" : skillProgress.status().strip();
+                if (skillId.isBlank() || status.isBlank()) {
+                  return Multi.createFrom().empty();
+                }
+                return Multi.createFrom().item(new CreateChainEvent.SkillProgress(skillId, status));
               }
               return Multi.createFrom().empty();
             });

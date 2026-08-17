@@ -2,11 +2,43 @@ package org.qubership.integration.platform.ai.productpipeline.capability;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.List;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 
 class SkillActivitySupportTest {
+
+  @AfterEach
+  void tearDown() {
+    ToolInvocationSink.unbind();
+  }
+
+  @Test
+  void bindParentsEmitsSkillRunningOnTheBoundTurnSink() {
+    List<ChatEvent> out = new ArrayList<>();
+    ToolInvocationSink.bind(out::add);
+    try {
+      SkillActivitySupport.bindParents("cip-design-planner");
+    } finally {
+      SkillActivitySupport.clearParents();
+      ToolInvocationSink.unbind();
+    }
+
+    assertTrue(
+        out.stream()
+            .anyMatch(
+                event ->
+                    event instanceof ChatEvent.Step step
+                        && "skill".equals(step.kind())
+                        && "cip-design-planner".equals(step.label())
+                        && "running".equals(step.status())),
+        () -> "expected a kind=skill running step from bindParents, got: " + out);
+  }
 
   @Test
   void wrapTerminalPrependsCompletedSkillForCandidateOutcome() {

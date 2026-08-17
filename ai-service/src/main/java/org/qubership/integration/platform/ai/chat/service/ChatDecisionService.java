@@ -292,6 +292,12 @@ public class ChatDecisionService {
               ChatEvent.step(
                   "stage:" + progress.label(), "pipeline", "running", progress.label(), null));
     }
+    if (event instanceof CreateChainEvent.SkillProgress skill) {
+      if (skill.skillId().isBlank() || skill.status().isBlank()) {
+        return Multi.createFrom().empty();
+      }
+      return Multi.createFrom().item(ChatEvent.skillStep(skill.skillId(), skill.status()));
+    }
     if (event instanceof CreateChainEvent.Waiting waiting) {
       return Multi.createFrom()
           .item(

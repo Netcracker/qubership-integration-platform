@@ -17,8 +17,6 @@ import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFact
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
 import org.qubership.integration.platform.ai.chain.presentation.ChainMaterializedSummary;
 import org.qubership.integration.platform.ai.chain.reconcile.ChainReconcileService;
-import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
-import org.qubership.integration.platform.ai.chat.evidence.EvidenceIds;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
@@ -130,7 +128,7 @@ public class MaterializationCapability implements StageCapability {
 
     // Capture the SSE emit consumer on this thread (ToolInvocationSink bound by chat turn), then
     // re-bind on the worker so CatalogOutboundLoggingFilter can emit kind=tool steps.
-    var turnEmit = ToolInvocationSink.currentEmit();
+    var turnEmit = SkillActivitySupport.captureTurnEmit(context.conversationId());
     // Catalog RestClient + Uni.await inside ProductChainMaterializer must not run on Vert.x event loop.
     return Multi.createBy()
         .concatenating()
@@ -139,17 +137,12 @@ public class MaterializationCapability implements StageCapability {
             Uni.createFrom()
                 .item(
                     () -> {
-                      turnEmit.ifPresent(
-                          emit -> ToolInvocationSink.bind(emit, EvidenceIds.wireSkill(CAPABILITY_ID)));
-                      SkillActivitySupport.bindParents(CAPABILITY_ID);
+                      SkillActivitySupport.bindWorker(CAPABILITY_ID, turnEmit);
                       try {
                         return SkillActivitySupport.wrapTerminal(
                             CAPABILITY_ID, completeMaterialization(context, resolved));
                       } finally {
-                        SkillActivitySupport.clearParents();
-                        if (turnEmit.isPresent()) {
-                          ToolInvocationSink.unbind();
-                        }
+                        SkillActivitySupport.unbindWorker(turnEmit);
                       }
                     })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
@@ -444,7 +437,7 @@ public class MaterializationCapability implements StageCapability {
       return ResolvedInputs.error("materialization payloads are missing");
     }
     // Design-execution may store-back a VALIDATED_EXECUTION_BUNDLE for nested refs, then emit the
-    // same payload as a produced candidate. ProductPipelineRuntime re-appends produced candidates
+    // same payload as a produced candidate. The create-chain runtime re-appends produced candidates
     // with a new artifactId; contentHash stays identical. Match by kind+contentHash so Phase 6
     // accepts that produce-path pair (full Reference.equals would fail on artifactId alone).
     if (!sameValidatedBundleContent(validatedBundleRef.get(), request.validatedExecutionBundleRef())) {

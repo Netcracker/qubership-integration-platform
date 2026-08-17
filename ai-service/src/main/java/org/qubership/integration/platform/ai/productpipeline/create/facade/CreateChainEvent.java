@@ -32,6 +32,18 @@ public sealed interface CreateChainEvent {
     }
   }
 
+  /**
+   * Per-skill activity for the browser transcript ({@code kind=skill} step). A2A ignores this
+   * frame.
+   */
+  record SkillProgress(String skillId, String status) implements CreateChainEvent {
+
+    public SkillProgress {
+      skillId = skillId == null ? "" : skillId;
+      status = status == null ? "" : status;
+    }
+  }
+
   record Waiting(CreateChainPendingAction pendingAction) implements CreateChainEvent {
 
     public Waiting {

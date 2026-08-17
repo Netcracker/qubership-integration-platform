@@ -4,8 +4,10 @@ import io.smallrye.mutiny.Context;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.ToolSession;
 
 /**
  * Emits name-only {@code step(kind=tool)} events while a skill run is active.
@@ -16,6 +18,9 @@ import org.qubership.integration.platform.ai.chat.ChatEvent;
  * {@code awaitUsing(context)}, and use {@link #executeInBoundContext(Context, Runnable)} when work
  * may run on another thread (for example {@code runSubscriptionOn}). A thread-local mirror avoids
  * context lookup on the binding thread where tools usually run synchronously.
+ *
+ * <p>The chat turn also registers the emit consumer by conversation id so catalog and LangChain4j
+ * tools on worker threads can emit {@code event: step} while {@link ToolSession} is bound.
  */
 public final class ToolInvocationSink {
 
@@ -25,6 +30,9 @@ public final class ToolInvocationSink {
   private static final ThreadLocal<Context> THREAD_CONTEXT = new ThreadLocal<>();
   /** Mutiny subscribe-path context (from {@code subscribe().with(context, ...)}). */
   private static final ThreadLocal<Context> SUBSCRIBE_PATH_CONTEXT = new ThreadLocal<>();
+  private static final ThreadLocal<Integer> BIND_DEPTH = new ThreadLocal<>();
+  private static final ThreadLocal<String> REGISTERED_CONVERSATION_ID = new ThreadLocal<>();
+  private static final ConcurrentHashMap<String, Binding> BY_CONVERSATION = new ConcurrentHashMap<>();
 
   private ToolInvocationSink() {}
 
@@ -35,12 +43,35 @@ public final class ToolInvocationSink {
   }
 
   public static void bind(Consumer<ChatEvent> emit, String parentSkillId) {
+    bind(emit, parentSkillId, ToolSession.resolveConversationId());
+  }
+
+  public static void bind(Consumer<ChatEvent> emit, String parentSkillId, String conversationId) {
     Binding binding = new Binding(emit, parentSkillId);
     Context context = Context.of(CONTEXT_KEY, binding);
+    int depth = bindDepth() + 1;
+    BIND_DEPTH.set(depth);
     installBinding(binding, context);
+    if (conversationId != null && !conversationId.isBlank()) {
+      String id = conversationId.trim();
+      if (BY_CONVERSATION.putIfAbsent(id, binding) == null) {
+        REGISTERED_CONVERSATION_ID.set(id);
+      }
+    }
   }
 
   public static void unbind() {
+    int depth = bindDepth() - 1;
+    if (depth > 0) {
+      BIND_DEPTH.set(depth);
+      return;
+    }
+    BIND_DEPTH.remove();
+    String registered = REGISTERED_CONVERSATION_ID.get();
+    if (registered != null) {
+      BY_CONVERSATION.remove(registered);
+      REGISTERED_CONVERSATION_ID.remove();
+    }
     THREAD_BINDING.remove();
     THREAD_CONTEXT.remove();
     SUBSCRIBE_PATH_CONTEXT.remove();
@@ -56,6 +87,13 @@ public final class ToolInvocationSink {
             binding -> {
               Binding updated = new Binding(binding.emit(), parentSkillWireId);
               installBinding(updated, Context.of(CONTEXT_KEY, updated));
+              String conversationId = ToolSession.resolveConversationId();
+              if (conversationId == null || conversationId.isBlank()) {
+                conversationId = REGISTERED_CONVERSATION_ID.get();
+              }
+              if (conversationId != null && BY_CONVERSATION.containsKey(conversationId)) {
+                BY_CONVERSATION.put(conversationId, updated);
+              }
             });
   }
 
@@ -149,7 +187,20 @@ public final class ToolInvocationSink {
     if (threadBinding != null) {
       return Optional.of(threadBinding);
     }
-    return bindingFromContext(activeSubscribeContext());
+    Optional<Binding> fromContext = bindingFromContext(activeSubscribeContext());
+    if (fromContext.isPresent()) {
+      return fromContext;
+    }
+    String conversationId = ToolSession.resolveConversationId();
+    if (conversationId == null || conversationId.isBlank()) {
+      return Optional.empty();
+    }
+    return Optional.ofNullable(BY_CONVERSATION.get(conversationId));
+  }
+
+  private static int bindDepth() {
+    Integer depth = BIND_DEPTH.get();
+    return depth == null ? 0 : depth;
   }
 
   private static Context activeSubscribeContext() {

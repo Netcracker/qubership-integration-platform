@@ -156,4 +156,61 @@ class ToolInvocationSinkTest {
     ChatEvent.Step running = assertInstanceOf(ChatEvent.Step.class, out.get(0));
     assertEquals("skill:worker-skill", running.parentId());
   }
+
+  @Test
+  void conversationBindingReachesToolsOnAnotherThread() throws Exception {
+    List<ChatEvent> out = new ArrayList<>();
+    ToolInvocationSink.bind(out::add, "skill:cip-requirement-analyzer", "conv-skill-1");
+    try {
+      Thread worker =
+          new Thread(
+              () -> {
+                org.qubership.integration.platform.ai.chat.ToolSession.bind("conv-skill-1");
+                try {
+                  ToolInvocationSink.onInvoke("POST /v1/systems/search");
+                  ToolInvocationSink.onComplete("POST /v1/systems/search");
+                } finally {
+                  org.qubership.integration.platform.ai.chat.ToolSession.clear();
+                }
+              });
+      worker.start();
+      worker.join();
+    } finally {
+      ToolInvocationSink.unbind();
+    }
+
+    assertEquals(2, out.size());
+    ChatEvent.Step running = assertInstanceOf(ChatEvent.Step.class, out.get(0));
+    assertEquals("tool", running.kind());
+    assertEquals("POST /v1/systems/search", running.label());
+    assertEquals("skill:cip-requirement-analyzer", running.parentId());
+  }
+
+  @Test
+  void nestedUnbindDoesNotClearTheTurnConversationBinding() throws Exception {
+    List<ChatEvent> out = new ArrayList<>();
+    ToolInvocationSink.bind(out::add, null, "conv-skill-2");
+    try {
+      ToolInvocationSink.bind(out::add, "skill:materialization", "conv-skill-2");
+      ToolInvocationSink.unbind();
+      Thread worker =
+          new Thread(
+              () -> {
+                org.qubership.integration.platform.ai.chat.ToolSession.bind("conv-skill-2");
+                try {
+                  ToolInvocationSink.onInvoke("captureRequirementBrief");
+                } finally {
+                  org.qubership.integration.platform.ai.chat.ToolSession.clear();
+                }
+              });
+      worker.start();
+      worker.join();
+    } finally {
+      ToolInvocationSink.unbind();
+    }
+
+    assertEquals(1, out.size());
+    ChatEvent.Step running = assertInstanceOf(ChatEvent.Step.class, out.get(0));
+    assertEquals("captureRequirementBrief", running.label());
+  }
 }

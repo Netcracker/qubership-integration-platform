@@ -197,6 +197,97 @@ class ChatDecisionServiceTest {
     assertEquals("Create the chain?", reissued.question());
   }
 
+  @Test
+  void approveForwardsSkillProgressAsChatSkillSteps() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.validateApprove(any(ApproveCreateChainArtifactCommand.class)))
+        .thenReturn(Optional.empty());
+    when(facade.streamApproveOnly(any(ApproveCreateChainArtifactCommand.class)))
+        .thenReturn(
+            Multi.createFrom()
+                .items(
+                    new CreateChainEvent.SkillProgress("cip-requirement-analyzer", "running"),
+                    new CreateChainEvent.SkillProgress("cip-requirement-analyzer", "completed"),
+                    new CreateChainEvent.Message("Brief captured.")));
+    when(facade.snapshot("conv-skill"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-skill",
+                    "run-1",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    3L,
+                    new CreateChainPendingAction.Approve(
+                        "requirement-brief", "sha256:brief", 3L, ""),
+                    "")));
+    when(facade.pendingCreationHash("conv-skill")).thenReturn(Optional.empty());
+
+    List<ChatEvent> events =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .apply(
+                "conv-skill",
+                command(ChatEvent.APPROVE_ACTION, "requirement-brief", "sha256:brief", null))
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    assertTrue(
+        events.stream()
+            .anyMatch(
+                event ->
+                    event instanceof ChatEvent.Step step
+                        && "skill".equals(step.kind())
+                        && "cip-requirement-analyzer".equals(step.label())
+                        && "running".equals(step.status())),
+        () -> "expected a kind=skill running step, got: " + events);
+  }
+
+  @Test
+  void createChainForwardsSkillProgressAsChatSkillSteps() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.pendingCreationHash("conv-create"))
+        .thenReturn(Optional.of("sha256:plan"));
+    when(facade.snapshot("conv-create"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-create",
+                    "run-1",
+                    CreateChainExecutionStatus.WORKING,
+                    7L,
+                    null,
+                    "")));
+    when(facade.streamCreateChain("conv-create", "sha256:plan", 7L))
+        .thenReturn(
+            Multi.createFrom()
+                .items(
+                    new CreateChainEvent.SkillProgress("materialization", "running"),
+                    new CreateChainEvent.SkillProgress("materialization", "completed"),
+                    new CreateChainEvent.Message("Chain is ready.")));
+
+    ChatDecisionCommand command = command(ChatEvent.CREATE_ACTION, "implementation-plan", "sha256:plan", null);
+    command.setRevision(7L);
+
+    List<ChatEvent> events =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .apply("conv-create", command)
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    assertTrue(
+        events.stream()
+            .anyMatch(
+                event ->
+                    event instanceof ChatEvent.Step step
+                        && "skill".equals(step.kind())
+                        && "materialization".equals(step.label())
+                        && "running".equals(step.status())),
+        () -> "expected a kind=skill running step on create-chain, got: " + events);
+  }
+
   /**
    * The import gate inside a run must offer the button that produces its marker.
    *

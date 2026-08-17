@@ -2,16 +2,31 @@ package org.qubership.integration.platform.ai.chat.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.smallrye.mutiny.Multi;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
+import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
+import org.qubership.integration.platform.ai.chat.model.ChatRequest;
+import org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer;
+import org.qubership.integration.platform.ai.configuration.AppConfig;
+import org.qubership.integration.platform.ai.llm.routing.ScenarioRouter;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
@@ -44,6 +59,46 @@ class ChatExecutionServiceTest {
         new CompilationArtifacts(blobs, mapper, Clock.fixed(FIXED, ZoneOffset.UTC));
     artifactStore = new ProductPipelineArtifactStore(artifacts);
     runStore = new ProductPipelineRunStore(blobs, mapper, Clock.fixed(FIXED, ZoneOffset.UTC));
+  }
+
+  @AfterEach
+  void tearDown() {
+    ToolInvocationSink.unbind();
+  }
+
+  @Test
+  void approveCommandPathEmitsToolStepsWhenToolsRunDuringTheTurn() {
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.apply(eq("conv-approve-tools"), any()))
+        .thenAnswer(
+            invocation ->
+                Multi.createFrom()
+                    .emitter(
+                        emitter -> {
+                          ToolInvocationSink.onInvoke("captureSelectedPattern");
+                          ToolInvocationSink.onComplete("captureSelectedPattern");
+                          emitter.emit(ChatEvent.token("Plan ready."));
+                          emitter.complete();
+                        }));
+
+    ChatRequest request = new ChatRequest();
+    request.setConversationId("conv-approve-tools");
+    ChatDecisionCommand decision = new ChatDecisionCommand();
+    decision.setAction(ChatEvent.APPROVE_ACTION);
+    decision.setArtifactType("implementation-plan");
+    decision.setArtifactHash("sha256:plan");
+    decision.setRevision(3L);
+    request.setDecision(decision);
+
+    List<String> frames =
+        commandPathService(decisions).streamV1Sse(request).collect().asList().await().indefinitely();
+
+    assertTrue(
+        frames.stream().anyMatch(frame -> frame.contains("\"kind\":\"tool\"")),
+        () -> "expected event: step kind=tool on the approve command path, got: " + frames);
+    assertTrue(
+        frames.stream().anyMatch(frame -> frame.contains("captureSelectedPattern")),
+        () -> "expected the invoked tool name on the wire, got: " + frames);
   }
 
   @Test
@@ -136,6 +191,30 @@ class ChatExecutionServiceTest {
   private static ArtifactProvenance provenance(String runId) {
     return new ArtifactProvenance(
         runId, "planning", "create-chain", "1", "profile-sha", "test", "1", "closure-sha");
+  }
+
+  private ChatExecutionService commandPathService(ChatDecisionService decisions) {
+    AppConfig appConfig = mock(AppConfig.class);
+    AppConfig.LlmConfig llm = mock(AppConfig.LlmConfig.class);
+    AppConfig.LlmConfig.RateLimitConfig rateLimit = mock(AppConfig.LlmConfig.RateLimitConfig.class);
+    AppConfig.TraceConfig trace = mock(AppConfig.TraceConfig.class);
+    when(appConfig.llm()).thenReturn(llm);
+    when(llm.rateLimit()).thenReturn(rateLimit);
+    when(rateLimit.maxTurnBackoffs()).thenReturn(12);
+    when(appConfig.trace()).thenReturn(trace);
+    when(trace.logAssistantResult()).thenReturn(false);
+    ChatMemorySanitizer sanitizer = mock(ChatMemorySanitizer.class);
+    when(sanitizer.repairDanglingToolCalls(anyString())).thenReturn(0);
+    return new ChatExecutionService(
+        mock(ScenarioRouter.class),
+        new ConversationService(),
+        mock(EffectiveUserTextService.class),
+        appConfig,
+        runStore,
+        artifactStore,
+        new ObjectMapper(),
+        sanitizer,
+        decisions);
   }
 
   private static ChainPlanGraph sampleGraph(String chainName) {

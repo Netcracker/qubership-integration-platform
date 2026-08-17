@@ -3,6 +3,10 @@ package org.qubership.integration.platform.ai.productpipeline.capability;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Consumer;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.activity.LlmRateLimitBackoffSink;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceIds;
@@ -29,14 +33,47 @@ public final class SkillActivitySupport {
 
   /** Binds tool/LLM activity parents to {@code skill:&lt;skillId&gt;} when sinks are active. */
   public static void bindParents(String skillId) {
-    String wire = EvidenceIds.wireSkill(requireSkillId(skillId));
+    String id = requireSkillId(skillId);
+    String wire = EvidenceIds.wireSkill(id);
     ToolInvocationSink.setParentSkillId(wire);
     LlmRateLimitBackoffSink.setParentSkillId(wire);
+    ToolInvocationSink.currentEmit()
+        .ifPresent(emit -> emit.accept(ChatEvent.skillStep(id, "running")));
   }
 
   public static void clearParents() {
     ToolInvocationSink.clearParentSkillId();
     LlmRateLimitBackoffSink.clearParentSkillId();
+  }
+
+  /**
+   * Emit consumer from the chat-turn sink, including a Flow worker that only has the conversation
+   * id. Empty when no turn is bound.
+   */
+  public static Optional<Consumer<ChatEvent>> captureTurnEmit(String conversationId) {
+    Optional<Consumer<ChatEvent>> emit = ToolInvocationSink.currentEmit();
+    if (emit.isPresent() || conversationId == null || conversationId.isBlank()) {
+      return emit;
+    }
+    ToolSession.bind(conversationId);
+    try {
+      return ToolInvocationSink.currentEmit();
+    } finally {
+      ToolSession.clear();
+    }
+  }
+
+  /** Re-binds the turn sink on a worker thread and nests later tool steps under {@code skillId}. */
+  public static void bindWorker(String skillId, Optional<Consumer<ChatEvent>> turnEmit) {
+    turnEmit.ifPresent(emit -> ToolInvocationSink.bind(emit, EvidenceIds.wireSkill(skillId)));
+    bindParents(skillId);
+  }
+
+  public static void unbindWorker(Optional<Consumer<ChatEvent>> turnEmit) {
+    clearParents();
+    if (turnEmit.isPresent()) {
+      ToolInvocationSink.unbind();
+    }
   }
 
   /**
