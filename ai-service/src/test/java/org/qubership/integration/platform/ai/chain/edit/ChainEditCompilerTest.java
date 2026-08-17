@@ -14,13 +14,18 @@ import io.smallrye.mutiny.Uni;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportResult;
+import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.llm.agent.ChainEditIntentAgent;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
@@ -45,6 +50,7 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 import org.qubership.integration.platform.ai.qipknowledge.patch.PropertyPatch;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
@@ -62,6 +68,8 @@ class ChainEditCompilerTest {
   private String intentReply;
   private CatalogRestClient catalogRestClient;
   private CatalogSystemReadTool readTool;
+  private ApiHubMcpTools apiHub;
+  private CatalogMutationGateway catalogMutationGateway;
   private FakeEngine engine;
   private ChainEditCompiler compiler;
 
@@ -101,15 +109,18 @@ class ChainEditCompilerTest {
                 new KnowledgePackageRef(
                     "artifact", "1.0.0", "1.0.0", "checksum", "CERTIFIED", "sha256:cert"));
 
+    apiHub = mock(ApiHubMcpTools.class);
+    catalogMutationGateway = mock(CatalogMutationGateway.class);
     ChainEditIntentAgent agent = (elements, userRequest) -> intentReply;
     compiler =
         new ChainEditCompiler(
             new ChainEditIntentResolver(agent),
-            new ServiceCallBindingResolver(catalogRestClient, readTool),
+            new ServiceCallBindingResolver(catalogRestClient, readTool, apiHub),
             engine,
             runPinResolver,
             profileCatalog,
-            knowledge);
+            knowledge,
+            catalogMutationGateway);
   }
 
   @Test
@@ -283,16 +294,16 @@ class ChainEditCompilerTest {
 
   @Test
   void anEditNoSkillOwnsYetFallsBackToTheCaller() {
-    intentReply =
-        """
-        action: EDIT_SCRIPT
-        targets: call-orders
-        change: rewrite the script
-        lookup:
-        ambiguous:
-        """;
+    intentReply = intent("REORDER", TARGET, "put the catch branch first");
 
     assertInstanceOf(ChainEditOutcome.Unsupported.class, compiler.compile(request()));
+  }
+
+  @Test
+  void aScriptSkillIsNotOfferedAnElementItCannotOwn() {
+    intentReply = intent("EDIT_SCRIPT", TARGET, "rewrite the script");
+
+    assertInstanceOf(ChainEditOutcome.ResolutionFailure.class, compiler.compile(request()));
   }
 
   @Test
@@ -301,6 +312,190 @@ class ChainEditCompilerTest {
 
     org.mockito.Mockito.verify(catalogRestClient, org.mockito.Mockito.never())
         .updateElement(any(), any(), any());
+  }
+
+  @Test
+  void aScriptEditRunsThroughTheScriptSkill() {
+    intentReply = intent("EDIT_SCRIPT", "normalize", "return the customer id in the body");
+
+    assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+    assertEquals(
+        List.of("cip-script-generator"), engine.lastRequest.get().approvedOwningSkillIds());
+    assertEquals(
+        List.of("normalize"), scopedTargets(engine.lastRequest.get()));
+  }
+
+  @Test
+  void eachConfigurationFamilyGoesToTheCapabilityThatOwnsIt() {
+    intentReply = intent("EDIT_AUTHENTICATION", TARGET, "use the service account");
+    compiler.compile(request());
+    assertEquals(List.of("cip-auth-generator"), engine.lastRequest.get().approvedOwningSkillIds());
+
+    intentReply = intent("EDIT_RETRY", TARGET, "try five times");
+    compiler.compile(request());
+    assertEquals(List.of("cip-retry-generator"), engine.lastRequest.get().approvedOwningSkillIds());
+  }
+
+  @Test
+  void aTargetTheCapabilityCannotOwnIsRefusedBeforeTheCompilerRuns() {
+    // The timeout skill owns connectTimeout on http-trigger, and this target is a service call.
+    intentReply = intent("EDIT_TIMEOUT", TARGET, "wait longer");
+
+    ChainEditOutcome.ResolutionFailure failure =
+        assertInstanceOf(ChainEditOutcome.ResolutionFailure.class, compiler.compile(request()));
+    assertTrue(failure.message().contains("cip-timeout-generator"), failure.message());
+  }
+
+  @Test
+  void anAdditionGoesToWhicheverSkillMayAddThatElementType() {
+    intentReply =
+        """
+        action: ADD_ELEMENTS
+        targets: call-orders
+        change: add a script after the order call
+        lookup:
+        elementType: script
+        ambiguous:
+        """;
+
+    compiler.compile(request());
+
+    assertEquals(
+        List.of("cip-script-generator"), engine.lastRequest.get().approvedOwningSkillIds());
+    assertEquals(List.of(TARGET), scopedTargets(engine.lastRequest.get()));
+  }
+
+  @Test
+  void anAdditionOfATypeNoSkillMayAddFallsBackToTheCaller() {
+    intentReply =
+        """
+        action: ADD_ELEMENTS
+        targets: call-orders
+        change: add a mainframe bridge
+        lookup:
+        elementType: mainframe-bridge
+        ambiguous:
+        """;
+
+    assertInstanceOf(ChainEditOutcome.Unsupported.class, compiler.compile(request()));
+  }
+
+  @Test
+  void anOperationOnlyApiHubHasAsksBeforeItImportsAnything() {
+    localCatalogHasNothing();
+    when(apiHub.searchApiOperations(any(), any(), any(), any(), any(), any()))
+        .thenReturn(apiHubHit());
+
+    ChainEditOutcome.Escalation escalation =
+        assertInstanceOf(ChainEditOutcome.Escalation.class, compiler.compile(request()));
+
+    assertEquals("pkg-1", escalation.refs().packageId());
+    assertEquals("2026.1", escalation.refs().version());
+    assertEquals(ChainEditAction.REBIND_SERVICE_CALL, escalation.intent().action());
+    org.mockito.Mockito.verifyNoInteractions(catalogMutationGateway);
+  }
+
+  @Test
+  void anApprovedImportResumesTheSameEditWithAnApiHubBinding() {
+    when(catalogMutationGateway.importApiHubSpecification(any(), any()))
+        .thenReturn(
+            Uni.createFrom()
+                .item(
+                    new ApiHubSpecificationImportResult(
+                        "sys-1",
+                        "spec-1",
+                        "group-1",
+                        "import-7",
+                        "Orders API",
+                        java.util.Optional.of("op-status"))));
+    when(catalogRestClient.getOperation("op-status"))
+        .thenReturn(
+            new CatalogRestClient.OperationDto(
+                "op-status", "Post order status", "POST", "/orders/{id}/status", "spec-1"));
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(
+            ChainEditOutcome.Proposal.class,
+            compiler.resumeAfterImport(request(), rebindIntent(), refs()));
+
+    ResolvedServiceCallBinding binding = proposal.bindings().get(0);
+    assertEquals(ResolvedServiceCallBinding.Source.APIHUB_IMPORT, binding.source());
+    assertEquals("2026.1", binding.release());
+    assertEquals("apihub-import:import-7", binding.evidenceRef());
+    assertEquals("POST", binding.method());
+    assertEquals("/orders/{id}/status", binding.path());
+  }
+
+  @Test
+  void anImportThatNamesNoOperationChangesNothing() {
+    when(catalogMutationGateway.importApiHubSpecification(any(), any()))
+        .thenReturn(
+            Uni.createFrom()
+                .item(
+                    new ApiHubSpecificationImportResult(
+                        "sys-1", "spec-1", "group-1", "import-7", "Orders API", java.util.Optional.empty())));
+
+    ChainEditOutcome.ResolutionFailure failure =
+        assertInstanceOf(
+            ChainEditOutcome.ResolutionFailure.class,
+            compiler.resumeAfterImport(request(), rebindIntent(), refs()));
+    assertTrue(failure.message().contains("without naming an operation"), failure.message());
+  }
+
+  @Test
+  void thesameSeedAndPinnedInputsProduceTheSameProposal() {
+    ChainEditOutcome.Proposal first =
+        assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+    ChainEditOutcome.Proposal second =
+        assertInstanceOf(ChainEditOutcome.Proposal.class, compiler.compile(request()));
+
+    assertEquals(first.finalGraph(), second.finalGraph());
+    assertEquals(first.netPatch().propertyPatches(), second.netPatch().propertyPatches());
+    assertEquals(
+        first.runManifest().compilerRunPin().resolvedDag().digest(),
+        second.runManifest().compilerRunPin().resolvedDag().digest());
+  }
+
+  private void localCatalogHasNothing() {
+    when(readTool.listCatalogOperations(any(), any(), any())).thenReturn(List.of());
+    when(readTool.searchCatalogSystems(any())).thenReturn(List.of());
+  }
+
+  private static String apiHubHit() {
+    return """
+        [{"operationId":"post-order-status","packageId":"pkg-1","version":"2026.1",\
+"documentId":"doc-1","title":"Post order status"}]
+        """;
+  }
+
+  private static ApiHubRequirementRefs refs() {
+    return new ApiHubRequirementRefs(
+        "pkg-1", "2026.1", "post-order-status", "doc-1", "rest", "Orders", "Orders API");
+  }
+
+  private static ChainEditIntent rebindIntent() {
+    return new ChainEditIntent(
+        ChainEditAction.REBIND_SERVICE_CALL,
+        List.of(TARGET),
+        "point it at the order-status operation",
+        "order status",
+        List.of());
+  }
+
+  private static String intent(String action, String targets, String change) {
+    return "action: " + action + "\ntargets: " + targets + "\nchange: " + change
+        + "\nlookup:\nelementType:\nambiguous:\n";
+  }
+
+  private static List<String> scopedTargets(CompilerDagExecutionRequest request) {
+    return artifact(
+            request,
+            SkillArtifactType.GENERATOR_PLAN_MANIFEST,
+            SkillArtifactPayload.GeneratorPlanManifestPayload.class)
+        .manifest()
+        .plans()
+        .get(0)
+        .targetNodeIds();
   }
 
   private static Map<String, String> changedProperties(GraphPatch patch, String nodeId) {
@@ -365,7 +560,14 @@ class ChainEditCompilerTest {
                 "Call invoices",
                 null,
                 null,
-                List.of(new PlanProperty("integrationOperationId", "op-invoices")))),
+                List.of(new PlanProperty("integrationOperationId", "op-invoices"))),
+            new ChainPlanNode(
+                "normalize",
+                "script",
+                "Normalize payload",
+                null,
+                null,
+                List.of(new PlanProperty("script", "return 1")))),
         List.of(new ChainPlanEdge("edge-1", TARGET, UNRELATED, null)));
   }
 
@@ -406,7 +608,38 @@ class ChainEditCompilerTest {
     ResolvedCompilerDag dag =
         new ResolvedCompilerDag(
             List.of(
-                node(GENERATOR, "Generation", CompilerNodeExecutionMode.LLM_SKILL, null),
+                generator(
+                    GENERATOR,
+                    new GraphPatchOwnershipPolicy(
+                        true,
+                        true,
+                        Set.of("service-call", "http-sender"),
+                        Set.of(),
+                        Map.of("service-call", Set.of("integrationOperationId")))),
+                generator(
+                    "cip-script-generator",
+                    new GraphPatchOwnershipPolicy(
+                        true, true, Set.of("script"), Set.of(), Map.of("script", Set.of("script")))),
+                generator(
+                    "cip-auth-generator",
+                    new GraphPatchOwnershipPolicy(
+                        false,
+                        false,
+                        Set.of(),
+                        Set.of(),
+                        Map.of("service-call", Set.of("authorizationConfiguration")))),
+                generator(
+                    "cip-timeout-generator",
+                    new GraphPatchOwnershipPolicy(
+                        false, false, Set.of(), Set.of(), Map.of("http-trigger", Set.of("connectTimeout")))),
+                generator(
+                    "cip-retry-generator",
+                    new GraphPatchOwnershipPolicy(
+                        false,
+                        false,
+                        Set.of(),
+                        Set.of(),
+                        Map.of("service-call", Set.of("retryCount", "retryDelay")))),
                 node("cip-chain-assembler", "Assembly", CompilerNodeExecutionMode.JAVA_ADAPTER, "graph-assembly"),
                 node(
                     "cip-element-validator",
@@ -417,6 +650,27 @@ class ChainEditCompilerTest {
             "dag-digest");
     return new CompilerRunPin(
         "compiler-v2", "1.0.0", "package-digest", 2, "v1", "index-digest", dag, List.of(), Map.of(), Map.of(), List.of());
+  }
+
+  private static ResolvedCompilerNode generator(String skillId, GraphPatchOwnershipPolicy ownership) {
+    return new ResolvedCompilerNode(
+        skillId,
+        "Generation",
+        null,
+        List.of("CHAIN_PLAN_GRAPH"),
+        List.of("CHAIN_PLAN_GRAPH"),
+        List.of(),
+        "captureGraphPatch",
+        List.of(),
+        List.of(),
+        true,
+        List.of(),
+        0,
+        0,
+        true,
+        CompilerNodeExecutionMode.LLM_SKILL,
+        null,
+        ownership);
   }
 
   private static ResolvedCompilerNode node(

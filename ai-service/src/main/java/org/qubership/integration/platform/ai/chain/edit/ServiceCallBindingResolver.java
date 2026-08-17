@@ -7,7 +7,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubSearchHitParser;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportResult;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
@@ -34,12 +38,16 @@ public class ServiceCallBindingResolver {
 
   private final CatalogRestClient catalogRestClient;
   private final CatalogSystemReadTool readTool;
+  private final ApiHubMcpTools apiHub;
 
   @Inject
   public ServiceCallBindingResolver(
-      @RestClient CatalogRestClient catalogRestClient, CatalogSystemReadTool readTool) {
+      @RestClient CatalogRestClient catalogRestClient,
+      CatalogSystemReadTool readTool,
+      ApiHubMcpTools apiHub) {
     this.catalogRestClient = Objects.requireNonNull(catalogRestClient, "catalogRestClient");
     this.readTool = Objects.requireNonNull(readTool, "readTool");
+    this.apiHub = apiHub;
   }
 
   public ServiceCallBindingOutcome resolve(ChainPlanNode target, String query) {
@@ -50,10 +58,7 @@ public class ServiceCallBindingResolver {
       candidates = acrossServices(filter);
     }
     if (candidates.isEmpty()) {
-      return new ServiceCallBindingOutcome.NotFound(
-          "No operation in the local catalog matches '"
-              + filter
-              + "'. Name the service and the operation, or import the specification first.");
+      return outsideTheLocalCatalog(filter);
     }
     if (candidates.size() > 1) {
       return new ServiceCallBindingOutcome.Ambiguous(
@@ -61,6 +66,92 @@ public class ServiceCallBindingResolver {
           candidates.stream().limit(MAX_CANDIDATES).map(Candidate::describe).toList());
     }
     return new ServiceCallBindingOutcome.Resolved(candidates.get(0).toBinding(target.nodeId()));
+  }
+
+  /**
+   * What to say when the local catalog has nothing.
+   *
+   * <p>APIHub is asked, but only to name what an import would bring in. Importing a specification
+   * creates catalog artifacts the reader did not ask for, so it waits for them to say so.
+   */
+  private ServiceCallBindingOutcome outsideTheLocalCatalog(String filter) {
+    String plainMiss =
+        "No operation in the local catalog matches '"
+            + filter
+            + "'. Name the service and the operation, or import the specification first.";
+    if (apiHub == null || filter.isBlank()) {
+      return new ServiceCallBindingOutcome.NotFound(plainMiss);
+    }
+    ApiHubRequirementRefs refs;
+    try {
+      refs =
+          ApiHubSearchHitParser.parseImportCandidate(
+              apiHub.searchApiOperations(
+                  filter, ApiHubRequirementRefs.DEFAULT_API_TYPE, null, 0, 100, null),
+              ApiHubRequirementRefs.DEFAULT_API_TYPE,
+              null);
+    } catch (RuntimeException e) {
+      return new ServiceCallBindingOutcome.NotFound(plainMiss);
+    }
+    if (refs == null || !refs.hasImportableRefs()) {
+      return new ServiceCallBindingOutcome.NotFound(plainMiss);
+    }
+    return new ServiceCallBindingOutcome.EscalationRequired(
+        "'"
+            + filter
+            + "' is not in the local catalog. APIHub has "
+            + refs.specificationGroupName()
+            + " in package "
+            + refs.packageId()
+            + " at "
+            + refs.version()
+            + ". Importing it adds a service and a specification to the catalog.",
+        refs);
+  }
+
+  /**
+   * The complete binding for an operation that has just been imported.
+   *
+   * <p>The import answers with catalog ids; method, path, type and protocol are read back from the
+   * catalog rather than carried over from the APIHub hit, so the element describes what the catalog
+   * actually stored. An import that produced no operation id is reported as incomplete instead of
+   * being filled in.
+   */
+  public ServiceCallBindingOutcome fromImport(
+      String targetNodeId, ApiHubSpecificationImportResult result, String release) {
+    if (result == null || result.catalogOperationId().isEmpty()) {
+      return new ServiceCallBindingOutcome.NotFound(
+          "The import finished without naming an operation, so there is nothing to bind to.");
+    }
+    String operationId = result.catalogOperationId().orElseThrow();
+    CatalogRestClient.OperationDto operation;
+    try {
+      operation = catalogRestClient.getOperation(operationId);
+    } catch (RuntimeException e) {
+      operation = null;
+    }
+    CatalogRestClient.SystemDto system = system(result.systemId());
+    if (operation == null || system == null) {
+      return new ServiceCallBindingOutcome.NotFound(
+          "The imported specification does not describe operation '"
+              + operationId
+              + "' completely, so nothing was changed.");
+    }
+    return new ServiceCallBindingOutcome.Resolved(
+        new ResolvedServiceCallBinding(
+            targetNodeId,
+            Candidate.blankToDash(system.type()),
+            result.systemId(),
+            result.specificationGroupId(),
+            result.specificationId(),
+            operationId,
+            Candidate.blankToDash(system.protocol()),
+            Candidate.blankToDash(operation.method()),
+            Candidate.blankToDash(operation.path()),
+            operation.name(),
+            ResolvedServiceCallBinding.Source.APIHUB_IMPORT,
+            release,
+            "apihub-import:" + result.importId()));
   }
 
   /** The operation an element is bound to right now, if it has one. */
@@ -196,7 +287,7 @@ public class ServiceCallBindingResolver {
           "catalog:/v1/operations/" + operation.id());
     }
 
-    private static String blankToDash(String value) {
+    static String blankToDash(String value) {
       return value == null || value.isBlank() ? "-" : value.trim();
     }
   }

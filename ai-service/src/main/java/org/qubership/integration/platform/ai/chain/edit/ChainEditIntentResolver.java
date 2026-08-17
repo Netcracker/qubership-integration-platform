@@ -57,6 +57,7 @@ public class ChainEditIntentResolver {
     String targets = "";
     String change = "";
     String lookup = "";
+    String elementType = "";
     String ambiguous = "";
     for (String line : (reply == null ? "" : reply).split("\\R")) {
       String trimmed = line.trim();
@@ -71,6 +72,7 @@ public class ChainEditIntentResolver {
         case "targets" -> targets = value;
         case "change" -> change = value;
         case "lookup" -> lookup = value;
+        case "elementtype" -> elementType = value;
         case "ambiguous" -> ambiguous = value;
         default -> {
           // Any other line is prose the format did not ask for; the five keys carry the answer.
@@ -88,12 +90,13 @@ public class ChainEditIntentResolver {
       }
     }
     ChainEditAction parsedAction = toAction(action);
-    if (parsedAction == null) {
+    if (parsedAction == null || parsedAction == ChainEditAction.UNRESOLVED) {
       return new ChainEditIntent(
-          ChainEditAction.EDIT_CONFIGURATION,
+          ChainEditAction.UNRESOLVED,
           List.of(),
           change,
           blankToNull(lookup),
+          blankToNull(elementType),
           unresolved.isEmpty()
               ? List.of("Say what should change and on which element.")
               : List.copyOf(unresolved));
@@ -102,7 +105,12 @@ public class ChainEditIntentResolver {
       unresolved.add("Say which element to change.");
     }
     return new ChainEditIntent(
-        parsedAction, resolvedTargets, change, blankToNull(lookup), unresolved);
+        parsedAction,
+        resolvedTargets,
+        change,
+        blankToNull(lookup),
+        blankToNull(elementType),
+        unresolved);
   }
 
   private static ChainEditAction toAction(String value) {

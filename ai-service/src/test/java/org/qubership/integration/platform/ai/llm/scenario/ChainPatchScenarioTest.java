@@ -22,9 +22,11 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditAction;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditIntent;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditRequest;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditCompiler;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditEscalationStore;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditOutcome;
 import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
 import org.qubership.integration.platform.ai.chain.patch.ChainPatchCapture;
@@ -93,7 +95,7 @@ class ChainPatchScenarioTest {
     when(semanticValidator.introducedProblems(any(), any(), any())).thenReturn(List.of());
     editCompiler = mock(ChainEditCompiler.class);
     when(editCompiler.compile(any()))
-        .thenReturn(new ChainEditOutcome.Unsupported(ChainEditAction.EDIT_CONFIGURATION));
+        .thenReturn(new ChainEditOutcome.Unsupported(ChainEditAction.UNRESOLVED));
 
     scenario =
         new ChainPatchScenario(
@@ -101,6 +103,7 @@ class ChainPatchScenarioTest {
             factsService,
             new ChainPlanGraphImporter(objectMapper, new CanonicalGraphDigest(objectMapper)),
             editCompiler,
+            new ChainEditEscalationStore(),
             agent,
             patchStore,
             ownership,
@@ -434,6 +437,73 @@ class ChainPatchScenarioTest {
     assertTrue(text(events).contains("Get order status"), text(events));
   }
 
+  @Test
+  void offersAnImportAsItsOwnDecisionAndImportsNothingUntilItIsAnswered() {
+    when(editCompiler.compile(any()))
+        .thenReturn(
+            new ChainEditOutcome.Escalation(
+                "'order status' is not in the local catalog.",
+                new ChainEditIntent(
+                    ChainEditAction.REBIND_SERVICE_CALL,
+                    List.of("element-script"),
+                    "rebind",
+                    "order status",
+                    List.of()),
+                new ApiHubRequirementRefs(
+                    "pkg-1", "2026.1", "op-1", "doc-1", "rest", "Orders", "Orders API")));
+
+    List<ChatEvent> events = run(request("point the order call at the status operation"));
+
+    ChatEvent.Decision card = decision(events);
+    assertEquals(List.of(ChatEvent.IMPORT_ACTION), card.actions());
+    verify(editCompiler, never()).resumeAfterImport(any(), any(), any());
+    verify(writer, never()).write(any(), any());
+  }
+
+  @Test
+  void approvingTheImportResumesTheSameEdit() {
+    ChainEditIntent held =
+        new ChainEditIntent(
+            ChainEditAction.REBIND_SERVICE_CALL,
+            List.of("element-script"),
+            "rebind",
+            "order status",
+            List.of());
+    ApiHubRequirementRefs refs =
+        new ApiHubRequirementRefs("pkg-1", "2026.1", "op-1", "doc-1", "rest", "Orders", "Orders API");
+    when(editCompiler.compile(any()))
+        .thenReturn(new ChainEditOutcome.Escalation("not local", held, refs));
+    run(request("point the order call at the status operation"));
+    when(editCompiler.resumeAfterImport(any(), eq(held), eq(refs)))
+        .thenReturn(new ChainEditOutcome.ResolutionFailure("resumed"));
+
+    List<ChatEvent> events = run(approveImport());
+
+    verify(editCompiler).resumeAfterImport(any(), eq(held), eq(refs));
+    assertTrue(text(events).contains("resumed"), text(events));
+  }
+
+  @Test
+  void anImportAnsweredWithSomethingElseImportsNothing() {
+    when(editCompiler.compile(any()))
+        .thenReturn(
+            new ChainEditOutcome.Escalation(
+                "not local",
+                new ChainEditIntent(
+                    ChainEditAction.REBIND_SERVICE_CALL, List.of("element-script"), "rebind", null, List.of()),
+                new ApiHubRequirementRefs(
+                    "pkg-1", "2026.1", "op-1", "doc-1", "rest", "Orders", "Orders API")));
+    run(request("point the order call at the status operation"));
+
+    when(editCompiler.compile(any()))
+        .thenReturn(new ChainEditOutcome.Unsupported(ChainEditAction.UNRESOLVED));
+    run(request("actually, never mind — fix the script instead"));
+    List<ChatEvent> events = run(approveImport());
+
+    verify(editCompiler, never()).resumeAfterImport(any(), any(), any());
+    assertTrue(text(events).toLowerCase().contains("no change waiting"), text(events));
+  }
+
   private void compiles(PropertyPatch propertyPatch) {
     when(editCompiler.compile(any()))
         .thenAnswer(
@@ -584,6 +654,14 @@ class ChainPatchScenarioTest {
   private static ChatRequest request(String text) {
     ChatRequest request = new ChatRequest();
     request.setMessage(text);
+    return request;
+  }
+
+  private static ChatRequest approveImport() {
+    ChatRequest request = request("Import it");
+    ChatDecisionCommand command = new ChatDecisionCommand();
+    command.setAction(ChatEvent.IMPORT_ACTION);
+    request.setDecision(command);
     return request;
   }
 

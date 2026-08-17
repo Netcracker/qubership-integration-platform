@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.chain.edit;
 
 import java.util.List;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatch;
@@ -46,8 +47,15 @@ public sealed interface ChainEditOutcome {
   /** The compiler ran and refused the result: ownership, schema, or validation. */
   record CompilationFailure(String message) implements ChainEditOutcome {}
 
-  /** Going further would create catalog artifacts, which needs the reader to say so first. */
-  record Escalation(String message) implements ChainEditOutcome {}
+  /**
+   * Going further would create catalog artifacts, which needs the reader to say so first.
+   *
+   * <p>The intent travels with the escalation so that approving the import resumes this edit,
+   * against this graph and this target, rather than re-reading a request the conversation has
+   * moved past.
+   */
+  record Escalation(String message, ChainEditIntent intent, ApiHubRequirementRefs refs)
+      implements ChainEditOutcome {}
 
   /**
    * No compiler skill owns this edit yet, so the caller falls back to the model-authored patch path.

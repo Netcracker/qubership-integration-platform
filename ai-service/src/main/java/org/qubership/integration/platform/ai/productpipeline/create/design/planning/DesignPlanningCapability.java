@@ -186,7 +186,8 @@ public class DesignPlanningCapability implements StageCapability {
                     "design planning requires committed input ref for " + kind.name()));
   }
 
-  static String toApiRelease(String languageVersion) {
+  /** The API release an edit or a build targets, derived from the chain's language version. */
+  public static String toApiRelease(String languageVersion) {
     if (languageVersion == null || languageVersion.isBlank()) {
       return "UNSPECIFIED";
     }

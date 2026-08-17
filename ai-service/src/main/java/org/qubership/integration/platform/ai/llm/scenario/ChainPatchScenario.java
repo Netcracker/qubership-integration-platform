@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditCompiler;
+import org.qubership.integration.platform.ai.chain.edit.ChainEditEscalationStore;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditOutcome;
 import org.qubership.integration.platform.ai.chain.edit.ChainEditRequest;
 import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
@@ -61,6 +62,7 @@ public class ChainPatchScenario implements ScenarioHandler {
   private final ChainCatalogFactsService factsService;
   private final ChainPlanGraphImporter importer;
   private final ChainEditCompiler editCompiler;
+  private final ChainEditEscalationStore escalationStore;
   private final ChainPatchAgent agent;
   private final ChainPatchStore patchStore;
   private final ChainPatchOwnership ownership;
@@ -77,6 +79,7 @@ public class ChainPatchScenario implements ScenarioHandler {
       ChainCatalogFactsService factsService,
       ChainPlanGraphImporter importer,
       ChainEditCompiler editCompiler,
+      ChainEditEscalationStore escalationStore,
       ChainPatchAgent agent,
       ChainPatchStore patchStore,
       ChainPatchOwnership ownership,
@@ -90,6 +93,7 @@ public class ChainPatchScenario implements ScenarioHandler {
     this.factsService = Objects.requireNonNull(factsService);
     this.importer = Objects.requireNonNull(importer);
     this.editCompiler = Objects.requireNonNull(editCompiler);
+    this.escalationStore = Objects.requireNonNull(escalationStore);
     this.agent = Objects.requireNonNull(agent);
     this.patchStore = Objects.requireNonNull(patchStore);
     this.ownership = Objects.requireNonNull(ownership);
@@ -107,6 +111,9 @@ public class ChainPatchScenario implements ScenarioHandler {
     ChatDecisionCommand decision = request == null ? null : request.getDecision();
     if (decision != null && ChatEvent.APPLY_CHAIN_PATCH_ACTION.equals(decision.getAction())) {
       return applyAnsweredPatch(conversationId, decision);
+    }
+    if (decision != null && ChatEvent.IMPORT_ACTION.equals(decision.getAction())) {
+      return resumeAfterImport(conversationId);
     }
     return proposePatch(request, conversationId);
   }
@@ -129,8 +136,10 @@ public class ChainPatchScenario implements ScenarioHandler {
     }
 
     // The capture is cleared first so a turn that proposes nothing cannot answer with the last one.
+    // An unanswered import escalation goes with it: declining it is saying something else next.
     patchStore.takeCapture(conversationId);
     patchStore.clearProposal(conversationId);
+    escalationStore.clear(conversationId);
 
     String userMessage = request == null ? "" : request.getEffectiveUserText();
 
@@ -210,10 +219,60 @@ public class ChainPatchScenario implements ScenarioHandler {
                   : question + "\n" + choices.stream().map(c -> "- " + c).collect(joining("\n")));
       case ChainEditOutcome.ResolutionFailure(String text) -> message(text);
       case ChainEditOutcome.CompilationFailure(String text) -> message(text);
-      case ChainEditOutcome.Escalation(String text) -> message(text);
+      case ChainEditOutcome.Escalation escalation -> escalate(conversationId, chainId, escalation);
       case ChainEditOutcome.Unsupported ignored ->
           message("I cannot make that change here yet.");
     };
+  }
+
+  /**
+   * Offers the import as its own decision, and holds the edit until it is answered.
+   *
+   * <p>An import is a real change to the catalog, so it gets a decision rather than prose. Nothing
+   * happens if the reader says nothing: the next turn clears the hold and starts over.
+   */
+  private Multi<ChatEvent> escalate(
+      String conversationId, String chainId, ChainEditOutcome.Escalation escalation) {
+    String candidateId =
+        escalation.refs().packageId() + ":" + escalation.refs().version();
+    escalationStore.put(
+        conversationId,
+        new ChainEditEscalationStore.PendingChainEdit(
+            chainId, "", escalation.intent(), escalation.refs(), candidateId));
+    return Multi.createFrom()
+        .item(
+            ChatEvent.importDecision(
+                candidateId,
+                escalation.message() + " Import it and continue with the change?"));
+  }
+
+  /** Continues the held edit once the reader has approved the import. */
+  private Multi<ChatEvent> resumeAfterImport(String conversationId) {
+    ChainEditEscalationStore.PendingChainEdit pendingEdit =
+        escalationStore.take(conversationId).orElse(null);
+    if (pendingEdit == null) {
+      return message("There is no change waiting on an import. Say what to change.");
+    }
+    ImportedChainPlan imported;
+    try {
+      imported = importer.importChain(factsService.load(pendingEdit.chainId()));
+    } catch (RuntimeException e) {
+      LOG.errorf(e, "Chain read failed conversationId=%s chainId=%s", conversationId, pendingEdit.chainId());
+      return Multi.createFrom()
+          .item(ChatEvent.error("Failed to read chain from catalog: " + e.getMessage()));
+    }
+    ChainEditOutcome resumed =
+        editCompiler.resumeAfterImport(
+            new ChainEditRequest(
+                conversationId,
+                pendingEdit.chainId(),
+                conversationId + "-edit-" + UUID.randomUUID(),
+                imported,
+                pendingEdit.userRequest(),
+                null),
+            pendingEdit.intent(),
+            pendingEdit.refs());
+    return fromCompiler(conversationId, pendingEdit.chainId(), imported, resumed);
   }
 
   private Multi<ChatEvent> offer(

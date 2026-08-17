@@ -16,10 +16,25 @@ public record ChainEditIntent(
     List<String> targetNodeIds,
     String requestedChange,
     String externalBindingQuery,
+    String requestedElementType,
     List<String> unresolvedAmbiguities) {
+
+  /** An edit of elements the chain already has, without a requested element type. */
+  public ChainEditIntent(
+      ChainEditAction action,
+      List<String> targetNodeIds,
+      String requestedChange,
+      String externalBindingQuery,
+      List<String> unresolvedAmbiguities) {
+    this(action, targetNodeIds, requestedChange, externalBindingQuery, null, unresolvedAmbiguities);
+  }
 
   public ChainEditIntent {
     Objects.requireNonNull(action, "action");
+    requestedElementType =
+        requestedElementType == null || requestedElementType.isBlank()
+            ? null
+            : requestedElementType.trim();
     targetNodeIds = targetNodeIds == null ? List.of() : List.copyOf(targetNodeIds);
     requestedChange = requestedChange == null ? "" : requestedChange;
     externalBindingQuery =
@@ -31,6 +46,8 @@ public record ChainEditIntent(
   }
 
   public boolean resolved() {
-    return unresolvedAmbiguities.isEmpty() && !targetNodeIds.isEmpty();
+    return action != ChainEditAction.UNRESOLVED
+        && unresolvedAmbiguities.isEmpty()
+        && !targetNodeIds.isEmpty();
   }
 }

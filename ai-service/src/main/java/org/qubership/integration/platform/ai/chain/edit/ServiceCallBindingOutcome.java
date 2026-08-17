@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.chain.edit;
 
 import java.util.List;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 
 /** What resolving a service-call operation against the local catalog produced. */
 public sealed interface ServiceCallBindingOutcome {
@@ -24,6 +25,10 @@ public sealed interface ServiceCallBindingOutcome {
   /**
    * A match exists only outside the local catalog, and importing it would create catalog artifacts.
    * That needs the reader to say so first.
+   *
+   * <p>{@code refs} identify what APIHub would import. They are not a catalog identity: nothing
+   * here names a catalog system, specification or operation, because none of those exist yet.
    */
-  record EscalationRequired(String message) implements ServiceCallBindingOutcome {}
+  record EscalationRequired(String message, ApiHubRequirementRefs refs)
+      implements ServiceCallBindingOutcome {}
 }

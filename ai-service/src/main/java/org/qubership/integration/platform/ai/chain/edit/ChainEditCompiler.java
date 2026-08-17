@@ -3,12 +3,15 @@ package org.qubership.integration.platform.ai.chain.edit;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlan;
+import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
+import org.qubership.integration.platform.ai.integration.catalog.materialize.ApiHubSpecificationImportResult;
+import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
+import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanningCapability;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanStatus;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -49,25 +52,24 @@ public class ChainEditCompiler {
 
   private static final Logger LOG = Logger.getLogger(ChainEditCompiler.class);
 
-  /** Which compiler skill owns which edit. Entries arrive as each edit kind is migrated. */
-  private static final Map<ChainEditAction, String> OWNING_GENERATOR =
-      Map.of(ChainEditAction.REBIND_SERVICE_CALL, "cip-service-call-generator");
-
   private final ChainEditIntentResolver intentResolver;
   private final ServiceCallBindingResolver bindingResolver;
   private final CompilerDagExecutionEngine engine;
   private final CompilerRunPinResolver runPinResolver;
   private final ProductPipelineProfileCatalog profileCatalog;
   private final KnowledgeContextProvider knowledgeContextProvider;
+  private final CatalogMutationGateway catalogMutationGateway;
 
   @Inject
+  @SuppressWarnings("java:S107")
   public ChainEditCompiler(
       ChainEditIntentResolver intentResolver,
       ServiceCallBindingResolver bindingResolver,
       CompilerDagExecutionEngine engine,
       CompilerRunPinResolver runPinResolver,
       ProductPipelineProfileCatalog profileCatalog,
-      KnowledgeContextProvider knowledgeContextProvider) {
+      KnowledgeContextProvider knowledgeContextProvider,
+      CatalogMutationGateway catalogMutationGateway) {
     this.intentResolver = Objects.requireNonNull(intentResolver, "intentResolver");
     this.bindingResolver = Objects.requireNonNull(bindingResolver, "bindingResolver");
     this.engine = Objects.requireNonNull(engine, "engine");
@@ -75,6 +77,46 @@ public class ChainEditCompiler {
     this.profileCatalog = Objects.requireNonNull(profileCatalog, "profileCatalog");
     this.knowledgeContextProvider =
         Objects.requireNonNull(knowledgeContextProvider, "knowledgeContextProvider");
+    this.catalogMutationGateway = catalogMutationGateway;
+  }
+
+  /**
+   * Imports the specification the reader approved, then continues the edit they were shown.
+   *
+   * <p>The release comes from the chain's own language version through the same mapping CREATE
+   * uses, so an edit does not pull in a release the chain cannot run against. An import that comes
+   * back without a complete operation is reported rather than patched over.
+   */
+  public ChainEditOutcome resumeAfterImport(
+      ChainEditRequest request, ChainEditIntent intent, ApiHubRequirementRefs refs) {
+    if (catalogMutationGateway == null) {
+      return new ChainEditOutcome.ResolutionFailure(
+          "Importing a specification is not available here, so nothing was changed.");
+    }
+    ApiHubSpecificationImportResult imported;
+    try {
+      imported =
+          catalogMutationGateway
+              .importApiHubSpecification(request.conversationId(), refs)
+              .await()
+              .indefinitely();
+    } catch (RuntimeException e) {
+      LOG.errorf(e, "APIHub import failed conversationId=%s", request.conversationId());
+      return new ChainEditOutcome.ResolutionFailure(
+          "The specification could not be imported, so the chain is unchanged: " + e.getMessage());
+    }
+    ServiceCallBindingOutcome bound =
+        bindingResolver.fromImport(
+            intent.targetNodeIds().get(0),
+            imported,
+            DesignPlanningCapability.toApiRelease(request.languageVersion()));
+    if (bound instanceof ServiceCallBindingOutcome.Resolved(ResolvedServiceCallBinding binding)) {
+      return compile(request, intent, binding);
+    }
+    return new ChainEditOutcome.ResolutionFailure(
+        bound instanceof ServiceCallBindingOutcome.NotFound(String message)
+            ? message
+            : "The imported specification did not resolve to one operation.");
   }
 
   public ChainEditOutcome compile(ChainEditRequest request) {
@@ -85,46 +127,88 @@ public class ChainEditCompiler {
       return new ChainEditOutcome.Clarification(
           "I need one more thing before I change anything.", intent.unresolvedAmbiguities());
     }
-    String generatorSkillId = OWNING_GENERATOR.get(intent.action());
+    return compile(request, intent, null);
+  }
+
+  /**
+   * Compiles an already-resolved intent, optionally with a binding resolved elsewhere.
+   *
+   * <p>An edit held for an APIHub import resumes here: the imported chain, the intent and the
+   * target are the ones the reader saw, so approving the import continues the same edit instead of
+   * starting a new one from words that have since scrolled away.
+   */
+  public ChainEditOutcome compile(
+      ChainEditRequest request, ChainEditIntent intent, ResolvedServiceCallBinding importedBinding) {
+    ImportedChainPlan imported = request.imported();
+    CompilerRunPin pin;
+    try {
+      pin = resolvePin(request.conversationId());
+    } catch (RuntimeException e) {
+      LOG.errorf(e, "Compiler pin unavailable conversationId=%s", request.conversationId());
+      return new ChainEditOutcome.CompilationFailure(
+          "The compiler package this edit needs is unavailable: " + e.getMessage());
+    }
+
+    String generatorSkillId =
+        ChainEditCapabilitySelection.owningSkillId(pin.resolvedDag(), intent).orElse(null);
     if (generatorSkillId == null) {
       return new ChainEditOutcome.Unsupported(intent.action());
     }
 
-    ChainPlanNode target = node(imported.graph(), intent.targetNodeIds().get(0));
-    if (target == null) {
+    List<String> scopedTargets =
+        ChainEditCapabilitySelection.scopedTargets(
+            pin.resolvedDag(), generatorSkillId, intent, imported.graph());
+    if (scopedTargets.isEmpty()) {
       return new ChainEditOutcome.ResolutionFailure(
-          "The chain has no element '" + intent.targetNodeIds().get(0) + "'.");
+          "No element in that request is one " + generatorSkillId + " may change.");
     }
+    ChainEditIntent scoped =
+        new ChainEditIntent(
+            intent.action(),
+            scopedTargets,
+            intent.requestedChange(),
+            intent.externalBindingQuery(),
+            intent.requestedElementType(),
+            List.of());
 
     List<ResolvedServiceCallBinding> bindings;
-    ServiceCallBindingOutcome resolved =
-        bindingResolver.resolve(
-            target,
-            intent.externalBindingQuery() == null
-                ? intent.requestedChange()
-                : intent.externalBindingQuery());
-    switch (resolved) {
-      case ServiceCallBindingOutcome.Resolved(ResolvedServiceCallBinding binding) ->
-          bindings = List.of(binding);
-      case ServiceCallBindingOutcome.Ambiguous(String question, List<String> candidates) -> {
-        return new ChainEditOutcome.Clarification(question, candidates);
+    if (importedBinding != null) {
+      bindings = List.of(importedBinding);
+    } else if (scoped.action() == ChainEditAction.REBIND_SERVICE_CALL) {
+      ChainPlanNode target = node(imported.graph(), scopedTargets.get(0));
+      ServiceCallBindingOutcome resolved =
+          bindingResolver.resolve(
+              target,
+              scoped.externalBindingQuery() == null
+                  ? scoped.requestedChange()
+                  : scoped.externalBindingQuery());
+      switch (resolved) {
+        case ServiceCallBindingOutcome.Resolved(ResolvedServiceCallBinding binding) ->
+            bindings = List.of(binding);
+        case ServiceCallBindingOutcome.Ambiguous(String question, List<String> candidates) -> {
+          return new ChainEditOutcome.Clarification(question, candidates);
+        }
+        case ServiceCallBindingOutcome.NotFound(String message) -> {
+          return new ChainEditOutcome.ResolutionFailure(message);
+        }
+        case ServiceCallBindingOutcome.EscalationRequired(String message, ApiHubRequirementRefs refs) -> {
+          return new ChainEditOutcome.Escalation(message, scoped, refs);
+        }
       }
-      case ServiceCallBindingOutcome.NotFound(String message) -> {
-        return new ChainEditOutcome.ResolutionFailure(message);
-      }
-      case ServiceCallBindingOutcome.EscalationRequired(String message) -> {
-        return new ChainEditOutcome.Escalation(message);
-      }
+    } else {
+      bindings = List.of();
     }
 
-    return runCompiler(request, intent, bindings, generatorSkillId);
+    return runCompiler(request, scoped, bindings, generatorSkillId, pin);
   }
 
+  @SuppressWarnings("java:S107")
   private ChainEditOutcome runCompiler(
       ChainEditRequest request,
       ChainEditIntent intent,
       List<ResolvedServiceCallBinding> bindings,
-      String generatorSkillId) {
+      String generatorSkillId,
+      CompilerRunPin pin) {
     ImportedChainPlan imported = request.imported();
     String runId = request.editRunId();
     CompilerExecutionSeed seed =
@@ -137,15 +221,6 @@ public class ChainEditCompiler {
                 bindings,
                 Set.of())
             .with(targetScopedPlan(generatorSkillId, intent));
-
-    CompilerRunPin pin;
-    try {
-      pin = resolvePin(request.conversationId());
-    } catch (RuntimeException e) {
-      LOG.errorf(e, "Compiler pin unavailable conversationId=%s", request.conversationId());
-      return new ChainEditOutcome.CompilationFailure(
-          "The compiler package this edit needs is unavailable: " + e.getMessage());
-    }
 
     ResolvedCompilerDag dag;
     try {

@@ -10,11 +10,18 @@ Your whole job is two questions: which action, and which elements.
 
 - `REBIND_SERVICE_CALL` — point a service call at a different operation, service, or specification.
 - `EDIT_SCRIPT` — change what a script element does.
-- `EDIT_CONFIGURATION` — change timeout, retry, authentication, or security settings on an element.
+- `EDIT_AUTHENTICATION` — change how an element authenticates.
+- `EDIT_TIMEOUT` — change how long an element waits.
+- `EDIT_RETRY` — change how an element retries.
+- `EDIT_SECURITY` — change an element's security settings.
 - `ADD_ELEMENTS` — add elements to the chain.
 - `DELETE` — remove elements.
 - `DISCONNECT` — cut a connection but keep the elements.
 - `REORDER` — change the priority order of branches.
+
+Pick the action by what the request changes, not by the words it arrives in. "Give it three more
+tries" is `EDIT_RETRY`; "it gives up too fast" may be either `EDIT_TIMEOUT` or `EDIT_RETRY`, and
+when you cannot tell, ask instead of choosing.
 
 ## Targets
 
@@ -22,14 +29,18 @@ Name element ids from the graph, exactly as written there. A request that fits s
 none, is not resolved: list what it could mean under `ambiguous` and leave `targets` empty. Guessing
 which element a reader meant is the one mistake here that changes the wrong thing in their chain.
 
+For `ADD_ELEMENTS`, the targets are the existing elements the new one goes next to, and
+`elementType` is the catalog element type to add.
+
 ## Reply format
 
-Reply with these five lines and nothing else. Leave a line's value empty when it does not apply.
+Reply with these six lines and nothing else. Leave a line's value empty when it does not apply.
 
 ```
 action: <one action name, or empty when none fits>
 targets: <comma-separated element ids>
 change: <one sentence saying what should be different>
 lookup: <what to search the catalog for, when the request names something outside the chain>
+elementType: <catalog element type to add, for ADD_ELEMENTS only>
 ambiguous: <semicolon-separated candidates, or the question to ask>
 ```
