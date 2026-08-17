@@ -141,4 +141,90 @@ class KubeOperatorTest {
 
         verify(customObjectsApi).createNamespacedCustomObject(eq(GROUP), eq(VERSION), eq(NAMESPACE), eq(PLURAL), any());
     }
+
+    @Test
+    void createOrUpdateResourceAppliesParsedServiceEntryWithoutGenericCustomResources() throws Exception {
+        String istioGroup = "networking.istio.io";
+        String istioVersion = "v1";
+        String plural = "serviceentries";
+        String name = "api-example-com-a1b2c3d4";
+        ModelMapper.addModelMap(istioGroup, istioVersion, "ServiceEntry", plural, KubeCustomObject.class, KubeCustomObjectList.class);
+        String serviceEntryYaml = "apiVersion: " + istioGroup + "/" + istioVersion + "\n"
+                + "kind: ServiceEntry\n"
+                + "metadata:\n"
+                + "  name: " + name + "\n"
+                + "spec:\n"
+                + "  hosts:\n"
+                + "    - api.example.com\n"
+                + "  location: MESH_EXTERNAL\n"
+                + "  resolution: DNS\n"
+                + "  ports:\n"
+                + "    - number: 443\n"
+                + "      name: https\n"
+                + "      protocol: HTTPS\n";
+        List<Object> parsed = Yaml.loadAll(serviceEntryYaml);
+        assertEquals(1, parsed.size());
+        Object resource = parsed.get(0);
+        assertTrue(resource instanceof KubeCustomObject);
+
+        CustomObjectsApi.APIlistNamespacedCustomObjectRequest listRequest =
+                mock(CustomObjectsApi.APIlistNamespacedCustomObjectRequest.class);
+        when(customObjectsApi.listNamespacedCustomObject(istioGroup, istioVersion, NAMESPACE, plural)).thenReturn(listRequest);
+        Map<String, Object> emptyList = new LinkedHashMap<>();
+        emptyList.put("items", List.of());
+        when(listRequest.execute()).thenReturn(emptyList);
+
+        CustomObjectsApi.APIcreateNamespacedCustomObjectRequest createRequest =
+                mock(CustomObjectsApi.APIcreateNamespacedCustomObjectRequest.class);
+        when(customObjectsApi.createNamespacedCustomObject(eq(istioGroup), eq(istioVersion), eq(NAMESPACE), eq(plural), any()))
+                .thenReturn(createRequest);
+        when(createRequest.execute()).thenReturn(new Object());
+
+        assertDoesNotThrow(() -> kubeOperator.createOrUpdateResource(resource));
+
+        verify(customObjectsApi).createNamespacedCustomObject(eq(istioGroup), eq(istioVersion), eq(NAMESPACE), eq(plural), any());
+    }
+
+    @Test
+    void createOrUpdateResourceAppliesParsedDestinationRuleWithoutGenericCustomResources() throws Exception {
+        String istioGroup = "networking.istio.io";
+        String istioVersion = "v1";
+        String plural = "destinationrules";
+        String name = "api-example-com-a1b2c3d4";
+        ModelMapper.addModelMap(istioGroup, istioVersion, "DestinationRule", plural, KubeCustomObject.class, KubeCustomObjectList.class);
+        String destinationRuleYaml = "apiVersion: " + istioGroup + "/" + istioVersion + "\n"
+                + "kind: DestinationRule\n"
+                + "metadata:\n"
+                + "  name: " + name + "\n"
+                + "spec:\n"
+                + "  host: api.example.com\n"
+                + "  trafficPolicy:\n"
+                + "    portLevelSettings:\n"
+                + "      - port:\n"
+                + "          number: 443\n"
+                + "        tls:\n"
+                + "          mode: SIMPLE\n"
+                + "          sni: api.example.com\n";
+        List<Object> parsed = Yaml.loadAll(destinationRuleYaml);
+        assertEquals(1, parsed.size());
+        Object resource = parsed.get(0);
+        assertTrue(resource instanceof KubeCustomObject);
+
+        CustomObjectsApi.APIlistNamespacedCustomObjectRequest listRequest =
+                mock(CustomObjectsApi.APIlistNamespacedCustomObjectRequest.class);
+        when(customObjectsApi.listNamespacedCustomObject(istioGroup, istioVersion, NAMESPACE, plural)).thenReturn(listRequest);
+        Map<String, Object> emptyList = new LinkedHashMap<>();
+        emptyList.put("items", List.of());
+        when(listRequest.execute()).thenReturn(emptyList);
+
+        CustomObjectsApi.APIcreateNamespacedCustomObjectRequest createRequest =
+                mock(CustomObjectsApi.APIcreateNamespacedCustomObjectRequest.class);
+        when(customObjectsApi.createNamespacedCustomObject(eq(istioGroup), eq(istioVersion), eq(NAMESPACE), eq(plural), any()))
+                .thenReturn(createRequest);
+        when(createRequest.execute()).thenReturn(new Object());
+
+        assertDoesNotThrow(() -> kubeOperator.createOrUpdateResource(resource));
+
+        verify(customObjectsApi).createNamespacedCustomObject(eq(istioGroup), eq(istioVersion), eq(NAMESPACE), eq(plural), any());
+    }
 }

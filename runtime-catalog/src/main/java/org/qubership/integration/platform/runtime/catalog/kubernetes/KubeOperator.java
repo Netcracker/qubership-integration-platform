@@ -59,6 +59,12 @@ public class KubeOperator {
     private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
     private static final String GATEWAY_API_VERSION = "v1";
     private static final String HTTP_ROUTES_PLURAL = "httproutes";
+    private static final String SERVICE_ENTRY_KIND = "ServiceEntry";
+    private static final String DESTINATION_RULE_KIND = "DestinationRule";
+    private static final String ISTIO_NETWORKING_API_GROUP = "networking.istio.io";
+    private static final String ISTIO_NETWORKING_API_VERSION = "v1";
+    private static final String SERVICE_ENTRIES_PLURAL = "serviceentries";
+    private static final String DESTINATION_RULES_PLURAL = "destinationrules";
     private final CoreV1Api coreApi;
     private final AppsV1Api appsApi;
     private final CustomObjectsApi customObjectsApi;
@@ -198,6 +204,16 @@ public class KubeOperator {
             log.debug("Applying {} name={}", customObject.getKind(), getName(customObject).orElse(""));
             createOrUpdateCustomResource(GATEWAY_API_GROUP, GATEWAY_API_VERSION, HTTP_ROUTES_PLURAL, customObject,
                     new TypeToken<KubeCustomObjectList>() {}.getType(), true);
+        } else if (resource instanceof KubeCustomObject customObject && SERVICE_ENTRY_KIND.equals(customObject.getKind())) {
+            // Same rationale as HTTPRoute above: handled directly, not through GenericCustomResources.
+            log.debug("Applying {} name={}", customObject.getKind(), getName(customObject).orElse(""));
+            createOrUpdateCustomResource(ISTIO_NETWORKING_API_GROUP, ISTIO_NETWORKING_API_VERSION, SERVICE_ENTRIES_PLURAL,
+                    customObject, new TypeToken<KubeCustomObjectList>() {}.getType(), true);
+        } else if (resource instanceof KubeCustomObject customObject && DESTINATION_RULE_KIND.equals(customObject.getKind())) {
+            // Same rationale as HTTPRoute above: handled directly, not through GenericCustomResources.
+            log.debug("Applying {} name={}", customObject.getKind(), getName(customObject).orElse(""));
+            createOrUpdateCustomResource(ISTIO_NETWORKING_API_GROUP, ISTIO_NETWORKING_API_VERSION, DESTINATION_RULES_PLURAL,
+                    customObject, new TypeToken<KubeCustomObjectList>() {}.getType(), true);
         } else if (resource instanceof KubeCustomObject customObject) {
             GenericCustomResources.CustomResourceDefinition resourceDefinition =
                 Optional.ofNullable(genericCustomResources)
