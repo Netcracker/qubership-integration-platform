@@ -42,6 +42,8 @@ export type TestingFilterSelection = {
 
 export const TESTING_CHAIN_FEATURE = "chain_id";
 export const TESTING_ELEMENT_FEATURE = "element_id";
+/** Feature carrying the run a case run belongs to. */
+export const TESTING_TESTS_RUN_FEATURE = "tests_run_id";
 
 /** Columns whose values are names; the ids they resolve to go on the wire. */
 export const TESTING_CHAIN_NAME_COLUMN = "chain_name";

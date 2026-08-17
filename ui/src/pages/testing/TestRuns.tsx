@@ -1,13 +1,5 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Flex, Table } from "antd";
-import type { TableProps } from "antd/lib/table";
-import type { TableRowSelection } from "antd/lib/table/interface";
 import { useNavigate } from "react-router";
 import { api } from "../../api/api.ts";
 import {
@@ -32,6 +24,7 @@ import { RunStatusTag } from "../../components/testing/TestingTags.tsx";
 import { TestRunDrawer } from "../../components/testing/TestRunDrawer.tsx";
 import { useTestingFilter } from "../../hooks/filter/useTestingFilter.ts";
 import {
+  TESTING_SELECTION_COLUMN_WIDTH,
   testsRunsListSource,
   useTestingEntityList,
 } from "../../hooks/testing/useTestingEntityList.ts";
@@ -39,10 +32,7 @@ import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { useTableInfiniteScroll } from "../../hooks/useTableInfiniteScroll.ts";
 import { confirmAndRun } from "../../misc/confirm-utils.ts";
 import { formatOptional, formatTimestamp } from "../../misc/format-utils.ts";
-import { toStringIds } from "../../misc/selection-utils.ts";
 import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
-
-const SELECTION_COLUMN_WIDTH = 48;
 
 const COLUMN_WIDTHS = {
   id: 260,
@@ -57,9 +47,6 @@ const COLUMN_WIDTHS = {
   updated_by: 130,
 };
 
-/** Selection option that reaches past the loaded page; resolved server-side. */
-const SELECT_ALL_MATCHING_KEY = "all-matching";
-
 /** The list is routed under admin tools alone, so every path is an admin one. */
 const SECTION_PATH = "/admintools/testing/test-runs";
 
@@ -67,13 +54,6 @@ export const TestRuns: React.FC = () => {
   const navigate = useNavigate();
   const notificationService = useNotificationService();
   const [searchString, setSearchString] = useState("");
-  // Newest first: a run set is read from the latest attempt backwards.
-  const [sortBy, setSortBy] = useState<string | undefined>("start");
-  const [sortOrder, setSortOrder] = useState<TestingSortOrder | undefined>(
-    TestingSortOrder.DESC,
-  );
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [selectAllMatching, setSelectAllMatching] = useState(false);
   const [detailsRun, setDetailsRun] = useState<TestsRunView | null>(null);
   const tableWrapperRef = useRef<HTMLDivElement>(null);
 
@@ -86,41 +66,23 @@ export const TestRuns: React.FC = () => {
     allLoaded,
     loadMore,
     refresh,
-    resolveTargetIds,
     exportEntities,
+    handleTableChange,
+    selectedRowKeys,
+    selectAllMatching,
+    rowSelection,
+    clearSelection,
+    collectTargetIds,
   } = useTestingEntityList<TestsRunView>({
     source: testsRunsListSource,
     filters,
     searchString,
-    sortBy,
-    sortOrder,
+    // Newest first: a run set is read from the latest attempt backwards.
+    initialSortBy: "start",
+    initialSortOrder: TestingSortOrder.DESC,
   });
 
   useTableInfiniteScroll(tableWrapperRef, { isLoading, allLoaded, loadMore });
-
-  const clearSelection = useCallback(() => {
-    setSelectedRowKeys([]);
-    setSelectAllMatching(false);
-  }, []);
-
-  // Rows picked under one selection are not the rows the next one holds, so the
-  // choice does not survive a change to the filters, the search or the sort.
-  useEffect(() => {
-    clearSelection();
-  }, [filters, searchString, sortBy, sortOrder, clearSelection]);
-
-  // A selection reaching past the loaded page covers the rows a later page
-  // brings in, so their checkboxes follow it.
-  useEffect(() => {
-    if (selectAllMatching) {
-      setSelectedRowKeys(items.map((item) => item.id));
-    }
-  }, [items, selectAllMatching]);
-
-  const collectTargetIds = useCallback(
-    () => resolveTargetIds(toStringIds(selectedRowKeys), selectAllMatching),
-    [resolveTargetIds, selectedRowKeys, selectAllMatching],
-  );
 
   const handleRefresh = useCallback(() => {
     clearSelection();
@@ -322,44 +284,8 @@ export const TestRuns: React.FC = () => {
 
   const { columnsWithResize, scrollX, components } =
     useColumnsWithResizeAndScroll(orderedColumns, COLUMN_WIDTHS, {
-      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
+      selectionColumnWidth: TESTING_SELECTION_COLUMN_WIDTH,
     });
-
-  const handleTableChange = useCallback<
-    NonNullable<TableProps<TestsRunView>["onChange"]>
-  >((_pagination, _tableFilters, sorter) => {
-    const { columnKey, order } = Array.isArray(sorter) ? sorter[0] : sorter;
-    setSortBy(order ? String(columnKey) : undefined);
-    setSortOrder(
-      order === "descend"
-        ? TestingSortOrder.DESC
-        : order === "ascend"
-          ? TestingSortOrder.ASC
-          : undefined,
-    );
-  }, []);
-
-  const rowSelection: TableRowSelection<TestsRunView> = {
-    type: "checkbox",
-    selectedRowKeys,
-    onChange: (keys) => {
-      setSelectedRowKeys(keys);
-      setSelectAllMatching(false);
-    },
-    selections: allLoaded
-      ? undefined
-      : [
-          Table.SELECTION_ALL,
-          Table.SELECTION_NONE,
-          {
-            key: SELECT_ALL_MATCHING_KEY,
-            text: "Select all that match the filters",
-            onSelect: () => {
-              setSelectAllMatching(true);
-            },
-          },
-        ],
-  };
 
   const toolbarActions = useMemo(
     () => (
@@ -421,19 +347,22 @@ export const TestRuns: React.FC = () => {
     ],
   );
 
-  const toolbar = (
-    <TableToolbar
-      variant="admin"
-      search={{
-        value: searchString,
-        onChange: setSearchString,
-        placeholder: "Search test runs...",
-        allowClear: true,
-      }}
-      filterButton={filterButton}
-      columnSettingsButton={columnSettingsButton}
-      actions={toolbarActions}
-    />
+  const toolbar = useMemo(
+    () => (
+      <TableToolbar
+        variant="admin"
+        search={{
+          value: searchString,
+          onChange: setSearchString,
+          placeholder: "Search test runs...",
+          allowClear: true,
+        }}
+        filterButton={filterButton}
+        columnSettingsButton={columnSettingsButton}
+        actions={toolbarActions}
+      />
+    ),
+    [searchString, filterButton, columnSettingsButton, toolbarActions],
   );
 
   return (

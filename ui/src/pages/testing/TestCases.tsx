@@ -1,16 +1,8 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Flex, Table } from "antd";
-import type { TableProps } from "antd/lib/table";
-import type { TableRowSelection } from "antd/lib/table/interface";
 import { useNavigate, useParams } from "react-router";
 import { api } from "../../api/api.ts";
-import { TestCaseView, TestingSortOrder } from "../../api/apiTypes.ts";
+import { TestCaseView } from "../../api/apiTypes.ts";
 import { AdminToolsHeader } from "../../components/admin_tools/AdminToolsHeader.tsx";
 import commonStyles from "../../components/admin_tools/CommonStyle.module.css";
 import { CreateTestCaseModal } from "../../components/modal/testing/CreateTestCaseModal.tsx";
@@ -34,6 +26,7 @@ import {
 } from "../../components/testing/TestingTags.tsx";
 import { useTestingFilter } from "../../hooks/filter/useTestingFilter.ts";
 import {
+  TESTING_SELECTION_COLUMN_WIDTH,
   testCasesListSource,
   useTestingEntityList,
 } from "../../hooks/testing/useTestingEntityList.ts";
@@ -41,12 +34,9 @@ import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { useTableInfiniteScroll } from "../../hooks/useTableInfiniteScroll.ts";
 import { confirmAndRun } from "../../misc/confirm-utils.ts";
 import { formatOptional, formatTimestamp } from "../../misc/format-utils.ts";
-import { toStringIds } from "../../misc/selection-utils.ts";
 import { useModalsContext } from "../../Modals.tsx";
 import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
 import { useRegisterChainHeaderActions } from "../ChainHeaderActionsContext.tsx";
-
-const SELECTION_COLUMN_WIDTH = 48;
 
 const COLUMN_WIDTHS = {
   name: 220,
@@ -63,9 +53,6 @@ const COLUMN_WIDTHS = {
   updated_by: 130,
 };
 
-/** Selection option that reaches past the loaded page; resolved server-side. */
-const SELECT_ALL_MATCHING_KEY = "all-matching";
-
 export type TestCasesProps = {
   variant?: "chain-tab" | "admin-page";
 };
@@ -78,10 +65,6 @@ export const TestCases: React.FC<TestCasesProps> = ({
   const notificationService = useNotificationService();
   const { showModal } = useModalsContext();
   const [searchString, setSearchString] = useState("");
-  const [sortBy, setSortBy] = useState<string>();
-  const [sortOrder, setSortOrder] = useState<TestingSortOrder>();
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [selectAllMatching, setSelectAllMatching] = useState(false);
   const [detailsTestCase, setDetailsTestCase] = useState<TestCaseView | null>(
     null,
   );
@@ -101,42 +84,23 @@ export const TestCases: React.FC<TestCasesProps> = ({
     refresh,
     getChainName,
     getElementName,
-    resolveTargetIds,
     exportEntities,
+    sortBy,
+    sortOrder,
+    handleTableChange,
+    selectedRowKeys,
+    selectAllMatching,
+    rowSelection,
+    clearSelection,
+    collectTargetIds,
   } = useTestingEntityList<TestCaseView>({
     source: testCasesListSource,
     chainId,
     filters,
     searchString,
-    sortBy,
-    sortOrder,
   });
 
   useTableInfiniteScroll(tableWrapperRef, { isLoading, allLoaded, loadMore });
-
-  const clearSelection = useCallback(() => {
-    setSelectedRowKeys([]);
-    setSelectAllMatching(false);
-  }, []);
-
-  // Rows picked under one selection are not the rows the next one holds, so the
-  // choice does not survive a change to the filters, the search or the sort.
-  useEffect(() => {
-    clearSelection();
-  }, [filters, searchString, sortBy, sortOrder, clearSelection]);
-
-  // A selection reaching past the loaded page covers the rows a later page
-  // brings in, so their checkboxes follow it.
-  useEffect(() => {
-    if (selectAllMatching) {
-      setSelectedRowKeys(items.map((item) => item.id));
-    }
-  }, [items, selectAllMatching]);
-
-  const collectTargetIds = useCallback(
-    () => resolveTargetIds(toStringIds(selectedRowKeys), selectAllMatching),
-    [resolveTargetIds, selectedRowKeys, selectAllMatching],
-  );
 
   const handleRefresh = useCallback(() => {
     clearSelection();
@@ -256,7 +220,7 @@ export const TestCases: React.FC<TestCasesProps> = ({
     (testCase: TestCaseView) => {
       const id = testCase.triggerReference?.chainId;
       if (!id) {
-        return formatOptional(id);
+        return formatOptional(null);
       }
       return (
         <a
@@ -404,44 +368,8 @@ export const TestCases: React.FC<TestCasesProps> = ({
 
   const { columnsWithResize, scrollX, components } =
     useColumnsWithResizeAndScroll(orderedColumns, COLUMN_WIDTHS, {
-      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
+      selectionColumnWidth: TESTING_SELECTION_COLUMN_WIDTH,
     });
-
-  const handleTableChange = useCallback<
-    NonNullable<TableProps<TestCaseView>["onChange"]>
-  >((_pagination, _tableFilters, sorter) => {
-    const { columnKey, order } = Array.isArray(sorter) ? sorter[0] : sorter;
-    setSortBy(order ? String(columnKey) : undefined);
-    setSortOrder(
-      order === "descend"
-        ? TestingSortOrder.DESC
-        : order === "ascend"
-          ? TestingSortOrder.ASC
-          : undefined,
-    );
-  }, []);
-
-  const rowSelection: TableRowSelection<TestCaseView> = {
-    type: "checkbox",
-    selectedRowKeys,
-    onChange: (keys) => {
-      setSelectedRowKeys(keys);
-      setSelectAllMatching(false);
-    },
-    selections: allLoaded
-      ? undefined
-      : [
-          Table.SELECTION_ALL,
-          Table.SELECTION_NONE,
-          {
-            key: SELECT_ALL_MATCHING_KEY,
-            text: "Select all that match the filters",
-            onSelect: () => {
-              setSelectAllMatching(true);
-            },
-          },
-        ],
-  };
 
   const toolbarActions = useMemo(
     () => (

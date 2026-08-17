@@ -215,8 +215,8 @@ describe("useTestingEntityList", () => {
 
   it("should sort by a field the service accepts", async () => {
     const { result } = renderList({
-      sortBy: "name",
-      sortOrder: TestingSortOrder.DESC,
+      initialSortBy: "name",
+      initialSortOrder: TestingSortOrder.DESC,
     });
 
     await waitFor(() => expect(result.current.items).toHaveLength(1));
@@ -229,7 +229,7 @@ describe("useTestingEntityList", () => {
   });
 
   it("should drop a sort field the service does not accept", async () => {
-    const { result } = renderList({ sortBy: "trigger_reference" });
+    const { result } = renderList({ initialSortBy: "trigger_reference" });
 
     await waitFor(() => expect(result.current.items).toHaveLength(1));
 

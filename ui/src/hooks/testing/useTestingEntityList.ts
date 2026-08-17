@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Table } from "antd";
+import type { TableProps } from "antd/lib/table";
+import type { TableRowSelection } from "antd/lib/table/interface";
 import { api } from "../../api/api";
 import {
   Element,
@@ -27,6 +36,13 @@ import {
 } from "../filter/useTestingFilter";
 import { useNotificationService } from "../useNotificationService";
 import { downloadFile } from "../../misc/download-utils";
+import { toStringIds } from "../../misc/selection-utils";
+
+/** Width every testing list gives its checkbox column. */
+export const TESTING_SELECTION_COLUMN_WIDTH = 48;
+
+/** Selection option that reaches past the loaded page; resolved server-side. */
+const SELECT_ALL_MATCHING_KEY = "all-matching";
 
 /** One testing list: how to read it, what it may be sorted by, how it is scoped. */
 export type TestingListSource<T> = {
@@ -83,8 +99,9 @@ export type UseTestingEntityListOptions<T> = {
   chainId?: string;
   filters: EntityFilterModel[];
   searchString?: string;
-  sortBy?: string;
-  sortOrder?: TestingSortOrder;
+  /** Sort the list opens with; the table's own sorter takes over from there. */
+  initialSortBy?: string;
+  initialSortOrder?: TestingSortOrder;
   /** Scope the route fixes, such as the run a drill-down belongs to. Memoize it. */
   scopeFilters?: TestingFilter[];
 };
@@ -102,6 +119,15 @@ export type TestingEntityList<T> = {
     selectAll: boolean,
   ) => Promise<string[]>;
   exportEntities: (ids: string[]) => Promise<void>;
+  sortBy?: string;
+  sortOrder?: TestingSortOrder;
+  handleTableChange: NonNullable<TableProps<T>["onChange"]>;
+  selectedRowKeys: React.Key[];
+  selectAllMatching: boolean;
+  rowSelection: TableRowSelection<T>;
+  clearSelection: () => void;
+  /** Ids the selection stands for, asking the service when it reaches past the page. */
+  collectTargetIds: () => Promise<string[]>;
 };
 
 const NO_NAMES: NamedEntity[] = [];
@@ -119,8 +145,8 @@ function toNameMap(entities: NamedEntity[]): Map<string, string> {
 
 /**
  * The list behind every testing screen: it assembles the selection, pages
- * through it by offset, resolves the targets of a selection reaching past the
- * loaded page, and holds the names the chain and element cells display.
+ * through it by offset, owns the sort and the row selection, and holds the names
+ * the chain and element cells display.
  *
  * Names come from one request each — the chains of the whole installation, or
  * the elements of the chain in scope. There is no cross-chain element lookup,
@@ -131,8 +157,8 @@ export function useTestingEntityList<T extends { id: string }>({
   chainId,
   filters,
   searchString,
-  sortBy,
-  sortOrder,
+  initialSortBy,
+  initialSortOrder,
   scopeFilters,
 }: UseTestingEntityListOptions<T>): TestingEntityList<T> {
   const notificationService = useNotificationService();
@@ -141,6 +167,10 @@ export function useTestingEntityList<T extends { id: string }>({
   const [allLoaded, setAllLoaded] = useState(false);
   const [chains, setChains] = useState<NamedEntity[]>([]);
   const [elements, setElements] = useState<NamedEntity[]>([]);
+  const [sortBy, setSortBy] = useState(initialSortBy);
+  const [sortOrder, setSortOrder] = useState(initialSortOrder);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [selectAllMatching, setSelectAllMatching] = useState(false);
   const itemsRef = useRef<T[]>([]);
 
   useEffect(() => {
@@ -324,6 +354,70 @@ export function useTestingEntityList<T extends { id: string }>({
     [source, notificationService],
   );
 
+  const clearSelection = useCallback(() => {
+    setSelectedRowKeys([]);
+    setSelectAllMatching(false);
+  }, []);
+
+  // Rows picked under one selection are not the rows the next one holds, so the
+  // choice does not survive a change to the filters, the search or the sort.
+  useEffect(() => {
+    clearSelection();
+  }, [filters, searchString, sortBy, sortOrder, clearSelection]);
+
+  // A selection reaching past the loaded page covers the rows a later page
+  // brings in, so their checkboxes follow it.
+  useEffect(() => {
+    if (selectAllMatching) {
+      setSelectedRowKeys(items.map((item) => item.id));
+    }
+  }, [items, selectAllMatching]);
+
+  const collectTargetIds = useCallback(
+    () => resolveTargetIds(toStringIds(selectedRowKeys), selectAllMatching),
+    [resolveTargetIds, selectedRowKeys, selectAllMatching],
+  );
+
+  const rowSelection = useMemo<TableRowSelection<T>>(
+    () => ({
+      type: "checkbox",
+      selectedRowKeys,
+      onChange: (keys) => {
+        setSelectedRowKeys(keys);
+        setSelectAllMatching(false);
+      },
+      selections: allLoaded
+        ? undefined
+        : [
+            Table.SELECTION_ALL,
+            Table.SELECTION_NONE,
+            {
+              key: SELECT_ALL_MATCHING_KEY,
+              text: "Select all that match the filters",
+              onSelect: () => {
+                setSelectAllMatching(true);
+              },
+            },
+          ],
+    }),
+    [selectedRowKeys, allLoaded],
+  );
+
+  const handleTableChange = useCallback<NonNullable<TableProps<T>["onChange"]>>(
+    (_pagination, _tableFilters, sorter) => {
+      const { columnKey, order } = Array.isArray(sorter) ? sorter[0] : sorter;
+      setSortBy(order ? String(columnKey) : undefined);
+      setSortOrder(
+        order === "descend"
+          ? TestingSortOrder.DESC
+          : order === "ascend"
+            ? TestingSortOrder.ASC
+            : undefined,
+      );
+    },
+    [],
+  );
+
   const chainNames = useMemo(() => toNameMap(chains), [chains]);
   const elementNames = useMemo(() => toNameMap(elements), [elements]);
 
@@ -347,5 +441,13 @@ export function useTestingEntityList<T extends { id: string }>({
     getElementName,
     resolveTargetIds,
     exportEntities,
+    sortBy,
+    sortOrder,
+    handleTableChange,
+    selectedRowKeys,
+    selectAllMatching,
+    rowSelection,
+    clearSelection,
+    collectTargetIds,
   };
 }

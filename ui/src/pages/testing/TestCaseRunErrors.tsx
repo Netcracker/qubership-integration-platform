@@ -19,14 +19,13 @@ import {
 import { useColumnsWithResizeAndScroll } from "../../components/table/useColumnsWithResizeAndScroll.tsx";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
 import { RunStatusTag } from "../../components/testing/TestingTags.tsx";
+import { TESTING_SELECTION_COLUMN_WIDTH } from "../../hooks/testing/useTestingEntityList.ts";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { downloadFile } from "../../misc/download-utils.ts";
 import { formatOptional, formatTimestamp } from "../../misc/format-utils.ts";
 import { toStringIds } from "../../misc/selection-utils.ts";
 import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
 import { useRegisterChainHeaderActions } from "../ChainHeaderActionsContext.tsx";
-
-const SELECTION_COLUMN_WIDTH = 48;
 
 const COLUMN_WIDTHS = {
   matcher: 260,
@@ -219,7 +218,7 @@ export const TestCaseRunErrors: React.FC = () => {
 
   const { columnsWithResize, scrollX, components } =
     useColumnsWithResizeAndScroll(orderedColumns, COLUMN_WIDTHS, {
-      selectionColumnWidth: SELECTION_COLUMN_WIDTH,
+      selectionColumnWidth: TESTING_SELECTION_COLUMN_WIDTH,
     });
 
   const rowSelection: TableRowSelection<TestingValidationError> = {
