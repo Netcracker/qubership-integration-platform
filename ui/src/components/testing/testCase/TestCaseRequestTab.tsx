@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Flex, Form, InputNumber, Select } from "antd";
+import { useNavigate } from "react-router";
 import { api } from "../../../api/api.ts";
 import {
   Element,
@@ -11,7 +12,11 @@ import { Script } from "../../Script.tsx";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { useTestCaseEditor } from "../../../pages/testing/TestCasePage.tsx";
 import { NameValueTable } from "../NameValueTable.tsx";
-import { getHttpMethods, isHttpTrigger } from "../testingElements.ts";
+import {
+  flattenElements,
+  getHttpMethods,
+  isHttpTrigger,
+} from "../testingElements.ts";
 
 /** Settings a case saved before it named a trigger has none of yet. */
 const EMPTY_REQUEST_SETTINGS: TestingRequestSettings = {
@@ -26,6 +31,7 @@ const EMPTY_MESSAGE: TestingMessage = { body: null, headers: [] };
 
 export const TestCaseRequestTab: React.FC = () => {
   const { testCase, chainId, readonly, onChange } = useTestCaseEditor();
+  const navigate = useNavigate();
   const notificationService = useNotificationService();
   const [triggers, setTriggers] = useState<Element[]>([]);
   const [triggersLoading, setTriggersLoading] = useState(false);
@@ -47,7 +53,7 @@ export const TestCaseRequestTab: React.FC = () => {
       try {
         const elements = await api.getElements(referenceChainId);
         if (!cancelled) {
-          setTriggers(elements.filter(isHttpTrigger));
+          setTriggers(flattenElements(elements).filter(isHttpTrigger));
         }
       } catch (error) {
         if (!cancelled) {
@@ -124,7 +130,7 @@ export const TestCaseRequestTab: React.FC = () => {
         {chainId ? null : (
           <Form.Item label="Chain" required>
             {referenceChainId ? (
-              <a href={`/chains/${referenceChainId}`}>
+              <a onClick={() => void navigate(`/chains/${referenceChainId}`)}>
                 {chainName ?? referenceChainId}
               </a>
             ) : (

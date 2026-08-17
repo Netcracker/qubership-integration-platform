@@ -9,7 +9,6 @@ import {
   getMatcherParameterEditor,
   isMatcherValid,
   MATCHER_PARAMETER_NAMES,
-  matcherHasParameters,
   matcherMatchesSearch,
   matcherParametersAreValid,
   matcherRequiresEntityName,
@@ -54,10 +53,10 @@ describe("matcher parameter names", () => {
     );
   });
 
-  test("should report no parameters when the type takes none", () => {
-    expect(matcherHasParameters(MatcherType.EMPTY)).toBe(false);
-    expect(matcherHasParameters(MatcherType.EXIST)).toBe(false);
-    expect(matcherHasParameters(MatcherType.MATCH)).toBe(true);
+  test("should name no parameters for the types that take none", () => {
+    expect(MATCHER_PARAMETER_NAMES[MatcherType.EMPTY]).toEqual([]);
+    expect(MATCHER_PARAMETER_NAMES[MatcherType.EXIST]).toEqual([]);
+    expect(MATCHER_PARAMETER_NAMES[MatcherType.MATCH]).toEqual(["pattern"]);
   });
 });
 
@@ -184,7 +183,7 @@ describe("parameter validity", () => {
 
   test("should reject an unknown matcher type", () => {
     expect(validateMatcherParameters(null, [])).toEqual([
-      "Unknown matcher type: null",
+      "Unknown matcher type",
     ]);
   });
 });

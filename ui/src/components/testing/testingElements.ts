@@ -9,6 +9,20 @@ const PROTOCOL_TYPE = "integrationOperationProtocolType";
 
 const DEFAULT_HTTP_METHOD = "GET";
 
+/**
+ * Methods a test case can be stored with. A trigger may also accept OPTIONS,
+ * which the service has no enum value for and PostgreSQL then answers with a
+ * 500, so it is dropped before it reaches the Method picker.
+ */
+const STORABLE_HTTP_METHODS = new Set([
+  "GET",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "HEAD",
+]);
+
 function getProperty(element: Element, name: string): unknown {
   return (element.properties as Record<string, unknown> | undefined)?.[name];
 }
@@ -36,7 +50,10 @@ export function flattenElements(elements: Element[]): Element[] {
   ]);
 }
 
-/** Methods the trigger accepts. A trigger without the property accepts GET. */
+/**
+ * Methods the trigger accepts and the service can store. A trigger without the
+ * property, or one restricted to methods the service has no value for, accepts GET.
+ */
 export function getHttpMethods(element?: Element): string[] {
   const restrict = element
     ? getProperty(element, HTTP_METHOD_RESTRICT)
@@ -45,8 +62,8 @@ export function getHttpMethods(element?: Element): string[] {
     typeof restrict === "string"
       ? restrict
           .split(",")
-          .map((method) => method.trim())
-          .filter((method) => method !== "")
+          .map((method) => method.trim().toUpperCase())
+          .filter((method) => STORABLE_HTTP_METHODS.has(method))
       : [];
   return methods.length > 0 ? methods : [DEFAULT_HTTP_METHOD];
 }

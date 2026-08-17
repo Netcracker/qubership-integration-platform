@@ -7,11 +7,16 @@ import { tableEmpty } from "../table/tableEmpty.tsx";
 
 type KeyedParameter = TestingNamedParameter & { key: number };
 
+/** Returns a message when the text is not accepted, and undefined when it is. */
+export type ValueValidator = (text: string) => string | undefined;
+
 export type NameValueTableProps = {
   title: string;
   values: TestingNamedParameter[] | null;
   onChange: (values: TestingNamedParameter[]) => void;
   readonly?: boolean;
+  validateName?: ValueValidator;
+  validateValue?: ValueValidator;
   "data-testid"?: string;
 };
 
@@ -21,6 +26,8 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
   values,
   onChange,
   readonly = false,
+  validateName,
+  validateValue,
   "data-testid": dataTestId,
 }) => {
   const rows = useMemo(() => values ?? [], [values]);
@@ -39,6 +46,31 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
   const removeRow = (index: number) =>
     onChange(rows.filter((_, i) => i !== index));
 
+  const renderEditableCell = (
+    field: "name" | "value",
+    label: string,
+    validate: ValueValidator | undefined,
+    row: KeyedParameter,
+    index: number,
+  ) => {
+    const error = validate?.(row[field]);
+    return (
+      <>
+        <Input
+          value={row[field]}
+          aria-label={label}
+          status={error ? "error" : undefined}
+          onChange={(event) =>
+            replaceRow(index, { [field]: event.target.value })
+          }
+        />
+        {error ? (
+          <Typography.Text type="danger">{error}</Typography.Text>
+        ) : null}
+      </>
+    );
+  };
+
   const columns: TableProps<KeyedParameter>["columns"] = [
     {
       title: "Name",
@@ -47,13 +79,7 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
         readonly ? (
           <>{row.name || "-"}</>
         ) : (
-          <Input
-            value={row.name}
-            aria-label="Name"
-            onChange={(event) =>
-              replaceRow(index, { name: event.target.value })
-            }
-          />
+          renderEditableCell("name", "Name", validateName, row, index)
         ),
     },
     {
@@ -63,13 +89,7 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
         readonly ? (
           <>{row.value || "-"}</>
         ) : (
-          <Input
-            value={row.value}
-            aria-label="Value"
-            onChange={(event) =>
-              replaceRow(index, { value: event.target.value })
-            }
-          />
+          renderEditableCell("value", "Value", validateValue, row, index)
         ),
     },
     ...(readonly

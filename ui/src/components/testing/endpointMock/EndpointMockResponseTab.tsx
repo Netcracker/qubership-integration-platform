@@ -7,6 +7,10 @@ import {
 } from "../../../api/apiTypes.ts";
 import { Script } from "../../Script.tsx";
 import { useEndpointMockEditor } from "../../../pages/testing/EndpointMockPage.tsx";
+import {
+  getHttpFieldNameError,
+  getHttpFieldValueError,
+} from "../../../misc/http-field-utils.ts";
 import { NameValueTable } from "../NameValueTable.tsx";
 
 /** Bounds the service accepts for an answerable response status. */
@@ -44,7 +48,11 @@ export const EndpointMockResponseTab: React.FC = () => {
             max={MAX_STATUS}
             style={{ width: "100%" }}
             value={settings.status}
-            onChange={(status) => updateSettings({ status: status ?? 0 })}
+            // Clearing the field reports null. Mapping that to zero would store
+            // "unset", under which the mock answers 200 instead of what it said.
+            onChange={(status) =>
+              updateSettings({ status: status ?? settings.status })
+            }
           />
         </Form.Item>
         <Form.Item label="Delay, ms" required>
@@ -62,6 +70,8 @@ export const EndpointMockResponseTab: React.FC = () => {
         title="Headers"
         values={message.headers}
         readonly={readonly}
+        validateName={getHttpFieldNameError}
+        validateValue={getHttpFieldValueError}
         onChange={(headers: TestingNamedParameter[]) =>
           updateMessage({ headers })
         }

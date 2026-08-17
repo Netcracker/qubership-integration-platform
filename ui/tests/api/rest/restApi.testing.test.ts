@@ -172,9 +172,6 @@ describe("RestApi testing service", () => {
       `${testingBase}/endpoint-mocks/mock-1`,
     );
 
-    await api.getTestsRun("run-1");
-    expect(lastRequest(requests).url).toBe(`${testingBase}/tests-runs/run-1`);
-
     await api.getTestCaseRun("case-run-1");
     expect(lastRequest(requests).url).toBe(
       `${testingBase}/test-case-runs/case-run-1`,
@@ -285,10 +282,12 @@ describe("RestApi testing service", () => {
     );
   });
 
-  it("should name the exported file from the response and keep its content type", async () => {
+  // The service answers an export with the payload and its content type alone, so
+  // no header names the file. Every case below sends none, as the service does.
+  it("should name the exported file itself and keep the content type", async () => {
     const { api, requests } = await createApi(
       new Blob(["id,name"], { type: "text/csv" }),
-      { "content-disposition": 'attachment; filename="runs.csv"' },
+      {},
     );
 
     const file = await api.exportTestsRuns(["run-1"]);
@@ -296,30 +295,44 @@ describe("RestApi testing service", () => {
     const request = lastRequest(requests);
     expect(request.url).toBe(`${testingBase}/tests-runs/export`);
     expect(sentBody(request)).toEqual(["run-1"]);
-    expect(file.name).toBe("runs.csv");
+    expect(file.name).toBe("tests-runs.csv");
     expect(file.type).toBe("text/csv");
   });
 
-  it("should export every entity through its own path", async () => {
+  it("should export every entity through its own path under its own name", async () => {
     const { api, requests } = await createApi(new Blob([""]), {});
 
-    await api.exportTestCases(["case-1"]);
+    expect((await api.exportTestCases(["case-1"])).name).toBe("test-cases.zip");
     expect(lastRequest(requests).url).toBe(`${testingBase}/test-cases/export`);
 
-    await api.exportEndpointMocks(["mock-1"]);
+    expect((await api.exportEndpointMocks(["mock-1"])).name).toBe(
+      "endpoint-mocks.zip",
+    );
     expect(lastRequest(requests).url).toBe(
       `${testingBase}/endpoint-mocks/export`,
     );
 
-    await api.exportTestCaseRuns(["case-run-1"]);
+    expect((await api.exportTestCaseRuns(["case-run-1"])).name).toBe(
+      "test-case-runs.csv",
+    );
     expect(lastRequest(requests).url).toBe(
       `${testingBase}/test-case-runs/export`,
     );
 
-    await api.exportTestCaseRunErrors(["error-1"]);
+    expect((await api.exportTestCaseRunErrors(["error-1"])).name).toBe(
+      "validation-errors.csv",
+    );
     expect(lastRequest(requests).url).toBe(
       `${testingBase}/test-case-runs/errors/export`,
     );
+  });
+
+  it("should prefer a content-disposition name when the response carries one", async () => {
+    const { api } = await createApi(new Blob([""], { type: "text/csv" }), {
+      "content-disposition": 'attachment; filename="runs.csv"',
+    });
+
+    expect((await api.exportTestsRuns(["run-1"])).name).toBe("runs.csv");
   });
 
   it("should omit the source parameter when a run starts from test cases", async () => {

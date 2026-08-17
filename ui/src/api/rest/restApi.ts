@@ -2496,8 +2496,11 @@ export class RestApi implements Api {
     return response.data;
   };
 
+  // The testing service answers an export with the payload and its content type
+  // alone, so the name the browser saves under is built here.
   private readonly exportTestingEntities = async (
     path: string,
+    fileName: string,
     ids: string[],
   ): Promise<File> => {
     const response = await this.instance.post<Blob>(
@@ -2505,7 +2508,7 @@ export class RestApi implements Api {
       ids,
       { responseType: "blob" },
     );
-    return getFileFromResponse(response);
+    return getFileFromResponse(response, fileName);
   };
 
   getTestingServiceMode = async (): Promise<TestingServiceMode> => {
@@ -2559,7 +2562,7 @@ export class RestApi implements Api {
     this.importTestingEntities("test-cases", files);
 
   exportTestCases = async (ids: string[]): Promise<File> =>
-    this.exportTestingEntities("test-cases/export", ids);
+    this.exportTestingEntities("test-cases/export", "test-cases.zip", ids);
 
   getEndpointMocks = async (
     specification: TestingSelectionSpecification,
@@ -2607,7 +2610,11 @@ export class RestApi implements Api {
     this.importTestingEntities("endpoint-mocks", files);
 
   exportEndpointMocks = async (ids: string[]): Promise<File> =>
-    this.exportTestingEntities("endpoint-mocks/export", ids);
+    this.exportTestingEntities(
+      "endpoint-mocks/export",
+      "endpoint-mocks.zip",
+      ids,
+    );
 
   getTestsRuns = async (
     specification: TestingSelectionSpecification,
@@ -2624,9 +2631,6 @@ export class RestApi implements Api {
   ): Promise<string[]> =>
     this.listTestingEntityIds("tests-runs", specification);
 
-  getTestsRun = async (id: string): Promise<TestsRunView> =>
-    this.getTestingEntity<TestsRunView>("tests-runs", id);
-
   deleteTestsRuns = async (ids: string[]): Promise<void> =>
     this.deleteTestingEntities("tests-runs", ids);
 
@@ -2635,7 +2639,7 @@ export class RestApi implements Api {
   };
 
   exportTestsRuns = async (ids: string[]): Promise<File> =>
-    this.exportTestingEntities("tests-runs/export", ids);
+    this.exportTestingEntities("tests-runs/export", "tests-runs.csv", ids);
 
   // Restarting names the entity kind the ids belong to; starting from test cases
   // is the default the service assumes when the parameter is left out.
@@ -2674,7 +2678,11 @@ export class RestApi implements Api {
   };
 
   exportTestCaseRuns = async (ids: string[]): Promise<File> =>
-    this.exportTestingEntities("test-case-runs/export", ids);
+    this.exportTestingEntities(
+      "test-case-runs/export",
+      "test-case-runs.csv",
+      ids,
+    );
 
   // The matchers are what makes an error readable, so the errors page always asks
   // for them.
@@ -2689,7 +2697,11 @@ export class RestApi implements Api {
   };
 
   exportTestCaseRunErrors = async (ids: string[]): Promise<File> =>
-    this.exportTestingEntities("test-case-runs/errors/export", ids);
+    this.exportTestingEntities(
+      "test-case-runs/errors/export",
+      "validation-errors.csv",
+      ids,
+    );
 
   // A case run records the id the chain was started with, not the session id.
   getSessionByExternalId = async (

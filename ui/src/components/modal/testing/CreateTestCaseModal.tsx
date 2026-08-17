@@ -5,6 +5,7 @@ import { Element, TestCase, TestCaseRequest } from "../../../api/apiTypes.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { useModalContext } from "../../../ModalContextProvider.tsx";
 import {
+  flattenElements,
   getHttpMethods,
   isHttpTrigger,
 } from "../../testing/testingElements.ts";
@@ -46,7 +47,7 @@ export const CreateTestCaseModal: React.FC<CreateTestCaseModalProps> = ({
         if (cancelled) {
           return;
         }
-        const httpTriggers = elements.filter(isHttpTrigger);
+        const httpTriggers = flattenElements(elements).filter(isHttpTrigger);
         setTriggers(httpTriggers);
         form.setFieldValue("elementId", httpTriggers[0]?.id);
       } catch (error) {

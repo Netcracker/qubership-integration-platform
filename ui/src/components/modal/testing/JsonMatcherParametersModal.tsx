@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { Button, Form, Input, Modal } from "antd";
 import { useModalContext } from "../../../ModalContextProvider.tsx";
-import { TestingMatcherParameter } from "../../../api/apiTypes.ts";
+import { TestingNamedParameter } from "../../../api/apiTypes.ts";
 import { Script } from "../../Script.tsx";
+import { isJsonDocumentValid } from "../../testing/matchers.ts";
 
-export const DEFAULT_JSON_MATCHER_PATH = "$";
+const DEFAULT_JSON_MATCHER_PATH = "$";
 
 function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
@@ -13,12 +14,12 @@ function capitalize(value: string): string {
 export type JsonMatcherParametersModalProps = {
   /** `schema` for a JSON Schema matcher, `sample` for a JSON one. */
   documentParameterName: string;
-  parameters: TestingMatcherParameter[] | null;
-  onSubmit: (parameters: TestingMatcherParameter[]) => void;
+  parameters: TestingNamedParameter[] | null;
+  onSubmit: (parameters: TestingNamedParameter[]) => void;
 };
 
 function findParameter(
-  parameters: TestingMatcherParameter[] | null,
+  parameters: TestingNamedParameter[] | null,
   name: string,
 ): string {
   return parameters?.find((parameter) => parameter.name === name)?.value ?? "";
@@ -34,6 +35,10 @@ export const JsonMatcherParametersModal: React.FC<
   const [documentText, setDocumentText] = useState(() =>
     findParameter(parameters, documentParameterName),
   );
+
+  // The service parses the document when it stores the matcher, so an unparseable
+  // one is a 400 rather than a rule that never holds.
+  const documentIsValid = isJsonDocumentValid(documentText);
 
   const submit = () => {
     onSubmit([
@@ -57,7 +62,7 @@ export const JsonMatcherParametersModal: React.FC<
         <Button
           key="submit"
           type="primary"
-          disabled={!path.trim()}
+          disabled={!path.trim() || !documentIsValid}
           onClick={submit}
         >
           Save
@@ -77,7 +82,16 @@ export const JsonMatcherParametersModal: React.FC<
             onChange={(event) => setPath(event.target.value)}
           />
         </Form.Item>
-        <Form.Item label={capitalize(documentParameterName)}>
+        <Form.Item
+          label={capitalize(documentParameterName)}
+          required
+          validateStatus={documentIsValid ? undefined : "error"}
+          help={
+            documentIsValid
+              ? undefined
+              : `Enter the ${documentParameterName} as a JSON document.`
+          }
+        >
           <Script
             mode="json"
             value={documentText}

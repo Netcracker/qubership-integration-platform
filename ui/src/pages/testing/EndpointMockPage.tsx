@@ -22,6 +22,10 @@ import { TableToolbar } from "../../components/table/TableToolbar.tsx";
 import { matchersAreValid } from "../../components/testing/matchers.ts";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
+import {
+  isHttpFieldName,
+  isHttpFieldValue,
+} from "../../misc/http-field-utils.ts";
 import { useModalsContext } from "../../Modals.tsx";
 import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
 
@@ -125,13 +129,18 @@ export const EndpointMockPage: React.FC = () => {
     setHasChanges(true);
   }, []);
 
-  // No method here: a mock answers whatever the endpoint is called with.
+  // No method here: a mock answers whatever the endpoint is called with. The
+  // headers are checked because the service refuses a response it cannot write.
   const isValid = useMemo(
     () =>
       !!endpointMock &&
       endpointMock.name.trim().length > 0 &&
       !!endpointMock.endpointReference?.chainId &&
       !!endpointMock.endpointReference?.elementId &&
+      (endpointMock.responseSettings?.message?.headers ?? []).every(
+        (header) =>
+          isHttpFieldName(header.name) && isHttpFieldValue(header.value),
+      ) &&
       matchersAreValid(endpointMock.requestMatchers),
     [endpointMock],
   );

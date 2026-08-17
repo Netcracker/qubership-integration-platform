@@ -2,8 +2,9 @@ import {
   MatcherEntityType,
   MatcherType,
   TestingMatcher,
-  TestingMatcherParameter,
+  TestingNamedParameter,
 } from "../../api/apiTypes.ts";
+import { isHttpFieldName } from "../../misc/http-field-utils.ts";
 import { matchesByFields } from "../table/tableSearch.ts";
 
 /** Which side of an exchange a matcher inspects: mock requests or test-case responses. */
@@ -82,19 +83,13 @@ export function matcherRequiresEntityName(
   return !!entityType && ENTITY_TYPES_REQUIRING_NAME.includes(entityType);
 }
 
-export function matcherHasParameters(
-  type: MatcherType | null | undefined,
-): boolean {
-  return !!type && (MATCHER_PARAMETER_NAMES[type]?.length ?? 0) > 0;
-}
-
 /** Returns one message per missing or unknown parameter; an empty array means valid. */
 export function validateMatcherParameters(
   type: MatcherType | null | undefined,
-  parameters: TestingMatcherParameter[] | null | undefined,
+  parameters: TestingNamedParameter[] | null | undefined,
 ): string[] {
-  if (!type || !(type in MATCHER_PARAMETER_NAMES)) {
-    return [`Unknown matcher type: ${String(type)}`];
+  if (!type) {
+    return ["Unknown matcher type"];
   }
   const expected = new Set(MATCHER_PARAMETER_NAMES[type]);
   const given = new Set((parameters ?? []).map((parameter) => parameter.name));
@@ -115,9 +110,75 @@ export function validateMatcherParameters(
 
 export function matcherParametersAreValid(
   type: MatcherType | null | undefined,
-  parameters: TestingMatcherParameter[] | null | undefined,
+  parameters: TestingNamedParameter[] | null | undefined,
 ): boolean {
   return validateMatcherParameters(type, parameters).length === 0;
+}
+
+/**
+ * Whether the name survives being written into a `{name}` template segment and
+ * read back, which is how the service addresses a path parameter. A slash makes
+ * two segments, a closing brace ends the placeholder early, a question mark or a
+ * hash ends the path, and a percent sign is decoded into something else.
+ */
+function isAddressablePathParameterName(name: string): boolean {
+  return [...name].every(
+    (character) =>
+      !"/}?#%".includes(character) && character.charCodeAt(0) >= 0x20,
+  );
+}
+
+/**
+ * Whether the entity name is one the service can build a data getter for. A
+ * query parameter name is held to the blank rule alone, since the query string
+ * carries it percent-encoded.
+ */
+export function isEntityNameAddressable(
+  entityType: MatcherEntityType | null | undefined,
+  entityName: string | null | undefined,
+): boolean {
+  if (!matcherRequiresEntityName(entityType)) {
+    return true;
+  }
+  const name = entityName ?? "";
+  if (name.trim().length === 0) {
+    return false;
+  }
+  if (entityType === MatcherEntityType.HEADER) {
+    return isHttpFieldName(name);
+  }
+  if (entityType === MatcherEntityType.PATH_PARAMETER) {
+    return isAddressablePathParameterName(name);
+  }
+  return true;
+}
+
+/** Whether the document a JSON matcher carries is one the service can parse. */
+export function isJsonDocumentValid(text: string): boolean {
+  if (text.trim().length === 0) {
+    return false;
+  }
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The pattern of a `match` matcher is left to the service: Go compiles RE2, and a
+ * browser check would refuse patterns RE2 accepts.
+ */
+function matcherDocumentIsValid(matcher: TestingMatcher): boolean {
+  const editor = getMatcherParameterEditor(matcher.type, matcher.entityType);
+  if (editor.kind !== "json") {
+    return true;
+  }
+  const document = (matcher.parameters ?? []).find(
+    (parameter) => parameter.name === editor.documentParameterName,
+  );
+  return isJsonDocumentValid(document?.value ?? "");
 }
 
 export function isMatcherValid(matcher: TestingMatcher): boolean {
@@ -125,8 +186,9 @@ export function isMatcherValid(matcher: TestingMatcher): boolean {
     !!matcher.name &&
     !!matcher.type &&
     !!matcher.entityType &&
-    (!!matcher.entityName || !matcherRequiresEntityName(matcher.entityType)) &&
-    matcherParametersAreValid(matcher.type, matcher.parameters)
+    isEntityNameAddressable(matcher.entityType, matcher.entityName) &&
+    matcherParametersAreValid(matcher.type, matcher.parameters) &&
+    matcherDocumentIsValid(matcher)
   );
 }
 
@@ -150,7 +212,7 @@ export function getMatcherParameterEditor(
   type: MatcherType | null | undefined,
   entityType: MatcherEntityType | null | undefined,
 ): MatcherParameterEditor {
-  if (!type || !matcherHasParameters(type)) {
+  if (!type || MATCHER_PARAMETER_NAMES[type].length === 0) {
     return { kind: "none" };
   }
   if (type === MatcherType.MATCH_JSON_SCHEMA) {
