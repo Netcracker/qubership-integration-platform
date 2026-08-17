@@ -65,6 +65,9 @@ import {
 
 const noFilters: EntityFilterModel[] = [];
 
+/** As much of an element as the name lookup reads. */
+type StubElement = { id: string; name: string; children: [] };
+
 function testCase(id: string): TestCaseView {
   return { id } as TestCaseView;
 }
@@ -89,15 +92,19 @@ function renderList(
   );
 }
 
-type ScopeProps = { chainId?: string; scopeFilters?: TestingFilter[] };
+type ScopeProps = {
+  chainId?: string;
+  scopeFilters?: TestingFilter[];
+  filters?: EntityFilterModel[];
+};
 
 /** Renders the list under a scope the test can move to another chain or run. */
 function renderScopedList(initialProps: ScopeProps) {
   return renderHook(
-    ({ chainId, scopeFilters }: ScopeProps) =>
+    ({ chainId, scopeFilters, filters }: ScopeProps) =>
       useTestingEntityList<TestCaseView>({
         source: testCasesListSource,
-        filters: noFilters,
+        filters: filters ?? noFilters,
         chainId,
         scopeFilters,
       }),
@@ -439,6 +446,105 @@ describe("useTestingEntityList", () => {
     rerender({ chainId: "chain-2" });
 
     await waitFor(() => expect(result.current.selectedRowKeys).toEqual([]));
+  });
+
+  // Element names belong to the chain they were read for. Resolving a filter
+  // written against them under another chain sends the ids of the chain left
+  // behind: a negated filter then excludes nothing, and every row of the chain
+  // now on screen answers a bulk delete, cancel or export.
+  const notTheTrigger: EntityFilterModel[] = [
+    {
+      column: "element_name",
+      condition: FilterCondition.IS_NOT.id,
+      value: "HTTP Trigger",
+    },
+  ];
+
+  /** The element filter of a request, or undefined when it carries none. */
+  function elementFilterOf(
+    specification: TestingSelectionSpecification,
+  ): TestingFilter | undefined {
+    return specification.filters?.find(
+      (filter) => filter.feature === "element_id",
+    );
+  }
+
+  it("should hold a name filter until the elements of the chain in context arrive", async () => {
+    const { result, rerender } = renderScopedList({
+      chainId: "chain-1",
+      filters: notTheTrigger,
+    });
+    await waitFor(() => expect(mockApi.getTestCases).toHaveBeenCalledTimes(1));
+    expect(elementFilterOf(lastListCall()[0])).toEqual({
+      feature: "element_id",
+      condition: TestingFilterCondition.NOT_IN,
+      values: ["element-1"],
+    });
+
+    const pending = deferred<StubElement[]>();
+    mockApi.getElements.mockReturnValueOnce(pending.promise);
+    mockApi.getTestCases.mockClear();
+    rerender({ chainId: "chain-2", filters: notTheTrigger });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(true));
+    expect(mockApi.getTestCases).not.toHaveBeenCalled();
+    expect(result.current.items).toEqual([]);
+
+    await settle(pending, () =>
+      pending.resolve([
+        { id: "element-2", name: "HTTP Trigger", children: [] },
+      ]),
+    );
+
+    await waitFor(() => expect(mockApi.getTestCases).toHaveBeenCalledTimes(1));
+    expect(elementFilterOf(lastListCall()[0])).toEqual({
+      feature: "element_id",
+      condition: TestingFilterCondition.NOT_IN,
+      values: ["element-2"],
+    });
+  });
+
+  it("should ask for no rows while a name filter has no elements to resolve against", async () => {
+    const { result, rerender } = renderScopedList({
+      chainId: "chain-1",
+      filters: notTheTrigger,
+    });
+    await waitFor(() => expect(mockApi.getTestCases).toHaveBeenCalledTimes(1));
+
+    mockApi.getElements.mockRejectedValueOnce(new Error("service is down"));
+    mockApi.getTestCases.mockClear();
+    rerender({ chainId: "chain-2", filters: notTheTrigger });
+
+    await waitFor(() =>
+      expect(mockRequestFailed).toHaveBeenCalledWith(
+        "Failed to resolve names",
+        expect.any(Error),
+      ),
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(mockApi.getTestCases).not.toHaveBeenCalled();
+    expect(result.current.items).toEqual([]);
+    await expect(result.current.resolveTargetIds([], true)).resolves.toEqual(
+      [],
+    );
+  });
+
+  it("should stop naming the elements of the chain left behind", async () => {
+    const { result, rerender } = renderScopedList({ chainId: "chain-1" });
+    await waitFor(() =>
+      expect(result.current.getElementName("element-1")).toBe("HTTP Trigger"),
+    );
+
+    const pending = deferred<StubElement[]>();
+    mockApi.getElements.mockReturnValueOnce(pending.promise);
+    rerender({ chainId: "chain-2" });
+
+    expect(result.current.getElementName("element-1")).toBe("element-1");
+
+    await settle(pending, () =>
+      pending.resolve([{ id: "element-2", name: "Sender", children: [] }]),
+    );
+    expect(result.current.getElementName("element-2")).toBe("Sender");
   });
 
   it("should drop the selection when the run the route fixes changes", async () => {

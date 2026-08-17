@@ -132,6 +132,20 @@ export type TestingEntityList<T> = {
 
 const NO_NAMES: NamedEntity[] = [];
 
+/**
+ * Names read for one scope: the elements of the chain in context, or the chains
+ * of the whole installation. The scope is kept alongside them, since the names of
+ * the chain left behind resolve a filter into the ids of the wrong rows.
+ */
+type NameLookup = {
+  /** The chain the names belong to; absent outside a chain. */
+  scope: string | undefined;
+  chains: NamedEntity[];
+  elements: NamedEntity[];
+  /** The request failed, so this scope has no names to resolve against. */
+  failed: boolean;
+};
+
 function toNamedElements(elements: Element[]): NamedEntity[] {
   return flattenElements(elements).map((element) => ({
     id: element.id,
@@ -150,7 +164,9 @@ function toNameMap(entities: NamedEntity[]): Map<string, string> {
  *
  * Names come from one request each — the chains of the whole installation, or
  * the elements of the chain in scope. There is no cross-chain element lookup,
- * so an element of another chain keeps its id.
+ * so an element of another chain keeps its id. Names are held against the scope
+ * they were read for: a filter written against them waits for the names of the
+ * chain now in context rather than resolving into the ids of the one before it.
  */
 export function useTestingEntityList<T extends { id: string }>({
   source,
@@ -165,8 +181,7 @@ export function useTestingEntityList<T extends { id: string }>({
   const [items, setItems] = useState<T[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [allLoaded, setAllLoaded] = useState(false);
-  const [chains, setChains] = useState<NamedEntity[]>([]);
-  const [elements, setElements] = useState<NamedEntity[]>([]);
+  const [nameLookup, setNameLookup] = useState<NameLookup | null>(null);
   const [sortBy, setSortBy] = useState(initialSortBy);
   const [sortOrder, setSortOrder] = useState(initialSortOrder);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -177,35 +192,73 @@ export function useTestingEntityList<T extends { id: string }>({
     itemsRef.current = items;
   }, [items]);
 
+  // A list inside a chain reads element names, and only if a column or a filter
+  // of it names an element; outside one it reads the chains of the installation.
+  const usesNames = chainId ? !!source.usesElementNames : true;
+
   useEffect(() => {
+    if (!usesNames) {
+      return;
+    }
     let canceled = false;
     const loadNames = async () => {
       try {
-        if (chainId) {
-          if (!source.usesElementNames) {
-            return;
-          }
-          const chainElements = await api.getElements(chainId);
-          if (!canceled) {
-            setElements(toNamedElements(chainElements));
-          }
-        } else {
-          const allChains = await api.getChains();
-          if (!canceled) {
-            setChains(
-              allChains.map((chain) => ({ id: chain.id, name: chain.name })),
-            );
-          }
+        const loaded = chainId
+          ? {
+              chains: NO_NAMES,
+              elements: toNamedElements(await api.getElements(chainId)),
+            }
+          : {
+              chains: (await api.getChains()).map((chain) => ({
+                id: chain.id,
+                name: chain.name,
+              })),
+              elements: NO_NAMES,
+            };
+        if (!canceled) {
+          setNameLookup({ scope: chainId, failed: false, ...loaded });
         }
       } catch (error) {
-        notificationService.requestFailed("Failed to resolve names", error);
+        if (!canceled) {
+          setNameLookup({
+            scope: chainId,
+            failed: true,
+            chains: NO_NAMES,
+            elements: NO_NAMES,
+          });
+          notificationService.requestFailed("Failed to resolve names", error);
+        }
       }
     };
     void loadNames();
     return () => {
       canceled = true;
     };
-  }, [chainId, source.usesElementNames, notificationService]);
+  }, [chainId, usesNames, notificationService]);
+
+  // Names of another scope name nothing here, so they are dropped the moment the
+  // scope changes rather than when the names of the new one arrive.
+  const names =
+    nameLookup && nameLookup.scope === chainId ? nameLookup : undefined;
+  const chains = names?.chains ?? NO_NAMES;
+  const elements = names?.elements ?? NO_NAMES;
+
+  const filtersNeedNames = useMemo(
+    () =>
+      filters.some(
+        (filter) =>
+          filter.column === TESTING_CHAIN_NAME_COLUMN ||
+          filter.column === TESTING_ELEMENT_NAME_COLUMN,
+      ),
+    [filters],
+  );
+
+  // A filter written against a name waits for the names of the scope in context.
+  // Resolving it against an empty lookup would drop a negated filter altogether
+  // and hand every row of the list to the next bulk action.
+  const holdingForNames = filtersNeedNames && usesNames && !names;
+  const unresolvableNames =
+    filtersNeedNames && (holdingForNames || !!names?.failed);
 
   // Names reach the selection only through a filter written against them, so a
   // list without one is not refetched when the name caches arrive.
@@ -237,7 +290,7 @@ export function useTestingEntityList<T extends { id: string }>({
   const specification = useMemo<
     TestingSelectionSpecification | undefined
   >(() => {
-    if (selection.isEmpty) {
+    if (unresolvableNames || selection.isEmpty) {
       return undefined;
     }
     const allFilters: TestingFilter[] = [...(scopeFilters ?? [])];
@@ -253,7 +306,7 @@ export function useTestingEntityList<T extends { id: string }>({
       ...(searchString ? { searchText: searchString } : {}),
       ...(allFilters.length > 0 ? { filters: allFilters } : {}),
     };
-  }, [selection, scopeFilters, chainId, searchString]);
+  }, [unresolvableNames, selection, scopeFilters, chainId, searchString]);
 
   const listOptions = useMemo<Omit<TestingListOptions, "offset">>(
     () =>
@@ -280,8 +333,10 @@ export function useTestingEntityList<T extends { id: string }>({
       const isCurrent = () => generation === requestGenerationRef.current;
       if (!specification) {
         setItems([]);
-        setAllLoaded(true);
-        setIsLoading(false);
+        // Rows are still to come while the names a filter waits for are being
+        // read; a lookup that failed is the end of it, and leaves the list empty.
+        setAllLoaded(!holdingForNames);
+        setIsLoading(holdingForNames);
         return;
       }
       setIsLoading(true);
@@ -310,7 +365,7 @@ export function useTestingEntityList<T extends { id: string }>({
         }
       }
     },
-    [specification, listOptions, source, notificationService],
+    [specification, holdingForNames, listOptions, source, notificationService],
   );
 
   useEffect(() => {
