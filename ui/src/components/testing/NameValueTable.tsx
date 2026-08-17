@@ -13,8 +13,10 @@ type KeyedParameter = TestingNamedParameter & { key: number };
 export type ValueValidator = (text: string) => string | undefined;
 
 export type NameValueTableProps = {
-  title: string;
-  /** Names one row, as the add button says it: "Add header", "Add parameter". */
+  /**
+   * Names one row. The add button and the empty line read from it: "Add
+   * header", "No headers". The heading belongs to the `Form.Item` around it.
+   */
   rowNoun: string;
   values: TestingNamedParameter[] | null;
   onChange: (values: TestingNamedParameter[]) => void;
@@ -26,7 +28,6 @@ export type NameValueTableProps = {
 
 /** Name and value pairs of a request: path parameters, query parameters or headers. */
 export const NameValueTable: React.FC<NameValueTableProps> = ({
-  title,
   rowNoun,
   values,
   onChange,
@@ -120,7 +121,6 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
 
   return (
     <Flex vertical gap={8} data-testid={dataTestId}>
-      <Typography.Text strong>{title}</Typography.Text>
       {readonly ? null : (
         <Flex>
           <Button
@@ -138,7 +138,7 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
         dataSource={keyedRows}
         pagination={false}
         rowKey="key"
-        locale={{ emptyText: inlineTableEmpty(`No ${title.toLowerCase()}`) }}
+        locale={{ emptyText: inlineTableEmpty(`No ${rowNoun}s`) }}
       />
     </Flex>
   );

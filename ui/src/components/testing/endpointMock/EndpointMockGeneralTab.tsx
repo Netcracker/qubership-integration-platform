@@ -6,6 +6,7 @@ import { useChainName } from "../../../hooks/testing/useChainName.ts";
 import { PLACEHOLDER } from "../../../misc/format-utils.ts";
 import { useEndpointMockEditor } from "../../../pages/testing/EndpointMockPage.tsx";
 import { isHttpEndpoint } from "../testingElements.ts";
+import { EDITOR_FORM_LAYOUT } from "../editorLayout.ts";
 
 /**
  * The endpoint picker sits here rather than on a Request tab, and the test case
@@ -25,7 +26,7 @@ export const EndpointMockGeneralTab: React.FC = () => {
   const chainName = useChainName(chainId ? undefined : referenceChainId);
 
   return (
-    <Form layout="vertical" disabled={readonly} style={{ maxWidth: 720 }}>
+    <Form {...EDITOR_FORM_LAYOUT} disabled={readonly}>
       <Form.Item
         label="Name"
         required

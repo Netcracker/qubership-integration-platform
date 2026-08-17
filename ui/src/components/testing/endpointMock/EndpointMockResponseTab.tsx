@@ -13,6 +13,7 @@ import {
 } from "../../../misc/http-field-utils.ts";
 import { getResponseStatusError } from "../endpointMocks.ts";
 import { NameValueTable } from "../NameValueTable.tsx";
+import { EDITOR_FORM_LAYOUT, SHORT_CONTROL_WIDTH } from "../editorLayout.ts";
 
 /** Settings a mock saved before it named a response has none of yet. */
 const EMPTY_RESPONSE_SETTINGS: TestingResponseSettings = {
@@ -42,8 +43,8 @@ export const EndpointMockResponseTab: React.FC = () => {
   const statusError = getResponseStatusError(settings.status);
 
   return (
-    <Flex vertical gap={16} style={{ flex: 1, minWidth: 0 }}>
-      <Form layout="vertical" disabled={readonly} style={{ maxWidth: 720 }}>
+    <Flex vertical style={{ flex: 1, minWidth: 0 }}>
+      <Form {...EDITOR_FORM_LAYOUT} disabled={readonly}>
         <Form.Item
           label="Status Code"
           required
@@ -52,7 +53,7 @@ export const EndpointMockResponseTab: React.FC = () => {
         >
           <InputNumber
             aria-label="Status Code"
-            style={{ width: "100%" }}
+            style={{ width: "100%", maxWidth: SHORT_CONTROL_WIDTH }}
             value={settings.status}
             // Clearing the field reports null. Mapping that to zero would store
             // "unset", under which the mock answers 200 instead of what it said.
@@ -65,25 +66,24 @@ export const EndpointMockResponseTab: React.FC = () => {
           <InputNumber
             aria-label="Delay, ms"
             min={0}
-            style={{ width: "100%" }}
+            style={{ width: "100%", maxWidth: SHORT_CONTROL_WIDTH }}
             value={settings.delay}
             onChange={(delay) => updateSettings({ delay: delay ?? 0 })}
           />
         </Form.Item>
-      </Form>
-      <NameValueTable
-        data-testid="response-headers"
-        title="Headers"
-        rowNoun="header"
-        values={message.headers}
-        readonly={readonly}
-        validateName={getHttpFieldNameError}
-        validateValue={getHttpFieldValueError}
-        onChange={(headers: TestingNamedParameter[]) =>
-          updateMessage({ headers })
-        }
-      />
-      <Form layout="vertical">
+        <Form.Item label="Headers">
+          <NameValueTable
+            data-testid="response-headers"
+            rowNoun="header"
+            values={message.headers}
+            readonly={readonly}
+            validateName={getHttpFieldNameError}
+            validateValue={getHttpFieldValueError}
+            onChange={(headers: TestingNamedParameter[]) =>
+              updateMessage({ headers })
+            }
+          />
+        </Form.Item>
         <Form.Item label="Body">
           <Script
             data-testid="response-body"

@@ -1,12 +1,13 @@
 import React from "react";
 import { Form, Input, Switch } from "antd";
 import { useTestCaseEditor } from "../../../pages/testing/TestCasePage.tsx";
+import { EDITOR_FORM_LAYOUT } from "../editorLayout.ts";
 
 export const TestCaseGeneralTab: React.FC = () => {
   const { testCase, readonly, onChange } = useTestCaseEditor();
 
   return (
-    <Form layout="vertical" disabled={readonly} style={{ maxWidth: 720 }}>
+    <Form {...EDITOR_FORM_LAYOUT} disabled={readonly}>
       <Form.Item
         label="Name"
         required

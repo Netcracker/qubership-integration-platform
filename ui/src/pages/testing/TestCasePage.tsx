@@ -18,7 +18,7 @@ import {
 import { api } from "../../api/api.ts";
 import { TestCase, TestCaseRequest } from "../../api/apiTypes.ts";
 import { UnsavedChangesModal } from "../../components/modal/UnsavedChangesModal.tsx";
-import { TableToolbar } from "../../components/table/TableToolbar.tsx";
+import { useRegisterChainHeaderActions } from "../ChainHeaderActionsContext.tsx";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
 import {
   introducesViolation,
@@ -226,6 +226,47 @@ export const TestCasePage: React.FC = () => {
     [testCase, chainId, readonly, handleChange],
   );
 
+  // Save and Cancel belong to the chain header, where they stay in view on a
+  // long tab, as they do on the Logging and Properties tabs. The admin scope is
+  // read-only and has no chain header, so it registers nothing.
+  useRegisterChainHeaderActions(
+    readonly || !testCase ? undefined : (
+      <>
+        <ProtectedButton
+          require={permissions.write}
+          tooltipProps={{ title: "Discard the changes" }}
+          buttonProps={{
+            "data-testid": "test-case-cancel",
+            children: "Cancel",
+            onClick: handleCancel,
+          }}
+        />
+        <ProtectedButton
+          require={permissions.write}
+          tooltipProps={{ title: "Save the test case" }}
+          buttonProps={{
+            "data-testid": "test-case-save",
+            type: "primary",
+            children: "Save",
+            loading: saving,
+            disabled: !hasChanges || !isValid,
+            onClick: handleSave,
+          }}
+        />
+      </>
+    ),
+    [
+      readonly,
+      testCase,
+      permissions.write,
+      saving,
+      hasChanges,
+      isValid,
+      handleCancel,
+      handleSave,
+    ],
+  );
+
   if (loading) {
     return <Skeleton active />;
   }
@@ -251,36 +292,6 @@ export const TestCasePage: React.FC = () => {
         }
       />
       <Outlet context={editorContext} />
-      {readonly ? null : (
-        <TableToolbar
-          data-testid="test-case-editor-toolbar"
-          actions={
-            <>
-              <ProtectedButton
-                require={permissions.write}
-                tooltipProps={{ title: "Discard the changes" }}
-                buttonProps={{
-                  "data-testid": "test-case-cancel",
-                  children: "Cancel",
-                  onClick: handleCancel,
-                }}
-              />
-              <ProtectedButton
-                require={permissions.write}
-                tooltipProps={{ title: "Save the test case" }}
-                buttonProps={{
-                  "data-testid": "test-case-save",
-                  type: "primary",
-                  children: "Save",
-                  loading: saving,
-                  disabled: !hasChanges || !isValid,
-                  onClick: handleSave,
-                }}
-              />
-            </>
-          }
-        />
-      )}
     </Flex>
   );
 };
