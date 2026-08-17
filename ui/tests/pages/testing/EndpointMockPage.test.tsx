@@ -526,6 +526,38 @@ describe("EndpointMockPage unsaved changes", () => {
   });
 });
 
+describe("EndpointMockPage entity lifetime", () => {
+  const OTHER_EDITOR_PATH = "/chains/chain-1/testing/endpoint-mocks/mock-2";
+
+  it("should read the mock the route names when the id changes", async () => {
+    const { router } = await renderChainEditor();
+    mockGetEndpointMock.mockResolvedValue(
+      endpointMock({ id: "mock-2", name: "Second mock" }),
+    );
+
+    await router.navigate(OTHER_EDITOR_PATH);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toHaveValue("Second mock"),
+    );
+  });
+
+  // The editor would otherwise keep the mock it holds and let Save write it back
+  // under the id the address now names.
+  it("should drop the mock on screen when another id fails to load", async () => {
+    const { router } = await renderChainEditor();
+    mockGetEndpointMock.mockRejectedValue(new Error("no connection"));
+
+    await router.navigate(OTHER_EDITOR_PATH);
+
+    expect(
+      await screen.findByText("Endpoint mock not found"),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("endpoint-mock-save")).not.toBeInTheDocument();
+  });
+});
+
 describe("EndpointMockPage read-only mode", () => {
   it("should hide the toolbar and disable the fields outside a chain", async () => {
     renderEditor(ADMIN_EDITOR_PATH);

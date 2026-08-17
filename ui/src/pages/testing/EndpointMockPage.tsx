@@ -96,6 +96,12 @@ export const EndpointMockPage: React.FC = () => {
       return;
     }
     let cancelled = false;
+    // The editor holds the mock the route names and no other: the draft goes
+    // before the next one is read, so a read that fails cannot leave the mock
+    // before it on screen, or save it under the id now in the address.
+    setEndpointMock(null);
+    hasChangesRef.current = false;
+    setHasChanges(false);
     setLoading(true);
     void (async () => {
       try {

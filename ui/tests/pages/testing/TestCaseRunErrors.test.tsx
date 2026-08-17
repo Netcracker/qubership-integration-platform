@@ -230,6 +230,58 @@ describe("TestCaseRunErrors loading", () => {
   });
 });
 
+describe("TestCaseRunErrors case run lifetime", () => {
+  const secondError = validationError({
+    id: "error-2",
+    matcherId: "matcher-2",
+    matcher: null,
+    message: "body does not contain the order id",
+  });
+
+  /** Opens another case run the way a route with a new id does. */
+  function openCaseRun(
+    rerender: (ui: React.ReactElement) => void,
+    caseRunId: string,
+  ) {
+    mockUseParams.mockReturnValue({ chainId: "chain-1", caseRunId });
+    rerender(
+      <UserPermissionsContext.Provider value={ALL_PERMISSIONS}>
+        <ChainHeaderTestRoot>
+          <TestCaseRunErrors />
+        </ChainHeaderTestRoot>
+      </UserPermissionsContext.Provider>,
+    );
+  }
+
+  it("should show the errors of the case run the route names", async () => {
+    const { rerender } = await renderWithErrors([validationError()]);
+    mockGetTestCaseRunErrors.mockResolvedValue([secondError]);
+
+    openCaseRun(rerender, "case-run-2");
+
+    expect(await screen.findByText(secondError.message)).toBeInTheDocument();
+    expect(screen.queryByText("expected 200, got 500")).not.toBeInTheDocument();
+  });
+
+  // The export would otherwise carry ids of the case run left behind, and its
+  // errors would read as the errors of the one that failed to load.
+  it("should drop the errors and the selection when another case run fails to load", async () => {
+    const { rerender } = await renderWithErrors([validationError()]);
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+    mockGetTestCaseRunErrors.mockRejectedValue(new Error("no connection"));
+    mockGetTestCaseRun.mockRejectedValue(new Error("no connection"));
+
+    openCaseRun(rerender, "case-run-2");
+
+    await waitFor(() =>
+      expect(mockGetTestCaseRunErrors).toHaveBeenCalledWith("case-run-2"),
+    );
+    expect(screen.queryByText("expected 200, got 500")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("test-case-run-errors-export"));
+    expect(mockExportTestCaseRunErrors).not.toHaveBeenCalled();
+  });
+});
+
 describe("TestCaseRunErrors routes", () => {
   it("should lead back to the case runs of the chain", async () => {
     await renderWithErrors([validationError()]);

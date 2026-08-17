@@ -33,6 +33,11 @@ const COLUMN_WIDTHS = {
   message: 460,
 };
 
+// Shared empties, so resetting a screen that is already empty changes no state
+// and costs no render.
+const NO_ERRORS: TestingValidationError[] = [];
+const NO_SELECTION: React.Key[] = [];
+
 function errorMatchesSearch(
   error: TestingValidationError,
   term: string,
@@ -59,17 +64,28 @@ export const TestCaseRunErrors: React.FC = () => {
   const navigate = useNavigate();
   const notificationService = useNotificationService();
 
-  const [errors, setErrors] = useState<TestingValidationError[]>([]);
+  const [errors, setErrors] = useState<TestingValidationError[]>(NO_ERRORS);
   const [run, setRun] = useState<TestCaseRunView | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchString, setSearchString] = useState("");
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] =
+    useState<React.Key[]>(NO_SELECTION);
   const [reloadToken, setReloadToken] = useState(0);
 
   const permissions = useMemo(() => getTestingPermissions(chainId), [chainId]);
   const sectionPath = chainId
     ? `/chains/${chainId}/testing`
     : "/admintools/testing";
+
+  // Another case run brings other rows: the ones on screen and the choice made
+  // in them go before it is read, so a read that fails cannot leave the rows of
+  // the case run before it on screen or hand their ids to the export. A refresh
+  // keeps them, which is why this does not follow the reload token.
+  useEffect(() => {
+    setErrors(NO_ERRORS);
+    setRun(null);
+    setSelectedRowKeys(NO_SELECTION);
+  }, [caseRunId]);
 
   // The run is read beside the errors: it names the case the rules belong to,
   // which is what the rule links and the breadcrumb need. Either request may fail

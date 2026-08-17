@@ -467,6 +467,36 @@ describe("TestCasePage unsaved changes", () => {
   });
 });
 
+describe("TestCasePage entity lifetime", () => {
+  const OTHER_EDITOR_PATH = "/chains/chain-1/testing/test-cases/case-2";
+
+  it("should read the case the route names when the id changes", async () => {
+    const { router } = await renderChainEditor();
+    mockGetTestCase.mockResolvedValue(
+      testCase({ id: "case-2", name: "Second case" }),
+    );
+
+    await router.navigate(OTHER_EDITOR_PATH);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name")).toHaveValue("Second case"),
+    );
+  });
+
+  // The editor would otherwise keep the case it holds and let Save write it back
+  // under the id the address now names.
+  it("should drop the case on screen when another id fails to load", async () => {
+    const { router } = await renderChainEditor();
+    mockGetTestCase.mockRejectedValue(new Error("no connection"));
+
+    await router.navigate(OTHER_EDITOR_PATH);
+
+    expect(await screen.findByText("Test case not found")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("test-case-save")).not.toBeInTheDocument();
+  });
+});
+
 describe("TestCasePage read-only mode", () => {
   it("should hide the toolbar and disable the fields outside a chain", async () => {
     renderEditor(ADMIN_EDITOR_PATH);
