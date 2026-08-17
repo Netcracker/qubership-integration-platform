@@ -91,7 +91,7 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
     }
 
     @Override
-    public void postEgressGatewayRoutes(DeploymentRouteUpdate route) {
+    public void postEgressGatewayRoutes(List<DeploymentRouteUpdate> routes, String endpoint) {
         throw new UnsupportedOperationException(
                 "Egress gateway route registration is not implemented for Istio Ambient Mesh yet; "
                         + "see docs/superpowers/specs/2026-07-31-istio-routes-registration-service-design.md");

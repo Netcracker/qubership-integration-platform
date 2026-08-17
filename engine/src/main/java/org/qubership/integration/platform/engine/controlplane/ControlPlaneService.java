@@ -31,5 +31,5 @@ public interface ControlPlaneService {
     void removeEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes,
         String deploymentName) throws ControlPlaneException;
 
-    void postEgressGatewayRoutes(DeploymentRouteUpdate route);
+    void postEgressGatewayRoutes(List<DeploymentRouteUpdate> routes, String endpoint) throws ControlPlaneException;
 }

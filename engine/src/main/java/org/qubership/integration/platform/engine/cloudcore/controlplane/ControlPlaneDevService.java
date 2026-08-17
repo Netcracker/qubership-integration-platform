@@ -35,7 +35,7 @@ public class ControlPlaneDevService implements ControlPlaneService {
     }
 
     @Override
-    public void postEgressGatewayRoutes(DeploymentRouteUpdate route) {
+    public void postEgressGatewayRoutes(List<DeploymentRouteUpdate> routes, String endpoint) {
 
     }
 }

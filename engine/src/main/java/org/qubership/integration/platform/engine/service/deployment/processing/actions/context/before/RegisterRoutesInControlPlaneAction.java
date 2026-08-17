@@ -102,10 +102,13 @@ public class RegisterRoutesInControlPlaneAction implements DeploymentProcessingA
                 applicationConfiguration.getDeploymentName());
 
             // Register http based senders and service call paths '/{senderType}/{elementId}', '/system/{elementId}'
-            deploymentConfiguration.getRoutes().stream()
-                .filter(route -> route.getType() == RouteType.EXTERNAL_SENDER
-                    || route.getType() == RouteType.EXTERNAL_SERVICE)
-                .forEach(route -> controlPlaneService.postEgressGatewayRoutes(formatServiceRoutes(route)));
+            controlPlaneService.postEgressGatewayRoutes(
+                deploymentConfiguration.getRoutes().stream()
+                    .filter(route -> route.getType() == RouteType.EXTERNAL_SENDER
+                        || route.getType() == RouteType.EXTERNAL_SERVICE)
+                    .map(RegisterRoutesInControlPlaneAction::formatServiceRoutes)
+                    .toList(),
+                applicationConfiguration.getDeploymentName());
         } catch (ControlPlaneException e) {
             throw new DeploymentRetriableException(e);
         }

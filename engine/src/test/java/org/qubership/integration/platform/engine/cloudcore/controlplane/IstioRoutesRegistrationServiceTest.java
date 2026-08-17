@@ -250,7 +250,7 @@ class IstioRoutesRegistrationServiceTest {
     void postEgressGatewayRoutesThrowsUnsupportedOperationException() {
         DeploymentRouteUpdate route = route("http://external/api", RouteType.EXTERNAL_SERVICE, null);
 
-        assertThrows(UnsupportedOperationException.class, () -> service.postEgressGatewayRoutes(route));
+        assertThrows(UnsupportedOperationException.class, () -> service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME));
     }
 
     @Test

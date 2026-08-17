@@ -248,10 +248,17 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
      * On gateway some headers of original request will be removed, like 'Origin', 'Authorization' (set in HEADERS_TO_REMOVE)
      * By default prefixRewrite is '/'
      *
-     * @param route  route configuration
+     * @param routes route configurations
+     * @param endpoint unused; Core Mesh's route objects aren't named per pod
      */
     @Override
-    public void postEgressGatewayRoutes(DeploymentRouteUpdate route) throws ControlPlaneException {
+    public void postEgressGatewayRoutes(List<DeploymentRouteUpdate> routes, String endpoint) throws ControlPlaneException {
+        for (DeploymentRouteUpdate route : routes) {
+            postEgressGatewayRoute(route);
+        }
+    }
+
+    private void postEgressGatewayRoute(DeploymentRouteUpdate route) throws ControlPlaneException {
         String targetURL = route.getPath();
         String gatewayPrefix = route.getGatewayPrefix();
 

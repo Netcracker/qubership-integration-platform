@@ -80,6 +80,17 @@ class RegisterRoutesInControlPlaneActionTest {
         verify(controlPlaneService).postPrivateEngineRoutes(eq(List.of(privateRoute)), eq(DEPLOYMENT_NAME));
     }
 
+    @Test
+    void postsExternalSenderAndServiceRoutesAsABatchToEgress() {
+        DeploymentRouteUpdate senderRoute = route("http://backend:8080", RouteType.EXTERNAL_SENDER);
+        DeploymentRouteUpdate serviceRoute = route("http://backend2:8080", RouteType.EXTERNAL_SERVICE);
+        DeploymentConfiguration configuration = configuration(senderRoute, serviceRoute);
+
+        action.execute(null, deploymentInfo(), configuration);
+
+        verify(controlPlaneService).postEgressGatewayRoutes(eq(List.of(senderRoute, serviceRoute)), eq(DEPLOYMENT_NAME));
+    }
+
     private DeploymentInfo deploymentInfo() {
         return DeploymentInfo.builder()
                 .deploymentId(DEPLOYMENT_ID)
