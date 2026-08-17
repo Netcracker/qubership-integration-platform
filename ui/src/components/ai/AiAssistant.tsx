@@ -1,4 +1,13 @@
-import { Button, Divider, Drawer, Modal, Space, Tabs, Tag, Typography } from "antd";
+import {
+  Button,
+  Divider,
+  Drawer,
+  Modal,
+  Space,
+  Tabs,
+  Tag,
+  Typography,
+} from "antd";
 import Input from "antd/es/input/index";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import React, {
@@ -35,9 +44,12 @@ import {
   appendTurnFailure,
   applyStreamingDoneMessages,
   buildMetaMessage,
+  discardEmptyAssistantPlaceholder,
+  ensureAssistantPlaceholder,
   getResponseTail,
   getRoleLabel,
   parseChatMeta,
+  shouldHideEmptyStreamingAssistant,
   upsertAssistantMessage,
   withoutErrorVariantMessages,
 } from "./chatMessageUtils.ts";
@@ -109,7 +121,9 @@ export const AiAssistant: React.FC = () => {
 
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
+  const [currentSession, setCurrentSession] = useState<ChatSession | null>(
+    null,
+  );
 
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -129,19 +143,22 @@ export const AiAssistant: React.FC = () => {
   const lastUiRefreshTimeRef = useRef(0);
   const pendingRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [pendingProposal, setPendingProposal] = useState<ChainModificationProposal | null>(null);
+  const [pendingProposal, setPendingProposal] =
+    useState<ChainModificationProposal | null>(null);
   const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
 
   const activityStore = useActivityStore();
 
   // Chain plan
-  const [chainPlanStatus, setChainPlanStatus] = useState<ChainPlanStatusDto | null>(null);
+  const [chainPlanStatus, setChainPlanStatus] =
+    useState<ChainPlanStatusDto | null>(null);
   const [chainPlanModalOpen, setChainPlanModalOpen] = useState(false);
   const [chainPlanDetailJson, setChainPlanDetailJson] = useState<string>("");
   const [chainPlanDetailLoading, setChainPlanDetailLoading] = useState(false);
 
   const assistantName = getConfig().aiAssistantName ?? "Rocky";
-  const { drawerWidth, isResizing, onResizeMouseDown } = useAiDrawerResize(open);
+  const { drawerWidth, isResizing, onResizeMouseDown } =
+    useAiDrawerResize(open);
 
   // ---------------------------------------------------------------------------
   // Animations
@@ -198,7 +215,10 @@ export const AiAssistant: React.FC = () => {
     if (currentSessionId) {
       const updatedSession = sessionStore.getSession(currentSessionId);
       if (updatedSession) {
-        setCurrentSession({ ...updatedSession, messages: [...updatedSession.messages] });
+        setCurrentSession({
+          ...updatedSession,
+          messages: [...updatedSession.messages],
+        });
       }
     }
   }, [sessionStore, currentSessionId]);
@@ -237,18 +257,21 @@ export const AiAssistant: React.FC = () => {
   // Chain plan status
   // ---------------------------------------------------------------------------
 
-  const refreshChainPlanStatus = useCallback(async (conversationId: string | undefined) => {
-    if (!conversationId) {
-      setChainPlanStatus(null);
-      return;
-    }
-    try {
-      const s = await fetchChainPlanStatus(conversationId);
-      setChainPlanStatus(s);
-    } catch {
-      setChainPlanStatus(null);
-    }
-  }, []);
+  const refreshChainPlanStatus = useCallback(
+    async (conversationId: string | undefined) => {
+      if (!conversationId) {
+        setChainPlanStatus(null);
+        return;
+      }
+      try {
+        const s = await fetchChainPlanStatus(conversationId);
+        setChainPlanStatus(s);
+      } catch {
+        setChainPlanStatus(null);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!open) {
@@ -284,7 +307,10 @@ export const AiAssistant: React.FC = () => {
       if (sendInProgressRef.current) return;
       const session = sessionStore.getSession(sessionId);
       if (!session) return;
-      const reconciled = reconcileDecisionMessages(session.messages, serverDecision);
+      const reconciled = reconcileDecisionMessages(
+        session.messages,
+        serverDecision,
+      );
       sessionStore.updateSessionMessages(sessionId, reconciled);
       refreshSessions();
     },
@@ -295,7 +321,8 @@ export const AiAssistant: React.FC = () => {
   // active session switches to one the server tracks a conversation for.
   useEffect(() => {
     if (!currentSessionId) return;
-    const conversationId = sessionStore.getSession(currentSessionId)?.conversationId;
+    const conversationId =
+      sessionStore.getSession(currentSessionId)?.conversationId;
     if (!conversationId) return;
     void reconcileOpenDecision(conversationId, currentSessionId);
   }, [currentSessionId, sessionStore, reconcileOpenDecision]);
@@ -309,9 +336,14 @@ export const AiAssistant: React.FC = () => {
       if (!chainContext) return;
       if (chainContext.refresh) await chainContext.refresh();
       if (pageChainContext?.refresh) await pageChainContext.refresh();
-      if (typeof window !== "undefined" && (chainId ?? chainContext.chain?.id)) {
+      if (
+        typeof window !== "undefined" &&
+        (chainId ?? chainContext.chain?.id)
+      ) {
         window.dispatchEvent(
-          new CustomEvent("chain-updated", { detail: chainId ?? chainContext.chain.id }),
+          new CustomEvent("chain-updated", {
+            detail: chainId ?? chainContext.chain.id,
+          }),
         );
       }
     },
@@ -326,14 +358,17 @@ export const AiAssistant: React.FC = () => {
     (sessionId: string, result: ResponseResult) => {
       const { finalMessages, conversationId } = result;
       sessionStore.updateSessionMessages(sessionId, finalMessages);
-      if (conversationId) sessionStore.updateConversationId(sessionId, conversationId);
+      if (conversationId)
+        sessionStore.updateConversationId(sessionId, conversationId);
       flushRefresh();
 
       const lastAssistant = [...finalMessages]
         .reverse()
         .find((m) => m.role === "assistant" && m.variant !== "error");
       if (lastAssistant) {
-        const proposal = tryParseChainModificationProposal(lastAssistant.content);
+        const proposal = tryParseChainModificationProposal(
+          lastAssistant.content,
+        );
         if (proposal) {
           setPendingProposal(proposal);
           setIsConfirmationOpen(true);
@@ -341,7 +376,8 @@ export const AiAssistant: React.FC = () => {
       }
 
       void refreshChainContexts();
-      const cid = conversationId ?? sessionStore.getSession(sessionId)?.conversationId;
+      const cid =
+        conversationId ?? sessionStore.getSession(sessionId)?.conversationId;
       void refreshChainPlanStatus(cid);
       void reconcileOpenDecision(cid, sessionId);
     },
@@ -371,7 +407,9 @@ export const AiAssistant: React.FC = () => {
       activityStore.reset();
 
       let accumulatedContent = "";
-      let currentMessages = [...requestMessages];
+      let currentMessages = ensureAssistantPlaceholder([...requestMessages]);
+      sessionStore.updateSessionMessages(sessionId, currentMessages);
+      refreshSessions();
       let periodicalChainRefreshAt = performance.now() + 2000;
       let activeConversationId = conversationId;
       let turnFailed = false;
@@ -411,7 +449,10 @@ export const AiAssistant: React.FC = () => {
             return;
           }
           accumulatedContent += chunk.contentDelta;
-          currentMessages = upsertAssistantMessage(currentMessages, accumulatedContent);
+          currentMessages = upsertAssistantMessage(
+            currentMessages,
+            accumulatedContent,
+          );
           sessionStore.updateSessionMessages(sessionId, currentMessages);
           throttledRefreshSessions();
           scrollToBottom();
@@ -442,6 +483,7 @@ export const AiAssistant: React.FC = () => {
             activityStore.getRows(),
             durationMs,
           );
+          finalMessages = discardEmptyAssistantPlaceholder(finalMessages);
           activityStore.reset();
           handleResponseComplete(sessionId, {
             finalMessages,
@@ -472,6 +514,7 @@ export const AiAssistant: React.FC = () => {
             activityStore.getRows(),
             durationMs,
           );
+          currentMessages = discardEmptyAssistantPlaceholder(currentMessages);
           activityStore.reset();
           sessionStore.updateSessionMessages(sessionId, currentMessages);
           flushRefresh();
@@ -507,6 +550,11 @@ export const AiAssistant: React.FC = () => {
     ): Promise<void> => {
       setIsStreaming(true);
       activityStore.reset();
+      sessionStore.updateSessionMessages(
+        sessionId,
+        ensureAssistantPlaceholder(requestMessages),
+      );
+      refreshSessions();
 
       const onChunk = (chunk: StreamingChunk) => {
         if (chunk.type === "step" && chunk.step) {
@@ -537,6 +585,9 @@ export const AiAssistant: React.FC = () => {
           ? [{ role: "assistant" as const, content: mergedAssistantContent }]
           : []),
       ];
+      if (!mergedAssistantContent) {
+        finalMessages = ensureAssistantPlaceholder(finalMessages);
+      }
 
       if (response.usage || response.finishReason) {
         finalMessages = [
@@ -550,6 +601,7 @@ export const AiAssistant: React.FC = () => {
         activityStore.getRows(),
         durationMs,
       );
+      finalMessages = discardEmptyAssistantPlaceholder(finalMessages);
       activityStore.reset();
 
       if (finalMessages.length > 0) {
@@ -583,11 +635,15 @@ export const AiAssistant: React.FC = () => {
       decision?: ChatRequest["decision"],
     ) => {
       if (sendInProgressRef.current) {
-        console.warn("[AiAssistant] sendToProvider skipped – already in progress");
+        console.warn(
+          "[AiAssistant] sendToProvider skipped – already in progress",
+        );
         return;
       }
       if (messages.length === 0) {
-        setProviderError("Conversation is empty. Please type a message and try again.");
+        setProviderError(
+          "Conversation is empty. Please type a message and try again.",
+        );
         return;
       }
       sendInProgressRef.current = true;
@@ -598,7 +654,9 @@ export const AiAssistant: React.FC = () => {
         setProviderError(null);
       } catch (error) {
         const errorMsg =
-          error instanceof Error ? error.message : "Failed to initialize AI provider";
+          error instanceof Error
+            ? error.message
+            : "Failed to initialize AI provider";
         setProviderError(errorMsg);
         sessionStore.updateSessionMessages(
           sessionId,
@@ -643,7 +701,10 @@ export const AiAssistant: React.FC = () => {
           );
         }
         if (mergedAttachmentUrls?.length) {
-          sessionStore.updateSessionLastAttachmentUrls(sessionId, mergedAttachmentUrls);
+          sessionStore.updateSessionLastAttachmentUrls(
+            sessionId,
+            mergedAttachmentUrls,
+          );
         }
 
         const requestPayload: ChatRequest = {
@@ -659,12 +720,19 @@ export const AiAssistant: React.FC = () => {
 
         if (chainContext) {
           const { chain, compactSchema } = chainContext;
-          requestPayload.context = { type: "chain", chainId: chain.id, compactSchema };
+          requestPayload.context = {
+            type: "chain",
+            chainId: chain.id,
+            compactSchema,
+          };
         }
 
         const start = performance.now();
 
-        if (aiProvider.capabilities?.supportsStreaming && aiProvider.streamChat) {
+        if (
+          aiProvider.capabilities?.supportsStreaming &&
+          aiProvider.streamChat
+        ) {
           await runStreamingChat(
             aiProvider,
             requestPayload,
@@ -674,7 +742,13 @@ export const AiAssistant: React.FC = () => {
             conversationId,
           );
         } else {
-          await runChatWithProgress(aiProvider, requestPayload, sessionId, messages, start);
+          await runChatWithProgress(
+            aiProvider,
+            requestPayload,
+            sessionId,
+            messages,
+            start,
+          );
         }
       } catch (error) {
         if (!shouldShowErrorToastForAbort(error)) {
@@ -725,7 +799,8 @@ export const AiAssistant: React.FC = () => {
       return;
     }
     const hasActiveSession =
-      currentSessionId !== null && sessionStore.getSession(currentSessionId) !== null;
+      currentSessionId !== null &&
+      sessionStore.getSession(currentSessionId) !== null;
     if (!hasActiveSession) {
       const defaultId = sessionStore.resolveDefaultSessionId(allSessions);
       if (defaultId) setCurrentSessionId(defaultId);
@@ -773,10 +848,16 @@ export const AiAssistant: React.FC = () => {
     if (currentSessionId) {
       const session = sessionStore.getSession(currentSessionId);
       const steps = activityStore.getRows();
-      if (session && steps.length > 0) {
-        const next = attachActivityToLastAssistant(session.messages, steps);
-        sessionStore.updateSessionMessages(currentSessionId, next);
-        refreshSessions();
+      if (session) {
+        let next = session.messages;
+        if (steps.length > 0) {
+          next = attachActivityToLastAssistant(next, steps);
+        }
+        next = discardEmptyAssistantPlaceholder(next);
+        if (next !== session.messages) {
+          sessionStore.updateSessionMessages(currentSessionId, next);
+          refreshSessions();
+        }
       }
       // The aborted turn never reaches the "done" or "error" chunk, so nothing else
       // would otherwise check whether the server still has a gate open.
@@ -874,7 +955,8 @@ export const AiAssistant: React.FC = () => {
   // ---------------------------------------------------------------------------
 
   const handleSend = useCallback(async () => {
-    const rawValue = inputValue || inputRef.current?.resizableTextArea?.textArea?.value || "";
+    const rawValue =
+      inputValue || inputRef.current?.resizableTextArea?.textArea?.value || "";
     const messageText = rawValue.trim();
     if ((!messageText && attachedFiles.length === 0) || isLoading) return;
     shouldAutoScrollRef.current = true;
@@ -893,20 +975,27 @@ export const AiAssistant: React.FC = () => {
         const aiProvider = getDefaultAiProvider();
         if (aiProvider.uploadFile) {
           const results = await Promise.all(
-            attachedFiles.map((file) => aiProvider.uploadFile!(file, sessionId)),
+            attachedFiles.map((file) =>
+              aiProvider.uploadFile!(file, sessionId),
+            ),
           );
           attachmentUrls = results.map((r) => r.url);
           attachmentObjectKeys = results.map((r) => r.objectKey);
         }
       } catch (e) {
-        console.warn("[AiAssistant] Upload failed, sending without attachments", e);
+        console.warn(
+          "[AiAssistant] Upload failed, sending without attachments",
+          e,
+        );
       }
       setAttachedFiles([]);
     }
 
     const userContent =
       messageText ||
-      (attachmentObjectKeys?.length ?? attachmentUrls?.length ? "See attached files." : "");
+      ((attachmentObjectKeys?.length ?? attachmentUrls?.length)
+        ? "See attached files."
+        : "");
     const userMessage: ChatMessage = { role: "user", content: userContent };
     // Drop unanswered cards from a prior wait so a silent bootstrap gate cannot linger
     // above the new turn's skill spinner while the stream is still running.
@@ -924,12 +1013,22 @@ export const AiAssistant: React.FC = () => {
     sessionStore.updateSessionMessages(sessionId, next);
     setInputValue("");
     refreshSessions();
-    await sendToProvider(sessionId, next, attachmentUrls, [userMessage], attachmentObjectKeys);
+    await sendToProvider(
+      sessionId,
+      next,
+      attachmentUrls,
+      [userMessage],
+      attachmentObjectKeys,
+    );
 
     const after = sessionStore.getSession(sessionId);
-    if (after && (after.title === "New Chat" || after.title.match(/^Chat \d+$/))) {
+    if (
+      after &&
+      (after.title === "New Chat" || after.title.match(/^Chat \d+$/))
+    ) {
       const title =
-        userMessage.content.slice(0, 30) + (userMessage.content.length > 30 ? "..." : "");
+        userMessage.content.slice(0, 30) +
+        (userMessage.content.length > 30 ? "..." : "");
       sessionStore.updateSessionTitle(sessionId, title);
       refreshSessions();
     }
@@ -965,16 +1064,19 @@ export const AiAssistant: React.FC = () => {
 
       const buildMessage: ChatMessage = {
         role: "user",
-        content: "Implement the approved chain implementation plan in the catalog.",
+        content:
+          "Implement the approved chain implementation plan in the catalog.",
       };
       const next = [...session.messages, buildMessage];
       sessionStore.updateSessionMessages(currentSessionId, next);
       refreshSessions();
 
       const latestSession = sessionStore.getSession(currentSessionId);
-      let urls = latestSession?.lastAttachmentUrls ?? session.lastAttachmentUrls;
+      let urls =
+        latestSession?.lastAttachmentUrls ?? session.lastAttachmentUrls;
       const keys =
-        latestSession?.lastAttachmentObjectKeys ?? session.lastAttachmentObjectKeys;
+        latestSession?.lastAttachmentObjectKeys ??
+        session.lastAttachmentObjectKeys;
       if (!urls?.length) {
         const designUrl = extractDesignUrlFromMessages(session.messages);
         if (designUrl) urls = [designUrl];
@@ -1052,7 +1154,10 @@ export const AiAssistant: React.FC = () => {
 
     sessionStore.updateSessionMessages(currentSessionId, []);
     sessionStore.updateSessionLastAttachmentUrls(currentSessionId, undefined);
-    sessionStore.updateSessionLastAttachmentObjectKeys(currentSessionId, undefined);
+    sessionStore.updateSessionLastAttachmentObjectKeys(
+      currentSessionId,
+      undefined,
+    );
     activityStore.reset();
     setChainPlanStatus(null);
     setChainPlanModalOpen(false);
@@ -1145,7 +1250,10 @@ export const AiAssistant: React.FC = () => {
         }
       }
 
-      const baseMessages = sliceMessagesForRegenerate(session.messages, fullIndex);
+      const baseMessages = sliceMessagesForRegenerate(
+        session.messages,
+        fullIndex,
+      );
       sessionStore.updateSessionMessages(currentSessionId, baseMessages);
       refreshSessions();
 
@@ -1155,7 +1263,8 @@ export const AiAssistant: React.FC = () => {
         baseMessages,
         latestSession?.lastAttachmentUrls ?? session.lastAttachmentUrls,
         undefined,
-        latestSession?.lastAttachmentObjectKeys ?? session.lastAttachmentObjectKeys,
+        latestSession?.lastAttachmentObjectKeys ??
+          session.lastAttachmentObjectKeys,
       );
     },
     [
@@ -1203,7 +1312,11 @@ export const AiAssistant: React.FC = () => {
         el.scrollTop = el.scrollHeight;
       }
     });
-    observer.observe(el, { childList: true, subtree: true, characterData: true });
+    observer.observe(el, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
     return () => observer.disconnect();
     // `open`: the Drawer lazily mounts its body on first open, so scrollContainerRef.current is
     // still null when this effect first runs; re-attaching once it becomes true finds the real node.
@@ -1212,7 +1325,8 @@ export const AiAssistant: React.FC = () => {
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
-    shouldAutoScrollRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    shouldAutoScrollRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   }, []);
 
   const tabItems = sessions.map((session) => ({
@@ -1251,7 +1365,9 @@ export const AiAssistant: React.FC = () => {
                 alignItems: "center",
               }}
             >
-              <span style={{ fontSize: 16, fontWeight: 500 }}>{assistantName}</span>
+              <span style={{ fontSize: 16, fontWeight: 500 }}>
+                {assistantName}
+              </span>
               <Space size="small">
                 <Button
                   size="small"
@@ -1313,7 +1429,9 @@ export const AiAssistant: React.FC = () => {
           {chainContext && (
             <div className="ai-context-pill">
               <span className="ai-context-pill__label">Chain:</span>
-              <span className="ai-context-pill__value">{chainContext.chain.name}</span>
+              <span className="ai-context-pill__value">
+                {chainContext.chain.name}
+              </span>
             </div>
           )}
 
@@ -1328,7 +1446,10 @@ export const AiAssistant: React.FC = () => {
                 alignItems: "center",
               }}
             >
-              <Button size="small" onClick={() => void handleOpenChainPlanModal()}>
+              <Button
+                size="small"
+                onClick={() => void handleOpenChainPlanModal()}
+              >
                 View plan
               </Button>
               <Button
@@ -1365,18 +1486,20 @@ export const AiAssistant: React.FC = () => {
               <>
                 {visibleMessages.map((message, index) => {
                   const isLastVisible = index === visibleMessages.length - 1;
-                  if (
+                  const isUser = message.role === "user";
+                  const showLiveActivity =
                     message.role === "assistant" &&
-                    !message.content.trim() &&
-                    (isLoading || isStreaming) &&
-                    !isLastVisible
+                    isLastVisible &&
+                    hasActivity;
+                  if (
+                    shouldHideEmptyStreamingAssistant(message, {
+                      isLastVisible,
+                      isTurnInFlight: isLoading || isStreaming,
+                      hasLiveActivity: showLiveActivity,
+                    })
                   ) {
                     return null;
                   }
-
-                  const isUser = message.role === "user";
-                  const showLiveActivity =
-                    message.role === "assistant" && isLastVisible && hasActivity;
                   const showPersistedActivity =
                     message.role === "assistant" &&
                     Boolean(message.activity?.steps?.length) &&
@@ -1384,7 +1507,9 @@ export const AiAssistant: React.FC = () => {
                   const isErrorBubble = message.variant === "error";
                   const narrativeContent =
                     message.role === "assistant" && !isErrorBubble
-                      ? replaceChainModificationProposalForDisplay(message.content)
+                      ? replaceChainModificationProposalForDisplay(
+                          message.content,
+                        )
                       : message.content;
                   const showThinkingInBubble =
                     message.role === "assistant" &&
@@ -1408,6 +1533,19 @@ export const AiAssistant: React.FC = () => {
                         </span>
                       </div>
                       <div className="ai-message__bubble">
+                        {showLiveActivity ? (
+                          <AiActivityInline
+                            rows={activityStore.rows}
+                            collapsed={false}
+                          />
+                        ) : null}
+                        {showPersistedActivity && message.activity ? (
+                          <AiActivityInline
+                            rows={message.activity.steps}
+                            collapsed={message.activity.collapsed}
+                            summary={message.activity.summary}
+                          />
+                        ) : null}
                         {isErrorBubble ? (
                           <div className="ai-message__error">
                             <Typography.Text type="danger">
@@ -1423,7 +1561,9 @@ export const AiAssistant: React.FC = () => {
                             ) : null}
                           </div>
                         ) : narrativeContent.trim() ? (
-                          <MarkdownRenderer>{narrativeContent}</MarkdownRenderer>
+                          <MarkdownRenderer>
+                            {narrativeContent}
+                          </MarkdownRenderer>
                         ) : null}
                         {message.decision ? (
                           <AiDecisionCard
@@ -1444,28 +1584,24 @@ export const AiAssistant: React.FC = () => {
                             }
                           />
                         ) : null}
-                        {showLiveActivity ? (
-                          <AiActivityInline
-                            rows={activityStore.rows}
-                            collapsed={false}
-                          />
-                        ) : null}
-                        {showPersistedActivity && message.activity ? (
-                          <AiActivityInline
-                            rows={message.activity.steps}
-                            collapsed={message.activity.collapsed}
-                            summary={message.activity.summary}
-                          />
-                        ) : null}
                         {showThinkingInBubble ? (
-                          <Typography.Text type="secondary" style={{ fontStyle: "italic" }}>
+                          <Typography.Text
+                            type="secondary"
+                            style={{ fontStyle: "italic" }}
+                          >
                             {showLongRunningHint
                               ? "Working… (this may take a minute)"
                               : "Thinking"}
                             <span className="ai-thinking-dots">
-                              <span className="ai-thinking-dot ai-thinking-dot--1">.</span>
-                              <span className="ai-thinking-dot ai-thinking-dot--2">.</span>
-                              <span className="ai-thinking-dot ai-thinking-dot--3">.</span>
+                              <span className="ai-thinking-dot ai-thinking-dot--1">
+                                .
+                              </span>
+                              <span className="ai-thinking-dot ai-thinking-dot--2">
+                                .
+                              </span>
+                              <span className="ai-thinking-dot ai-thinking-dot--3">
+                                .
+                              </span>
                             </span>
                           </Typography.Text>
                         ) : null}
@@ -1482,7 +1618,8 @@ export const AiAssistant: React.FC = () => {
                               style={{
                                 marginTop: 14,
                                 paddingTop: 12,
-                                borderTop: "1px solid var(--vscode-border, #eee)",
+                                borderTop:
+                                  "1px solid var(--vscode-border, #eee)",
                               }}
                             >
                               <Button
@@ -1504,7 +1641,9 @@ export const AiAssistant: React.FC = () => {
                               type="text"
                               icon={<OverridableIcon name="edit" />}
                               title="Edit message and send again"
-                              onClick={() => void handlePrepareRegenerateFromIndex(index)}
+                              onClick={() =>
+                                void handlePrepareRegenerateFromIndex(index)
+                              }
                             />
                             <Button
                               size="small"
@@ -1516,7 +1655,9 @@ export const AiAssistant: React.FC = () => {
                                 />
                               }
                               title="Regenerate from this answer"
-                              onClick={() => void handleRegenerateFromIndex(index)}
+                              onClick={() =>
+                                void handleRegenerateFromIndex(index)
+                              }
                             />
                           </div>
                         )}
@@ -1526,7 +1667,8 @@ export const AiAssistant: React.FC = () => {
                 })}
 
                 {(isLoading || isStreaming) &&
-                  visibleMessages[visibleMessages.length - 1]?.role === "user" && (
+                  visibleMessages[visibleMessages.length - 1]?.role ===
+                    "user" && (
                     <div className="ai-message ai-message--assistant">
                       <div className="ai-message__meta">
                         <span className="ai-message__role">
@@ -1540,14 +1682,23 @@ export const AiAssistant: React.FC = () => {
                             collapsed={false}
                           />
                         ) : (
-                          <Typography.Text type="secondary" style={{ fontStyle: "italic" }}>
+                          <Typography.Text
+                            type="secondary"
+                            style={{ fontStyle: "italic" }}
+                          >
                             {showLongRunningHint
                               ? "Working… (this may take a minute)"
                               : "Thinking"}
                             <span className="ai-thinking-dots">
-                              <span className="ai-thinking-dot ai-thinking-dot--1">.</span>
-                              <span className="ai-thinking-dot ai-thinking-dot--2">.</span>
-                              <span className="ai-thinking-dot ai-thinking-dot--3">.</span>
+                              <span className="ai-thinking-dot ai-thinking-dot--1">
+                                .
+                              </span>
+                              <span className="ai-thinking-dot ai-thinking-dot--2">
+                                .
+                              </span>
+                              <span className="ai-thinking-dot ai-thinking-dot--3">
+                                .
+                              </span>
                             </span>
                           </Typography.Text>
                         )}
@@ -1570,7 +1721,9 @@ export const AiAssistant: React.FC = () => {
               onChange={(e) => {
                 const files = e.target.files ? Array.from(e.target.files) : [];
                 const maxSize = 10 * 1024 * 1024;
-                const valid = files.filter((f) => f.size <= maxSize).slice(0, 5);
+                const valid = files
+                  .filter((f) => f.size <= maxSize)
+                  .slice(0, 5);
                 setAttachedFiles((prev) => [...prev, ...valid].slice(0, 5));
                 e.target.value = "";
               }}
@@ -1607,7 +1760,9 @@ export const AiAssistant: React.FC = () => {
                       style={{ padding: 0, minWidth: 20 }}
                       icon={<OverridableIcon name="close" />}
                       onClick={() =>
-                        setAttachedFiles((prev) => prev.filter((_, j) => j !== i))
+                        setAttachedFiles((prev) =>
+                          prev.filter((_, j) => j !== i),
+                        )
                       }
                       aria-label="Remove attachment"
                     />
@@ -1683,7 +1838,9 @@ export const AiAssistant: React.FC = () => {
             }
             void applyChainModificationProposal(proposal, api, chainContext)
               .then(() => {
-                void refreshChainContexts(proposal.chainId ?? chainContext.chain?.id);
+                void refreshChainContexts(
+                  proposal.chainId ?? chainContext.chain?.id,
+                );
               })
               .catch((err: unknown) => {
                 console.error("[AI] Failed to apply chain modifications", err);

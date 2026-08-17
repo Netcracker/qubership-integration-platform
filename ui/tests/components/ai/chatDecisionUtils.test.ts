@@ -48,7 +48,9 @@ describe("appendDecision", () => {
   });
 
   it("should append a decision-only entry when the trailing message has no prose", () => {
-    const messages: ChatMessage[] = [{ role: "user", content: "Create the chain" }];
+    const messages: ChatMessage[] = [
+      { role: "user", content: "Create the chain" },
+    ];
     const decision = buildDecision();
 
     const result = appendDecision(messages, decision);
@@ -57,10 +59,28 @@ describe("appendDecision", () => {
     expect(result[1]).toEqual({ role: "assistant", content: "", decision });
   });
 
+  it("should park the decision on an in-flight empty assistant shell", () => {
+    const messages: ChatMessage[] = [
+      { role: "user", content: "Create the chain" },
+      { role: "assistant", content: "" },
+    ];
+    const decision = buildDecision();
+
+    const result = appendDecision(messages, decision);
+
+    expect(result).toHaveLength(2);
+    expect(result[1].content).toBe("");
+    expect(result[1].decision).toEqual(decision);
+  });
+
   it("should replace an unanswered entry for the same id instead of duplicating it", () => {
-    const messages: ChatMessage[] = [{ role: "user", content: "Create the chain" }];
+    const messages: ChatMessage[] = [
+      { role: "user", content: "Create the chain" },
+    ];
     const first = appendDecision(messages, buildDecision());
-    const reissued = buildDecision({ question: "Approve the updated revision?" });
+    const reissued = buildDecision({
+      question: "Approve the updated revision?",
+    });
 
     const result = appendDecision(first, reissued);
 
@@ -146,7 +166,9 @@ describe("isDecisionMessage / findDecision", () => {
 
 describe("reconcileDecisionMessages", () => {
   it("should append the gate when the server reports one the transcript lacks", () => {
-    const messages: ChatMessage[] = [{ role: "user", content: "Create the chain" }];
+    const messages: ChatMessage[] = [
+      { role: "user", content: "Create the chain" },
+    ];
     const decision = buildDecision();
 
     const result = reconcileDecisionMessages(messages, decision);
@@ -187,7 +209,10 @@ describe("reconcileDecisionMessages", () => {
 
   it("should drop a stale unanswered card when the server reports a different gate", () => {
     const messages = appendDecision([], buildDecision({ id: "gate-1" }));
-    const nextGate = buildDecision({ id: "gate-2", question: "Approve the next revision?" });
+    const nextGate = buildDecision({
+      id: "gate-2",
+      question: "Approve the next revision?",
+    });
 
     const result = reconcileDecisionMessages(messages, nextGate);
 

@@ -1,14 +1,15 @@
 import { describe, it, expect } from "@jest/globals";
-import { parseCipSseBlock } from "../../src/ai/modelProviders/sseParsing.ts";
+import {
+  parseCipSseBlock,
+  splitSseFrames,
+} from "../../src/ai/modelProviders/sseParsing.ts";
 
 describe("parseCipSseBlock", () => {
   it("parses meta with conversationId", () => {
     const chunks = parseCipSseBlock(
       'event: meta\ndata: {"conversationId":"conv-abc"}\n',
     );
-    expect(chunks).toEqual([
-      { type: "meta", conversationId: "conv-abc" },
-    ]);
+    expect(chunks).toEqual([{ type: "meta", conversationId: "conv-abc" }]);
   });
 
   it("parses token as delta", () => {
@@ -82,5 +83,34 @@ describe("parseCipSseBlock", () => {
     expect(parseCipSseBlock("event: error\ndata: boom\n")).toEqual([
       { type: "error", errorMessage: "boom" },
     ]);
+  });
+});
+
+describe("splitSseFrames", () => {
+  it("should yield a complete step frame before the stream ends when the delimiter is CRLF", () => {
+    const { complete, rest } = splitSseFrames(
+      'event: step\r\ndata: {"id":"skill:search","kind":"skill","status":"running","label":"search"}\r\n\r\n',
+    );
+    expect(complete).toHaveLength(1);
+    expect(rest).toBe("");
+    expect(parseCipSseBlock(complete[0])).toEqual([
+      {
+        type: "step",
+        step: {
+          id: "skill:search",
+          kind: "skill",
+          status: "running",
+          label: "search",
+        },
+      },
+    ]);
+  });
+
+  it("should keep a partial frame in the rest buffer until the blank line arrives", () => {
+    const { complete, rest } = splitSseFrames(
+      'event: step\ndata: {"id":"skill:search"',
+    );
+    expect(complete).toEqual([]);
+    expect(rest).toContain("event: step");
   });
 });

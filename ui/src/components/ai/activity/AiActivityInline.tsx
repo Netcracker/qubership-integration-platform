@@ -144,41 +144,51 @@ export const AiActivityInline: React.FC<AiActivityInlineProps> = ({
     const children = childRowsByParent.get(row.id) ?? [];
     const hasChildren = children.length > 0;
     const open = detailsOpen && isParentOpen(row.id, hasChildren);
-    const canToggle = hasChildren || preferCollapsed;
+    const canToggle = hasChildren;
+    const parentRowClass = [
+      "ai-activity-inline__row",
+      "ai-activity-inline__row--parent",
+      statusClass(row.status),
+      `ai-activity-inline__row--${visual}`,
+    ].join(" ");
+    const parentRowBody = (
+      <>
+        {canToggle ? (
+          <span
+            className={`ai-activity-inline__chevron${open ? " ai-activity-inline__chevron--open" : ""}`}
+            aria-hidden
+          >
+            ▸
+          </span>
+        ) : (
+          <span className="ai-activity-inline__chevron-spacer" aria-hidden />
+        )}
+        <span className="ai-activity-inline__icon" aria-hidden>
+          {statusIcon(row.status)}
+        </span>
+        <span className="ai-activity-inline__label">{row.label ?? row.id}</span>
+        <span
+          className={`ai-activity-inline__badge ai-activity-inline__badge--${visual}`}
+        >
+          {visualKindBadgeLabel(visual)}
+        </span>
+      </>
+    );
 
     return (
       <div key={row.id} className="ai-activity-inline__card">
-        <button
-          type="button"
-          className={[
-            "ai-activity-inline__row",
-            "ai-activity-inline__row--parent",
-            statusClass(row.status),
-            `ai-activity-inline__row--${visual}`,
-          ].join(" ")}
-          onClick={canToggle ? () => toggleParent(row.id, hasChildren) : undefined}
-          aria-expanded={hasChildren ? open : undefined}
-        >
-          {canToggle ? (
-            <span
-              className={`ai-activity-inline__chevron${open ? " ai-activity-inline__chevron--open" : ""}`}
-              aria-hidden
-            >
-              ▸
-            </span>
-          ) : (
-            <span className="ai-activity-inline__chevron-spacer" aria-hidden />
-          )}
-          <span className="ai-activity-inline__icon" aria-hidden>
-            {statusIcon(row.status)}
-          </span>
-          <span className="ai-activity-inline__label">{row.label ?? row.id}</span>
-          <span
-            className={`ai-activity-inline__badge ai-activity-inline__badge--${visual}`}
+        {canToggle ? (
+          <button
+            type="button"
+            className={parentRowClass}
+            onClick={() => toggleParent(row.id, hasChildren)}
+            aria-expanded={open}
           >
-            {visualKindBadgeLabel(visual)}
-          </span>
-        </button>
+            {parentRowBody}
+          </button>
+        ) : (
+          <div className={parentRowClass}>{parentRowBody}</div>
+        )}
         {open ? (
           <div className="ai-activity-inline__children">
             {children.map((child) => renderLeaf(child, true))}

@@ -1,4 +1,7 @@
-import type { ChatDecision, ChatMessage } from "../../ai/modelProviders/types.ts";
+import type {
+  ChatDecision,
+  ChatMessage,
+} from "../../ai/modelProviders/types.ts";
 
 export function isDecisionMessage(message: ChatMessage): boolean {
   return message.decision !== undefined;
@@ -43,7 +46,7 @@ export function appendDecision(
     last?.role === "assistant" &&
     last.variant !== "error" &&
     last.decision === undefined &&
-    last.content.trim()
+    (Boolean(last.content.trim()) || last.activity === undefined)
   ) {
     return [...messages.slice(0, -1), { ...last, decision }];
   }

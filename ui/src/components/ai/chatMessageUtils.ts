@@ -81,7 +81,9 @@ export function isCollapsibleChainPlanJsonBlock(
 }
 
 /** @deprecated use isCollapsibleChainPlanJsonBlock */
-export function isHiddenChainPlanJsonLanguage(language: string | undefined): boolean {
+export function isHiddenChainPlanJsonLanguage(
+  language: string | undefined,
+): boolean {
   return language === "chain-plan-json";
 }
 
@@ -137,6 +139,70 @@ export function buildMetaMessage(
     role: "system",
     content: `__META__${JSON.stringify({ durationMs, finishReason, usage })}`,
   };
+}
+
+/**
+ * True when the trailing assistant bubble is a reserved shell for the in-flight
+ * turn: no prose, no gate, and no persisted activity from a prior turn.
+ */
+export function isOpenAssistantPlaceholder(
+  message: ChatMessage | undefined,
+): boolean {
+  return (
+    message?.role === "assistant" &&
+    message.variant !== "error" &&
+    !message.content.trim() &&
+    message.decision === undefined &&
+    message.activity === undefined
+  );
+}
+
+/**
+ * Reserve an assistant bubble for the in-flight turn so skill/tool steps have a
+ * place to render before any markdown arrives. A finished assistant (prose, a
+ * gate, or persisted activity) is left alone and a new shell is appended.
+ */
+export function ensureAssistantPlaceholder(
+  messages: ChatMessage[],
+): ChatMessage[] {
+  if (isOpenAssistantPlaceholder(messages[messages.length - 1])) {
+    return messages;
+  }
+  return [...messages, { role: "assistant", content: "" }];
+}
+
+/** Drop a leftover in-flight shell that never received prose, a gate, or activity. */
+export function discardEmptyAssistantPlaceholder(
+  messages: ChatMessage[],
+): ChatMessage[] {
+  if (isOpenAssistantPlaceholder(messages[messages.length - 1])) {
+    return messages.slice(0, -1);
+  }
+  return messages;
+}
+
+/**
+ * Hide only non-last empty shells while a turn is in flight. The last bubble
+ * stays mounted so live skill/tool rows can render before markdown exists.
+ */
+export function shouldHideEmptyStreamingAssistant(
+  message: ChatMessage,
+  options: {
+    isLastVisible: boolean;
+    isTurnInFlight: boolean;
+    hasLiveActivity: boolean;
+  },
+): boolean {
+  if (message.role !== "assistant" || message.variant === "error") {
+    return false;
+  }
+  if (message.content.trim() || message.decision || message.activity) {
+    return false;
+  }
+  if (options.hasLiveActivity && options.isLastVisible) {
+    return false;
+  }
+  return options.isTurnInFlight && !options.isLastVisible;
 }
 
 /** Replace or append the assistant message at the tail of a message array. */
@@ -233,11 +299,7 @@ export function applyStreamingDoneMessages(
   if (options.usage || options.finishReason) {
     finalMessages = [
       ...finalMessages,
-      buildMetaMessage(
-        options.durationMs,
-        options.finishReason,
-        options.usage,
-      ),
+      buildMetaMessage(options.durationMs, options.finishReason, options.usage),
     ];
   }
   return finalMessages;

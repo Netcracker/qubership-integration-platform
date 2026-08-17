@@ -10,7 +10,11 @@ function parseStepPayload(payload: string): ActivityStepPayload | null {
     const id = parsed.id;
     const kind = parsed.kind;
     const status = parsed.status;
-    if (typeof id !== "string" || typeof kind !== "string" || typeof status !== "string") {
+    if (
+      typeof id !== "string" ||
+      typeof kind !== "string" ||
+      typeof status !== "string"
+    ) {
       return null;
     }
     if (kind !== "skill" && kind !== "pipeline" && kind !== "tool") {
@@ -87,6 +91,23 @@ export function parseDecisionPayload(payload: string): ChatDecision | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Split a decoded SSE buffer into complete frames. Normalize CRLF so a frame
+ * is emitted as soon as the blank-line delimiter arrives.
+ */
+export function splitSseFrames(buffer: string): {
+  complete: string[];
+  rest: string;
+} {
+  const normalized = buffer.replaceAll("\r\n", "\n").replaceAll("\r", "\n");
+  const parts = normalized.split("\n\n");
+  const rest = parts.pop() ?? "";
+  return {
+    complete: parts.filter((part) => part.trim().length > 0),
+    rest,
+  };
 }
 
 /** Parse one SSE block (`event:` + `data:` lines) into zero or more streaming chunks. */
