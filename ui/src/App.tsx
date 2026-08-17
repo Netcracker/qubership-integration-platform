@@ -69,10 +69,10 @@ import {
 import { McpServiceParametersPage } from "./components/services/mcp/McpServiceParametersPage.tsx";
 import { BrowserTabTitle } from "./components/BrowserTabTitle.tsx";
 import { TestingGuard, TestingLayout } from "./pages/testing/TestingLayout.tsx";
-import { TestingPlaceholder } from "./pages/testing/TestingPlaceholder.tsx";
 import { TestCases } from "./pages/testing/TestCases.tsx";
 import { EndpointMocks } from "./pages/testing/EndpointMocks.tsx";
 import { TestCaseRuns } from "./pages/testing/TestCaseRuns.tsx";
+import { TestRuns } from "./pages/testing/TestRuns.tsx";
 import { TestCaseRunErrors } from "./pages/testing/TestCaseRunErrors.tsx";
 import { TestCasePage } from "./pages/testing/TestCasePage.tsx";
 import { TestCaseGeneralTab } from "./components/testing/testCase/TestCaseGeneralTab.tsx";
@@ -192,10 +192,7 @@ const router = createBrowserRouter(
                 element={<EndpointMockRequestMatchersTab />}
               />
             </Route>
-            <Route
-              path="test-runs"
-              element={<TestingPlaceholder name="Test runs" />}
-            />
+            <Route path="test-runs" element={<TestRuns />} />
             <Route
               path="test-runs/:runId"
               element={<TestCaseRuns variant="run-page" />}

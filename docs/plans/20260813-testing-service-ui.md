@@ -627,11 +627,32 @@ matchers table of task 5. Local search, column visibility and column order remai
 - Create: `ui/src/components/testing/TestRunDrawer.tsx`
 - Create: `ui/tests/pages/testing/TestRuns.test.tsx`
 
-- [ ] list run sets with id, aggregate status, timings, case count, error count and audit fields, keeping sortable columns within the entity's validated set — the updated-by/at pair is not sortable server-side
-- [ ] drill into a run's case runs through the nested route, and add the drawer
-- [ ] add refresh, export, delete, cancel and restart
-- [ ] write tests for aggregate status rendering and drill-down navigation
-- [ ] run `npm -w @netcracker/qip-ui test` - must pass before next task
+- [x] list run sets with id, aggregate status, timings, case count, error count and audit fields, keeping sortable columns within the entity's validated set — the updated-by/at pair is not sortable server-side
+- [x] drill into a run's case runs through the nested route, and add the drawer
+- [x] add refresh, export, delete, cancel and restart
+- [x] write tests for aggregate status rendering and drill-down navigation
+- [x] run `npm -w @netcracker/qip-ui test` - must pass before next task
+
+➕ The sortable set was re-read off the Go service (`internal/dao/tests_runs_repository.go`) and matches the plan:
+`id`, `start`, `finish`, `status`, `errors`, `test_cases` and the created pair. The updated columns render without a
+sorter, and the shared list hook drops an out-of-set `sort_by` before the request, so nothing reaches the service as a
+400. The filterable features stop at the created pair too, which task 3 already had right.
+
+➕ The aggregate `errors` counts the test **cases** that failed, not the validation errors they recorded — the view
+joins one error per case run (`tests_runs_view` in `migrations/00000000000100__init.tx.up.sql`). The column reads
+"Test Cases With Errors", as the source's does, and the filter column of task 3 is renamed to match.
+
+⚠️ Two contract disagreements with the plan. Cancel reaches only the cases still pending: it delegates to
+`CancelByTestsRuns`, which selects `status = pending` (`internal/services/test_case_runs_service.go`), so the
+confirmation promises no more than the case-run list's does. Delete carries no such guard — `BulkDelete` removes a run
+whatever its state and takes its case runs with it, which the confirmation names.
+
+➕ The list has no variant: only the admin route exists, so the page takes no props, gates on admin tools alone and
+needs no chain-header registration. `TestingPlaceholder.tsx`, the scaffolding of task 4, lost its last caller with this
+route and is deleted.
+
+➕ Restarting refreshes the list, which the case-run list's restart does not need to: the new run set lands in this
+very list.
 
 ### Task 14: Verify acceptance criteria
 

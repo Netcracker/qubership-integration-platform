@@ -265,7 +265,12 @@ export function getTestingFilterColumns(
         { id: "start", name: "Start", conditions: DateFilterConditions },
         { id: "finish", name: "Finish", conditions: DateFilterConditions },
         STATUS_COLUMN,
-        { id: "errors", name: "Errors", conditions: NumberFilterConditions },
+        // The aggregate counts the cases that failed, not the errors they recorded.
+        {
+          id: "errors",
+          name: "Test Cases With Errors",
+          conditions: NumberFilterConditions,
+        },
         {
           id: "test_cases",
           name: "Test Cases",
