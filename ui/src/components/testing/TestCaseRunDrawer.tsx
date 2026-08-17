@@ -2,7 +2,8 @@ import React from "react";
 import { Descriptions, Divider, Drawer, Typography } from "antd";
 import { useNavigate } from "react-router";
 import { TestCaseRunView } from "../../api/apiTypes.ts";
-import { formatTimestamp, PLACEHOLDER } from "../../misc/format-utils.ts";
+import { formatTimestamp } from "../../misc/format-utils.ts";
+import { EMPTY } from "./testingAudit.tsx";
 import { RunStatusTag } from "./TestingTags.tsx";
 
 export type TestCaseRunDrawerProps = {
@@ -17,8 +18,6 @@ export type TestCaseRunDrawerProps = {
   open: boolean;
   onClose: () => void;
 };
-
-const EMPTY = <Typography.Text type="secondary">{PLACEHOLDER}</Typography.Text>;
 
 export const TestCaseRunDrawer: React.FC<TestCaseRunDrawerProps> = ({
   run,

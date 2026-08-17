@@ -183,7 +183,10 @@ const router = createBrowserRouter(
               path="endpoint-mocks"
               element={<EndpointMocks variant="admin-page" />}
             />
-            <Route path="endpoint-mocks/:mockId" element={<EndpointMockPage />}>
+            <Route
+              path="endpoint-mocks/:endpointMockId"
+              element={<EndpointMockPage />}
+            >
               <Route index element={<Navigate to="general" replace />} />
               <Route path="general" element={<EndpointMockGeneralTab />} />
               <Route path="response" element={<EndpointMockResponseTab />} />
@@ -252,7 +255,7 @@ const router = createBrowserRouter(
               </Route>
               <Route path="endpoint-mocks" element={<EndpointMocks />} />
               <Route
-                path="endpoint-mocks/:mockId"
+                path="endpoint-mocks/:endpointMockId"
                 element={<EndpointMockPage />}
               >
                 <Route index element={<Navigate to="general" replace />} />

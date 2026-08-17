@@ -3,7 +3,7 @@ import { api } from "../api/api";
 import { TestingServiceMode } from "../api/apiTypes";
 import { isVsCode } from "../api/rest/vscodeExtensionApi";
 
-export const testingServiceModeQueryKey = ["testing-service", "mode"];
+const testingServiceModeQueryKey = ["testing-service", "mode"];
 
 export type TestingServiceAvailability = {
   /** True only when the service answered and is not running in production mode. */

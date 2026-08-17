@@ -95,5 +95,3 @@ export const EndpointMockGeneralTab: React.FC = () => {
     </Form>
   );
 };
-
-export default EndpointMockGeneralTab;

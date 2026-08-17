@@ -10,6 +10,7 @@ import {
 } from "../../api/apiTypes.ts";
 import { InlineEdit } from "../InlineEdit.tsx";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { formatOptional } from "../../misc/format-utils.ts";
 import { SelectEdit } from "../table/SelectEdit.tsx";
 import { TableToolbar } from "../table/TableToolbar.tsx";
 import { TextValueEdit } from "../table/TextValueEdit.tsx";
@@ -113,7 +114,7 @@ export const MatchersTable: React.FC<MatchersTableProps> = ({
       width: 180,
       render: (_, matcher) =>
         readonly ? (
-          <>{matcher.name || "-"}</>
+          <>{formatOptional(matcher.name)}</>
         ) : (
           <InlineEdit<{ name: string }>
             values={{ name: matcher.name }}
@@ -159,7 +160,7 @@ export const MatchersTable: React.FC<MatchersTableProps> = ({
                   }
             }
           >
-            {matcher.description || "-"}
+            {formatOptional(matcher.description)}
           </span>
         );
         return (
@@ -269,7 +270,7 @@ export const MatchersTable: React.FC<MatchersTableProps> = ({
           );
         }
         if (readonly) {
-          return <>{matcher.entityName || "-"}</>;
+          return <>{formatOptional(matcher.entityName)}</>;
         }
         return (
           <InlineEdit<{ entityName: string }>
@@ -412,5 +413,3 @@ export const MatchersTable: React.FC<MatchersTableProps> = ({
     </>
   );
 };
-
-export default MatchersTable;

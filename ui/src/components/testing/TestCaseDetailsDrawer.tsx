@@ -2,7 +2,7 @@ import React from "react";
 import { Descriptions, Divider, Drawer, Typography } from "antd";
 import { useNavigate } from "react-router";
 import { TestCaseView } from "../../api/apiTypes.ts";
-import { formatTimestamp, PLACEHOLDER } from "../../misc/format-utils.ts";
+import { EMPTY, formatAudit } from "./testingAudit.tsx";
 import { isTestCaseReady } from "./testCases.ts";
 import { EnabledTag, ReadinessTag } from "./TestingTags.tsx";
 
@@ -13,15 +13,6 @@ export type TestCaseDetailsDrawerProps = {
   open: boolean;
   onClose: () => void;
 };
-
-const EMPTY = <Typography.Text type="secondary">{PLACEHOLDER}</Typography.Text>;
-
-function formatAudit(user: string | null, timestamp: string | null) {
-  if (!timestamp) {
-    return EMPTY;
-  }
-  return `${formatTimestamp(timestamp)}${user ? ` by ${user}` : ""}`;
-}
 
 export const TestCaseDetailsDrawer: React.FC<TestCaseDetailsDrawerProps> = ({
   testCase,

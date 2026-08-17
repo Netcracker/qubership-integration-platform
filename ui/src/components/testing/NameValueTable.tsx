@@ -3,6 +3,8 @@ import { Button, Flex, Input, Table, Tooltip, Typography } from "antd";
 import type { TableProps } from "antd/lib/table";
 import { TestingNamedParameter } from "../../api/apiTypes.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { formatOptional } from "../../misc/format-utils.ts";
+import { createActionsColumnBase } from "../table/actionsColumn.ts";
 import { tableEmpty } from "../table/tableEmpty.tsx";
 
 type KeyedParameter = TestingNamedParameter & { key: number };
@@ -46,6 +48,8 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
   const removeRow = (index: number) =>
     onChange(rows.filter((_, i) => i !== index));
 
+  // A raw Input rather than InlineEdit: a pair is validated as it is typed, and
+  // InlineEdit commits on Enter alone, which would hide the message until then.
   const renderEditableCell = (
     field: "name" | "value",
     label: string,
@@ -77,7 +81,7 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
       key: "name",
       render: (_, row, index) =>
         readonly ? (
-          <>{row.name || "-"}</>
+          <>{formatOptional(row.name)}</>
         ) : (
           renderEditableCell("name", "Name", validateName, row, index)
         ),
@@ -87,7 +91,7 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
       key: "value",
       render: (_, row, index) =>
         readonly ? (
-          <>{row.value || "-"}</>
+          <>{formatOptional(row.value)}</>
         ) : (
           renderEditableCell("value", "Value", validateValue, row, index)
         ),
@@ -96,10 +100,7 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
       ? []
       : [
           {
-            title: "",
-            key: "actions",
-            width: 48,
-            className: "actions-column",
+            ...createActionsColumnBase<KeyedParameter>(),
             render: (_: unknown, __: KeyedParameter, index: number) => (
               <Tooltip title="Delete">
                 <Button
@@ -139,5 +140,3 @@ export const NameValueTable: React.FC<NameValueTableProps> = ({
     </div>
   );
 };
-
-export default NameValueTable;

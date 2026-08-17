@@ -2,14 +2,11 @@ import React, { useState } from "react";
 import { Button, Form, Input, Modal } from "antd";
 import { useModalContext } from "../../../ModalContextProvider.tsx";
 import { TestingNamedParameter } from "../../../api/apiTypes.ts";
+import { capitalize } from "../../../misc/format-utils.ts";
 import { Script } from "../../Script.tsx";
 import { isJsonDocumentValid } from "../../testing/matchers.ts";
 
 const DEFAULT_JSON_MATCHER_PATH = "$";
-
-function capitalize(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
 
 export type JsonMatcherParametersModalProps = {
   /** `schema` for a JSON Schema matcher, `sample` for a JSON one. */

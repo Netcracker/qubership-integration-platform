@@ -17,5 +17,3 @@ export const TestCaseResponseValidationTab: React.FC = () => {
     />
   );
 };
-
-export default TestCaseResponseValidationTab;

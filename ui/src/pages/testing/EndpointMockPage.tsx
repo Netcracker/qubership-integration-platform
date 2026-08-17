@@ -65,9 +65,9 @@ function toRequest(endpointMock: EndpointMock): EndpointMockRequest {
 }
 
 export const EndpointMockPage: React.FC = () => {
-  const { chainId, mockId } = useParams<{
+  const { chainId, endpointMockId } = useParams<{
     chainId?: string;
-    mockId: string;
+    endpointMockId: string;
   }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -92,14 +92,14 @@ export const EndpointMockPage: React.FC = () => {
     : "/admintools/testing/endpoint-mocks";
 
   useEffect(() => {
-    if (!mockId) {
+    if (!endpointMockId) {
       return;
     }
     let cancelled = false;
     setLoading(true);
     void (async () => {
       try {
-        const loaded = await api.getEndpointMock(mockId);
+        const loaded = await api.getEndpointMock(endpointMockId);
         if (!cancelled) {
           setEndpointMock(loaded);
         }
@@ -119,7 +119,7 @@ export const EndpointMockPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [mockId, notificationService]);
+  }, [endpointMockId, notificationService]);
 
   const handleChange = useCallback((changes: Partial<EndpointMock>) => {
     setEndpointMock((current) =>
@@ -146,13 +146,13 @@ export const EndpointMockPage: React.FC = () => {
   );
 
   const save = useCallback(async () => {
-    if (!endpointMock || !mockId) {
+    if (!endpointMock || !endpointMockId) {
       return;
     }
     setSaving(true);
     try {
       const saved = await api.updateEndpointMock(
-        mockId,
+        endpointMockId,
         toRequest(endpointMock),
       );
       setEndpointMock(saved);
@@ -168,7 +168,7 @@ export const EndpointMockPage: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  }, [endpointMock, mockId, notificationService]);
+  }, [endpointMock, endpointMockId, notificationService]);
 
   const handleSave = useCallback(() => {
     void save()
@@ -181,7 +181,7 @@ export const EndpointMockPage: React.FC = () => {
   }, [navigate, listPath]);
 
   // Sub-tabs are routes of this editor, so only a navigation that leaves it prompts.
-  const editorPath = `${listPath}/${mockId ?? ""}`;
+  const editorPath = `${listPath}/${endpointMockId ?? ""}`;
   const blocker = useBlocker(
     useCallback<BlockerFunction>(
       ({ nextLocation }) =>
@@ -244,13 +244,15 @@ export const EndpointMockPage: React.FC = () => {
               <a onClick={() => void navigate(listPath)}>Endpoint Mocks</a>
             ),
           },
-          { title: endpointMock.name || mockId },
+          { title: endpointMock.name || endpointMockId },
         ]}
       />
       <Tabs
         activeKey={getActiveTab(location.pathname)}
         items={TABS}
-        onChange={(key) => void navigate(`${listPath}/${mockId ?? ""}/${key}`)}
+        onChange={(key) =>
+          void navigate(`${listPath}/${endpointMockId ?? ""}/${key}`)
+        }
       />
       <Outlet context={editorContext} />
       {readonly ? null : (

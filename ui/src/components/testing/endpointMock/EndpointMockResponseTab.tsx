@@ -90,5 +90,3 @@ export const EndpointMockResponseTab: React.FC = () => {
     </Flex>
   );
 };
-
-export default EndpointMockResponseTab;

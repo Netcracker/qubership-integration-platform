@@ -1,3 +1,4 @@
+import React from "react";
 import { Menu } from "antd";
 import {
   Navigate,
@@ -31,7 +32,7 @@ function getActiveSection(pathname: string): string {
   return segments[index + 1] ?? TESTING_SECTIONS[0].key;
 }
 
-export const TestingSidebar = () => {
+export const TestingSidebar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { chainId } = useParams();
@@ -52,7 +53,7 @@ export const TestingSidebar = () => {
 };
 
 /** Chain-scoped shell: the section menu beside the screen the route selected. */
-export const TestingLayout = () => (
+export const TestingLayout: React.FC = () => (
   <PageWithSidebar sidebar={<TestingSidebar />}>
     <Outlet />
   </PageWithSidebar>
@@ -63,7 +64,7 @@ export const TestingLayout = () => (
  * bookmark or a back-navigation cannot land on a screen that would fire
  * requests at nothing.
  */
-export const TestingGuard = () => {
+export const TestingGuard: React.FC = () => {
   const { isAvailable, isLoading } = useTestingServiceAvailability();
 
   if (isLoading) {

@@ -71,58 +71,47 @@ export const TestCaseRunErrors: React.FC = () => {
     ? `/chains/${chainId}/testing`
     : "/admintools/testing";
 
+  // The run is read beside the errors: it names the case the rules belong to,
+  // which is what the rule links and the breadcrumb need. Either request may fail
+  // on its own, so neither takes the other down with it.
   useEffect(() => {
     if (!caseRunId) {
       return;
     }
     let canceled = false;
     setIsLoading(true);
-    void (async () => {
-      try {
-        const loaded = await api.getTestCaseRunErrors(caseRunId);
-        if (!canceled) {
-          setErrors(loaded);
+    void Promise.all([
+      api.getTestCaseRunErrors(caseRunId).catch((error) => {
+        notificationService.requestFailed(
+          "Failed to load the validation errors",
+          error,
+        );
+        return null;
+      }),
+      api.getTestCaseRun(caseRunId).catch((error) => {
+        notificationService.requestFailed(
+          "Failed to load the test case run",
+          error,
+        );
+        return null;
+      }),
+    ])
+      .then(([loadedErrors, loadedRun]) => {
+        if (canceled) {
+          return;
         }
-      } catch (error) {
-        if (!canceled) {
-          notificationService.requestFailed(
-            "Failed to load the validation errors",
-            error,
-          );
+        if (loadedErrors) {
+          setErrors(loadedErrors);
         }
-      } finally {
+        if (loadedRun) {
+          setRun(loadedRun);
+        }
+      })
+      .finally(() => {
         if (!canceled) {
           setIsLoading(false);
         }
-      }
-    })();
-    return () => {
-      canceled = true;
-    };
-  }, [caseRunId, reloadToken, notificationService]);
-
-  // The run itself names the case the rules belong to, which is what the rule
-  // links and the breadcrumb need.
-  useEffect(() => {
-    if (!caseRunId) {
-      return;
-    }
-    let canceled = false;
-    void (async () => {
-      try {
-        const loaded = await api.getTestCaseRun(caseRunId);
-        if (!canceled) {
-          setRun(loaded);
-        }
-      } catch (error) {
-        if (!canceled) {
-          notificationService.requestFailed(
-            "Failed to load the test case run",
-            error,
-          );
-        }
-      }
-    })();
+      });
     return () => {
       canceled = true;
     };

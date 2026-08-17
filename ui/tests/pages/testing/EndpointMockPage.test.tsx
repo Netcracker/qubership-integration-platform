@@ -145,7 +145,7 @@ function editorRoutes(): RouteObject[] {
   return [
     { index: true, element: <div>endpoint mocks list</div> },
     {
-      path: ":mockId",
+      path: ":endpointMockId",
       element: <EndpointMockPage />,
       children: [
         { index: true, element: <Navigate to="general" replace /> },

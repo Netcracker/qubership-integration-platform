@@ -169,5 +169,3 @@ export const TestCaseRequestTab: React.FC = () => {
     </Flex>
   );
 };
-
-export default TestCaseRequestTab;

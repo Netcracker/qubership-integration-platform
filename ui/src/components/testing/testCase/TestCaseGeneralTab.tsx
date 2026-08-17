@@ -40,5 +40,3 @@ export const TestCaseGeneralTab: React.FC = () => {
     </Form>
   );
 };
-
-export default TestCaseGeneralTab;

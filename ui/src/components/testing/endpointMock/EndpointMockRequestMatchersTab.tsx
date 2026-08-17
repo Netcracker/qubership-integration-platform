@@ -17,5 +17,3 @@ export const EndpointMockRequestMatchersTab: React.FC = () => {
     />
   );
 };
-
-export default EndpointMockRequestMatchersTab;
