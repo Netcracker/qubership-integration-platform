@@ -139,14 +139,22 @@ merge per deploy instead of one K8s read-modify-write round trip per route,
 and `endpoint` gives `IstioRoutesRegistrationService` the `cloudServiceName`
 it needs to name the shared egress CR.
 
-Every implementer needs the signature change:
+All three implementers of `engine`'s `ControlPlaneService` need the signature
+change:
 
 - **`IstioRoutesRegistrationService`** — real implementation, see below.
-- **`ControlPlaneDefaultService`** (cloud-core) and **`ControlPlaneServiceImpl`**
-  (`micro-engine`) — gain the `endpoint` parameter (unused, since Core Mesh's
-  route objects aren't named per-pod) and loop internally, calling their
-  existing per-route logic unchanged for each entry.
-- **`ControlPlaneDevService`** — updated to match the new signature.
+- **`ControlPlaneDefaultService`** (cloud-core) — gains the `endpoint`
+  parameter (unused, since Core Mesh's route objects aren't named per-pod)
+  and loops internally, calling its existing per-route logic unchanged for
+  each entry.
+- **`ControlPlaneDevService`** — updated to match the new signature (no-op
+  body, same as its other three methods).
+
+`micro-engine` has its own, entirely separate `ControlPlaneService` interface
+(same package name, different module, no compile-time relationship — it
+takes `RouteRegistrationInfo`, not `DeploymentRouteUpdate`) and its own
+`ControlPlaneServiceImpl`. It's unaffected by this change, consistent with
+the ingress spec's existing non-goal excluding `micro-engine` entirely.
 
 Call site, `RegisterRoutesInControlPlaneAction.execute()`: today's
 `.forEach(route -> controlPlaneService.postEgressGatewayRoutes(formatServiceRoutes(route)))`
