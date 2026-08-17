@@ -51,6 +51,30 @@ public class CatalogSystemTools {
     }
   }
 
+  @Tool("Resolve the operation an existing element is already bound to. Call FIRST when changing"
+      + " the operation on an element that already has one: pass its integrationOperationId and"
+      + " the answer names the operation and the specification it belongs to, so"
+      + " listCatalogOperations on that specificationId lists what else the same service offers."
+      + " Searching by the element's own name finds nothing -- that is a label, not a service."
+      + " Returns JSON: { ok, tool, message, data: OperationDto }.")
+  public String describeBoundOperation(
+      @P("Operation UUID from the element's integrationOperationId property") String operationId) {
+    long startMs = System.currentTimeMillis();
+    ToolTraceLog.logToolInvoke(
+        LOG, CatalogSystemToolNames.BOUND, null, "operationId=" + operationId);
+    try {
+      String out = readSupport.describeBoundOperationJson(operationId);
+      support.logCatalogToolDone(CatalogSystemToolNames.BOUND, out);
+      ToolTraceLog.logToolComplete(
+          LOG, CatalogSystemToolNames.BOUND, null, System.currentTimeMillis() - startMs, out);
+      return out;
+    } catch (Exception e) {
+      ToolTraceLog.logToolFailed(
+          LOG, CatalogSystemToolNames.BOUND, null, System.currentTimeMillis() - startMs, e);
+      throw e;
+    }
+  }
+
   @Tool("Get API specifications (models) for a catalog system. Use systemId returned by"
       + " searchCatalogSystems. Returns JSON: { ok, tool, data: SpecificationDto[] }.")
   public String getApiSpecifications(

@@ -141,6 +141,52 @@ public class CatalogSystemReadTool {
     return ops == null ? List.of() : List.copyOf(ops);
   }
 
+  /**
+   * The operation an element is already bound to, and the specification it belongs to.
+   *
+   * <p>The other lookups start from a name, which is what building a chain from a description has to
+   * offer. Changing an element that already exists starts from the other end: the element carries an
+   * operation id and nothing else -- no service name to search for, no specification id to list from
+   * -- so without this the walk has no first step, and a model asked to change an operation can only
+   * guess at what the id belongs to.
+   */
+  public String describeBoundOperationJson(String operationId) {
+    String oid = CatalogStrings.blankToNull(operationId);
+    if (oid == null) {
+      return support.catalogToolError(
+          CatalogSystemToolNames.BOUND,
+          "operationId-required",
+          "operationId is required",
+          "Take it from the element's integrationOperationId property.");
+    }
+    CatalogRestClient.OperationDto operation;
+    try {
+      operation = catalogRestClient.getOperation(oid);
+    } catch (RuntimeException e) {
+      return support.catalogToolError(
+          CatalogSystemToolNames.BOUND,
+          "operation-not-found",
+          "No operation '" + oid + "' in the catalog",
+          "The element points at an operation that no longer exists."
+              + " Use searchCatalogSystems to find the service, then pick an operation.");
+    }
+    if (operation == null || operation.modelId() == null) {
+      return support.catalogToolError(
+          CatalogSystemToolNames.BOUND,
+          "operation-without-specification",
+          "Operation '" + oid + "' names no specification",
+          "Use searchCatalogSystems to find the service, then pick an operation.");
+    }
+    // The specification id is the handle every other operation of the same service hangs off, so it
+    // is the one thing worth saying loudly: listCatalogOperations on it answers "what else is here".
+    return support.catalogToolSuccess(
+        CatalogSystemToolNames.BOUND,
+        "Call listCatalogOperations with specificationId="
+            + operation.modelId()
+            + " to see the other operations of the same specification.",
+        operation);
+  }
+
   public String listCatalogOperationsJson(
       String specificationId, String systemId, String searchFilter) {
     Optional<CatalogToolResult.ErrorSpec> validationError =

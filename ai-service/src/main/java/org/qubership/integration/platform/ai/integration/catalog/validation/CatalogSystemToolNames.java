@@ -6,6 +6,7 @@ public final class CatalogSystemToolNames {
   public static final String SEARCH = "searchCatalogSystems";
   public static final String SPECS = "getApiSpecifications";
   public static final String OPS = "listCatalogOperations";
+  public static final String BOUND = "describeBoundOperation";
   public static final String CREATE_SYSTEM = "createSystem";
   public static final String IMPORT_APIHUB = "importApiHubSpecToSystem";
 
