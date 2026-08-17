@@ -229,7 +229,7 @@ To deploy desired chains, mark them via checkboxes (use checkbox in table headin
 If no chains are selected, clicking the button deploys all available chains.
 In both cases, a pop-up opens requesting additional data:
 
-- **Engine Domain** - the engine, selected chains will be deployed on.
+- **Engine Domains** - one or more engine domains the selected chains will be deployed on. Choose from the list of existing domains, or type a name that does not exist yet to deploy on a new **Micro** domain. Availability of each domain type depends on configuration — see [Domains](../03__Admin_Tools/1__Domains/domains.md).
 - **Snapshot Action** - defines if new snapshot must be deployed. There are two actions available:
   - **Create new** - system will attempt to redeploy the chain with new snapshot.
   - **Reuse latest, otherwise create new** - system will attempt to reuse latest snapshot. If it does not exist - redeploy will be attempted with newly created snapshot.
@@ -238,6 +238,7 @@ Confirm the selected options and click "**Deploy**". The system deploys the sele
 
 - **Chain ID** - contains the unique identifiers of the chains, requested to be deployed.
 - **Chain Name** - contains the names of the chains, requested to be deployed.
+- **Domain** - the engine domain the chain was deployed on. Domains of **Micro** type display a **`micro`** tag next to the name.
 - **Status** - contains operation status:
   - **Snapshot error** - operation failed while operating with snapshot.
   - **Deployment error** - operation failed while attempting to create a deployment.
