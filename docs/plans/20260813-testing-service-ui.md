@@ -716,7 +716,16 @@ and Masking. Renumbering four existing folders to match would churn every link i
   deployed chain
 - screenshots for the documentation pages are captured during that session
 
-**Known limitation to document:**
+**Known limitations, all four now documented on the help pages:**
 
 - the same test case placed in two different run sets can execute concurrently; runs are isolated from each other, cases
   are not
+- `test_cases_view` squares the two rule counts, so the **Rules** and **Active Rules** columns and the test case details
+  panel overcount; carried into `testing-service/AGENTS.md` as a known defect, with the fix it needs
+- the shared `InlineEdit` commits on **Enter** only, product-wide; carried into the `ui-component-patterns` skill source
+  under `.apm/skills/`
+- the run aggregate status is a lexicographic minimum over the case-run statuses, so one canceled case run reads as a
+  canceled run and one finished case run reads as a finished run; the admin help page states the resolution order
+
+➕ The unflattened trigger picker was fixed in review rather than documented as a limitation: both pickers now flatten
+the element tree, which is what the help page already promised.

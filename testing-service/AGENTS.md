@@ -147,6 +147,23 @@ struct fields, and a bulk method takes the same pointer-to-slice its siblings ta
   by the old worker's terminal status. The requirement is stated at the top of the statement in the migration file,
   because that is where an operator meets it.
 
+## Known defect: `test_cases_view` squares the rule counts
+
+`test_cases_view` in `migrations/00000000000100__init.tx.up.sql` joins `matchers` **twice** — once for every rule and
+once for the enabled ones — and then counts over the product of the two joins. A test case with three rules, all of
+them enabled, comes back with `validation_rule_count` 9 and `enabled_rule_count` 9. The numbers are exact only for a
+case with no rules, or with none enabled.
+
+The UI renders what the view returns, so the **Rules** and **Active Rules** columns of the test case lists and the two
+counts in the test case details panel are wrong wherever this is. `help/docs/01__Chains/8__Testing/testing.md` records
+that as a limitation and points the reader at the editor's Response Validation tab; remove the note there when this is
+fixed.
+
+The fix belongs to the view. Count over a single join with `filter (where matcher.enabled)`, or read both counts from
+one correlated subquery, so that neither join multiplies the other. Both keep the column list and the column types of
+the view, so `create or replace view` is enough — but it goes in a **new** migration, because 100 has shipped and an
+installation that already ran it never runs it again.
+
 ## The lease-fencing invariant
 
 Work is claimed in two steps inside one transaction. Step 1 locks a `tests_runs` row with `for update skip locked`,
